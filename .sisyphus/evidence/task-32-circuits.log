@@ -1,0 +1,11 @@
+(cd circuits && nargo test --workspace)
+[aggregator_final] Running 0 test functions
+[aggregator_final] [0m[32m0 tests passed[0m
+[decrypt_share] Running 0 test functions
+[decrypt_share] [0m[32m0 tests passed[0m
+[rlwe_relation] Running 2 test functions
+[rlwe_relation] Testing accepts_valid_relation ... [0m[32mok[0m
+[rlwe_relation] Testing rejects_tampered_relation ... [0m[32mok[0m
+[rlwe_relation] [0m[32m2 tests passed[0m
+[share_wf] Running 0 test functions
+[share_wf] [0m[32m0 tests passed[0m

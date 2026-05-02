@@ -49,12 +49,10 @@ bench-kzg-evm:
     @exit 2
 
 test-circuits:
-    @echo "not implemented"
-    @exit 2
+    (cd circuits && nargo test --workspace)
 
 test-contracts:
-    @echo "not implemented"
-    @exit 2
+    forge test --root contracts
 
 adversarial-suite:
     @echo "not implemented"

@@ -1,0 +1,10 @@
+party_id = "1"
+pk_i_hash = "999"
+dkg_root = "0x403d4ce2"
+ciphertext_hash = "123"
+epoch = "1"
+d_i_hash = "456"
+sk_i = ["1", "2", "3", "4"]
+e_i = ["1", "2", "3", "4"]
+pk_i_bytes = ["42", "0", "0", "0"]
+merkle_path = ["1", "2", "3", "4"]

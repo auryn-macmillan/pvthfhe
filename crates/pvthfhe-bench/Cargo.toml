@@ -29,3 +29,7 @@ criterion = { version = "0.5", features = ["html_reports"] }
 [[bench]]
 name = "smoke"
 harness = false
+
+[[bin]]
+name = "worked_example"
+path = "src/bin/worked_example.rs"

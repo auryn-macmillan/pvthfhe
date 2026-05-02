@@ -118,3 +118,25 @@ Decrypt spec: per-party RLWE share + LatticeFold+ NIZK → aggregator folds + Mi
 - Noise budget closes against the decoding threshold `Q/(2·t_plain) = 2^156` with honest aggregate noise ≈`2^46.2` and conservative malicious-case noise ≈`2^50.7`.
 - Per-party unsmudged partial-decryption noise is only ≈`2^14.7`, so `σ_smudge = 2^40 · σ_err ≈ 2^41.7` comfortably dominates leakage while preserving >100 bits of decoding slack.
 - The empirical Rust test keeps `N=64`, samples 10,000 iterations for both honest and malicious aggregation envelopes, and uses a large proxy budget so the scaled test stays fast while validating the inequality shape.
+## [2026-05-02] Task: T23
+Worked example: n=4, t=3, N_ring=8, q=97, t_plain=4, seed=42. All arithmetic verified deterministically. Binary: `cargo run -p pvthfhe-bench --bin worked_example`. This becomes the seed for T31 golden test vectors.
+
+## [2026-05-02] Task: T22
+
+### API spec and trait-only crate
+
+- `crates/pvthfhe-api` already existed in workspace members — no Cargo.toml members edit needed.
+- `rand_core = "0.6"` is the only dependency needed for `&mut dyn rand_core::RngCore` in trait signatures.
+- Trait object safety: `Party`, `Aggregator`, `VerifierClient` are all object-safe (no generics, no `Self` return types).
+- All four interfaces defined: Party (→ enclave ciphernode), Aggregator (→ enclave aggregator), VerifierClient (stateless off-chain), OnChainVerifier (Solidity ABI in markdown only).
+- Wire types are opaque `Vec<u8>` wrappers — this keeps the trait crate dependency-free while still being typed.
+- `PvthfheError` covers all 13 failure modes from T18/T19 blame matrices.
+- ⚠ P1 (lattice NIZK soundness) is flagged on: `NizkWellFormed`, `NizkDecShare`, `generate_key_share`, `prove_share`, `partial_decrypt`, `AggregateSharesResult.nizks`.
+- `cargo check -p pvthfhe-api` and `cargo check --workspace` both exit 0.
+- Evidence: `.sisyphus/evidence/task-22-api.log`
+
+## [2026-05-02] Task: T24
+- Authored the four main security theorems (T-IND-CPA, T-DEC-SOUND, T-PV-SOUND, T-ROBUSTNESS) mapping properties for Architecture B to explicit cryptographic assumptions.
+- Flagged two new key assumptions required for folding: **NIZK-well-formedness (Open P1)** and **LatticeFold+ over RLWE (Open P2)**.
+- Ensured correctness checking by creating a python script `check-theorem-mapping.py` to ensure bi-directional linking between the security proofs document and the `assumptions-ledger.md`.
+- Labeled assumptions not strictly used in the core 4 theorems as `(background-only)` in the ledger to maintain a tight dependency map.

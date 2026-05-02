@@ -1,5 +1,6 @@
 pub mod backends;
 pub mod folding;
+pub mod worked_example;
 
 use serde::{Deserialize, Serialize};
 
@@ -99,7 +100,12 @@ pub fn summarize_samples(samples_ns: &[f64]) -> BenchStats {
 
 #[cfg(test)]
 mod tests {
-    use super::{backends::{BackendAvailability, BackendGap, BackendProbe, RqOps}, summarize_samples, BenchRecord};
+    use super::{
+        backends::{BackendAvailability, BackendGap, BackendProbe, RqOps},
+        summarize_samples,
+        worked_example,
+        BenchRecord,
+    };
 
     #[test]
     fn summarize_samples_reports_expected_moments() {
@@ -155,5 +161,18 @@ mod tests {
         let probe = crate::backends::fhe_rs::FheRsBackend::probe();
         let _ = assert_rq_ops_contract::<crate::backends::fhe_rs::FheRsBackend>;
         assert_eq!(probe.name, "fhe_rs");
+    }
+
+    #[test]
+    fn worked_example_seed_42_round_trips_message() {
+        let transcript = worked_example::generate(42);
+
+        assert_eq!(transcript.m_recovered, transcript.message);
+        assert_eq!(transcript.partials.len(), 3);
+        assert_eq!(transcript.participant_set, vec![0, 1, 2]);
+        assert!(transcript.randomness.u.iter().any(|coefficient| *coefficient != 0));
+        assert_eq!(transcript.partials[0].party_id, 0);
+        assert_eq!(transcript.partials[1].party_id, 1);
+        assert_eq!(transcript.partials[2].party_id, 2);
     }
 }

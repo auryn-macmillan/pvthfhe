@@ -1,0 +1,60 @@
+{
+  "architecture": "C",
+  "n_values": [64, 128, 256, 512, 1024],
+  "costs": [
+    {
+      "n": 64,
+      "per_party_comm_bytes": 14336,
+      "per_party_compute_ops": "4096 gates",
+      "aggregator_compute_ops": "100000 gates",
+      "verifier_compute_ops": 1,
+      "calldata_bytes": 14336,
+      "gas": 300000
+    },
+    {
+      "n": 128,
+      "per_party_comm_bytes": 14336,
+      "per_party_compute_ops": "4096 gates",
+      "aggregator_compute_ops": "250000 gates",
+      "verifier_compute_ops": 1,
+      "calldata_bytes": 14336,
+      "gas": 300000
+    },
+    {
+      "n": 256,
+      "per_party_comm_bytes": 14336,
+      "per_party_compute_ops": "4096 gates",
+      "aggregator_compute_ops": "600000 gates",
+      "verifier_compute_ops": 1,
+      "calldata_bytes": 14336,
+      "gas": 300000
+    },
+    {
+      "n": 512,
+      "per_party_comm_bytes": 14336,
+      "per_party_compute_ops": "4096 gates",
+      "aggregator_compute_ops": "1500000 gates",
+      "verifier_compute_ops": 1,
+      "calldata_bytes": 14336,
+      "gas": 300000
+    },
+    {
+      "n": 1024,
+      "per_party_comm_bytes": 14336,
+      "per_party_compute_ops": "4096 gates",
+      "aggregator_compute_ops": "3500000 gates",
+      "verifier_compute_ops": 1,
+      "calldata_bytes": 14336,
+      "gas": 300000
+    }
+  ],
+  "asymptotic": {
+    "per_party_comm": "O(1)",
+    "per_party_compute": "O(1)",
+    "aggregator_compute": "O(N)",
+    "verifier_compute": "O(1)",
+    "calldata": "O(1)",
+    "gas": "O(1)"
+  },
+  "notes": "Cost analysis for hybrid Noir wrapper with UltraHonk recursive aggregation. O(N) circuit size at aggregator."
+}

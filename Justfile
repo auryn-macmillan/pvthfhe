@@ -34,8 +34,9 @@ bench-backend-compare:
     @exit 2
 
 bench-smoke:
-    @echo "not implemented"
-    @exit 2
+    mkdir -p bench/results
+    cargo run --release -p pvthfhe-bench --bin bench_runner > bench/results/smoke-latest.json
+    cat bench/results/smoke-latest.json
 
 bench-folding:
     @echo "not implemented"

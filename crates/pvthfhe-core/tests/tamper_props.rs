@@ -1,3 +1,6 @@
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
+
 use proptest::prelude::*;
 use pvthfhe_fhe::mock::MockBackend;
 use pvthfhe_fhe::FheBackend;

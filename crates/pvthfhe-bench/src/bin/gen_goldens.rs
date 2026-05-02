@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)]
+#![allow(missing_docs, clippy::unwrap_used)]
 
 use clap::Parser;
 use pvthfhe_aggregator::folding::{FoldingAccumulator, PartyProof};

@@ -20,8 +20,10 @@ demo-e2e:
     cargo run --release -p pvthfhe-cli -- demo --n 128 --seed 1 2>&1 | tee .sisyphus/evidence/task-40-demo.log
 
 bench-scaling:
-    @echo "not implemented"
-    @exit 2
+    mkdir -p bench/results bench/figures .sisyphus/evidence
+    cargo run --release -p pvthfhe-bench --bin bench_scaling 2>&1 | tee .sisyphus/evidence/task-43-envelopes.log
+    python3 bench/scripts/gen_figures.py
+    python3 bench/scripts/compare-predictions.py 2>&1 | tee .sisyphus/evidence/task-43-vsmodel.log
 
 verify-onchain:
     mkdir -p .sisyphus/evidence
@@ -55,9 +57,10 @@ test-contracts:
     forge test --root contracts
 
 adversarial-suite:
-    @echo "not implemented"
-    @exit 2
+    mkdir -p .sisyphus/evidence
+    cargo test -p pvthfhe-aggregator adversarial 2>&1 | tee .sisyphus/evidence/task-41-suite.log
 
 reproduce-bench:
-    @echo "not implemented"
-    @exit 2
+    mkdir -p bench/results .sisyphus/evidence
+    bash bench/scripts/reproduce.sh --n 128 --runs 3
+    python3 bench/scripts/check-tolerance.py 2>&1 | tee .sisyphus/evidence/task-43-tolerance.log

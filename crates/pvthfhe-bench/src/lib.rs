@@ -1,8 +1,31 @@
+#![allow(missing_docs, clippy::as_conversions)]
+
 pub mod backends;
 pub mod folding;
 pub mod worked_example;
 
 use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScalingBenchEnv {
+    pub cpu: String,
+    pub mem_kb: u64,
+    pub kernel: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScalingEnvelope {
+    pub n: usize,
+    pub mean: f64,
+    pub median: f64,
+    pub p99: f64,
+    pub stddev: f64,
+    pub aggregator_wall_ms: f64,
+    pub final_snark_size_bytes: usize,
+    pub verifier_gas: u64,
+    pub peak_mem_kb: u64,
+    pub env: ScalingBenchEnv,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BenchEnv {
@@ -163,6 +186,36 @@ mod tests {
         let probe = crate::backends::fhe_rs::FheRsBackend::probe();
         let _ = assert_rq_ops_contract::<crate::backends::fhe_rs::FheRsBackend>;
         assert_eq!(probe.name, "fhe_rs");
+    }
+
+    #[test]
+    fn scaling_envelope_has_required_t5_fields() {
+        use crate::ScalingEnvelope;
+        let env = crate::BenchEnv::capture();
+        let envelope = ScalingEnvelope {
+            n: 128,
+            mean: 1.0,
+            median: 1.0,
+            p99: 1.0,
+            stddev: 0.0,
+            aggregator_wall_ms: 1.0,
+            final_snark_size_bytes: 32,
+            verifier_gas: 1278,
+            peak_mem_kb: 1024,
+            env: crate::ScalingBenchEnv {
+                cpu: env.cpu,
+                mem_kb: env.ram_gb * 1_048_576,
+                kernel: env.kernel,
+            },
+        };
+        let json = serde_json::to_value(&envelope).expect("serialize ScalingEnvelope");
+        assert!(json["mean"].is_number(), "missing mean");
+        assert!(json["median"].is_number(), "missing median");
+        assert!(json["p99"].is_number(), "missing p99");
+        assert!(json["stddev"].is_number(), "missing stddev");
+        assert!(json["env"]["cpu"].is_string(), "missing env.cpu");
+        assert!(json["env"]["mem_kb"].is_number(), "missing env.mem_kb");
+        assert!(json["env"]["kernel"].is_string(), "missing env.kernel");
     }
 
     #[test]

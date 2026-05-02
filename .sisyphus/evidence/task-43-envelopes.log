@@ -1,0 +1,15 @@
+    Finished `release` profile [optimized] target(s) in 0.05s
+     Running `target/release/bench_scaling`
+Benchmarking n=128...
+  wrote bench/results/scaling-n128.json
+  mean=1.51ms median=1.43ms p99=1.86ms stddev=0.18ms snark=2752B gas=1278
+Benchmarking n=256...
+  wrote bench/results/scaling-n256.json
+  mean=5.88ms median=5.36ms p99=8.04ms stddev=1.08ms snark=5472B gas=1278
+Benchmarking n=512...
+  wrote bench/results/scaling-n512.json
+  mean=45.35ms median=44.88ms p99=47.41ms stddev=1.56ms snark=10944B gas=1278
+Benchmarking n=1024...
+  wrote bench/results/scaling-n1024.json
+  mean=188.30ms median=193.06ms p99=195.61ms stddev=7.26ms snark=21856B gas=1278
+Done.

@@ -1,3 +1,5 @@
+#![allow(missing_docs, clippy::as_conversions)]
+
 use pvthfhe_bench::{
     backends::{expected_rns_len, fhe_rs::FheRsBackend, POLY_DEGREE, RqOps},
     BenchEnv, BenchRecord, summarize_samples,
@@ -32,7 +34,7 @@ fn emit_record(case: &str, backend: &str, samples: &[f64]) {
 
     let json = match serde_json::to_string(&record) {
         Ok(json) => json,
-        Err(err) => std::process::abort(),
+        Err(_err) => std::process::abort(),
     };
     println!("{}", json);
 }

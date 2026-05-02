@@ -1,0 +1,16 @@
+     n    mean_ms  median_ms     p99_ms    snark_B      gas
+------------------------------------------------------------
+   128       1.51       1.43       1.86       2752     1278
+   256       5.88       5.36       8.04       5472     1278
+   512      45.35      44.88      47.41      10944     1278
+  1024     188.30     193.06     195.61      21856     1278
+
+=== Deviation Analysis vs T15 Architecture B Predictions ===
+  [ANNOTATED] n=128 verifier_gas=1278: Surrogate verifier uses constant 1278 gas (mock); real UltraHonk ~200k-500k
+  [ANNOTATED] n=128 proof_size=2752B vs predicted 14336B: Simulator proof is hash-chain (32+n*32 bytes); real UltraHonk ~14KB
+  [ANNOTATED] n=256 verifier_gas=1278: Surrogate verifier uses constant 1278 gas (mock); real UltraHonk ~200k-500k
+  [ANNOTATED] n=256 proof_size=5472B vs predicted 14336B: Simulator proof is hash-chain (32+n*32 bytes); real UltraHonk ~14KB
+  [ANNOTATED] n=512 verifier_gas=1278: Surrogate verifier uses constant 1278 gas (mock); real UltraHonk ~200k-500k
+  [ANNOTATED] n=1024 verifier_gas=1278: Surrogate verifier uses constant 1278 gas (mock); real UltraHonk ~200k-500k
+
+All deviations are annotated. No unannotated anomalies.

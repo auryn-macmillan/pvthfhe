@@ -1,0 +1,16 @@
+{
+  "n": 128,
+  "mean": 1537953.0,
+  "median": 1449582.0,
+  "p99": 1884220.0,
+  "stddev": 173189.58109655444,
+  "aggregator_wall_ms": 1.537953,
+  "final_snark_size_bytes": 2752,
+  "verifier_gas": 1278,
+  "peak_mem_kb": 8131800,
+  "env": {
+    "cpu": "AMD RYZEN AI MAX+ 395 w/ Radeon 8060S",
+    "mem_kb": 8131800,
+    "kernel": "Linux version 6.8.0-90-generic"
+  }
+}

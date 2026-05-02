@@ -1,0 +1,60 @@
+{
+  "architecture": "A",
+  "n_values": [64, 128, 256, 512, 1024],
+  "costs": [
+    {
+      "n": 64,
+      "per_party_comm_bytes": "TBD",
+      "per_party_compute_ops": "TBD",
+      "aggregator_compute_ops": "TBD",
+      "verifier_compute_ops": "TBD",
+      "calldata_bytes": "TBD",
+      "gas": "TBD"
+    },
+    {
+      "n": 128,
+      "per_party_comm_bytes": "TBD",
+      "per_party_compute_ops": "TBD",
+      "aggregator_compute_ops": "TBD",
+      "verifier_compute_ops": "TBD",
+      "calldata_bytes": "TBD",
+      "gas": "TBD"
+    },
+    {
+      "n": 256,
+      "per_party_comm_bytes": "TBD",
+      "per_party_compute_ops": "TBD",
+      "aggregator_compute_ops": "TBD",
+      "verifier_compute_ops": "TBD",
+      "calldata_bytes": "TBD",
+      "gas": "TBD"
+    },
+    {
+      "n": 512,
+      "per_party_comm_bytes": "TBD",
+      "per_party_compute_ops": "TBD",
+      "aggregator_compute_ops": "TBD",
+      "verifier_compute_ops": "TBD",
+      "calldata_bytes": "TBD",
+      "gas": "TBD"
+    },
+    {
+      "n": 1024,
+      "per_party_comm_bytes": "TBD",
+      "per_party_compute_ops": "TBD",
+      "aggregator_compute_ops": "TBD",
+      "verifier_compute_ops": "TBD",
+      "calldata_bytes": "TBD",
+      "gas": "TBD"
+    }
+  ],
+  "asymptotic": {
+    "per_party_comm": "O(n)",
+    "per_party_compute": "O(n log n)",
+    "aggregator_compute": "O(n log n)",
+    "verifier_compute": "O(polylog n)",
+    "calldata": "O(polylog n)",
+    "gas": "O(polylog n)"
+  },
+  "notes": "Sample instance with placeholder values. T8/T9/T10 fill concrete numbers."
+}

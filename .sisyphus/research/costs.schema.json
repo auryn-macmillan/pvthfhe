@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pvthfhe.local/costs.schema.json",
+  "title": "Architecture Cost Report",
+  "type": "object",
+  "required": ["architecture", "n_values", "costs"],
+  "properties": {
+    "architecture": {
+      "type": "string",
+      "enum": ["A", "B", "C"]
+    },
+    "n_values": {
+      "type": "array",
+      "items": { "type": "integer" },
+      "minItems": 1
+    },
+    "costs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["n", "per_party_comm_bytes", "per_party_compute_ops", "aggregator_compute_ops", "verifier_compute_ops", "calldata_bytes", "gas"],
+        "properties": {
+          "n": { "type": "integer", "minimum": 1 },
+          "per_party_comm_bytes": { "type": ["number", "string"] },
+          "per_party_compute_ops": { "type": ["number", "string"] },
+          "aggregator_compute_ops": { "type": ["number", "string"] },
+          "verifier_compute_ops": { "type": ["number", "string"] },
+          "calldata_bytes": { "type": ["number", "string"] },
+          "gas": { "type": ["number", "string"] }
+        }
+      }
+    },
+    "asymptotic": {
+      "type": "object",
+      "properties": {
+        "per_party_comm": { "type": "string" },
+        "per_party_compute": { "type": "string" },
+        "aggregator_compute": { "type": "string" },
+        "verifier_compute": { "type": "string" },
+        "calldata": { "type": "string" },
+        "gas": { "type": "string" }
+      }
+    },
+    "notes": { "type": "string" }
+  }
+}

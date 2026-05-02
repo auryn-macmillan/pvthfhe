@@ -96,3 +96,10 @@
 - Folding improvements: Cyclo (2026/359) achieves O(1) norm growth amortized, significantly reducing prover overhead compared to LatticeFold+.
 - PVSS: Practical post-quantum PVSS (2026/813) using lattice-based IBE shows 2 orders of magnitude improvement over prior work.
 - Assumptions updated: Mask-then-Open, Everywhere-Short Secret Sharing, and Ring-R1CS sum-check security.
+## [2026-05-02] Task: T15
+- Consolidated cost comparisons of Arch A, B, and C.
+- Explored Gas constraints. The KZG batch approach hits gas limits rapidly. O(1) SNARK approach is needed for N=1024.
+- Arch-B is the most feasible despite open mathematical challenges on Lattice NIZK well-formedness, because Arch-C hits hardware constraints (10-50M gate circuit). Arch-A hits gas/verification limits on-chain without SNARK compression, and SNARK compression on Arch-A is outperformed by Arch-B.
+- T14 Cyclo (2026/359) improves Arch-B folding further.
+## [2026-05-02] Task: T16
+Phase 1 gate report authored. Verdict: GO. Recommended: arch-B (lattice PVSS + folding + MicroNova). Bootstrapping PV: DEFER. Key open problem for Phase 2: lattice NIZK well-formedness soundness.

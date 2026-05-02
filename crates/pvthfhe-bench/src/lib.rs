@@ -1,6 +1,8 @@
+pub mod backends;
+
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BenchEnv {
     pub cpu: String,
     pub ram_gb: u64,
@@ -9,19 +11,21 @@ pub struct BenchEnv {
     pub timestamp: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct BenchResult {
-    pub name: String,
-    #[serde(rename = "mean")]
-    pub mean_ns: f64,
-    #[serde(rename = "median")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BenchRecord {
+    pub case: String,
+    pub backend: String,
     pub median_ns: f64,
-    #[serde(rename = "p99")]
-    pub p99_ns: f64,
-    #[serde(rename = "stddev")]
+    pub mean_ns: f64,
     pub stddev_ns: f64,
     pub n_runs: u64,
-    pub env: BenchEnv,
+}
+
+#[derive(Debug, Clone)]
+pub struct BenchStats {
+    pub median_ns: f64,
+    pub mean_ns: f64,
+    pub stddev_ns: f64,
 }
 
 impl BenchEnv {
@@ -29,17 +33,17 @@ impl BenchEnv {
         let cpu = std::fs::read_to_string("/proc/cpuinfo")
             .unwrap_or_default()
             .lines()
-            .find(|l| l.starts_with("model name"))
-            .and_then(|l| l.split(':').nth(1))
-            .map(|s| s.trim().to_string())
-            .unwrap_or_else(|| "unknown".to_string());
+            .find(|line| line.starts_with("model name"))
+            .and_then(|line| line.split(':').nth(1))
+            .map(|value| value.trim().to_owned())
+            .unwrap_or_else(|| "unknown".to_owned());
 
-        let ram_kb: u64 = std::fs::read_to_string("/proc/meminfo")
+        let ram_kb = std::fs::read_to_string("/proc/meminfo")
             .unwrap_or_default()
             .lines()
-            .find(|l| l.starts_with("MemTotal:"))
-            .and_then(|l| l.split_whitespace().nth(1))
-            .and_then(|s| s.parse().ok())
+            .find(|line| line.starts_with("MemTotal:"))
+            .and_then(|line| line.split_whitespace().nth(1))
+            .and_then(|value| value.parse::<u64>().ok())
             .unwrap_or(0);
 
         let kernel = std::fs::read_to_string("/proc/version")
@@ -53,13 +57,14 @@ impl BenchEnv {
             .args(["rev-parse", "--short", "HEAD"])
             .output()
             .ok()
-            .and_then(|o| String::from_utf8(o.stdout).ok())
-            .map(|s| s.trim().to_string())
-            .unwrap_or_else(|| "unknown".to_string());
+            .and_then(|output| String::from_utf8(output.stdout).ok())
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| "unknown".to_owned());
 
         let timestamp = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
 
-        BenchEnv {
+        Self {
             cpu,
             ram_gb: ram_kb / 1_048_576,
             kernel,
@@ -69,42 +74,85 @@ impl BenchEnv {
     }
 }
 
+pub fn summarize_samples(samples_ns: &[f64]) -> BenchStats {
+    assert!(!samples_ns.is_empty(), "samples_ns must not be empty");
+
+    let mut sorted = samples_ns.to_vec();
+    sorted.sort_by(|left, right| left.partial_cmp(right).unwrap());
+
+    let mean_ns = sorted.iter().sum::<f64>() / sorted.len() as f64;
+    let median_ns = if sorted.len().is_multiple_of(2) {
+        let high = sorted.len() / 2;
+        (sorted[high - 1] + sorted[high]) / 2.0
+    } else {
+        sorted[sorted.len() / 2]
+    };
+    let variance = sorted.iter().map(|sample| (sample - mean_ns).powi(2)).sum::<f64>() / sorted.len() as f64;
+
+    BenchStats {
+        median_ns,
+        mean_ns,
+        stddev_ns: variance.sqrt(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{backends::{BackendAvailability, BackendGap, BackendProbe, RqOps}, summarize_samples, BenchRecord};
 
     #[test]
-    fn placeholder() {}
+    fn summarize_samples_reports_expected_moments() {
+        let stats = summarize_samples(&[10.0, 20.0, 30.0, 40.0]);
+        assert_eq!(stats.mean_ns, 25.0);
+        assert_eq!(stats.median_ns, 25.0);
+        assert!((stats.stddev_ns - 11.180339887).abs() < 1e-6);
+    }
 
     #[test]
-    fn bench_result_has_all_envelope_fields() {
-        let result = BenchResult {
-            name: "test".to_string(),
-            mean_ns: 100.0,
-            median_ns: 95.0,
-            p99_ns: 200.0,
-            stddev_ns: 10.0,
+    fn bench_record_serializes_required_fields() {
+        let json = serde_json::to_value(BenchRecord {
+            case: "ntt_forward(N=4096,q=q0)".to_owned(),
+            backend: "fhe_rs".to_owned(),
+            median_ns: 1.0,
+            mean_ns: 2.0,
+            stddev_ns: 0.5,
             n_runs: 10,
-            env: BenchEnv {
-                cpu: "unknown".to_string(),
-                ram_gb: 0,
-                kernel: "unknown".to_string(),
-                git_sha: "unknown".to_string(),
-                timestamp: "2026-05-02".to_string(),
-            },
+        })
+        .unwrap();
+
+        assert!(json["case"].is_string());
+        assert!(json["backend"].is_string());
+        assert!(json["median_ns"].is_number());
+        assert!(json["mean_ns"].is_number());
+        assert!(json["stddev_ns"].is_number());
+        assert!(json["n_runs"].is_number());
+    }
+
+    #[test]
+    fn backend_probe_can_report_feature_gaps() {
+        let probe = BackendProbe {
+            name: "poulpy",
+            availability: BackendAvailability::FeatureGap(BackendGap {
+                backend: "poulpy",
+                reason: "nightly-only HAL is not yet wired",
+            }),
         };
-        let json = serde_json::to_string(&result).unwrap();
-        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
-        assert!(parsed["mean"].is_number(), "missing mean");
-        assert!(parsed["median"].is_number(), "missing median");
-        assert!(parsed["p99"].is_number(), "missing p99");
-        assert!(parsed["stddev"].is_number(), "missing stddev");
-        assert!(parsed["n_runs"].is_number(), "missing n_runs");
-        assert!(parsed["env"]["cpu"].is_string(), "missing env.cpu");
-        assert!(parsed["env"]["ram_gb"].is_number(), "missing env.ram_gb");
-        assert!(parsed["env"]["kernel"].is_string(), "missing env.kernel");
-        assert!(parsed["env"]["git_sha"].is_string(), "missing env.git_sha");
-        assert!(parsed["env"]["timestamp"].is_string(), "missing env.timestamp");
-        assert!(parsed["name"].is_string(), "missing name");
+
+        assert_eq!(probe.name, "poulpy");
+        assert!(matches!(probe.availability, BackendAvailability::FeatureGap(_)));
+    }
+
+    fn assert_rq_ops_contract<T: RqOps>(backend: &T) {
+        let mut coeffs = vec![0_u64; 8];
+        backend.sample_uniform(&mut coeffs, 7);
+        backend.ntt_fwd(&mut coeffs);
+        backend.ntt_inv(&mut coeffs);
+    }
+
+    #[test]
+    fn fhe_rs_adapter_is_discoverable() {
+        let probe = crate::backends::fhe_rs::FheRsBackend::probe();
+        let _ = assert_rq_ops_contract::<crate::backends::fhe_rs::FheRsBackend>;
+        assert_eq!(probe.name, "fhe_rs");
     }
 }

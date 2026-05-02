@@ -3,10 +3,25 @@ name = "pvthfhe-bench"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = []
+backend-fhe-rs = ["dep:fhe", "dep:fhe-math"]
+backend-poulpy = ["dep:poulpy-hal", "dep:poulpy-cpu-ref"]
+
 [dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+rand = "0.8"
+rand_chacha = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-chrono = { version = "0.4", features = ["clock"] }
+
+# fhe.rs - pin by exact commit SHA
+fhe = { package = "fhe", git = "https://github.com/gnosisguild/fhe.rs", rev = "5f24d0b62a7329b789db07a065b68accd614a47b", optional = true }
+fhe-math = { package = "fhe-math", git = "https://github.com/gnosisguild/fhe.rs", rev = "5f24d0b62a7329b789db07a065b68accd614a47b", optional = true }
+
+# poulpy - pin by exact commit SHA
+poulpy-hal = { git = "https://github.com/poulpy-fhe/poulpy", rev = "4a1f0c642cef7e5830287c3d6af7e013d8a7bda4", optional = true }
+poulpy-cpu-ref = { git = "https://github.com/poulpy-fhe/poulpy", rev = "4a1f0c642cef7e5830287c3d6af7e013d8a7bda4", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }

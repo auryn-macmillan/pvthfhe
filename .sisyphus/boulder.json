@@ -1,0 +1,12 @@
+{
+  "active_plan": "/home/dev/pvthfhe/.sisyphus/plans/pvt-fhe-scaling.md",
+  "started_at": "2026-05-02T11:15:15.082Z",
+  "session_ids": [
+    "ses_219ed884effeD7S91DU3bc6IJe"
+  ],
+  "session_origins": {
+    "ses_219ed884effeD7S91DU3bc6IJe": "direct"
+  },
+  "plan_name": "pvt-fhe-scaling",
+  "agent": "atlas"
+}

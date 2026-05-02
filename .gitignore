@@ -1,0 +1,6 @@
+/target
+/circuits/target
+/contracts/out
+/contracts/cache
+*.log
+.env

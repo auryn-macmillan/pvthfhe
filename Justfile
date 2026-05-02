@@ -1,0 +1,66 @@
+# Justfile for pvthfhe
+
+test-all:
+    cargo test --workspace
+    cd circuits && nargo test --workspace
+    forge test --root contracts
+
+phase1-gate:
+    @echo "not implemented"
+    @exit 2
+
+phase2-gate:
+    @echo "not implemented"
+    @exit 2
+
+phase3-gate:
+    @echo "not implemented"
+    @exit 2
+
+demo-e2e:
+    @echo "not implemented"
+    @exit 2
+
+bench-scaling:
+    @echo "not implemented"
+    @exit 2
+
+verify-onchain:
+    @echo "not implemented"
+    @exit 2
+
+bench-backend-compare:
+    @echo "not implemented"
+    @exit 2
+
+bench-smoke:
+    @echo "not implemented"
+    @exit 2
+
+bench-folding:
+    @echo "not implemented"
+    @exit 2
+
+bench-noir-rlwe:
+    @echo "not implemented"
+    @exit 2
+
+bench-kzg-evm:
+    @echo "not implemented"
+    @exit 2
+
+test-circuits:
+    @echo "not implemented"
+    @exit 2
+
+test-contracts:
+    @echo "not implemented"
+    @exit 2
+
+adversarial-suite:
+    @echo "not implemented"
+    @exit 2
+
+reproduce-bench:
+    @echo "not implemented"
+    @exit 2

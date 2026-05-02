@@ -1,0 +1,12 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/pvthfhe-core",
+    "crates/pvthfhe-fhe",
+    "crates/pvthfhe-circuits",
+    "crates/pvthfhe-aggregator",
+    "crates/pvthfhe-cli",
+    "crates/pvthfhe-bench",
+    "crates/pvthfhe-api",
+    "crates/pvthfhe-enclave-adapter",
+]

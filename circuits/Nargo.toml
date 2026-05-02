@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "share_wf",
+    "decrypt_share",
+    "aggregator_final",
+    "bench/rlwe_relation",
+]

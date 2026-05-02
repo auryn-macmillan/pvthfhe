@@ -47,3 +47,7 @@
 - A lightweight NIFS-style folding simulation was sufficient to surface scaling constants without claiming a full Nova/HyperNova implementation; the benchmark explicitly measures constant-time per-fold accumulation plus a simulated final proof/verifier step.
 - The fixed 8-variable R1CS surrogate kept the accumulator size flat at 280 bytes across N ∈ {16,64,256,1024}, while the simulated final proof grew only with log2(N) (320 → 512 bytes).
 - The fitted log-log slope on per-fold time was -0.0058 on this host, which is effectively constant and satisfies the sub-linear acceptance check.
+## [2026-05-02] Task: T13
+- Implemented a simplified BN254 KZG-style batched opening verifier in `contracts/bench/KzgBatchVerifier.sol` that aggregates `(C - [v]₁)` and `π` with powers of a fixed randomizer, then checks equality with a single EIP-197 pairing call.
+- Foundry gas report measured verifier-only execution at ~145k, 323k, 936k, and 3.44M gas for batch sizes 1, 8, 32, and 128 respectively; all fit under the 5M target budget, with batch-128 at ~73% of budget after calldata separation.
+- Calldata contributes materially at larger batches (`3652`, `18992`, `71396`, `280772` gas by EIP-2028), so reporting total gas without subtracting calldata would overstate verifier work.

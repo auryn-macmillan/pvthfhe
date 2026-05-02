@@ -1,0 +1,1 @@
+{"name":"kzg-batch-8","mean":269611.0,"median":269611.0,"p99":269611.0,"stddev":0.0,"n_runs":1,"env":{"cpu":"AMD RYZEN AI MAX+ 395 w/ Radeon 8060S","ram_gb":8,"kernel":"6.8.0-90-generic","git_sha":"c4dd4b2","timestamp":"2026-05-02T12:24:02Z"},"batch_size":8,"total_gas":269611,"calldata_gas":18992,"verifier_gas":250619,"vs_5m_budget":"5.39% of 5M limit"}

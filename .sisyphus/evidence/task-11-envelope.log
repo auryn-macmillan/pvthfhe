@@ -1,0 +1,3 @@
+rlwe-relation-512.json: True n_runs=10 gates=16 proof_bytes=14656
+rlwe-relation-2048.json: True n_runs=10 gates=32 proof_bytes=14656
+rlwe-relation-8192.json: True n_runs=10 gates=64 proof_bytes=14656

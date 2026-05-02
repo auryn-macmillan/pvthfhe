@@ -36,3 +36,9 @@
 - Chose gnosisguild/fhe.rs as the primary backend because it exposes stable RNS/NTT/Rq APIs, includes threshold BFV share serialization, and was the only candidate benchmarkable in-workspace.
 - Poulpy remains the fallback/watchlist backend: promising modular HAL, but current public stack is nightly-only and torus/bivariate rather than the required fixed 4x60-bit RNS adapter surface.
 - Recorded pinned SHAs: poulpy 4a1f0c642cef7e5830287c3d6af7e013d8a7bda4, fhe.rs 5f24d0b62a7329b789db07a065b68accd614a47b; benchmark JSON saved at bench/results/backend-compare-2026-05-02.json.
+
+## [2026-05-02] Task: T11
+- Noir 1.0.0-beta.20 supports `#[test(should_fail)]`, which is sufficient for RED-first tamper coverage on the RLWE relation circuit.
+- `nargo info --package rlwe_relation` reports ACIR opcodes cleanly; the toy coefficient-vector surrogate scaled linearly at 16/32/64 gates for logical N=512/2048/8192 envelopes.
+- Canonical `nargo execute` + `bb write_vk/prove/verify` flow works directly against `circuits/target/rlwe_relation.{json,gz}`; tampered witnesses fail during execute before BB proving.
+- Added explicit methodology artifact and reproduce-script stub output mapping logical N envelopes to surrogate Noir coefficient counts (16/32/64).

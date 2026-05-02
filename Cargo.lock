@@ -1240,8 +1240,10 @@ dependencies = [
  "poulpy-cpu-ref",
  "poulpy-hal",
  "pvthfhe-aggregator",
+ "pvthfhe-fhe",
  "rand 0.8.6",
  "rand_chacha 0.3.1",
+ "rand_core 0.6.4",
  "serde",
  "serde_json",
  "sha2",
@@ -1297,6 +1299,14 @@ dependencies = [
  "rand_core 0.6.4",
  "serde",
  "thiserror",
+]
+
+[[package]]
+name = "pvthfhe-keygen-spec"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

@@ -5,6 +5,7 @@ members = [
     "crates/pvthfhe-fhe",
     "crates/pvthfhe-circuits",
     "crates/pvthfhe-aggregator",
+    "crates/pvthfhe-keygen-spec",
     "crates/pvthfhe-cli",
     "crates/pvthfhe-bench",
     "crates/pvthfhe-api",

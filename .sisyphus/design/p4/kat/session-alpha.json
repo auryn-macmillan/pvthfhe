@@ -1,0 +1,126 @@
+{
+  "schema": "pvthfhe-p4-kat-v1",
+  "session": {
+    "wire_version": 1,
+    "session_id": "p4-session-alpha",
+    "epoch": 7,
+    "threshold": 3,
+    "participants": [
+      {
+        "participant_id": 1,
+        "encryption_key_ref": "enc-pk-01"
+      },
+      {
+        "participant_id": 2,
+        "encryption_key_ref": "enc-pk-02"
+      },
+      {
+        "participant_id": 3,
+        "encryption_key_ref": "enc-pk-03"
+      }
+    ],
+    "phase": "finalized",
+    "transcript_domain": "pvthfhe.p4.hermine.v1"
+  },
+  "shares": [
+    {
+      "wire_version": 1,
+      "session_id": "p4-session-alpha",
+      "dealer_id": 11,
+      "recipient_id": 1,
+      "share_index": 0,
+      "encrypted_share": "a1b2c3d4",
+      "commitment": {
+        "scheme": "hermine_commit_v1",
+        "digest": "0011aa"
+      },
+      "proof_ref": "stmt-share-0"
+    },
+    {
+      "wire_version": 1,
+      "session_id": "p4-session-alpha",
+      "dealer_id": 11,
+      "recipient_id": 2,
+      "share_index": 1,
+      "encrypted_share": "a1b2c3d5",
+      "commitment": {
+        "scheme": "hermine_commit_v1",
+        "digest": "0011bb"
+      },
+      "proof_ref": "stmt-share-1"
+    },
+    {
+      "wire_version": 1,
+      "session_id": "p4-session-alpha",
+      "dealer_id": 11,
+      "recipient_id": 3,
+      "share_index": 2,
+      "encrypted_share": "a1b2c3d6",
+      "commitment": {
+        "scheme": "hermine_commit_v1",
+        "digest": "0011cc"
+      },
+      "proof_ref": "stmt-share-2"
+    }
+  ],
+  "artifact": {
+    "wire_version": 1,
+    "session_id": "p4-session-alpha",
+    "dealer_id": 11,
+    "share_commitments": [
+      {
+        "scheme": "hermine_commit_v1",
+        "digest": "0011aa"
+      },
+      {
+        "scheme": "hermine_commit_v1",
+        "digest": "0011bb"
+      },
+      {
+        "scheme": "hermine_commit_v1",
+        "digest": "0011cc"
+      }
+    ],
+    "transcript_root": "feedcafe",
+    "well_formedness_statement": "hermine.dealer.statement.v1",
+    "proof_bytes": "bead01",
+    "bfv_derivation_label": "bfv-params/toy-v1"
+  },
+  "blame_proof": {
+    "wire_version": 1,
+    "session_id": "p4-session-alpha",
+    "accuser_id": 2,
+    "accused": {
+      "kind": "dealer",
+      "dealer_id": 11
+    },
+    "reason": "commitment_mismatch",
+    "evidence": [
+      {
+        "label": "transcript-slice",
+        "digest": "9999aaaa",
+        "payload": "01020304"
+      }
+    ]
+  },
+  "derived_public_key": {
+    "wire_version": 1,
+    "session_id": "p4-session-alpha",
+    "params_id": "bfv-params/toy-v1",
+    "rlwe_dimension": 4096,
+    "modulus_chain": [
+      4294962689,
+      4294951937
+    ],
+    "public_component_a": "feedcafe01",
+    "public_component_b": "bead0102",
+    "provenance": {
+      "reconstructed_from_share_ids": [
+        1,
+        2,
+        3
+      ],
+      "transcript_root": "feedcafe"
+    }
+  }
+}

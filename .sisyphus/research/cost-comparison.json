@@ -1,0 +1,41 @@
+{
+  "architectures": {
+    "A": {
+      "per_party_complexity": "O(N·log N) NTT + O(1) NIZK",
+      "verifier_complexity": "O(N) KZG batch OR O(1) SNARK",
+      "proof_size_kb": 14,
+      "gas_estimate": {
+        "kzg_batch_128": 3650000,
+        "snark": 500000
+      },
+      "feasibility_n1024": "HIGH",
+      "key_open_problem": "Silent-setup port soundness"
+    },
+    "B": {
+      "per_party_complexity": "O(N·log N) NTT + O(1) fold contribution",
+      "verifier_complexity": "O(1) single SNARK",
+      "proof_size_kb": 14,
+      "gas_estimate": {
+        "snark": 500000
+      },
+      "feasibility_n1024": "MEDIUM",
+      "key_open_problem": "Lattice NIZK well-formedness soundness"
+    },
+    "C": {
+      "per_party_complexity": "O(1) Noir proof (~3.7s at N=8192)",
+      "verifier_complexity": "O(1) single SNARK",
+      "proof_size_kb": 14,
+      "gas_estimate": {
+        "snark": 500000
+      },
+      "feasibility_n1024": "LOW",
+      "key_open_problem": "O(N) aggregation circuit feasibility"
+    }
+  },
+  "benchmark_data": {
+    "rlwe_relation_n8192_prove_ms": 30.769366100867046,
+    "folding_n1024_amortized_ms": 0.16359707626953127,
+    "kzg_batch_128_gas": 3649775
+  },
+  "recommendation": "arch-B"
+}

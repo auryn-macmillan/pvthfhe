@@ -1,0 +1,11 @@
+[task-20] rerun-estimator.sh
+date=2026-05-02T12:47:55Z
+pip_install=unavailable
+qis=[288230376173076481, 288230376167047169, 288230376161280001]
+q_mod_16384=[1, 1, 1]
+log2Q=174.00000000023158
+share_size_bytes_packed=178176
+ciphertext_size_bytes_packed=356352
+estimator_status=manual
+estimator_error=ModuleNotFoundError("No module named 'estimator'")
+manual_security_baseline=inherit Enclave secure BFV preset at N=8192, L=3, log2(Q)~174, target >=128 classical and >=128 PQ

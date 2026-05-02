@@ -1,0 +1,47 @@
+[rlwe]
+n = 8192
+log2_q = 174
+l_rns = 3
+qis = [288230376173076481, 288230376167047169, 288230376161280001]
+plaintext_modulus = 131072
+secret_distribution = "ternary"
+error_distribution = "discrete_gaussian"
+error_stddev = 3.19
+
+[security]
+classical_bits = 128
+pq_bits = 128
+estimator_version = "manual"
+estimator_status = "python lattice-estimator module unavailable on host; see .sisyphus/design/estimator-baseline.log"
+
+[keygen_shares]
+# Packed bit-budget size using log2(Q) ~= 174.
+share_size_bytes = 178176
+share_size_bytes_limb_aligned = 196608
+nizk_size_bytes = 32768
+
+[ciphertext]
+# Packed bit-budget size using log2(Q) ~= 174.
+ct_size_bytes = 356352
+ct_size_bytes_limb_aligned = 393216
+noise_budget_bits = 157
+
+[ntt_rns]
+two_n = 16384
+points_per_limb = 8192
+reconstruction = "Garner"
+
+[[ntt_rns.limbs]]
+prime = 288230376173076481
+bits = 58
+mod_2n = 1
+
+[[ntt_rns.limbs]]
+prime = 288230376167047169
+bits = 58
+mod_2n = 1
+
+[[ntt_rns.limbs]]
+prime = 288230376161280001
+bits = 58
+mod_2n = 1

@@ -12,8 +12,7 @@ phase2-gate:
     python3 .sisyphus/scripts/phase2-gate.py
 
 phase3-gate:
-    @echo "not implemented"
-    @exit 2
+    python3 .sisyphus/scripts/phase3-gate.py
 
 demo-e2e:
     mkdir -p .sisyphus/evidence

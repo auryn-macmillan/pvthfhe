@@ -30,8 +30,8 @@ impl FheRsBackend {
 
 #[cfg(feature = "backend-fhe-rs")]
 mod enabled {
-    use crate::backends::{expected_rns_len, MODULI_60_BIT, POLY_DEGREE, RNS_LIMBS};
     use super::FheRsBackend;
+    use crate::backends::{expected_rns_len, MODULI_60_BIT, POLY_DEGREE, RNS_LIMBS};
     use fhe_math::{
         rq::{traits::TryConvertFrom, Context, Poly, Representation},
         zq::Modulus,
@@ -68,19 +68,33 @@ mod enabled {
 
     impl FheRsBackend {
         fn require_single_limb(x: &[u64]) {
-            assert_eq!(x.len(), POLY_DEGREE, "expected one-limb polynomial with degree {POLY_DEGREE}");
+            assert_eq!(
+                x.len(),
+                POLY_DEGREE,
+                "expected one-limb polynomial with degree {POLY_DEGREE}"
+            );
         }
 
         fn require_full_rns(x: &[u64]) {
-            assert_eq!(x.len(), expected_rns_len(), "expected four-limb RNS polynomial with {} coefficients", expected_rns_len());
+            assert_eq!(
+                x.len(),
+                expected_rns_len(),
+                "expected four-limb RNS polynomial with {} coefficients",
+                expected_rns_len()
+            );
         }
 
-    fn poly_from_power_basis(coeffs: &[u64]) -> Poly {
-        match Poly::try_convert_from(coeffs.to_vec(), four_limb_context(), false, Representation::PowerBasis) {
-            Ok(poly) => poly,
-            Err(err) => panic!("valid RNS polynomial: {err:?}"),
+        fn poly_from_power_basis(coeffs: &[u64]) -> Poly {
+            match Poly::try_convert_from(
+                coeffs.to_vec(),
+                four_limb_context(),
+                false,
+                Representation::PowerBasis,
+            ) {
+                Ok(poly) => poly,
+                Err(err) => panic!("valid RNS polynomial: {err:?}"),
+            }
         }
-    }
     }
 
     impl super::RqOps for FheRsBackend {
@@ -110,7 +124,11 @@ mod enabled {
         }
 
         fn sample_uniform(&self, out: &mut [u64], seed: u64) {
-            assert!(out.len() == POLY_DEGREE || out.len() == expected_rns_len(), "unsupported output length {}", out.len());
+            assert!(
+                out.len() == POLY_DEGREE || out.len() == expected_rns_len(),
+                "unsupported output length {}",
+                out.len()
+            );
 
             let mut rng = ChaCha8Rng::seed_from_u64(seed);
             if out.len() == POLY_DEGREE {
@@ -128,6 +146,7 @@ mod enabled {
 }
 
 #[cfg(not(feature = "backend-fhe-rs"))]
+#[allow(clippy::panic)]
 impl RqOps for FheRsBackend {
     fn ntt_fwd(&self, _x: &mut [u64]) {
         panic!("fhe.rs adapter requires --features backend-fhe-rs");

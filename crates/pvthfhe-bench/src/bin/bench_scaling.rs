@@ -1,18 +1,19 @@
-#![allow(missing_docs, clippy::as_conversions)]
+#![allow(
+    missing_docs,
+    clippy::as_conversions,
+    clippy::expect_used,
+    clippy::panic
+)]
 
 use pvthfhe_aggregator::{
     decrypt::{aggregate_decrypt, partial_decrypt},
     folding::{FoldingAccumulator, PartyProof},
-    keygen::simulator::{KeygenSimulator, KeygenResult},
+    keygen::simulator::{KeygenResult, KeygenSimulator},
 };
-use pvthfhe_bench::{ScalingBenchEnv, ScalingEnvelope, summarize_samples, BenchEnv};
-use pvthfhe_fhe::{FheBackend, mock::MockBackend};
+use pvthfhe_bench::{summarize_samples, BenchEnv, ScalingBenchEnv, ScalingEnvelope};
+use pvthfhe_fhe::{mock::MockBackend, FheBackend};
 use rand_core::OsRng;
-use std::{
-    fs,
-    path::Path,
-    time::Instant,
-};
+use std::{fs, path::Path, time::Instant};
 
 const PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\n";
 const N_RUNS: usize = 5;
@@ -33,7 +34,9 @@ fn run_pipeline(n_parties: usize) -> f64 {
     let aggregate_pk = &transcript.round3_aggregate.aggregate_pk;
     let plaintext = b"hello pvthfhe";
     let mut rng = OsRng;
-    let ct = backend.encrypt(aggregate_pk, plaintext, &mut rng).expect("encrypt");
+    let ct = backend
+        .encrypt(aggregate_pk, plaintext, &mut rng)
+        .expect("encrypt");
 
     let dkg_root = transcript.dkg_root;
     let ct_hash = {
@@ -54,8 +57,10 @@ fn run_pipeline(n_parties: usize) -> f64 {
         })
         .collect();
 
-    aggregate_decrypt(&backend, &ct, &shares, threshold, &allowed, &dkg_root, &ct_hash, 1)
-        .expect("aggregate_decrypt");
+    aggregate_decrypt(
+        &backend, &ct, &shares, threshold, &allowed, &dkg_root, &ct_hash, 1,
+    )
+    .expect("aggregate_decrypt");
 
     let mut acc = FoldingAccumulator::new();
     for &pid in &allowed {
@@ -129,7 +134,8 @@ fn main() {
         let path = out_dir.join(format!("scaling-n{n}.json"));
         fs::write(&path, &json).expect("write json");
         eprintln!("  wrote {}", path.display());
-        eprintln!("  mean={:.2}ms median={:.2}ms p99={:.2}ms stddev={:.2}ms snark={}B gas={}",
+        eprintln!(
+            "  mean={:.2}ms median={:.2}ms p99={:.2}ms stddev={:.2}ms snark={}B gas={}",
             envelope.mean / 1e6,
             envelope.median / 1e6,
             envelope.p99 / 1e6,

@@ -1,8 +1,8 @@
-use super::types::{KeygenState, PartyId, DkgTranscript, Round1Message, Round2Message, Round3Aggregate};
-use pvthfhe_fhe::{FheBackend, PublicKey, mock::MockBackend};
-use std::collections::{HashMap, HashSet};
+use super::types::{DkgTranscript, PartyId, Round1Message, Round2Message, Round3Aggregate};
+use pvthfhe_fhe::{mock::MockBackend, FheBackend, PublicKey};
 use rand_core::OsRng;
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
+use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FaultType {
@@ -19,9 +19,13 @@ pub enum KeygenResult {
 
 pub struct KeygenSimulator {
     n_parties: usize,
-    threshold: usize,
+    _threshold: usize,
     backend: MockBackend,
     faults: HashMap<PartyId, FaultType>,
+}
+
+fn party_id_from_index(index: usize) -> PartyId {
+    u32::try_from(index).unwrap_or(u32::MAX)
 }
 
 fn hash_bytes(data: &[u8]) -> [u8; 32] {
@@ -36,7 +40,7 @@ impl KeygenSimulator {
     pub fn new(n_parties: usize, threshold: usize, backend: MockBackend) -> Self {
         Self {
             n_parties,
-            threshold,
+            _threshold: threshold,
             backend,
             faults: HashMap::new(),
         }
@@ -52,9 +56,9 @@ impl KeygenSimulator {
         let mut equivocated = HashSet::new();
 
         for i in 0..self.n_parties {
-            let party_id = i as u32;
+            let party_id = party_id_from_index(i);
             let fault = self.faults.get(&party_id);
-            
+
             // Generate normal message
             let mut msg = self.generate_r1_msg(party_id)?;
 
@@ -112,18 +116,23 @@ impl KeygenSimulator {
         // ROUND 2
         let mut r2_msgs = Vec::new();
         for i in 0..self.n_parties {
-            let party_id = i as u32;
+            let party_id = party_id_from_index(i);
             if blames.contains(&party_id) {
                 continue;
             }
             let mut complaints = Vec::new();
             for r1 in &valid_r1 {
-                if r1.party_id == party_id { continue; }
+                if r1.party_id == party_id {
+                    continue;
+                }
                 if !r1.encrypted_shares.contains_key(&party_id) {
                     complaints.push(r1.party_id);
                 }
             }
-            r2_msgs.push(Round2Message { party_id, complaints });
+            r2_msgs.push(Round2Message {
+                party_id,
+                complaints,
+            });
         }
 
         // AGGREGATOR CHECK ROUND 2
@@ -151,7 +160,7 @@ impl KeygenSimulator {
         }
 
         let aggregate_pk = self.backend.aggregate_keygen(&shares)?;
-        
+
         // Merkle root and hash mock
         let mut p_set_bytes = Vec::new();
         for p in &participant_set {
@@ -201,7 +210,7 @@ impl KeygenSimulator {
 
         let mut encrypted_shares = HashMap::new();
         for j in 0..self.n_parties {
-            let j = j as u32;
+            let j = party_id_from_index(j);
             if j != party_id {
                 encrypted_shares.insert(j, vec![0x11, 0x22]);
             }

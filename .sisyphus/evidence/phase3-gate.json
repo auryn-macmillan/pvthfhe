@@ -1,0 +1,54 @@
+{
+  "status": "FAIL",
+  "timestamp": "2026-05-02T16:23:58Z",
+  "steps": {
+    "workspace-tests": {
+      "status": "FAIL",
+      "detail": "cargo test --workspace failed: ing\nwarning: `pvthfhe-enclave-adapter` (test \"smoke\") generated 1 warning\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s\n     Running unittests src/lib.rs (target/debug/deps/pvthfhe_aggregator-2fc7cdf61ed4de20)\n     Running tests/adversarial/mod.rs (target/debug/deps/adversarial-fbd9437006871734)\nerror: test failed, to rerun pass `-p pvthfhe-aggregator --test adversarial`"
+    },
+    "clippy": {
+      "status": "PASS",
+      "detail": "cargo clippy --workspace passed"
+    },
+    "fmt": {
+      "status": "PASS",
+      "detail": "cargo fmt --check passed"
+    },
+    "deny": {
+      "status": "SKIP",
+      "detail": "cargo-deny not installed \u2014 skipped"
+    },
+    "noir-tests": {
+      "status": "PASS",
+      "detail": "nargo test --workspace passed"
+    },
+    "forge-tests": {
+      "status": "PASS",
+      "detail": "forge test --root contracts passed"
+    },
+    "demo-e2e": {
+      "status": "PASS",
+      "detail": "just demo-e2e passed"
+    },
+    "adversarial-suite": {
+      "status": "PASS",
+      "detail": "just adversarial-suite passed"
+    },
+    "bench-scaling": {
+      "status": "PASS",
+      "detail": "just bench-scaling passed; all 4 envelopes present"
+    },
+    "docs-check": {
+      "status": "PASS",
+      "detail": "All 6 required docs present"
+    },
+    "evidence-check": {
+      "status": "PASS",
+      "detail": "All 3 key evidence files present"
+    },
+    "gas-check": {
+      "status": "PASS",
+      "detail": "gas=1278 \u2264 5000000 (PASS)"
+    }
+  }
+}

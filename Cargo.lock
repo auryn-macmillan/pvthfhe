@@ -1087,6 +1087,10 @@ version = "0.1.0"
 [[package]]
 name = "pvthfhe-core"
 version = "0.1.0"
+dependencies = [
+ "rand 0.8.6",
+ "rand_chacha 0.3.1",
+]
 
 [[package]]
 name = "pvthfhe-enclave-adapter"

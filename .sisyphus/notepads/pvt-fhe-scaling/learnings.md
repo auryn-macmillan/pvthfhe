@@ -105,3 +105,16 @@
 Phase 1 gate report authored. Verdict: GO. Recommended: arch-B (lattice PVSS + folding + MicroNova). Bootstrapping PV: DEFER. Key open problem for Phase 2: lattice NIZK well-formedness soundness.
 ## [2026-05-02] Task: T16 (Implementation)
 Implemented `.sisyphus/scripts/phase1-gate.py` to validate Phase 1 artifacts, schemas, and gate decisions. Updated `Justfile` to replace the `phase1-gate` stub. Verification successful: `just phase1-gate` exits 0 with full check logs.
+## [2026-05-02] Task: T17
+Architecture B selected for Phase 2. Fallback: arch-A + MicroNova hybrid. Key open problems assigned: P1=lattice NIZK soundness (CRITICAL), P2=LatticeFold+ over RLWE (HIGH), P3=MicroNova compression (MEDIUM), P4=PVSS keygen (LOW).
+## [2026-05-02] Task: T20
+RLWE params: N=8192, L=3, QIS=[288230376173076481, 288230376167047169, 288230376161280001], log2(Q)≈174, t=2^17. Classical+PQ security ≥128 bits. Share size ≈178KB packed (196608 bytes limb-aligned), ciphertext ≈356KB packed (393216 bytes limb-aligned). Noise budget baseline ≈157 bits. These are the canonical params for all downstream tasks (T21, T23, T30+).
+## [2026-05-02] Task: T18
+Keygen spec: 3-round PVSS protocol. Wire format: CBOR + 4-byte length prefix. Blame matrix: 6 failure modes. NIZK well-formedness soundness flagged as open problem P1 (lattice NIZK). Key shape for T19: aggregate pk = sum of individual pks; each party holds secret share skᵢ.
+## [2026-05-02] Task: T19
+Decrypt spec: per-party RLWE share + LatticeFold+ NIZK → aggregator folds + MicroNova compresses → on-chain UltraHonk verifier. Smudging: σ_smudge = 2^40 · σ_err. Noise budget at t=512: 108 bits remaining (safe). Verifier is stateless and sk-free. Key output for T22: DecryptShare wire format + DecryptResult wire format.
+
+## [2026-05-02] Task: T21
+- Noise budget closes against the decoding threshold `Q/(2·t_plain) = 2^156` with honest aggregate noise ≈`2^46.2` and conservative malicious-case noise ≈`2^50.7`.
+- Per-party unsmudged partial-decryption noise is only ≈`2^14.7`, so `σ_smudge = 2^40 · σ_err ≈ 2^41.7` comfortably dominates leakage while preserving >100 bits of decoding slack.
+- The empirical Rust test keeps `N=64`, samples 10,000 iterations for both honest and malicious aggregation envelopes, and uses a large proxy budget so the scaled test stays fast while validating the inequality shape.

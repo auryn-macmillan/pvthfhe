@@ -103,3 +103,5 @@
 - T14 Cyclo (2026/359) improves Arch-B folding further.
 ## [2026-05-02] Task: T16
 Phase 1 gate report authored. Verdict: GO. Recommended: arch-B (lattice PVSS + folding + MicroNova). Bootstrapping PV: DEFER. Key open problem for Phase 2: lattice NIZK well-formedness soundness.
+## [2026-05-02] Task: T16 (Implementation)
+Implemented `.sisyphus/scripts/phase1-gate.py` to validate Phase 1 artifacts, schemas, and gate decisions. Updated `Justfile` to replace the `phase1-gate` stub. Verification successful: `just phase1-gate` exits 0 with full check logs.

@@ -6,8 +6,7 @@ test-all:
     forge test --root contracts
 
 phase1-gate:
-    @echo "not implemented"
-    @exit 2
+    python3 .sisyphus/scripts/phase1-gate.py
 
 phase2-gate:
     @echo "not implemented"

@@ -59,3 +59,17 @@ Scaling benchmarks are performed in-process using the `pvthfhe-bench` crate. The
 4.  **Verification**: Final SNARK verification.
 
 The measurements reflect end-to-end latency on the host machine.
+
+## P4 Stack Pins
+
+The P4 Hermine-adapted PVSS design memo fixes the Rust-side cryptographic and serialization stack to the following crate versions:
+
+- `serde = "1.0.228"`
+- `serde_json = "1.0.145"`
+- `sha2 = "0.10.9"`
+- `sha3 = "0.10.8"`
+- `merlin = "3.0.0"`
+- `risc0-zkvm = "2.1.0"`
+- `sp1-sdk = "5.0.0"`
+
+These pins cover the frozen serde/JSON wire format, SHA-256 transcript digests, SHAKE256 transcript challenges, the native Rust Fiat-Shamir transcript layer, and the approved zkVM fallbacks.

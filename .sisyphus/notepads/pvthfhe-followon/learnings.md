@@ -73,3 +73,8 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - The proof-skeleton validator needed a CLI compatibility upgrade: this task's acceptance command uses a positional directory argument and `--min-thms`, so the script now counts `## Theorem` sections instead of only checking files.
 - P4 theorem skeletons are easiest to keep reviewable as one theorem per file because the obligations registry can point each theorem ID directly at a concrete markdown path.
 - The right place to expose proof debt is inside each theorem's own `Unresolved Lemmas` list; pushing those gaps into a shared note would hide which dependency blocks which theorem.
+
+## 2026-05-02 — Task A.D.2: P4 stack decision
+- The candidate scorecard is strong enough to drive stack-level choices, not just candidate selection: every concrete commitment/proof/hash decision should preserve Hermine's assumption, public-verifiability, blame, and O(n) communication advantages.
+- For P4-T3, the proof choice has to be phrased as public-verifiability soundness of the full BFV-coupled witness relation, not merely correctness of ciphertext formation in isolation.
+- `validate-pins.py` originally only handled TeX `\cite{}` / `\ref{}` checks; it now also accepts a positional Markdown path and passes when it finds at least four TOML-style crate pins like ``crate = "version"``.

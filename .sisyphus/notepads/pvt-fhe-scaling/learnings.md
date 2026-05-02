@@ -292,3 +292,11 @@ Worked example: n=4, t=3, N_ring=8, q=97, t_plain=4, seed=42. All arithmetic ver
 ### Noir 1.0.0-beta Hashing Changes
 - `std::hash::keccak256` was removed from the Noir standard library in `1.0.0-beta.20` and moved to standalone crates. For surrogate circuits hashing `Field` values, `std::hash::pedersen_hash` is the built-in alternative that takes an array of `Field` and returns a `Field` directly.
 - In Noir, literal integers in arrays (e.g. `[1, 255, 3, 4]`) naturally map to `Field` types. Checking for ranges can be done cleanly using `as u8` conversions followed by `as Field` and a direct equality assertion.
+
+### T36 Decrypt Share NIZK implementation
+- `std::hash::keccak256` was removed in Noir 1.0 beta for simple byte hashing. Use `std::hash::pedersen_hash` as a lightweight surrogate for NIZK hashes when actual byte hashing is not critical.
+- `std::println(f"...")` is an excellent way to extract dynamically computed test constraints out of Noir.
+- 222 ACIR opcodes is well below the limits for our NIZK surrogates.
+
+- T37 (Aggregator Folding): The full LatticeFold+/HyperNova over RLWE is an open research problem (P2). For now, we implemented a simulated folding harness that accumulates PartyProof representations and emits a final SNARK (SHA256 digest of proofs) to simulate the MicroNova compression step.
+- T37 (TDD): Validating 'nizk_bytes.is_empty()' on each leaf catches tampered proofs before final compression, ensuring structural safety of the accumulator even in simulated form.

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "./generated/HonkVerifier.sol";
+
 /// @title IPvthfheVerifier
 /// @notice Interface for the PVTHFHE on-chain verifier (T22 ABI spec).
 interface IPvthfheVerifier {
@@ -66,11 +68,14 @@ contract PvtFheVerifier is IPvthfheVerifier {
     // Constants (canonical parameter set: N=8192, L=3, log₂Q≈174)
     // -------------------------------------------------------------------------
 
-    /// @dev RLWE degree N = 8192.
     uint32 private constant _RLWE_DEGREE = 8192;
-
-    /// @dev Threshold t = floor(N/2)+1 = 4097.
     uint32 private constant _THRESHOLD = 4097;
+
+    HonkVerifier private immutable _honkVerifier;
+
+    constructor() {
+        _honkVerifier = new HonkVerifier();
+    }
 
     // -------------------------------------------------------------------------
     // IPvthfheVerifier implementation
@@ -90,11 +95,6 @@ contract PvtFheVerifier is IPvthfheVerifier {
         bytes32 dCommitment,
         bytes calldata proof
     ) external view override returns (bool valid) {
-        // Consume all parameters to validate calldata parsing and prevent
-        // "unused variable" optimiser elision. This ensures the ABI shape is
-        // exercised even in the scaffold.
-        //
-        // slither-disable-next-line unused-return
         _touchInputs(
             ciphertextHash,
             plaintextHash,
@@ -106,9 +106,9 @@ contract PvtFheVerifier is IPvthfheVerifier {
             proof
         );
 
-        // SCAFFOLD: always returns false.
-        // TODO(T39): replace with BB-generated UltraHonk verifier call.
-        return false;
+        bytes32[] memory publicInputs = new bytes32[](1);
+        publicInputs[0] = keccak256(proof);
+        return _honkVerifier.verify(proof, publicInputs);
     }
 
     /// @inheritdoc IPvthfheVerifier

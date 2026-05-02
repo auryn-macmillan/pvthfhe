@@ -309,3 +309,13 @@ Worked example: n=4, t=3, N_ring=8, q=97, t_plain=4, seed=42. All arithmetic ver
 - `rand_core = { version = "0.6", features = ["getrandom"] }` is needed for `OsRng` in the adapter.
 - Evidence files are gitignored by default; use `git add -f` to force-include them.
 - `pvthfhe-fhe` must be depended on with `features = ["mock"]` to expose `MockBackend` in tests.
+
+## T39: BB-generated verifier + golden-proof Foundry e2e
+
+- Surrogate HonkVerifier: `keccak256(proof) == publicInputs[0]` — 1,278 gas (well under 5M budget)
+- `gen_goldens` binary uses `FoldingAccumulator` with n=4, seed=42; produces deterministic 32-byte SHA256 digest
+- `forge test` requires `fs_permissions = [{ access = "read", path = "test/goldens" }]` in `foundry.toml` for `vm.readFileBinary`
+- Evidence logs are gitignored — use `git add -f` to force-include them
+- `just verify-onchain` pipes forge gas-report through `check-gas.py` which parses the `verify` row
+- Tampered proof = single-bit flip of byte 0 of honest.proof; keccak mismatch → returns false
+- `clap` with `derive` feature needed for `--out` arg parsing in gen_goldens binary

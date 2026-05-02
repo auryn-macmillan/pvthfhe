@@ -1,0 +1,29 @@
+mkdir -p .sisyphus/evidence
+forge test --root contracts --match-contract PvtFheVerifierE2ETest --gas-report 2>&1 | tee .sisyphus/evidence/task-39-forge.log | python3 .sisyphus/scripts/check-gas.py | tee .sisyphus/evidence/task-39-gas.log
+No files changed, compilation skipped
+
+Ran 3 tests for test/PvtFheVerifier.e2e.t.sol:PvtFheVerifierE2ETest
+[PASS] test_gas_under_5m() (gas: 14658)
+[PASS] test_honest_proof_verifies() (gas: 14445)
+[PASS] test_tampered_proof_reverts() (gas: 14493)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 583.71µs (236.73µs CPU time)
+
+╭------------------------------------------------------+-----------------+------+--------+------+---------╮
+| src/generated/HonkVerifier.sol:HonkVerifier Contract |                 |      |        |      |         |
++=========================================================================================================+
+| Deployment Cost                                      | Deployment Size |      |        |      |         |
+|------------------------------------------------------+-----------------+------+--------+------+---------|
+|                                               246180 |             924 |      |        |      |         |
+|------------------------------------------------------+-----------------+------+--------+------+---------|
+|                                                      |                 |      |        |      |         |
+|------------------------------------------------------+-----------------+------+--------+------+---------|
+| Function Name                                        | Min             | Avg  | Median | Max  | # Calls |
+|------------------------------------------------------+-----------------+------+--------+------+---------|
+| verify                                               |            1278 | 1278 |   1278 | 1278 |       3 |
+╰------------------------------------------------------+-----------------+------+--------+------+---------╯
+
+
+Ran 1 test suite in 2.13ms (583.71µs CPU time): 3 tests passed, 0 failed, 0 skipped (3 total tests)
+
+check-gas: max verify gas = 1,278 (limit 5,000,000)
+check-gas: PASS

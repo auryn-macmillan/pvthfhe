@@ -24,8 +24,8 @@ bench-scaling:
     @exit 2
 
 verify-onchain:
-    @echo "not implemented"
-    @exit 2
+    mkdir -p .sisyphus/evidence
+    forge test --root contracts --match-contract PvtFheVerifierE2ETest --gas-report 2>&1 | tee .sisyphus/evidence/task-39-forge.log | python3 .sisyphus/scripts/check-gas.py | tee .sisyphus/evidence/task-39-gas.log
 
 bench-backend-compare:
     @echo "not implemented"

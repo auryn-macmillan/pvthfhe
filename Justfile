@@ -16,8 +16,8 @@ phase3-gate:
     @exit 2
 
 demo-e2e:
-    @echo "not implemented"
-    @exit 2
+    mkdir -p .sisyphus/evidence
+    cargo run --release -p pvthfhe-cli -- demo --n 128 --seed 1 2>&1 | tee .sisyphus/evidence/task-40-demo.log
 
 bench-scaling:
     @echo "not implemented"

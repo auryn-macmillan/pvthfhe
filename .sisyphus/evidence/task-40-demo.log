@@ -1,0 +1,752 @@
+   Compiling syn v2.0.117
+   Compiling once_cell v1.21.4
+   Compiling regex-syntax v0.8.10
+   Compiling anyhow v1.0.102
+   Compiling tracing-core v0.1.36
+   Compiling log v0.4.29
+   Compiling lazy_static v1.5.0
+   Compiling sharded-slab v0.1.7
+   Compiling tracing-log v0.2.0
+   Compiling rand_chacha v0.3.1
+   Compiling regex-automata v0.4.14
+   Compiling thread_local v1.1.9
+   Compiling smallvec v1.15.1
+   Compiling nu-ansi-term v0.50.3
+   Compiling rand v0.8.6
+   Compiling matchers v0.2.0
+   Compiling serde_derive v1.0.228
+   Compiling thiserror-impl v1.0.69
+   Compiling thiserror v1.0.69
+   Compiling tracing-attributes v0.1.31
+   Compiling tokio-macros v2.7.0
+   Compiling tokio v1.52.1
+   Compiling serde v1.0.228
+   Compiling tracing v0.1.44
+   Compiling clap_derive v4.6.1
+   Compiling pvthfhe-fhe v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-fhe)
+   Compiling tracing-subscriber v0.3.23
+   Compiling clap v4.6.1
+   Compiling pvthfhe-aggregator v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-aggregator)
+warning: unused import: `KeygenState`
+ --> crates/pvthfhe-aggregator/src/keygen/simulator.rs:1:20
+  |
+1 | use super::types::{KeygenState, PartyId, DkgTranscript, Round1Message, Round2Message, Round3Aggregate};
+  |                    ^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `threshold` is never read
+  --> crates/pvthfhe-aggregator/src/keygen/simulator.rs:22:5
+   |
+20 | pub struct KeygenSimulator {
+   |            --------------- field in this struct
+21 |     n_parties: usize,
+22 |     threshold: usize,
+   |     ^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: missing documentation for the crate
+ --> crates/pvthfhe-aggregator/src/lib.rs:1:1
+  |
+1 | / pub mod keygen;
+2 | | pub mod decrypt;
+3 | | pub mod folding;
+  | |________________^
+  |
+  = note: requested on the command line with `-W missing-docs`
+
+warning: missing documentation for a module
+ --> crates/pvthfhe-aggregator/src/lib.rs:1:1
+  |
+1 | pub mod keygen;
+  | ^^^^^^^^^^^^^^
+
+warning: missing documentation for a module
+ --> crates/pvthfhe-aggregator/src/lib.rs:2:1
+  |
+2 | pub mod decrypt;
+  | ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a module
+ --> crates/pvthfhe-aggregator/src/keygen/mod.rs:1:1
+  |
+1 | pub mod simulator;
+  | ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a module
+ --> crates/pvthfhe-aggregator/src/keygen/mod.rs:2:1
+  |
+2 | pub mod types;
+  | ^^^^^^^^^^^^^
+
+warning: missing documentation for a module
+ --> crates/pvthfhe-aggregator/src/keygen/mod.rs:3:1
+  |
+3 | pub mod protocol;
+  | ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for an enum
+ --> crates/pvthfhe-aggregator/src/keygen/simulator.rs:8:1
+  |
+8 | pub enum FaultType {
+  | ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+ --> crates/pvthfhe-aggregator/src/keygen/simulator.rs:9:5
+  |
+9 |     MalformedProof,
+  |     ^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/pvthfhe-aggregator/src/keygen/simulator.rs:10:5
+   |
+10 |     WithholdShare,
+   |     ^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/pvthfhe-aggregator/src/keygen/simulator.rs:11:5
+   |
+11 |     Equivocate,
+   |     ^^^^^^^^^^
+
+warning: missing documentation for an enum
+  --> crates/pvthfhe-aggregator/src/keygen/simulator.rs:15:1
+   |
+15 | pub enum KeygenResult {
+   | ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/pvthfhe-aggregator/src/keygen/simulator.rs:16:5
+   |
+16 |     Complete(DkgTranscript),
+   |     ^^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/pvthfhe-aggregator/src/keygen/simulator.rs:17:5
+   |
+17 |     Blamed(Vec<PartyId>),
+   |     ^^^^^^
+
+warning: missing documentation for a struct
+  --> crates/pvthfhe-aggregator/src/keygen/simulator.rs:20:1
+   |
+20 | pub struct KeygenSimulator {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for an associated function
+  --> crates/pvthfhe-aggregator/src/keygen/simulator.rs:36:5
+   |
+36 |     pub fn new(n_parties: usize, threshold: usize, backend: MockBackend) -> Self {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a method
+  --> crates/pvthfhe-aggregator/src/keygen/simulator.rs:45:5
+   |
+45 |     pub fn inject_fault(&mut self, party_id: PartyId, fault: FaultType) {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a method
+  --> crates/pvthfhe-aggregator/src/keygen/simulator.rs:49:5
+   |
+49 |     pub fn run(&mut self) -> Result<KeygenResult, pvthfhe_fhe::FheError> {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a type alias
+ --> crates/pvthfhe-aggregator/src/keygen/types.rs:3:1
+  |
+3 | pub type PartyId = u32;
+  | ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+ --> crates/pvthfhe-aggregator/src/keygen/types.rs:6:1
+  |
+6 | pub struct Round1Message {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+ --> crates/pvthfhe-aggregator/src/keygen/types.rs:7:5
+  |
+7 |     pub party_id: PartyId,
+  |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+ --> crates/pvthfhe-aggregator/src/keygen/types.rs:8:5
+  |
+8 |     pub pk_i: PublicKey,
+  |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+ --> crates/pvthfhe-aggregator/src/keygen/types.rs:9:5
+  |
+9 |     pub pk_i_hash: [u8; 32],
+  |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:10:5
+   |
+10 |     pub commitment: [u8; 32],
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:11:5
+   |
+11 |     pub poly_commit: [u8; 32],
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:12:5
+   |
+12 |     pub encrypted_shares: std::collections::HashMap<PartyId, Vec<u8>>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:13:5
+   |
+13 |     pub nizk: Vec<u8>,
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:17:1
+   |
+17 | pub struct Round2Message {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:18:5
+   |
+18 |     pub party_id: PartyId,
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:19:5
+   |
+19 |     pub complaints: Vec<PartyId>, // Simplified for simulator
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:23:1
+   |
+23 | pub struct Round3Aggregate {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:24:5
+   |
+24 |     pub aggregate_pk: PublicKey,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:25:5
+   |
+25 |     pub participant_set_hash: [u8; 32],
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:29:1
+   |
+29 | pub struct DkgTranscript {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:30:5
+   |
+30 |     pub version: u8,
+   |     ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:31:5
+   |
+31 |     pub participant_set: Vec<PartyId>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:32:5
+   |
+32 |     pub round1_messages: Vec<Round1Message>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:33:5
+   |
+33 |     pub round2_messages: Vec<Round2Message>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:34:5
+   |
+34 |     pub round3_aggregate: Round3Aggregate,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:35:5
+   |
+35 |     pub dkg_root: [u8; 32],
+   |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:36:5
+   |
+36 |     pub transcript_hash: [u8; 32],
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for an enum
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:39:1
+   |
+39 | pub enum KeygenState {
+   | ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:40:5
+   |
+40 |     Round1,
+   |     ^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:41:5
+   |
+41 |     Round2 { round1_msgs: Vec<Round1Message> },
+   |     ^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:41:14
+   |
+41 |     Round2 { round1_msgs: Vec<Round1Message> },
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:42:5
+   |
+42 |     Round3 { round1_msgs: Vec<Round1Message>, round2_msgs: Vec<Round2Message> },
+   |     ^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:42:14
+   |
+42 |     Round3 { round1_msgs: Vec<Round1Message>, round2_msgs: Vec<Round2Message> },
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:42:47
+   |
+42 |     Round3 { round1_msgs: Vec<Round1Message>, round2_msgs: Vec<Round2Message> },
+   |                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:43:5
+   |
+43 |     Complete { transcript: DkgTranscript },
+   |     ^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:43:16
+   |
+43 |     Complete { transcript: DkgTranscript },
+   |                ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:44:5
+   |
+44 |     Failed { blame: Vec<PartyId> },
+   |     ^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/keygen/types.rs:44:14
+   |
+44 |     Failed { blame: Vec<PartyId> },
+   |              ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for an enum
+ --> crates/pvthfhe-aggregator/src/decrypt/mod.rs:7:1
+  |
+7 | pub enum DecryptError {
+  | ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+ --> crates/pvthfhe-aggregator/src/decrypt/mod.rs:9:5
+  |
+9 |     InvalidShare { party_id: u32 },
+  |     ^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+ --> crates/pvthfhe-aggregator/src/decrypt/mod.rs:9:20
+  |
+9 |     InvalidShare { party_id: u32 },
+  |                    ^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/pvthfhe-aggregator/src/decrypt/mod.rs:11:5
+   |
+11 |     InsufficientShares { needed: usize, got: usize },
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/decrypt/mod.rs:11:26
+   |
+11 |     InsufficientShares { needed: usize, got: usize },
+   |                          ^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/decrypt/mod.rs:11:41
+   |
+11 |     InsufficientShares { needed: usize, got: usize },
+   |                                         ^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/pvthfhe-aggregator/src/decrypt/mod.rs:13:5
+   |
+13 |     DuplicateParty(u32),
+   |     ^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/pvthfhe-aggregator/src/decrypt/mod.rs:15:5
+   |
+15 |     UnknownParty(u32),
+   |     ^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/pvthfhe-aggregator/src/decrypt/mod.rs:17:5
+   |
+17 |     Backend(#[from] FheError),
+   |     ^^^^^^^
+
+warning: missing documentation for a struct
+  --> crates/pvthfhe-aggregator/src/decrypt/mod.rs:21:1
+   |
+21 | pub struct DecryptSharePayload {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/decrypt/mod.rs:22:5
+   |
+22 |     pub party_id: u32,
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/decrypt/mod.rs:23:5
+   |
+23 |     pub pk_i_hash: [u8; 32],
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/decrypt/mod.rs:24:5
+   |
+24 |     pub dkg_root: [u8; 32],
+   |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/decrypt/mod.rs:25:5
+   |
+25 |     pub ciphertext_hash: [u8; 32],
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/decrypt/mod.rs:26:5
+   |
+26 |     pub epoch: u64,
+   |     ^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/decrypt/mod.rs:27:5
+   |
+27 |     pub share: DecryptShare,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/decrypt/mod.rs:28:5
+   |
+28 |     pub nizk: Vec<u8>,
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/decrypt/mod.rs:29:5
+   |
+29 |     pub version: u8,
+   |     ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a function
+  --> crates/pvthfhe-aggregator/src/decrypt/mod.rs:32:1
+   |
+32 | / pub fn partial_decrypt(
+33 | |     backend: &impl FheBackend,
+34 | |     ct: &Ciphertext,
+35 | |     party_id: u32,
+...  |
+39 | |     rng: &mut dyn RngCore,
+40 | | ) -> Result<DecryptSharePayload, DecryptError> {
+   | |______________________________________________^
+
+warning: missing documentation for a function
+  --> crates/pvthfhe-aggregator/src/decrypt/mod.rs:55:1
+   |
+55 | / pub fn aggregate_decrypt(
+56 | |     backend: &impl FheBackend,
+57 | |     ct: &Ciphertext,
+58 | |     shares: &[DecryptSharePayload],
+...  |
+63 | |     _epoch: u64,
+64 | | ) -> Result<Vec<u8>, DecryptError> {
+   | |__________________________________^
+
+warning: missing documentation for an enum
+  --> crates/pvthfhe-aggregator/src/folding/mod.rs:11:1
+   |
+11 | pub enum FoldingError {
+   | ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/pvthfhe-aggregator/src/folding/mod.rs:13:5
+   |
+13 |     InvalidLeaf(u32),
+   |     ^^^^^^^^^^^
+
+warning: missing documentation for a struct
+  --> crates/pvthfhe-aggregator/src/folding/mod.rs:17:1
+   |
+17 | pub struct PartyProof {
+   | ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/folding/mod.rs:18:5
+   |
+18 |     pub party_id: u32,
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/folding/mod.rs:19:5
+   |
+19 |     pub share_hash: [u8; 32],
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/folding/mod.rs:20:5
+   |
+20 |     pub nizk_bytes: Vec<u8>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+  --> crates/pvthfhe-aggregator/src/folding/mod.rs:24:1
+   |
+24 | pub struct FinalSnark {
+   | ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/folding/mod.rs:25:5
+   |
+25 |     pub proof_bytes: Vec<u8>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/folding/mod.rs:26:5
+   |
+26 |     pub public_inputs: Vec<[u8; 32]>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/folding/mod.rs:27:5
+   |
+27 |     pub prover_time_ms: u64,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-aggregator/src/folding/mod.rs:28:5
+   |
+28 |     pub proof_size_bytes: usize,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+  --> crates/pvthfhe-aggregator/src/folding/mod.rs:31:1
+   |
+31 | pub struct FoldingAccumulator {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for an associated function
+  --> crates/pvthfhe-aggregator/src/folding/mod.rs:42:5
+   |
+42 |     pub fn new() -> Self {
+   |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a method
+  --> crates/pvthfhe-aggregator/src/folding/mod.rs:46:5
+   |
+46 |     pub fn add_proof(&mut self, proof: PartyProof) -> Result<(), FoldingError> {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a method
+  --> crates/pvthfhe-aggregator/src/folding/mod.rs:51:5
+   |
+51 |     pub fn finalize(&self) -> Result<FinalSnark, FoldingError> {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `pvthfhe-aggregator` (lib) generated 88 warnings (run `cargo fix --lib -p pvthfhe-aggregator` to apply 1 suggestion)
+   Compiling pvthfhe-cli v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-cli)
+warning: missing documentation for the crate
+ --> crates/pvthfhe-cli/src/lib.rs:1:1
+  |
+1 | / #[cfg(test)]
+2 | | mod tests {
+3 | |     #[test]
+4 | |     fn placeholder() {}
+5 | | }
+  | |_^
+  |
+  = note: requested on the command line with `-W missing-docs`
+
+warning: `pvthfhe-cli` (lib) generated 1 warning
+    Finished `release` profile [optimized] target(s) in 8.10s
+     Running `target/release/pvthfhe-cli demo --n 128 --seed 1`
+[2m2026-05-02T15:13:51.654788Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m starting demo pipeline [3mn[0m[2m=[0m128 [3mseed[0m[2m=[0m1
+demo: n=128 seed=1
+[2m2026-05-02T15:13:51.654806Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m step 1/5: keygen [3mn[0m[2m=[0m128 [3mthreshold[0m[2m=[0m65
+step 1/5: keygen  n=128 threshold=65
+[2m2026-05-02T15:13:51.656639Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m keygen complete [3mparties[0m[2m=[0m128
+keygen: COMPLETE  parties=128
+[2m2026-05-02T15:13:51.656650Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m aggregate public key [sk: REDACTED] [3mpk_hash[0m[2m=[0mdf3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119
+aggregate_pk_hash: df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119
+[2m2026-05-02T15:13:51.656654Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m step 2/5: encrypt
+step 2/5: encrypt
+[2m2026-05-02T15:13:51.656669Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m ciphertext produced [3mct_hash[0m[2m=[0m8666cab5e3c4f411d1fdea87cf26ce6a3cfc58f28993715d02671bde3c29a48c
+ciphertext_hash: 8666cab5e3c4f411d1fdea87cf26ce6a3cfc58f28993715d02671bde3c29a48c
+[2m2026-05-02T15:13:51.656677Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m step 3/5: partial decrypt
+step 3/5: partial-decrypt
+[2m2026-05-02T15:13:51.656679Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m0
+[2m2026-05-02T15:13:51.656682Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m1
+[2m2026-05-02T15:13:51.656683Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m2
+[2m2026-05-02T15:13:51.656684Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m3
+[2m2026-05-02T15:13:51.656684Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m4
+[2m2026-05-02T15:13:51.656784Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m5
+[2m2026-05-02T15:13:51.656789Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m6
+[2m2026-05-02T15:13:51.656792Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m7
+[2m2026-05-02T15:13:51.656794Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m8
+[2m2026-05-02T15:13:51.656795Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m9
+[2m2026-05-02T15:13:51.656796Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m10
+[2m2026-05-02T15:13:51.656796Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m11
+[2m2026-05-02T15:13:51.656797Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m12
+[2m2026-05-02T15:13:51.656798Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m13
+[2m2026-05-02T15:13:51.656798Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m14
+[2m2026-05-02T15:13:51.656799Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m15
+[2m2026-05-02T15:13:51.656800Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m16
+[2m2026-05-02T15:13:51.656801Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m17
+[2m2026-05-02T15:13:51.656801Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m18
+[2m2026-05-02T15:13:51.656802Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m19
+[2m2026-05-02T15:13:51.656803Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m20
+[2m2026-05-02T15:13:51.656804Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m21
+[2m2026-05-02T15:13:51.656805Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m22
+[2m2026-05-02T15:13:51.656805Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m23
+[2m2026-05-02T15:13:51.656806Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m24
+[2m2026-05-02T15:13:51.656813Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m25
+[2m2026-05-02T15:13:51.656816Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m26
+[2m2026-05-02T15:13:51.656817Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m27
+[2m2026-05-02T15:13:51.656818Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m28
+[2m2026-05-02T15:13:51.656818Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m29
+[2m2026-05-02T15:13:51.656819Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m30
+[2m2026-05-02T15:13:51.656820Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m31
+[2m2026-05-02T15:13:51.656820Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m32
+[2m2026-05-02T15:13:51.656822Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m33
+[2m2026-05-02T15:13:51.656822Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m34
+[2m2026-05-02T15:13:51.656823Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m35
+[2m2026-05-02T15:13:51.656824Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m36
+[2m2026-05-02T15:13:51.656824Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m37
+[2m2026-05-02T15:13:51.656825Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m38
+[2m2026-05-02T15:13:51.656826Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m39
+[2m2026-05-02T15:13:51.656826Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m40
+[2m2026-05-02T15:13:51.656827Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m41
+[2m2026-05-02T15:13:51.656828Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m42
+[2m2026-05-02T15:13:51.656834Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m43
+[2m2026-05-02T15:13:51.656837Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m44
+[2m2026-05-02T15:13:51.656838Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m45
+[2m2026-05-02T15:13:51.656839Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m46
+[2m2026-05-02T15:13:51.656840Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m47
+[2m2026-05-02T15:13:51.656840Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m48
+[2m2026-05-02T15:13:51.656841Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m49
+[2m2026-05-02T15:13:51.656842Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m50
+[2m2026-05-02T15:13:51.656842Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m51
+[2m2026-05-02T15:13:51.656848Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m52
+[2m2026-05-02T15:13:51.656852Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m53
+[2m2026-05-02T15:13:51.656853Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m54
+[2m2026-05-02T15:13:51.656853Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m55
+[2m2026-05-02T15:13:51.656854Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m56
+[2m2026-05-02T15:13:51.656855Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m57
+[2m2026-05-02T15:13:51.656855Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m58
+[2m2026-05-02T15:13:51.656856Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m59
+[2m2026-05-02T15:13:51.656857Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m60
+[2m2026-05-02T15:13:51.656858Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m61
+[2m2026-05-02T15:13:51.656863Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m62
+[2m2026-05-02T15:13:51.656867Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m63
+[2m2026-05-02T15:13:51.656868Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m64
+[2m2026-05-02T15:13:51.656869Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m65
+[2m2026-05-02T15:13:51.656870Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m66
+[2m2026-05-02T15:13:51.656871Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m67
+[2m2026-05-02T15:13:51.656871Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m68
+[2m2026-05-02T15:13:51.656872Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m69
+[2m2026-05-02T15:13:51.656873Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m70
+[2m2026-05-02T15:13:51.656873Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m71
+[2m2026-05-02T15:13:51.656874Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m72
+[2m2026-05-02T15:13:51.656875Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m73
+[2m2026-05-02T15:13:51.656875Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m74
+[2m2026-05-02T15:13:51.656876Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m75
+[2m2026-05-02T15:13:51.656882Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m76
+[2m2026-05-02T15:13:51.656885Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m77
+[2m2026-05-02T15:13:51.656886Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m78
+[2m2026-05-02T15:13:51.656887Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m79
+[2m2026-05-02T15:13:51.656888Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m80
+[2m2026-05-02T15:13:51.656889Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m81
+[2m2026-05-02T15:13:51.656889Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m82
+[2m2026-05-02T15:13:51.656890Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m83
+[2m2026-05-02T15:13:51.656891Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m84
+[2m2026-05-02T15:13:51.656897Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m85
+[2m2026-05-02T15:13:51.656900Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m86
+[2m2026-05-02T15:13:51.656901Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m87
+[2m2026-05-02T15:13:51.656902Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m88
+[2m2026-05-02T15:13:51.656902Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m89
+[2m2026-05-02T15:13:51.656903Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m90
+[2m2026-05-02T15:13:51.656904Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m91
+[2m2026-05-02T15:13:51.656904Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m92
+[2m2026-05-02T15:13:51.656905Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m93
+[2m2026-05-02T15:13:51.656906Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m94
+[2m2026-05-02T15:13:51.656907Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m95
+[2m2026-05-02T15:13:51.656907Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m96
+[2m2026-05-02T15:13:51.656908Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m97
+[2m2026-05-02T15:13:51.656909Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m98
+[2m2026-05-02T15:13:51.656909Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m99
+[2m2026-05-02T15:13:51.656910Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m100
+[2m2026-05-02T15:13:51.656911Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m101
+[2m2026-05-02T15:13:51.656917Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m102
+[2m2026-05-02T15:13:51.656920Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m103
+[2m2026-05-02T15:13:51.656921Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m104
+[2m2026-05-02T15:13:51.656922Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m105
+[2m2026-05-02T15:13:51.656923Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m106
+[2m2026-05-02T15:13:51.656923Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m107
+[2m2026-05-02T15:13:51.656924Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m108
+[2m2026-05-02T15:13:51.656925Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m109
+[2m2026-05-02T15:13:51.656925Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m110
+[2m2026-05-02T15:13:51.656926Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m111
+[2m2026-05-02T15:13:51.656927Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m112
+[2m2026-05-02T15:13:51.656927Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m113
+[2m2026-05-02T15:13:51.656928Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m114
+[2m2026-05-02T15:13:51.656929Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m115
+[2m2026-05-02T15:13:51.656935Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m116
+[2m2026-05-02T15:13:51.656938Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m117
+[2m2026-05-02T15:13:51.656940Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m118
+[2m2026-05-02T15:13:51.656940Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m119
+[2m2026-05-02T15:13:51.656941Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m120
+[2m2026-05-02T15:13:51.656942Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m121
+[2m2026-05-02T15:13:51.656942Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m122
+[2m2026-05-02T15:13:51.656943Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m123
+[2m2026-05-02T15:13:51.656944Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m124
+[2m2026-05-02T15:13:51.656944Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m125
+[2m2026-05-02T15:13:51.656945Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m126
+[2m2026-05-02T15:13:51.656946Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m127
+partial_decrypt: 128 shares collected
+[2m2026-05-02T15:13:51.656947Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m step 4/5: aggregate decrypt
+step 4/5: aggregate-decrypt
+[2m2026-05-02T15:13:51.656958Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m plaintext round-trip: OK
+plaintext_roundtrip: OK
+[2m2026-05-02T15:13:51.656963Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m step 5/5: folding accumulator
+step 5/5: folding
+[2m2026-05-02T15:13:51.656978Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m final snark produced [3mproof_size[0m[2m=[0m32 [3mprover_time_ms[0m[2m=[0m0 [3mproof_hash[0m[2m=[0m53b46cdd3731d65d92c38c3abb7ed852290016075cd7381b3c100348cddcc666
+snark_proof_hash: 53b46cdd3731d65d92c38c3abb7ed852290016075cd7381b3c100348cddcc666
+snark_proof_size_bytes: 32
+snark_prover_time_ms: 0
+verify: ACCEPT
+[2m2026-05-02T15:13:51.656986Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m demo complete: ACCEPT

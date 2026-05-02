@@ -80,7 +80,7 @@ pub fn summarize_samples(samples_ns: &[f64]) -> BenchStats {
     assert!(!samples_ns.is_empty(), "samples_ns must not be empty");
 
     let mut sorted = samples_ns.to_vec();
-    sorted.sort_by(|left, right| left.partial_cmp(right).unwrap());
+    sorted.sort_by(|left, right| left.total_cmp(right));
 
     let mean_ns = sorted.iter().sum::<f64>() / sorted.len() as f64;
     let median_ns = if sorted.len().is_multiple_of(2) {
@@ -117,15 +117,17 @@ mod tests {
 
     #[test]
     fn bench_record_serializes_required_fields() {
-        let json = serde_json::to_value(BenchRecord {
+        let json = match serde_json::to_value(BenchRecord {
             case: "ntt_forward(N=4096,q=q0)".to_owned(),
             backend: "fhe_rs".to_owned(),
             median_ns: 1.0,
             mean_ns: 2.0,
             stddev_ns: 0.5,
             n_runs: 10,
-        })
-        .unwrap();
+        }) {
+            Ok(value) => value,
+            Err(err) => panic!("serialize BenchRecord: {err}"),
+        };
 
         assert!(json["case"].is_string());
         assert!(json["backend"].is_string());

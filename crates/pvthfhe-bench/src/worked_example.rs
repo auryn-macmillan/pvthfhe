@@ -380,7 +380,7 @@ fn mod_inv(value: i64) -> i64 {
         }
     }
 
-    panic!("no inverse exists for {value} modulo {MODULUS_Q}");
+    std::process::abort()
 }
 
 fn zero_poly() -> Poly {

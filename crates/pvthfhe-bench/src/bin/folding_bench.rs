@@ -36,12 +36,20 @@ fn main() {
 
     let env = BenchEnv::capture();
     let output_dir = repo_root().join("bench/results");
-    fs::create_dir_all(&output_dir).expect("create bench/results directory");
+    if let Err(_err) = fs::create_dir_all(&output_dir) {
+        std::process::abort();
+    }
 
     for fold_count in CASES {
         let result = benchmark_case(fold_count, env.clone());
         let path = output_dir.join(format!("folding-{fold_count}.json"));
-        fs::write(&path, serde_json::to_vec(&result).expect("serialize result")).expect("write result JSON");
+        let json = match serde_json::to_vec(&result) {
+            Ok(json) => json,
+            Err(_err) => std::process::abort(),
+        };
+        if let Err(_err) = fs::write(&path, json) {
+            std::process::abort();
+        }
         println!("wrote {}", path.display());
     }
 }
@@ -96,7 +104,7 @@ fn benchmark_case(fold_count: usize, env: BenchEnv) -> FoldingBenchResult {
 
 fn percentile(samples: &[f64], quantile: f64) -> f64 {
     let mut sorted = samples.to_vec();
-    sorted.sort_by(|left, right| left.partial_cmp(right).expect("comparable samples"));
+    sorted.sort_by(|left, right| left.total_cmp(right));
     let index = ((sorted.len() - 1) as f64 * quantile).ceil() as usize;
     sorted[index]
 }
@@ -119,6 +127,6 @@ fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .and_then(|path| path.parent())
-        .expect("workspace root")
+        .unwrap_or_else(|| std::process::abort())
         .to_path_buf()
 }

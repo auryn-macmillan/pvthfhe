@@ -3,6 +3,9 @@ name = "pvthfhe-bench"
 version = "0.1.0"
 edition = "2021"
 
+[lints]
+workspace = true
+
 [features]
 default = []
 backend-fhe-rs = ["dep:fhe", "dep:fhe-math"]

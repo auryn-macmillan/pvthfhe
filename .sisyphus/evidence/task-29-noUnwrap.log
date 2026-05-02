@@ -1,0 +1,1286 @@
+    Checking pvthfhe-bench v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-bench)
+warning: missing documentation for the crate
+ --> crates/pvthfhe-core/src/lib.rs:1:1
+  |
+1 | / #[cfg(test)]
+2 | | mod tests {
+3 | |     #[test]
+4 | |     fn placeholder() {}
+5 | | }
+  | |_^
+  |
+  = note: requested on the command line with `-W missing-docs`
+
+warning: `pvthfhe-core` (lib) generated 1 warning
+    Checking pvthfhe-fhe v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-fhe)
+warning: using a potentially dangerous silent `as` conversion
+  --> crates/pvthfhe-core/tests/noise_budget.rs:17:13
+   |
+17 |             (z * sigma).round() as i64
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: consider using a safe wrapper for this conversion
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+   = note: requested on the command line with `-W clippy::as-conversions`
+
+warning: using a potentially dangerous silent `as` conversion
+  --> crates/pvthfhe-core/tests/noise_budget.rs:38:36
+   |
+38 |     let sigma_smudge = SIGMA_ERR * (1_u64 << 40) as f64;
+   |                                    ^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: consider using a safe wrapper for this conversion
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: using a potentially dangerous silent `as` conversion
+  --> crates/pvthfhe-core/tests/noise_budget.rs:55:36
+   |
+55 |     let sigma_smudge = SIGMA_ERR * (1_u64 << 40) as f64;
+   |                                    ^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: consider using a safe wrapper for this conversion
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: missing documentation for the crate
+  --> crates/pvthfhe-core/tests/noise_budget.rs:1:1
+   |
+ 1 | / use rand::{Rng, SeedableRng};
+ 2 | | use rand_chacha::ChaCha20Rng;
+ 3 | |
+ 4 | | const N: usize = 64;
+...  |
+67 | | }
+   | |_^
+   |
+   = note: requested on the command line with `-W missing-docs`
+
+warning: `pvthfhe-core` (test "noise_budget") generated 4 warnings
+warning: `panic` should not be present in production code
+   --> crates/pvthfhe-bench/src/backends/fhe_rs.rs:133:9
+    |
+133 |         panic!("fhe.rs adapter requires --features backend-fhe-rs");
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#panic
+    = note: requested on the command line with `-W clippy::panic`
+
+warning: `panic` should not be present in production code
+   --> crates/pvthfhe-bench/src/backends/fhe_rs.rs:137:9
+    |
+137 |         panic!("fhe.rs adapter requires --features backend-fhe-rs");
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#panic
+
+warning: `panic` should not be present in production code
+   --> crates/pvthfhe-bench/src/backends/fhe_rs.rs:141:9
+    |
+141 |         panic!("fhe.rs adapter requires --features backend-fhe-rs");
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#panic
+
+warning: `panic` should not be present in production code
+   --> crates/pvthfhe-bench/src/backends/fhe_rs.rs:145:9
+    |
+145 |         panic!("fhe.rs adapter requires --features backend-fhe-rs");
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#panic
+
+warning: using a potentially dangerous silent `as` conversion
+  --> crates/pvthfhe-bench/src/folding.rs:42:30
+   |
+42 |         .map(|(left, right)| ((*left as u128 * *right as u128) % MODULUS as u128) as u64)
+   |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: consider using a safe wrapper for this conversion
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+   = note: requested on the command line with `-W clippy::as-conversions`
+
+warning: using a potentially dangerous silent `as` conversion
+  --> crates/pvthfhe-bench/src/folding.rs:42:32
+   |
+42 |         .map(|(left, right)| ((*left as u128 * *right as u128) % MODULUS as u128) as u64)
+   |                                ^^^^^^^^^^^^^
+   |
+   = help: consider using a safe wrapper for this conversion
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: using a potentially dangerous silent `as` conversion
+  --> crates/pvthfhe-bench/src/folding.rs:42:48
+   |
+42 |         .map(|(left, right)| ((*left as u128 * *right as u128) % MODULUS as u128) as u64)
+   |                                                ^^^^^^^^^^^^^^
+   |
+   = help: consider using a safe wrapper for this conversion
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: using a potentially dangerous silent `as` conversion
+  --> crates/pvthfhe-bench/src/folding.rs:42:66
+   |
+42 |         .map(|(left, right)| ((*left as u128 * *right as u128) % MODULUS as u128) as u64)
+   |                                                                  ^^^^^^^^^^^^^^^
+   |
+   = help: consider using a safe wrapper for this conversion
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: using a potentially dangerous silent `as` conversion
+   --> crates/pvthfhe-bench/src/folding.rs:102:45
+    |
+102 |         state[lane] = mix_word(state[lane], (index as u64) + accumulator.fold_count as u64 + 1);
+    |                                             ^^^^^^^^^^^^^^
+    |
+    = help: consider using a safe wrapper for this conversion
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: using a potentially dangerous silent `as` conversion
+   --> crates/pvthfhe-bench/src/folding.rs:102:62
+    |
+102 |         state[lane] = mix_word(state[lane], (index as u64) + accumulator.fold_count as u64 + 1);
+    |                                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using a safe wrapper for this conversion
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: using a potentially dangerous silent `as` conversion
+   --> crates/pvthfhe-bench/src/folding.rs:103:17
+    |
+103 |         *byte = (state[lane] & 0xff) as u8;
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using a safe wrapper for this conversion
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: using a potentially dangerous silent `as` conversion
+   --> crates/pvthfhe-bench/src/folding.rs:125:9
+    |
+125 |         (usize::BITS - (fold_count - 1).leading_zeros()) as usize
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using a safe wrapper for this conversion
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: using a potentially dangerous silent `as` conversion
+   --> crates/pvthfhe-bench/src/folding.rs:153:17
+    |
+153 |     let mut x = (index as u64).wrapping_add(1).wrapping_mul(0x9e37_79b9_7f4a_7c15);
+    |                 ^^^^^^^^^^^^^^
+    |
+    = help: consider using a safe wrapper for this conversion
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: using a potentially dangerous silent `as` conversion
+   --> crates/pvthfhe-bench/src/folding.rs:200:52
+    |
+200 |         *lane = mix_word(*lane, value.wrapping_add(offset as u64));
+    |                                                    ^^^^^^^^^^^^^
+    |
+    = help: consider using a safe wrapper for this conversion
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: using a potentially dangerous silent `as` conversion
+   --> crates/pvthfhe-bench/src/folding.rs:209:5
+    |
+209 |     ((lhs as u128 + rhs as u128) % MODULUS as u128) as u64
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using a safe wrapper for this conversion
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: using a potentially dangerous silent `as` conversion
+   --> crates/pvthfhe-bench/src/folding.rs:209:7
+    |
+209 |     ((lhs as u128 + rhs as u128) % MODULUS as u128) as u64
+    |       ^^^^^^^^^^^
+    |
+    = help: consider using a safe wrapper for this conversion
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: using a potentially dangerous silent `as` conversion
+   --> crates/pvthfhe-bench/src/folding.rs:209:21
+    |
+209 |     ((lhs as u128 + rhs as u128) % MODULUS as u128) as u64
+    |                     ^^^^^^^^^^^
+    |
+    = help: consider using a safe wrapper for this conversion
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: using a potentially dangerous silent `as` conversion
+   --> crates/pvthfhe-bench/src/folding.rs:209:36
+    |
+209 |     ((lhs as u128 + rhs as u128) % MODULUS as u128) as u64
+    |                                    ^^^^^^^^^^^^^^^
+    |
+    = help: consider using a safe wrapper for this conversion
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: using a potentially dangerous silent `as` conversion
+   --> crates/pvthfhe-bench/src/folding.rs:213:5
+    |
+213 |     ((lhs as u128 * rhs as u128) % MODULUS as u128) as u64
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using a safe wrapper for this conversion
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: using a potentially dangerous silent `as` conversion
+   --> crates/pvthfhe-bench/src/folding.rs:213:7
+    |
+213 |     ((lhs as u128 * rhs as u128) % MODULUS as u128) as u64
+    |       ^^^^^^^^^^^
+    |
+    = help: consider using a safe wrapper for this conversion
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: using a potentially dangerous silent `as` conversion
+   --> crates/pvthfhe-bench/src/folding.rs:213:21
+    |
+213 |     ((lhs as u128 * rhs as u128) % MODULUS as u128) as u64
+    |                     ^^^^^^^^^^^
+    |
+    = help: consider using a safe wrapper for this conversion
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: using a potentially dangerous silent `as` conversion
+   --> crates/pvthfhe-bench/src/folding.rs:213:36
+    |
+213 |     ((lhs as u128 * rhs as u128) % MODULUS as u128) as u64
+    |                                    ^^^^^^^^^^^^^^^
+    |
+    = help: consider using a safe wrapper for this conversion
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: `pvthfhe-core` (lib test) generated 1 warning (1 duplicate)
+warning: missing documentation for the crate
+ --> crates/pvthfhe-api/src/lib.rs:1:1
+  |
+1 | / #[cfg(test)]
+2 | | mod tests {
+3 | |     #[test]
+4 | |     fn placeholder() {}
+5 | | }
+  | |_^
+  |
+  = note: requested on the command line with `-W missing-docs`
+
+warning: using a potentially dangerous silent `as` conversion
+   --> crates/pvthfhe-bench/src/worked_example.rs:281:18
+    |
+281 |         state ^= *byte as u64;
+    |                  ^^^^^^^^^^^^
+    |
+    = help: consider using a safe wrapper for this conversion
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: `pvthfhe-api` (lib) generated 1 warning
+warning: `pvthfhe-api` (lib test) generated 1 warning (1 duplicate)
+warning: missing documentation for the crate
+ --> crates/pvthfhe-circuits/src/lib.rs:1:1
+  |
+1 | / #[cfg(test)]
+2 | | mod tests {
+3 | |     #[test]
+4 | |     fn placeholder() {}
+5 | | }
+  | |_^
+  |
+  = note: requested on the command line with `-W missing-docs`
+
+warning: `pvthfhe-circuits` (lib test) generated 1 warning
+warning: missing documentation for the crate
+ --> crates/pvthfhe-enclave-adapter/src/lib.rs:1:1
+  |
+1 | / #[cfg(test)]
+2 | | mod tests {
+3 | |     #[test]
+4 | |     fn placeholder() {}
+5 | | }
+  | |_^
+  |
+  = note: requested on the command line with `-W missing-docs`
+
+warning: `pvthfhe-enclave-adapter` (lib) generated 1 warning
+warning: missing documentation for the crate
+ --> crates/pvthfhe-cli/src/lib.rs:1:1
+  |
+1 | / #[cfg(test)]
+2 | | mod tests {
+3 | |     #[test]
+4 | |     fn placeholder() {}
+5 | | }
+  | |_^
+  |
+  = note: requested on the command line with `-W missing-docs`
+
+warning: using a potentially dangerous silent `as` conversion
+   --> crates/pvthfhe-bench/src/worked_example.rs:288:30
+    |
+288 |             let normalized = mod_q(coefficient) as u64;
+    |                              ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using a safe wrapper for this conversion
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: `pvthfhe-cli` (lib test) generated 1 warning
+warning: missing documentation for the crate
+ --> crates/pvthfhe-aggregator/src/lib.rs:1:1
+  |
+1 | / #[cfg(test)]
+2 | | mod tests {
+3 | |     #[test]
+4 | |     fn placeholder() {}
+5 | | }
+  | |_^
+  |
+  = note: requested on the command line with `-W missing-docs`
+
+warning: `pvthfhe-aggregator` (lib test) generated 1 warning
+warning: `pvthfhe-aggregator` (lib) generated 1 warning (1 duplicate)
+warning: `pvthfhe-circuits` (lib) generated 1 warning (1 duplicate)
+warning: `pvthfhe-enclave-adapter` (lib test) generated 1 warning (1 duplicate)
+warning: `pvthfhe-cli` (lib) generated 1 warning (1 duplicate)
+warning: using a potentially dangerous silent `as` conversion
+   --> crates/pvthfhe-bench/src/worked_example.rs:333:28
+    |
+333 | ...   .map(|coefficient| (((mod_q(*coefficient) as f64) * (T_PLAIN as f64) / (MODULUS_Q as f64)).round() as i64).rem_euclid(T_PLAIN))
+    |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using a safe wrapper for this conversion
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: using a potentially dangerous silent `as` conversion
+   --> crates/pvthfhe-bench/src/worked_example.rs:333:30
+    |
+333 | ...   .map(|coefficient| (((mod_q(*coefficient) as f64) * (T_PLAIN as f64) / (MODULUS_Q as f64)).round() as i64).rem_euclid(T_PLAIN))
+    |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using a safe wrapper for this conversion
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: using a potentially dangerous silent `as` conversion
+   --> crates/pvthfhe-bench/src/worked_example.rs:333:61
+    |
+333 | ...   .map(|coefficient| (((mod_q(*coefficient) as f64) * (T_PLAIN as f64) / (MODULUS_Q as f64)).round() as i64).rem_euclid(T_PLAIN))
+    |                                                           ^^^^^^^^^^^^^^^^
+    |
+    = help: consider using a safe wrapper for this conversion
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: using a potentially dangerous silent `as` conversion
+   --> crates/pvthfhe-bench/src/worked_example.rs:333:80
+    |
+333 | ...   .map(|coefficient| (((mod_q(*coefficient) as f64) * (T_PLAIN as f64) / (MODULUS_Q as f64)).round() as i64).rem_euclid(T_PLAIN))
+    |                                                                              ^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using a safe wrapper for this conversion
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: using a potentially dangerous silent `as` conversion
+  --> crates/pvthfhe-bench/src/lib.rs:85:48
+   |
+85 |     let mean_ns = sorted.iter().sum::<f64>() / sorted.len() as f64;
+   |                                                ^^^^^^^^^^^^^^^^^^^
+   |
+   = help: consider using a safe wrapper for this conversion
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: using a potentially dangerous silent `as` conversion
+  --> crates/pvthfhe-bench/src/lib.rs:92:90
+   |
+92 |     let variance = sorted.iter().map(|sample| (sample - mean_ns).powi(2)).sum::<f64>() / sorted.len() as f64;
+   |                                                                                          ^^^^^^^^^^^^^^^^^^^
+   |
+   = help: consider using a safe wrapper for this conversion
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: `panic` should not be present in production code
+   --> crates/pvthfhe-bench/src/lib.rs:129:25
+    |
+129 |             Err(err) => panic!("serialize BenchRecord: {err}"),
+    |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#panic
+
+warning: missing documentation for the crate
+   --> crates/pvthfhe-bench/src/lib.rs:1:1
+    |
+  1 | / pub mod backends;
+  2 | | pub mod folding;
+  3 | | pub mod worked_example;
+...   |
+180 | | }
+    | |_^
+    |
+    = note: requested on the command line with `-W missing-docs`
+
+warning: missing documentation for a module
+ --> crates/pvthfhe-bench/src/lib.rs:1:1
+  |
+1 | pub mod backends;
+  | ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a module
+ --> crates/pvthfhe-bench/src/lib.rs:2:1
+  |
+2 | pub mod folding;
+  | ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a module
+ --> crates/pvthfhe-bench/src/lib.rs:3:1
+  |
+3 | pub mod worked_example;
+  | ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+ --> crates/pvthfhe-bench/src/lib.rs:8:1
+  |
+8 | pub struct BenchEnv {
+  | ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+ --> crates/pvthfhe-bench/src/lib.rs:9:5
+  |
+9 |     pub cpu: String,
+  |     ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/lib.rs:10:5
+   |
+10 |     pub ram_gb: u64,
+   |     ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/lib.rs:11:5
+   |
+11 |     pub kernel: String,
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/lib.rs:12:5
+   |
+12 |     pub git_sha: String,
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/lib.rs:13:5
+   |
+13 |     pub timestamp: String,
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+  --> crates/pvthfhe-bench/src/lib.rs:17:1
+   |
+17 | pub struct BenchRecord {
+   | ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/lib.rs:18:5
+   |
+18 |     pub case: String,
+   |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/lib.rs:19:5
+   |
+19 |     pub backend: String,
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/lib.rs:20:5
+   |
+20 |     pub median_ns: f64,
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/lib.rs:21:5
+   |
+21 |     pub mean_ns: f64,
+   |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/lib.rs:22:5
+   |
+22 |     pub stddev_ns: f64,
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/lib.rs:23:5
+   |
+23 |     pub n_runs: u64,
+   |     ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+  --> crates/pvthfhe-bench/src/lib.rs:27:1
+   |
+27 | pub struct BenchStats {
+   | ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/lib.rs:28:5
+   |
+28 |     pub median_ns: f64,
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/lib.rs:29:5
+   |
+29 |     pub mean_ns: f64,
+   |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/lib.rs:30:5
+   |
+30 |     pub stddev_ns: f64,
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for an associated function
+  --> crates/pvthfhe-bench/src/lib.rs:34:5
+   |
+34 |     pub fn capture() -> Self {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a function
+  --> crates/pvthfhe-bench/src/lib.rs:79:1
+   |
+79 | pub fn summarize_samples(samples_ns: &[f64]) -> BenchStats {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a module
+ --> crates/pvthfhe-bench/src/backends/mod.rs:1:1
+  |
+1 | pub mod fhe_rs;
+  | ^^^^^^^^^^^^^^
+
+warning: missing documentation for a module
+ --> crates/pvthfhe-bench/src/backends/mod.rs:2:1
+  |
+2 | pub mod poulpy;
+  | ^^^^^^^^^^^^^^
+
+warning: missing documentation for a constant
+ --> crates/pvthfhe-bench/src/backends/mod.rs:4:1
+  |
+4 | pub const POLY_DEGREE: usize = 4096;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a constant
+ --> crates/pvthfhe-bench/src/backends/mod.rs:5:1
+  |
+5 | pub const RNS_LIMBS: usize = 4;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a constant
+ --> crates/pvthfhe-bench/src/backends/mod.rs:6:1
+  |
+6 | pub const MODULI_60_BIT: [u64; RNS_LIMBS] = [
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a trait
+  --> crates/pvthfhe-bench/src/backends/mod.rs:13:1
+   |
+13 | pub trait RqOps {
+   | ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a method
+  --> crates/pvthfhe-bench/src/backends/mod.rs:14:5
+   |
+14 |     fn ntt_fwd(&self, x: &mut [u64]);
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a method
+  --> crates/pvthfhe-bench/src/backends/mod.rs:15:5
+   |
+15 |     fn ntt_inv(&self, x: &mut [u64]);
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a method
+  --> crates/pvthfhe-bench/src/backends/mod.rs:16:5
+   |
+16 |     fn poly_mul(&self, a: &[u64], b: &[u64], out: &mut [u64]);
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a method
+  --> crates/pvthfhe-bench/src/backends/mod.rs:17:5
+   |
+17 |     fn sample_uniform(&self, out: &mut [u64], seed: u64);
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+  --> crates/pvthfhe-bench/src/backends/mod.rs:21:1
+   |
+21 | pub struct BackendGap {
+   | ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/backends/mod.rs:22:5
+   |
+22 |     pub backend: &'static str,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/backends/mod.rs:23:5
+   |
+23 |     pub reason: &'static str,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for an enum
+  --> crates/pvthfhe-bench/src/backends/mod.rs:27:1
+   |
+27 | pub enum BackendAvailability {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/pvthfhe-bench/src/backends/mod.rs:28:5
+   |
+28 |     Available,
+   |     ^^^^^^^^^
+
+warning: missing documentation for a variant
+  --> crates/pvthfhe-bench/src/backends/mod.rs:29:5
+   |
+29 |     FeatureGap(BackendGap),
+   |     ^^^^^^^^^^
+
+warning: missing documentation for a struct
+  --> crates/pvthfhe-bench/src/backends/mod.rs:33:1
+   |
+33 | pub struct BackendProbe {
+   | ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/backends/mod.rs:34:5
+   |
+34 |     pub name: &'static str,
+   |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/backends/mod.rs:35:5
+   |
+35 |     pub availability: BackendAvailability,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a function
+  --> crates/pvthfhe-bench/src/backends/mod.rs:38:1
+   |
+38 | pub fn expected_rns_len() -> usize {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a constant
+ --> crates/pvthfhe-bench/src/backends/fhe_rs.rs:3:1
+  |
+3 | pub const FHE_RS_PINNED_SHA: &str = "5f24d0b62a7329b789db07a065b68accd614a47b";
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+ --> crates/pvthfhe-bench/src/backends/fhe_rs.rs:6:1
+  |
+6 | pub struct FheRsBackend;
+  | ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for an associated function
+ --> crates/pvthfhe-bench/src/backends/fhe_rs.rs:9:5
+  |
+9 |     pub fn probe() -> BackendProbe {
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a constant
+ --> crates/pvthfhe-bench/src/backends/poulpy.rs:3:1
+  |
+3 | pub const POULPY_PINNED_SHA: &str = "4a1f0c642cef7e5830287c3d6af7e013d8a7bda4";
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+ --> crates/pvthfhe-bench/src/backends/poulpy.rs:6:1
+  |
+6 | pub struct PoulpyBackend;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for an associated function
+ --> crates/pvthfhe-bench/src/backends/poulpy.rs:9:5
+  |
+9 |     pub fn probe() -> BackendProbe {
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+ --> crates/pvthfhe-bench/src/folding.rs:7:1
+  |
+7 | pub struct R1csInstance {
+  | ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+ --> crates/pvthfhe-bench/src/folding.rs:8:5
+  |
+8 |     pub witness: Vec<u64>,
+  |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+ --> crates/pvthfhe-bench/src/folding.rs:9:5
+  |
+9 |     pub a_evals: Vec<u64>,
+  |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/folding.rs:10:5
+   |
+10 |     pub b_evals: Vec<u64>,
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/folding.rs:11:5
+   |
+11 |     pub c_evals: Vec<u64>,
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+  --> crates/pvthfhe-bench/src/folding.rs:15:1
+   |
+15 | pub struct FoldAccumulator {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/folding.rs:16:5
+   |
+16 |     pub fold_count: usize,
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/folding.rs:17:5
+   |
+17 |     pub weight_sum: u64,
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/folding.rs:18:5
+   |
+18 |     pub witness_sum: Vec<u64>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/folding.rs:19:5
+   |
+19 |     pub a_sum: Vec<u64>,
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/folding.rs:20:5
+   |
+20 |     pub b_sum: Vec<u64>,
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/folding.rs:21:5
+   |
+21 |     pub c_sum: Vec<u64>,
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+  --> crates/pvthfhe-bench/src/folding.rs:25:1
+   |
+25 | pub struct FinalSnarkProof {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/folding.rs:26:5
+   |
+26 |     pub bytes: Vec<u8>,
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+  --> crates/pvthfhe-bench/src/folding.rs:30:1
+   |
+30 | pub struct FoldRunSummary {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/folding.rs:31:5
+   |
+31 |     pub accumulator: FoldAccumulator,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/folding.rs:32:5
+   |
+32 |     pub total_fold_ms: f64,
+   |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a function
+  --> crates/pvthfhe-bench/src/folding.rs:35:1
+   |
+35 | pub fn sample_r1cs_instance() -> R1csInstance {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a function
+  --> crates/pvthfhe-bench/src/folding.rs:53:1
+   |
+53 | pub fn fold_instances(instance: &R1csInstance, copies: usize) -> FoldAccumulator {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a function
+  --> crates/pvthfhe-bench/src/folding.rs:57:1
+   |
+57 | pub fn run_folding_loop(instance: &R1csInstance, copies: usize) -> FoldRunSummary {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a function
+  --> crates/pvthfhe-bench/src/folding.rs:79:1
+   |
+79 | pub fn accumulator_size_bytes(accumulator: &FoldAccumulator) -> usize {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a function
+  --> crates/pvthfhe-bench/src/folding.rs:89:1
+   |
+89 | pub fn prove_final_snark(accumulator: &FoldAccumulator, instance: &R1csInstance) -> FinalSnarkProof {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a function
+   --> crates/pvthfhe-bench/src/folding.rs:109:1
+    |
+109 | pub fn verify_final_snark(proof: &FinalSnarkProof, accumulator: &FoldAccumulator, instance: &R1csInstance) -> bool {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a function
+   --> crates/pvthfhe-bench/src/folding.rs:121:1
+    |
+121 | pub fn expected_final_snark_bytes(fold_count: usize) -> usize {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a function
+   --> crates/pvthfhe-bench/src/folding.rs:130:1
+    |
+130 | pub fn verify_folded_instance(accumulator: &FoldAccumulator, instance: &R1csInstance) -> bool {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a constant
+ --> crates/pvthfhe-bench/src/worked_example.rs:4:1
+  |
+4 | pub const N_PARTIES: usize = 4;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a constant
+ --> crates/pvthfhe-bench/src/worked_example.rs:5:1
+  |
+5 | pub const THRESHOLD: usize = 3;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a constant
+ --> crates/pvthfhe-bench/src/worked_example.rs:6:1
+  |
+6 | pub const N_RING: usize = 8;
+  | ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a constant
+ --> crates/pvthfhe-bench/src/worked_example.rs:7:1
+  |
+7 | pub const MODULUS_Q: i64 = 97;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a constant
+ --> crates/pvthfhe-bench/src/worked_example.rs:8:1
+  |
+8 | pub const T_PLAIN: i64 = 4;
+  | ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a constant
+ --> crates/pvthfhe-bench/src/worked_example.rs:9:1
+  |
+9 | pub const DELTA: i64 = MODULUS_Q / T_PLAIN;
+  | ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a constant
+  --> crates/pvthfhe-bench/src/worked_example.rs:10:1
+   |
+10 | pub const MESSAGE: [i64; N_RING] = [1, 0, 1, 0, 1, 0, 1, 0];
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a type alias
+  --> crates/pvthfhe-bench/src/worked_example.rs:12:1
+   |
+12 | pub type Poly = Vec<i64>;
+   | ^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+  --> crates/pvthfhe-bench/src/worked_example.rs:15:1
+   |
+15 | pub struct TranscriptDigest {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:16:5
+   |
+16 |     pub commitment: String,
+   |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:17:5
+   |
+17 |     pub challenge: String,
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:18:5
+   |
+18 |     pub response_norm: i64,
+   |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+  --> crates/pvthfhe-bench/src/worked_example.rs:22:1
+   |
+22 | pub struct PartyRecord {
+   | ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:23:5
+   |
+23 |     pub party_id: usize,
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:24:5
+   |
+24 |     pub sk: Poly,
+   |     ^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:25:5
+   |
+25 |     pub error: Poly,
+   |     ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:26:5
+   |
+26 |     pub pk: Poly,
+   |     ^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:27:5
+   |
+27 |     pub keygen_nizk: TranscriptDigest,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+  --> crates/pvthfhe-bench/src/worked_example.rs:31:1
+   |
+31 | pub struct PartialDecryptRecord {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:32:5
+   |
+32 |     pub party_id: usize,
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:33:5
+   |
+33 |     pub smudge: Poly,
+   |     ^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:34:5
+   |
+34 |     pub value: Poly,
+   |     ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:35:5
+   |
+35 |     pub proof: TranscriptDigest,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+  --> crates/pvthfhe-bench/src/worked_example.rs:39:1
+   |
+39 | pub struct RandomnessRecord {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:40:5
+   |
+40 |     pub u: Poly,
+   |     ^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:41:5
+   |
+41 |     pub e1: Poly,
+   |     ^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:42:5
+   |
+42 |     pub e2: Poly,
+   |     ^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+  --> crates/pvthfhe-bench/src/worked_example.rs:46:1
+   |
+46 | pub struct CiphertextRecord {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:47:5
+   |
+47 |     pub c0: Poly,
+   |     ^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:48:5
+   |
+48 |     pub c1: Poly,
+   |     ^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+  --> crates/pvthfhe-bench/src/worked_example.rs:52:1
+   |
+52 | pub struct PolynomialSketch {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:53:5
+   |
+53 |     pub coefficient_index: usize,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:54:5
+   |
+54 |     pub values_at_x: [i64; THRESHOLD],
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:55:5
+   |
+55 |     pub polynomial_mod_q: String,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:56:5
+   |
+56 |     pub evaluation_at_x4: i64,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct
+  --> crates/pvthfhe-bench/src/worked_example.rs:60:1
+   |
+60 | pub struct WorkedExample {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:61:5
+   |
+61 |     pub seed: u64,
+   |     ^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:62:5
+   |
+62 |     pub a: Poly,
+   |     ^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:63:5
+   |
+63 |     pub parties: Vec<PartyRecord>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:64:5
+   |
+64 |     pub participant_set: Vec<usize>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:65:5
+   |
+65 |     pub aggregate_pk: Poly,
+   |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:66:5
+   |
+66 |     pub message: Poly,
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:67:5
+   |
+67 |     pub randomness: RandomnessRecord,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:68:5
+   |
+68 |     pub ciphertext: CiphertextRecord,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:69:5
+   |
+69 |     pub partials: Vec<PartialDecryptRecord>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:70:5
+   |
+70 |     pub aggregate_partial: Poly,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:71:5
+   |
+71 |     pub m_recovered: Poly,
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:72:5
+   |
+72 |     pub polynomial_sketches: Vec<PolynomialSketch>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/pvthfhe-bench/src/worked_example.rs:73:5
+   |
+73 |     pub aggregate_proof: TranscriptDigest,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a function
+  --> crates/pvthfhe-bench/src/worked_example.rs:76:1
+   |
+76 | pub fn generate(seed: u64) -> WorkedExample {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a function
+   --> crates/pvthfhe-bench/src/worked_example.rs:167:1
+    |
+167 | pub fn render_report(example: &WorkedExample) -> String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `pvthfhe-bench` (lib test) generated 156 warnings
+warning: `pvthfhe-bench` (lib) generated 155 warnings (155 duplicates)
+warning: missing documentation for the crate
+ --> crates/pvthfhe-bench/benches/smoke.rs:1:1
+  |
+1 | / use criterion::{black_box, criterion_group, criterion_main, Criterion};
+2 | |
+3 | | fn bench_noop(c: &mut Criterion) {
+4 | |     c.bench_function("noop", |b| b.iter(|| black_box(42u64)));
+... |
+7 | | criterion_group!(benches, bench_noop);
+8 | | criterion_main!(benches);
+  | |_________________________^
+  |
+  = note: requested on the command line with `-W missing-docs`
+
+warning: missing documentation for a function
+ --> crates/pvthfhe-bench/benches/smoke.rs:7:1
+  |
+7 | criterion_group!(benches, bench_noop);
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: this warning originates in the macro `$crate::criterion_group` which comes from the expansion of the macro `criterion_group` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused variable: `err`
+  --> crates/pvthfhe-bench/src/bin/bench_runner.rs:35:13
+   |
+35 |         Err(err) => std::process::abort(),
+   |             ^^^ help: if this is intentional, prefix it with an underscore: `_err`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: missing documentation for the crate
+ --> crates/pvthfhe-bench/src/bin/worked_example.rs:1:1
+  |
+1 | / fn main() {
+2 | |     let example = pvthfhe_bench::worked_example::generate(42);
+3 | |     println!("{}", pvthfhe_bench::worked_example::render_report(&example));
+4 | | }
+  | |_^
+  |
+  = note: requested on the command line with `-W missing-docs`
+
+warning: using a potentially dangerous silent `as` conversion
+  --> crates/pvthfhe-bench/src/bin/bench_runner.rs:13:42
+   |
+13 |     let mut samples = Vec::with_capacity(N_RUNS as usize);
+   |                                          ^^^^^^^^^^^^^^^
+   |
+   = help: consider using a safe wrapper for this conversion
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+   = note: requested on the command line with `-W clippy::as-conversions`
+
+warning: using a potentially dangerous silent `as` conversion
+  --> crates/pvthfhe-bench/src/bin/bench_runner.rs:17:22
+   |
+17 |         samples.push(start.elapsed().as_nanos() as f64);
+   |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: consider using a safe wrapper for this conversion
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: `pvthfhe-bench` (bench "smoke") generated 2 warnings
+warning: missing documentation for the crate
+  --> crates/pvthfhe-bench/src/bin/bench_runner.rs:1:1
+   |
+ 1 | / use pvthfhe_bench::{
+ 2 | |     backends::{expected_rns_len, fhe_rs::FheRsBackend, POLY_DEGREE, RqOps},
+ 3 | |     BenchEnv, BenchRecord, summarize_samples,
+ 4 | | };
+...  |
+81 | |     );
+82 | | }
+   | |_^
+   |
+   = note: requested on the command line with `-W missing-docs`
+
+warning: `pvthfhe-bench` (bin "worked_example") generated 1 warning
+warning: `pvthfhe-bench` (bin "bench_runner" test) generated 4 warnings (run `cargo clippy --fix --bin "bench_runner" -p pvthfhe-bench --tests -- -D clippy::unwrap_used` to apply 1 suggestion)
+warning: `pvthfhe-bench` (bin "worked_example" test) generated 1 warning (1 duplicate)
+warning: using a potentially dangerous silent `as` conversion
+  --> crates/pvthfhe-bench/src/bin/folding_bench.rs:97:43
+   |
+97 |         per_fold_ms: fold_stats.mean_ns / fold_count as f64,
+   |                                           ^^^^^^^^^^^^^^^^^
+   |
+   = help: consider using a safe wrapper for this conversion
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+   = note: requested on the command line with `-W clippy::as-conversions`
+
+warning: using a potentially dangerous silent `as` conversion
+   --> crates/pvthfhe-bench/src/bin/folding_bench.rs:108:17
+    |
+108 |     let index = ((sorted.len() - 1) as f64 * quantile).ceil() as usize;
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using a safe wrapper for this conversion
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: using a potentially dangerous silent `as` conversion
+   --> crates/pvthfhe-bench/src/bin/folding_bench.rs:108:18
+    |
+108 |     let index = ((sorted.len() - 1) as f64 * quantile).ceil() as usize;
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: consider using a safe wrapper for this conversion
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#as_conversions
+
+warning: missing documentation for the crate
+   --> crates/pvthfhe-bench/src/bin/folding_bench.rs:1:1
+    |
+  1 | / use pvthfhe_bench::{
+  2 | |     folding::{
+  3 | |         accumulator_size_bytes, prove_final_snark, run_folding_loop, sample_r1cs_instance, verify_final_snark,
+  4 | |     },
+...   |
+131 | |         .to_path_buf()
+132 | | }
+    | |_^
+    |
+    = note: requested on the command line with `-W missing-docs`
+
+warning: `pvthfhe-bench` (bin "bench_runner") generated 4 warnings (4 duplicates)
+warning: `pvthfhe-bench` (bin "folding_bench") generated 4 warnings
+warning: `pvthfhe-bench` (bin "folding_bench" test) generated 4 warnings (4 duplicates)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.27s

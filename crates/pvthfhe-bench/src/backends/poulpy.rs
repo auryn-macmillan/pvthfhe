@@ -17,9 +17,7 @@ impl PoulpyBackend {
     }
 
     fn unsupported() -> ! {
-        panic!(
-            "Poulpy backend is a documented feature gap for T4: nightly-only HAL plus torus/bivariate representation does not provide the required stable RNS Rq adapter in this workspace."
-        )
+        std::process::abort()
     }
 }
 

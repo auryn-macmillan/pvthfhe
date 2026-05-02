@@ -30,7 +30,11 @@ fn emit_record(case: &str, backend: &str, samples: &[f64]) {
         n_runs: N_RUNS,
     };
 
-    println!("{}", serde_json::to_string(&record).unwrap());
+    let json = match serde_json::to_string(&record) {
+        Ok(json) => json,
+        Err(err) => std::process::abort(),
+    };
+    println!("{}", json);
 }
 
 fn main() {

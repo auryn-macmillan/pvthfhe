@@ -2,3 +2,9 @@
 name = "pvthfhe-api"
 version = "0.1.0"
 edition = "2021"
+
+[lints]
+workspace = true
+
+[dependencies]
+rand_core = "0.6"

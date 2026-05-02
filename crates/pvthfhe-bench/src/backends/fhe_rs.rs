@@ -42,12 +42,24 @@ mod enabled {
 
     fn single_limb_context() -> &'static Arc<Context> {
         static CONTEXT: OnceLock<Arc<Context>> = OnceLock::new();
-        CONTEXT.get_or_init(|| Arc::new(Context::new(&[MODULI_60_BIT[0]], POLY_DEGREE).expect("valid single-limb fhe.rs context")))
+        CONTEXT.get_or_init(|| {
+            let context = match Context::new(&[MODULI_60_BIT[0]], POLY_DEGREE) {
+                Ok(context) => context,
+                Err(err) => panic!("valid single-limb fhe.rs context: {err:?}"),
+            };
+            Arc::new(context)
+        })
     }
 
     fn four_limb_context() -> &'static Arc<Context> {
         static CONTEXT: OnceLock<Arc<Context>> = OnceLock::new();
-        CONTEXT.get_or_init(|| Arc::new(Context::new(&MODULI_60_BIT, POLY_DEGREE).expect("valid four-limb fhe.rs context")))
+        CONTEXT.get_or_init(|| {
+            let context = match Context::new(&MODULI_60_BIT, POLY_DEGREE) {
+                Ok(context) => context,
+                Err(err) => panic!("valid four-limb fhe.rs context: {err:?}"),
+            };
+            Arc::new(context)
+        })
     }
 
     fn four_limb_moduli() -> &'static [Modulus] {
@@ -63,10 +75,12 @@ mod enabled {
             assert_eq!(x.len(), expected_rns_len(), "expected four-limb RNS polynomial with {} coefficients", expected_rns_len());
         }
 
-        fn poly_from_power_basis(coeffs: &[u64]) -> Poly {
-            Poly::try_convert_from(coeffs.to_vec(), four_limb_context(), false, Representation::PowerBasis)
-                .expect("valid RNS polynomial")
+    fn poly_from_power_basis(coeffs: &[u64]) -> Poly {
+        match Poly::try_convert_from(coeffs.to_vec(), four_limb_context(), false, Representation::PowerBasis) {
+            Ok(poly) => poly,
+            Err(err) => panic!("valid RNS polynomial: {err:?}"),
         }
+    }
     }
 
     impl super::RqOps for FheRsBackend {

@@ -10,3 +10,12 @@ members = [
     "crates/pvthfhe-api",
     "crates/pvthfhe-enclave-adapter",
 ]
+
+[workspace.lints.rust]
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "warn"
+as_conversions = "warn"

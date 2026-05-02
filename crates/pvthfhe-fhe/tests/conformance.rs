@@ -1,4 +1,6 @@
 //! Conformance tests for [`FheBackend`] implementations.
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
 //!
 //! These tests define the contract that every backend must satisfy.
 //! Run with `--features mock` to test the mock backend.

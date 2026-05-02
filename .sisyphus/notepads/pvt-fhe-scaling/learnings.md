@@ -246,3 +246,27 @@ Worked example: n=4, t=3, N_ring=8, q=97, t_plain=4, seed=42. All arithmetic ver
 ### Primary backend (fhers.rs)
 - All methods delegate to `MockBackendInner` with `// TODO(T33)` markers
 - gnosisguild/fhe.rs git dep NOT added — compile time concern; T33 will wire real API
+
+## T32: Noir + Foundry test harnesses
+
+- `forge install` with `--root contracts` fails with "Library directory is not relative to the repository root" — use `git submodule add` directly instead
+- `forge install` no longer accepts `--no-commit` flag (removed in newer versions)
+- forge-std must be added as a git submodule at `contracts/lib/forge-std`
+- CI already had `nargo-test` and `forge-test` jobs from T1 scaffolding — no new CI jobs needed
+- `just test-circuits` and `just test-contracts` stubs existed in Justfile with `@exit 2` — replaced in-place
+- `nargo test --workspace` passes with 0 tests per package (aggregator_final, decrypt_share, share_wf all have 0 tests; rlwe_relation has 2)
+- Evidence logs in `.sisyphus/evidence/` are gitignored — use `git add -f` to force-include them
+
+## T31: Golden vectors + property test harness
+
+- `pvthfhe-fhe::mock` module is gated behind `features = ["mock"]`; enable it in dev-deps with `features = ["mock"]`
+- `MockBackendInner` is private; use the public `MockBackend` type alias from `pvthfhe_fhe::mock`
+- MockBackend XOR round-trip only works when decrypt parties == keygen parties (XOR cancels out)
+- Empty plaintext doesn't round-trip cleanly (XOR pads to pk length); use `\x00\x00\x00\x00` instead
+- `*.log` files are gitignored; evidence logs exist on disk but not in git
+- proptest `FileFailurePersistence::SourceParallel` warning is benign in integration test context
+- `serde` must be added to dev-dependencies explicitly even when pvthfhe-fhe already uses it
+## 2026-05-02
+
+- Test-only clippy relaxations should be added as crate-level `#![allow(clippy::unwrap_used)]` and `#![allow(clippy::expect_used)]` at the top of each affected `tests/*.rs` file.
+- `cargo clippy --workspace --all-targets -- -D clippy::unwrap_used` also surfaced `missing_docs` in test crates; we suppressed that at the same crate level to keep test-target diagnostics clean.

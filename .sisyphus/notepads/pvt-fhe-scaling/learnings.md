@@ -42,3 +42,8 @@
 - `nargo info --package rlwe_relation` reports ACIR opcodes cleanly; the toy coefficient-vector surrogate scaled linearly at 16/32/64 gates for logical N=512/2048/8192 envelopes.
 - Canonical `nargo execute` + `bb write_vk/prove/verify` flow works directly against `circuits/target/rlwe_relation.{json,gz}`; tampered witnesses fail during execute before BB proving.
 - Added explicit methodology artifact and reproduce-script stub output mapping logical N envelopes to surrogate Noir coefficient counts (16/32/64).
+
+## [2026-05-02] Task: T12
+- A lightweight NIFS-style folding simulation was sufficient to surface scaling constants without claiming a full Nova/HyperNova implementation; the benchmark explicitly measures constant-time per-fold accumulation plus a simulated final proof/verifier step.
+- The fixed 8-variable R1CS surrogate kept the accumulator size flat at 280 bytes across N ∈ {16,64,256,1024}, while the simulated final proof grew only with log2(N) (320 → 512 bytes).
+- The fitted log-log slope on per-fold time was -0.0058 on this host, which is effectively constant and satisfies the sub-linear acceptance check.

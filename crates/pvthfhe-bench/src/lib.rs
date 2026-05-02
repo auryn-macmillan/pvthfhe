@@ -1,4 +1,5 @@
 pub mod backends;
+pub mod folding;
 
 use serde::{Deserialize, Serialize};
 

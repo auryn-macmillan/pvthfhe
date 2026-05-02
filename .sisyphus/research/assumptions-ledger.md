@@ -71,3 +71,18 @@ This document lists the cryptographic assumptions required for the Publicly Veri
 - **What breaks if violated**: Security proofs for KZG and some SNARK components might not hold against non-algebraic adversaries.
 - **Replacement candidates**: Standard model proofs (often much larger/slower).
 - **Used by**: T16 (Recursive Proof Soundness)
+
+## Mask-then-Open (Random Double Sharings)
+- **Source**: ePrint 2025/1834 (Ajax)
+- **Statement**: Security relies on the hardness of distinguishing random double sharings over different rings from uniform. This is used to mask the noise during threshold decryption without the need for large noise flooding.
+- **Used in**: arch-A (Ajax-based threshold decryption)
+
+## Everywhere-Short Secret Sharing (Lattice-based VSS)
+- **Source**: ePrint 2026/419 (Hermine)
+- **Statement**: Given a short secret vector, it can be split into short shares such that any threshold subset can reconstruct the secret using a short linear reconstruction algorithm, while information leakage about the secret is bounded and computationally hard to exploit.
+- **Used in**: arch-B (Lattice-based PVSS)
+
+## Ring-R1CS Sum-check Security
+- **Source**: ePrint 2024/1764 (vFHE) / 2025/286 (Cascudo et al.)
+- **Statement**: Security of the succinct arguments for correct homomorphic computation over the polynomial ring Rq relies on the soundness of the sum-check protocol extended to rings and the binding property of the underlying lattice-based polynomial commitment scheme (e.g., Module-SIS).
+- **Used in**: arch-C (Noir/Recursive aggregation of FHE proofs)

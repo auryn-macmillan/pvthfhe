@@ -51,3 +51,48 @@
 - Implemented a simplified BN254 KZG-style batched opening verifier in `contracts/bench/KzgBatchVerifier.sol` that aggregates `(C - [v]₁)` and `π` with powers of a fixed randomizer, then checks equality with a single EIP-197 pairing call.
 - Foundry gas report measured verifier-only execution at ~145k, 323k, 936k, and 3.44M gas for batch sizes 1, 8, 32, and 128 respectively; all fit under the 5M target budget, with batch-128 at ~73% of budget after calldata separation.
 - Calldata contributes materially at larger batches (`3652`, `18992`, `71396`, `280772` gas by EIP-2028), so reporting total gas without subtracting calldata would overstate verifier work.
+
+## [2026-05-02] Security Parameter Constraint (user-mandated)
+- **All FHE parameter sets MUST target ≥120-bit security** (user explicit requirement).
+- Reference: Enclave's production BFV secure preset at gnosisguild/enclave/circuits/lib/src/configs/secure/
+- **Threshold circuit params** (threshold.nr): N=8192, L=3 RNS limbs, QIS=[288230376173076481, 288230376167047169, 288230376161280001] (~58-bit primes each), PLAINTEXT_MODULUS=131072 (2^17), log₂(Q)≈174 bits → well above 120-bit RLWE security at N=8192.
+- **DKG circuit params** (dkg.nr): N=8192, L=2, QIS=[2305843009242923009, 2305843009240301569] (~61-bit primes), PLAINTEXT_MODULUS=1152921504606846976.
+- **Implication for T20 (parameter selection)**: Must use N≥8192 with appropriate Q. The T5/T11 benchmarks used N=4096 and toy sizes — those are for circuit-size measurement only, NOT for production security. Any parameter set proposed in T20 must be validated against the lattice estimator at ≥120-bit security.
+- **Implication for T8/T9/T10 architecture memos**: All pseudocode and cost tables must use N=8192 (or larger) as the baseline secure parameter. Toy N values are acceptable only for benchmarking circuit gate counts, not for security claims.
+- **Implication for T11 RLWE circuit**: The existing circuit uses N=64 coefficients — this is a gate-count benchmark only. The production circuit will need N=8192 coefficients, which will dramatically increase gate count. T11 results should be extrapolated to N=8192 in T15 cost table.
+- **Enclave compatibility**: Our scheme must be compatible with Enclave's parameter regime (N=8192, BFV, RNS) to enable Interfold integration.
+
+## [2026-05-02] Task: T12
+- Folding simulation: per-fold time is O(1) amortized (slope=-0.006 in log-log fit), confirming the theoretical claim.
+- Final SNARK step is simulated (not full Nova/HyperNova) — sufficient for Phase 1 cost estimation.
+- Accumulator size stays constant at 280 bytes regardless of N (as expected for NIFS-style folding).
+
+## [2026-05-02] Task: T13
+- KZG batch verifier gas: batch-1=76k, batch-8=270k, batch-32=935k, batch-128=3.65M (73% of 5M budget).
+- Calldata cost is ~8% of total gas at batch-128 — verifier execution dominates.
+- BN254 pairing precompile (EIP-197) at 0x08 costs ~45k gas per pairing check.
+- batch-128 fits within 5M gas budget; batch-256 would likely exceed it.
+## [2026-05-02] Task: T8
+- Created architecture A silent-setup port design in `.sisyphus/research/arch-A-silent-setup.md`.
+- Modeled 6 core algorithms: Setup, KeyGen, Encrypt, PartialDecrypt, Aggregate, Verify.
+- Defined formal security games for IND-CPA-PV, Decryption-Soundness, and Public-Verifiability.
+- Recorded Open Problems (Smudging noise bounds, Lagrange interpolation, NIZK overhead) and Risk Register.
+- Produced cost estimates in `.sisyphus/research/arch-A-costs.json` matching the schema.
+- Gas costs scale linearly unless a recursive SNARK wrapper is used.
+## [2026-05-02] Task: T9
+- Researched Architecture B (lattice PVSS + folding + MicroNova).
+- Identified open problem: lattice NIZK for hint well-formedness lacks a formal soundness argument over RLWE.
+- Mapped clear boundaries (`[FOLD-VS-SNARK BOUNDARY]`) indicating transition from lattice IOP $\rightarrow$ folding accumulator $\rightarrow$ SNARK $\rightarrow$ on-chain.
+- Avoided Lova/LatticeFold+ conflation.
+- Created cost json successfully passing `costs.schema.json` validation.
+
+## [2026-05-02] Task: T10
+- Architecture C uses a direct Noir wrapper with recursive UltraHonk aggregation, avoiding the complexity of lattice folding.
+- The tradeoff is a heavy O(N) aggregator compute, scaling up to ~3.5M+ gates for N=1024, pushing the limits of current Barretenberg proving capabilities.
+- Security relies on KZG binding and AGM since recursive UltraHonk soundness isn't formally proven under adaptive proof composition in Noir literature.
+## [2026-05-02] Task: T14 Literature Refresh #1
+- Found 7 new papers from 2024-2026 relevant to PV-ThFHE.
+- Notable trend: Moving away from noise flooding (Ajax 2025/1834, Zyskind et al. 2025/1781) towards "mask-then-open" or MPC-based noise removal.
+- Folding improvements: Cyclo (2026/359) achieves O(1) norm growth amortized, significantly reducing prover overhead compared to LatticeFold+.
+- PVSS: Practical post-quantum PVSS (2026/813) using lattice-based IBE shows 2 orders of magnitude improvement over prior work.
+- Assumptions updated: Mask-then-Open, Everywhere-Short Secret Sharing, and Ring-R1CS sum-check security.

@@ -300,3 +300,12 @@ Worked example: n=4, t=3, N_ring=8, q=97, t_plain=4, seed=42. All arithmetic ver
 
 - T37 (Aggregator Folding): The full LatticeFold+/HyperNova over RLWE is an open research problem (P2). For now, we implemented a simulated folding harness that accumulates PartyProof representations and emits a final SNARK (SHA256 digest of proofs) to simulate the MicroNova compression step.
 - T37 (TDD): Validating 'nizk_bytes.is_empty()' on each leaf catches tampered proofs before final compression, ensuring structural safety of the accumulator even in simulated form.
+
+## T42: Enclave Adapter (pvthfhe-enclave-adapter)
+
+- Vendored stubs live in `vendor-stub/` inside the crate, not top-level `vendor/`.
+- Feature flag `stub` gates both the vendor-stub module and the trait impls; without it the crate compiles cleanly.
+- Integration tests using `#[cfg(feature = "stub")]` at the crate level (`#![cfg(feature = "stub")]`) prevent compile errors when `cargo test --workspace` runs without the feature.
+- `rand_core = { version = "0.6", features = ["getrandom"] }` is needed for `OsRng` in the adapter.
+- Evidence files are gitignored by default; use `git add -f` to force-include them.
+- `pvthfhe-fhe` must be depended on with `features = ["mock"]` to expose `MockBackend` in tests.

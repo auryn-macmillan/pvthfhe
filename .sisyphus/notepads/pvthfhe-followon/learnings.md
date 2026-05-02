@@ -68,3 +68,8 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 ## 2026-05-02 — Task A.D.1: P4 frozen interface spec
 - The frozen P4 boundary works cleanly as five semantic serde types (`KeygenSession`, `Share`, `PublicVerificationArtifact`, `BlameProof`, `BFVPublicKey`) plus a derivation trait, without borrowing any fields from the aggregator surrogate stub.
 - KAT coverage is easiest when the design doc, JSON fixtures, and stub derivation logic all share the same canonical wire examples; one fixture can validate trait JSON roundtrips and BFV public-key derivation together.
+
+## 2026-05-02 — Task A.D.3: P4 theorem skeletons
+- The proof-skeleton validator needed a CLI compatibility upgrade: this task's acceptance command uses a positional directory argument and `--min-thms`, so the script now counts `## Theorem` sections instead of only checking files.
+- P4 theorem skeletons are easiest to keep reviewable as one theorem per file because the obligations registry can point each theorem ID directly at a concrete markdown path.
+- The right place to expose proof debt is inside each theorem's own `Unresolved Lemmas` list; pushing those gaps into a shared note would hide which dependency blocks which theorem.

@@ -1,0 +1,4 @@
+{"case":"ntt_forward(N=4096,q=q0)","backend":"fhe_rs","median_ns":1563922.5,"mean_ns":7238837.333333333,"stddev_ns":18813302.32835047,"n_runs":12}
+{"case":"ntt_inverse(N=4096,q=q0)","backend":"fhe_rs","median_ns":2134030.0,"mean_ns":2134366.75,"stddev_ns":6467.693098843925,"n_runs":12}
+{"case":"poly_mul_ntt_domain(N=4096,RNS={q0..q3})","backend":"fhe_rs","median_ns":15288035.0,"mean_ns":15288359.166666666,"stddev_ns":51410.08970658278,"n_runs":12}
+{"case":"sample_uniform_rq(N=4096,RNS={q0..q3})","backend":"fhe_rs","median_ns":3792320.0,"mean_ns":3804534.25,"stddev_ns":58883.58563177149,"n_runs":12}

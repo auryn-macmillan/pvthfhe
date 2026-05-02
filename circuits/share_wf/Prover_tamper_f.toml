@@ -1,0 +1,5 @@
+pk_hash = "1"
+share_commitment = "0x1908decd7c163d2ec7622c7a2c378aedcb9cfd425d0269ee0a247579c0b3c2cb"
+party_id = "1"
+secret_share = ["256", "2", "3", "500"]
+randomness = "42"

@@ -1,0 +1,12 @@
+[share_wf] Circuit witness successfully solved
+[share_wf] Witness saved to target/share_wf.gz
+Scheme is: ultra_honk, num threads: 4 (mem: 6.38 MiB)
+CircuitProve: Proving key computed in 25 ms (mem: 32.60 MiB)
+VK saved to "target/vk" (mem: 33.07 MiB)
+VK Hash saved to "target/vk_hash" (mem: 33.07 MiB)
+Scheme is: ultra_honk, num threads: 4 (mem: 6.50 MiB)
+CircuitProve: Proving key computed in 25 ms (mem: 33.67 MiB)
+Public inputs saved to "target/public_inputs" (mem: 44.60 MiB)
+Proof saved to "target/proof" (mem: 44.60 MiB)
+Scheme is: ultra_honk, num threads: 4 (mem: 6.50 MiB)
+Proof verified successfully (mem: 9.12 MiB)

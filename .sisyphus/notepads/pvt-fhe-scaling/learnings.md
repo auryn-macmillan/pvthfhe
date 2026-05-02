@@ -270,3 +270,25 @@ Worked example: n=4, t=3, N_ring=8, q=97, t_plain=4, seed=42. All arithmetic ver
 
 - Test-only clippy relaxations should be added as crate-level `#![allow(clippy::unwrap_used)]` and `#![allow(clippy::expect_used)]` at the top of each affected `tests/*.rs` file.
 - `cargo clippy --workspace --all-targets -- -D clippy::unwrap_used` also surfaced `missing_docs` in test crates; we suppressed that at the same crate level to keep test-target diagnostics clean.
+
+### T33 Learnings
+- **DKG Simulator**: Implemented a mock state machine for 3-round PVSS.
+- **Blame handling**: Aggregator handles missing shares (WithholdShare) by gathering Round 2 complaints and excluding malicious parties.
+- **Crypto abstraction**: Utilized `MockBackend` via `FheBackend` trait which seamlessly provides `keygen_share` and `aggregate_keygen` without relying on real `fhe.rs` internals.
+
+## Threshold Decryption (T34)
+- **MockBackend limitation**: The `MockBackend`'s `aggregate_decrypt` computes `reconstructed_pk` from the sum of the provided shares. Because of this, it cannot properly decrypt a ciphertext unless the XOR of the shares given matches the aggregate PK the ciphertext was encrypted with. To round-trip with a subset of size `t < N`, the shares chosen must sum (XOR) to the exact `aggregate_pk`. This works for our tests but highlights that `MockBackend` simulates threshold cryptography rigidly rather than genuinely.
+- **NIZK Payload**: Implemented `DecryptSharePayload` carrying `DecryptShare` and `nizk` array. Verification checks for a non-empty `nizk` array.
+
+## T38: PvtFheVerifier scaffold + Foundry tests
+
+- `forge inspect --root contracts PvtFheVerifier abi --json` produces raw JSON ABI (without `--json` it outputs a human-readable table)
+- Assembly `pop(x)` is the correct way to consume a value and prevent dead-code elimination in Solidity ≥0.8.24; `let _ := x` is reserved and causes a compile error
+- Scaffold `verify()` returns `false` always; all 7 tests pass including RED tests documenting T39 behaviour
+- Gas for scaffold verify() with 64-byte proof: ~74K gas (well within 5M budget)
+- `check-abi.py` validates verify(), threshold(), rlweDegree() against T22 spec; exits 0 on match
+- Evidence logs are gitignored — use `git add -f` to force-include them
+
+### Noir 1.0.0-beta Hashing Changes
+- `std::hash::keccak256` was removed from the Noir standard library in `1.0.0-beta.20` and moved to standalone crates. For surrogate circuits hashing `Field` values, `std::hash::pedersen_hash` is the built-in alternative that takes an array of `Field` and returns a `Field` directly.
+- In Noir, literal integers in arrays (e.g. `[1, 255, 3, 4]`) naturally map to `Field` types. Checking for ranges can be done cleanly using `as u8` conversions followed by `as Field` and a direct equality assertion.

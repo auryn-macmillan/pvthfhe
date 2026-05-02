@@ -1,0 +1,79 @@
+
+Testing tamper a
+error: Assertion failed: secret_share coefficient out of bounds
+   ┌─ share_wf/src/main.nr:18:16
+   │
+18 │         assert(val as Field == secret_share[i], "secret_share coefficient out of bounds");
+   │                -------------------------------
+   │
+   = Call stack:
+     1: main
+             at share_wf/src/main.nr:18:16
+
+Failed assertion
+Exit code: 1
+Testing tamper b
+error: Assertion failed: commitment mismatch
+   ┌─ share_wf/src/main.nr:31:12
+   │
+31 │     assert(computed_hash == share_commitment, "commitment mismatch");
+   │            ---------------------------------
+   │
+   = Call stack:
+     1: main
+             at share_wf/src/main.nr:31:12
+
+Failed assertion
+Exit code: 1
+Testing tamper c
+error: Assertion failed: party_id must be non-zero
+   ┌─ share_wf/src/main.nr:13:12
+   │
+13 │     assert(party_id != 0, "party_id must be non-zero");
+   │            -------------
+   │
+   = Call stack:
+     1: main
+             at share_wf/src/main.nr:13:12
+
+Failed assertion
+Exit code: 1
+Testing tamper d
+error: Assertion failed: commitment mismatch
+   ┌─ share_wf/src/main.nr:31:12
+   │
+31 │     assert(computed_hash == share_commitment, "commitment mismatch");
+   │            ---------------------------------
+   │
+   = Call stack:
+     1: main
+             at share_wf/src/main.nr:31:12
+
+Failed assertion
+Exit code: 1
+Testing tamper e
+error: Assertion failed: commitment mismatch
+   ┌─ share_wf/src/main.nr:31:12
+   │
+31 │     assert(computed_hash == share_commitment, "commitment mismatch");
+   │            ---------------------------------
+   │
+   = Call stack:
+     1: main
+             at share_wf/src/main.nr:31:12
+
+Failed assertion
+Exit code: 1
+Testing tamper f
+error: Assertion failed: secret_share coefficient out of bounds
+   ┌─ share_wf/src/main.nr:18:16
+   │
+18 │         assert(val as Field == secret_share[i], "secret_share coefficient out of bounds");
+   │                -------------------------------
+   │
+   = Call stack:
+     1: main
+             at share_wf/src/main.nr:18:16
+
+Failed assertion
+Exit code: 1

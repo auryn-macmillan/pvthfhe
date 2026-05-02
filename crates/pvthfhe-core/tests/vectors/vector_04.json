@@ -1,0 +1,59 @@
+{
+  "schema": "pvthfhe-test-vector-v1",
+  "description": "5-party t=3 round-trip: test vector 4",
+  "params": {
+    "n": 8192,
+    "log2_q": 174,
+    "t_plain": 65536,
+    "threshold": 3,
+    "n_parties": 5
+  },
+  "keygen_shares": [
+    {
+      "party_id": 0,
+      "share_bytes": "00000000"
+    },
+    {
+      "party_id": 1,
+      "share_bytes": "01000000"
+    },
+    {
+      "party_id": 2,
+      "share_bytes": "02000000"
+    },
+    {
+      "party_id": 3,
+      "share_bytes": "03000000"
+    },
+    {
+      "party_id": 4,
+      "share_bytes": "04000000"
+    }
+  ],
+  "aggregate_pk": "04000000",
+  "plaintext": "7465737420766563746f722034",
+  "ciphertext": "7065737420766563746f722034",
+  "decrypt_shares": [
+    {
+      "party_id": 0,
+      "share_bytes": "00000000"
+    },
+    {
+      "party_id": 1,
+      "share_bytes": "01000000"
+    },
+    {
+      "party_id": 2,
+      "share_bytes": "02000000"
+    },
+    {
+      "party_id": 3,
+      "share_bytes": "03000000"
+    },
+    {
+      "party_id": 4,
+      "share_bytes": "04000000"
+    }
+  ],
+  "recovered_plaintext": "7465737420766563746f722034"
+}

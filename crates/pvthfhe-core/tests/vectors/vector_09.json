@@ -1,0 +1,99 @@
+{
+  "schema": "pvthfhe-test-vector-v1",
+  "description": "10-party t=6 round-trip: large committee",
+  "params": {
+    "n": 8192,
+    "log2_q": 174,
+    "t_plain": 65536,
+    "threshold": 6,
+    "n_parties": 10
+  },
+  "keygen_shares": [
+    {
+      "party_id": 0,
+      "share_bytes": "00000000"
+    },
+    {
+      "party_id": 1,
+      "share_bytes": "01000000"
+    },
+    {
+      "party_id": 2,
+      "share_bytes": "02000000"
+    },
+    {
+      "party_id": 3,
+      "share_bytes": "03000000"
+    },
+    {
+      "party_id": 4,
+      "share_bytes": "04000000"
+    },
+    {
+      "party_id": 5,
+      "share_bytes": "05000000"
+    },
+    {
+      "party_id": 6,
+      "share_bytes": "06000000"
+    },
+    {
+      "party_id": 7,
+      "share_bytes": "07000000"
+    },
+    {
+      "party_id": 8,
+      "share_bytes": "08000000"
+    },
+    {
+      "party_id": 9,
+      "share_bytes": "09000000"
+    }
+  ],
+  "aggregate_pk": "01000000",
+  "plaintext": "6c6172676520636f6d6d6974746565",
+  "ciphertext": "6d6172676520636f6d6d6974746565",
+  "decrypt_shares": [
+    {
+      "party_id": 0,
+      "share_bytes": "00000000"
+    },
+    {
+      "party_id": 1,
+      "share_bytes": "01000000"
+    },
+    {
+      "party_id": 2,
+      "share_bytes": "02000000"
+    },
+    {
+      "party_id": 3,
+      "share_bytes": "03000000"
+    },
+    {
+      "party_id": 4,
+      "share_bytes": "04000000"
+    },
+    {
+      "party_id": 5,
+      "share_bytes": "05000000"
+    },
+    {
+      "party_id": 6,
+      "share_bytes": "06000000"
+    },
+    {
+      "party_id": 7,
+      "share_bytes": "07000000"
+    },
+    {
+      "party_id": 8,
+      "share_bytes": "08000000"
+    },
+    {
+      "party_id": 9,
+      "share_bytes": "09000000"
+    }
+  ],
+  "recovered_plaintext": "6c6172676520636f6d6d6974746565"
+}

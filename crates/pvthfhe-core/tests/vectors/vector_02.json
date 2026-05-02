@@ -1,0 +1,43 @@
+{
+  "schema": "pvthfhe-test-vector-v1",
+  "description": "3-party t=2 round-trip: zero bytes (empty-like)",
+  "params": {
+    "n": 8192,
+    "log2_q": 174,
+    "t_plain": 65536,
+    "threshold": 2,
+    "n_parties": 3
+  },
+  "keygen_shares": [
+    {
+      "party_id": 0,
+      "share_bytes": "00000000"
+    },
+    {
+      "party_id": 1,
+      "share_bytes": "01000000"
+    },
+    {
+      "party_id": 2,
+      "share_bytes": "02000000"
+    }
+  ],
+  "aggregate_pk": "03000000",
+  "plaintext": "00000000",
+  "ciphertext": "03000000",
+  "decrypt_shares": [
+    {
+      "party_id": 0,
+      "share_bytes": "00000000"
+    },
+    {
+      "party_id": 1,
+      "share_bytes": "01000000"
+    },
+    {
+      "party_id": 2,
+      "share_bytes": "02000000"
+    }
+  ],
+  "recovered_plaintext": "00000000"
+}

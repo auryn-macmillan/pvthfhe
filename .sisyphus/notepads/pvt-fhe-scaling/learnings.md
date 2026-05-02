@@ -32,3 +32,7 @@
 - Validated sample-costs.json using ajv-cli with `--spec=draft2020` flag.
 - Observed that ajv-cli requires explicit spec flag for 2020-12 even if $schema is present.
 - Allowed union types (number | string) in schema to accommodate "TBD" placeholders in early research phases.
+## [2026-05-02] Task: T4
+- Chose gnosisguild/fhe.rs as the primary backend because it exposes stable RNS/NTT/Rq APIs, includes threshold BFV share serialization, and was the only candidate benchmarkable in-workspace.
+- Poulpy remains the fallback/watchlist backend: promising modular HAL, but current public stack is nightly-only and torus/bivariate rather than the required fixed 4x60-bit RNS adapter surface.
+- Recorded pinned SHAs: poulpy 4a1f0c642cef7e5830287c3d6af7e013d8a7bda4, fhe.rs 5f24d0b62a7329b789db07a065b68accd614a47b; benchmark JSON saved at bench/results/backend-compare-2026-05-02.json.

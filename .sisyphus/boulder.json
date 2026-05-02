@@ -8,5 +8,25 @@
     "ses_219ed884effeD7S91DU3bc6IJe": "direct"
   },
   "plan_name": "pvt-fhe-scaling",
-  "agent": "atlas"
+  "agent": "atlas",
+  "task_sessions": {
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "**T1: Repo bootstrap + Justfile + CI skeleton + AGENTS.md**",
+      "session_id": "ses_2179765e1ffeV166JdaXPJYeaC",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-02T11:21:46.609Z"
+    },
+    "todo:2": {
+      "task_key": "todo:2",
+      "task_label": "2",
+      "task_title": "**T2: Threat model + assumptions ledger**",
+      "session_id": "ses_217917595ffe7nFne8ye5aB5B1",
+      "agent": "Sisyphus-Junior",
+      "category": "writing",
+      "updated_at": "2026-05-02T11:24:59.046Z"
+    }
+  }
 }

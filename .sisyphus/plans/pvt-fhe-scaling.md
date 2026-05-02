@@ -297,7 +297,7 @@ Max Concurrent: 7 (Wave R2 and I2)
 
 ## TODOs
 
-- [ ] 1. **T1: Repo bootstrap + Justfile + CI skeleton + AGENTS.md**
+- [x] 1. **T1: Repo bootstrap + Justfile + CI skeleton + AGENTS.md**
 
   **What to do**:
   - Initialize Cargo workspace with **all 8 crates as placeholder members from day 1** (root `Cargo.toml`: `resolver = "2"`, `[workspace] members = ["crates/pvthfhe-core", "crates/pvthfhe-fhe", "crates/pvthfhe-circuits", "crates/pvthfhe-aggregator", "crates/pvthfhe-cli", "crates/pvthfhe-bench", "crates/pvthfhe-api", "crates/pvthfhe-enclave-adapter"]`). Each placeholder ships `Cargo.toml` (name + version + edition) + `src/lib.rs` containing one trivial `#[test] fn placeholder() {}` so `cargo test --workspace` is green and `cargo -p <name>` works for every later task. Later tasks (T20, T21, T22, T23, T30, T42, etc.) **add code to the existing crate without creating it**.

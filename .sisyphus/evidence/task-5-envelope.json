@@ -1,0 +1,1 @@
+{"name":"noop","mean":21.1,"median":20.0,"p99":40.0,"stddev":3.43365694267788,"n_runs":100,"env":{"cpu":"AMD RYZEN AI MAX+ 395 w/ Radeon 8060S","ram_gb":7,"kernel":"Linux version 6.8.0-90-generic","git_sha":"8e61a68","timestamp":"2026-05-02T11:27:16Z"}}

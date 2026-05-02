@@ -1,0 +1,48 @@
+{
+  "schema_version": "1",
+  "gate": "phase2",
+  "timestamp": "2026-05-02T14:12:26Z",
+  "status": "PASS",
+  "checks": [
+    {
+      "id": "artifacts",
+      "status": "PASS",
+      "detail": "All 13 T17-T27 artifacts present"
+    },
+    {
+      "id": "parameters_toml",
+      "status": "PASS",
+      "detail": "parameters.toml valid with required keys"
+    },
+    {
+      "id": "noise_budget_test",
+      "status": "PASS",
+      "detail": "cargo test noise_budget passed"
+    },
+    {
+      "id": "theorem_mapping",
+      "status": "PASS",
+      "detail": "Success: All theorems mapped correctly and all non-background assumptions are used."
+    },
+    {
+      "id": "boundary_coverage",
+      "status": "PASS",
+      "detail": "PASS: boundary coverage complete for .sisyphus/design/proof-boundary.md\nPASS: mapped=12, unmapped=0"
+    },
+    {
+      "id": "oracle_dispositions",
+      "status": "PASS",
+      "detail": "All findings ADDRESSED"
+    },
+    {
+      "id": "lit_refresh_no_blocking",
+      "status": "PASS",
+      "detail": "No BLOCKING+undecided lines in lit-refresh-2.md"
+    },
+    {
+      "id": "cargo_check",
+      "status": "PASS",
+      "detail": "cargo check --workspace passed"
+    }
+  ]
+}

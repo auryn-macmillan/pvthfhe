@@ -9,8 +9,7 @@ phase1-gate:
     python3 .sisyphus/scripts/phase1-gate.py
 
 phase2-gate:
-    @echo "not implemented"
-    @exit 2
+    python3 .sisyphus/scripts/phase2-gate.py
 
 phase3-gate:
     @echo "not implemented"

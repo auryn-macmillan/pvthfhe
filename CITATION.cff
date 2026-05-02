@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: "Placeholder"
+    given-names: "Author"
+title: "PVTHFHE: Private-Verifiable Threshold FHE"
+version: 0.1.0
+date-released: 2026-05-02
+url: "https://github.com/example/pvthfhe"
+repository-code: "https://github.com/example/pvthfhe"
+type: software
+abstract: "A research prototype for private-verifiable threshold Fully Homomorphic Encryption (FHE) with O(n) per-party work and O(polylog n) verifier cost."
+keywords:
+  - FHE
+  - threshold cryptography
+  - zero-knowledge proofs
+  - lattice-based cryptography
+  - folding schemes
+license: MIT

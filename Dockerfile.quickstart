@@ -1,0 +1,44 @@
+FROM ubuntu:24.04
+
+# Avoid interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    jq \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    ca-certificates \
+    just \
+    python3 \
+    nodejs \
+    npm \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust (1.95.0)
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.95.0
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Install Foundry (pinned version via forge)
+RUN curl -L https://foundry.paradigm.xyz | bash
+RUN /root/.foundry/bin/foundryup -v v1.7.0
+ENV PATH="/root/.foundry/bin:${PATH}"
+
+# Install Noir (pinned 1.0.0-beta.20)
+RUN curl -L https://raw.githubusercontent.com/noir-lang/noirup/main/install | bash
+RUN /root/.nargo/bin/noirup -v 1.0.0-beta.20
+ENV PATH="/root/.nargo/bin:${PATH}"
+
+# Install Barretenberg BB CLI (pinned 5.0.0-nightly.20260324)
+RUN curl -L https://raw.githubusercontent.com/AztecProtocol/aztec-packages/master/barretenberg/bbup/install | bash
+RUN /root/.bb/bbup -v 5.0.0-nightly.20260324
+ENV PATH="/root/.bb:${PATH}"
+
+# Set working directory
+WORKDIR /work
+
+# Default command: show versions and run e2e demo
+CMD ["bash", "-lc", "just --version && forge --version && nargo --version && bb --version && just demo-e2e --seed 1"]

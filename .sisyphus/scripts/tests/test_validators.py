@@ -17,6 +17,17 @@ def run_script(script_name: str, *args: str) -> tuple[int, str, str]:
     return result.returncode, result.stdout, result.stderr
 
 
+def run_script_in_cwd(script_name: str, cwd: str, *args: str) -> tuple[int, str, str]:
+    script = os.path.join(SCRIPTS_DIR, script_name)
+    result = subprocess.run(
+        [sys.executable, script] + list(args),
+        capture_output=True,
+        text=True,
+        cwd=cwd,
+    )
+    return result.returncode, result.stdout, result.stderr
+
+
 # ---------------------------------------------------------------------------
 # validate-obligations-schema.py
 # ---------------------------------------------------------------------------
@@ -412,28 +423,85 @@ def test_validate_proof_skeletons_direct_skeleton_directory():
 # ---------------------------------------------------------------------------
 
 BUNDLE_VALID = textwrap.dedent("""\
-    # Downstream Contract Bundle
+    # P4 to P1 Bundle
 
-    ## Problem Statement
-    Build a threshold FHE scheme.
+    ## Assumptions
+    - honest majority
 
-    ## Acceptance Criteria
-    - Proof passes
-    - Benchmarks within budget
+    ## Public Key Format
+    - bfv bytes
 
-    ## Deliverables
-    - Implemented crate
-    - Tests green
+    ## Share Format
+    - shamir share
+
+    ## Parameter Schema
+    - p = 2^61 - 1
+
+    ## Transcript Schema
+    - artifact shape
+
+    ## Encoding Commitments
+    - sha256(session_id || id || secret_value)
+
+    ## Unresolved Risks
+    - rlwe upgrade pending
 """)
 
 BUNDLE_MISSING_FIELD = textwrap.dedent("""\
-    # Downstream Contract Bundle
+    # P4 to P1 Bundle
 
-    ## Problem Statement
-    Build a threshold FHE scheme.
+    ## Assumptions
+    - honest majority
 """)
 
 BUNDLE_MALFORMED = "x" * 10
+
+BUNDLE_P4_VALID = textwrap.dedent("""\
+    # P4 to P1 Bundle
+
+    ## Assumptions
+    - honest majority
+
+    ## Public Key Format
+    - bfv bytes
+
+    ## Share Format
+    - shamir share
+
+    ## Parameter Schema
+    - p = 2^61 - 1
+
+    ## Transcript Schema
+    - artifact shape
+
+    ## Encoding Commitments
+    - sha256(session_id || id || secret_value)
+
+    ## Unresolved Risks
+    - rlwe upgrade pending
+""")
+
+BUNDLE_P4_MISSING_SECTION = textwrap.dedent("""\
+    # P4 to P1 Bundle
+
+    ## Assumptions
+    - honest majority
+
+    ## Public Key Format
+    - bfv bytes
+
+    ## Share Format
+    - shamir share
+
+    ## Transcript Schema
+    - artifact shape
+
+    ## Encoding Commitments
+    - sha256(session_id || id || secret_value)
+
+    ## Unresolved Risks
+    - rlwe upgrade pending
+""")
 
 
 def test_validate_bundle_valid():
@@ -467,6 +535,100 @@ def test_validate_bundle_malformed():
         assert rc != 0, f"Expected non-zero, got {rc}. Output: {out}"
     finally:
         _ = os.unlink(path)
+
+
+def test_validate_bundle_positional_path_and_p4_required_fields():
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+        _ = f.write(BUNDLE_P4_VALID)
+        path = f.name
+    try:
+        rc, out, _ = run_script(
+            "validate-bundle.py",
+            path,
+            "--required-fields",
+            "## Assumptions",
+            "## Public Key Format",
+            "## Share Format",
+            "## Parameter Schema",
+            "## Transcript Schema",
+            "## Encoding Commitments",
+            "## Unresolved Risks",
+        )
+        assert rc == 0, f"Expected 0, got {rc}. Output: {out}"
+        assert "PASS:" in out, f"Expected PASS output. Output: {out}"
+    finally:
+        _ = os.unlink(path)
+
+
+def test_validate_bundle_p4_missing_required_section_fails():
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+        _ = f.write(BUNDLE_P4_MISSING_SECTION)
+        path = f.name
+    try:
+        rc, out, _ = run_script(
+            "validate-bundle.py",
+            path,
+            "--required-fields",
+            "## Assumptions",
+            "## Public Key Format",
+            "## Share Format",
+            "## Parameter Schema",
+            "## Transcript Schema",
+            "## Encoding Commitments",
+            "## Unresolved Risks",
+        )
+        assert rc != 0, f"Expected non-zero, got {rc}. Output: {out}"
+        assert "## Parameter Schema" in out, f"Expected missing section report. Output: {out}"
+    finally:
+        _ = os.unlink(path)
+
+
+def test_p4_impl_gate_impl_green_requires_reviewer_memo_and_frozen_claims():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = os.path.join(tmpdir, "repo")
+        os.makedirs(os.path.join(root, ".sisyphus", "scripts", "tests"), exist_ok=True)
+        os.makedirs(os.path.join(root, ".sisyphus", "contracts"), exist_ok=True)
+        os.makedirs(os.path.join(root, ".sisyphus", "reviews"), exist_ok=True)
+        os.makedirs(os.path.join(root, "paper"), exist_ok=True)
+        os.makedirs(os.path.join(root, "crates", "pvthfhe-aggregator", "src", "keygen"), exist_ok=True)
+
+        for script_name in [
+            "_gate_utils.py",
+            "validate-bundle.py",
+            "validate-reviewer-memo.py",
+            "p4-impl-gate.py",
+        ]:
+            source = os.path.join(SCRIPTS_DIR, script_name)
+            target = os.path.join(root, ".sisyphus", "scripts", script_name)
+            with open(source, "r", encoding="utf-8") as src, open(target, "w", encoding="utf-8") as dst:
+                _ = dst.write(src.read())
+
+        bundle_path = os.path.join(root, ".sisyphus", "contracts", "p4-to-p1-bundle.md")
+        with open(bundle_path, "w", encoding="utf-8") as f:
+            _ = f.write(BUNDLE_VALID)
+
+        memo_path = os.path.join(root, ".sisyphus", "reviews", "p4-impl-gate-review.md")
+        with open(memo_path, "w", encoding="utf-8") as f:
+            _ = f.write(MEMO_VALID)
+
+        claims_path = os.path.join(root, "paper", "claims-table.md")
+        with open(claims_path, "w", encoding="utf-8") as f:
+            _ = f.write(
+                (
+                    "| Problem | Theorem Label | Informal Claim | Status | Paper Section | Proof File |\n"
+                    "|---------|---------------|----------------|--------|---------------|------------|\n"
+                    "| P4 | T-P4.1 | claim | measured, frozen | Section 4 | proof |\n"
+                )
+            )
+
+        artifact_path = os.path.join(root, "crates", "pvthfhe-aggregator", "src", "keygen", "protocol.rs")
+        with open(artifact_path, "w", encoding="utf-8") as f:
+            _ = f.write("// artifact present\n")
+
+        rc, out, err = run_script_in_cwd("p4-impl-gate.py", root, "--check", "impl-green")
+        assert rc == 0, f"Expected 0, got {rc}. Output: {out} Err: {err}"
+        assert "reviewer memo validated" in out, f"Expected reviewer memo validation output. Output: {out}"
+        assert "claims table shows frozen P4 row" in out, f"Expected frozen-claims output. Output: {out}"
 
 
 # ---------------------------------------------------------------------------
@@ -616,3 +778,62 @@ def test_validate_pins_markdown_missing_pin_entries():
         assert rc != 0, f"Expected non-zero, got {rc}. Output: {out}"
     finally:
         _ = os.unlink(path)
+
+
+# ---------------------------------------------------------------------------
+# p1-research-gate.py
+# ---------------------------------------------------------------------------
+
+
+def test_p1_research_gate_accepts_prior_art_matrix_alias_and_checks_matrix_shape():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        research_dir = os.path.join(tmpdir, ".sisyphus", "research", "p1")
+        os.makedirs(research_dir)
+        matrix_path = os.path.join(research_dir, "prior-art.md")
+        with open(matrix_path, "w", encoding="utf-8") as f:
+            _ = f.write(
+                (
+                    "# Prior Art\n\n"
+                    "| Scheme | Assumption | Prover time | Proof size | Verifier time | ROM/QROM | Post-quantum | Recursion-friendly | On-chain feasibility | License |\n"
+                    "|---|---|---|---|---|---|---|---|---|---|\n"
+                )
+                + "\n".join(
+                    [
+                        f"| Scheme {i} | M-SIS | est | est | est | ROM | yes | maybe | no | unknown |"
+                        for i in range(10)
+                    ]
+                )
+                + "\n"
+            )
+        rc, out, _ = run_script_in_cwd(
+            "p1-research-gate.py", tmpdir, "--check", "prior-art-matrix"
+        )
+        assert rc == 0, f"Expected 0, got {rc}. Output: {out}"
+        assert "PASS: p1-research-gate/prior-art-matrix" in out, out
+
+
+def test_p1_research_gate_prior_art_matrix_fails_when_too_few_rows():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        research_dir = os.path.join(tmpdir, ".sisyphus", "research", "p1")
+        os.makedirs(research_dir)
+        matrix_path = os.path.join(research_dir, "prior-art.md")
+        with open(matrix_path, "w", encoding="utf-8") as f:
+            _ = f.write(
+                (
+                    "# Prior Art\n\n"
+                    "| Scheme | Assumption | Prover time | Proof size | Verifier time | ROM/QROM | Post-quantum | Recursion-friendly | On-chain feasibility | License |\n"
+                    "|---|---|---|---|---|---|---|---|---|---|\n"
+                )
+                + "\n".join(
+                    [
+                        f"| Scheme {i} | M-SIS | est | est | est | ROM | yes | maybe | no | unknown |"
+                        for i in range(9)
+                    ]
+                )
+                + "\n"
+            )
+        rc, out, _ = run_script_in_cwd(
+            "p1-research-gate.py", tmpdir, "--check", "prior-art-matrix"
+        )
+        assert rc != 0, f"Expected non-zero, got {rc}. Output: {out}"
+        assert "at least 10" in out, out

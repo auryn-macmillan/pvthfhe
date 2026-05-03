@@ -142,3 +142,8 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - Threshold failure is only robust if the threshold is bound into both `Share` and `PublicVerificationArtifact`; otherwise tampered metadata can bypass below-threshold guards and yield silent wrong-key reconstruction.
 - Extra adversarial coverage worth keeping: threshold tampering and duplicate participant registration, because both are easy-to-mutate metadata attacks that the original six-scenario checklist did not directly exercise.
 - Evidence logs for this task are `.sisyphus/evidence/task-A.I.3-adversarial.log` and `.sisyphus/evidence/task-A.I.3-honest.log`; both need force-add during commit because `.sisyphus/evidence/*.log` is gitignored.
+
+## 2026-05-03 — Task A.I.6
+- `validate-bundle.py` now defaults to the seven P4→P1 handoff headings and accepts either `--bundle <path>` or a positional path, so plan QA and gate invocations share one validator contract.
+- The published P4→P1 bundle must describe the code that exists today: Shamir shares over `2^61-1`, SHA-256 commitments, and an eight-byte big-endian BFV key stub rather than a final RLWE key encoding.
+- The negative test is meaningful because omitting `## Parameter Schema` now causes validator failure immediately, making the bundle sections an actual gate rather than advisory documentation.

@@ -341,3 +341,9 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - SP1 is the cleanest present-day primary because its docs publish explicit proof-size and gas numbers for both Groth16 (~260 B, ~270k gas) and PLONK (~868 B, ~300k gas), making the P3 envelope easy to reason about against the frozen bundle.
 - Rust-in-zkVM with an EVM-final Groth16/PLONK wrap must remain a first-class fallback even if proving is expensive; the project mandate explicitly values guaranteed delivery of the frozen Rust verifier semantics over ideal proving efficiency.
 - Jolt should not be treated as deployment-ready for P3 yet: the public JoltBook still leaves on-chain verification as a roadmap item under construction, so it is a comparison row rather than a committed verifier path.
+
+## 2026-05-03 — Task D.R.2
+- P3 novelty memo successfully documents 4 main gaps: (a) on-chain accumulator gas cost, (b) lack of EVM lattice-native ops, (c) batched verification complexities, and (d) trust assumptions (setup per protocol).
+- Explicitly documented aggressive bets to address these gaps: EVM precompiles for lattice ops, STIR/WHIR final-step recursion, and novel cycle-of-curves adapted for RLWE.
+- Pivot triggers defined clearly: if STIR/WHIR recursive wrappers exceed 14KB proof size constraints or prover times become unmanageable, fallback to Rust-in-zkVM wrapper is forced.
+- Updated `p3-research-gate.py` to explicitly enforce the presence of required headers and the `VERDICT: APPROVE` string in the novelty memo.

@@ -21,8 +21,9 @@ GATE_NAME = "p3-research-gate"
 
 ARTIFACTS = ['.sisyphus/research/lit-survey.md']
 PRIOR_ART_PATH = Path('.sisyphus/research/p3/prior-art.md')
+NOVELTY_MEMO_PATH = Path('.sisyphus/research/p3/novelty-memo.md')
 
-SUBCHECKS = ['prior-art', 'novelty-gap', 'threat-model', 'prior-art-matrix']
+SUBCHECKS = ['prior-art', 'novelty-gap', 'threat-model', 'prior-art-matrix', 'novelty-memo']
 
 
 def check_artifacts() -> tuple[bool, list[str]]:
@@ -78,6 +79,40 @@ def prior_art_matrix() -> tuple[bool, list[str]]:
     return ok, details
 
 
+def novelty_memo() -> tuple[bool, list[str]]:
+    details: list[str] = ["subcheck: novelty-memo"]
+    if not NOVELTY_MEMO_PATH.exists():
+        return False, details + [f"[FAIL] missing artifact: {NOVELTY_MEMO_PATH}"]
+
+    content = NOVELTY_MEMO_PATH.read_text(encoding='utf-8')
+    ok = True
+    details.append(f"[OK] found artifact: {NOVELTY_MEMO_PATH}")
+
+    required_headers = [
+        "## Gap (a): On-chain accumulator verification within gas budget",
+        "## Gap (b): Lattice-native EVM operations",
+        "## Gap (c): Batched session verification",
+        "## Gap (d): Trust assumptions",
+        "## Aggressive Bets",
+        "## Pivot Triggers"
+    ]
+
+    for header in required_headers:
+        if header in content:
+            details.append(f"[OK] Header present: {header}")
+        else:
+            details.append(f"[FAIL] Missing header: {header}")
+            ok = False
+
+    if 'VERDICT: APPROVE' in content:
+        details.append('[OK] verdict present: VERDICT: APPROVE')
+    else:
+        details.append('[FAIL] missing required verdict line: VERDICT: APPROVE')
+        ok = False
+
+    return ok, details
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=f"{GATE_NAME} gate")
     _ = parser.add_argument('--check', default=None, choices=SUBCHECKS)
@@ -87,9 +122,10 @@ def main() -> None:
     subchecks_map: dict[str, Callable[[], tuple[bool, list[str]]]] = {
         name: make_subcheck(name)
         for name in SUBCHECKS
-        if name != 'prior-art-matrix'
+        if name not in ['prior-art-matrix', 'novelty-memo']
     }
     subchecks_map['prior-art-matrix'] = prior_art_matrix
+    subchecks_map['novelty-memo'] = novelty_memo
     run_gate(GATE_NAME, subchecks_map, args)
 
 

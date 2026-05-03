@@ -1,0 +1,23 @@
+% P4 PVSS Keygen Benchmark Figure
+% Data sourced from .sisyphus/evidence/benchmarks/p4/
+% Measured on: AMD RYZEN AI MAX+ 395 w/ Radeon 8060S, Linux 6.8.0
+% Date: 2026-05-03, Shamir field=2^61-1, 100 iterations each
+\begin{figure}[h]
+\caption{P4 PVSS keygen and reconstruct latency vs.\ number of parties $n$.}
+\label{fig:p4-bench}
+\centering
+\begin{tabular}{lrrr}
+\hline
+Operation & $n=128$ & $n=512$ & $n=1024$ \\
+\hline
+Keygen (ms)      & 0.09  & 1.59  & 2.49  \\
+Reconstruct (ms) & 0.05  & 0.55  & 1.97  \\
+Share size (B)   & 4096  & 16384 & 32768 \\
+\hline
+\end{tabular}
+
+\smallskip
+\noindent All measurements within bench-plan thresholds
+(keygen $\leq 10\,\mathrm{ms}$, share $\leq 65536\,\mathrm{B}$).
+Evidence: \texttt{.sisyphus/evidence/benchmarks/p4/}.
+\end{figure}

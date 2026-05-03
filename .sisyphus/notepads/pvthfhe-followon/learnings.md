@@ -164,3 +164,13 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - Proposed two aggressive bets: Hybrid zkVM (SNARKing the SHA-256 alongside the RLWE proof) and Custom Lattice IOP (Bridged Extractor).
 - Captured risks regarding LatticeFold+ compatibility and EVM gas costs.
 - Extended the `p1-research-gate.py` script to enforce structure of the novelty gap memo.
+
+## 2026-05-03 — Task B.R.4
+- The P1 theorem inventory must state the exact witness relation for \((s_i,e_i)\), including the inherited SHA-256 commitment binding and explicit \((q, N, k, B_e)\) parameter tuple; saying "standard PoK" is not precise enough for the P4→P1→P2 handoff.
+- Under the frozen threat model, QROM and simulation-extractability remain upgrade paths rather than baseline obligations: the inventory should record the stronger theorem shape, but mark the baseline claim as ROM with rewinding extraction and plain ROM NIZK.
+- Batch soundness is its own proof obligation once amortization appears; it cannot be assumed for free from single-instance soundness because the aggregation loss must be stated explicitly before P2 folding.
+
+## 2026-05-03 — Task B.R.5
+- The RG-P1 weightings make the program preference explicit: verifier cost for P2 folding consumption outranks raw prover speed, so transparent or wrapper-friendly verifier profiles can outrun otherwise efficient native protocols if constants are close.
+- SLAP is currently the best-balanced primary because it stays lattice-native while fitting the intended decrypt-share relation more directly than Greyhound or Beullens; Greyhound is the cleaner research fallback when recursion-friendliness dominates.
+- Rust-in-zkVM should stay frozen as a delivery fallback even when it loses the scorecard on prover cost and PQ purity, because the project explicitly values a guaranteed verifier path over blocking on ideal native-lattice constants.

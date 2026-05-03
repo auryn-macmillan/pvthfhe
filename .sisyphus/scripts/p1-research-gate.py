@@ -2,24 +2,30 @@
 # pyright: reportImplicitRelativeImport=false, reportUnknownVariableType=false
 """p1-research-gate gate."""
 import argparse
+import importlib.util
 import os
 import re
-import sys
 from typing import Callable, cast
 
-sys.path.insert(0, os.path.dirname(__file__))
-from _gate_utils import run_gate as _run_gate  # type: ignore[reportMissingImports, reportUnknownVariableType, reportUnknownArgumentType]
-
 RunGate = Callable[[str, dict[str, Callable[[], tuple[bool, list[str]]]], argparse.Namespace], None]
-run_gate = cast(RunGate, _run_gate)
+
+_GATE_UTILS_PATH = os.path.join(os.path.dirname(__file__), '_gate_utils.py')
+_GATE_UTILS_SPEC = importlib.util.spec_from_file_location('_gate_utils', _GATE_UTILS_PATH)
+if _GATE_UTILS_SPEC is None or _GATE_UTILS_SPEC.loader is None:
+    raise ImportError(f"unable to load gate utilities from {_GATE_UTILS_PATH}")
+_gate_utils = importlib.util.module_from_spec(_GATE_UTILS_SPEC)
+_GATE_UTILS_SPEC.loader.exec_module(_gate_utils)
+run_gate = cast(RunGate, getattr(_gate_utils, 'run_gate'))
 
 GATE_NAME = "p1-research-gate"
 
 ARTIFACTS = ['.sisyphus/research/lit-survey.md']
 PRIOR_ART_MATRIX = '.sisyphus/research/p1/prior-art.md'
 THREAT_MODEL_PATH = '.sisyphus/research/p1/threat-model.md'
+THEOREM_INVENTORY_PATH = 'docs/security-proofs/p1/theorem-inventory.md'
+SCORECARD_PATH = '.sisyphus/research/p1/scorecard.md'
 
-SUBCHECKS = ['prior-art', 'prior-art-matrix', 'novelty-gap', 'threat-model']
+SUBCHECKS = ['prior-art', 'prior-art-matrix', 'novelty-gap', 'threat-model', 'theorem-inventory', 'scorecard']
 
 
 def check_artifacts() -> tuple[bool, list[str]]:
@@ -163,6 +169,66 @@ def check_threat_model() -> tuple[bool, list[str]]:
 
     return ok, details
 
+
+def count_theorem_headings(path: str) -> int:
+    with open(path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    return len(re.findall(r'^##\s+T\d+\s*:', content, flags=re.MULTILINE))
+
+
+def check_theorem_inventory() -> tuple[bool, list[str]]:
+    details: list[str] = ["subcheck: theorem-inventory"]
+    if not os.path.exists(THEOREM_INVENTORY_PATH):
+        return False, details + [f"[FAIL] missing required artifact: {THEOREM_INVENTORY_PATH}"]
+
+    heading_count = count_theorem_headings(THEOREM_INVENTORY_PATH)
+    details.append(f"[OK] found theorem inventory artifact: {THEOREM_INVENTORY_PATH}")
+    if heading_count < 5:
+        details.append(f"[FAIL] theorem inventory must contain at least 5 theorem headings; found {heading_count}")
+        return False, details
+
+    details.append(f"[OK] theorem heading count: {heading_count}")
+    return True, details
+
+
+def check_scorecard() -> tuple[bool, list[str]]:
+    details: list[str] = ["subcheck: scorecard"]
+    if not os.path.exists(SCORECARD_PATH):
+        return False, details + [f"[FAIL] missing required artifact: {SCORECARD_PATH}"]
+
+    with open(SCORECARD_PATH, 'r', encoding='utf-8') as f:
+        content = f.read()
+
+    required_headings = [
+        "## Weighted Criteria",
+        "## Weighted Scores",
+        "## Freeze Decision",
+    ]
+    required_markers = [
+        "Primary:",
+        "Fallback:",
+    ]
+
+    ok = True
+    for heading in required_headings:
+        if heading not in content:
+            details.append(f"[FAIL] missing required heading: {heading}")
+            ok = False
+        else:
+            details.append(f"[OK] found heading: {heading}")
+
+    for marker in required_markers:
+        if marker not in content:
+            details.append(f"[FAIL] missing required scorecard marker: {marker}")
+            ok = False
+        else:
+            details.append(f"[OK] found marker: {marker}")
+
+    if ok:
+        details.append(f"[OK] {SCORECARD_PATH} meets requirements")
+
+    return ok, details
+
 def make_subcheck(name: str) -> Callable[[], tuple[bool, list[str]]]:
     def fn() -> tuple[bool, list[str]]:
         ok, details = check_artifacts()
@@ -185,6 +251,8 @@ def main():
     subchecks_map['prior-art-matrix'] = check_prior_art_matrix
     subchecks_map['novelty-gap'] = check_novelty_gap
     subchecks_map['threat-model'] = check_threat_model
+    subchecks_map['theorem-inventory'] = check_theorem_inventory
+    subchecks_map['scorecard'] = check_scorecard
     run_gate(GATE_NAME, subchecks_map, args)
 
 

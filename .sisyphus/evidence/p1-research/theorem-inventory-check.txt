@@ -1,0 +1,4 @@
+subcheck: theorem-inventory
+[OK] found theorem inventory artifact: docs/security-proofs/p1/theorem-inventory.md
+[OK] theorem heading count: 5
+PASS: p1-research-gate/theorem-inventory

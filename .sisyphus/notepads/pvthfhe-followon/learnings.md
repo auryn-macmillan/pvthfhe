@@ -104,6 +104,21 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - `mod_p` helper should be removed or used — keep only what the compiler doesn't warn about; dead_code warns do not fail tests but signal unused paths.
 - Evidence logs written to `.sisyphus/evidence/task-A.I.2-green.log` and `task-A.I.2-surrogate.log`.
 
+## 2026-05-03 — Task A.I.4: P4 full security proofs
+
+- The proof claims must track the implementation, not the aspirational cryptosystem: for the current Hermine adapter, T2 is an information-theoretic Shamir privacy proof over `2^61-1`, not an RLWE ciphertext-hiding proof.
+- T3 soundness is only as strong as the verifier actually exposed by the code; here the semantic witness is the disclosed share list checked by `public_verify`, while `verify_transcript` alone only enforces structural artifact well-formedness.
+- T5 closes cleanly for the simulated stack because the P4/P1 handoff state is already explicit in the five interface types plus blame metadata; no hidden witness or trapdoor state crosses the boundary.
+- The obligations validator needed CLI compatibility for this task's acceptance command: support a positional path argument and enforce `--problem P4 --status proven` over filtered rows.
+
+## 2026-05-03 — Task A.I.3: public verification + adversarial tests
+
+- `verify_transcript` was too weak for T3/T4-style checks; requiring non-empty session id, present dealer id, and fixed-width 32-byte commitments catches malformed public artifacts before share-level verification.
+- Public verification needs two layers: syntactic transcript checks (`verify_transcript`) and semantic share/artifact consistency (`public_verify`) that rejects session replays, duplicate participant ids, mismatched per-share commitments, and commitment-set divergence.
+- 100% blame attribution across the requested adversarial scenarios is easiest if participant-originated faults (forged share, replay, bad private commitment) accuse the offending share owner, while dealer-originated transcript inconsistencies accuse `artifact.dealer_id`.
+- Threshold failure cannot be tested reliably unless each share carries the session threshold; storing `threshold: Option<u16>` in `Share` lets `reconstruct_bfv_key` reject below-threshold subsets instead of silently interpolating the wrong secret.
+- Evidence logs for this task are `.sisyphus/evidence/task-A.I.3-adversarial.log` and `.sisyphus/evidence/task-A.I.3-honest.log`; both need force-add during commit because `.sisyphus/evidence/*.log` is gitignored.
+
 ## 2026-05-03 — Task A.I.5: Benchmarks + Paper Figures
 
 ### What was done

@@ -23,7 +23,7 @@ Theorems are identified and added during the research phase for each problem.
 | P2 | P2-T1 | Honest P1 proofs fold into an accepting accumulator under the frozen verifier equation. | proved | docs/security-proofs/p2/T1.md | §P2-Completeness |
 | P2 | P2-T2 | A depth-d accepting fold tree yields valid RLWE witnesses except with (1/3)^d plus SHA-256 binding failure. | proved | docs/security-proofs/p2/T2.md | §P2-KnowledgeSoundness |
 | P2 | P2-T3 | Folding preserves only the projected SLAP core zero-knowledge view under ROM + HVZK assumptions. | proved | docs/security-proofs/p2/T3.md | §P2-ZKPreservation |
-| P2 | P2-T4 | The accumulator commitment is binding under RingSIS/M-SIS at the frozen P2 parameters. | proved | docs/security-proofs/p2/T4.md | §P2-AccumulatorBinding |
+| P2 | P2-T4 | The accumulator commitment is binding under RingSIS/M-SIS at the frozen P2 parameters, conditional on norm enforcement + lattice commitment replacement. | PROVED-WITH-CITATION | docs/security-proofs/p2/T4.md | §P2-AccumulatorBinding |
 | P2 | P2-T5 | The final accumulated proof targets Solidity/Yul verification within bounded gas and proof size. | proved | docs/security-proofs/p2/T5.md | §P2-OnchainCompatibility |
 
 | P3 | P3-T1 | Any on-chain acceptance of the P3 verifier implies acceptance of the exact frozen P2 terminal accumulator statement on the same public inputs. | PROVED | docs/security-proofs/p3/T1.md | §P3-OnchainSoundness |

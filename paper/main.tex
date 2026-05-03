@@ -124,6 +124,13 @@ HVZK-to-Fiat--Shamir compilation; the current deterministic audit payload lies o
 theorem statement.
 \end{theorem}
 
+\begin{theorem}[P1 Simulation-Extractability Deferred]
+\label{thm:p1-t4}
+Simulation-extractability is not part of the frozen P1 baseline because P2 does not consume
+simulated accepting P1 transcripts; a stronger theorem is required only if that interface
+changes.
+\end{theorem}
+
 \begin{theorem}[P1 Commitment Binding]
 \label{thm:p1-t5}
 \texttt{pvss\_commitment} is binding on domain $\mathrm{SHA256}(\mathit{session\_id} \;\|\;

@@ -1,0 +1,11 @@
+crates/pvthfhe-fhe/tests/conformance.rs:143:    use pvthfhe_fhe::fhers::FhersBackend;
+crates/pvthfhe-fhe/tests/conformance.rs:147:        test_load_params::<FhersBackend>();
+crates/pvthfhe-fhe/tests/conformance.rs:152:        let backend = must_ok(FhersBackend::load_params(TEST_PARAMS_TOML), "load_params");
+crates/pvthfhe-fhe/tests/conformance.rs:158:        let backend = must_ok(FhersBackend::load_params(TEST_PARAMS_TOML), "load_params");
+crates/pvthfhe-fhe/tests/conformance.rs:164:        let backend = must_ok(FhersBackend::load_params(TEST_PARAMS_TOML), "load_params");
+crates/pvthfhe-fhe/tests/conformance.rs:170:        let backend = must_ok(FhersBackend::load_params(TEST_PARAMS_TOML), "load_params");
+crates/pvthfhe-fhe/src/fhers.rs:21:pub struct FhersBackend {
+crates/pvthfhe-fhe/src/fhers.rs:25:impl FheBackend for FhersBackend {
+crates/pvthfhe-fhe/src/mock_impl.rs:4://! feature is enabled. [`crate::fhers`] uses this as a fallback until T33.
+crates/pvthfhe-fhe/src/lib.rs:6://! - **Primary** (`fhers` module): wraps gnosisguild/fhe.rs BFV APIs.
+crates/pvthfhe-fhe/src/lib.rs:12:pub mod fhers;

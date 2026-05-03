@@ -1,0 +1,38 @@
+crates/pvthfhe-bench/src/bin/bench_nizk.rs:64:    let mut decrypt_share_bytes = vec![0u8; n];
+crates/pvthfhe-bench/src/bin/bench_nizk.rs:65:    rng.fill_bytes(&mut decrypt_share_bytes);
+crates/pvthfhe-bench/src/bin/bench_nizk.rs:71:        decrypt_share_bytes,
+crates/pvthfhe-fhe/tests/lattice_nizk.rs:25:            decrypt_share_bytes: vec![0x44, 0x55, 0x66, 0x77],
+crates/pvthfhe-fhe/tests/conformance.rs:57:fn test_decrypt_share_party_id<B: FheBackend>(backend: B) {
+crates/pvthfhe-fhe/tests/conformance.rs:126:    fn mock_decrypt_share_party_id() {
+crates/pvthfhe-fhe/tests/conformance.rs:128:        test_decrypt_share_party_id(backend);
+crates/pvthfhe-fhe/tests/conformance.rs:163:    fn primary_decrypt_share_party_id() {
+crates/pvthfhe-fhe/tests/conformance.rs:165:        test_decrypt_share_party_id(backend);
+crates/pvthfhe-fhe/tests/lattice_nizk_adversarial.rs:27:            decrypt_share_bytes: vec![0x44, 0x55, 0x66, 0x77],
+crates/pvthfhe-fhe/Cargo.toml:11:surrogate-decrypt-share = []
+crates/pvthfhe-fhe/src/real_nizk.rs:14:    /// Canonical partial decrypt-share bytes.
+crates/pvthfhe-fhe/src/real_nizk.rs:15:    pub decrypt_share_bytes: Vec<u8>,
+crates/pvthfhe-fhe/src/real_nizk.rs:234:        if stmt.decrypt_share_bytes.is_empty() {
+crates/pvthfhe-fhe/src/real_nizk.rs:236:                "decrypt-share bytes must be non-empty",
+crates/pvthfhe-fhe/src/real_nizk.rs:254:        push_bytes(&mut out, &stmt.decrypt_share_bytes);
+crates/pvthfhe-core/tests/vectors.rs:46:    decrypt_shares: Vec<VectorDecryptShare>,
+crates/pvthfhe-core/tests/vectors.rs:140:        let decrypt_shares: Vec<DecryptShare> = v
+crates/pvthfhe-core/tests/vectors.rs:141:            .decrypt_shares
+crates/pvthfhe-core/tests/vectors.rs:146:                    .unwrap_or_else(|_| panic!("{:?}: bad hex in decrypt_share", path)),
+crates/pvthfhe-core/tests/vectors.rs:152:            .aggregate_decrypt(&ct, &decrypt_shares, v.params.threshold)
+crates/pvthfhe-core/tests/vectors/vector_03.json:28:  "decrypt_shares": [
+crates/pvthfhe-core/tests/vectors/vector_04.json:36:  "decrypt_shares": [
+crates/pvthfhe-core/tests/vectors/vector_09.json:56:  "decrypt_shares": [
+crates/pvthfhe-core/tests/vectors/vector_07.json:28:  "decrypt_shares": [
+crates/pvthfhe-core/tests/vectors/vector_02.json:28:  "decrypt_shares": [
+crates/pvthfhe-core/tests/vectors/vector_10.json:56:  "decrypt_shares": [
+crates/pvthfhe-core/tests/vectors/vector_05.json:36:  "decrypt_shares": [
+crates/pvthfhe-core/tests/vectors/vector_08.json:28:  "decrypt_shares": [
+crates/pvthfhe-core/tests/vectors/vector_01.json:28:  "decrypt_shares": [
+crates/pvthfhe-core/tests/vectors/vector_06.json:28:  "decrypt_shares": [
+circuits/aggregator_final/src/main.nr:3:// share_wf and decrypt_share proofs into a single proof via LatticeFold+/MicroNova.
+circuits/Nargo.toml:4:    "decrypt_share",
+circuits/decrypt_share/Nargo.toml:2:name = "decrypt_share"
+.sisyphus/evidence/p1-impl-gate-tests-red.json:8:    "[OK] circuits/decrypt_share/src/main.nr"
+.sisyphus/evidence/p1-design-gate-migration-plan.json:18:    "[OK] found migration-plan marker: surrogate-decrypt-share",
+.sisyphus/evidence/final-qa/f1-plan-compliance.json:133:        "path": "circuits/decrypt_share/src/main.nr",
+.sisyphus/evidence/p3-impl-gate-surrogate-retired.json:10:    "[OK] decrypt-circuit: circuits/decrypt_share/src/main.nr \u2014 SURROGATE-annotated",

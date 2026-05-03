@@ -89,6 +89,7 @@ const PROOF_VERSION: u16 = 1;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct ProofPayload {
+    stmt_fingerprint: [u8; 32],
     t_bytes: Vec<u8>,
     z_s: u64,
     z_e: Vec<i64>,
@@ -101,6 +102,7 @@ impl ProofPayload {
     fn encode(&self) -> Vec<u8> {
         let mut out = Vec::new();
         out.extend_from_slice(&PROOF_VERSION.to_be_bytes());
+        out.extend_from_slice(&self.stmt_fingerprint);
         push_bytes(&mut out, &self.t_bytes);
         out.extend_from_slice(&self.z_s.to_be_bytes());
         push_i64s(&mut out, &self.z_e);
@@ -117,6 +119,10 @@ impl ProofPayload {
             return Err(NizkError::InvalidProof("unsupported proof version"));
         }
 
+        let stmt_fingerprint: [u8; 32] = cursor
+            .read_exact(32)?
+            .try_into()
+            .map_err(|_| NizkError::InvalidProof("bad stmt_fingerprint field"))?;
         let t_bytes = cursor.read_bytes()?;
         let z_s = cursor.read_u64()?;
         let z_e = cursor.read_i64s()?;
@@ -126,6 +132,7 @@ impl ProofPayload {
         cursor.finish()?;
 
         Ok(Self {
+            stmt_fingerprint,
             t_bytes,
             z_s,
             z_e,
@@ -287,10 +294,10 @@ impl RealNizkAdapter {
     }
 
     fn challenge_weight(challenge_bytes: &[u8; 16]) -> i64 {
-        match challenge_bytes[15] % 3 {
-            0 => -1,
-            1 => 0,
-            _ => 1,
+        if challenge_bytes[15] & 1 == 0 {
+            -1
+        } else {
+            1
         }
     }
 
@@ -346,18 +353,21 @@ impl LatticeNizk for RealNizkAdapter {
     fn prove(
         stmt: &NizkStatement,
         witness: &NizkWitness,
-        _rng: &mut impl RngCore,
+        rng: &mut impl RngCore,
     ) -> Result<NizkProof, NizkError> {
         Self::validate_statement(stmt)?;
         Self::validate_witness(witness)?;
 
-        let seed = Self::proof_seed(stmt, witness);
-        let mut deterministic_rng = ChaCha20Rng::from_seed(seed);
+        // Seed a ChaCha20Rng from caller-supplied randomness so proofs are
+        // non-deterministic across different RNG states (required for ZK).
+        let mut seed = [0_u8; 32];
+        rng.fill_bytes(&mut seed);
+        let mut mask_rng = ChaCha20Rng::from_seed(seed);
         let q = stmt.params.0;
         let error_bound = stmt.params.2 as i64;
 
-        let y_s = Self::sample_mask_secret(&mut deterministic_rng, q);
-        let y_e = Self::sample_mask_error(&mut deterministic_rng, error_bound, witness.error.len());
+        let y_s = Self::sample_mask_secret(&mut mask_rng, q);
+        let y_e = Self::sample_mask_error(&mut mask_rng, error_bound, witness.error.len());
         let t_bytes = Self::mask_commitment_bytes(y_s, &y_e);
         let challenge_bytes = Self::challenge_bytes(stmt, &t_bytes);
         let challenge_weight = Self::challenge_weight(&challenge_bytes);
@@ -375,7 +385,13 @@ impl LatticeNizk for RealNizkAdapter {
             .map(|(value, mask)| Self::apply_response(*value, *mask, challenge_weight))
             .collect::<Vec<_>>();
 
+        let stmt_fingerprint = {
+            let mut h = Sha256::new();
+            h.update(Self::statement_bytes(stmt));
+            h.finalize().into()
+        };
         let payload = ProofPayload {
+            stmt_fingerprint,
             t_bytes,
             z_s,
             z_e,
@@ -399,6 +415,17 @@ impl LatticeNizk for RealNizkAdapter {
         let payload = ProofPayload::decode(&proof.proof_bytes)?;
         if payload.z_e.len() != payload.error_open.len() {
             return Err(NizkError::InvalidProof("response/error length mismatch"));
+        }
+
+        let expected_fingerprint: [u8; 32] = {
+            let mut h = Sha256::new();
+            h.update(Self::statement_bytes(stmt));
+            h.finalize().into()
+        };
+        if expected_fingerprint != payload.stmt_fingerprint {
+            return Err(NizkError::VerificationFailed(
+                "statement fingerprint mismatch",
+            ));
         }
 
         let expected_commitment = Self::commitment_hash(

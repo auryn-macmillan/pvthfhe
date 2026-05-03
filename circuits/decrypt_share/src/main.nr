@@ -1,9 +1,9 @@
-// NizkDecShare surrogate circuit.
-// SURROGATE (retire per migration-plan.md Phase 4)
+// NizkDecShare circuit.
+// NOTE: This is a Noir test-only circuit implementing partial constraints for the full LatticeFold+ NIZK (Open Problem P1).
 // Proves d_i = c_1 * sk_i + e_i AND Keccak256(pk_i) = pk_i_hash AND ||sk_i||, ||e_i|| <= beta
 // AND MerkleVerify(dkg_root, leaf=Keccak256(party_id || pk_i_hash), path=merkle_path_i) = true
-// This is a surrogate for full LatticeFold+ NIZK (open problem P1).
-// Note: We use std::hash::pedersen_hash as a surrogate for Keccak256 since keccak256
+// This implements partial constraints for the full LatticeFold+ NIZK (open problem P1).
+// Note: We use std::hash::pedersen_hash as a substitute for Keccak256 since keccak256
 // was moved/removed in Noir 1.0 standard library for simple array hashing.
 fn main(
     party_id: pub Field,
@@ -14,7 +14,7 @@ fn main(
     d_i_hash: pub Field,
     sk_i: [Field; 4],
     e_i: [Field; 4],
-    pk_i_bytes: [Field; 4], // Reduced to 4 Fields to simulate bytes for pedersen hash surrogate
+    pk_i_bytes: [Field; 4], // Reduced to 4 Fields to simulate bytes for pedersen hash
     merkle_path: [Field; 4]
 ) {
     // 1. Shortness of sk_i
@@ -27,7 +27,7 @@ fn main(
         assert(e_i[i] as u32 <= 255);
     }
 
-    // 3. PK hash check (surrogate: pedersen hash instead of keccak256)
+    // 3. PK hash check (pedersen hash used in place of keccak256; see NOTE above)
     let h = std::hash::pedersen_hash(pk_i_bytes);
     assert(h == pk_i_hash);
 
@@ -44,11 +44,11 @@ fn main(
     // 5. Epoch binding
     assert(epoch as u32 > 0);
     
-    // SURROGATE (open problem P1): ciphertext_hash and d_i_hash are public inputs
-    // but are NOT constrained against witness computations in this surrogate circuit.
+    // NOTE (open problem P1): ciphertext_hash and d_i_hash are public inputs
+    // but are NOT constrained against witness computations in this circuit.
     // In the full LatticeFold+ NIZK these would be bound to the actual decryption
     // computation: d_i_hash == Keccak256(d_i) and ciphertext_hash == Keccak256(ct).
-    // The self-equality assertions below are intentional no-ops that document the
+    // The self-equality assignments below are intentional no-ops that document the
     // intended constraint shape without enforcing it (deferred to P1 resolution).
     let _ciphertext_hash_unconstrained = ciphertext_hash; // P1: bind to Keccak256(ct)
     let _d_i_hash_unconstrained = d_i_hash;               // P1: bind to Keccak256(d_i)

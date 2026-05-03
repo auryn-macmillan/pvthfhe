@@ -1,4 +1,6 @@
+//! pvthfhe-enclave-adapter — enclave integration adapter for PVTHFHE ciphernodes.
 #![deny(clippy::unwrap_used, clippy::expect_used)]
+#![allow(missing_docs, dead_code)]
 
 #[cfg(feature = "stub")]
 pub mod stub {
@@ -70,10 +72,7 @@ impl<B: FheBackend> EnclaveCiphernode for PvthfheEnclaveCiphernode<B> {
 
 #[cfg(feature = "stub")]
 impl<B: FheBackend> EnclaveAggregator for PvthfheEnclaveAggregator<B> {
-    fn aggregate_keys(
-        &self,
-        shares: &[EnclaveKeyShare],
-    ) -> Result<EnclavePublicKey, String> {
+    fn aggregate_keys(&self, shares: &[EnclaveKeyShare]) -> Result<EnclavePublicKey, String> {
         let fhe_shares: Vec<pvthfhe_fhe::KeygenShare> = shares
             .iter()
             .enumerate()
@@ -110,11 +109,7 @@ impl<B: FheBackend> EnclaveAggregator for PvthfheEnclaveAggregator<B> {
             .map_err(|e| format!("{e:?}"))
     }
 
-    fn verify_proof(
-        &self,
-        _proof: &EnclaveProof,
-        _public_inputs: &[u8],
-    ) -> Result<bool, String> {
+    fn verify_proof(&self, _proof: &EnclaveProof, _public_inputs: &[u8]) -> Result<bool, String> {
         Ok(true)
     }
 }

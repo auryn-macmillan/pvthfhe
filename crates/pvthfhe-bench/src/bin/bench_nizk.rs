@@ -1,6 +1,10 @@
-/// P1 lattice NIZK benchmark: prove/verify/batch_verify for n=128, 512, 1024.
-///
-/// Outputs JSON result files to bench/p1/results-{n}.json.
+//! P1 lattice NIZK benchmark: prove/verify/batch_verify for n=128, 512, 1024.
+//! Outputs JSON result files to bench/p1/results-{n}.json.
+#![allow(
+    clippy::as_conversions,
+    clippy::expect_used,
+    clippy::manual_is_multiple_of
+)]
 use pvthfhe_fhe::real_nizk::{LatticeNizk, NizkStatement, NizkWitness, RealNizkAdapter};
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;

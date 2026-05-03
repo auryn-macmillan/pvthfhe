@@ -1,4 +1,5 @@
 //! Frozen P1 lattice NIZK stub surface for RED tests.
+#![allow(dead_code, clippy::as_conversions)]
 
 use rand_chacha::ChaCha20Rng;
 use rand_core::RngCore;

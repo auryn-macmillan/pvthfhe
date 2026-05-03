@@ -148,6 +148,7 @@ fn t3_invalid_dealing_is_rejected_by_verify() {
         session_id: "p4-session-alpha".to_owned(),
         commitments: vec![],
         dealer_id: Some(99),
+        threshold: None,
     };
     let valid = ad.verify_transcript(&bad_artifact).expect("verify");
     assert!(!valid, "empty commitments artifact must fail verify");
@@ -163,6 +164,7 @@ fn t3_bad_commitment_transcript_does_not_verify() {
         session_id: "p4-session-alpha".to_owned(),
         commitments: vec![vec![], vec![0x01, 0x02]],
         dealer_id: Some(1),
+        threshold: None,
     };
     let valid = ad.verify_transcript(&bad_artifact).expect("verify");
     assert!(!valid, "artifact with empty commitment must fail verify");

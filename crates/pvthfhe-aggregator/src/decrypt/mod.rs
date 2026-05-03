@@ -1,4 +1,7 @@
-use pvthfhe_fhe::{FheBackend, types::{Ciphertext, DecryptShare}, FheError};
+use pvthfhe_fhe::{
+    types::{Ciphertext, DecryptShare},
+    FheBackend, FheError,
+};
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -39,7 +42,7 @@ pub fn partial_decrypt(
     rng: &mut dyn RngCore,
 ) -> Result<DecryptSharePayload, DecryptError> {
     let share = backend.partial_decrypt(ct, party_id, rng)?;
-    
+
     Ok(DecryptSharePayload {
         party_id,
         pk_i_hash: [0u8; 32],
@@ -59,7 +62,7 @@ pub fn aggregate_decrypt(
     threshold: usize,
     allowed_parties: &[u32],
     _dkg_root: &[u8; 32],
-    _ciphertext_hash: &[u8; 32],
+    ciphertext_hash: &[u8; 32],
     _epoch: u64,
 ) -> Result<Vec<u8>, DecryptError> {
     let mut seen_parties = HashSet::new();
@@ -74,8 +77,16 @@ pub fn aggregate_decrypt(
             return Err(DecryptError::DuplicateParty(payload.party_id));
         }
 
-        if payload.nizk.is_empty() {
-            return Err(DecryptError::InvalidShare { party_id: payload.party_id });
+        if payload.nizk.is_empty() || payload.nizk[0] != 1 {
+            return Err(DecryptError::InvalidShare {
+                party_id: payload.party_id,
+            });
+        }
+
+        if payload.ciphertext_hash != *ciphertext_hash {
+            return Err(DecryptError::InvalidShare {
+                party_id: payload.party_id,
+            });
         }
 
         valid_shares.push(payload.share.clone());

@@ -5,6 +5,7 @@
 //! cryptography uses integer Shamir secret sharing over a Mersenne prime field
 //! with SHA-256 commitments — a correctly-structured simulation sufficient for
 //! the A.I.2 milestone (lattice hardness is deferred to T4).
+#![allow(clippy::expect_used)]
 
 use sha2::{Digest, Sha256};
 

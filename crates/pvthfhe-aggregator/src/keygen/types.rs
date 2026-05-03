@@ -38,8 +38,17 @@ pub struct DkgTranscript {
 
 pub enum KeygenState {
     Round1,
-    Round2 { round1_msgs: Vec<Round1Message> },
-    Round3 { round1_msgs: Vec<Round1Message>, round2_msgs: Vec<Round2Message> },
-    Complete { transcript: DkgTranscript },
-    Failed { blame: Vec<PartyId> },
+    Round2 {
+        round1_msgs: Vec<Round1Message>,
+    },
+    Round3 {
+        round1_msgs: Vec<Round1Message>,
+        round2_msgs: Vec<Round2Message>,
+    },
+    Complete {
+        transcript: DkgTranscript,
+    },
+    Failed {
+        blame: Vec<PartyId>,
+    },
 }

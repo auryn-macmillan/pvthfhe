@@ -1,7 +1,7 @@
 {
   "schema_version": "1",
   "gate": "phase2",
-  "timestamp": "2026-05-02T14:12:26Z",
+  "timestamp": "2026-05-03T17:01:36Z",
   "status": "PASS",
   "checks": [
     {
@@ -22,12 +22,12 @@
     {
       "id": "theorem_mapping",
       "status": "PASS",
-      "detail": "Success: All theorems mapped correctly and all non-background assumptions are used."
+      "detail": "Success: All theorems mapped correctly (4 theorems, 13 assumption references)"
     },
     {
       "id": "boundary_coverage",
       "status": "PASS",
-      "detail": "PASS: boundary coverage complete for .sisyphus/design/proof-boundary.md\nPASS: mapped=12, unmapped=0"
+      "detail": "Success: All 12 boundary entries present with valid primary assignments"
     },
     {
       "id": "oracle_dispositions",

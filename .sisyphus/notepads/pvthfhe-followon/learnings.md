@@ -184,3 +184,9 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - The P1 stack memo needs to optimize for verifier-object shape, not just prover throughput: the scorecard ranking only makes sense once recursion fit for P2 is treated as a first-class quantitative metric.
 - Checked-in repo benches are useful as anchors even when they are surrogate measurements: the ~15.29 ms NTT multiply and ~196 ms recursive aggregator baseline give a defensible lower bound for native-lattice and wrapper projections, respectively.
 - Gate-script extension should mirror the existing `interface-spec` pattern exactly: add the new subcheck to `SUBCHECKS`, implement a real function, and wire it into `subchecks_map` rather than relying on the generic stub path.
+
+## 2026-05-03 — Task B.D.3
+- The proof skeletons must speak against the frozen SLAP stack and the exact `(q, N, B_e, k)` parameter tuple from the interface spec; otherwise the P1→P2 handoff leaves room for silent parameter drift.
+- T2 needs the extractor written as an actual forking/rewinding construction with an explicit extraction-success lower bound; naming M-SIS as the primary contradiction and M-LWE as the hiding-side assumption keeps the proof surface crisp.
+- T3 is only convincing if it explicitly references the Fiat–Shamir transform applied to SLAP and isolates the ROM-programming loss from the underlying HVZK indistinguishability term.
+- T5 must export an explicit amortization budget `ε_agg + m·ε_base-ext`; batch soundness cannot be treated as free once P2 starts folding aggregated P1 outputs.

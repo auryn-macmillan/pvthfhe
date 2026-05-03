@@ -22,8 +22,9 @@ GATE_NAME = "p1-design-gate"
 ARTIFACTS = ['docs/governance/program-charter.md']
 INTERFACE_SPEC_PATH = '.sisyphus/design/p1/interface-spec.md'
 STACK_DECISION_PATH = '.sisyphus/design/p1/stack-decision.md'
+PROOF_SKELETONS_PATH = 'docs/security-proofs/p1/proof-skeletons.md'
 
-SUBCHECKS = ['charter', 'bundle', 'reviewer-memo', 'interface-spec', 'stack-decision']
+SUBCHECKS = ['charter', 'bundle', 'reviewer-memo', 'interface-spec', 'stack-decision', 'proof-skeletons']
 
 
 def check_artifacts() -> tuple[bool, list[str]]:
@@ -119,6 +120,40 @@ def check_stack_decision() -> tuple[bool, list[str]]:
     return ok, details
 
 
+def check_proof_skeletons() -> tuple[bool, list[str]]:
+    details: list[str] = ['subcheck: proof-skeletons']
+    if not os.path.exists(PROOF_SKELETONS_PATH):
+        return False, details + [f"[FAIL] missing required artifact: {PROOF_SKELETONS_PATH}"]
+
+    with open(PROOF_SKELETONS_PATH, 'r', encoding='utf-8') as f:
+        content = f.read()
+
+    required_markers = [
+        '## T1',
+        '## T2',
+        '## T3',
+        '## T4',
+        '## T5',
+        '### Reduction',
+        '### Tightness',
+    ]
+
+    ok = True
+    details.append(f"[OK] found required artifact: {PROOF_SKELETONS_PATH}")
+
+    for marker in required_markers:
+        if marker not in content:
+            details.append(f"[FAIL] missing required marker: {marker}")
+            ok = False
+        else:
+            details.append(f"[OK] found marker: {marker}")
+
+    if ok:
+        details.append(f"[OK] {PROOF_SKELETONS_PATH} meets proof-skeletons requirements")
+
+    return ok, details
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=f"{GATE_NAME} gate")
     _ = parser.add_argument("--check", default=None, choices=SUBCHECKS)
@@ -130,6 +165,7 @@ def main() -> None:
     }
     subchecks_map['interface-spec'] = check_interface_spec
     subchecks_map['stack-decision'] = check_stack_decision
+    subchecks_map['proof-skeletons'] = check_proof_skeletons
     run_gate(GATE_NAME, subchecks_map, args)
 
 

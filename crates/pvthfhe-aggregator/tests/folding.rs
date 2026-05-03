@@ -43,13 +43,13 @@ fn make_acc(
     depth: u64,
     chain: [u8; 32],
 ) -> FoldAccumulator {
-    FoldAccumulator {
-        acc_commitment: vec![depth as u8; 4],
-        fold_depth: depth,
-        session_id: session_id.to_string(),
+    FoldAccumulator::new(
+        vec![depth as u8; 4],
+        depth,
+        session_id.to_string(),
         params,
-        statement_hash_chain: chain,
-    }
+        chain,
+    )
 }
 
 fn real_fold_stub(
@@ -109,7 +109,7 @@ mod folding {
             &make_statement(3, "session-b", params, 12),
         )
         .unwrap();
-        assert_eq!(acc3.fold_depth, 3);
+        assert_eq!(acc3.fold_depth(), 3);
         real_verify_acc_stub(&acc3, &params).expect("verify_acc should accept at depth 3");
     }
 

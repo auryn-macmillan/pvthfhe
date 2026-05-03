@@ -42,13 +42,13 @@ fn make_acc(
     depth: u64,
     chain: [u8; 32],
 ) -> FoldAccumulator {
-    FoldAccumulator {
-        acc_commitment: vec![depth as u8; 4],
-        fold_depth: depth,
-        session_id: session_id.to_string(),
+    FoldAccumulator::new(
+        vec![depth as u8; 4],
+        depth,
+        session_id.to_string(),
         params,
-        statement_hash_chain: chain,
-    }
+        chain,
+    )
 }
 
 // ── Category 1: Malformed inner proof ──────────────────────────────────────
@@ -134,6 +134,15 @@ fn test_acc_wrong_params_rejected() {
     assert!(result.is_err(), "acc/stmt params mismatch must be rejected");
 }
 
+#[test]
+fn test_statement_proof_mismatch_rejected() {
+    let params = base_params();
+    let acc = make_acc("sess-4b", params, 0, [0u8; 32]);
+    let stmt = make_statement(1, "sess-4b", params, 12);
+    let result = fold(&acc, &make_witness(13), &stmt);
+    assert!(result.is_err(), "proof/statement mismatch must be rejected");
+}
+
 // ── Category 3: FS challenge grinding (bit-flip triggers rejection) ─────────
 
 #[test]
@@ -178,7 +187,8 @@ fn test_depth_bomb_fold_to_depth_10_exact() {
         acc = fold(&acc, &wit, &stmt).expect("fold should succeed at each depth step");
     }
     assert_eq!(
-        acc.fold_depth, 10,
+        acc.fold_depth(),
+        10,
         "fold_depth must equal 10 after 10 folds"
     );
     verify_acc(&acc, &params).expect("verify_acc should accept at depth 10");
@@ -194,8 +204,30 @@ fn test_depth_bomb_fold_to_depth_12_exact() {
         acc = fold(&acc, &wit, &stmt).expect("fold should succeed at depth step");
     }
     assert_eq!(
-        acc.fold_depth, 12,
+        acc.fold_depth(),
+        12,
         "fold_depth must equal 12 after 12 folds"
+    );
+}
+
+#[test]
+fn test_non_sequential_fold_index_rejected() {
+    let params = base_params();
+    let acc = make_acc("sess-depth-gap", params, 0, [0u8; 32]);
+    let acc1 = fold(
+        &acc,
+        &make_witness(22),
+        &make_statement(1, "sess-depth-gap", params, 22),
+    )
+    .expect("first fold should succeed");
+    let result = fold(
+        &acc1,
+        &make_witness(23),
+        &make_statement(3, "sess-depth-gap", params, 23),
+    );
+    assert!(
+        result.is_err(),
+        "non-sequential fold index must be rejected"
     );
 }
 

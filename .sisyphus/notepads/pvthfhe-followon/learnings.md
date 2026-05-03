@@ -294,3 +294,16 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - The ternary challenge set `{-1,0,1}` gives per-fold soundness `1/3`; at d=10 this is ~1.69e-5, well below the `1.7e-5` bound.
 - Cross-session contamination is fully caught by the session_id check in `validate_statement_binding`.
 - Depth bomb folds (10, 12) succeed and `fold_depth` increments correctly; `verify_acc` accepts.
+
+## 2026-05-03 — Task C.I.5
+
+**Benchmark findings (n=128/512/1024, depth=1/5/10, surrogate hash-chain):**
+
+- `FoldAccumulator` fields are private; must use `FoldAccumulator::new(...)` and accessor methods (`acc_commitment()`, `session_id()`, etc.) from integration tests.
+- Surrogate `RealFoldingScheme` (SHA-256 chain) is extremely fast: depth-10 fold at n=1024 takes ~376 µs total (38 µs/fold average). These numbers are hash-chain cost only — a real RLWE/LatticeFold+ prover will be ~3–4 orders of magnitude slower (bench-plan projected 2–6 s).
+- Proof size is fixed at 32 bytes (single SHA-256 digest) regardless of n or depth — this is an artifact of the surrogate; real LatticeFold+ would emit ~10 KB.
+- Accumulator size is ~98–99 bytes regardless of n (hash-chain is fixed-width); real accumulator size should scale with n.
+- `validate_witness` requires all-same-byte `proof_bytes` (uniformity check via `windows(2)`) — benchmark tests must use uniform-byte witness vectors.
+- `just p2-bench` target now live in `Justfile`; outputs JSON to `bench/p2/` and evidence to `.sisyphus/evidence/p2-impl/bench.txt`.
+- LaTeX table at `paper/figures/p2-bench.tex`, comparison markdown at `paper/figures/p2-bench-comparison.md`.
+- Prior-art baselines used: LatticeFold (CRYPTO 2024), Nova (S&P 2022), Halo2 (ECC 2021).

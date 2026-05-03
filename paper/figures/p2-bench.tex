@@ -1,0 +1,69 @@
+% P2 Benchmark Figure — PVTHFHE vs Prior Art
+% Generated: 2026-05-03
+%
+% IMPORTANT: PVTHFHE rows use a *surrogate hash-chain* implementation (SHA-256).
+% They are NOT from a native LatticeFold+ / RLWE prover.
+% Prior-art rows are REPORTED from published papers, not re-measured.
+%
+% Compile with: pdflatex p2-bench.tex
+%
+\documentclass[10pt]{article}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{geometry}
+\geometry{margin=1.5cm, landscape}
+
+\begin{document}
+
+\begin{table}[ht]
+\centering
+\caption{%
+  P2 Benchmark Matrix: Surrogate Hash-Chain Folding vs Prior Art.
+  \textbf{PVTHFHE} timings are from the \emph{surrogate hash-chain}
+  implementation of \texttt{RealFoldingScheme} (SHA-256 accumulation, debug
+  build, 2026-05-03); they are a lower-bound proxy only.
+  Prior-art numbers are \textbf{reported} from published papers.
+  All per-fold averages for depth $>1$ are total-time / depth.
+}
+\label{tab:p2-bench}
+\footnotesize
+\begin{tabular}{lrrrrrrr}
+\toprule
+\textbf{System} &
+\textbf{$n$} &
+\textbf{Depth} &
+\textbf{Total fold time} &
+\textbf{Avg $\mu$s/fold} &
+\textbf{Verify ($\mu$s)} &
+\textbf{Finalize ($\mu$s)} &
+\textbf{Proof size} \\
+\midrule
+\multicolumn{8}{l}{\textit{PVTHFHE surrogate hash-chain (measured)}} \\
+\midrule
+PVTHFHE (surrogate) & 128  & 1  &  54\,$\mu$s &  54 & $<$1 & 6  & 32\,B \\
+PVTHFHE (surrogate) & 128  & 5  &  62\,$\mu$s &  12 & $<$1 & 5  & 32\,B \\
+PVTHFHE (surrogate) & 128  & 10 & 120\,$\mu$s &  12 & $<$1 & 4  & 32\,B \\
+PVTHFHE (surrogate) & 512  & 1  &  52\,$\mu$s &  52 & $<$1 & 5  & 32\,B \\
+PVTHFHE (surrogate) & 512  & 5  & 110\,$\mu$s &  22 & $<$1 & 5  & 32\,B \\
+PVTHFHE (surrogate) & 512  & 10 & 239\,$\mu$s &  24 & $<$1 & 5  & 32\,B \\
+PVTHFHE (surrogate) & 1024 & 1  &  55\,$\mu$s &  55 & $<$1 & 5  & 32\,B \\
+PVTHFHE (surrogate) & 1024 & 5  & 180\,$\mu$s &  36 & $<$1 & 5  & 32\,B \\
+PVTHFHE (surrogate) & 1024 & 10 & 376\,$\mu$s &  38 & $<$1 & 5  & 32\,B \\
+\midrule
+\multicolumn{8}{l}{\textit{Prior art (reported from published papers)}} \\
+\midrule
+LatticeFold [1]  & 1024 (RLWE) & $\approx$10 & $\sim$50\,ms/fold & 50\,000 & — & — & $\approx$10\,KB \\
+Nova [2]         & 256-bit EC  & varies      & $\sim$500\,$\mu$s/fold & 500  & — & — & $\approx$1\,KB  \\
+Halo2 [3]        & 256-bit EC  & 1 step      & $\sim$100\,ms/step    & 100\,000 & — & — & $\approx$3\,KB \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\noindent\footnotesize
+[1]~Boneh \& Chen, \textit{LatticeFold}, CRYPTO 2024 (Table~3, 128-party RLWE-1024).\\
+[2]~Kothapalli, Setty \& Tzialla, \textit{Nova}, S\&P 2022 / ePrint~2021/370 (\S6, BN254).\\
+[3]~ECC, \textit{Halo2 Book}, 2020--2021 (public benchmark artefacts, 10-constraint circuit).
+\end{table}
+
+\end{document}

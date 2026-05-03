@@ -1,0 +1,22 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.03s
+     Running tests/p2_bench.rs (target/debug/deps/p2_bench-23076bc256354d82)
+
+running 3 tests
+n=128 depth=1: fold=26.3µs verify=0.2µs finalize=5.4µs proof=32B acc=98B
+n=1024 depth=1: fold=67.2µs verify=0.2µs finalize=5.5µs proof=32B acc=99B
+n=512 depth=1: fold=35.0µs verify=0.2µs finalize=5.2µs proof=32B acc=98B
+n=128 depth=5: fold=60.9µs verify=0.0µs finalize=4.6µs proof=32B acc=98B
+n=512 depth=5: fold=116.2µs verify=0.2µs finalize=5.1µs proof=32B acc=98B
+n=128 depth=10: fold=120.5µs verify=0.0µs finalize=4.6µs proof=32B acc=98B
+n=1024 depth=5: fold=177.0µs verify=0.2µs finalize=4.9µs proof=32B acc=99B
+Wrote /home/dev/pvthfhe/crates/pvthfhe-aggregator/../../bench/p2/results-128.json
+n=512 depth=10: fold=217.3µs verify=0.0µs finalize=4.5µs proof=32B acc=98B
+test bench_p2_n128 ... ok
+Wrote /home/dev/pvthfhe/crates/pvthfhe-aggregator/../../bench/p2/results-512.json
+test bench_p2_n512 ... ok
+n=1024 depth=10: fold=374.7µs verify=0.2µs finalize=5.0µs proof=32B acc=99B
+Wrote /home/dev/pvthfhe/crates/pvthfhe-aggregator/../../bench/p2/results-1024.json
+test bench_p2_n1024 ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

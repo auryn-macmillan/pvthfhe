@@ -126,8 +126,8 @@ p1-bench:
     bash bench/p1/run.sh
 
 p2-bench:
-    @echo "p2-bench not yet implemented"
-    @exit 2
+    mkdir -p bench/p2 .sisyphus/evidence/p2-impl
+    cargo test -p pvthfhe-aggregator --features=real-folding --test p2_bench -- --nocapture 2>&1 | tee .sisyphus/evidence/p2-impl/bench.txt
 
 p3-bench:
     @echo "p3-bench not yet implemented"

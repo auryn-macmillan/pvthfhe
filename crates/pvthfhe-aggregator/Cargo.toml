@@ -36,3 +36,8 @@ path = "tests/folding.rs"
 name = "folding_adversarial"
 path = "tests/folding_adversarial.rs"
 required-features = ["real-folding"]
+
+[[test]]
+name = "p2_bench"
+path = "tests/p2_bench.rs"
+required-features = ["real-folding"]

@@ -1,0 +1,15 @@
+{
+  "gate": "p1-design-gate",
+  "subcheck": "stack-decision",
+  "status": "PASS",
+  "timestamp": "2026-05-03T01:45:41.387177+00:00",
+  "details": [
+    "subcheck: stack-decision",
+    "[OK] found required artifact: .sisyphus/design/p1/stack-decision.md",
+    "[OK] found heading: ## Primary Decision",
+    "[OK] found heading: ## Fallback Decision",
+    "[OK] found heading: ## Bench Projections",
+    "[OK] found heading: ## Recursion Compatibility",
+    "[OK] .sisyphus/design/p1/stack-decision.md meets stack-decision requirements"
+  ]
+}

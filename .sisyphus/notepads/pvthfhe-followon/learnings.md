@@ -190,3 +190,9 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - T2 needs the extractor written as an actual forking/rewinding construction with an explicit extraction-success lower bound; naming M-SIS as the primary contradiction and M-LWE as the hiding-side assumption keeps the proof surface crisp.
 - T3 is only convincing if it explicitly references the Fiat–Shamir transform applied to SLAP and isolates the ROM-programming loss from the underlying HVZK indistinguishability term.
 - T5 must export an explicit amortization budget `ε_agg + m·ε_base-ext`; batch soundness cannot be treated as free once P2 starts folding aggregated P1 outputs.
+
+## 2026-05-03 — Task B.D.4
+- The P1 bench plan has to freeze the full cross-product explicitly: `n ∈ {128, 256, 512, 1024}` is not enough unless every row also binds `(q bits, N, B_e)` and names both `SLAP primary` and `Greyhound fallback`.
+- The cleanest advisory-threshold anchor is the stack memo itself plus checked-in `bench/results/*.json` baselines: use the explicit `~40 ms` SLAP verifier pivot and keep memory materially below the repo's ~7.8 GiB recursive baseline.
+- Migration safety is only persuasive once the three rollback modes are separated: temporary surrogate re-enable, research pivot to Greyhound, and delivery fallback to Rust-in-zkVM.
+- Surrogate retirement must be calendar- and gate-bound, not prose-only; `just p1-impl-gate` plus 30 consecutive green CI days gives a concrete retirement trigger instead of an open-ended promise.

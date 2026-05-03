@@ -1,0 +1,85 @@
+python3 .sisyphus/scripts/p1-design-gate.py
+subcheck: charter
+[OK] docs/governance/program-charter.md
+  PASS: charter
+subcheck: reviewer-memo
+[OK] found required artifact: .sisyphus/reviews/p1-design-gate-review.md
+[OK] found reviewer-memo marker: VERDICT: APPROVE
+[OK] found reviewer-memo marker: ## Summary
+[OK] found reviewer-memo marker: ## Bench Coverage
+[OK] found reviewer-memo marker: ## Migration Safety
+[OK] found reviewer-memo marker: ## Rollback Completeness
+[OK] found reviewer-memo marker: ## Gate Decision
+[OK] .sisyphus/reviews/p1-design-gate-review.md meets reviewer-memo requirements
+  PASS: reviewer-memo
+subcheck: interface-spec
+[OK] found required artifact: .sisyphus/design/p1/interface-spec.md
+[OK] found heading: ## Statement
+[OK] found heading: ## Witness
+[OK] found heading: ## Public Inputs
+[OK] found heading: ## Proof Format
+[OK] found heading: ## Adapter Strategy
+[OK] found heading: ## Surrogate Boundary
+[OK] surrogate contamination marker absent: Noir
+[OK] surrogate contamination marker absent: UltraHonk
+[OK] surrogate contamination marker absent: HonkVerifier
+[OK] .sisyphus/design/p1/interface-spec.md meets interface-spec requirements
+  PASS: interface-spec
+subcheck: stack-decision
+[OK] found required artifact: .sisyphus/design/p1/stack-decision.md
+[OK] found heading: ## Primary Decision
+[OK] found heading: ## Fallback Decision
+[OK] found heading: ## Bench Projections
+[OK] found heading: ## Recursion Compatibility
+[OK] .sisyphus/design/p1/stack-decision.md meets stack-decision requirements
+  PASS: stack-decision
+subcheck: proof-skeletons
+[OK] found required artifact: docs/security-proofs/p1/proof-skeletons.md
+[OK] found marker: ## T1
+[OK] found marker: ## T2
+[OK] found marker: ## T3
+[OK] found marker: ## T4
+[OK] found marker: ## T5
+[OK] found marker: ### Reduction
+[OK] found marker: ### Tightness
+[OK] docs/security-proofs/p1/proof-skeletons.md meets proof-skeletons requirements
+  PASS: proof-skeletons
+subcheck: bench-plan
+[OK] found required artifact: .sisyphus/design/p1/bench-plan.md
+[OK] found heading: ## Benchmark Matrix
+[OK] found heading: ## Advisory Thresholds
+[OK] found heading: ## Measurement Protocol
+[OK] found bench-plan marker: 128
+[OK] found bench-plan marker: 256
+[OK] found bench-plan marker: 512
+[OK] found bench-plan marker: 1024
+[OK] found bench-plan marker: SLAP primary
+[OK] found bench-plan marker: Greyhound fallback
+[OK] found bench-plan marker: q bits
+[OK] found bench-plan marker: B_e
+[OK] found bench-plan marker: Prover time
+[OK] found bench-plan marker: Proof size
+[OK] found bench-plan marker: Verifier time
+[OK] found bench-plan marker: Peak memory
+[OK] .sisyphus/design/p1/bench-plan.md meets bench-plan requirements
+  PASS: bench-plan
+subcheck: migration-plan
+[OK] found required artifact: .sisyphus/design/p1/migration-plan.md
+[OK] found heading: ## Rollout Phases
+[OK] found heading: ## Feature Flag Schedule
+[OK] found heading: ## Surrogate Retirement
+[OK] found heading: ## Rollback Criteria
+[OK] found migration-plan marker: Phase 1
+[OK] found migration-plan marker: Phase 2
+[OK] found migration-plan marker: Phase 3
+[OK] found migration-plan marker: Phase 4
+[OK] found migration-plan marker: real-nizk
+[OK] found migration-plan marker: surrogate-decrypt-share
+[OK] found migration-plan marker: Greyhound
+[OK] found migration-plan marker: Rust-in-zkVM
+[OK] found migration-plan marker: 30 consecutive calendar days
+[OK] found migration-plan marker: just p1-impl-gate
+[OK] .sisyphus/design/p1/migration-plan.md meets migration-plan requirements
+  PASS: migration-plan
+
+PASS: p1-design-gate

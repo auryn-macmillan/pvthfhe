@@ -1,0 +1,26 @@
+{
+  "gate": "p1-design-gate",
+  "subcheck": "bench-plan",
+  "status": "PASS",
+  "timestamp": "2026-05-03T01:45:41.387582+00:00",
+  "details": [
+    "subcheck: bench-plan",
+    "[OK] found required artifact: .sisyphus/design/p1/bench-plan.md",
+    "[OK] found heading: ## Benchmark Matrix",
+    "[OK] found heading: ## Advisory Thresholds",
+    "[OK] found heading: ## Measurement Protocol",
+    "[OK] found bench-plan marker: 128",
+    "[OK] found bench-plan marker: 256",
+    "[OK] found bench-plan marker: 512",
+    "[OK] found bench-plan marker: 1024",
+    "[OK] found bench-plan marker: SLAP primary",
+    "[OK] found bench-plan marker: Greyhound fallback",
+    "[OK] found bench-plan marker: q bits",
+    "[OK] found bench-plan marker: B_e",
+    "[OK] found bench-plan marker: Prover time",
+    "[OK] found bench-plan marker: Proof size",
+    "[OK] found bench-plan marker: Verifier time",
+    "[OK] found bench-plan marker: Peak memory",
+    "[OK] .sisyphus/design/p1/bench-plan.md meets bench-plan requirements"
+  ]
+}

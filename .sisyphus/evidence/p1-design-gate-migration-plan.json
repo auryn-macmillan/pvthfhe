@@ -1,0 +1,25 @@
+{
+  "gate": "p1-design-gate",
+  "subcheck": "migration-plan",
+  "status": "PASS",
+  "timestamp": "2026-05-03T01:45:41.387726+00:00",
+  "details": [
+    "subcheck: migration-plan",
+    "[OK] found required artifact: .sisyphus/design/p1/migration-plan.md",
+    "[OK] found heading: ## Rollout Phases",
+    "[OK] found heading: ## Feature Flag Schedule",
+    "[OK] found heading: ## Surrogate Retirement",
+    "[OK] found heading: ## Rollback Criteria",
+    "[OK] found migration-plan marker: Phase 1",
+    "[OK] found migration-plan marker: Phase 2",
+    "[OK] found migration-plan marker: Phase 3",
+    "[OK] found migration-plan marker: Phase 4",
+    "[OK] found migration-plan marker: real-nizk",
+    "[OK] found migration-plan marker: surrogate-decrypt-share",
+    "[OK] found migration-plan marker: Greyhound",
+    "[OK] found migration-plan marker: Rust-in-zkVM",
+    "[OK] found migration-plan marker: 30 consecutive calendar days",
+    "[OK] found migration-plan marker: just p1-impl-gate",
+    "[OK] .sisyphus/design/p1/migration-plan.md meets migration-plan requirements"
+  ]
+}

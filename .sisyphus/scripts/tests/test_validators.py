@@ -1088,3 +1088,180 @@ def test_p1_research_gate_review_fails_without_primary_reference():
         )
         assert rc != 0, f"Expected non-zero, got {rc}. Output: {out}"
         assert "primary reference" in out.lower(), out
+
+
+P1_BENCH_PLAN_VALID = textwrap.dedent("""\
+    # P1 Benchmark Plan
+
+    ## Benchmark Matrix
+
+    | n | q bits | N | B_e | stack |
+    | --- | ---: | ---: | ---: | --- |
+    | 128 | 109 | 2048 | 32 | SLAP primary |
+    | 256 | 109 | 4096 | 32 | Greyhound fallback |
+    | 512 | 218 | 4096 | 48 | SLAP primary |
+    | 1024 | 218 | 8192 | 64 | Greyhound fallback |
+
+    ## Advisory Thresholds
+
+    - Prover time
+    - Proof size
+    - Verifier time
+    - Peak memory
+
+    ## Measurement Protocol
+
+    - fixed hardware fingerprint
+""")
+
+
+P1_MIGRATION_PLAN_VALID = textwrap.dedent("""\
+    # P1 Migration Plan
+
+    ## Rollout Phases
+
+    - Phase 1: RED tests behind `real-nizk`
+    - Phase 2: GREEN impl shipped; surrogate annotated
+    - Phase 3: CI default flips to `real-nizk` and surrogate stays behind `surrogate-decrypt-share`
+    - Phase 4: retire only after just p1-impl-gate plus 30 consecutive calendar days of green CI
+
+    ## Feature Flag Schedule
+
+    - default flips to `real-nizk`
+
+    ## Surrogate Retirement
+
+    - retire `surrogate-decrypt-share` after implementation gate + 30 consecutive green CI days
+
+    ## Rollback Criteria
+
+    - pivot to Greyhound or Rust-in-zkVM fallback on threshold breach
+""")
+
+
+P1_DESIGN_REVIEW_VALID = textwrap.dedent("""\
+    # External Advisor Memo — DG-P1
+
+    ## Summary
+
+    VERDICT: APPROVE
+
+    ## Bench Coverage
+
+    - Covers all required benchmark dimensions.
+
+    ## Migration Safety
+
+    - Uses the required feature flags.
+
+    ## Rollback Completeness
+
+    - Names Greyhound and Rust-in-zkVM pivots.
+
+    ## Gate Decision
+
+    - Ready for design-gate pass.
+""")
+
+
+def write_p1_design_gate_fixture_files(
+    tmpdir: str,
+    bench_plan: str = P1_BENCH_PLAN_VALID,
+    migration_plan: str = P1_MIGRATION_PLAN_VALID,
+    review_memo: str = P1_DESIGN_REVIEW_VALID,
+) -> None:
+    design_dir = os.path.join(tmpdir, ".sisyphus", "design", "p1")
+    reviews_dir = os.path.join(tmpdir, ".sisyphus", "reviews")
+    os.makedirs(design_dir, exist_ok=True)
+    os.makedirs(reviews_dir, exist_ok=True)
+    with open(os.path.join(design_dir, "bench-plan.md"), "w", encoding="utf-8") as f:
+        _ = f.write(bench_plan)
+    with open(os.path.join(design_dir, "migration-plan.md"), "w", encoding="utf-8") as f:
+        _ = f.write(migration_plan)
+    with open(os.path.join(reviews_dir, "p1-design-gate-review.md"), "w", encoding="utf-8") as f:
+        _ = f.write(review_memo)
+
+
+def test_p1_design_gate_bench_plan_requires_required_headings():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        write_p1_design_gate_fixture_files(tmpdir)
+        rc, out, _ = run_script_in_cwd(
+            "p1-design-gate.py", tmpdir, "--check", "bench-plan"
+        )
+        assert rc == 0, f"Expected 0, got {rc}. Output: {out}"
+        assert "PASS: p1-design-gate/bench-plan" in out, out
+
+
+def test_p1_design_gate_bench_plan_fails_without_measurement_protocol_heading():
+    bad_bench_plan = P1_BENCH_PLAN_VALID.replace("## Measurement Protocol\n", "## Measurement Notes\n")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        write_p1_design_gate_fixture_files(tmpdir, bench_plan=bad_bench_plan)
+        rc, out, _ = run_script_in_cwd(
+            "p1-design-gate.py", tmpdir, "--check", "bench-plan"
+        )
+        assert rc != 0, f"Expected non-zero, got {rc}. Output: {out}"
+        assert "Measurement Protocol" in out, out
+
+
+def test_p1_design_gate_bench_plan_fails_without_both_required_stacks():
+    bad_bench_plan = P1_BENCH_PLAN_VALID.replace("SLAP primary", "Unknown stack")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        write_p1_design_gate_fixture_files(tmpdir, bench_plan=bad_bench_plan)
+        rc, out, _ = run_script_in_cwd(
+            "p1-design-gate.py", tmpdir, "--check", "bench-plan"
+        )
+        assert rc != 0, f"Expected non-zero, got {rc}. Output: {out}"
+        assert "SLAP primary" in out, out
+
+
+def test_p1_design_gate_migration_plan_requires_required_headings():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        write_p1_design_gate_fixture_files(tmpdir)
+        rc, out, _ = run_script_in_cwd(
+            "p1-design-gate.py", tmpdir, "--check", "migration-plan"
+        )
+        assert rc == 0, f"Expected 0, got {rc}. Output: {out}"
+        assert "PASS: p1-design-gate/migration-plan" in out, out
+
+
+def test_p1_design_gate_migration_plan_fails_without_rollback_heading():
+    bad_migration_plan = P1_MIGRATION_PLAN_VALID.replace("## Rollback Criteria\n", "## Rollback Notes\n")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        write_p1_design_gate_fixture_files(tmpdir, migration_plan=bad_migration_plan)
+        rc, out, _ = run_script_in_cwd(
+            "p1-design-gate.py", tmpdir, "--check", "migration-plan"
+        )
+        assert rc != 0, f"Expected non-zero, got {rc}. Output: {out}"
+        assert "Rollback Criteria" in out, out
+
+
+def test_p1_design_gate_migration_plan_fails_without_required_feature_flags():
+    bad_migration_plan = P1_MIGRATION_PLAN_VALID.replace("`real-nizk`", "`real-proof`")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        write_p1_design_gate_fixture_files(tmpdir, migration_plan=bad_migration_plan)
+        rc, out, _ = run_script_in_cwd(
+            "p1-design-gate.py", tmpdir, "--check", "migration-plan"
+        )
+        assert rc != 0, f"Expected non-zero, got {rc}. Output: {out}"
+        assert "real-nizk" in out, out
+
+
+def test_p1_design_gate_reviewer_memo_requires_required_sections():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        write_p1_design_gate_fixture_files(tmpdir)
+        rc, out, _ = run_script_in_cwd(
+            "p1-design-gate.py", tmpdir, "--check", "reviewer-memo"
+        )
+        assert rc == 0, f"Expected 0, got {rc}. Output: {out}"
+        assert "PASS: p1-design-gate/reviewer-memo" in out, out
+
+
+def test_p1_design_gate_reviewer_memo_fails_without_verdict():
+    bad_review = P1_DESIGN_REVIEW_VALID.replace("VERDICT: APPROVE\n", "")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        write_p1_design_gate_fixture_files(tmpdir, review_memo=bad_review)
+        rc, out, _ = run_script_in_cwd(
+            "p1-design-gate.py", tmpdir, "--check", "reviewer-memo"
+        )
+        assert rc != 0, f"Expected non-zero, got {rc}. Output: {out}"
+        assert "VERDICT: APPROVE" in out, out

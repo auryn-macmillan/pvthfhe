@@ -23,8 +23,11 @@ ARTIFACTS = ['docs/governance/program-charter.md']
 INTERFACE_SPEC_PATH = '.sisyphus/design/p1/interface-spec.md'
 STACK_DECISION_PATH = '.sisyphus/design/p1/stack-decision.md'
 PROOF_SKELETONS_PATH = 'docs/security-proofs/p1/proof-skeletons.md'
+BENCH_PLAN_PATH = '.sisyphus/design/p1/bench-plan.md'
+MIGRATION_PLAN_PATH = '.sisyphus/design/p1/migration-plan.md'
+REVIEW_PATH = '.sisyphus/reviews/p1-design-gate-review.md'
 
-SUBCHECKS = ['charter', 'bundle', 'reviewer-memo', 'interface-spec', 'stack-decision', 'proof-skeletons']
+SUBCHECKS = ['charter', 'reviewer-memo', 'interface-spec', 'stack-decision', 'proof-skeletons', 'bench-plan', 'migration-plan']
 
 
 def check_artifacts() -> tuple[bool, list[str]]:
@@ -154,6 +157,140 @@ def check_proof_skeletons() -> tuple[bool, list[str]]:
     return ok, details
 
 
+def check_bench_plan() -> tuple[bool, list[str]]:
+    details: list[str] = ['subcheck: bench-plan']
+    if not os.path.exists(BENCH_PLAN_PATH):
+        return False, details + [f"[FAIL] missing required artifact: {BENCH_PLAN_PATH}"]
+
+    with open(BENCH_PLAN_PATH, 'r', encoding='utf-8') as f:
+        content = f.read()
+
+    required_headings = [
+        '## Benchmark Matrix',
+        '## Advisory Thresholds',
+        '## Measurement Protocol',
+    ]
+    required_markers = [
+        '128',
+        '256',
+        '512',
+        '1024',
+        'SLAP primary',
+        'Greyhound fallback',
+        'q bits',
+        'B_e',
+        'Prover time',
+        'Proof size',
+        'Verifier time',
+        'Peak memory',
+    ]
+
+    ok = True
+    details.append(f"[OK] found required artifact: {BENCH_PLAN_PATH}")
+
+    for heading in required_headings:
+        if heading not in content:
+            details.append(f"[FAIL] missing required heading: {heading}")
+            ok = False
+        else:
+            details.append(f"[OK] found heading: {heading}")
+
+    for marker in required_markers:
+        if marker not in content:
+            details.append(f"[FAIL] missing required bench-plan marker: {marker}")
+            ok = False
+        else:
+            details.append(f"[OK] found bench-plan marker: {marker}")
+
+    if ok:
+        details.append(f"[OK] {BENCH_PLAN_PATH} meets bench-plan requirements")
+
+    return ok, details
+
+
+def check_migration_plan() -> tuple[bool, list[str]]:
+    details: list[str] = ['subcheck: migration-plan']
+    if not os.path.exists(MIGRATION_PLAN_PATH):
+        return False, details + [f"[FAIL] missing required artifact: {MIGRATION_PLAN_PATH}"]
+
+    with open(MIGRATION_PLAN_PATH, 'r', encoding='utf-8') as f:
+        content = f.read()
+
+    required_headings = [
+        '## Rollout Phases',
+        '## Feature Flag Schedule',
+        '## Surrogate Retirement',
+        '## Rollback Criteria',
+    ]
+    required_markers = [
+        'Phase 1',
+        'Phase 2',
+        'Phase 3',
+        'Phase 4',
+        'real-nizk',
+        'surrogate-decrypt-share',
+        'Greyhound',
+        'Rust-in-zkVM',
+        '30 consecutive calendar days',
+        'just p1-impl-gate',
+    ]
+
+    ok = True
+    details.append(f"[OK] found required artifact: {MIGRATION_PLAN_PATH}")
+
+    for heading in required_headings:
+        if heading not in content:
+            details.append(f"[FAIL] missing required heading: {heading}")
+            ok = False
+        else:
+            details.append(f"[OK] found heading: {heading}")
+
+    for marker in required_markers:
+        if marker not in content:
+            details.append(f"[FAIL] missing required migration-plan marker: {marker}")
+            ok = False
+        else:
+            details.append(f"[OK] found migration-plan marker: {marker}")
+
+    if ok:
+        details.append(f"[OK] {MIGRATION_PLAN_PATH} meets migration-plan requirements")
+
+    return ok, details
+
+
+def check_reviewer_memo() -> tuple[bool, list[str]]:
+    details: list[str] = ['subcheck: reviewer-memo']
+    if not os.path.exists(REVIEW_PATH):
+        return False, details + [f"[FAIL] missing required artifact: {REVIEW_PATH}"]
+
+    with open(REVIEW_PATH, 'r', encoding='utf-8') as f:
+        content = f.read()
+
+    required_markers = [
+        'VERDICT: APPROVE',
+        '## Summary',
+        '## Bench Coverage',
+        '## Migration Safety',
+        '## Rollback Completeness',
+        '## Gate Decision',
+    ]
+
+    ok = True
+    details.append(f"[OK] found required artifact: {REVIEW_PATH}")
+
+    for marker in required_markers:
+        if marker not in content:
+            details.append(f"[FAIL] missing required reviewer-memo marker: {marker}")
+            ok = False
+        else:
+            details.append(f"[OK] found reviewer-memo marker: {marker}")
+
+    if ok:
+        details.append(f"[OK] {REVIEW_PATH} meets reviewer-memo requirements")
+
+    return ok, details
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=f"{GATE_NAME} gate")
     _ = parser.add_argument("--check", default=None, choices=SUBCHECKS)
@@ -163,9 +300,12 @@ def main() -> None:
     subchecks_map: dict[str, Callable[[], tuple[bool, list[str]]]] = {
         name: make_subcheck(name) for name in SUBCHECKS
     }
+    subchecks_map['reviewer-memo'] = check_reviewer_memo
     subchecks_map['interface-spec'] = check_interface_spec
     subchecks_map['stack-decision'] = check_stack_decision
     subchecks_map['proof-skeletons'] = check_proof_skeletons
+    subchecks_map['bench-plan'] = check_bench_plan
+    subchecks_map['migration-plan'] = check_migration_plan
     run_gate(GATE_NAME, subchecks_map, args)
 
 

@@ -1,0 +1,18 @@
+{
+  "gate": "p1-design-gate",
+  "subcheck": "proof-skeletons",
+  "status": "PASS",
+  "timestamp": "2026-05-03T01:45:41.387435+00:00",
+  "details": [
+    "subcheck: proof-skeletons",
+    "[OK] found required artifact: docs/security-proofs/p1/proof-skeletons.md",
+    "[OK] found marker: ## T1",
+    "[OK] found marker: ## T2",
+    "[OK] found marker: ## T3",
+    "[OK] found marker: ## T4",
+    "[OK] found marker: ## T5",
+    "[OK] found marker: ### Reduction",
+    "[OK] found marker: ### Tightness",
+    "[OK] docs/security-proofs/p1/proof-skeletons.md meets proof-skeletons requirements"
+  ]
+}

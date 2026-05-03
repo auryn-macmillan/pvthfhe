@@ -1,0 +1,21 @@
+[OK] claims-table: 19 PROVED rows found
+  PASS: claims-table
+[OK] theorem-consistency: 19 theorem environments found
+  PASS: theorem-consistency
+[OK] paper/figures/p4-bench.tex
+[OK] paper/figures/p1-bench.tex
+[OK] paper/figures/p2-bench.tex
+[OK] paper/figures/p3-bench.tex
+  PASS: figures
+[OK] .sisyphus/reviews/internal-carol-final.md has VERDICT:
+[OK] .sisyphus/reviews/internal-bob-final.md has VERDICT:
+[OK] .sisyphus/reviews/internal-alice-final.md has VERDICT:
+[OK] internal-reviews: 3 reviews passed
+  PASS: internal-reviews
+[OK] .sisyphus/reviews/external-eve-lattice-final.md has VERDICT:
+[OK] external-reviews: 1 reviews passed
+  PASS: external-reviews
+[OK] paper/submission/ exists (1 files)
+  PASS: submission-bundle
+
+PASS: paper-gate

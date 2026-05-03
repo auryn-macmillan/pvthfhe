@@ -1,3 +1,5 @@
+#![allow(clippy::manual_contains)]
+
 //! Hermine-adapted PVSS dealer and participant implementation.
 //!
 //! This module provides `HermineAdapter`, a publicly-verifiable secret-sharing
@@ -38,10 +40,10 @@ fn poly_eval(coeffs: &[u64], x: u64) -> u64 {
     let mut result = 0u128;
     let mut xpow = 1u128;
     for &c in coeffs {
-        result = (result + c as u128 * xpow) % PRIME as u128;
-        xpow = xpow * x as u128 % PRIME as u128;
+        result = (result + u128::from(c) * xpow) % u128::from(PRIME);
+        xpow = xpow * u128::from(x) % u128::from(PRIME);
     }
-    result as u64
+    u64::try_from(result).expect("poly_eval result fits u64 after mod PRIME")
 }
 
 /// Derives a deterministic u64 field element from a SHA-256 hash of the inputs.
@@ -71,7 +73,7 @@ fn reject_invalid_session(participants: &[Participant], threshold: u16) -> Resul
     if threshold == 0 {
         return Err(KeygenError::new("threshold must be at least one"));
     }
-    if threshold as usize > participants.len() {
+    if usize::from(threshold) > participants.len() {
         return Err(KeygenError::new("threshold exceeds participant count"));
     }
 
@@ -181,29 +183,29 @@ fn verify_share_set(
 /// term) from a set of `(x, y)` shares.
 fn lagrange_interpolate(shares: &[(u64, u64)]) -> u64 {
     let mut secret = 0u128;
-    let p = PRIME as u128;
+    let p = u128::from(PRIME);
     for (i, &(xi, yi)) in shares.iter().enumerate() {
         let mut num = 1u128;
         let mut den = 1u128;
         for (j, &(xj, _)) in shares.iter().enumerate() {
             if i != j {
                 // num *= (0 - xj) mod p  (evaluate at x=0)
-                num = num * (p - xj as u128) % p;
+                num = num * (p - u128::from(xj)) % p;
                 // den *= (xi - xj) mod p
                 let diff = if xi > xj {
-                    (xi - xj) as u128
+                    u128::from(xi - xj)
                 } else {
-                    p - (xj - xi) as u128
+                    p - u128::from(xj - xi)
                 };
                 den = den * diff % p;
             }
         }
         // Fermat's little theorem: den^(p-2) mod p = den^-1 mod p
         let den_inv = mod_pow(den, p - 2, p);
-        let term = yi as u128 * num % p * den_inv % p;
+        let term = u128::from(yi) * num % p * den_inv % p;
         secret = (secret + term) % p;
     }
-    secret as u64
+    u64::try_from(secret).expect("lagrange secret fits u64 after mod PRIME")
 }
 
 /// Modular exponentiation: computes `base^exp mod modulus`.
@@ -255,7 +257,7 @@ impl KeygenAdapter for HermineAdapter {
         if n == 0 {
             return Err(KeygenError::new("no participants in session"));
         }
-        let t = session.threshold as usize;
+        let t = usize::from(session.threshold);
 
         // Build polynomial coefficients: [s, a1, ..., a_{t-1}].
         let secret = derive_field_elem(&session.session_id, dealer_id, b"secret", 0);
@@ -265,7 +267,7 @@ impl KeygenAdapter for HermineAdapter {
                 &session.session_id,
                 dealer_id,
                 b"coeff",
-                i as u64,
+                u64::try_from(i).expect("polynomial degree fits u64"),
             ));
         }
 
@@ -273,7 +275,7 @@ impl KeygenAdapter for HermineAdapter {
         let mut commitments = Vec::with_capacity(n);
 
         for p in &session.participants {
-            let x = p.id as u64;
+            let x = u64::from(p.id);
             let y = poly_eval(&coeffs, x);
             let c = commit(&session.session_id, p.id, y);
             commitments.push(c.clone());
@@ -346,10 +348,11 @@ impl KeygenAdapter for HermineAdapter {
         if shares.is_empty() {
             return Err(KeygenError::new("no shares provided"));
         }
-        let threshold = shares[0]
-            .threshold
-            .ok_or_else(|| KeygenError::new("share missing threshold"))?
-            as usize;
+        let threshold = usize::from(
+            shares[0]
+                .threshold
+                .ok_or_else(|| KeygenError::new("share missing threshold"))?,
+        );
         if shares.len() < threshold {
             return Err(KeygenError::new(
                 "insufficient shares for threshold reconstruction",
@@ -362,13 +365,13 @@ impl KeygenAdapter for HermineAdapter {
             if s.session_id != *session_id {
                 return Err(KeygenError::new("shares belong to different sessions"));
             }
-            if s.threshold != Some(threshold as u16) {
+            if s.threshold != Some(u16::try_from(threshold).expect("threshold fits u16")) {
                 return Err(KeygenError::new("shares disagree on threshold"));
             }
-            let x = s
-                .participant_id
-                .ok_or_else(|| KeygenError::new("share missing participant_id"))?
-                as u64;
+            let x = u64::from(
+                s.participant_id
+                    .ok_or_else(|| KeygenError::new("share missing participant_id"))?,
+            );
             if x == 0 {
                 return Err(KeygenError::new("participant ids must be 1-based"));
             }

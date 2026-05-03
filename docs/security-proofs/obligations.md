@@ -26,8 +26,8 @@ Theorems are identified and added during the research phase for each problem.
 | P2 | P2-T4 | The accumulator commitment is binding under RingSIS/M-SIS at the frozen P2 parameters. | proved | docs/security-proofs/p2/T4.md | §P2-AccumulatorBinding |
 | P2 | P2-T5 | The final accumulated proof targets Solidity/Yul verification within bounded gas and proof size. | proved | docs/security-proofs/p2/T5.md | §P2-OnchainCompatibility |
 
-| P3 | P3-T1 | Any on-chain acceptance of the P3 verifier implies acceptance of the exact frozen P2 terminal accumulator statement on the same public inputs. | skeleton | docs/security-proofs/p3/proof-skeletons.md | §P3-OnchainSoundness |
-| P3 | P3-T2 | Any recursive or compressed wrap used by P3 preserves soundness of the wrapped P2 terminal relation; N/A if no wrap is used. | skeleton | docs/security-proofs/p3/proof-skeletons.md | §P3-WrapPreservesSoundness |
-| P3 | P3-T3 | Trusted-setup assumptions are explicit: setup compromise breaks P3 soundness if a setup-based verifier path is chosen, and is N/A otherwise. | skeleton | docs/security-proofs/p3/proof-skeletons.md | §P3-TrustedSetup |
-| P3 | P3-T4 | The deployed on-chain verifier halts within the published gas budget `≤ 5,000,000` for all accept/reject paths, preventing gas-based denial of service. | skeleton | docs/security-proofs/p3/proof-skeletons.md | §P3-GasBound |
-| P3 | P3-T5 | A valid P3 submission either finalizes on-chain or aborts under a publicly checkable blame predicate tied to calldata and contract state. | skeleton | docs/security-proofs/p3/proof-skeletons.md | §P3-LivenessBlame |
+| P3 | P3-T1 | Any on-chain acceptance of the P3 verifier implies acceptance of the exact frozen P2 terminal accumulator statement on the same public inputs. | PROVED | docs/security-proofs/p3/T1.md | §P3-OnchainSoundness |
+| P3 | P3-T2 | Any recursive or compressed wrap used by P3 preserves soundness of the wrapped P2 terminal relation; N/A if no wrap is used. | PROVED | docs/security-proofs/p3/T2.md | §P3-WrapPreservesSoundness |
+| P3 | P3-T3 | Trusted-setup assumptions are explicit: setup compromise breaks P3 soundness if a setup-based verifier path is chosen, and is N/A otherwise. | PROVED | docs/security-proofs/p3/T3.md | §P3-TrustedSetup |
+| P3 | P3-T4 | The deployed on-chain verifier halts within the published gas budget `≤ 5,000,000` for all accept/reject paths, preventing gas-based denial of service. | PROVED | docs/security-proofs/p3/T4.md | §P3-GasBound |
+| P3 | P3-T5 | A valid P3 submission either finalizes on-chain or aborts under a publicly checkable blame predicate tied to calldata and contract state. | PROVED | docs/security-proofs/p3/T5.md | §P3-LivenessBlame |

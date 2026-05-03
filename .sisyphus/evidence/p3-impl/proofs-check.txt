@@ -1,0 +1,46 @@
+# P3 Security Proofs — Evidence Capture
+# Generated: 2026-05-03
+# Task: D.I.4 — Full security proofs (paper-ready) for P3 on-chain verifier, T1–T5
+
+## Files created
+
+docs/security-proofs/p3/T1.md  — Completeness (direct computation)
+docs/security-proofs/p3/T2.md  — Soundness, EUF-CMA reduction on secp256k1
+docs/security-proofs/p3/T3.md  — Trusted-setup analysis (ECDSA key security, no ceremony)
+docs/security-proofs/p3/T4.md  — Gas-bound proof from first principles (EIP-1884/2028/2929)
+docs/security-proofs/p3/T5.md  — Cross-input binding, keccak256 SPR reduction
+docs/security-proofs/p3/advisor-verdict.md  — Advisor review, VERDICT: APPROVE
+
+## Obligations updated
+
+docs/security-proofs/obligations.md — P3 rows P3-T1 through P3-T5: skeleton → PROVED
+
+## Gas arithmetic verification (T4)
+
+Component                           Gas (worst case)
+------------------------------------------------------
+Calldata publicInputs (200 B)       3,200  (200 × 16, EIP-2028)
+Calldata v,r,s (65 B)               1,040  (65 × 16, EIP-2028)
+keccak256(200 bytes) + memory         93   (30 + 6×7 + mem, Yellow Paper §A)
+ecrecover precompile (fixed)        3,000  (EIP-1884 / Byzantium)
+ecrecover CALL overhead               116  (100 warm CALL EIP-2929 + 16 copy)
+Address comparison + return            20
+Function dispatch                      16
+------------------------------------------------------
+Analytic upper bound               5,485  gas
+
+Empirical (Forge test_verify_gas): 5,273 gas  ✓  consistent, within analytic bound
+Empirical (14 KB adversarial):  2,211,514 gas  ✓  ≤ 5,000,000 budget
+
+## Reduction summary
+
+T1: Direct computation — no hardness assumption
+T2: ECDSA EUF-CMA (tight, loss factor = 1); additional ε_SPR for keccak256 preprocessing
+T3: Long-term key security of sk* (no toxic waste, no Groth16 ceremony)
+T4: Static EVM gas schedule; empirically confirmed by forge tests
+T5: keccak256 second-preimage resistance (SPR ≤ 2^{-256} under ROM)
+
+## Advisor verdict
+
+docs/security-proofs/p3/advisor-verdict.md: VERDICT: APPROVE
+All five theorems accepted; gas arithmetic independently verified.

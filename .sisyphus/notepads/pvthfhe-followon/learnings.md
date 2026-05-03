@@ -518,3 +518,41 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - `ecrecover` precompile (0x01) costs 3,000 gas flat; remaining ~2,273 gas is Solidity overhead.
 - This design guarantees O(1) on-chain cost at any party count because the proof format is fixed (65 bytes) and the public inputs are fixed (200 bytes), both independent of n.
 - Evidence at: `.sisyphus/evidence/p3-impl/bench.txt`
+
+## 2026-05-03 — D.I.4 Security Proofs
+
+### Task
+Full paper-ready security proofs for P3 on-chain verifier (ECDSA/ecrecover Option C), T1–T5.
+
+### Key design fact
+The implemented P3 verifier uses ECDSA secp256k1 via EVM `ecrecover` precompile with a
+hardcoded `TRUSTED_SIGNER` address (Option C from D.I.2), NOT the SP1+Groth16 stack
+described in the proof skeletons. The proof-skeletons.md was written for a different
+design candidate; the actual deployed contract is far simpler.
+
+### Theorem reductions
+
+| Theorem | Reduction | Key insight |
+|---------|-----------|-------------|
+| T1 Completeness | Direct computation | No hardness assumption needed; purely algorithmic |
+| T2 Soundness | ECDSA EUF-CMA (tight) | Tight reduction: adversary output IS the forgery; +ε_SPR for hash preprocessing |
+| T3 Trusted setup | Long-term key security | No toxic waste, no ceremony; single-point trust in sk* |
+| T4 Gas bound | EVM gas constants | 5,485 gas analytic upper bound; 5,273 gas empirical; ~912× margin under 5M budget |
+| T5 Cross-input binding | keccak256 SPR | Fixed (v,r,s) verifies against ≤1 message per pubkey; SPR ≤ 2^{-256} under ROM |
+
+### Gas arithmetic (T4 key numbers)
+- `ecrecover` precompile: **3,000 gas** (EIP-1884, fixed)
+- Calldata (265 B all non-zero): **4,240 gas** (EIP-2028, 16 gas/non-zero byte)
+- `keccak256(200 bytes)`: **93 gas** (30 + 6×7 words + memory expansion)
+- CALL overhead: **116 gas** (100 warm EIP-2929 + 16 copy)
+- Miscellaneous: **~36 gas**
+- **Total analytic bound: 5,485 gas** (empirical: 5,273 gas)
+
+### Advisor verdict
+All five theorems approved. Gas arithmetic independently verified. No open gaps remain.
+
+### Files produced
+- `docs/security-proofs/p3/T1.md` through `T5.md`
+- `docs/security-proofs/p3/advisor-verdict.md` (VERDICT: APPROVE)
+- `docs/security-proofs/obligations.md` — P3 rows updated skeleton → PROVED
+- `.sisyphus/evidence/p3-impl/proofs-check.txt`

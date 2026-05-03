@@ -8,18 +8,18 @@ This scorecard ranks the viable B.R.1 candidates against the frozen P1 constrain
 - **Verifier cost for downstream P2 folding consumption (25%)**: recursion-friendliness and verifier work dominate because P2/P3 need a cheap verification object.
 - **FHE-parameter compatibility (20%)**: ability to bind the intended RLWE parameter tuple `(q, N, error bound)` from the theorem inventory and downstream bundle, without treating the current P4 Shamir/SHA-256 surrogate as the final witness shape.
 - **Novelty cost (15%)**: inverse score for how much new technique is needed beyond the cited line of work.
-- **PQ posture (10%)**: whether the end-to-end soundness story remains post-quantum by default.
+- **PQ posture (10%)**: whether the candidate remains lattice-native / PQ-aligned under the frozen ROM baseline, while acknowledging that QROM-level claims are deferred.
 - **Implementation feasibility / zkVM fallback viability (10%)**: practical path to a working verifier, including whether a zkVM fallback remains clean if the primary path misses constants.
 
 ## Weighted Scores
 
 | Candidate | Scale 20% | Verifier 25% | FHE compat 20% | Novelty cost 15% | PQ posture 10% | Feasibility 10% | Weighted total | Rank |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| SLAP | 4.00 | 3.75 | 4.50 | 3.25 | 5.00 | 3.00 | 3.93 | 1 |
-| Greyhound | 3.50 | 4.75 | 4.00 | 2.50 | 5.00 | 2.50 | 3.81 | 2 |
-| LANES / LNS21 | 3.50 | 2.75 | 4.50 | 4.00 | 5.00 | 3.25 | 3.71 | 3 |
-| Beullens one-shot lattice ZK | 3.75 | 3.50 | 4.00 | 3.25 | 5.00 | 2.75 | 3.69 | 4 |
-| SNARK-friendly hash-of-RLWE-witness | 2.50 | 5.00 | 3.25 | 3.75 | 2.50 | 4.00 | 3.61 | 5 |
+| SLAP | 4.00 | 3.75 | 4.50 | 3.25 | 4.50 | 3.00 | 3.88 | 1 |
+| Greyhound | 3.50 | 4.75 | 4.00 | 2.50 | 4.50 | 2.50 | 3.76 | 2 |
+| LANES / LNS21 | 3.50 | 2.75 | 4.50 | 4.00 | 4.50 | 3.25 | 3.66 | 3 |
+| Beullens one-shot lattice ZK | 3.75 | 3.50 | 4.00 | 3.25 | 4.50 | 2.75 | 3.64 | 4 |
+| SNARK-friendly hash-of-RLWE-witness | 2.50 | 5.00 | 3.25 | 3.75 | 2.00 | 4.00 | 3.56 | 5 |
 | Rust-in-zkVM (SP1 / RISC0 / Jolt) | 2.00 | 4.25 | 3.25 | 4.50 | 2.00 | 5.00 | 3.49 | 6 |
 
 ## Scoring Notes
@@ -42,7 +42,7 @@ This scorecard ranks the viable B.R.1 candidates against the frozen P1 constrain
 - Falls behind SLAP because the exact ciphertext/share/plaintext consistency fit is weaker and practical implementation data are thinner.
 
 ### SNARK-friendly hash-of-RLWE-witness
-- Wins decisively on verifier cost, but gives up too much on end-to-end PQ posture and direct RLWE-parameter fit because the outer SNARK becomes the dominant soundness object.
+- Wins decisively on verifier cost, but gives up too much on PQ alignment and direct RLWE-parameter fit because the outer SNARK becomes the dominant soundness object under the frozen ROM baseline.
 - Remains a useful engineering pattern if recursion dominates every other concern, but it is not the cleanest frozen P1 research choice.
 
 ### Rust-in-zkVM (SP1 / RISC0 / Jolt)
@@ -58,7 +58,7 @@ This scorecard ranks the viable B.R.1 candidates against the frozen P1 constrain
 ## Frozen Rationale
 
 ### Primary freeze — SLAP
-SLAP wins the weighted scorecard because it is the best-balanced option across the two hardest P1 constraints: (1) direct expression of the intended lattice decrypt-share relation and (2) a verifier story that is still plausible for downstream P2 folding. It preserves a lattice-native, post-quantum proof direction without paying Greyhound's extra engineering immaturity penalty.
+SLAP wins the weighted scorecard because it is the best-balanced option across the two hardest P1 constraints: (1) direct expression of the intended lattice decrypt-share relation and (2) a verifier story that is still plausible for downstream P2 folding. It preserves a lattice-native, PQ-aligned proof direction under the frozen ROM baseline without paying Greyhound's extra engineering immaturity penalty.
 
 ### Fallback freeze — Greyhound
 Greyhound is the research fallback because its verifier profile is the best native-lattice hedge if SLAP's concrete verifier or transcript costs prove too high. If the program must optimize for recursion-friendliness over near-term engineering tractability, Greyhound is the next candidate to promote.

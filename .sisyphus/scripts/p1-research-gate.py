@@ -5,6 +5,7 @@ import argparse
 import importlib.util
 import os
 import re
+from decimal import Decimal, InvalidOperation
 from typing import Callable, cast
 
 RunGate = Callable[[str, dict[str, Callable[[], tuple[bool, list[str]]]], argparse.Namespace], None]
@@ -41,8 +42,38 @@ REQUIRED_THEOREM_FIELDS = [
     '**Status**:',
 ]
 SCORECARD_PATH = '.sisyphus/research/p1/scorecard.md'
+DECISION_PATH = '.sisyphus/research/p1/RG-P1-decision.md'
+REVIEW_PATH = '.sisyphus/reviews/p1-scorecard-review.md'
 
-SUBCHECKS = ['prior-art', 'prior-art-matrix', 'novelty-gap', 'threat-model', 'theorem-inventory', 'scorecard']
+SUBCHECKS = ['prior-art', 'prior-art-matrix', 'novelty-gap', 'threat-model', 'theorem-inventory', 'scorecard', 'decision', 'scorecard-review']
+REQUIRED_CANDIDATES = [
+    'SLAP',
+    'Greyhound',
+    'Beullens one-shot lattice ZK',
+    'SNARK-friendly hash-of-RLWE-witness',
+    'LANES / LNS21',
+    'Rust-in-zkVM (SP1 / RISC0 / Jolt)',
+]
+FALLBACK_REVIEW_ALIASES = {
+    'Greyhound': ['Greyhound'],
+    'Rust-in-zkVM (SP1 / RISC0 / Jolt)': ['Rust-in-zkVM', 'SP1', 'RISC0', 'Jolt'],
+}
+REQUIRED_WEIGHTED_COLUMNS = [
+    ('Scale 20%', Decimal('0.20')),
+    ('Verifier 25%', Decimal('0.25')),
+    ('FHE compat 20%', Decimal('0.20')),
+    ('Novelty cost 15%', Decimal('0.15')),
+    ('PQ posture 10%', Decimal('0.10')),
+    ('Feasibility 10%', Decimal('0.10')),
+]
+REVIEW_REQUIRED_FIELDS = [
+    '## Summary',
+    'VERDICT: APPROVE',
+    '## Scoring Rationale',
+    '## Primary Justification',
+    '## Fallback Justification',
+    '## Risks',
+]
 
 
 def check_artifacts() -> tuple[bool, list[str]]:
@@ -79,6 +110,182 @@ def count_markdown_table_rows(path: str) -> int:
         if separator_seen:
             row_count += 1
     return row_count
+
+
+def extract_markdown_table(content: str, heading: str) -> tuple[list[str], list[list[str]]] | None:
+    lines = content.splitlines()
+    for i, line in enumerate(lines):
+        if line.strip() != heading:
+            continue
+        table_lines: list[str] = []
+        j = i + 1
+        while j < len(lines):
+            stripped = lines[j].strip()
+            if not stripped:
+                if table_lines:
+                    break
+                j += 1
+                continue
+            if not stripped.startswith('|'):
+                if table_lines:
+                    break
+                j += 1
+                continue
+            table_lines.append(stripped)
+            j += 1
+        if len(table_lines) < 2:
+            return None
+        header = [cell.strip() for cell in table_lines[0].strip('|').split('|')]
+        rows: list[list[str]] = []
+        for row in table_lines[2:]:
+            rows.append([cell.strip() for cell in row.strip('|').split('|')])
+        return header, rows
+    return None
+
+
+def parse_decimal(value: str) -> Decimal | None:
+    try:
+        return Decimal(value)
+    except InvalidOperation:
+        return None
+
+
+def parse_scorecard_freeze(content: str) -> tuple[str | None, list[str]]:
+    primary_match = re.search(r'Primary:\s*(.+)', content)
+    fallback_matches = cast(list[str], re.findall(r'Fallback:\s*(.+)', content))
+
+    def clean(raw: str) -> str:
+        return raw.replace('**', '').strip()
+
+    primary = clean(primary_match.group(1)) if primary_match else None
+    fallbacks = [clean(match) for match in fallback_matches]
+    return primary, fallbacks
+
+
+def parse_scorecard_table(content: str) -> tuple[dict[str, dict[str, Decimal | int]], list[str]]:
+    extracted = extract_markdown_table(content, '## Weighted Scores')
+    if extracted is None:
+        return {}, ['[FAIL] could not parse weighted scores table']
+
+    header, rows = extracted
+    expected_header = ['Candidate'] + [name for name, _ in REQUIRED_WEIGHTED_COLUMNS] + ['Weighted total', 'Rank']
+    details: list[str] = []
+    if header != expected_header:
+        return {}, [f'[FAIL] weighted scores header must be {expected_header}; found {header}']
+
+    parsed: dict[str, dict[str, Decimal | int]] = {}
+    for row in rows:
+        if len(row) != len(expected_header):
+            return {}, [f'[FAIL] malformed scorecard row: {row}']
+        candidate = row[0]
+        candidate_data: dict[str, Decimal | int] = {}
+        for idx, (column, _) in enumerate(REQUIRED_WEIGHTED_COLUMNS, start=1):
+            value = parse_decimal(row[idx])
+            if value is None:
+                return {}, [f'[FAIL] candidate {candidate} has non-numeric value for {column}: {row[idx]}']
+            candidate_data[column] = value
+        total_value = parse_decimal(row[-2])
+        rank_value = parse_decimal(row[-1])
+        if total_value is None:
+            return {}, [f'[FAIL] candidate {candidate} has non-numeric weighted total: {row[-2]}']
+        if rank_value is None or rank_value != rank_value.to_integral_value():
+            return {}, [f'[FAIL] candidate {candidate} has invalid rank: {row[-1]}']
+        candidate_data['Weighted total'] = total_value
+        candidate_data['Rank'] = int(rank_value)
+        parsed[candidate] = candidate_data
+
+    details.append('[OK] parsed weighted scores table')
+    return parsed, details
+
+
+def validate_scorecard_semantics(content: str) -> tuple[bool, list[str], str | None, list[str]]:
+    details: list[str] = []
+    ok = True
+
+    score_rows, parse_details = parse_scorecard_table(content)
+    details.extend(parse_details)
+    if not score_rows:
+        return False, details, None, []
+
+    candidate_names = list(score_rows.keys())
+    if set(candidate_names) != set(REQUIRED_CANDIDATES) or len(candidate_names) != len(REQUIRED_CANDIDATES):
+        details.append(f'[FAIL] weighted scores candidates must be exactly {REQUIRED_CANDIDATES}; found {candidate_names}')
+        ok = False
+    else:
+        details.append('[OK] weighted scores include all required candidates')
+
+    for column, weight in REQUIRED_WEIGHTED_COLUMNS:
+        details.append(f'[OK] validated scorecard column: {column} (weight {weight})')
+
+    quant = Decimal('0.01')
+    recomputed_totals: dict[str, Decimal] = {}
+    for candidate, row in score_rows.items():
+        recomputed_total = Decimal('0')
+        for column, weight in REQUIRED_WEIGHTED_COLUMNS:
+            recomputed_total += cast(Decimal, row[column]) * weight
+        recomputed_total = recomputed_total.quantize(quant)
+        recomputed_totals[candidate] = recomputed_total
+        reported_total = cast(Decimal, row['Weighted total']).quantize(quant)
+        if reported_total != recomputed_total:
+            details.append(
+                f'[FAIL] weighted total mismatch for {candidate}: reported {reported_total}, expected {recomputed_total}'
+            )
+            ok = False
+        else:
+            details.append(f'[OK] weighted total verified for {candidate}: {reported_total}')
+
+    ranks = [cast(int, score_rows[candidate]['Rank']) for candidate in REQUIRED_CANDIDATES if candidate in score_rows]
+    if sorted(ranks) != list(range(1, len(REQUIRED_CANDIDATES) + 1)):
+        details.append(f'[FAIL] ranks must be a permutation of 1..{len(REQUIRED_CANDIDATES)}; found {ranks}')
+        ok = False
+    else:
+        details.append('[OK] rank column is a complete permutation')
+
+    sorted_candidates = sorted(
+        score_rows.items(),
+        key=lambda item: (-recomputed_totals[item[0]], cast(int, item[1]['Rank']), item[0]),
+    )
+    expected_rank_order = [candidate for candidate, _ in sorted_candidates]
+    actual_rank_order = [candidate for candidate, _ in sorted(score_rows.items(), key=lambda item: cast(int, item[1]['Rank']))]
+    if actual_rank_order != expected_rank_order:
+        details.append(f'[FAIL] rank order {actual_rank_order} does not match weighted-total order {expected_rank_order}')
+        ok = False
+    else:
+        details.append('[OK] rank order matches weighted totals')
+
+    primary, fallbacks = parse_scorecard_freeze(content)
+    if primary is None:
+        details.append('[FAIL] missing scorecard primary freeze entry')
+        ok = False
+    else:
+        details.append(f'[OK] parsed primary freeze: {primary}')
+    if not fallbacks:
+        details.append('[FAIL] missing scorecard fallback freeze entries')
+        ok = False
+    else:
+        details.append(f'[OK] parsed fallback freezes: {fallbacks}')
+
+    if primary is not None:
+        top_ranked = actual_rank_order[0] if actual_rank_order else None
+        if primary != top_ranked:
+            details.append(f'[FAIL] primary freeze must match the top-ranked candidate; primary={primary}, top-ranked={top_ranked}')
+            ok = False
+        else:
+            details.append(f'[OK] primary freeze matches top-ranked candidate: {primary}')
+
+    return ok, details, primary, fallbacks
+
+
+def parse_decision_freeze(content: str) -> tuple[str | None, list[str]]:
+    primary_match = re.search(r'Primary frozen for P1:\*\*\s*([^\n]+)', content)
+    if primary_match is None:
+        primary_match = re.search(r'Primary frozen for P1:\s*([^\n]+)', content)
+    fallback_matches = cast(list[str], re.findall(r'Fallback frozen for P1:\*\*\s*([^\n]+)', content))
+    if not fallback_matches:
+        fallback_matches = cast(list[str], re.findall(r'Fallback frozen for P1:\s*([^\n]+)', content))
+    primary = primary_match.group(1).replace('**', '').strip() if primary_match else None
+    fallbacks = [match.replace('**', '').strip() for match in fallback_matches]
+    return primary, fallbacks
 
 
 def check_prior_art_matrix() -> tuple[bool, list[str]]:
@@ -302,9 +509,111 @@ def check_scorecard() -> tuple[bool, list[str]]:
         else:
             details.append(f"[OK] found marker: {marker}")
 
+    semantic_ok, semantic_details, _, _ = validate_scorecard_semantics(content)
+    details.extend(semantic_details)
+    ok = ok and semantic_ok
+
     if ok:
         details.append(f"[OK] {SCORECARD_PATH} meets requirements")
 
+    return ok, details
+
+
+def check_decision() -> tuple[bool, list[str]]:
+    details: list[str] = ['subcheck: decision']
+    if not os.path.exists(DECISION_PATH):
+        return False, details + [f'[FAIL] missing required artifact: {DECISION_PATH}']
+    if not os.path.exists(SCORECARD_PATH):
+        return False, details + [f'[FAIL] missing required artifact: {SCORECARD_PATH}']
+
+    with open(DECISION_PATH, 'r', encoding='utf-8') as f:
+        decision_content = f.read()
+    with open(SCORECARD_PATH, 'r', encoding='utf-8') as f:
+        scorecard_content = f.read()
+
+    required_sections = ['## Decision', '## Rationale', '## Sign-off']
+    required_markers = ['Prometheus:', 'External Advisor:', '[PENDING HUMAN REVIEW]']
+    ok = True
+    for section in required_sections:
+        if section not in decision_content:
+            details.append(f'[FAIL] missing required decision section: {section}')
+            ok = False
+        else:
+            details.append(f'[OK] found decision section: {section}')
+    for marker in required_markers:
+        if marker not in decision_content:
+            details.append(f'[FAIL] missing required decision marker: {marker}')
+            ok = False
+        else:
+            details.append(f'[OK] found decision marker: {marker}')
+
+    _, scorecard_details, scorecard_primary, scorecard_fallbacks = validate_scorecard_semantics(scorecard_content)
+    details.extend([f'[INFO] {detail}' for detail in scorecard_details if detail.startswith('[OK]')])
+    decision_primary, decision_fallbacks = parse_decision_freeze(decision_content)
+    if decision_primary is None:
+        details.append('[FAIL] decision artifact must declare exactly one primary freeze')
+        ok = False
+    else:
+        details.append(f'[OK] parsed decision primary: {decision_primary}')
+    if not decision_fallbacks:
+        details.append('[FAIL] decision artifact must declare at least one fallback freeze')
+        ok = False
+    else:
+        details.append(f'[OK] parsed decision fallbacks: {decision_fallbacks}')
+
+    if scorecard_primary is not None and decision_primary != scorecard_primary:
+        details.append(f'[FAIL] primary mismatch between scorecard and decision: {scorecard_primary} vs {decision_primary}')
+        ok = False
+    else:
+        details.append('[OK] decision primary matches scorecard primary')
+
+    if scorecard_fallbacks and decision_fallbacks != scorecard_fallbacks:
+        details.append(f'[FAIL] fallback mismatch between scorecard and decision: {scorecard_fallbacks} vs {decision_fallbacks}')
+        ok = False
+    else:
+        details.append('[OK] decision fallbacks match scorecard fallbacks')
+
+    if ok:
+        details.append(f'[OK] {DECISION_PATH} meets requirements')
+    return ok, details
+
+
+def check_scorecard_review() -> tuple[bool, list[str]]:
+    details: list[str] = ['subcheck: scorecard-review']
+    if not os.path.exists(REVIEW_PATH):
+        return False, details + [f'[FAIL] missing required artifact: {REVIEW_PATH}']
+    if not os.path.exists(SCORECARD_PATH):
+        return False, details + [f'[FAIL] missing required artifact: {SCORECARD_PATH}']
+
+    with open(REVIEW_PATH, 'r', encoding='utf-8') as f:
+        review_content = f.read()
+    with open(SCORECARD_PATH, 'r', encoding='utf-8') as f:
+        scorecard_content = f.read()
+
+    ok = True
+    for field in REVIEW_REQUIRED_FIELDS:
+        if field not in review_content:
+            details.append(f'[FAIL] missing required review field: {field}')
+            ok = False
+        else:
+            details.append(f'[OK] found review field: {field}')
+
+    _, _, scorecard_primary, scorecard_fallbacks = validate_scorecard_semantics(scorecard_content)
+    if scorecard_primary is not None and scorecard_primary not in review_content:
+        details.append(f'[FAIL] review memo must include primary reference: {scorecard_primary}')
+        ok = False
+    else:
+        details.append('[OK] review memo references scorecard primary')
+    for fallback in scorecard_fallbacks:
+        aliases = FALLBACK_REVIEW_ALIASES.get(fallback, [fallback])
+        if not any(alias in review_content for alias in aliases):
+            details.append(f'[FAIL] review memo must include fallback reference: {fallback}')
+            ok = False
+        else:
+            details.append(f'[OK] review memo references fallback: {fallback}')
+
+    if ok:
+        details.append(f'[OK] {REVIEW_PATH} meets requirements')
     return ok, details
 
 def make_subcheck(name: str) -> Callable[[], tuple[bool, list[str]]]:
@@ -331,6 +640,8 @@ def main():
     subchecks_map['threat-model'] = check_threat_model
     subchecks_map['theorem-inventory'] = check_theorem_inventory
     subchecks_map['scorecard'] = check_scorecard
+    subchecks_map['decision'] = check_decision
+    subchecks_map['scorecard-review'] = check_scorecard_review
     run_gate(GATE_NAME, subchecks_map, args)
 
 

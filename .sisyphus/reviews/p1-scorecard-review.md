@@ -19,7 +19,7 @@ The scorecard evaluates all required viable candidates against the weighted RG-P
 
 ## Primary Justification
 
-**SLAP** is an approved primary because it is the highest-scoring balanced option: it stays lattice-native and post-quantum while matching the intended decrypt-share/plaintext-consistency relation more closely than the other viable candidates. It is the best current compromise between native proof fidelity and downstream verifier constraints.
+**SLAP** is an approved primary because it is the highest-scoring balanced option: it stays lattice-native and PQ-aligned under the frozen ROM baseline while matching the intended decrypt-share/plaintext-consistency relation more closely than the other viable candidates. It is the best current compromise between native proof fidelity and downstream verifier constraints.
 
 ## Fallback Justification
 
@@ -31,3 +31,4 @@ The scorecard evaluates all required viable candidates against the weighted RG-P
 - SLAP still requires adaptation work to bind the inherited SHA-256 commitment semantics and the RLWE relation under one Fiat-Shamir transcript.
 - Greyhound remains exposed to engineering immaturity and uncertain constants for the exact P1 witness.
 - Rust-in-zkVM weakens the clean lattice-native story and may impose high prover latency, so it should remain a fallback rather than the research default.
+- The present freeze is ROM-baseline only; any later QROM claim would require a scorecard refresh rather than being inferred from this approval.

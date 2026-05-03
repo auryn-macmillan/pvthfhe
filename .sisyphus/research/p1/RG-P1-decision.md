@@ -20,7 +20,7 @@ Gate: RG-P1 — P1 candidate scorecard + primary/fallback freeze
 
 ## Rationale
 
-The weighted scorecard ranks **SLAP** first because it best balances direct fit to the intended decrypt-share relation, acceptable scaling at `n=1024`, and a verifier object that is still plausible for downstream P2 folding. This is the best current compromise between preserving a lattice-native P1 proof story and respecting the program-wide requirement that verifier cost matters more than raw prover speed.
+The weighted scorecard ranks **SLAP** first because it best balances direct fit to the intended decrypt-share relation, acceptable scaling at `n=1024`, and a verifier object that is still plausible for downstream P2 folding. This is the best current compromise between preserving a lattice-native, PQ-aligned P1 proof story under the frozen ROM baseline and respecting the program-wide requirement that verifier cost matters more than raw prover speed.
 
 **Greyhound** is frozen as the primary research fallback because it offers the strongest recursion-friendly verifier path among the lattice-native candidates. It is not selected as primary only because the engineering/constant risk is materially higher than SLAP today.
 

@@ -921,3 +921,170 @@ def test_p1_research_gate_threat_model_fails_without_sim_soundness_row():
         )
         assert rc != 0, f"Expected non-zero, got {rc}. Output: {out}"
         assert "Simulation-soundness" in out, out
+
+
+P1_SCORECARD_VALID = textwrap.dedent("""\
+    # P1 Candidate Scorecard
+
+    ## Weighted Criteria
+
+    - Scale at n=1024 (20%)
+    - Verifier cost for downstream P2 folding consumption (25%)
+    - FHE-parameter compatibility (20%)
+    - Novelty cost (15%)
+    - PQ posture (10%)
+    - Implementation feasibility / zkVM fallback viability (10%)
+
+    ## Weighted Scores
+
+    | Candidate | Scale 20% | Verifier 25% | FHE compat 20% | Novelty cost 15% | PQ posture 10% | Feasibility 10% | Weighted total | Rank |
+    | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+    | SLAP | 4.00 | 3.75 | 4.50 | 3.25 | 4.50 | 3.00 | 3.88 | 1 |
+    | Greyhound | 3.50 | 4.75 | 4.00 | 2.50 | 4.50 | 2.50 | 3.76 | 2 |
+    | LANES / LNS21 | 3.50 | 2.75 | 4.50 | 4.00 | 4.50 | 3.25 | 3.66 | 3 |
+    | Beullens one-shot lattice ZK | 3.75 | 3.50 | 4.00 | 3.25 | 4.50 | 2.75 | 3.64 | 4 |
+    | SNARK-friendly hash-of-RLWE-witness | 2.50 | 5.00 | 3.25 | 3.75 | 2.00 | 4.00 | 3.56 | 5 |
+    | Rust-in-zkVM (SP1 / RISC0 / Jolt) | 2.00 | 4.25 | 3.25 | 4.50 | 2.00 | 5.00 | 3.49 | 6 |
+
+    ## Freeze Decision
+
+    - **Primary: SLAP**
+    - **Fallback: Greyhound**
+    - **Fallback: Rust-in-zkVM (SP1 / RISC0 / Jolt)**
+""")
+
+
+P1_DECISION_VALID = textwrap.dedent("""\
+    # RG-P1 Decision Record
+
+    ## Decision
+
+    - **Primary frozen for P1:** SLAP
+    - **Fallback frozen for P1:** Greyhound
+    - **Fallback frozen for P1:** Rust-in-zkVM (SP1 / RISC0 / Jolt)
+
+    ## Rationale
+
+    ROM baseline with rewinding extraction. QROM deferred.
+
+    ## Sign-off
+
+    **Prometheus:** APPROVE
+    **External Advisor:** [PENDING HUMAN REVIEW]
+""")
+
+
+P1_REVIEW_VALID = textwrap.dedent("""\
+    # P1 Scorecard Review Memo
+
+    ## Summary
+
+    VERDICT: APPROVE
+
+    ## Scoring Rationale
+
+    - Uses the weighted criteria and all required candidates.
+
+    ## Primary Justification
+
+    - SLAP is the top-ranked candidate.
+
+    ## Fallback Justification
+
+    - Greyhound and Rust-in-zkVM remain the named fallbacks.
+
+    ## Risks
+
+    - ROM baseline only; QROM is deferred.
+""")
+
+
+def write_p1_gate_fixture_files(tmpdir: str, scorecard: str = P1_SCORECARD_VALID, decision: str = P1_DECISION_VALID, review: str = P1_REVIEW_VALID) -> None:
+    research_dir = os.path.join(tmpdir, ".sisyphus", "research", "p1")
+    reviews_dir = os.path.join(tmpdir, ".sisyphus", "reviews")
+    proofs_dir = os.path.join(tmpdir, "docs", "security-proofs", "p1")
+    os.makedirs(research_dir, exist_ok=True)
+    os.makedirs(reviews_dir, exist_ok=True)
+    os.makedirs(proofs_dir, exist_ok=True)
+
+    with open(os.path.join(research_dir, "scorecard.md"), "w", encoding="utf-8") as f:
+        _ = f.write(scorecard)
+    with open(os.path.join(research_dir, "RG-P1-decision.md"), "w", encoding="utf-8") as f:
+        _ = f.write(decision)
+    with open(os.path.join(reviews_dir, "p1-scorecard-review.md"), "w", encoding="utf-8") as f:
+        _ = f.write(review)
+
+
+def test_p1_research_gate_scorecard_requires_all_candidates_and_consistent_primary():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        write_p1_gate_fixture_files(tmpdir)
+        rc, out, _ = run_script_in_cwd(
+            "p1-research-gate.py", tmpdir, "--check", "scorecard"
+        )
+        assert rc == 0, f"Expected 0, got {rc}. Output: {out}"
+        assert "PASS: p1-research-gate/scorecard" in out, out
+
+
+def test_p1_research_gate_scorecard_fails_when_primary_not_top_ranked():
+    bad_scorecard = P1_SCORECARD_VALID.replace("| SLAP | 4.00 | 3.75 | 4.50 | 3.25 | 4.50 | 3.00 | 3.88 | 1 |", "| SLAP | 4.00 | 3.75 | 4.50 | 3.25 | 4.50 | 3.00 | 3.70 | 2 |")
+    bad_scorecard = bad_scorecard.replace("| Greyhound | 3.50 | 4.75 | 4.00 | 2.50 | 4.50 | 2.50 | 3.76 | 2 |", "| Greyhound | 3.50 | 4.75 | 4.00 | 2.50 | 4.50 | 2.50 | 3.80 | 1 |")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        write_p1_gate_fixture_files(tmpdir, scorecard=bad_scorecard)
+        rc, out, _ = run_script_in_cwd(
+            "p1-research-gate.py", tmpdir, "--check", "scorecard"
+        )
+        assert rc != 0, f"Expected non-zero, got {rc}. Output: {out}"
+        assert "top-ranked" in out, out
+
+
+def test_p1_research_gate_scorecard_fails_when_weighted_total_arithmetic_is_wrong():
+    bad_scorecard = P1_SCORECARD_VALID.replace("| Greyhound | 3.50 | 4.75 | 4.00 | 2.50 | 4.50 | 2.50 | 3.76 | 2 |", "| Greyhound | 3.50 | 4.75 | 4.00 | 2.50 | 4.50 | 2.50 | 3.40 | 2 |")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        write_p1_gate_fixture_files(tmpdir, scorecard=bad_scorecard)
+        rc, out, _ = run_script_in_cwd(
+            "p1-research-gate.py", tmpdir, "--check", "scorecard"
+        )
+        assert rc != 0, f"Expected non-zero, got {rc}. Output: {out}"
+        assert "weighted total mismatch" in out.lower(), out
+
+
+def test_p1_research_gate_decision_requires_consistency_with_scorecard():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        write_p1_gate_fixture_files(tmpdir)
+        rc, out, _ = run_script_in_cwd(
+            "p1-research-gate.py", tmpdir, "--check", "decision"
+        )
+        assert rc == 0, f"Expected 0, got {rc}. Output: {out}"
+        assert "PASS: p1-research-gate/decision" in out, out
+
+
+def test_p1_research_gate_decision_fails_on_primary_mismatch():
+    bad_decision = P1_DECISION_VALID.replace("**Primary frozen for P1:** SLAP", "**Primary frozen for P1:** Greyhound")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        write_p1_gate_fixture_files(tmpdir, decision=bad_decision)
+        rc, out, _ = run_script_in_cwd(
+            "p1-research-gate.py", tmpdir, "--check", "decision"
+        )
+        assert rc != 0, f"Expected non-zero, got {rc}. Output: {out}"
+        assert "primary mismatch" in out.lower(), out
+
+
+def test_p1_research_gate_review_requires_required_sections_and_consistency():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        write_p1_gate_fixture_files(tmpdir)
+        rc, out, _ = run_script_in_cwd(
+            "p1-research-gate.py", tmpdir, "--check", "scorecard-review"
+        )
+        assert rc == 0, f"Expected 0, got {rc}. Output: {out}"
+        assert "PASS: p1-research-gate/scorecard-review" in out, out
+
+
+def test_p1_research_gate_review_fails_without_primary_reference():
+    bad_review = P1_REVIEW_VALID.replace("SLAP is the top-ranked candidate.", "A top-ranked candidate exists.")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        write_p1_gate_fixture_files(tmpdir, review=bad_review)
+        rc, out, _ = run_script_in_cwd(
+            "p1-research-gate.py", tmpdir, "--check", "scorecard-review"
+        )
+        assert rc != 0, f"Expected non-zero, got {rc}. Output: {out}"
+        assert "primary reference" in out.lower(), out

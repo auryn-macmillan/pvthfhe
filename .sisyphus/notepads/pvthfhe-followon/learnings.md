@@ -284,3 +284,13 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 
 - 2026-05-03: P2 design-gate subchecks follow the existing `tuple[bool, list[str]]` pattern; doc-only checks are easiest to keep robust by validating required headings and file presence rather than adding bespoke parsing.
 - 2026-05-03: The P2 benchmark-plan projections should stay explicitly anchored to `stack-decision.md` and checked-in `bench/results/` baselines, with every matrix cell labeled projected rather than measured.
+
+## 2026-05-03 — Task C.I.3
+
+**Adversarial surface of the P2 real-folding scheme:**
+
+- `validate_witness` rejects empty `proof_bytes` and any non-uniform byte vector (checked via `windows(2)`). A single-byte vector vacuously passes uniformity — it is treated as valid by the current impl.
+- `validate_statement_binding` is the primary session/param binding gate: any mismatch between acc and stmt (session_id or params tuple) is rejected before the fold oracle is invoked.
+- The ternary challenge set `{-1,0,1}` gives per-fold soundness `1/3`; at d=10 this is ~1.69e-5, well below the `1.7e-5` bound.
+- Cross-session contamination is fully caught by the session_id check in `validate_statement_binding`.
+- Depth bomb folds (10, 12) succeed and `fold_depth` increments correctly; `verify_acc` accepts.

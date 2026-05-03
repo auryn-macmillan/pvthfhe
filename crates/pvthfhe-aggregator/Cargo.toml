@@ -31,3 +31,8 @@ path = "tests/adversarial/mod.rs"
 [[test]]
 name = "folding"
 path = "tests/folding.rs"
+
+[[test]]
+name = "folding_adversarial"
+path = "tests/folding_adversarial.rs"
+required-features = ["real-folding"]

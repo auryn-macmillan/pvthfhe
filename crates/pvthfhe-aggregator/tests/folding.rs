@@ -1,48 +1,10 @@
 #![cfg(feature = "real-folding")]
 #![allow(missing_docs, clippy::unwrap_used, clippy::as_conversions)]
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct FoldStatement {
-    fold_index: u64,
-    session_id: String,
-    params: (u64, usize, u64),
-    nizk_statement: NizkStatement,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct FoldWitness {
-    nizk_proof: NizkProof,
-    fold_randomness: Vec<u8>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct FoldAccumulator {
-    acc_commitment: Vec<u8>,
-    fold_depth: u64,
-    session_id: String,
-    params: (u64, usize, u64),
-    statement_hash_chain: [u8; 32],
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct FinalProof {
-    proof_bytes: Vec<u8>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct FoldError(String);
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct NizkStatement {
-    session_id: String,
-    params: (u64, usize, u64),
-    ciphertext_bytes: Vec<u8>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct NizkProof {
-    proof_bytes: Vec<u8>,
-}
+use pvthfhe_aggregator::folding::{
+    finalize, fold, verify_acc, FinalProof, FoldAccumulator, FoldError, FoldStatement, FoldWitness,
+    NizkProof, NizkStatement,
+};
 
 fn base_params() -> (u64, usize, u64) {
     (65537, 1024, 17)
@@ -91,22 +53,22 @@ fn make_acc(
 }
 
 fn real_fold_stub(
-    _acc: &FoldAccumulator,
-    _witness: &FoldWitness,
-    _stmt: &FoldStatement,
+    acc: &FoldAccumulator,
+    witness: &FoldWitness,
+    stmt: &FoldStatement,
 ) -> Result<FoldAccumulator, FoldError> {
-    unimplemented!("C.I.2: real folding scheme not yet implemented")
+    fold(acc, witness, stmt)
 }
 
 fn real_verify_acc_stub(
-    _acc: &FoldAccumulator,
-    _expected_params: &(u64, usize, u64),
+    acc: &FoldAccumulator,
+    expected_params: &(u64, usize, u64),
 ) -> Result<(), FoldError> {
-    unimplemented!("C.I.2: real folding scheme not yet implemented")
+    verify_acc(acc, expected_params)
 }
 
-fn real_finalize_stub(_acc: &FoldAccumulator) -> Result<FinalProof, FoldError> {
-    unimplemented!("C.I.2: real folding scheme not yet implemented")
+fn real_finalize_stub(acc: &FoldAccumulator) -> Result<FinalProof, FoldError> {
+    finalize(acc)
 }
 
 mod folding {

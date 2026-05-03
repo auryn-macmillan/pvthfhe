@@ -1,0 +1,32 @@
+   Compiling pvthfhe-aggregator v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-aggregator)
+warning: unused imports: `FinalProof`, `FoldError`, and `finalize`
+ --> crates/pvthfhe-aggregator/tests/folding_adversarial.rs:5:5
+  |
+5 |     finalize, fold, verify_acc, FinalProof, FoldAccumulator, FoldError, FoldStatement, FoldWitness,
+  |     ^^^^^^^^                    ^^^^^^^^^^                   ^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `pvthfhe-aggregator` (test "folding_adversarial") generated 1 warning (run `cargo fix --test "folding_adversarial" -p pvthfhe-aggregator` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.16s
+     Running tests/folding_adversarial.rs (target/debug/deps/folding_adversarial-77042c42f183b042)
+
+running 15 tests
+test test_acc_wrong_params_rejected ... ok
+test test_acc_wrong_session_id_rejected ... ok
+test test_depth_bomb_fold_to_depth_12_exact ... ok
+test test_empty_proof_bytes_rejected ... ok
+test test_forged_acc_with_mismatched_session_and_params_rejected ... ok
+test test_last_byte_flipped_in_proof_rejected ... ok
+test test_be_mismatch_across_fold_boundary_rejected ... ok
+test test_n_mismatch_across_fold_boundary_rejected ... ok
+test test_non_uniform_proof_bytes_rejected ... ok
+test test_q_mismatch_across_fold_boundary_rejected ... ok
+test test_soundness_amplification_harness ... ok
+test test_single_bit_flip_in_proof_rejected ... ok
+test test_stmt_from_session_a_folded_into_acc_from_session_b_rejected ... ok
+test test_two_byte_non_uniform_proof_rejected ... ok
+test test_depth_bomb_fold_to_depth_10_exact ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

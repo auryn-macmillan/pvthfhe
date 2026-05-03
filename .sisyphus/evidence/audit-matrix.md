@@ -133,3 +133,21 @@ Overall **Confidence**: `HIGH` / `MEDIUM` / `LOW`
 2. **P2-T4 security obligation unmet**: arithmetic norm check and algebraic commitment both missing. This is a hard blocker for the accumulator binding claim.
 3. **P3-T1 proof is mislabeled**: claims-table says "On-chain Soundness" but the proof document proves "ECDSA Completeness" — a fundamentally different property.
 4. **P1-T4 absent from paper**: 20th theorem not reflected in `paper/main.tex` or `claims-table.md`.
+
+---
+
+## T12 Addendum — P4 Per-Axis Verdict (Aggregator keygen / `protocol.rs`)
+
+This addendum supersedes the generic P4 summary above for the T12 deliverable and keeps the three axes separate.
+
+| Axis | Classification | Verdict | Rationale | Evidence |
+|---|---|---|---|---|
+| **Impl** | **SURROGATE** | **RED** | The aggregator-side P4 module is a live placeholder, not a real protocol implementation: `crates/pvthfhe-aggregator/src/keygen/protocol.rs:1-4` contains only surrogate comments, while `crates/pvthfhe-aggregator/src/keygen/mod.rs:3` merely compiles it into the module tree; the reachability audit therefore records it as “LIVE (compiled; zero exported symbols)” and functionally dead (`.sisyphus/evidence/surrogate-reachability.md:72-80`). | `crates/pvthfhe-aggregator/src/keygen/protocol.rs:1-4`; `crates/pvthfhe-aggregator/src/keygen/mod.rs:3`; `.sisyphus/evidence/surrogate-reachability.md:72-80` |
+| **Proof** | **PROVED** | **GREEN** | The P4 theorem set is fully proved for the current implementation scope: `P4-T1`, `P4-T2`, `P4-T3`, `P4-T4`, and `P4-T5` are all classified `PROVED-WITH-CITATION`, with no P4 theorem marked vacuous or GAP in the inventory (`.sisyphus/evidence/theorem-inventory.md:27-31`). | `.sisyphus/evidence/theorem-inventory.md:27-31` (`P4-T1`..`P4-T5`) |
+| **Test** | **MOCK** | **RED** | The P4 test corpus is entirely surrogate-backed: the audit summary states “Zero REAL tests. All checks are MOCK against simulator/stub” for P4, and the exercising files all go through `HermineAdapter` or `KeygenSimulator` rather than a real aggregator protocol (`.sisyphus/evidence/test-classification.md:84-87,96-101,159-160`; `crates/pvthfhe-keygen/tests/honest_run.rs:15-42`; `crates/pvthfhe-keygen/tests/adversarial.rs:17-185`; `crates/pvthfhe-keygen/tests/protocol_test.rs:59-279`; `crates/pvthfhe-aggregator/tests/keygen_honest.rs:5-16`; `crates/pvthfhe-aggregator/tests/keygen_malicious.rs:5-57`; `crates/pvthfhe-aggregator/tests/adversarial/equivocation.rs:6-13`; `crates/pvthfhe-aggregator/tests/adversarial/malformed_nizk.rs:6-13`; `crates/pvthfhe-aggregator/tests/adversarial/rogue_key.rs:6-13`; `crates/pvthfhe-aggregator/tests/adversarial/withhold_reveal.rs:6-13`). | `.sisyphus/evidence/test-classification.md:84-87,96-101,159-160`; cited test files above |
+
+### T12 bottom line
+
+- **Impl axis:** `RED` — surrogate placeholder at the aggregator entrypoint.
+- **Proof axis:** `GREEN` — all five P4 theorems are proved for the current documented scope.
+- **Test axis:** `RED` — all observed P4 tests are mock/simulator coverage, not real protocol coverage.

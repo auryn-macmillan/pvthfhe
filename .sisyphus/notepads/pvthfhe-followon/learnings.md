@@ -239,3 +239,9 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - SLAP proof bytes are NOT zero-knowledge in the strong sense: `secret_share_open` and `error_open` are directly included as witness openings. Document this prominently in security caveats.
 - The sigma transcript `(t_bytes, challenge_bytes, z_s, z_e)` is fully arithmetic and foldable; SHA-256 is the only non-arithmetic component (requires hash gadget in folding circuit).
 - All 6 gate subchecks pass on first run after upgrading the stub gate script and writing the bundle.
+
+## 2026-05-03 — Task C.R.1
+- For P2, the key filter is not just “is this a folding scheme?” but “can it absorb the frozen P1 verifier equation with SHA-256 transcript recomputation, exact byte parsing, and bounded `z_e` norm checks without making recursion or on-chain checkpoints impossible.”
+- LatticeFold and LatticeFold+ are not interchangeable: LatticeFold is the first lattice-native baseline, while LatticeFold+ is the materially improved follow-on with faster proving, shorter proofs, and a simpler verifier.
+- The clean program shape for this repo is a two-track matrix: lattice-native primary candidates (`LatticeFold+`, `LatticeFold`) and delivery fallbacks (`Rust-in-zkVM`, `MicroNova`) in case the newest lattice-native paper remains too immature or unaudited.
+- `p2-research-gate.py` was still a generic stub; adding a dedicated `prior-art-matrix` subcheck is the fastest way to make the artifact enforceable without disturbing the older advisory subchecks.

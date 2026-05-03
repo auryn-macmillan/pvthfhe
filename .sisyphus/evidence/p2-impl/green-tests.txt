@@ -1,0 +1,74 @@
+Finished `test` profile [unoptimized + debuginfo] target(s) in 0.19s
+Running unittests src/lib.rs (target/debug/deps/pvthfhe_aggregator-a1e48c4ae05357ee)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+Running tests/adversarial/mod.rs (target/debug/deps/adversarial-cf788538c0ef61b9)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.00s
+
+Running tests/decrypt_rejections.rs (target/debug/deps/decrypt_rejections-b01a835fccd7e639)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s
+
+Running tests/decrypt_roundtrip.rs (target/debug/deps/decrypt_roundtrip-5bcaa9d64252453f)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+Running tests/folding.rs (target/debug/deps/folding-7047c6b3d134283c)
+
+running 6 tests
+test folding::test_accumulator_binding ... ok
+test folding::test_fold_determinism ... ok
+test folding::test_fold_of_fold_verifies_depth_three ... ok
+test folding::test_tampered_inner_proof_rejected ... ok
+test folding::test_wrong_fhe_param_across_folds_rejected ... ok
+test folding::test_fold_two_valid_p1_nizks_verifies ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+Running tests/folding_adversarial.rs (target/debug/deps/folding_adversarial-77042c42f183b042)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 17 filtered out; finished in 0.00s
+
+Running tests/folding_n64.rs (target/debug/deps/folding_n64-1a6c6de857534eb8)
+
+running 1 test
+test test_folding_n64 ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+Running tests/folding_tamper.rs (target/debug/deps/folding_tamper-22589a9a94c38234)
+
+running 1 test
+test test_folding_tamper ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+Running tests/keygen_honest.rs (target/debug/deps/keygen_honest-27b9296a57da7546)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+Running tests/keygen_malicious.rs (target/debug/deps/keygen_malicious-0dd0cf1fa55fbd3e)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+Running tests/p2_bench.rs (target/debug/deps/p2_bench-23076bc256354d82)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s

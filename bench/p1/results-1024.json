@@ -1,0 +1,14 @@
+{
+  "scheme": "pvthfhe-p1-slap",
+  "n": 1024,
+  "q": 65537,
+  "error_bound": 17,
+  "iterations": 100,
+  "median_prove_ms": 0.023134,
+  "median_verify_ms": 0.007819999999999999,
+  "proof_size_bytes": 24654,
+  "batch_verify_1_ms": 0.017319,
+  "batch_verify_10_ms": 0.08366799999999999,
+  "batch_verify_100_ms": 0.8456400000000001,
+  "batch_verify_100_ms_per_proof": 0.008456400000000001
+}

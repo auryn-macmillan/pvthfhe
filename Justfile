@@ -123,8 +123,7 @@ final-verification-gate:
     python3 .sisyphus/scripts/final-verification-gate.py
 
 p1-bench:
-    @echo "p1-bench not yet implemented"
-    @exit 2
+    bash bench/p1/run.sh
 
 p2-bench:
     @echo "p2-bench not yet implemented"

@@ -1,0 +1,96 @@
+[p1-bench] Building bench_nizk (release) ...
+   Compiling pvthfhe-fhe v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-fhe)
+   Compiling pvthfhe-keygen v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-keygen)
+   Compiling pvthfhe-aggregator v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-aggregator)
+   Compiling pvthfhe-bench v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-bench)
+warning: missing documentation for the crate
+   --> crates/pvthfhe-bench/src/bin/bench_nizk.rs:1:1
+    |
+  1 | / /// P1 lattice NIZK benchmark: prove/verify/batch_verify for n=128, 512, 1024.
+  2 | | ///
+  3 | | /// Outputs JSON result files to bench/p1/results-{n}.json.
+  4 | | use pvthfhe_fhe::real_nizk::{LatticeNizk, NizkStatement, NizkWitness, RealNizkAdapter};
+...   |
+174 | |     eprintln!("[bench_nizk] done.");
+175 | | }
+    | |_^
+    |
+    = note: requested on the command line with `-W missing-docs`
+
+warning: `pvthfhe-bench` (bin "bench_nizk") generated 1 warning
+    Finished `release` profile [optimized] target(s) in 1.23s
+[p1-bench] Running benchmark matrix ...
+warning: missing documentation for the crate
+   --> crates/pvthfhe-bench/src/bin/bench_nizk.rs:1:1
+    |
+  1 | / /// P1 lattice NIZK benchmark: prove/verify/batch_verify for n=128, 512, 1024.
+  2 | | ///
+  3 | | /// Outputs JSON result files to bench/p1/results-{n}.json.
+  4 | | use pvthfhe_fhe::real_nizk::{LatticeNizk, NizkStatement, NizkWitness, RealNizkAdapter};
+...   |
+174 | |     eprintln!("[bench_nizk] done.");
+175 | | }
+    | |_^
+    |
+    = note: requested on the command line with `-W missing-docs`
+
+warning: `pvthfhe-bench` (bin "bench_nizk") generated 1 warning
+    Finished `release` profile [optimized] target(s) in 0.04s
+     Running `target/release/bench_nizk`
+[bench_nizk] n=128 ...
+[bench_nizk] wrote bench/p1/results-128.json
+  prove=0.004ms  verify=0.001ms  size=3150B  batch100=0.127ms (0.0013ms/proof)
+[bench_nizk] n=512 ...
+[bench_nizk] wrote bench/p1/results-512.json
+  prove=0.012ms  verify=0.004ms  size=12366B  batch100=0.427ms (0.0043ms/proof)
+[bench_nizk] n=1024 ...
+[bench_nizk] wrote bench/p1/results-1024.json
+  prove=0.023ms  verify=0.008ms  size=24654B  batch100=0.846ms (0.0085ms/proof)
+[bench_nizk] done.
+[p1-bench] Results:
+  bench/p1/results-128.json
+{
+  "scheme": "pvthfhe-p1-slap",
+  "n": 128,
+  "q": 65537,
+  "error_bound": 17,
+  "iterations": 100,
+  "median_prove_ms": 0.00363,
+  "median_verify_ms": 0.00126,
+  "proof_size_bytes": 3150,
+  "batch_verify_1_ms": 0.00185,
+  "batch_verify_10_ms": 0.014431,
+  "batch_verify_100_ms": 0.126967,
+  "batch_verify_100_ms_per_proof": 0.0012696699999999999
+}
+  bench/p1/results-512.json
+{
+  "scheme": "pvthfhe-p1-slap",
+  "n": 512,
+  "q": 65537,
+  "error_bound": 17,
+  "iterations": 100,
+  "median_prove_ms": 0.0120795,
+  "median_verify_ms": 0.00412,
+  "proof_size_bytes": 12366,
+  "batch_verify_1_ms": 0.00627,
+  "batch_verify_10_ms": 0.059429,
+  "batch_verify_100_ms": 0.42664,
+  "batch_verify_100_ms_per_proof": 0.0042664
+}
+  bench/p1/results-1024.json
+{
+  "scheme": "pvthfhe-p1-slap",
+  "n": 1024,
+  "q": 65537,
+  "error_bound": 17,
+  "iterations": 100,
+  "median_prove_ms": 0.023134,
+  "median_verify_ms": 0.007819999999999999,
+  "proof_size_bytes": 24654,
+  "batch_verify_1_ms": 0.017319,
+  "batch_verify_10_ms": 0.08366799999999999,
+  "batch_verify_100_ms": 0.8456400000000001,
+  "batch_verify_100_ms_per_proof": 0.008456400000000001
+}
+[p1-bench] Done.

@@ -359,3 +359,15 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - The cleanest `p3-research-gate.py` extension mirrors the existing P3 subchecks: add one dedicated `theorem_inventory()` validator, require at least five `## Tn` headings, require the word `gas`, and keep the machine-readable `## VERDICT: APPROVE` marker in the artifact.
 
 - P3 RG scorecard freeze favors verifier stacks that fit the gas/proof envelope on existing BN254 precompiles; any EIP-dependent idea must remain non-primary unless paired with a credible non-EIP fallback.
+
+## 2026-05-03 — Task D.D.1
+- The clean frozen P3 on-chain boundary is a two-blob ABI: `verify(bytes proof, bytes publicInputs)`, with the 200-byte P2→P3 public-input object preserved byte-for-byte instead of exploded into Solidity tuple arguments.
+- Because the verifier entrypoint is `view`, failure attribution and abort-with-public-blame need to be frozen as router/coordinator events rather than verifier-emitted logs; otherwise the interface would contradict Solidity mutability.
+- The smallest robust gate for this task is literal and machine-readable: require the interface-spec artifact, require `## VERDICT: APPROVE`, require the word `calldata`, and require the markdown ABI sketch alongside it.
+
+## 2026-05-03 — Task D.D.2 (P3 stack decision memo)
+- SP1 + Groth16 wrap dominates the scorecard (score 27 vs 25 for fallback) primarily because it has the strongest published audit posture and the cleanest current Solidity verifier path, while still landing well inside both the 5M gas and 14 KB proof budgets (~270k gas, ~260 B proof, ~18.5× headroom on gas).
+- The Groth16 ceremony risk is real but already captured in T3 and is the same posture used at production scale; it does not introduce a new EIP dependency.
+- Fallback (Rust-in-zkVM + EVM wrap) is the explicit worst-case delivery path: preserves Rust semantics for the frozen verifier relation and stays inside the same BN254 precompile envelope, making it a credible escape hatch without rewriting the relation into a new circuit language.
+- Rollback criteria are quantitative: trigger if gas reaches 80% of budget (4M) or calldata reaches 85% of ceiling (12 KB) in real benchmarks — not just estimates.
+- Gate pattern: `stack_decision()` follows the same literal-string-check idiom as `interface_spec()` — file exists, `## VERDICT: APPROVE` present, `## Primary:` present, `## Fallback:` present, word `gas` present.

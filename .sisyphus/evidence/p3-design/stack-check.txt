@@ -1,0 +1,7 @@
+subcheck: stack-decision
+[OK] found artifact: .sisyphus/design/p3/stack-decision.md
+[OK] verdict present: ## VERDICT: APPROVE
+[OK] heading present: ## Primary:
+[OK] heading present: ## Fallback:
+[OK] required phrase present: gas
+PASS: p3-design-gate/stack-decision

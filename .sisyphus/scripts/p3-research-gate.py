@@ -23,8 +23,9 @@ ARTIFACTS = ['.sisyphus/research/lit-survey.md']
 PRIOR_ART_PATH = Path('.sisyphus/research/p3/prior-art.md')
 NOVELTY_MEMO_PATH = Path('.sisyphus/research/p3/novelty-memo.md')
 THREAT_MODEL_PATH = Path('.sisyphus/research/p3/threat-model.md')
+THEOREM_INVENTORY_PATH = Path('docs/security-proofs/p3/theorem-inventory.md')
 
-SUBCHECKS = ['prior-art', 'novelty-gap', 'threat-model', 'prior-art-matrix', 'novelty-memo']
+SUBCHECKS = ['prior-art', 'novelty-gap', 'threat-model', 'prior-art-matrix', 'novelty-memo', 'theorem-inventory']
 
 
 def check_artifacts() -> tuple[bool, list[str]]:
@@ -158,6 +159,38 @@ def threat_model() -> tuple[bool, list[str]]:
     return ok, details
 
 
+def theorem_inventory() -> tuple[bool, list[str]]:
+    details: list[str] = ["subcheck: theorem-inventory"]
+    if not THEOREM_INVENTORY_PATH.exists():
+        return False, details + [f"[FAIL] missing artifact: {THEOREM_INVENTORY_PATH}"]
+
+    content = THEOREM_INVENTORY_PATH.read_text(encoding='utf-8')
+    details.append(f"[OK] found artifact: {THEOREM_INVENTORY_PATH}")
+    ok = True
+
+    import re
+    theorem_headings = re.findall(r'^## T\d+\b', content, re.MULTILINE)
+    if len(theorem_headings) >= 5:
+        details.append(f"[OK] theorem headings found: {len(theorem_headings)}")
+    else:
+        details.append(f"[FAIL] expected at least 5 theorem headings, found {len(theorem_headings)}")
+        ok = False
+
+    if 'gas' in content.lower():
+        details.append('[OK] gas phrase present')
+    else:
+        details.append('[FAIL] missing required gas phrase')
+        ok = False
+
+    if '## VERDICT: APPROVE' in content:
+        details.append('[OK] verdict present: ## VERDICT: APPROVE')
+    else:
+        details.append('[FAIL] missing required verdict line: ## VERDICT: APPROVE')
+        ok = False
+
+    return ok, details
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=f"{GATE_NAME} gate")
     _ = parser.add_argument('--check', default=None, choices=SUBCHECKS)
@@ -167,11 +200,12 @@ def main() -> None:
     subchecks_map: dict[str, Callable[[], tuple[bool, list[str]]]] = {
         name: make_subcheck(name)
         for name in SUBCHECKS
-        if name not in ['prior-art-matrix', 'novelty-memo', 'threat-model']
+        if name not in ['prior-art-matrix', 'novelty-memo', 'threat-model', 'theorem-inventory']
     }
     subchecks_map['prior-art-matrix'] = prior_art_matrix
     subchecks_map['novelty-memo'] = novelty_memo
     subchecks_map['threat-model'] = threat_model
+    subchecks_map['theorem-inventory'] = theorem_inventory
     run_gate(GATE_NAME, subchecks_map, args)
 
 

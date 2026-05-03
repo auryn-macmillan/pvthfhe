@@ -352,3 +352,8 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - Explicitly documented aggressive bets to address these gaps: EVM precompiles for lattice ops, STIR/WHIR final-step recursion, and novel cycle-of-curves adapted for RLWE.
 - Pivot triggers defined clearly: if STIR/WHIR recursive wrappers exceed 14KB proof size constraints or prover times become unmanageable, fallback to Rust-in-zkVM wrapper is forced.
 - Updated `p3-research-gate.py` to explicitly enforce the presence of required headers and the `VERDICT: APPROVE` string in the novelty memo.
+
+## 2026-05-03 — Task D.R.4
+- The P3 theorem inventory can stay registry-first and still be formal if each theorem states the exact frozen P2→P3 public-input boundary, explicit dependencies, and conditional branches for wrap/setup assumptions instead of pretending those stack choices are already settled.
+- The P3 gas theorem must be phrased as a denial-of-service security obligation, not a performance note: every accept/reject path has to halt within `≤ 5,000,000` gas for the fixed 200-byte public inputs and bounded proof size.
+- The cleanest `p3-research-gate.py` extension mirrors the existing P3 subchecks: add one dedicated `theorem_inventory()` validator, require at least five `## Tn` headings, require the word `gas`, and keep the machine-readable `## VERDICT: APPROVE` marker in the artifact.

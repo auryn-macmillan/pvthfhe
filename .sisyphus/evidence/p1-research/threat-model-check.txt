@@ -1,0 +1,27 @@
+subcheck: threat-model
+[OK] found section: ## Goal
+[OK] found section: ## Non-Goals
+[OK] found section: ## Required Theorems
+[OK] found section: ## Allowed Assumptions
+[OK] found section: ## Threat Model Matrix
+[OK] found section: ## Success Metrics
+[OK] found section: ## Downstream Outputs
+[OK] found marker: Adversary model
+[OK] found marker: Static corruption
+[OK] found marker: ROM
+[OK] found marker: QROM
+[OK] found marker: Simulation-soundness
+[OK] found marker: Knowledge soundness
+[OK] found marker: Extractor model
+[OK] found marker: Rewinding
+[OK] found marker: Straight-line
+[OK] found marker: P2
+[OK] found marker: P4
+[OK] found marker: q
+[OK] found marker: ring degree
+[OK] found marker: error bound
+[OK] found row: | Adversary model |
+[OK] found row: | Simulation-soundness |
+[OK] found row: | Extractor model |
+[OK] .sisyphus/research/p1/threat-model.md meets requirements
+PASS: p1-research-gate/threat-model

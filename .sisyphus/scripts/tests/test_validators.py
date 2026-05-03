@@ -837,3 +837,87 @@ def test_p1_research_gate_prior_art_matrix_fails_when_too_few_rows():
         )
         assert rc != 0, f"Expected non-zero, got {rc}. Output: {out}"
         assert "at least 10" in out, out
+
+
+THREAT_MODEL_VALID = textwrap.dedent("""\
+    # P1 Threat Model: Decrypt-Share NIZK
+
+    ## Goal
+    Fix the adversary and assumption model for P1.
+
+    ## Non-Goals
+    - Adaptive corruption is not a baseline claim.
+
+    ## Required Theorems
+    - Soundness / knowledge soundness for malformed decrypt-share proofs.
+    - Sequential composition with P4 and P2.
+
+    ## Allowed Assumptions
+    - Adversary model: static malicious PPT adversary corrupting at most t-1 participants.
+    - Network / scheduling: synchronous rounds with rushing adversary inside each round.
+    - Random oracle model: ROM is the baseline model; QROM is deferred.
+    - Extractor model: rewinding extractor for baseline knowledge soundness; Straight-line extraction is not claimed.
+
+    ## Threat Model Matrix
+    | Dimension | Baseline | Why it is fixed |
+    | --- | --- | --- |
+    | Adversary model | Malicious parties up to t-1 with verifier-observer access | Matches P4 honest-majority interface |
+    | Corruption timing | Static corruption baseline; adaptive corruption out of scope | Matches frozen P4 bundle |
+    | Soundness flavor | Knowledge soundness is required | P2 folding needs extractable accepted base proofs |
+    | Simulation-soundness | Not required for the baseline sequential composition claim | P2 folds prover-generated P1 proofs and does not rely on simulated accepting P1 transcripts |
+    | Extractor model | Rewinding extractor | Fiat-Shamir lattice PoK candidates usually provide rewinding-based extraction |
+    | FHE parameter exposure | Public statement binds q, ring degree, and error bound | Prevents witness drift across folding and verification |
+
+    ## Success Metrics
+    - Threat-model rows freeze the adversary, oracle, and extractor choices.
+
+    ## Downstream Outputs
+    - P2 consumes the knowledge-sound P1 statement with fixed public parameters.
+    - P4 sequential composition reuses the same static corruption interface.
+""")
+
+
+THREAT_MODEL_MISSING_SIM_SOUNDNESS = textwrap.dedent("""\
+    # P1 Threat Model: Decrypt-Share NIZK
+
+    ## Goal
+    Fix the adversary and assumption model for P1.
+
+    ## Allowed Assumptions
+    - Adversary model: static malicious PPT adversary corrupting at most t-1 participants.
+    - Extractor model: rewinding extractor for baseline knowledge soundness.
+
+    ## Threat Model Matrix
+    | Dimension | Baseline | Why it is fixed |
+    | --- | --- | --- |
+    | Adversary model | Malicious parties up to t-1 | Matches P4 |
+    | Extractor model | Rewinding extractor | Baseline PoK |
+""")
+
+
+def test_p1_research_gate_threat_model_requires_expected_fields():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        research_dir = os.path.join(tmpdir, ".sisyphus", "research", "p1")
+        os.makedirs(research_dir)
+        threat_model_path = os.path.join(research_dir, "threat-model.md")
+        with open(threat_model_path, "w", encoding="utf-8") as f:
+            _ = f.write(THREAT_MODEL_VALID)
+        rc, out, _ = run_script_in_cwd(
+            "p1-research-gate.py", tmpdir, "--check", "threat-model"
+        )
+        assert rc == 0, f"Expected 0, got {rc}. Output: {out}"
+        assert "PASS: p1-research-gate/threat-model" in out, out
+
+
+def test_p1_research_gate_threat_model_fails_without_sim_soundness_row():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        research_dir = os.path.join(tmpdir, ".sisyphus", "research", "p1")
+        os.makedirs(research_dir)
+        threat_model_path = os.path.join(research_dir, "threat-model.md")
+        with open(threat_model_path, "w", encoding="utf-8") as f:
+            _ = f.write(THREAT_MODEL_MISSING_SIM_SOUNDNESS)
+        rc, out, _ = run_script_in_cwd(
+            "p1-research-gate.py", tmpdir, "--check", "threat-model"
+        )
+        assert rc != 0, f"Expected non-zero, got {rc}. Output: {out}"
+        assert "Simulation-soundness" in out, out

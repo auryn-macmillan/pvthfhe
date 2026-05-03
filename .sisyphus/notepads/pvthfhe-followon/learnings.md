@@ -154,6 +154,11 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - The most credible native-lattice primary candidates are Beullens one-shot lattice ZK, SLAP, and Greyhound; the most credible implementation fallback remains a Rust verifier inside a zkVM, with SNARK-friendly witness hashing as the strongest non-lattice-primary systems option.
 - Lattice PoK papers frequently provide strong knowledge soundness for their native relation without giving simulation-soundness; the matrix must state that distinction explicitly or it overclaims deployability.
 
+## 2026-05-03 — Task B.R.3
+- P1 must inherit P4's static malicious corruption and rushing synchronous-session model exactly; letting P1 drift to adaptive corruption or a softer adversary would break the claimed sequential composition story.
+- For the current sequential P4→P1→P2 flow, the critical base-proof property is knowledge soundness with fixed public parameters, not simulation-soundness; that stronger requirement should only be introduced if P2 starts relying on simulated accepting P1 transcripts before adversarial continuation.
+- The P1 public statement has to expose `q`, ring degree, and the relevant error/norm bound explicitly, or folding can silently aggregate proofs instantiated for different RLWE parameter regimes.
+
 ## 2026-05-03 — Task B.R.2
 - Identified the central novelty gap for PVTHFHE: linking boolean SHA-256 PVSS commitments with algebraic RLWE relations in a single Fiat-Shamir transcript.
 - Proposed two aggressive bets: Hybrid zkVM (SNARKing the SHA-256 alongside the RLWE proof) and Custom Lattice IOP (Bridged Extractor).

@@ -1,25 +1,29 @@
 #!/usr/bin/env python3
-# pyright: reportImplicitRelativeImport=false
+# pyright: reportImplicitRelativeImport=false, reportUnknownVariableType=false
 """p1-research-gate gate."""
 import argparse
 import os
 import re
 import sys
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, cast
 
 sys.path.insert(0, os.path.dirname(__file__))
-from _gate_utils import run_gate  # type: ignore[reportMissingImports]
+from _gate_utils import run_gate as _run_gate  # type: ignore[reportMissingImports, reportUnknownVariableType, reportUnknownArgumentType]
+
+RunGate = Callable[[str, dict[str, Callable[[], tuple[bool, list[str]]]], argparse.Namespace], None]
+run_gate = cast(RunGate, _run_gate)
 
 GATE_NAME = "p1-research-gate"
 
 ARTIFACTS = ['.sisyphus/research/lit-survey.md']
 PRIOR_ART_MATRIX = '.sisyphus/research/p1/prior-art.md'
+THREAT_MODEL_PATH = '.sisyphus/research/p1/threat-model.md'
 
 SUBCHECKS = ['prior-art', 'prior-art-matrix', 'novelty-gap', 'threat-model']
 
 
-def check_artifacts() -> Tuple[bool, List[str]]:
-    details: List[str] = []
+def check_artifacts() -> tuple[bool, list[str]]:
+    details: list[str] = []
     ok = True
     for path in ARTIFACTS:
         if os.path.exists(path):
@@ -54,8 +58,8 @@ def count_markdown_table_rows(path: str) -> int:
     return row_count
 
 
-def check_prior_art_matrix() -> Tuple[bool, List[str]]:
-    details: List[str] = ["subcheck: prior-art-matrix"]
+def check_prior_art_matrix() -> tuple[bool, list[str]]:
+    details: list[str] = ["subcheck: prior-art-matrix"]
     if not os.path.exists(PRIOR_ART_MATRIX):
         return False, details + [f"[FAIL] missing required artifact: {PRIOR_ART_MATRIX}"]
 
@@ -69,8 +73,8 @@ def check_prior_art_matrix() -> Tuple[bool, List[str]]:
     return True, details
 
 
-def check_novelty_gap() -> Tuple[bool, List[str]]:
-    details: List[str] = ["subcheck: novelty-gap"]
+def check_novelty_gap() -> tuple[bool, list[str]]:
+    details: list[str] = ["subcheck: novelty-gap"]
     memo_path = ".sisyphus/research/p1/novelty-memo.md"
     if not os.path.exists(memo_path):
         return False, details + [f"[FAIL] missing required artifact: {memo_path}"]
@@ -92,8 +96,75 @@ def check_novelty_gap() -> Tuple[bool, List[str]]:
         
     return ok, details
 
-def make_subcheck(name: str) -> Callable[[], Tuple[bool, List[str]]]:
-    def fn() -> Tuple[bool, List[str]]:
+
+def check_threat_model() -> tuple[bool, list[str]]:
+    details: list[str] = ["subcheck: threat-model"]
+    if not os.path.exists(THREAT_MODEL_PATH):
+        return False, details + [f"[FAIL] missing required artifact: {THREAT_MODEL_PATH}"]
+
+    with open(THREAT_MODEL_PATH, 'r', encoding='utf-8') as f:
+        content = f.read()
+
+    required_sections = [
+        "## Goal",
+        "## Non-Goals",
+        "## Required Theorems",
+        "## Allowed Assumptions",
+        "## Threat Model Matrix",
+        "## Success Metrics",
+        "## Downstream Outputs",
+    ]
+    required_markers = [
+        "Adversary model",
+        "Static corruption",
+        "ROM",
+        "QROM",
+        "Simulation-soundness",
+        "Knowledge soundness",
+        "Extractor model",
+        "Rewinding",
+        "Straight-line",
+        "P2",
+        "P4",
+        "q",
+        "ring degree",
+        "error bound",
+    ]
+    required_rows = [
+        "| Adversary model |",
+        "| Simulation-soundness |",
+        "| Extractor model |",
+    ]
+
+    ok = True
+    for section in required_sections:
+        if section not in content:
+            details.append(f"[FAIL] missing required section: {section}")
+            ok = False
+        else:
+            details.append(f"[OK] found section: {section}")
+
+    for marker in required_markers:
+        if marker not in content:
+            details.append(f"[FAIL] missing required threat-model marker: {marker}")
+            ok = False
+        else:
+            details.append(f"[OK] found marker: {marker}")
+
+    for row in required_rows:
+        if row not in content:
+            details.append(f"[FAIL] missing required threat-model row: {row}")
+            ok = False
+        else:
+            details.append(f"[OK] found row: {row}")
+
+    if ok:
+        details.append(f"[OK] {THREAT_MODEL_PATH} meets requirements")
+
+    return ok, details
+
+def make_subcheck(name: str) -> Callable[[], tuple[bool, list[str]]]:
+    def fn() -> tuple[bool, list[str]]:
         ok, details = check_artifacts()
         details.insert(0, f"subcheck: {name}")
         return ok, details
@@ -103,16 +174,17 @@ def make_subcheck(name: str) -> Callable[[], Tuple[bool, List[str]]]:
 
 def main():
     parser = argparse.ArgumentParser(description=f"{GATE_NAME} gate")
-    parser.add_argument("--check", default=None, choices=SUBCHECKS)
-    parser.add_argument("--stub", action="store_true", help="Always PASS (stub mode)")
+    _ = parser.add_argument("--check", default=None, choices=SUBCHECKS)
+    _ = parser.add_argument("--stub", action="store_true", help="Always PASS (stub mode)")
     args = parser.parse_args()
 
-    subchecks_map: Dict[str, Callable[[], Tuple[bool, List[str]]]] = {
+    subchecks_map: dict[str, Callable[[], tuple[bool, list[str]]]] = {
         name: make_subcheck(name) for name in SUBCHECKS
     }
-    _ = subchecks_map.__setitem__('prior-art', check_prior_art_matrix)
-    _ = subchecks_map.__setitem__('prior-art-matrix', check_prior_art_matrix)
-    _ = subchecks_map.__setitem__('novelty-gap', check_novelty_gap)
+    subchecks_map['prior-art'] = check_prior_art_matrix
+    subchecks_map['prior-art-matrix'] = check_prior_art_matrix
+    subchecks_map['novelty-gap'] = check_novelty_gap
+    subchecks_map['threat-model'] = check_threat_model
     run_gate(GATE_NAME, subchecks_map, args)
 
 

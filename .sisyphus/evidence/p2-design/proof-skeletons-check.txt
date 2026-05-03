@@ -1,0 +1,3 @@
+subcheck: proof-skeletons
+[OK] proof-skeletons.md found and validated
+PASS: p2-design-gate/proof-skeletons

@@ -38,6 +38,8 @@ SURROGATE_LEAK_MARKERS = [
     'main.nr',
 ]
 
+ROOT = Path(__file__).resolve().parents[2]
+
 STACK_DECISION_PATH = Path('.sisyphus/design/p2/stack-decision.md')
 STACK_CHECK_EVIDENCE_PATH = Path('.sisyphus/evidence/p2-design/stack-check.txt')
 REQUIRED_STACK_DECISION_HEADINGS = [
@@ -48,7 +50,7 @@ REQUIRED_STACK_DECISION_HEADINGS = [
     '## Reviewer Sign-off',
 ]
 
-SUBCHECKS = ['charter', 'bundle', 'reviewer-memo', 'interface-spec', 'stack-decision']
+SUBCHECKS = ['charter', 'bundle', 'reviewer-memo', 'interface-spec', 'stack-decision', 'proof-skeletons']
 
 
 def check_artifacts() -> tuple[bool, list[str]]:
@@ -103,7 +105,7 @@ def write_stack_check_evidence(details: list[str], ok: bool) -> None:
     STACK_CHECK_EVIDENCE_PATH.parent.mkdir(parents=True, exist_ok=True)
     status = 'PASS' if ok else 'FAIL'
     evidence_lines = [*details, f"{status}: {GATE_NAME}/stack-decision"]
-    STACK_CHECK_EVIDENCE_PATH.write_text("\n".join(evidence_lines) + "\n", encoding='utf-8')
+    _ = STACK_CHECK_EVIDENCE_PATH.write_text("\n".join(evidence_lines) + "\n", encoding='utf-8')
 
 
 def stack_decision() -> tuple[bool, list[str]]:
@@ -135,6 +137,26 @@ def stack_decision() -> tuple[bool, list[str]]:
     return ok, details
 
 
+def proof_skeletons() -> tuple[bool, list[str]]:
+    details = ["subcheck: proof-skeletons"]
+    path = ROOT / "docs/security-proofs/p2/proof-skeletons.md"
+    if not path.exists():
+        details.append(f"MISSING: {path}")
+        return False, details
+    text = path.read_text()
+    # check T1–T5 sections present
+    for i in range(1, 6):
+        heading = f"## T{i}"
+        if heading not in text and f"## Theorem P2-T{i}" not in text:
+            details.append(f"MISSING section T{i}")
+            return False, details
+    if "VERDICT: APPROVE" not in text:
+        details.append("MISSING: VERDICT: APPROVE")
+        return False, details
+    details.append(f"[OK] proof-skeletons.md found and validated")
+    return True, details
+
+
 def main():
     parser = argparse.ArgumentParser(description=f"{GATE_NAME} gate")
     _ = parser.add_argument("--check", default=None, choices=SUBCHECKS)
@@ -144,10 +166,11 @@ def main():
     subchecks_map: dict[str, Callable[[], tuple[bool, list[str]]]] = {
         name: make_subcheck(name)
         for name in SUBCHECKS
-        if name not in {'interface-spec', 'stack-decision'}
+        if name not in {'interface-spec', 'stack-decision', 'proof-skeletons'}
     }
     subchecks_map['interface-spec'] = interface_spec
     subchecks_map['stack-decision'] = stack_decision
+    subchecks_map['proof-skeletons'] = proof_skeletons
     run_gate(GATE_NAME, subchecks_map, args)
 
 

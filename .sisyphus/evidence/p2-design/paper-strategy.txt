@@ -1,0 +1,2 @@
+subcheck: paper-strategy
+PASS: p2-design-gate/paper-strategy

@@ -50,7 +50,7 @@ REQUIRED_STACK_DECISION_HEADINGS = [
     '## Reviewer Sign-off',
 ]
 
-SUBCHECKS = ['charter', 'bundle', 'reviewer-memo', 'interface-spec', 'stack-decision', 'proof-skeletons', 'bench-migration']
+SUBCHECKS = ['charter', 'bundle', 'reviewer-memo', 'interface-spec', 'stack-decision', 'proof-skeletons', 'bench-migration', 'paper-strategy']
 
 
 def check_artifacts() -> tuple[bool, list[str]]:
@@ -178,6 +178,25 @@ def bench_migration() -> tuple[bool, list[str]]:
     return True, details
 
 
+
+def paper_strategy() -> tuple[bool, list[str]]:
+    details = ["subcheck: paper-strategy"]
+    path = ROOT / ".sisyphus/design/p2/paper-strategy-decision.md"
+    if not path.exists():
+        details.append(f"MISSING: {path}")
+        return False, details
+    text = path.read_text()
+    for required in ["STRATEGY: UNIFIED", "VERDICT: APPROVE"]:
+        if required not in text:
+            details.append(f"MISSING: {required}")
+            return False, details
+    evidence_path = ROOT / ".sisyphus/evidence/p2-design/paper-strategy.txt"
+    evidence_path.parent.mkdir(parents=True, exist_ok=True)
+    evidence_path.write_text("\n".join(details + ["PASS: p2-design-gate/paper-strategy"]) + "\n")
+    details.append("[OK] paper-strategy-decision.md found and validated")
+    return True, details
+
+
 def main():
     parser = argparse.ArgumentParser(description=f"{GATE_NAME} gate")
     _ = parser.add_argument("--check", default=None, choices=SUBCHECKS)
@@ -187,12 +206,13 @@ def main():
     subchecks_map: dict[str, Callable[[], tuple[bool, list[str]]]] = {
         name: make_subcheck(name)
         for name in SUBCHECKS
-        if name not in {'interface-spec', 'stack-decision', 'proof-skeletons', 'bench-migration'}
+        if name not in {'interface-spec', 'stack-decision', 'proof-skeletons', 'bench-migration', 'paper-strategy'}
     }
     subchecks_map['interface-spec'] = interface_spec
     subchecks_map['stack-decision'] = stack_decision
     subchecks_map['proof-skeletons'] = proof_skeletons
     subchecks_map['bench-migration'] = bench_migration
+    subchecks_map['paper-strategy'] = paper_strategy
     run_gate(GATE_NAME, subchecks_map, args)
 
 

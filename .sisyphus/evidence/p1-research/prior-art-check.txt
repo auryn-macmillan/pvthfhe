@@ -1,0 +1,4 @@
+subcheck: prior-art-matrix
+[OK] found matrix artifact: .sisyphus/research/p1/prior-art.md
+[OK] prior-art matrix rows: 13
+PASS: p1-research-gate/prior-art

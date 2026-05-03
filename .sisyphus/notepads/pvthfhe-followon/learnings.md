@@ -147,3 +147,9 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - `validate-bundle.py` now defaults to the seven P4→P1 handoff headings and accepts either `--bundle <path>` or a positional path, so plan QA and gate invocations share one validator contract.
 - The published P4→P1 bundle must describe the code that exists today: Shamir shares over `2^61-1`, SHA-256 commitments, and an eight-byte big-endian BFV key stub rather than a final RLWE key encoding.
 - The negative test is meaningful because omitting `## Parameter Schema` now causes validator failure immediately, making the bundle sections an actual gate rather than advisory documentation.
+
+## 2026-05-03 — Task B.R.1
+- The P1 prior-art screen splits cleanly into three camps: direct lattice PoKs for bounded linear relations, transparent/succinct lattice arguments aimed at recursion, and pragmatic wrappers such as zkVMs or conventional SNARKs around a Rust or hashed RLWE witness checker.
+- For this repository's inherited P4→P1 interface, the hardest mismatch is not only proving `d_i = c·s_i + e_i mod q`; it is simultaneously binding that relation back to today's SHA-256-based Shamir transcript while keeping the verifier recursion-friendly for P2.
+- The most credible native-lattice primary candidates are Beullens one-shot lattice ZK, SLAP, and Greyhound; the most credible implementation fallback remains a Rust verifier inside a zkVM, with SNARK-friendly witness hashing as the strongest non-lattice-primary systems option.
+- Lattice PoK papers frequently provide strong knowledge soundness for their native relation without giving simulation-soundness; the matrix must state that distinction explicitly or it overclaims deployability.

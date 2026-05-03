@@ -1,0 +1,11 @@
+{
+  "gate": "p1-research-gate",
+  "subcheck": "prior-art",
+  "status": "PASS",
+  "timestamp": "2026-05-03T00:47:09.277313+00:00",
+  "details": [
+    "subcheck: prior-art-matrix",
+    "[OK] found matrix artifact: .sisyphus/research/p1/prior-art.md",
+    "[OK] prior-art matrix rows: 13"
+  ]
+}

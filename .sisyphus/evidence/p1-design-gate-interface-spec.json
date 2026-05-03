@@ -1,0 +1,20 @@
+{
+  "gate": "p1-design-gate",
+  "subcheck": "interface-spec",
+  "status": "PASS",
+  "timestamp": "2026-05-03T01:20:09.114530+00:00",
+  "details": [
+    "subcheck: interface-spec",
+    "[OK] found required artifact: .sisyphus/design/p1/interface-spec.md",
+    "[OK] found heading: ## Statement",
+    "[OK] found heading: ## Witness",
+    "[OK] found heading: ## Public Inputs",
+    "[OK] found heading: ## Proof Format",
+    "[OK] found heading: ## Adapter Strategy",
+    "[OK] found heading: ## Surrogate Boundary",
+    "[OK] surrogate contamination marker absent: Noir",
+    "[OK] surrogate contamination marker absent: UltraHonk",
+    "[OK] surrogate contamination marker absent: HonkVerifier",
+    "[OK] .sisyphus/design/p1/interface-spec.md meets interface-spec requirements"
+  ]
+}

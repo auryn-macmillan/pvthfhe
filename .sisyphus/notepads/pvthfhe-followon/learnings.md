@@ -174,3 +174,8 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - The RG-P1 weightings make the program preference explicit: verifier cost for P2 folding consumption outranks raw prover speed, so transparent or wrapper-friendly verifier profiles can outrun otherwise efficient native protocols if constants are close.
 - SLAP is currently the best-balanced primary because it stays lattice-native while fitting the intended decrypt-share relation more directly than Greyhound or Beullens; Greyhound is the cleaner research fallback when recursion-friendliness dominates.
 - Rust-in-zkVM should stay frozen as a delivery fallback even when it loses the scorecard on prover cost and PQ purity, because the project explicitly values a guaranteed verifier path over blocking on ideal native-lattice constants.
+
+## 2026-05-03 — Task B.D.1
+- The frozen P1 API should expose only semantic objects (`NizkStatement`, `NizkWitness`, `NizkProof`) and keep all backend proof plumbing behind an adapter, mirroring the existing `FheBackend` style rather than leaking proof-system internals into callers.
+- The public-input layout needs a fixed ordering with explicit length prefixes for variable-width byte fields so P2 folding and evidence fixtures can consume one canonical verifier object across SLAP, Greyhound, zkVM, and surrogate-backed implementations.
+- Surrogate isolation is easiest to enforce mechanically in the design gate: require the interface-spec headings and fail if `Noir`, `UltraHonk`, or `HonkVerifier` appear in the spec text.

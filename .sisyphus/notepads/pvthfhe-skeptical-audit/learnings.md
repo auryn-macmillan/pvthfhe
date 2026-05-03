@@ -75,3 +75,20 @@ FORBIDDEN: `nargo prove`, `nargo verify`
 7. **`noise_budget_closes_malicious` is identical to `noise_budget_closes_honest`.** Both run the same simulation; the "malicious" label is aspirational. No malicious noise model is implemented.
 
 8. **Test count:** Rust: 118 (via `#[test]` scan) / Solidity: 39 (via `function test` scan).
+
+
+## T4 Theorem Inventory Audit (2026-05-03)
+
+- Audited all 20 obligation rows in `docs/security-proofs/obligations.md` against the corresponding proof documents and current code paths.
+- Resolved the 19-vs-20 discrepancy: `P1-T4` exists in the obligation registry and proof docs, but is omitted from both `paper/claims-table.md` and `paper/main.tex`.
+- Identified the unique non-discharged theorem as `P2-T4`: its own proof file says accumulator binding is conditional on two unimplemented items in `crates/pvthfhe-aggregator/src/folding/mod.rs` — arithmetic norm enforcement in `validate_witness` and replacement of the SHA-256 hash-chain surrogate with a linear lattice commitment.
+- Classified P2 `{T1,T2,T3,T5}` and P3 `{T1,T2,T5}` as vacuous/surrogate engineering theorems relative to the registry wording, because the current code path is still surrogate/hash-chain/ECDSA-based rather than the full claimed lattice-fold / finalize-or-blame path.
+- Strongest implementation-backed proofs are P4 `{T1..T5}`, P1 `{T1..T5}` (with T4 correctly framed as deferral), and P3 `{T3,T4}`.
+
+## Test Classification Audit (T5)
+- **Finding**: zero "REAL" cryptographic tests for P1-P4 are currently active in the Rust crates. 
+- **P1 (NIZK)**: Tests are REAL-quality but gated by `real-nizk` which is unimplemented.
+- **P2 (Folding)**: Tests are WEAK/MOCK against a SHA-256 hash-chain surrogate.
+- **P3 (Verifier)**: 18 REAL tests exist but only for the ECDSA authenticator, not the FHE soundness.
+- **P4 (Keygen)**: Entirely MOCK against the Hermine/Simulator stub.
+- **Impact**: The "green" test state is deceptive; it reflects surrogate passing, not cryptographic soundness.

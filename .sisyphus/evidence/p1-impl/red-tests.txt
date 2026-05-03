@@ -1,0 +1,69 @@
+   Compiling pvthfhe-fhe v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-fhe)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.16s
+     Running unittests src/lib.rs (target/debug/deps/pvthfhe_fhe-6733fb6f729e4abb)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+     Running tests/conformance.rs (target/debug/deps/conformance-ce9fbb6292d6f432)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+     Running tests/lattice_nizk.rs (target/debug/deps/lattice_nizk-22673807969dc68d)
+
+running 6 tests
+test lattice_nizk::test_honest_prove_verify ... FAILED
+test lattice_nizk::test_batch_verify_correctness ... FAILED
+test lattice_nizk::test_proof_is_deterministic ... FAILED
+test lattice_nizk::test_tampered_share_rejected ... FAILED
+test lattice_nizk::test_verify_rejects_mismatched_participant_binding ... FAILED
+test lattice_nizk::test_wrong_pvss_commitment_rejected ... FAILED
+
+failures:
+
+---- lattice_nizk::test_honest_prove_verify stdout ----
+
+thread 'lattice_nizk::test_honest_prove_verify' (415655) panicked at crates/pvthfhe-fhe/src/real_nizk.rs:84:9:
+not implemented: TODO(B.I.2): implement real lattice NIZK prover
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- lattice_nizk::test_batch_verify_correctness stdout ----
+
+thread 'lattice_nizk::test_batch_verify_correctness' (415654) panicked at crates/pvthfhe-fhe/src/real_nizk.rs:84:9:
+not implemented: TODO(B.I.2): implement real lattice NIZK prover
+
+---- lattice_nizk::test_proof_is_deterministic stdout ----
+
+thread 'lattice_nizk::test_proof_is_deterministic' (415656) panicked at crates/pvthfhe-fhe/src/real_nizk.rs:84:9:
+not implemented: TODO(B.I.2): implement real lattice NIZK prover
+
+---- lattice_nizk::test_tampered_share_rejected stdout ----
+
+thread 'lattice_nizk::test_tampered_share_rejected' (415657) panicked at crates/pvthfhe-fhe/src/real_nizk.rs:84:9:
+not implemented: TODO(B.I.2): implement real lattice NIZK prover
+
+---- lattice_nizk::test_verify_rejects_mismatched_participant_binding stdout ----
+
+thread 'lattice_nizk::test_verify_rejects_mismatched_participant_binding' (415658) panicked at crates/pvthfhe-fhe/src/real_nizk.rs:84:9:
+not implemented: TODO(B.I.2): implement real lattice NIZK prover
+
+---- lattice_nizk::test_wrong_pvss_commitment_rejected stdout ----
+
+thread 'lattice_nizk::test_wrong_pvss_commitment_rejected' (415659) panicked at crates/pvthfhe-fhe/src/real_nizk.rs:84:9:
+not implemented: TODO(B.I.2): implement real lattice NIZK prover
+
+
+failures:
+    lattice_nizk::test_batch_verify_correctness
+    lattice_nizk::test_honest_prove_verify
+    lattice_nizk::test_proof_is_deterministic
+    lattice_nizk::test_tampered_share_rejected
+    lattice_nizk::test_verify_rejects_mismatched_participant_binding
+    lattice_nizk::test_wrong_pvss_commitment_rejected
+
+test result: FAILED. 0 passed; 6 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p pvthfhe-fhe --test lattice_nizk`

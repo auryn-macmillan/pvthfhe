@@ -1,10 +1,12 @@
 [package]
 name = "pvthfhe-fhe"
 version = "0.1.0"
+license = "MIT"
 edition = "2021"
 
 [features]
 mock = []
+real-nizk = []
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -13,3 +15,8 @@ rand_core = "0.6"
 
 [dev-dependencies]
 rand = "0.8"
+pvthfhe-keygen = { path = "../pvthfhe-keygen" }
+sha2 = "0.10"
+
+[lints]
+workspace = true

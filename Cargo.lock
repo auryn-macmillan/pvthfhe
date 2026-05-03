@@ -1241,6 +1241,7 @@ dependencies = [
  "poulpy-hal",
  "pvthfhe-aggregator",
  "pvthfhe-fhe",
+ "pvthfhe-keygen",
  "rand 0.8.6",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
@@ -1295,10 +1296,19 @@ dependencies = [
 name = "pvthfhe-fhe"
 version = "0.1.0"
 dependencies = [
+ "pvthfhe-keygen",
  "rand 0.8.6",
  "rand_core 0.6.4",
  "serde",
+ "sha2",
  "thiserror",
+]
+
+[[package]]
+name = "pvthfhe-keygen"
+version = "0.1.0"
+dependencies = [
+ "sha2",
 ]
 
 [[package]]

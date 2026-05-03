@@ -196,3 +196,9 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - The cleanest advisory-threshold anchor is the stack memo itself plus checked-in `bench/results/*.json` baselines: use the explicit `~40 ms` SLAP verifier pivot and keep memory materially below the repo's ~7.8 GiB recursive baseline.
 - Migration safety is only persuasive once the three rollback modes are separated: temporary surrogate re-enable, research pivot to Greyhound, and delivery fallback to Rust-in-zkVM.
 - Surrogate retirement must be calendar- and gate-bound, not prose-only; `just p1-impl-gate` plus 30 consecutive green CI days gives a concrete retirement trigger instead of an open-ended promise.
+
+## 2026-05-03 — Task B.I.1
+- The `cargo test ... lattice_nizk` filter only matches test names, so integration tests need a shared `lattice_nizk::` module prefix or the runner reports `0 tests` even when the file compiles.
+- A minimal `real-nizk` RED scaffold can live entirely inside `pvthfhe-fhe`: frozen statement/witness/proof/error types, a `LatticeNizk` trait, and a `RealNizkAdapter` stub that panics with `unimplemented!()`.
+- Using the real P4 `Share` placeholder in the test helper keeps the PVSS commitment preimage honest to the frozen handoff (`session_id`, `participant_id`, `secret_value`) without activating any surrogate decrypt-share path.
+- The RED evidence command now produces six failing tests, all panicking at `TODO(B.I.2): implement real lattice NIZK prover`, which is the intended B.I.1 stop point.

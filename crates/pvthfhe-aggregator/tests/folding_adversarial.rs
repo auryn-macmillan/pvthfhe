@@ -216,8 +216,8 @@ fn test_non_sequential_fold_index_rejected() {
     let acc = make_acc("sess-depth-gap", params, 0, [0u8; 32]);
     let acc1 = fold(
         &acc,
-        &make_witness(22),
-        &make_statement(1, "sess-depth-gap", params, 22),
+        &make_witness(12),
+        &make_statement(1, "sess-depth-gap", params, 12),
     )
     .expect("first fold should succeed");
     let result = fold(
@@ -239,14 +239,14 @@ fn test_q_mismatch_across_fold_boundary_rejected() {
     let acc = make_acc("sess-pmq", params, 0, [0u8; 32]);
     let acc1 = fold(
         &acc,
-        &make_witness(30),
-        &make_statement(1, "sess-pmq", params, 30),
+        &make_witness(13),
+        &make_statement(1, "sess-pmq", params, 13),
     )
     .expect("first fold should succeed");
     // Different q
     let wrong_q_params = (32771, 1024, 17);
-    let stmt2 = make_statement(2, "sess-pmq", wrong_q_params, 31);
-    let result = fold(&acc1, &make_witness(31), &stmt2);
+    let stmt2 = make_statement(2, "sess-pmq", wrong_q_params, 14);
+    let result = fold(&acc1, &make_witness(14), &stmt2);
     assert!(
         result.is_err(),
         "q mismatch across fold boundary must be rejected"
@@ -259,14 +259,14 @@ fn test_n_mismatch_across_fold_boundary_rejected() {
     let acc = make_acc("sess-pmn", params, 0, [0u8; 32]);
     let acc1 = fold(
         &acc,
-        &make_witness(40),
-        &make_statement(1, "sess-pmn", params, 40),
+        &make_witness(13),
+        &make_statement(1, "sess-pmn", params, 13),
     )
     .expect("first fold should succeed");
     // Different N
     let wrong_n_params = (65537, 2048, 17);
-    let stmt2 = make_statement(2, "sess-pmn", wrong_n_params, 41);
-    let result = fold(&acc1, &make_witness(41), &stmt2);
+    let stmt2 = make_statement(2, "sess-pmn", wrong_n_params, 14);
+    let result = fold(&acc1, &make_witness(14), &stmt2);
     assert!(
         result.is_err(),
         "N mismatch across fold boundary must be rejected"
@@ -279,14 +279,14 @@ fn test_be_mismatch_across_fold_boundary_rejected() {
     let acc = make_acc("sess-pmbe", params, 0, [0u8; 32]);
     let acc1 = fold(
         &acc,
-        &make_witness(50),
-        &make_statement(1, "sess-pmbe", params, 50),
+        &make_witness(13),
+        &make_statement(1, "sess-pmbe", params, 13),
     )
     .expect("first fold should succeed");
     // Different B_e
     let wrong_be_params = (65537, 1024, 32);
-    let stmt2 = make_statement(2, "sess-pmbe", wrong_be_params, 51);
-    let result = fold(&acc1, &make_witness(51), &stmt2);
+    let stmt2 = make_statement(2, "sess-pmbe", wrong_be_params, 14);
+    let result = fold(&acc1, &make_witness(14), &stmt2);
     assert!(
         result.is_err(),
         "B_e mismatch across fold boundary must be rejected"
@@ -302,14 +302,14 @@ fn test_stmt_from_session_a_folded_into_acc_from_session_b_rejected() {
     let acc_b = make_acc("session-B", params, 0, [0u8; 32]);
     let acc_b1 = fold(
         &acc_b,
-        &make_witness(60),
-        &make_statement(1, "session-B", params, 60),
+        &make_witness(13),
+        &make_statement(1, "session-B", params, 13),
     )
     .expect("first fold in session-B should succeed");
 
     // Statement belongs to session-A, not session-B
-    let stmt_a = make_statement(2, "session-A", params, 61);
-    let result = fold(&acc_b1, &make_witness(61), &stmt_a);
+    let stmt_a = make_statement(2, "session-A", params, 14);
+    let result = fold(&acc_b1, &make_witness(14), &stmt_a);
     assert!(
         result.is_err(),
         "cross-session contamination (stmt-A into acc-B) must be rejected"

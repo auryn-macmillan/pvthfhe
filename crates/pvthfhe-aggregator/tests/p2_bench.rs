@@ -87,7 +87,7 @@ struct BenchResults {
 // ---------- core measurement --------------------------------------------------
 
 fn measure(n: usize, fold_depth: u32) -> BenchRow {
-    let tag: u8 = 0xab;
+    let tag: u8 = 0x05;
     let params = (65537_u64, n, 17_u64);
 
     // Build up `fold_depth` folds, timing the whole loop.

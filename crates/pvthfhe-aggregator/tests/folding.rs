@@ -130,8 +130,8 @@ mod folding {
         let acc = make_acc("session-d", params, 0, [0u8; 32]);
         let acc1 = real_fold_stub(
             &acc,
-            &make_witness(31),
-            &make_statement(1, "session-d", params, 31),
+            &make_witness(15),
+            &make_statement(1, "session-d", params, 15),
         )
         .unwrap();
         let wrong_params = (65537, 512, 17);
@@ -146,14 +146,14 @@ mod folding {
         let acc = make_acc("session-e", params, 0, [0u8; 32]);
         let left = real_fold_stub(
             &acc,
-            &make_witness(41),
-            &make_statement(1, "session-e", params, 41),
+            &make_witness(13),
+            &make_statement(1, "session-e", params, 13),
         )
         .unwrap();
         let right = real_fold_stub(
             &acc,
-            &make_witness(42),
-            &make_statement(1, "session-e", params, 42),
+            &make_witness(14),
+            &make_statement(1, "session-e", params, 14),
         )
         .unwrap();
         assert_ne!(
@@ -166,8 +166,8 @@ mod folding {
     fn test_fold_determinism() {
         let params = base_params();
         let acc = make_acc("session-f", params, 0, [0u8; 32]);
-        let stmt = make_statement(1, "session-f", params, 51);
-        let wit = make_witness(51);
+        let stmt = make_statement(1, "session-f", params, 16);
+        let wit = make_witness(16);
         let left = real_fold_stub(&acc, &wit, &stmt).unwrap();
         let right = real_fold_stub(&acc, &wit, &stmt).unwrap();
         assert_eq!(left, right, "same inputs should fold deterministically");

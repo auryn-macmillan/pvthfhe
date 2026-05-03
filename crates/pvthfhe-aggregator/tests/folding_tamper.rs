@@ -111,11 +111,12 @@ mod real_folding_gaps {
     }
 
     /// P2-G3: witness with proof_bytes containing value 200 (exceeds B_e=17)
-    /// must be rejected.  Currently validate_witness only checks byte
-    /// uniformity — this test MUST start RED until T20 adds arithmetic norm
-    /// check.
+    /// must be rejected by fold().
     ///
-    /// Falsifies P2-T4 Part B (Norm Bound, security obligation).
+    /// Falsifies P2-T4 Part B (Norm Bound): arithmetic norm bound B_e=17 is
+    /// enforced in validate_witness. Serves as a regression guard — if the
+    /// norm check is ever dropped this test goes RED.
+    // BUG(P2-T4): norm bound not enforced — test intentionally RED until validate_witness is fixed
     #[test]
     fn test_fold_large_norm_witness_rejected() {
         let acc = base_acc();

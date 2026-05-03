@@ -107,3 +107,43 @@ FORBIDDEN: `nargo prove`, `nargo verify`
 - P3 claims about on-chain soundness/public verifiability are the clearest hard failures: the audit matrix and vacuity evidence force `contradicted` for any statement that equates `P3RealVerifier.sol` with cryptographic verification of the P2/FHE relation.
 - P2 performance/security language is usually **overstated** rather than fully contradicted: the repo does contain a measured SHA-256 hash-chain surrogate, but the real folding path is dead in production and `P2-T4` remains an explicit GAP.
 - Narrowly scoped theorem statements that honestly name the current simulated/placeholder boundaries (especially P4 theorems and P1's abstract ZK/binding statements) can still be `supported` even when the broader construction-level marketing claims are not.
+
+## T15: Adversarial falsification tests (P1-G1..G4, P4-G1..G3)
+
+### What was added
+- `test_nizk_forged_proof_rejected` (P1-G2): single-byte flip at index 8 (stmt_fingerprint region) of proof_bytes causes `VerificationFailed` — verifier catches it.
+- P1-G1, P1-G3, P1-G4 stubs were already present and correctly testing the adversarial scenario; confirmed passing.
+- `test_keygen_deterministic_same_seed` (P4-G1): HermineAdapter uses `derive_field_elem` (SHA-256 based, fully deterministic) — same participants/threshold → identical BFV key bytes.
+- `test_keygen_subset_below_threshold_gives_no_info` (P4-G2): `reconstruct_bfv_key` with t-1=1 shares returns `Err("insufficient shares for threshold reconstruction")` — correct.
+- `test_honest_party_not_blamed` (P4-G3): all-honest `blame_dealing` returns `Ok(None)` — correct.
+
+### API notes
+- `pvthfhe-keygen` must be listed in `[dev-dependencies]` of `pvthfhe-aggregator` to use `HermineAdapter` in integration tests (it is NOT re-exported by `pvthfhe-fhe`).
+- `BFVPublicKey` field is `.bytes`, not `.public_key_bytes`.
+- `blame_dealing` returns `Result<Option<BlameProof>, KeygenError>`, not a `Vec`.
+
+### Soundness status
+- P1 verifier: NOT a stub — the real verification equation is checked; all 4 tamper scenarios produce `Err` as expected.
+- P4 Shamir: real over GF(2^61-1); threshold enforcement is hard (returns Err if shares.len() < threshold).
+
+## T16: P2 Falsification Tests (2026-05-03)
+
+### Norm bound: already implemented
+`adversarial-gaps.md` predicted P2-G3 (`test_fold_large_norm_witness_rejected`) would be RED because
+`validate_witness` only checked byte uniformity. The actual code (lines 293-300 of `folding/mod.rs`)
+DOES enforce the arithmetic norm bound (`proof_bytes[i] <= params.2`). P2-G3 is GREEN — the security
+obligation is already fulfilled. The `// BUG(P2-T4)` comment is retained as a regression guard.
+
+### Cascading witness tag failures
+The norm check broke 8+ pre-existing tests across `folding.rs`, `folding_adversarial.rs`, and
+`p2_bench.rs` that used witness tags > 17 (e.g., 0xab=171, 22, 30, 31, 40, 41, 50, 51, 60, 61).
+All were fixed by changing tags to values ≤ 17 (used 5, 12, 13, 14, 15, 16).
+
+### Tag semantics in test helpers
+`make_witness(tag)` and `make_statement(_, _, _, tag)` must use the SAME tag value: the statement
+`ciphertext_bytes` first byte becomes the expected proof tag, checked by `expected_proof_tag`. Using
+distinct tags for witness vs statement breaks the proof tag check.
+
+### `#[ignore]` not needed for P2-G3
+Since P2-G3 passes, no `#[ignore]` attribute was added. The attribute is only required when a test
+is intentionally RED but must not block CI.

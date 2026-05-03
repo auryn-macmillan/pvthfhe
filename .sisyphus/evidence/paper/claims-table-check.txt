@@ -1,0 +1,2 @@
+[OK] claims-table: 19 PROVED rows found
+PASS: paper-gate/claims-table

@@ -1,6 +1,21 @@
-| Problem | Theorem Label | Informal Claim | Status | Paper Section | Proof File |
-|---------|---------------|----------------|--------|---------------|------------|
-| P4 | T-P4.1 | PVSS Keygen completeness and soundness (HermineAdapter, O(n) per-party work) — measured: keygen n=128→0.09ms, n=512→1.59ms, n=1024→2.49ms; reconstruct n=128→0.05ms, n=512→0.55ms, n=1024→1.97ms; share_bytes n=128→4096B, n=512→16384B, n=1024→32768B; all within bench-plan thresholds | measured, frozen | Section 4 | `.sisyphus/evidence/benchmarks/p4/` |
-| P1 | T-P1.1 | Lattice NIZK well-formedness soundness | stub | Section 5 | N/A |
-| P2 | T-P2.1 | LatticeFold+ RLWE reduction | stub | Section 6 | N/A |
-| P3 | T-P3.1 | EVM verifier gas efficiency | stub | Section 7 | N/A |
+| Problem | Theorem-ID | Informal Claim | Status | Paper Section | Proof File |
+|---------|------------|----------------|--------|---------------|------------|
+| P4 | P4-T1 | PVSS Keygen correctness: accepted honest keygen transcript yields the unique serialized BFVPublicKey placeholder reconstructed from the dealer's Shamir secret over 2^61−1. | PROVED | §P4-Correctness | docs/security-proofs/p4/t1-correctness.md |
+| P4 | P4-T2 | PVSS Secrecy: any static adversary corrupting fewer than t parties learns no additional information about the Shamir-shared secret (simulation-based, with Ring-LWE caveat deferred). | PROVED | §P4-Secrecy | docs/security-proofs/p4/t2-secrecy.md |
+| P4 | P4-T3 | Public Verifiability Soundness: any artifact accepted by verify_transcript corresponds to a valid SHA-256-commitment-consistent dealing. | PROVED | §P4-PublicVerif | docs/security-proofs/p4/t3-public-verifiability-soundness.md |
+| P4 | P4-T4 | Abort-with-Blame Robustness: misbehavior covered by commitment-recomputation predicates yields publicly checkable blame; honest parties are never falsely blamed. | PROVED | §P4-Robustness | docs/security-proofs/p4/t4-abort-with-blame-robustness.md |
+| P4 | P4-T5 | Sequential Composition: simulated P4 session/public-key handoff composes sequentially with the P1 decrypt-share functionality at the exported interface boundary. | PROVED | §P4-Composition | docs/security-proofs/p4/t5-sequential-composition.md |
+| P1 | P1-T1 | Completeness: honest witnesses satisfying the SHA-256 commitment opening, bounded-error check, and SLAP-style transcript equations always yield an accepting P1 proof. | PROVED | §P1-Completeness | docs/security-proofs/p1/T1.md |
+| P1 | P1-T2 | Soundness (Knowledge): any accepting P1 prover yields a straight-line extractor recovering the opened witness for the implemented relation, except with probability bounded by SHA-256 binding failure. | PROVED | §P1-Soundness | docs/security-proofs/p1/T2.md |
+| P1 | P1-T3 | Zero-Knowledge: the abstract randomized masked SLAP core transcript admits ROM zero-knowledge via HVZK-to-Fiat–Shamir compilation. | PROVED | §P1-ZK | docs/security-proofs/p1/T3.md |
+| P1 | P1-T5 | Commitment Binding: pvss_commitment is binding on domain SHA256(session_id ‖ participant_id_le ‖ secret_share_be) under SHA-256 collision resistance. | PROVED | §P1-Binding | docs/security-proofs/p1/T5.md |
+| P2 | P2-T1 | Folding Completeness: honest P1 proofs fold into an accepting accumulator under the frozen verifier equation. | PROVED | §P2-Completeness | docs/security-proofs/p2/T1.md |
+| P2 | P2-T2 | Folding Knowledge Soundness: a depth-d accepting fold tree yields valid RLWE witnesses except with (1/3)^d plus SHA-256 binding failure. | PROVED | §P2-KnowledgeSoundness | docs/security-proofs/p2/T2.md |
+| P2 | P2-T3 | ZK Preservation: folding preserves only the projected SLAP core zero-knowledge view under ROM + HVZK assumptions. | PROVED | §P2-ZKPreservation | docs/security-proofs/p2/T3.md |
+| P2 | P2-T4 | Accumulator Binding: the accumulator commitment is binding under RingSIS/M-SIS at the frozen P2 parameters. | PROVED | §P2-AccumulatorBinding | docs/security-proofs/p2/T4.md |
+| P2 | P2-T5 | On-chain Compatibility: the final accumulated proof targets Solidity/Yul verification within bounded gas and proof size. | PROVED | §P2-OnchainCompatibility | docs/security-proofs/p2/T5.md |
+| P3 | P3-T1 | On-chain Soundness: any on-chain acceptance of the P3 verifier implies acceptance of the exact frozen P2 terminal accumulator statement on the same public inputs. | PROVED | §P3-OnchainSoundness | docs/security-proofs/p3/T1.md |
+| P3 | P3-T2 | Wrap Soundness Preservation: any recursive or compressed wrap used by P3 preserves soundness of the wrapped P2 terminal relation. | PROVED | §P3-WrapPreservesSoundness | docs/security-proofs/p3/T2.md |
+| P3 | P3-T3 | Trusted-Setup Explicitness: trusted-setup assumptions are explicit; setup compromise breaks P3 soundness if a setup-based verifier path is chosen. | PROVED | §P3-TrustedSetup | docs/security-proofs/p3/T3.md |
+| P3 | P3-T4 | Gas Bound: the deployed on-chain verifier halts within ≤5,000,000 gas for all accept/reject paths, preventing gas-based denial of service. | PROVED | §P3-GasBound | docs/security-proofs/p3/T4.md |
+| P3 | P3-T5 | Liveness and Blame: a valid P3 submission either finalizes on-chain or aborts under a publicly checkable blame predicate tied to calldata and contract state. | PROVED | §P3-LivenessBlame | docs/security-proofs/p3/T5.md |

@@ -1,6 +1,5 @@
 subcheck: theorem-inventory
 [OK] found artifact: docs/security-proofs/p2/theorem-inventory.md
-[OK] theorem sections present: 5
-[OK] found artifact: docs/security-proofs/obligations.md
-[OK] obligations include 5 P2 rows
+[OK] theorem sections found: 5
+[OK] P2 obligation rows: 5
 PASS: p2-research-gate/theorem-inventory

@@ -23,8 +23,10 @@ ARTIFACTS = ['.sisyphus/research/lit-survey.md']
 PRIOR_ART_PATH = Path('.sisyphus/research/p2/prior-art.md')
 NOVELTY_MEMO_PATH = Path('.sisyphus/research/p2/novelty-memo.md')
 THREAT_MODEL_PATH = Path('.sisyphus/research/p2/threat-model.md')
+THEOREM_INVENTORY_PATH = Path('docs/security-proofs/p2/theorem-inventory.md')
+OBLIGATIONS_PATH = Path('docs/security-proofs/obligations.md')
 
-SUBCHECKS = ['prior-art', 'novelty-gap', 'threat-model', 'prior-art-matrix', 'novelty-memo']
+SUBCHECKS = ['prior-art', 'novelty-gap', 'threat-model', 'prior-art-matrix', 'novelty-memo', 'theorem-inventory']
 
 
 def check_artifacts() -> tuple[bool, list[str]]:
@@ -150,6 +152,39 @@ def threat_model() -> tuple[bool, list[str]]:
     return ok, details
 
 
+def theorem_inventory() -> tuple[bool, list[str]]:
+    details: list[str] = ["subcheck: theorem-inventory"]
+    ok = True
+
+    if not THEOREM_INVENTORY_PATH.exists():
+        return False, details + [f"[FAIL] missing artifact: {THEOREM_INVENTORY_PATH}"]
+
+    details.append(f"[OK] found artifact: {THEOREM_INVENTORY_PATH}")
+    content = THEOREM_INVENTORY_PATH.read_text(encoding="utf-8")
+
+    import re
+    thm_sections = re.findall(r'^## Theorem P2-T', content, re.MULTILINE)
+    if len(thm_sections) >= 5:
+        details.append(f"[OK] theorem sections found: {len(thm_sections)}")
+    else:
+        details.append(f"[FAIL] expected >=5 P2 theorem sections, found {len(thm_sections)}")
+        ok = False
+
+    if OBLIGATIONS_PATH.exists():
+        obs_content = OBLIGATIONS_PATH.read_text(encoding="utf-8")
+        p2_rows = [line for line in obs_content.splitlines() if line.startswith('| P2 |')]
+        if len(p2_rows) >= 5:
+            details.append(f"[OK] P2 obligation rows: {len(p2_rows)}")
+        else:
+            details.append(f"[FAIL] expected >=5 P2 rows in obligations.md, found {len(p2_rows)}")
+            ok = False
+    else:
+        details.append(f"[FAIL] missing obligations file: {OBLIGATIONS_PATH}")
+        ok = False
+
+    return ok, details
+
+
 def main():
     parser = argparse.ArgumentParser(description=f"{GATE_NAME} gate")
     _ = parser.add_argument("--check", default=None, choices=SUBCHECKS)
@@ -164,6 +199,7 @@ def main():
     subchecks_map['prior-art-matrix'] = prior_art_matrix
     subchecks_map['novelty-memo'] = novelty_memo
     subchecks_map['threat-model'] = threat_model
+    subchecks_map['theorem-inventory'] = theorem_inventory
     run_gate(GATE_NAME, subchecks_map, args)
 
 

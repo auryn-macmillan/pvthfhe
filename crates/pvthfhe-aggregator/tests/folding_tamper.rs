@@ -33,7 +33,7 @@ mod real_folding_gaps {
 
     const PARAMS: (u64, usize, u64) = (65_537, 1_024, 17);
     const SESSION: &str = "test-session-p2";
-    const CTXT_TAG: u8 = 0xAB;
+    const CTXT_TAG: u8 = 0x05;
 
     fn base_acc() -> FoldAccumulator {
         FoldAccumulator::new(vec![0x01; 32], 0, SESSION.to_owned(), PARAMS, [0u8; 32])
@@ -58,6 +58,19 @@ mod real_folding_gaps {
                 proof_bytes: vec![CTXT_TAG; len],
             },
             fold_randomness: vec![0x11, 0x22, 0x33],
+        }
+    }
+
+    fn large_norm_stmt(fold_index: u64) -> FoldStatement {
+        FoldStatement {
+            fold_index,
+            session_id: SESSION.to_owned(),
+            params: PARAMS,
+            nizk_statement: NizkStatement {
+                session_id: SESSION.to_owned(),
+                params: PARAMS,
+                ciphertext_bytes: vec![200u8; 4],
+            },
         }
     }
 
@@ -106,12 +119,12 @@ mod real_folding_gaps {
     #[test]
     fn test_fold_large_norm_witness_rejected() {
         let acc = base_acc();
-        let s = stmt(1);
+        let s = large_norm_stmt(1);
         let large_norm = FoldWitness {
             nizk_proof: NizkProof {
-                // Uniform bytes with correct tag but value 171 >> B_e=17.
+                // Uniform bytes with correct tag (200) but value 200 >> B_e=17.
                 // Tag check passes; only an arithmetic norm check catches this.
-                proof_bytes: vec![CTXT_TAG; 4],
+                proof_bytes: vec![200u8; 4],
             },
             fold_randomness: vec![0x44, 0x55],
         };

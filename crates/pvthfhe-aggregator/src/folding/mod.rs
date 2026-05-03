@@ -290,6 +290,14 @@ fn validate_witness(witness: &FoldWitness, stmt: &FoldStatement) -> Result<(), F
     if proof_bytes[0] != expected_proof_tag(stmt) {
         return Err(FoldError("proof integrity check failed".to_string()));
     }
+    let error_bound = stmt.params.2;
+    if proof_bytes.iter().any(|&b| u64::from(b) > error_bound) {
+        return Err(FoldError(format!(
+            "witness coefficient {} exceeds norm bound {}",
+            proof_bytes.iter().copied().max().unwrap_or(0),
+            error_bound,
+        )));
+    }
     Ok(())
 }
 

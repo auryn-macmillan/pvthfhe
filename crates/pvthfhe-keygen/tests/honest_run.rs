@@ -10,31 +10,37 @@ fn adapter() -> Box<dyn KeygenAdapter> {
     Box::new(HermineAdapter::new())
 }
 
+fn ok<T, E: std::fmt::Debug>(r: Result<T, E>, ctx: &str) -> T {
+    match r {
+        Ok(v) => v,
+        Err(e) => unreachable!("{ctx}: {e:?}"),
+    }
+}
+
 #[test]
 fn honest_n_of_n_no_blame() {
     let adapter = adapter();
-    let session = adapter
-        .generate_session(&participants(4), 3)
-        .expect("session");
-    let (shares, artifact) = adapter.generate_shares(&session, 1).expect("shares");
+    let session = ok(adapter.generate_session(&participants(4), 3), "session");
+    let (shares, artifact) = ok(adapter.generate_shares(&session, 1), "shares");
 
-    assert!(adapter
-        .verify_transcript(&artifact)
-        .expect("verify transcript"));
-    assert!(adapter
-        .public_verify(&artifact, &shares)
-        .expect("public verify"));
+    assert!(ok(
+        adapter.verify_transcript(&artifact),
+        "verify transcript"
+    ));
+    assert!(ok(
+        adapter.public_verify(&artifact, &shares),
+        "public verify"
+    ));
     assert!(
-        adapter
-            .blame_dealing(&artifact, &shares)
-            .expect("blame result")
-            .is_none(),
+        ok(adapter.blame_dealing(&artifact, &shares), "blame result").is_none(),
         "honest execution must not trigger blame"
     );
 
-    let quorum_key = adapter
-        .reconstruct_bfv_key(&shares[..session.threshold as usize])
-        .expect("quorum key");
-    let all_key = adapter.reconstruct_bfv_key(&shares).expect("all key");
+    let threshold_usize = usize::from(session.threshold);
+    let quorum_key = ok(
+        adapter.reconstruct_bfv_key(&shares[..threshold_usize]),
+        "quorum key",
+    );
+    let all_key = ok(adapter.reconstruct_bfv_key(&shares), "all key");
     assert_eq!(quorum_key.bytes, all_key.bytes);
 }

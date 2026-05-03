@@ -1,0 +1,11 @@
+{
+  "gate": "p2-impl-gate",
+  "subcheck": "adversarial-tests-pass",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:41:46.283277+00:00",
+  "details": [
+    "subcheck: adversarial-tests-pass",
+    "[OK] found: /home/dev/pvthfhe/.sisyphus/evidence/p2-impl/adversarial.txt",
+    "[OK] adversarial.txt contains '15 passed'"
+  ]
+}

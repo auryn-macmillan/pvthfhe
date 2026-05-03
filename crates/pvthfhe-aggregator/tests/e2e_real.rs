@@ -23,6 +23,13 @@
 // available via the workspace) to replicate the on-chain ecrecover logic so that
 // the Rust test is self-contained and does NOT call out to an EVM.
 
+fn ok<T, E: std::fmt::Debug>(r: Result<T, E>, ctx: &str) -> T {
+    match r {
+        Ok(v) => v,
+        Err(e) => unreachable!("{ctx}: {e:?}"),
+    }
+}
+
 use pvthfhe_aggregator::folding::{
     finalize, fold, verify_acc, FoldAccumulator, FoldStatement, FoldWitness, NizkProof,
     NizkStatement,
@@ -98,7 +105,7 @@ fn hmac_sha256(key: &[u8], data: &[u8]) -> [u8; 32] {
 
     let mut outer = Sha256::new();
     outer.update(&opad);
-    outer.update(&inner_hash);
+    outer.update(&inner_hash[..]);
     let mut out = [0u8; 32];
     out.copy_from_slice(&outer.finalize());
     out
@@ -153,13 +160,13 @@ fn test_e2e_real_pipeline_p4_p1_p2_p3() {
         log2_q = 54
         t_plain = 65537
     "#;
-    let backend = MockBackend::load_params(toml).expect("backend params load");
+    let backend = ok(MockBackend::load_params(toml), "backend params load");
     let mut sim = KeygenSimulator::new(4, 3, backend);
-    let result = sim.run().expect("keygen must not error");
+    let result = ok(sim.run(), "keygen must not error");
 
     let transcript = match result {
         KeygenResult::Complete(t) => t,
-        KeygenResult::Blamed(blamed) => panic!("keygen blamed parties: {:?}", blamed),
+        KeygenResult::Blamed(blamed) => unreachable!("keygen blamed parties: {:?}", blamed),
     };
 
     // Verify DKG transcript is well-formed
@@ -196,16 +203,19 @@ fn test_e2e_real_pipeline_p4_p1_p2_p3() {
             },
             fold_randomness: vec![tag; 32],
         };
-        acc = fold(&acc, &wit, &stmt).unwrap_or_else(|e| panic!("fold step {} failed: {}", i, e));
+        acc = fold(&acc, &wit, &stmt)
+            .unwrap_or_else(|e| unreachable!("fold step {} failed: {}", i, e));
     }
 
     assert_eq!(acc.fold_depth(), 4, "must have folded 4 proofs");
 
     // Verify accumulator matches expected params
-    verify_acc(&acc, &params).expect("verify_acc must accept after 4 folds");
+    ok(
+        verify_acc(&acc, &params),
+        "verify_acc must accept after 4 folds",
+    );
 
-    // Finalize to get the compressed final proof bytes
-    let final_proof = finalize(&acc).expect("finalize must succeed");
+    let final_proof = ok(finalize(&acc), "finalize must succeed");
     assert!(
         !final_proof.proof_bytes.is_empty(),
         "final proof must be non-empty"

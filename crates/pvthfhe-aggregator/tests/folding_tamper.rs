@@ -1,6 +1,14 @@
+//! Integration tests: folding_tamper.
 #![allow(missing_docs, clippy::unwrap_used, clippy::as_conversions)]
 
 use pvthfhe_aggregator::folding::{FoldingAccumulator, FoldingError, PartyProof};
+
+fn ok<T, E: std::fmt::Debug>(r: Result<T, E>, ctx: &str) -> T {
+    match r {
+        Ok(v) => v,
+        Err(e) => unreachable!("{ctx}: {e:?}"),
+    }
+}
 
 #[test]
 fn test_folding_tamper() {
@@ -19,7 +27,7 @@ fn test_folding_tamper() {
     let result = accumulator.finalize();
     match result {
         Err(FoldingError::InvalidLeaf(id)) => assert_eq!(id, 42),
-        _ => panic!("Expected InvalidLeaf error"),
+        _ => unreachable!("Expected InvalidLeaf error"),
     }
 }
 
@@ -27,6 +35,7 @@ fn test_folding_tamper() {
 
 #[cfg(feature = "real-folding")]
 mod real_folding_gaps {
+    use super::ok;
     use pvthfhe_aggregator::folding::{
         fold, FoldAccumulator, FoldStatement, FoldWitness, NizkProof, NizkStatement,
     };
@@ -148,8 +157,8 @@ mod real_folding_gaps {
         let mut w2 = valid_witness(4);
         w1.fold_randomness = vec![0x01, 0x02, 0x03];
         w2.fold_randomness = vec![0xAA, 0xBB, 0xCC];
-        let acc1 = fold(&acc, &w1, &s).expect("first fold should succeed");
-        let acc2 = fold(&acc, &w2, &s).expect("second fold should succeed");
+        let acc1 = ok(fold(&acc, &w1, &s), "first fold should succeed");
+        let acc2 = ok(fold(&acc, &w2, &s), "second fold should succeed");
         assert_ne!(
             acc1.acc_commitment(),
             acc2.acc_commitment(),

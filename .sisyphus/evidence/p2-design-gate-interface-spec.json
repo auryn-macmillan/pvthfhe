@@ -1,0 +1,21 @@
+{
+  "gate": "p2-design-gate",
+  "subcheck": "interface-spec",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.720220+00:00",
+  "details": [
+    "subcheck: interface-spec",
+    "[OK] found artifact: .sisyphus/design/p2/interface-spec.md",
+    "[OK] required heading present: ## Statement Type",
+    "[OK] required heading present: ## Witness Type",
+    "[OK] required heading present: ## Accumulator Type",
+    "[OK] required heading present: ## Folding API",
+    "[OK] required heading present: ## Public-Input Layout",
+    "[OK] required heading present: ## Adapter Strategy",
+    "[OK] surrogate contamination marker absent: HonkVerifier",
+    "[OK] surrogate contamination marker absent: UltraHonk",
+    "[OK] surrogate contamination marker absent: Noir",
+    "[OK] surrogate contamination marker absent: aggregator_final",
+    "[OK] surrogate contamination marker absent: main.nr"
+  ]
+}

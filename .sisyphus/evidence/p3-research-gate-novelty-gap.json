@@ -1,0 +1,10 @@
+{
+  "gate": "p3-research-gate",
+  "subcheck": "novelty-gap",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.876034+00:00",
+  "details": [
+    "subcheck: novelty-gap",
+    "[OK] .sisyphus/research/lit-survey.md"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "gate": "p3-impl-gate",
+  "subcheck": "bench",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.929888+00:00",
+  "details": [
+    "[OK] bench: bench/p3/results-128-local.json exists"
+  ]
+}

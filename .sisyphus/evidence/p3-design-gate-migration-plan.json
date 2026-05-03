@@ -1,0 +1,17 @@
+{
+  "gate": "p3-design-gate",
+  "subcheck": "migration-plan",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.904513+00:00",
+  "details": [
+    "subcheck: migration-plan",
+    "[OK] found artifact: .sisyphus/design/p3/migration-plan.md",
+    "[OK] heading present: ## Surrogate Retirement",
+    "[OK] heading present: ## Rollback Criteria",
+    "[OK] heading present: ## VERDICT: APPROVE",
+    "[OK] surrogate verifier mentioned: HonkVerifier",
+    "[OK] feature flag strategy present",
+    "[OK] Foundry script path present: contracts/script/",
+    "[OK] rollback gas threshold present"
+  ]
+}

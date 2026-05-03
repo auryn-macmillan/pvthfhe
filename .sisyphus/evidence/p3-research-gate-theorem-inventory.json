@@ -1,0 +1,13 @@
+{
+  "gate": "p3-research-gate",
+  "subcheck": "theorem-inventory",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.876898+00:00",
+  "details": [
+    "subcheck: theorem-inventory",
+    "[OK] found artifact: docs/security-proofs/p3/theorem-inventory.md",
+    "[OK] theorem headings found: 5",
+    "[OK] gas phrase present",
+    "[OK] verdict present: ## VERDICT: APPROVE"
+  ]
+}

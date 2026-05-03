@@ -1,0 +1,10 @@
+{
+  "gate": "p1-impl-gate",
+  "subcheck": "tests-red",
+  "status": "PASS",
+  "timestamp": "2026-05-03T02:22:28.602691+00:00",
+  "details": [
+    "subcheck: tests-red",
+    "[OK] circuits/decrypt_share/src/main.nr"
+  ]
+}

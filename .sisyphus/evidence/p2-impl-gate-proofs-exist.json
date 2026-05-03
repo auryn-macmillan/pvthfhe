@@ -1,0 +1,14 @@
+{
+  "gate": "p2-impl-gate",
+  "subcheck": "proofs-exist",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:41:46.283578+00:00",
+  "details": [
+    "subcheck: proofs-exist",
+    "[OK] T1.md exists and contains VERDICT: APPROVE",
+    "[OK] T2.md exists and contains VERDICT: APPROVE",
+    "[OK] T3.md exists and contains VERDICT: APPROVE",
+    "[OK] T4.md exists and contains VERDICT: APPROVE",
+    "[OK] T5.md exists and contains VERDICT: APPROVE"
+  ]
+}

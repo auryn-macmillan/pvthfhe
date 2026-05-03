@@ -1,6 +1,7 @@
+//! Integration tests: keygen_malicious.
 #![allow(clippy::unwrap_used)]
-use pvthfhe_aggregator::keygen::simulator::{KeygenSimulator, KeygenResult, FaultType};
-use pvthfhe_fhe::{FheBackend, mock::MockBackend};
+use pvthfhe_aggregator::keygen::simulator::{FaultType, KeygenResult, KeygenSimulator};
+use pvthfhe_fhe::{mock::MockBackend, FheBackend};
 
 #[test]
 fn malformed_proof_blamed() {
@@ -16,7 +17,7 @@ fn malformed_proof_blamed() {
     let result = sim.run().unwrap();
     match result {
         KeygenResult::Blamed(ids) => assert!(ids.contains(&0)),
-        _ => panic!("Expected Blamed, got {:?}", result),
+        _ => unreachable!("Expected Blamed, got {:?}", result),
     }
 }
 
@@ -34,7 +35,7 @@ fn withhold_share_blamed() {
     let result = sim.run().unwrap();
     match result {
         KeygenResult::Blamed(ids) => assert!(ids.contains(&1)),
-        _ => panic!("Expected Blamed, got {:?}", result),
+        _ => unreachable!("Expected Blamed, got {:?}", result),
     }
 }
 
@@ -52,6 +53,6 @@ fn equivocate_blamed() {
     let result = sim.run().unwrap();
     match result {
         KeygenResult::Blamed(ids) => assert!(ids.contains(&2)),
-        _ => panic!("Expected Blamed, got {:?}", result),
+        _ => unreachable!("Expected Blamed, got {:?}", result),
     }
 }

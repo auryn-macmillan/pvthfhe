@@ -2,7 +2,8 @@
 
 use pvthfhe_bench::{
     folding::{
-        accumulator_size_bytes, prove_final_snark, run_folding_loop, sample_r1cs_instance, verify_final_snark,
+        accumulator_size_bytes, prove_final_snark, run_folding_loop, sample_r1cs_instance,
+        verify_final_snark,
     },
     summarize_samples, BenchEnv,
 };

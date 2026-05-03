@@ -41,7 +41,7 @@ where
 fn kat_vectors_roundtrip_and_derive_bfv_key() {
     let dir = vectors_dir();
     let mut entries: Vec<_> = std::fs::read_dir(&dir)
-        .unwrap_or_else(|error| panic!("cannot read vectors dir {:?}: {}", dir, error))
+        .expect("cannot read vectors dir")
         .filter_map(Result::ok)
         .filter(|entry| {
             entry
@@ -61,10 +61,8 @@ fn kat_vectors_roundtrip_and_derive_bfv_key() {
 
     for entry in entries {
         let path = entry.path();
-        let raw = std::fs::read_to_string(&path)
-            .unwrap_or_else(|error| panic!("cannot read {:?}: {}", path, error));
-        let vector: KatVector = serde_json::from_str(&raw)
-            .unwrap_or_else(|error| panic!("cannot parse {:?}: {}", path, error));
+        let raw = std::fs::read_to_string(&path).expect("cannot read KAT vector file");
+        let vector: KatVector = serde_json::from_str(&raw).expect("cannot parse KAT vector JSON");
 
         assert_eq!(
             vector.schema, "pvthfhe-p4-kat-v1",

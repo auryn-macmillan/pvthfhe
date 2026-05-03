@@ -1,0 +1,10 @@
+{
+  "gate": "p2-design-gate",
+  "subcheck": "paper-strategy",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.721177+00:00",
+  "details": [
+    "subcheck: paper-strategy",
+    "[OK] paper-strategy-decision.md found and validated"
+  ]
+}

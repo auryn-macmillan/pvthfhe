@@ -1,0 +1,9 @@
+{
+  "gate": "paper-gate",
+  "subcheck": "claims-table",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:38:38.009706+00:00",
+  "details": [
+    "[OK] claims-table: 19 PROVED rows found"
+  ]
+}

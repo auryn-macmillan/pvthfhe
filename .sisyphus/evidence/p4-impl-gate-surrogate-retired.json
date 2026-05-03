@@ -1,0 +1,10 @@
+{
+  "gate": "p4-impl-gate",
+  "subcheck": "surrogate-retired",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.435016+00:00",
+  "details": [
+    "subcheck: surrogate-retired",
+    "[OK] crates/pvthfhe-aggregator/src/keygen/protocol.rs"
+  ]
+}

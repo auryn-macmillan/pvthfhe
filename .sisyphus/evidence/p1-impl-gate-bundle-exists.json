@@ -1,0 +1,9 @@
+{
+  "gate": "p1-impl-gate",
+  "subcheck": "bundle-exists",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.664635+00:00",
+  "details": [
+    "[OK] bundle exists: /home/dev/pvthfhe/.sisyphus/contracts/p1-to-p2-bundle.md"
+  ]
+}

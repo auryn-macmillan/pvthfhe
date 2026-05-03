@@ -1,0 +1,26 @@
+{
+  "gate": "p3-design-gate",
+  "subcheck": "bench-plan",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.904357+00:00",
+  "details": [
+    "subcheck: bench-plan",
+    "[OK] found artifact: .sisyphus/design/p3/bench-plan.md",
+    "[OK] heading present: ## Benchmark Matrix",
+    "[OK] heading present: ## Measurement Protocol",
+    "[OK] heading present: ## VERDICT: APPROVE",
+    "[OK] network tier present: local-anvil",
+    "[OK] network tier present: sepolia-fork",
+    "[OK] network tier present: mainnet-fork",
+    "[OK] axis/value present: **n**",
+    "[OK] axis/value present: 128",
+    "[OK] axis/value present: 512",
+    "[OK] axis/value present: 1024",
+    "[OK] axis/value present: SP1+Groth16",
+    "[OK] axis/value present: Rust-in-zkVM",
+    "[OK] metric present: gas used",
+    "[OK] metric present: calldata bytes",
+    "[OK] metric present: prover wall-time",
+    "[OK] metric present: verifier wall-time"
+  ]
+}

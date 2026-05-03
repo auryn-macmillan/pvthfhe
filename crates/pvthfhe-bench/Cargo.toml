@@ -4,8 +4,14 @@ version = "0.1.0"
 license = "MIT"
 edition = "2021"
 
-[lints]
-workspace = true
+[lints.rust]
+missing_docs = "allow"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "warn"
+as_conversions = "warn"
 
 [features]
 default = []

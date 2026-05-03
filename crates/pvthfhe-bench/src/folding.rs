@@ -35,7 +35,13 @@ pub struct FoldRunSummary {
 pub fn sample_r1cs_instance() -> R1csInstance {
     let witness = vec![1, 3, 5, 7, 11, 13, 17, 19];
     let a_evals = witness.clone();
-    let b_evals: Vec<u64> = witness.iter().copied().cycle().skip(1).take(witness.len()).collect();
+    let b_evals: Vec<u64> = witness
+        .iter()
+        .copied()
+        .cycle()
+        .skip(1)
+        .take(witness.len())
+        .collect();
     let c_evals = a_evals
         .iter()
         .zip(b_evals.iter())
@@ -86,10 +92,21 @@ pub fn accumulator_size_bytes(accumulator: &FoldAccumulator) -> usize {
             * std::mem::size_of::<u64>()
 }
 
-pub fn prove_final_snark(accumulator: &FoldAccumulator, instance: &R1csInstance) -> FinalSnarkProof {
-    assert!(verify_folded_instance(accumulator, instance), "accumulator must verify before final proof");
+pub fn prove_final_snark(
+    accumulator: &FoldAccumulator,
+    instance: &R1csInstance,
+) -> FinalSnarkProof {
+    assert!(
+        verify_folded_instance(accumulator, instance),
+        "accumulator must verify before final proof"
+    );
     let byte_len = expected_final_snark_bytes(accumulator.fold_count);
-    let mut state = [0x243f_6a88_u64, 0x85a3_08d3_u64, 0x1319_8a2e_u64, 0x0370_7344_u64];
+    let mut state = [
+        0x243f_6a88_u64,
+        0x85a3_08d3_u64,
+        0x1319_8a2e_u64,
+        0x0370_7344_u64,
+    ];
     absorb_into_state(&mut state, accumulator.weight_sum);
     absorb_slice(&mut state, &accumulator.witness_sum);
     absorb_slice(&mut state, &accumulator.a_sum);
@@ -99,14 +116,21 @@ pub fn prove_final_snark(accumulator: &FoldAccumulator, instance: &R1csInstance)
     let mut bytes = vec![0_u8; byte_len];
     for (index, byte) in bytes.iter_mut().enumerate() {
         let lane = index % state.len();
-        state[lane] = mix_word(state[lane], (index as u64) + accumulator.fold_count as u64 + 1);
+        state[lane] = mix_word(
+            state[lane],
+            (index as u64) + accumulator.fold_count as u64 + 1,
+        );
         *byte = (state[lane] & 0xff) as u8;
     }
 
     FinalSnarkProof { bytes }
 }
 
-pub fn verify_final_snark(proof: &FinalSnarkProof, accumulator: &FoldAccumulator, instance: &R1csInstance) -> bool {
+pub fn verify_final_snark(
+    proof: &FinalSnarkProof,
+    accumulator: &FoldAccumulator,
+    instance: &R1csInstance,
+) -> bool {
     if !verify_folded_instance(accumulator, instance) {
         return false;
     }
@@ -146,11 +170,15 @@ pub fn verify_folded_instance(accumulator: &FoldAccumulator, instance: &R1csInst
             .iter()
             .zip(accumulator.b_sum.iter())
             .zip(accumulator.c_sum.iter())
-            .all(|((left, right), output)| mod_mul(*left, *right) == mod_mul(accumulator.weight_sum, *output))
+            .all(|((left, right), output)| {
+                mod_mul(*left, *right) == mod_mul(accumulator.weight_sum, *output)
+            })
 }
 
 fn challenge_for(index: usize) -> u64 {
-    let mut x = (index as u64).wrapping_add(1).wrapping_mul(0x9e37_79b9_7f4a_7c15);
+    let mut x = (index as u64)
+        .wrapping_add(1)
+        .wrapping_mul(0x9e37_79b9_7f4a_7c15);
     x ^= x >> 33;
     x = x.wrapping_mul(0xff51_afd7_ed55_8ccd);
     x ^= x >> 33;
@@ -168,7 +196,11 @@ fn fold_into(accumulator: &mut FoldAccumulator, instance: &R1csInstance, challen
     let mut sponge = challenge;
     for _ in 0..FOLD_WORK_ROUNDS {
         sponge = mix_word(sponge, accumulator.weight_sum);
-        for lane in [&mut accumulator.a_sum, &mut accumulator.b_sum, &mut accumulator.c_sum] {
+        for lane in [
+            &mut accumulator.a_sum,
+            &mut accumulator.b_sum,
+            &mut accumulator.c_sum,
+        ] {
             for value in lane.iter_mut() {
                 let sponge_mod = sponge % MODULUS;
                 *value = mod_add(*value, sponge_mod);

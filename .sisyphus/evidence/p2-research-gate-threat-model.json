@@ -1,0 +1,14 @@
+{
+  "gate": "p2-research-gate",
+  "subcheck": "threat-model",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.692480+00:00",
+  "details": [
+    "subcheck: threat-model",
+    "[OK] found artifact: .sisyphus/research/p2/threat-model.md",
+    "[OK] required section present: Corruption Model",
+    "[OK] required section present: Folding-Specific Threats",
+    "[OK] required section present: Knowledge-Soundness",
+    "[OK] required section present: P1 Consistency"
+  ]
+}

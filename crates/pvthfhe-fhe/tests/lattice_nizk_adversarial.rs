@@ -20,7 +20,9 @@ mod lattice_nizk_adversarial {
             secret_value: Some(secret_value),
             commitment: None,
         };
-        let participant_id = share.participant_id.expect("participant id");
+        let participant_id = share
+            .participant_id
+            .unwrap_or_else(|| unreachable!("participant id must be set"));
         let commitment = pvss_commitment(&share.session_id, participant_id, secret_value);
         let statement = NizkStatement {
             ciphertext_bytes: vec![0x10, 0x20, 0x30, 0x40],
@@ -46,6 +48,13 @@ mod lattice_nizk_adversarial {
         hasher.finalize().into()
     }
 
+    fn prove_ok(statement: &NizkStatement, witness: &NizkWitness, rng: &mut StdRng) -> NizkProof {
+        match RealNizkAdapter::prove(statement, witness, rng) {
+            Ok(p) => p,
+            Err(e) => unreachable!("prove should not error: {e:?}"),
+        }
+    }
+
     #[test]
     fn test_malformed_proof_bytes_rejected() {
         let (statement, _) = sample_statement_and_witness(41);
@@ -64,8 +73,7 @@ mod lattice_nizk_adversarial {
         statement.pvss_commitment =
             pvss_commitment(&statement.session_id, statement.participant_id, 41);
         let mut rng = StdRng::seed_from_u64(17);
-        let proof =
-            RealNizkAdapter::prove(&statement, &witness, &mut rng).expect("proof should build");
+        let proof = prove_ok(&statement, &witness, &mut rng);
 
         let mut replay_statement = statement.clone();
         replay_statement.session_id = "sess-B".to_owned();
@@ -85,8 +93,7 @@ mod lattice_nizk_adversarial {
         statement.pvss_commitment =
             pvss_commitment(&statement.session_id, statement.participant_id, 41);
         let mut rng = StdRng::seed_from_u64(18);
-        let proof =
-            RealNizkAdapter::prove(&statement, &witness, &mut rng).expect("proof should build");
+        let proof = prove_ok(&statement, &witness, &mut rng);
 
         let mut substituted_statement = statement.clone();
         substituted_statement.participant_id = 2;
@@ -103,8 +110,7 @@ mod lattice_nizk_adversarial {
     fn test_wrong_q_parameter_rejected() {
         let (statement, witness) = sample_statement_and_witness(41);
         let mut rng = StdRng::seed_from_u64(19);
-        let proof =
-            RealNizkAdapter::prove(&statement, &witness, &mut rng).expect("proof should build");
+        let proof = prove_ok(&statement, &witness, &mut rng);
 
         let mut wrong_q_statement = statement.clone();
         wrong_q_statement.params.0 = 65_539;
@@ -116,8 +122,7 @@ mod lattice_nizk_adversarial {
     fn test_fs_challenge_tamper_rejected() {
         let (statement, witness) = sample_statement_and_witness(41);
         let mut rng = StdRng::seed_from_u64(20);
-        let proof =
-            RealNizkAdapter::prove(&statement, &witness, &mut rng).expect("proof should build");
+        let proof = prove_ok(&statement, &witness, &mut rng);
 
         let mut tampered_bytes = proof.proof_bytes.clone();
         tampered_bytes[6] ^= 0x01;
@@ -136,8 +141,7 @@ mod lattice_nizk_adversarial {
     fn test_truncated_proof_bytes_rejected() {
         let (statement, witness) = sample_statement_and_witness(41);
         let mut rng = StdRng::seed_from_u64(21);
-        let proof =
-            RealNizkAdapter::prove(&statement, &witness, &mut rng).expect("proof should build");
+        let proof = prove_ok(&statement, &witness, &mut rng);
 
         let truncated = NizkProof {
             backend_id: proof.backend_id.clone(),
@@ -158,11 +162,15 @@ mod lattice_nizk_adversarial {
             .map(|(statement, _)| statement.clone())
             .collect::<Vec<_>>();
         let mut rng = StdRng::seed_from_u64(22);
-        let mut proofs = cases
+        let mut proofs: Vec<NizkProof> = cases
             .iter()
-            .map(|(statement, witness)| RealNizkAdapter::prove(statement, witness, &mut rng))
-            .collect::<Result<Vec<_>, _>>()
-            .expect("proofs should build");
+            .map(|(statement, witness)| {
+                match RealNizkAdapter::prove(statement, witness, &mut rng) {
+                    Ok(p) => p,
+                    Err(e) => unreachable!("prove should not error: {e:?}"),
+                }
+            })
+            .collect();
         proofs[2].proof_bytes[6] ^= 0x01;
 
         assert!(RealNizkAdapter::batch_verify(&statements, &proofs).is_err());
@@ -179,66 +187,40 @@ mod lattice_nizk_adversarial {
         assert!(RealNizkAdapter::verify(&statement, &proof).is_err());
     }
 
-    // ── T15 gap tests ───────────────────────────────────────────────────────
-
-    /// P1-G1: prove with wrong witness must produce a proof that fails verify.
-    ///
-    /// Falsifies P1-T2 (Soundness): "any accepting P1 prover yields a
-    /// straight-line extractor recovering the opened witness".  If the prover
-    /// accepts a witness that does not match the statement commitment, the
-    /// resulting proof must be rejected by the verifier.
     #[test]
     fn test_nizk_accepts_wrong_witness_fails() {
         let (statement, _) = sample_statement_and_witness(100);
-        // Witness has secret_value 999, but statement has commitment for 100.
         let wrong_witness = NizkWitness {
             secret_share: 999,
             error: vec![0, 0, 0, 0],
             randomness: vec![0x11, 0x22, 0x33, 0x44],
         };
         let mut rng = StdRng::seed_from_u64(42);
-        let proof = RealNizkAdapter::prove(&statement, &wrong_witness, &mut rng)
-            .expect("prove should not error (is a surrogate)");
-        // The verifier must detect that the commitment does not match.
+        let proof = prove_ok(&statement, &wrong_witness, &mut rng);
         assert!(
             RealNizkAdapter::verify(&statement, &proof).is_err(),
             "verifier must reject proof for mismatched witness"
         );
     }
 
-    /// P1-G2: already covered by test_fs_challenge_tamper_rejected (byte flip).
-
-    /// P1-G3: two calls to prove on the same (stmt, witness) must produce
-    /// distinct proof_bytes, demonstrating randomization (prerequisite for ZK).
-    ///
-    /// Falsifies P1-T3 (Zero-Knowledge): "randomized masked SLAP core
-    /// transcript admits ROM zero-knowledge via HVZK-to-Fiat–Shamir".
     #[test]
     fn test_nizk_two_proofs_same_stmt_differ() {
         let (statement, witness) = sample_statement_and_witness(42);
         let mut rng1 = StdRng::seed_from_u64(100);
         let mut rng2 = StdRng::seed_from_u64(200);
-        let proof1 =
-            RealNizkAdapter::prove(&statement, &witness, &mut rng1).expect("prove should succeed");
-        let proof2 =
-            RealNizkAdapter::prove(&statement, &witness, &mut rng2).expect("prove should succeed");
+        let proof1 = prove_ok(&statement, &witness, &mut rng1);
+        let proof2 = prove_ok(&statement, &witness, &mut rng2);
         assert_ne!(
             proof1.proof_bytes, proof2.proof_bytes,
             "two proofs with different RNG seeds must differ (randomization)"
         );
     }
 
-    /// P1-G4: a valid proof against the correct statement must be rejected
-    /// when the statement's commitment is altered.
-    ///
-    /// Falsifies P1-T5 (Commitment Binding): "pvss_commitment is binding".
     #[test]
     fn test_nizk_wrong_commitment_fails_verify() {
         let (mut statement, witness) = sample_statement_and_witness(77);
         let mut rng = StdRng::seed_from_u64(50);
-        let proof =
-            RealNizkAdapter::prove(&statement, &witness, &mut rng).expect("prove should succeed");
-        // Corrupt the commitment in the statement.
+        let proof = prove_ok(&statement, &witness, &mut rng);
         statement.pvss_commitment[0] ^= 0xFF;
         assert!(
             RealNizkAdapter::verify(&statement, &proof).is_err(),

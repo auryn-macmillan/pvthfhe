@@ -1,8 +1,8 @@
 #![allow(missing_docs, clippy::as_conversions)]
 
 use pvthfhe_bench::{
-    backends::{expected_rns_len, fhe_rs::FheRsBackend, POLY_DEGREE, RqOps},
-    BenchEnv, BenchRecord, summarize_samples,
+    backends::{expected_rns_len, fhe_rs::FheRsBackend, RqOps, POLY_DEGREE},
+    summarize_samples, BenchEnv, BenchRecord,
 };
 use std::{hint::black_box, time::Instant};
 

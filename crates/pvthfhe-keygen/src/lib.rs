@@ -230,13 +230,20 @@ pub mod stub {
     mod tests {
         use super::*;
 
+        fn ok<T, E: std::fmt::Debug>(r: Result<T, E>, ctx: &str) -> T {
+            match r {
+                Ok(v) => v,
+                Err(e) => unreachable!("{ctx}: {e:?}"),
+            }
+        }
+
         #[test]
         fn stub_round_trip_compiles_and_runs() {
             let adapter = SurrogateAdapter;
             let participants = vec![Participant { id: 1 }, Participant { id: 2 }];
-            let session = adapter.generate_session(&participants, 2).expect("session");
-            let (_shares, artifact) = adapter.generate_shares(&session, 1).expect("shares");
-            let valid = adapter.verify_transcript(&artifact).expect("verify");
+            let session = ok(adapter.generate_session(&participants, 2), "session");
+            let (_shares, artifact) = ok(adapter.generate_shares(&session, 1), "shares");
+            let valid = ok(adapter.verify_transcript(&artifact), "verify");
             assert!(valid);
         }
     }

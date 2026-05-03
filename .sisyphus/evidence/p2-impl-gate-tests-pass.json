@@ -1,0 +1,11 @@
+{
+  "gate": "p2-impl-gate",
+  "subcheck": "tests-pass",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:41:46.282899+00:00",
+  "details": [
+    "subcheck: tests-pass",
+    "[RUN] cargo test -p pvthfhe-aggregator --features=real-folding -- --test-threads=4",
+    "[OK] cargo test -p pvthfhe-aggregator --features=real-folding exited 0"
+  ]
+}

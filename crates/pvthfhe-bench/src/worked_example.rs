@@ -81,10 +81,8 @@ pub fn generate(seed: u64) -> WorkedExample {
             let sk = sample_ternary(&mut rng);
             let error = sample_small(&mut rng);
             let pk = add_poly(&neg_poly(&mul_negacyclic(&a, &sk)), &error);
-            let keygen_nizk = make_digest(
-                &format!("keygen-party-{party_id}"),
-                &[&a, &sk, &error, &pk],
-            );
+            let keygen_nizk =
+                make_digest(&format!("keygen-party-{party_id}"), &[&a, &sk, &error, &pk]);
 
             PartyRecord {
                 party_id,
@@ -96,9 +94,9 @@ pub fn generate(seed: u64) -> WorkedExample {
         })
         .collect::<Vec<_>>();
     let participant_set = vec![0, 1, 2];
-    let aggregate_pk = participant_set
-        .iter()
-        .fold(zero_poly(), |acc, party_id| add_poly(&acc, &parties[*party_id].pk));
+    let aggregate_pk = participant_set.iter().fold(zero_poly(), |acc, party_id| {
+        add_poly(&acc, &parties[*party_id].pk)
+    });
     let message = MESSAGE.into_iter().collect::<Vec<_>>();
     let randomness = RandomnessRecord {
         u: sample_nonzero_small(&mut rng),
@@ -106,9 +104,15 @@ pub fn generate(seed: u64) -> WorkedExample {
         e2: sample_small(&mut rng),
     };
 
-    let delta_message = message.iter().map(|coefficient| mod_q(DELTA * coefficient)).collect::<Vec<_>>();
+    let delta_message = message
+        .iter()
+        .map(|coefficient| mod_q(DELTA * coefficient))
+        .collect::<Vec<_>>();
     let c0 = add_poly(
-        &add_poly(&mul_negacyclic(&aggregate_pk, &randomness.u), &randomness.e1),
+        &add_poly(
+            &mul_negacyclic(&aggregate_pk, &randomness.u),
+            &randomness.e1,
+        ),
         &delta_message,
     );
     let c1 = add_poly(&mul_negacyclic(&a, &randomness.u), &randomness.e2);
@@ -118,7 +122,10 @@ pub fn generate(seed: u64) -> WorkedExample {
         .iter()
         .map(|party_id| {
             let smudge = sample_small(&mut rng);
-            let value = add_poly(&mul_negacyclic(&ciphertext.c1, &parties[*party_id].sk), &smudge);
+            let value = add_poly(
+                &mul_negacyclic(&ciphertext.c1, &parties[*party_id].sk),
+                &smudge,
+            );
             let proof = make_digest(
                 &format!("partial-party-{party_id}"),
                 &[&ciphertext.c1, &parties[*party_id].sk, &smudge, &value],
@@ -142,10 +149,18 @@ pub fn generate(seed: u64) -> WorkedExample {
         .collect::<Vec<_>>();
     let aggregate_proof = make_digest(
         "aggregate-proof",
-        &[&ciphertext.c0, &ciphertext.c1, &aggregate_partial, &m_recovered],
+        &[
+            &ciphertext.c0,
+            &ciphertext.c1,
+            &aggregate_partial,
+            &m_recovered,
+        ],
     );
 
-    assert_eq!(m_recovered, message, "worked example must round-trip directly from seed {seed}");
+    assert_eq!(
+        m_recovered, message,
+        "worked example must round-trip directly from seed {seed}"
+    );
 
     WorkedExample {
         seed,
@@ -177,15 +192,29 @@ pub fn render_report(example: &WorkedExample) -> String {
         "N_ring={}, q={}, t_plain={}, Delta={}, n_parties={}, threshold={}, seed={}",
         N_RING, MODULUS_Q, T_PLAIN, DELTA, N_PARTIES, THRESHOLD, example.seed
     ));
-    lines.push("derivation=single direct ChaCha20Rng transcript from seed=42 (no search)".to_owned());
+    lines.push(
+        "derivation=single direct ChaCha20Rng transcript from seed=42 (no search)".to_owned(),
+    );
     lines.push(format!("a={}", format_poly(&example.a)));
     lines.push(String::new());
     lines.push("Step 2 — KeyGen (each party)".to_owned());
 
     for party in &example.parties {
-        lines.push(format!("party {} sk={}", party.party_id, format_poly(&party.sk)));
-        lines.push(format!("party {} e={}", party.party_id, format_poly(&party.error)));
-        lines.push(format!("party {} pk={}", party.party_id, format_poly(&party.pk)));
+        lines.push(format!(
+            "party {} sk={}",
+            party.party_id,
+            format_poly(&party.sk)
+        ));
+        lines.push(format!(
+            "party {} e={}",
+            party.party_id,
+            format_poly(&party.error)
+        ));
+        lines.push(format!(
+            "party {} pk={}",
+            party.party_id,
+            format_poly(&party.pk)
+        ));
         lines.push(format!(
             "party {} nizk(commitment={}, challenge={}, response_norm={})",
             party.party_id,
@@ -224,8 +253,16 @@ pub fn render_report(example: &WorkedExample) -> String {
     lines.push("Step 4 — PartialDecrypt (parties 0, 1, 2)".to_owned());
 
     for partial in &example.partials {
-        lines.push(format!("d{} smudge={}", partial.party_id, format_poly(&partial.smudge)));
-        lines.push(format!("d{}={}", partial.party_id, format_poly(&partial.value)));
+        lines.push(format!(
+            "d{} smudge={}",
+            partial.party_id,
+            format_poly(&partial.smudge)
+        ));
+        lines.push(format!(
+            "d{}={}",
+            partial.party_id,
+            format_poly(&partial.value)
+        ));
         lines.push(format!(
             "d{} proof(commitment={}, challenge={}, response_norm={})",
             partial.party_id,
@@ -253,7 +290,10 @@ pub fn render_report(example: &WorkedExample) -> String {
     lines.join("\n")
 }
 
-fn interpolate_subset_polynomial(parties: &[PartyRecord], coefficient_index: usize) -> PolynomialSketch {
+fn interpolate_subset_polynomial(
+    parties: &[PartyRecord],
+    coefficient_index: usize,
+) -> PolynomialSketch {
     let y1 = parties[0].sk[coefficient_index];
     let y2 = parties[1].sk[coefficient_index];
     let y3 = parties[2].sk[coefficient_index];
@@ -330,12 +370,18 @@ fn sample_nonzero_small(rng: &mut ChaCha20Rng) -> Poly {
 fn decode_message(noisy: &Poly) -> Poly {
     noisy
         .iter()
-        .map(|coefficient| (((mod_q(*coefficient) as f64) * (T_PLAIN as f64) / (MODULUS_Q as f64)).round() as i64).rem_euclid(T_PLAIN))
+        .map(|coefficient| {
+            (((mod_q(*coefficient) as f64) * (T_PLAIN as f64) / (MODULUS_Q as f64)).round() as i64)
+                .rem_euclid(T_PLAIN)
+        })
         .collect()
 }
 
 fn add_poly(lhs: &Poly, rhs: &Poly) -> Poly {
-    lhs.iter().zip(rhs.iter()).map(|(left, right)| mod_q(left + right)).collect()
+    lhs.iter()
+        .zip(rhs.iter())
+        .map(|(left, right)| mod_q(left + right))
+        .collect()
 }
 
 fn neg_poly(poly: &Poly) -> Poly {
@@ -388,7 +434,10 @@ fn zero_poly() -> Poly {
 }
 
 fn format_poly(poly: &Poly) -> String {
-    let centered = poly.iter().map(|value| center_lift(*value).to_string()).collect::<Vec<_>>();
+    let centered = poly
+        .iter()
+        .map(|value| center_lift(*value).to_string())
+        .collect::<Vec<_>>();
     format!("[{}]", centered.join(", "))
 }
 

@@ -1,4 +1,7 @@
-use super::{BackendAvailability, BackendGap, BackendProbe, RqOps};
+use super::{BackendAvailability, BackendProbe, RqOps};
+
+#[cfg(not(feature = "backend-fhe-rs"))]
+use super::BackendGap;
 
 pub const FHE_RS_PINNED_SHA: &str = "5f24d0b62a7329b789db07a065b68accd614a47b";
 
@@ -45,7 +48,7 @@ mod enabled {
         CONTEXT.get_or_init(|| {
             let context = match Context::new(&[MODULI_60_BIT[0]], POLY_DEGREE) {
                 Ok(context) => context,
-                Err(err) => panic!("valid single-limb fhe.rs context: {err:?}"),
+                Err(err) => unreachable!("valid single-limb fhe.rs context: {err:?}"),
             };
             Arc::new(context)
         })
@@ -56,7 +59,7 @@ mod enabled {
         CONTEXT.get_or_init(|| {
             let context = match Context::new(&MODULI_60_BIT, POLY_DEGREE) {
                 Ok(context) => context,
-                Err(err) => panic!("valid four-limb fhe.rs context: {err:?}"),
+                Err(err) => unreachable!("valid four-limb fhe.rs context: {err:?}"),
             };
             Arc::new(context)
         })
@@ -92,7 +95,7 @@ mod enabled {
                 Representation::PowerBasis,
             ) {
                 Ok(poly) => poly,
-                Err(err) => panic!("valid RNS polynomial: {err:?}"),
+                Err(err) => unreachable!("valid RNS polynomial: {err:?}"),
             }
         }
     }

@@ -112,7 +112,11 @@ pub fn summarize_samples(samples_ns: &[f64]) -> BenchStats {
     } else {
         sorted[sorted.len() / 2]
     };
-    let variance = sorted.iter().map(|sample| (sample - mean_ns).powi(2)).sum::<f64>() / sorted.len() as f64;
+    let variance = sorted
+        .iter()
+        .map(|sample| (sample - mean_ns).powi(2))
+        .sum::<f64>()
+        / sorted.len() as f64;
 
     BenchStats {
         median_ns,
@@ -125,9 +129,7 @@ pub fn summarize_samples(samples_ns: &[f64]) -> BenchStats {
 mod tests {
     use super::{
         backends::{BackendAvailability, BackendGap, BackendProbe, RqOps},
-        summarize_samples,
-        worked_example,
-        BenchRecord,
+        summarize_samples, worked_example, BenchRecord,
     };
 
     #[test]
@@ -149,7 +151,7 @@ mod tests {
             n_runs: 10,
         }) {
             Ok(value) => value,
-            Err(err) => panic!("serialize BenchRecord: {err}"),
+            Err(err) => unreachable!("serialize BenchRecord: {err}"),
         };
 
         assert!(json["case"].is_string());
@@ -171,7 +173,10 @@ mod tests {
         };
 
         assert_eq!(probe.name, "poulpy");
-        assert!(matches!(probe.availability, BackendAvailability::FeatureGap(_)));
+        assert!(matches!(
+            probe.availability,
+            BackendAvailability::FeatureGap(_)
+        ));
     }
 
     fn assert_rq_ops_contract<T: RqOps>(backend: &T) {
@@ -208,7 +213,10 @@ mod tests {
                 kernel: env.kernel,
             },
         };
-        let json = serde_json::to_value(&envelope).expect("serialize ScalingEnvelope");
+        let json = match serde_json::to_value(&envelope) {
+            Ok(v) => v,
+            Err(e) => unreachable!("serialize ScalingEnvelope: {e}"),
+        };
         assert!(json["mean"].is_number(), "missing mean");
         assert!(json["median"].is_number(), "missing median");
         assert!(json["p99"].is_number(), "missing p99");
@@ -225,7 +233,11 @@ mod tests {
         assert_eq!(transcript.m_recovered, transcript.message);
         assert_eq!(transcript.partials.len(), 3);
         assert_eq!(transcript.participant_set, vec![0, 1, 2]);
-        assert!(transcript.randomness.u.iter().any(|coefficient| *coefficient != 0));
+        assert!(transcript
+            .randomness
+            .u
+            .iter()
+            .any(|coefficient| *coefficient != 0));
         assert_eq!(transcript.partials[0].party_id, 0);
         assert_eq!(transcript.partials[1].party_id, 1);
         assert_eq!(transcript.partials[2].party_id, 2);

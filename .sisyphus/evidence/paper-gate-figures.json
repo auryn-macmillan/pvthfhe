@@ -1,0 +1,12 @@
+{
+  "gate": "paper-gate",
+  "subcheck": "figures",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:38:38.010036+00:00",
+  "details": [
+    "[OK] paper/figures/p4-bench.tex",
+    "[OK] paper/figures/p1-bench.tex",
+    "[OK] paper/figures/p2-bench.tex",
+    "[OK] paper/figures/p3-bench.tex"
+  ]
+}

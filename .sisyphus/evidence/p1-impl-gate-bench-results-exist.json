@@ -1,0 +1,11 @@
+{
+  "gate": "p1-impl-gate",
+  "subcheck": "bench-results-exist",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.664214+00:00",
+  "details": [
+    "[OK] bench/p1/results-128.json",
+    "[OK] bench/p1/results-512.json",
+    "[OK] bench/p1/results-1024.json"
+  ]
+}

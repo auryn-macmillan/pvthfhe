@@ -1,6 +1,7 @@
+//! Integration tests: keygen_honest.
 #![allow(clippy::unwrap_used)]
-use pvthfhe_aggregator::keygen::simulator::{KeygenSimulator, KeygenResult};
-use pvthfhe_fhe::{FheBackend, mock::MockBackend};
+use pvthfhe_aggregator::keygen::simulator::{KeygenResult, KeygenSimulator};
+use pvthfhe_fhe::{mock::MockBackend, FheBackend};
 
 #[test]
 fn honest_n4_keygen() {

@@ -1,0 +1,13 @@
+{
+  "gate": "p3-design-gate",
+  "subcheck": "proof-skeletons",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.904192+00:00",
+  "details": [
+    "subcheck: proof-skeletons",
+    "[OK] found artifact: docs/security-proofs/p3/proof-skeletons.md",
+    "[OK] found 5 theorem headings (## T1 \u2013 ## T5)",
+    "[OK] required phrase present: gas",
+    "[OK] verdict present: ## VERDICT: APPROVE"
+  ]
+}

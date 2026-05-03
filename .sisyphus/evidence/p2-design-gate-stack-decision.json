@@ -1,0 +1,16 @@
+{
+  "gate": "p2-design-gate",
+  "subcheck": "stack-decision",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.720531+00:00",
+  "details": [
+    "subcheck: stack-decision",
+    "[OK] found artifact: .sisyphus/design/p2/stack-decision.md",
+    "[OK] required heading present: ## Primary Stack",
+    "[OK] required heading present: ## Fallback Stacks",
+    "[OK] required heading present: ## Quantitative Comparison",
+    "[OK] required heading present: ## Recursion Fit",
+    "[OK] required heading present: ## Reviewer Sign-off",
+    "[OK] reviewer verdict present: VERDICT: APPROVE"
+  ]
+}

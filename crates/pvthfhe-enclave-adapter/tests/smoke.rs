@@ -1,3 +1,4 @@
+//! Smoke tests for the enclave adapter stub implementation.
 #![allow(clippy::unwrap_used)]
 #![cfg(feature = "stub")]
 
@@ -15,7 +16,11 @@ fn smoke_ciphernode_generate_key_share() {
     let node = PvthfheEnclaveCiphernode::new(backend, 0);
     let mut rng = rand::thread_rng();
     let share = node.generate_key_share(&mut rng);
-    assert!(share.is_ok(), "generate_key_share failed: {:?}", share.err());
+    assert!(
+        share.is_ok(),
+        "generate_key_share failed: {:?}",
+        share.err()
+    );
 }
 
 #[test]

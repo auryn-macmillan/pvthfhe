@@ -134,7 +134,7 @@ mod unit_tests {
     fn parse_params_ok() {
         let p = match parse_params(TOML) {
             Ok(params) => params,
-            Err(err) => panic!("parse: {err:?}"),
+            Err(err) => unreachable!("parse: {err:?}"),
         };
         assert_eq!(p.n, 8192);
         assert_eq!(p.log2_q, 174);

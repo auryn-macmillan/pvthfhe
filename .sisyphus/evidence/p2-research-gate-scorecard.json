@@ -1,0 +1,13 @@
+{
+  "gate": "p2-research-gate",
+  "subcheck": "scorecard",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.692907+00:00",
+  "details": [
+    "subcheck: scorecard",
+    "[OK] found artifact: .sisyphus/research/p2/scorecard.md",
+    "[OK] candidate rows present: 19",
+    "[OK] Primary declaration present",
+    "[OK] Fallback declaration present"
+  ]
+}

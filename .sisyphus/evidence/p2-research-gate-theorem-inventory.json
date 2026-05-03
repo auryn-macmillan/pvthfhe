@@ -1,0 +1,12 @@
+{
+  "gate": "p2-research-gate",
+  "subcheck": "theorem-inventory",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.692731+00:00",
+  "details": [
+    "subcheck: theorem-inventory",
+    "[OK] found artifact: docs/security-proofs/p2/theorem-inventory.md",
+    "[OK] theorem sections found: 5",
+    "[OK] P2 obligation rows: 5"
+  ]
+}

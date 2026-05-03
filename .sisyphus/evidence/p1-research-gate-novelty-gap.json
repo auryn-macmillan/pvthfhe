@@ -1,0 +1,14 @@
+{
+  "gate": "p1-research-gate",
+  "subcheck": "novelty-gap",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.463400+00:00",
+  "details": [
+    "subcheck: novelty-gap",
+    "[OK] found heading: ## Required Novelty",
+    "[OK] found heading: ## Aggressive Bets",
+    "[OK] found heading: ## Risk Register",
+    "[OK] found heading: ## Pivot Triggers",
+    "[OK] .sisyphus/research/p1/novelty-memo.md meets requirements"
+  ]
+}

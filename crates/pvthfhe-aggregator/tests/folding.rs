@@ -1,3 +1,4 @@
+//! Integration tests: folding.
 #![cfg(feature = "real-folding")]
 #![allow(missing_docs, clippy::unwrap_used, clippy::as_conversions)]
 
@@ -5,6 +6,13 @@ use pvthfhe_aggregator::folding::{
     finalize, fold, verify_acc, FinalProof, FoldAccumulator, FoldError, FoldStatement, FoldWitness,
     NizkProof, NizkStatement,
 };
+
+fn ok<T, E: std::fmt::Debug>(r: Result<T, E>, ctx: &str) -> T {
+    match r {
+        Ok(v) => v,
+        Err(e) => unreachable!("{ctx}: {e:?}"),
+    }
+}
 
 fn base_params() -> (u64, usize, u64) {
     (65537, 1024, 17)
@@ -80,11 +88,17 @@ mod folding {
         let acc = make_acc("session-a", params, 0, [0u8; 32]);
         let stmt1 = make_statement(1, "session-a", params, 1);
         let wit1 = make_witness(1);
-        let acc1 = real_fold_stub(&acc, &wit1, &stmt1).expect("fold 1 should succeed");
+        let acc1 = ok(real_fold_stub(&acc, &wit1, &stmt1), "fold 1 should succeed");
         let stmt2 = make_statement(2, "session-a", params, 2);
         let wit2 = make_witness(2);
-        let acc2 = real_fold_stub(&acc1, &wit2, &stmt2).expect("fold 2 should succeed");
-        real_verify_acc_stub(&acc2, &params).expect("verify_acc should accept");
+        let acc2 = ok(
+            real_fold_stub(&acc1, &wit2, &stmt2),
+            "fold 2 should succeed",
+        );
+        ok(
+            real_verify_acc_stub(&acc2, &params),
+            "verify_acc should accept",
+        );
     }
 
     #[test]
@@ -110,7 +124,10 @@ mod folding {
         )
         .unwrap();
         assert_eq!(acc3.fold_depth(), 3);
-        real_verify_acc_stub(&acc3, &params).expect("verify_acc should accept at depth 3");
+        ok(
+            real_verify_acc_stub(&acc3, &params),
+            "verify_acc should accept at depth 3",
+        );
     }
 
     #[test]
@@ -171,6 +188,6 @@ mod folding {
         let left = real_fold_stub(&acc, &wit, &stmt).unwrap();
         let right = real_fold_stub(&acc, &wit, &stmt).unwrap();
         assert_eq!(left, right, "same inputs should fold deterministically");
-        let _ = real_finalize_stub(&left).expect("finalize should work");
+        let _ = ok(real_finalize_stub(&left), "finalize should work");
     }
 }

@@ -1,0 +1,13 @@
+{
+  "gate": "p3-impl-gate",
+  "subcheck": "surrogate-retired",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.929630+00:00",
+  "details": [
+    "[OK] on-chain-verifier: contracts/src/generated/HonkVerifier.sol \u2014 SURROGATE-annotated",
+    "[OK] api-leakage: crates/pvthfhe-aggregator/src/keygen/protocol.rs \u2014 SURROGATE-annotated",
+    "[OK] aggregator-circuit: circuits/aggregator_final/src/main.nr \u2014 SURROGATE-annotated",
+    "[OK] decrypt-circuit: circuits/decrypt_share/src/main.nr \u2014 SURROGATE-annotated",
+    "[OK] surrogate-retired: 4/4 surrogates present and annotated"
+  ]
+}

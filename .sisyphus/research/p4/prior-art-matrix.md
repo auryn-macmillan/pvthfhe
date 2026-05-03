@@ -1,0 +1,35 @@
+# P4 Prior-Art Matrix for PVSS/DKG Schemes
+
+This matrix compares candidate PVSS/DKG lines relevant to threshold BFV-style key derivation. The emphasis is on public verifiability, blame support, asymptotic communication, dealer-freeness, and whether the scheme structure can plausibly derive an RLWE/BFV public key rather than only a discrete-log key.
+
+| Scheme (name + citation) | Assumption (DLOG/DDH/lattice/etc.) | Public Verifiability (yes/no) | Abort-with-Blame (yes/no) | Communication Complexity (per-party) | Dealer-Freeness (yes/no) | BFV-key Suitability (yes/no/partial + brief reason) |
+| --- | --- | --- | --- | --- | --- | --- |
+| Feldman VSS (FOCS 1987; DOI: 10.1109/SFCS.1987.4) | DLOG / discrete-log commitments | no | no | O(n) dealer-to-party shares plus O(t) commitments | no | no — polynomial commitments target finite-field/discrete-log secrets, not RLWE/BFV key material |
+| Pedersen DKG / VSS (CRYPTO 1991/1992; DOI: 10.1007/3-540-46766-1_9) | DLOG with Pedersen commitments | no | no | O(n) share traffic per dealer; O(n^2) total across all dealers in DKG | yes | no — good dealer-free baseline, but still discrete-log based and not publicly verifiable |
+| Gennaro-Jarecki-Krawczyk-Rabin DKG (Journal of Cryptology 2007; DOI: 10.1007/s00145-006-0347-3) | DLOG / DDH-style group assumptions | no | partial | O(n^2) total / O(n) per party across parallel VSS instances | yes | no — secure dealer-free DKG for discrete-log keys, not structured for BFV public-key derivation |
+| Schoenmakers PVSS (PKC 1999; DOI: 10.1007/3-540-49162-7_4) | DDH / discrete-log proofs of correct ElGamal encryption | yes | no | O(n t) verification work in classic threshold form; O(n) ciphertext publication | no | no — public verifiability is attractive, but the shared secret is still a group exponent |
+| SCRAPE (Cascudo-David, ePrint 2017/216) | DDH in ROM or DBS in pairing setting | yes | no | O(n) exponentiations for sharing/verifying/reconstruction per dealer | no | partial — scalable PVSS helps, but the instantiated secret/key objects remain discrete-log style rather than RLWE/BFV |
+| ALBATROSS (ASIACRYPT 2020; DOI: 10.1007/978-3-030-64840-4_11) | DDH in ROM; CDH in UC-oriented variant | yes | no | amortized O(log n) exponentiations per party per random output after batching | no | partial — strong scalability, but aimed at batched randomness beacons, not direct BFV key derivation |
+| FROST (Komlo-Goldberg, ePrint 2020/852; SAC 2020) | DLOG / Schnorr security in prime-order groups | no | yes | O(n) commitments/broadcasts per signing or refresh round | yes | no — identifiable abort is useful, but FROST is a threshold-signature protocol rather than PVSS/DKG for RLWE keys |
+| Practical Non-interactive PVSS with Thousands of Parties (Gentry-Halevi-Lyubashevsky, ePrint 2021/1397; DOI: 10.1007/978-3-031-06944-4_16) | LWE encryption plus DL-group Bulletproof machinery | yes | no | amortized near-O(1) ciphertext rate with O(n) public data and succinct proofs | no | partial — lattice encryption is closer to BFV needs, but the proof layer still mixes assumptions and does not output BFV key shares directly |
+| Groth Non-interactive DKG / PVSS (CRYPTO 2021; ePrint 2021/339) | Pairings / bilinear assumptions with CCA-secure multi-receiver encryption | yes | no | O(n) ciphertext elements per dealing; reduced constants via multi-receiver chunking | yes | no — elegant non-interactive DKG for threshold BLS, but tied to pairing-group discrete-log keys |
+| Hermine (task-designated ePrint 2025/901) | lattice assumptions: (Ring-)LWE and SIS / vector commitments with proof of smallness | yes | yes | O(n) encrypted-share publication per dealer with compact proof objects; verifier work intended subquadratic to practical O(n) | partial | yes — among listed rows this is the closest fit because it is post-quantum, publicly verifiable, and naturally reasons about structured lattice secrets that could be adapted toward BFV-style key material |
+| Class-group PVSS / classDist-PVSS (Cascudo-David, ePrint 2023/1651) | class-group analogue of DDH / hidden-order assumptions | yes | partial | O(n) publication and verification in the proposed PVSS/DKG layer | yes | partial — transparent-setup and public verifiability help, but output remains discrete-log/class-group oriented, not RLWE/BFV |
+
+### Hermine Protocol Flow
+
+The task identifies Hermine with ePrint 2025/901, so the summary below follows that attribution and the now-standard non-interactive lattice-PVSS pattern; exact notation, message names, and proof system details should be checked directly against the paper before protocol implementation. In the dealer commit phase, the dealer samples the secret-sharing polynomial (or equivalent linear secret-sharing encoding), computes per-recipient encrypted shares, and binds the full witness vector — secret coefficients, encryption randomness, and consistency auxiliaries — into a lattice-friendly vector commitment. The dealer then publishes the commitment, the batch of encrypted shares, and a non-interactive proof that the committed values are small, internally consistent, and correctly linked to the ciphertexts; this is the public object that replaces a classical complaint round. In the participant response phase, each recipient decrypts its own ciphertext, checks local consistency against the public commitment transcript, and if reconstruction or opening is later required, publishes a decryption/opening response together with a proof that the revealed value matches the earlier ciphertext and commitment relation. Aggregation works by combining enough valid openings or dealer transcripts so that anyone can reconstruct the committed sharing relation or the resulting public key material from public data, while invalid openings are excluded because they fail the same public proof checks. Public verifiability comes from the fact that every consistency relation — boundedness of the lattice witness, correctness of encryption, and correctness of decryption/opening — is tied to publicly checkable commitments and NIZK-style proofs rather than to private complaints. Abort-with-blame arises because any malformed ciphertext, invalid opening, or inconsistent response leaves a public transcript that fails verification against a named party's commitment or response proof, so the protocol can identify which dealer or participant caused the abort instead of only reporting generic failure.
+
+### Bibliographic Notes
+
+- Feldman VSS — DOI 10.1109/SFCS.1987.4.
+- Pedersen VSS / DKG base line — DOI 10.1007/3-540-46766-1_9.
+- Gennaro-Jarecki-Krawczyk-Rabin DKG — DOI 10.1007/s00145-006-0347-3.
+- Schoenmakers PVSS — DOI 10.1007/3-540-49162-7_4.
+- SCRAPE — ePrint 2017/216.
+- ALBATROSS — DOI 10.1007/978-3-030-64840-4_11 and ePrint 2020/644.
+- FROST — ePrint 2020/852.
+- Practical Non-interactive PVSS with Thousands of Parties — ePrint 2021/1397 and DOI 10.1007/978-3-031-06944-4_16.
+- Groth Non-interactive DKG and key resharing — ePrint 2021/339.
+- Hermine (as designated in task) — ePrint 2025/901.
+- Class-group PVSS / classDist-PVSS — ePrint 2023/1651.

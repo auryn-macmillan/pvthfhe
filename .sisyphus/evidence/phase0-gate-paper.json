@@ -1,0 +1,10 @@
+{
+  "gate": "phase0-gate",
+  "subcheck": "paper",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.994784+00:00",
+  "details": [
+    "[OK] paper/main.tex",
+    "[OK] paper/claims-table.md"
+  ]
+}

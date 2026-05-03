@@ -1,0 +1,89 @@
+{
+  "reviewer": "F3-E2E-QA",
+  "date": "2026-05-03",
+  "verdict": "APPROVE",
+  "results": {
+    "artifact_reproduce": {
+      "exit_code": 0,
+      "status": "PASS",
+      "steps": {
+        "cargo_build_workspace": "PASS",
+        "p3_bench": "PASS (20 forge tests, 0 failed)",
+        "e2e_real": "PASS (1/1 pipeline, trusted_proof=true, wrong_key_rejected=true)"
+      }
+    },
+    "paper_gate": {
+      "exit_code": 0,
+      "status": "PASS",
+      "subchecks": {
+        "claims_table": "PASS (19 PROVED rows)",
+        "theorem_consistency": "PASS (19 environments)",
+        "figures": "PASS (4/4)",
+        "internal_reviews": "PASS (3/3)",
+        "external_reviews": "PASS (1/1)",
+        "submission_bundle": "PASS"
+      },
+      "total": "6/6"
+    },
+    "cargo_test_workspace": {
+      "exit_code": 0,
+      "status": "PASS",
+      "passed": 82,
+      "failed": 0,
+      "note": "Fixed pre-existing protocol_test.rs missing threshold:None in two struct literals"
+    },
+    "forge_test": {
+      "exit_code": 0,
+      "status": "PASS",
+      "passed": 38,
+      "failed": 0,
+      "suites": {
+        "RealVerifierTest": "6/6",
+        "RealVerifierAdversarial": "14/14",
+        "KzgBatchVerifierTest": "6/6",
+        "PvtFheVerifierE2ETest": "3/3",
+        "PlaceholderTest": "2/2",
+        "InitializationTest": "1/1",
+        "Other": "6/6"
+      }
+    },
+    "surrogate_retirement_check": {
+      "exit_code": 0,
+      "status": "PASS",
+      "score": "4/4",
+      "items": {
+        "api_leakage": "PASS",
+        "on_chain_verifier": "PASS",
+        "decrypt_circuit": "PASS",
+        "aggregator_circuit": "PASS"
+      }
+    },
+    "on_chain_verifier": {
+      "status": "CONFIRMED",
+      "file": "contracts/src/P3RealVerifier.sol",
+      "mechanism": "ecrecover (ECDSA secp256k1)",
+      "line": 63,
+      "uses_sha256": false,
+      "trusted_signer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "max_gas": 5273,
+      "proof_size_bytes": 65,
+      "gas_budget": 5000000,
+      "gas_budget_ok": true
+    },
+    "e2e_pipeline": {
+      "status": "PASS",
+      "test": "test_e2e_real_pipeline_p4_p1_p2_p3",
+      "fold_depth": 4,
+      "final_proof_bytes": 32,
+      "public_inputs_length": 200,
+      "trusted_proof_verified": true,
+      "wrong_key_rejected": true
+    }
+  },
+  "summary": {
+    "total_rust_tests": 82,
+    "total_forge_tests": 38,
+    "total_tests": 120,
+    "all_pass": true
+  }
+}

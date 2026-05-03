@@ -1,0 +1,19 @@
+{
+  "gate": "p1-research-gate",
+  "subcheck": "scorecard-review",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.464873+00:00",
+  "details": [
+    "subcheck: scorecard-review",
+    "[OK] found review field: ## Summary",
+    "[OK] found review field: VERDICT: APPROVE",
+    "[OK] found review field: ## Scoring Rationale",
+    "[OK] found review field: ## Primary Justification",
+    "[OK] found review field: ## Fallback Justification",
+    "[OK] found review field: ## Risks",
+    "[OK] review memo references scorecard primary",
+    "[OK] review memo references fallback: Greyhound",
+    "[OK] review memo references fallback: Rust-in-zkVM (SP1 / RISC0 / Jolt)",
+    "[OK] .sisyphus/reviews/p1-scorecard-review.md meets requirements"
+  ]
+}

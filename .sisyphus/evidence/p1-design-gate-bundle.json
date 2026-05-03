@@ -1,0 +1,10 @@
+{
+  "gate": "p1-design-gate",
+  "subcheck": "bundle",
+  "status": "PASS",
+  "timestamp": "2026-05-03T01:42:31.696571+00:00",
+  "details": [
+    "subcheck: bundle",
+    "[OK] docs/governance/program-charter.md"
+  ]
+}

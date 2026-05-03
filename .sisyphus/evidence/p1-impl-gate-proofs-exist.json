@@ -1,0 +1,13 @@
+{
+  "gate": "p1-impl-gate",
+  "subcheck": "proofs-exist",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.664374+00:00",
+  "details": [
+    "[OK] docs/security-proofs/p1/T1.md",
+    "[OK] docs/security-proofs/p1/T2.md",
+    "[OK] docs/security-proofs/p1/T3.md",
+    "[OK] docs/security-proofs/p1/T4.md",
+    "[OK] docs/security-proofs/p1/T5.md"
+  ]
+}

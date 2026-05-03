@@ -1,0 +1,32 @@
+python3 .sisyphus/scripts/phase1-gate.py
+--- Artifact Checks ---
+[ARTIFACT] .sisyphus/research/threat-model.md: PASS
+[ARTIFACT] .sisyphus/research/assumptions-ledger.md: PASS
+[ARTIFACT] .sisyphus/research/lit-survey.md: PASS
+[ARTIFACT] .sisyphus/research/backend-selection.md: PASS
+[ARTIFACT] .sisyphus/research/bootstrapping-pv-memo.md: PASS
+[ARTIFACT] .sisyphus/research/arch-A-silent-setup.md: PASS
+[ARTIFACT] .sisyphus/research/arch-A-costs.json: PASS
+[ARTIFACT] .sisyphus/research/arch-B-lattice-folding.md: PASS
+[ARTIFACT] .sisyphus/research/arch-B-costs.json: PASS
+[ARTIFACT] .sisyphus/research/arch-C-noir-recursive.md: PASS
+[ARTIFACT] .sisyphus/research/arch-C-costs.json: PASS
+[ARTIFACT] .sisyphus/research/cost-comparison.md: PASS
+[ARTIFACT] .sisyphus/research/cost-comparison.json: PASS
+[ARTIFACT] .sisyphus/research/phase1-gate-report.md: PASS
+[ARTIFACT] .sisyphus/research/phase1-gate.json: PASS
+[ARTIFACT] bench/results/rlwe-relation-8192.json: PASS
+[ARTIFACT] bench/results/folding-1024.json: PASS
+[ARTIFACT] bench/results/kzg-batch-128.json: PASS
+
+--- Schema Checks ---
+[SCHEMA] .sisyphus/research/arch-A-costs.json: PASS
+[SCHEMA] .sisyphus/research/arch-B-costs.json: PASS
+[SCHEMA] .sisyphus/research/arch-C-costs.json: PASS
+
+--- Gate Decision Checks ---
+[DECISION] bootstrapping_pv_decision is 'defer': PASS
+[DECISION] verdict is 'GO': PASS
+[DECISION] Viable architectures (A+B) >= 2: PASS (Found 2)
+
+PHASE 1 GATE: PASS

@@ -19,6 +19,13 @@ use pvthfhe_aggregator::folding::{
 use serde::Serialize;
 use std::time::Instant;
 
+fn ok<T, E: std::fmt::Debug>(r: Result<T, E>, ctx: &str) -> T {
+    match r {
+        Ok(v) => v,
+        Err(e) => unreachable!("{ctx}: {e:?}"),
+    }
+}
+
 // ---------- helpers -----------------------------------------------------------
 
 fn make_acc(n: usize) -> FoldAccumulator {
@@ -96,18 +103,20 @@ fn measure(n: usize, fold_depth: u32) -> BenchRow {
     for i in 0..fold_depth {
         let stmt = make_stmt(i as u64 + 1, n, tag);
         let wit = make_witness(tag, n);
-        acc = fold(&acc, &wit, &stmt).expect("fold must succeed in benchmark");
+        acc = ok(fold(&acc, &wit, &stmt), "fold must succeed in benchmark");
     }
     let fold_elapsed_us = fold_start.elapsed().as_secs_f64() * 1_000_000.0;
 
     // Verify the accumulated proof.
     let verify_start = Instant::now();
-    verify_acc(&acc, &params).expect("verify_acc must succeed in benchmark");
+    ok(
+        verify_acc(&acc, &params),
+        "verify_acc must succeed in benchmark",
+    );
     let verify_elapsed_us = verify_start.elapsed().as_secs_f64() * 1_000_000.0;
 
-    // Finalize (produce final proof).
     let finalize_start = Instant::now();
-    let final_proof = finalize(&acc).expect("finalize must succeed in benchmark");
+    let final_proof = ok(finalize(&acc), "finalize must succeed in benchmark");
     let finalize_elapsed_us = finalize_start.elapsed().as_secs_f64() * 1_000_000.0;
 
     let proof_size = final_proof.proof_bytes.len();
@@ -142,11 +151,11 @@ fn write_results(n: usize, rows: Vec<BenchRow>) {
 
     // Ensure output directory exists (best-effort; test runner must have write access).
     let out_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../bench/p2");
-    std::fs::create_dir_all(&out_dir).expect("create bench/p2 dir");
+    ok(std::fs::create_dir_all(&out_dir), "create bench/p2 dir");
 
     let out_path = out_dir.join(format!("results-{n}.json"));
-    let json = serde_json::to_string_pretty(&results).expect("JSON serialization");
-    std::fs::write(&out_path, &json).expect("write results JSON");
+    let json = ok(serde_json::to_string_pretty(&results), "JSON serialization");
+    ok(std::fs::write(&out_path, &json), "write results JSON");
     println!("Wrote {}", out_path.display());
 }
 

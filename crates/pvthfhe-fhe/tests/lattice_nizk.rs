@@ -1,7 +1,5 @@
+//! Integration tests: lattice_nizk.
 #![cfg(feature = "real-nizk")]
-#![allow(clippy::panic)]
-
-//! RED tests for the frozen lattice NIZK adapter surface.
 
 mod lattice_nizk {
     use pvthfhe_fhe::real_nizk::{LatticeNizk, NizkStatement, NizkWitness, RealNizkAdapter};
@@ -9,6 +7,20 @@ mod lattice_nizk {
     use rand::rngs::StdRng;
     use rand::SeedableRng;
     use sha2::{Digest, Sha256};
+
+    fn ok<T, E: std::fmt::Debug>(r: Result<T, E>, ctx: &str) -> T {
+        match r {
+            Ok(v) => v,
+            Err(e) => unreachable!("{ctx}: {e:?}"),
+        }
+    }
+
+    fn some<T>(o: Option<T>, ctx: &str) -> T {
+        match o {
+            Some(v) => v,
+            None => unreachable!("{ctx}: got None"),
+        }
+    }
 
     fn sample_statement_and_witness(secret_value: u64) -> (NizkStatement, NizkWitness) {
         let share = Share {
@@ -18,7 +30,7 @@ mod lattice_nizk {
             secret_value: Some(secret_value),
             commitment: None,
         };
-        let participant_id = share.participant_id.expect("participant id");
+        let participant_id = some(share.participant_id, "participant id");
         let commitment = pvss_commitment(&share.session_id, participant_id, secret_value);
         let statement = NizkStatement {
             ciphertext_bytes: vec![0x10, 0x20, 0x30, 0x40],
@@ -49,11 +61,15 @@ mod lattice_nizk {
         let (statement, witness) = sample_statement_and_witness(41);
         let mut rng = StdRng::seed_from_u64(7);
 
-        let proof = RealNizkAdapter::prove(&statement, &witness, &mut rng)
-            .expect("real lattice NIZK prover should exist in GREEN phase");
+        let proof = ok(
+            RealNizkAdapter::prove(&statement, &witness, &mut rng),
+            "real lattice NIZK prover should exist in GREEN phase",
+        );
 
-        RealNizkAdapter::verify(&statement, &proof)
-            .expect("honest prover/verifier flow should accept in GREEN phase");
+        ok(
+            RealNizkAdapter::verify(&statement, &proof),
+            "honest prover/verifier flow should accept in GREEN phase",
+        );
     }
 
     #[test]
@@ -62,8 +78,10 @@ mod lattice_nizk {
         witness.secret_share = 99;
         let mut rng = StdRng::seed_from_u64(8);
 
-        let proof = RealNizkAdapter::prove(&statement, &witness, &mut rng)
-            .expect("tampered witness should still compile in RED phase");
+        let proof = ok(
+            RealNizkAdapter::prove(&statement, &witness, &mut rng),
+            "tampered witness should still compile in RED phase",
+        );
 
         assert!(
             RealNizkAdapter::verify(&statement, &proof).is_err(),
@@ -77,8 +95,10 @@ mod lattice_nizk {
         statement.pvss_commitment = [0x55; 32];
         let mut rng = StdRng::seed_from_u64(9);
 
-        let proof = RealNizkAdapter::prove(&statement, &witness, &mut rng)
-            .expect("wrong commitment case should compile in RED phase");
+        let proof = ok(
+            RealNizkAdapter::prove(&statement, &witness, &mut rng),
+            "wrong commitment case should compile in RED phase",
+        );
 
         assert!(
             RealNizkAdapter::verify(&statement, &proof).is_err(),
@@ -97,14 +117,18 @@ mod lattice_nizk {
             .map(|(statement, _)| statement.clone())
             .collect::<Vec<_>>();
         let mut rng = StdRng::seed_from_u64(10);
-        let proofs = cases
-            .iter()
-            .map(|(statement, witness)| RealNizkAdapter::prove(statement, witness, &mut rng))
-            .collect::<Result<Vec<_>, _>>()
-            .expect("batch prove path should exist in GREEN phase");
+        let proofs = ok(
+            cases
+                .iter()
+                .map(|(statement, witness)| RealNizkAdapter::prove(statement, witness, &mut rng))
+                .collect::<Result<Vec<_>, _>>(),
+            "batch prove path should exist in GREEN phase",
+        );
 
-        RealNizkAdapter::batch_verify(&statements, &proofs)
-            .expect("batch of honest proofs should verify in GREEN phase");
+        ok(
+            RealNizkAdapter::batch_verify(&statements, &proofs),
+            "batch of honest proofs should verify in GREEN phase",
+        );
     }
 
     #[test]
@@ -113,10 +137,14 @@ mod lattice_nizk {
         let mut rng_one = StdRng::seed_from_u64(11);
         let mut rng_two = StdRng::seed_from_u64(11);
 
-        let proof_one = RealNizkAdapter::prove(&statement, &witness, &mut rng_one)
-            .expect("first proof generation should exist in GREEN phase");
-        let proof_two = RealNizkAdapter::prove(&statement, &witness, &mut rng_two)
-            .expect("second proof generation should exist in GREEN phase");
+        let proof_one = ok(
+            RealNizkAdapter::prove(&statement, &witness, &mut rng_one),
+            "first proof generation should exist in GREEN phase",
+        );
+        let proof_two = ok(
+            RealNizkAdapter::prove(&statement, &witness, &mut rng_two),
+            "second proof generation should exist in GREEN phase",
+        );
 
         assert_eq!(
             proof_one.as_bytes(),
@@ -131,8 +159,10 @@ mod lattice_nizk {
         statement.participant_id = 8;
         let mut rng = StdRng::seed_from_u64(12);
 
-        let proof = RealNizkAdapter::prove(&statement, &witness, &mut rng)
-            .expect("participant-binding case should compile in RED phase");
+        let proof = ok(
+            RealNizkAdapter::prove(&statement, &witness, &mut rng),
+            "participant-binding case should compile in RED phase",
+        );
 
         assert!(
             RealNizkAdapter::verify(&statement, &proof).is_err(),

@@ -7,8 +7,8 @@
 //! Run without features to test the primary (fhe.rs) backend.
 
 use pvthfhe_fhe::{FheBackend, FheError};
-use rand::SeedableRng;
 use rand::rngs::StdRng;
+use rand::SeedableRng;
 use std::fmt::Debug;
 
 /// Minimal TOML params string for tests.
@@ -26,11 +26,23 @@ fn test_round_trip<B: FheBackend>(backend: B) {
 
     let share0 = must_ok(backend.keygen_share(0, &mut rng), "keygen_share(0) failed");
     let share1 = must_ok(backend.keygen_share(1, &mut rng), "keygen_share(1) failed");
-    let pk = must_ok(backend.aggregate_keygen(&[share0, share1]), "aggregate_keygen failed");
+    let pk = must_ok(
+        backend.aggregate_keygen(&[share0, share1]),
+        "aggregate_keygen failed",
+    );
     let ct = must_ok(backend.encrypt(&pk, plaintext, &mut rng), "encrypt failed");
-    let ds0 = must_ok(backend.partial_decrypt(&ct, 0, &mut rng), "partial_decrypt(0) failed");
-    let ds1 = must_ok(backend.partial_decrypt(&ct, 1, &mut rng), "partial_decrypt(1) failed");
-    let recovered = must_ok(backend.aggregate_decrypt(&ct, &[ds0, ds1], 2), "aggregate_decrypt failed");
+    let ds0 = must_ok(
+        backend.partial_decrypt(&ct, 0, &mut rng),
+        "partial_decrypt(0) failed",
+    );
+    let ds1 = must_ok(
+        backend.partial_decrypt(&ct, 1, &mut rng),
+        "partial_decrypt(1) failed",
+    );
+    let recovered = must_ok(
+        backend.aggregate_decrypt(&ct, &[ds0, ds1], 2),
+        "aggregate_decrypt failed",
+    );
     assert_eq!(recovered, plaintext.as_ref());
 }
 
@@ -57,9 +69,13 @@ fn test_insufficient_shares<B: FheBackend>(backend: B) {
     let mut rng = StdRng::seed_from_u64(1);
     let s0 = backend.keygen_share(0, &mut rng).expect("keygen_share(0)");
     let s1 = backend.keygen_share(1, &mut rng).expect("keygen_share(1)");
-    let pk = backend.aggregate_keygen(&[s0, s1]).expect("aggregate_keygen");
+    let pk = backend
+        .aggregate_keygen(&[s0, s1])
+        .expect("aggregate_keygen");
     let ct = backend.encrypt(&pk, b"test", &mut rng).expect("encrypt");
-    let ds0 = backend.partial_decrypt(&ct, 0, &mut rng).expect("partial_decrypt(0)");
+    let ds0 = backend
+        .partial_decrypt(&ct, 0, &mut rng)
+        .expect("partial_decrypt(0)");
     // Only 1 share but threshold=2 — must fail
     let result = backend.aggregate_decrypt(&ct, &[ds0], 2);
     assert!(
@@ -78,7 +94,7 @@ fn test_load_params<B: FheBackend>() {
 fn must_ok<T, E: Debug>(result: Result<T, E>, context: &str) -> T {
     match result {
         Ok(value) => value,
-        Err(err) => panic!("{context}: {err:?}"),
+        Err(err) => unreachable!("{context}: {err:?}"),
     }
 }
 

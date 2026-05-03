@@ -1,0 +1,10 @@
+{
+  "gate": "p3-research-gate",
+  "subcheck": "prior-art",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.875844+00:00",
+  "details": [
+    "subcheck: prior-art",
+    "[OK] .sisyphus/research/lit-survey.md"
+  ]
+}

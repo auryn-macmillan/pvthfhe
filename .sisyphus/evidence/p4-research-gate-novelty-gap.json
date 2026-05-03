@@ -1,0 +1,11 @@
+{
+  "gate": "p4-research-gate",
+  "subcheck": "novelty-gap",
+  "status": "PASS",
+  "timestamp": "2026-05-03T05:49:48.119354+00:00",
+  "details": [
+    "subcheck: novelty-gap",
+    "[OK] .sisyphus/research/threat-model.md",
+    "[OK] .sisyphus/research/lit-survey.md"
+  ]
+}

@@ -1,9 +1,9 @@
+//! Integration tests against golden test vectors for the pvthfhe-core mock backend.
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 
 use std::path::PathBuf;
 
-use hex;
 use pvthfhe_fhe::mock::MockBackend;
 use pvthfhe_fhe::types::{DecryptShare, KeygenShare, PublicKey};
 use pvthfhe_fhe::FheBackend;
@@ -63,27 +63,21 @@ fn vectors_dir() -> PathBuf {
 fn all_golden_vectors() {
     let dir = vectors_dir();
     let mut entries: Vec<_> = std::fs::read_dir(&dir)
-        .unwrap_or_else(|e| panic!("cannot read vectors dir {:?}: {}", dir, e))
+        .expect("cannot read vectors dir")
         .filter_map(|e| e.ok())
         .filter(|e| e.path().extension().map(|x| x == "json").unwrap_or(false))
         .collect();
     entries.sort_by_key(|e| e.path());
 
-    assert!(
-        !entries.is_empty(),
-        "no JSON files found in {:?}",
-        dir
-    );
+    assert!(!entries.is_empty(), "no JSON files found in {:?}", dir);
 
     let mut failures = 0usize;
     let mut rng = ChaCha8Rng::seed_from_u64(0);
 
     for entry in &entries {
         let path = entry.path();
-        let raw = std::fs::read_to_string(&path)
-            .unwrap_or_else(|e| panic!("cannot read {:?}: {}", path, e));
-        let v: TestVector = serde_json::from_str(&raw)
-            .unwrap_or_else(|e| panic!("cannot parse {:?}: {}", path, e));
+        let raw = std::fs::read_to_string(&path).expect("cannot read test vector file");
+        let v: TestVector = serde_json::from_str(&raw).expect("cannot parse test vector JSON");
 
         assert_eq!(
             v.schema, "pvthfhe-test-vector-v1",
@@ -98,16 +92,14 @@ fn all_golden_vectors() {
             .iter()
             .map(|s| KeygenShare {
                 party_id: s.party_id,
-                bytes: hex::decode(&s.share_bytes)
-                    .unwrap_or_else(|_| panic!("{:?}: bad hex in keygen_share", path)),
+                bytes: hex::decode(&s.share_bytes).expect("bad hex in keygen_share"),
             })
             .collect();
 
         let computed_pk = backend
             .aggregate_keygen(&keygen_shares)
-            .unwrap_or_else(|e| panic!("{:?}: aggregate_keygen failed: {:?}", path, e));
-        let expected_pk = hex::decode(&v.aggregate_pk)
-            .unwrap_or_else(|_| panic!("{:?}: bad hex in aggregate_pk", path));
+            .expect("aggregate_keygen failed");
+        let expected_pk = hex::decode(&v.aggregate_pk).expect("bad hex in aggregate_pk");
         if computed_pk.bytes != expected_pk {
             eprintln!(
                 "FAIL {:?} [{}]: aggregate_pk mismatch\n  expected: {}\n  got:      {}",
@@ -120,14 +112,12 @@ fn all_golden_vectors() {
             continue;
         }
 
-        let plaintext_bytes = hex::decode(&v.plaintext)
-            .unwrap_or_else(|_| panic!("{:?}: bad hex in plaintext", path));
+        let plaintext_bytes = hex::decode(&v.plaintext).expect("bad hex in plaintext");
         let pk = PublicKey { bytes: expected_pk };
         let computed_ct = backend
             .encrypt(&pk, &plaintext_bytes, &mut rng)
-            .unwrap_or_else(|e| panic!("{:?}: encrypt failed: {:?}", path, e));
-        let expected_ct = hex::decode(&v.ciphertext)
-            .unwrap_or_else(|_| panic!("{:?}: bad hex in ciphertext", path));
+            .expect("encrypt failed");
+        let expected_ct = hex::decode(&v.ciphertext).expect("bad hex in ciphertext");
         if computed_ct.bytes != expected_ct {
             eprintln!(
                 "FAIL {:?} [{}]: ciphertext mismatch\n  expected: {}\n  got:      {}",
@@ -145,17 +135,16 @@ fn all_golden_vectors() {
             .iter()
             .map(|s| DecryptShare {
                 party_id: s.party_id,
-                bytes: hex::decode(&s.share_bytes)
-                    .unwrap_or_else(|_| panic!("{:?}: bad hex in decrypt_share", path)),
+                bytes: hex::decode(&s.share_bytes).expect("bad hex in decrypt_share"),
             })
             .collect();
 
         let ct = pvthfhe_fhe::types::Ciphertext { bytes: expected_ct };
         let recovered = backend
             .aggregate_decrypt(&ct, &decrypt_shares, v.params.threshold)
-            .unwrap_or_else(|e| panic!("{:?}: aggregate_decrypt failed: {:?}", path, e));
-        let expected_recovered = hex::decode(&v.recovered_plaintext)
-            .unwrap_or_else(|_| panic!("{:?}: bad hex in recovered_plaintext", path));
+            .expect("aggregate_decrypt failed");
+        let expected_recovered =
+            hex::decode(&v.recovered_plaintext).expect("bad hex in recovered_plaintext");
 
         if recovered != expected_recovered {
             eprintln!(

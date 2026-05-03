@@ -1,0 +1,9 @@
+{
+  "gate": "p3-impl-gate",
+  "subcheck": "tests-red",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.929187+00:00",
+  "details": [
+    "[OK] red-tests: 6 failed confirmed (.sisyphus/evidence/p3-impl/red-tests.txt)"
+  ]
+}

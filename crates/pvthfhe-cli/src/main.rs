@@ -5,21 +5,25 @@
 #![warn(missing_docs)]
 
 use clap::{Parser, Subcommand};
-use rand::SeedableRng;
 use rand::rngs::StdRng;
+use rand::SeedableRng;
 use sha2::{Digest, Sha256};
 use tracing::{info, warn};
 
 use pvthfhe_aggregator::{
-    decrypt::{partial_decrypt, aggregate_decrypt},
+    decrypt::{aggregate_decrypt, partial_decrypt},
     folding::{FoldingAccumulator, PartyProof},
-    keygen::simulator::{KeygenSimulator, KeygenResult},
+    keygen::simulator::{KeygenResult, KeygenSimulator},
 };
-use pvthfhe_fhe::{FheBackend, mock::MockBackend};
+use pvthfhe_fhe::{mock::MockBackend, FheBackend};
 
 /// PVTHFHE command-line interface.
 #[derive(Parser, Debug)]
-#[command(name = "pvthfhe-cli", version, about = "Private-verifiable threshold FHE CLI")]
+#[command(
+    name = "pvthfhe-cli",
+    version,
+    about = "Private-verifiable threshold FHE CLI"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -97,20 +101,33 @@ fn main() -> anyhow::Result<()> {
     match cli.command {
         Commands::Keygen { n, threshold } => {
             let t = threshold.unwrap_or(n / 2 + 1);
-            info!(n, threshold = t, "keygen stub — use `demo` for full pipeline");
+            info!(
+                n,
+                threshold = t,
+                "keygen stub — use `demo` for full pipeline"
+            );
             println!("keygen: n={n} threshold={t} (stub)");
         }
         Commands::Encrypt { plaintext, pk } => {
             info!(plaintext = %plaintext, pk = %pk, "encrypt stub");
             println!("encrypt: plaintext={plaintext} pk={pk} (stub)");
         }
-        Commands::PartialDecrypt { party_id, ciphertext } => {
+        Commands::PartialDecrypt {
+            party_id,
+            ciphertext,
+        } => {
             info!(party_id, ciphertext = %ciphertext, "partial-decrypt stub");
             println!("partial-decrypt: party_id={party_id} ciphertext={ciphertext} (stub)");
         }
-        Commands::Aggregate { ciphertext, shares, threshold } => {
+        Commands::Aggregate {
+            ciphertext,
+            shares,
+            threshold,
+        } => {
             info!(ciphertext = %ciphertext, threshold, "aggregate stub");
-            println!("aggregate: ciphertext={ciphertext} shares={shares} threshold={threshold} (stub)");
+            println!(
+                "aggregate: ciphertext={ciphertext} shares={shares} threshold={threshold} (stub)"
+            );
         }
         Commands::Verify { proof } => {
             info!(proof = %proof, "verify stub");

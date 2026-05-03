@@ -1,0 +1,9 @@
+{
+  "gate": "paper-gate",
+  "subcheck": "theorem-consistency",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:38:38.009932+00:00",
+  "details": [
+    "[OK] theorem-consistency: 19 theorem environments found"
+  ]
+}

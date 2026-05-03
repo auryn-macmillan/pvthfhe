@@ -1,0 +1,9 @@
+{
+  "gate": "paper-gate",
+  "subcheck": "submission-bundle",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:38:38.010739+00:00",
+  "details": [
+    "[OK] paper/submission/ exists (1 files)"
+  ]
+}

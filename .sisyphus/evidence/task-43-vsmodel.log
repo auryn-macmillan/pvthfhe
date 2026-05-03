@@ -1,9 +1,9 @@
      n    mean_ms  median_ms     p99_ms    snark_B      gas
 ------------------------------------------------------------
-   128       1.51       1.43       1.86       2752     1278
-   256       5.88       5.36       8.04       5472     1278
-   512      45.35      44.88      47.41      10944     1278
-  1024     188.30     193.06     195.61      21856     1278
+   128       1.53       1.46       1.85       2752     1278
+   256       5.82       5.53       7.15       5472     1278
+   512      45.35      42.49      58.89      10944     1278
+  1024     275.74     177.18     670.40      21856     1278
 
 === Deviation Analysis vs T15 Architecture B Predictions ===
   [ANNOTATED] n=128 verifier_gas=1278: Surrogate verifier uses constant 1278 gas (mock); real UltraHonk ~200k-500k

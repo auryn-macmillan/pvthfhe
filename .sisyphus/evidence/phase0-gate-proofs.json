@@ -1,0 +1,10 @@
+{
+  "gate": "phase0-gate",
+  "subcheck": "proofs",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.994935+00:00",
+  "details": [
+    "[OK] docs/security-proofs/obligations.md",
+    "[OK] docs/security-proofs/README.md"
+  ]
+}

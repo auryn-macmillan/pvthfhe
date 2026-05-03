@@ -1,0 +1,12 @@
+{
+  "gate": "paper-gate",
+  "subcheck": "internal-reviews",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:38:38.010377+00:00",
+  "details": [
+    "[OK] .sisyphus/reviews/internal-carol-final.md has VERDICT:",
+    "[OK] .sisyphus/reviews/internal-bob-final.md has VERDICT:",
+    "[OK] .sisyphus/reviews/internal-alice-final.md has VERDICT:",
+    "[OK] internal-reviews: 3 reviews passed"
+  ]
+}

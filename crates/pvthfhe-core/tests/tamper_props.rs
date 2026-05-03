@@ -1,3 +1,4 @@
+//! Property-based tamper tests for the pvthfhe-core FHE backend.
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 

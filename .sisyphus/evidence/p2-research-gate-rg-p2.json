@@ -1,0 +1,11 @@
+{
+  "gate": "p2-research-gate",
+  "subcheck": "rg-p2",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.693031+00:00",
+  "details": [
+    "subcheck: rg-p2",
+    "[OK] found artifact: .sisyphus/research/p2/RG-P2-decision.md",
+    "[OK] advisor sign-off present: VERDICT: APPROVE"
+  ]
+}

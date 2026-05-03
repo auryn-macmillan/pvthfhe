@@ -351,20 +351,20 @@ fn expected_proof_tag(stmt: &FoldStatement) -> u8 {
 
 #[cfg(feature = "real-folding")]
 fn push_string(bytes: &mut Vec<u8>, value: &str) {
-    bytes.extend_from_slice(&(value.len() as u64).to_be_bytes());
+    bytes.extend_from_slice(&u64::try_from(value.len()).unwrap_or(u64::MAX).to_be_bytes());
     bytes.extend_from_slice(value.as_bytes());
 }
 
 #[cfg(feature = "real-folding")]
 fn push_vec(bytes: &mut Vec<u8>, value: &[u8]) {
-    bytes.extend_from_slice(&(value.len() as u64).to_be_bytes());
+    bytes.extend_from_slice(&u64::try_from(value.len()).unwrap_or(u64::MAX).to_be_bytes());
     bytes.extend_from_slice(value);
 }
 
 #[cfg(feature = "real-folding")]
 fn push_params(bytes: &mut Vec<u8>, params: (u64, usize, u64)) {
     bytes.extend_from_slice(&params.0.to_be_bytes());
-    bytes.extend_from_slice(&(params.1 as u64).to_be_bytes());
+    bytes.extend_from_slice(&u64::try_from(params.1).unwrap_or(u64::MAX).to_be_bytes());
     bytes.extend_from_slice(&params.2.to_be_bytes());
 }
 

@@ -1,0 +1,14 @@
+{
+  "gate": "p3-design-gate",
+  "subcheck": "stack-decision",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.903930+00:00",
+  "details": [
+    "subcheck: stack-decision",
+    "[OK] found artifact: .sisyphus/design/p3/stack-decision.md",
+    "[OK] verdict present: ## VERDICT: APPROVE",
+    "[OK] heading present: ## Primary:",
+    "[OK] heading present: ## Fallback:",
+    "[OK] required phrase present: gas"
+  ]
+}

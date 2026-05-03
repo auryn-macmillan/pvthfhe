@@ -77,7 +77,7 @@ impl<B: FheBackend> EnclaveAggregator for PvthfheEnclaveAggregator<B> {
             .iter()
             .enumerate()
             .map(|(i, s)| pvthfhe_fhe::KeygenShare {
-                party_id: i as u32,
+                party_id: u32::try_from(i).unwrap_or(u32::MAX),
                 bytes: s.0.clone(),
             })
             .collect();
@@ -100,7 +100,7 @@ impl<B: FheBackend> EnclaveAggregator for PvthfheEnclaveAggregator<B> {
             .iter()
             .enumerate()
             .map(|(i, s)| pvthfhe_fhe::DecryptShare {
-                party_id: i as u32,
+                party_id: u32::try_from(i).unwrap_or(u32::MAX),
                 bytes: s.0.clone(),
             })
             .collect();

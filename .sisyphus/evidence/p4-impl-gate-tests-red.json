@@ -1,0 +1,10 @@
+{
+  "gate": "p4-impl-gate",
+  "subcheck": "tests-red",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.399991+00:00",
+  "details": [
+    "subcheck: tests-red",
+    "[OK] crates/pvthfhe-aggregator/src/keygen/protocol.rs"
+  ]
+}

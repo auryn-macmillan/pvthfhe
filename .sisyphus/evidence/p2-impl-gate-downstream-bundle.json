@@ -1,0 +1,18 @@
+{
+  "gate": "p2-impl-gate",
+  "subcheck": "downstream-bundle",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:41:46.284048+00:00",
+  "details": [
+    "subcheck: downstream-bundle",
+    "[OK] found: /home/dev/pvthfhe/.sisyphus/contracts/p2-to-p3-bundle.md",
+    "[OK] section present: '## 1. Frozen Accumulator Format'",
+    "[OK] section present: '## 2. On-Chain Verifier Op-Budget'",
+    "[OK] section present: '## 3. Public-Input Encoding'",
+    "[OK] section present: '## 4. Security Caveats'",
+    "[OK] section present: '## 5. Regression Baseline'",
+    "[OK] section present: '## 6. Gas Projections'",
+    "[OK] section present: '## 7. Recursion Path'",
+    "[OK] bundle contains VERDICT: APPROVE"
+  ]
+}

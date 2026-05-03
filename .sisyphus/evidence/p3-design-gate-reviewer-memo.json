@@ -1,0 +1,10 @@
+{
+  "gate": "p3-design-gate",
+  "subcheck": "reviewer-memo",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.903535+00:00",
+  "details": [
+    "subcheck: reviewer-memo",
+    "[OK] docs/governance/program-charter.md"
+  ]
+}

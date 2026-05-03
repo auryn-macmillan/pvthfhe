@@ -1,3 +1,4 @@
+//! Integration tests: round_trip_props.
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 

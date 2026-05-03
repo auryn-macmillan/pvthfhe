@@ -1,0 +1,14 @@
+{
+  "gate": "phase0-gate",
+  "subcheck": "tooling",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.995055+00:00",
+  "details": [
+    "[OK] .sisyphus/scripts/validate-obligations-schema.py",
+    "[OK] .sisyphus/scripts/validate-prior-art.py",
+    "[OK] .sisyphus/scripts/validate-pins.py",
+    "[OK] .sisyphus/scripts/validate-proof-skeletons.py",
+    "[OK] .sisyphus/scripts/validate-bundle.py",
+    "[OK] .sisyphus/scripts/validate-reviewer-memo.py"
+  ]
+}

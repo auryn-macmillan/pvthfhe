@@ -1,9 +1,17 @@
+//! Integration tests: folding_adversarial.
 #![cfg(feature = "real-folding")]
 #![allow(missing_docs, clippy::unwrap_used, clippy::as_conversions)]
 
 use pvthfhe_aggregator::folding::{
     fold, verify_acc, FoldAccumulator, FoldStatement, FoldWitness, NizkProof, NizkStatement,
 };
+
+fn ok<T, E: std::fmt::Debug>(r: Result<T, E>, ctx: &str) -> T {
+    match r {
+        Ok(v) => v,
+        Err(e) => unreachable!("{ctx}: {e:?}"),
+    }
+}
 
 fn base_params() -> (u64, usize, u64) {
     (65537, 1024, 17)
@@ -184,14 +192,20 @@ fn test_depth_bomb_fold_to_depth_10_exact() {
     for i in 1u64..=10 {
         let stmt = make_statement(i, "sess-depth", params, (i % 256) as u8);
         let wit = make_witness((i % 256) as u8);
-        acc = fold(&acc, &wit, &stmt).expect("fold should succeed at each depth step");
+        acc = ok(
+            fold(&acc, &wit, &stmt),
+            "fold should succeed at each depth step",
+        );
     }
     assert_eq!(
         acc.fold_depth(),
         10,
         "fold_depth must equal 10 after 10 folds"
     );
-    verify_acc(&acc, &params).expect("verify_acc should accept at depth 10");
+    ok(
+        verify_acc(&acc, &params),
+        "verify_acc should accept at depth 10",
+    );
 }
 
 #[test]
@@ -201,7 +215,7 @@ fn test_depth_bomb_fold_to_depth_12_exact() {
     for i in 1u64..=12 {
         let stmt = make_statement(i, "sess-depth12", params, (i % 256) as u8);
         let wit = make_witness((i % 256) as u8);
-        acc = fold(&acc, &wit, &stmt).expect("fold should succeed at depth step");
+        acc = ok(fold(&acc, &wit, &stmt), "fold should succeed at depth step");
     }
     assert_eq!(
         acc.fold_depth(),
@@ -214,12 +228,14 @@ fn test_depth_bomb_fold_to_depth_12_exact() {
 fn test_non_sequential_fold_index_rejected() {
     let params = base_params();
     let acc = make_acc("sess-depth-gap", params, 0, [0u8; 32]);
-    let acc1 = fold(
-        &acc,
-        &make_witness(12),
-        &make_statement(1, "sess-depth-gap", params, 12),
-    )
-    .expect("first fold should succeed");
+    let acc1 = ok(
+        fold(
+            &acc,
+            &make_witness(12),
+            &make_statement(1, "sess-depth-gap", params, 12),
+        ),
+        "first fold should succeed",
+    );
     let result = fold(
         &acc1,
         &make_witness(23),
@@ -237,12 +253,14 @@ fn test_non_sequential_fold_index_rejected() {
 fn test_q_mismatch_across_fold_boundary_rejected() {
     let params = base_params();
     let acc = make_acc("sess-pmq", params, 0, [0u8; 32]);
-    let acc1 = fold(
-        &acc,
-        &make_witness(13),
-        &make_statement(1, "sess-pmq", params, 13),
-    )
-    .expect("first fold should succeed");
+    let acc1 = ok(
+        fold(
+            &acc,
+            &make_witness(13),
+            &make_statement(1, "sess-pmq", params, 13),
+        ),
+        "first fold should succeed",
+    );
     // Different q
     let wrong_q_params = (32771, 1024, 17);
     let stmt2 = make_statement(2, "sess-pmq", wrong_q_params, 14);
@@ -257,12 +275,14 @@ fn test_q_mismatch_across_fold_boundary_rejected() {
 fn test_n_mismatch_across_fold_boundary_rejected() {
     let params = base_params();
     let acc = make_acc("sess-pmn", params, 0, [0u8; 32]);
-    let acc1 = fold(
-        &acc,
-        &make_witness(13),
-        &make_statement(1, "sess-pmn", params, 13),
-    )
-    .expect("first fold should succeed");
+    let acc1 = ok(
+        fold(
+            &acc,
+            &make_witness(13),
+            &make_statement(1, "sess-pmn", params, 13),
+        ),
+        "first fold should succeed",
+    );
     // Different N
     let wrong_n_params = (65537, 2048, 17);
     let stmt2 = make_statement(2, "sess-pmn", wrong_n_params, 14);
@@ -277,12 +297,14 @@ fn test_n_mismatch_across_fold_boundary_rejected() {
 fn test_be_mismatch_across_fold_boundary_rejected() {
     let params = base_params();
     let acc = make_acc("sess-pmbe", params, 0, [0u8; 32]);
-    let acc1 = fold(
-        &acc,
-        &make_witness(13),
-        &make_statement(1, "sess-pmbe", params, 13),
-    )
-    .expect("first fold should succeed");
+    let acc1 = ok(
+        fold(
+            &acc,
+            &make_witness(13),
+            &make_statement(1, "sess-pmbe", params, 13),
+        ),
+        "first fold should succeed",
+    );
     // Different B_e
     let wrong_be_params = (65537, 1024, 32);
     let stmt2 = make_statement(2, "sess-pmbe", wrong_be_params, 14);
@@ -300,12 +322,14 @@ fn test_stmt_from_session_a_folded_into_acc_from_session_b_rejected() {
     let params = base_params();
     // Build a valid acc from session-B
     let acc_b = make_acc("session-B", params, 0, [0u8; 32]);
-    let acc_b1 = fold(
-        &acc_b,
-        &make_witness(13),
-        &make_statement(1, "session-B", params, 13),
-    )
-    .expect("first fold in session-B should succeed");
+    let acc_b1 = ok(
+        fold(
+            &acc_b,
+            &make_witness(13),
+            &make_statement(1, "session-B", params, 13),
+        ),
+        "first fold in session-B should succeed",
+    );
 
     // Statement belongs to session-A, not session-B
     let stmt_a = make_statement(2, "session-A", params, 14);

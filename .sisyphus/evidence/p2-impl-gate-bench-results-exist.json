@@ -1,0 +1,12 @@
+{
+  "gate": "p2-impl-gate",
+  "subcheck": "bench-results-exist",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:41:46.283703+00:00",
+  "details": [
+    "subcheck: bench-results-exist",
+    "[OK] /home/dev/pvthfhe/bench/p2/results-128.json",
+    "[OK] /home/dev/pvthfhe/bench/p2/results-512.json",
+    "[OK] /home/dev/pvthfhe/bench/p2/results-1024.json"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "gate": "p2-design-gate",
+  "subcheck": "bench-migration",
+  "status": "PASS",
+  "timestamp": "2026-05-03T11:36:43.720956+00:00",
+  "details": [
+    "subcheck: bench-migration",
+    "[OK] bench-plan.md and migration-plan.md found and validated"
+  ]
+}

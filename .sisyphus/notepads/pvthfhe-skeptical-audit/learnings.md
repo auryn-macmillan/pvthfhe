@@ -55,3 +55,23 @@ FORBIDDEN: `nargo prove`, `nargo verify`
 - All u64→u128 widening casts in `poly_eval` and `lagrange_interpolate` are safe; arithmetic is always reduced `% PRIME` before narrowing back to u64, so the one u128→u64 narrow cast at lines 46 and 208 is also safe.
 - **Single truncating cast**: line 367 `threshold as u16` (usize→u16). The `threshold` local is derived via `as usize` from a `u16` value, so in practice the value can never exceed u16::MAX in current code — but it is still an unsound pattern. Fix for T19: `u16::try_from(threshold)?`.
 - **One `manual_contains`**: line 413 — `iter().any(|c| *c == expected_commit)` → `commitments.contains(&expected_commit)`.
+
+## 2026-05-03 T5 — Test Classification Audit
+
+### Key Findings
+
+1. **Zero REAL Rust tests run in CI.** All 118 Rust `#[test]` items are MOCK (77), WEAK (22), or TRIVIAL (19). No Rust test currently exercises a live cryptographic primitive end-to-end.
+
+2. **P1 tests are compile-skipped.** All 13 `lattice_nizk*.rs` tests are gated `#[cfg(feature = "real-nizk")]` — a feature that has no real implementation. They never run.
+
+3. **P2 folding tests use SHA-256 uniformity checks, not ZK proofs.** The `fold` validator rejects proofs whose bytes are not all-identical — this is a placeholder heuristic, not a FS challenge check. 18 tests that appear adversarial are actually testing a string/byte-equality uniformity heuristic.
+
+4. **P4 keygen tests are 100% MOCK.** All 24 P4-related tests use `HermineAdapter` or `KeygenSimulator` — both documented surrogates. No real PVSS, VSS, or DKG code is exercised.
+
+5. **18 REAL Solidity tests exist for P3** — but they validate ECDSA ecrecover, not FHE soundness. `P3VacuityProof.t.sol` formally proves the verifier cannot distinguish correct from fabricated FHE outputs.
+
+6. **`rogue_key.rs` is mislabeled.** It injects `FaultType::MalformedProof`, not a rogue-key attack. No actual rogue-key scenario is modeled anywhere in the test suite.
+
+7. **`noise_budget_closes_malicious` is identical to `noise_budget_closes_honest`.** Both run the same simulation; the "malicious" label is aspirational. No malicious noise model is implemented.
+
+8. **Test count:** Rust: 118 (via `#[test]` scan) / Solidity: 39 (via `function test` scan).

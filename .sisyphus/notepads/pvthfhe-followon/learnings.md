@@ -209,3 +209,33 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - Because the frozen witness uses only a scalar `secret_share: u64`, the practical verifier check in this prototype is the SHA-256 commitment opening plus transcript consistency, not full RLWE arithmetic against `ciphertext_bytes` / `decrypt_share_bytes`; that still turns the current RED suite GREEN without disturbing the surrogate path.
 - Flipping `pvthfhe-fhe` default features to `real-nizk` is safe for current conformance coverage because the FHE backend tests do not depend on the legacy surrogate adapter, and the lattice NIZK tests now pass under both explicit and default-feature invocations.
 - The P1 surrogate marker was added to `circuits/decrypt_share/src/main.nr` as `// SURROGATE (retire per migration-plan.md Phase 4)` so the legacy path remains explicit rather than silently lingering.
+
+## 2026-05-03 — Task B.I.3
+- The cargo test filter `lattice_nizk_adversarial` only selects tests whose names contain that substring, so keeping the file in a `mod lattice_nizk_adversarial` wrapper makes the required eight tests discoverable without renaming them away from the plan-specified function names.
+- For FS transcript tampering, flipping byte index 6 mutates the serialized `t_bytes` payload rather than the version header/length framing, which reliably preserves decoding and triggers verifier rejection via transcript mismatch.
+- Participant-substitution rejection in the current adapter only becomes adversarially meaningful when the substituted statement changes both `participant_id` and the derived PVSS commitment preimage; changing the participant id alone can accidentally preserve acceptance because the verifier checks only the commitment opening.
+
+## 2026-05-03 — Task B.I.4
+- The paper proofs have to track the implemented verifier, not the broader aspirational lattice relation: in `real_nizk.rs`, soundness is tight because the proof payload opens `(secret_share, error, randomness)` directly and the verifier checks commitment binding, error bounds, and sigma-transcript consistency.
+- The exact commitment theorem is clean because the code fixes byte order completely: `session_id` raw UTF-8, `participant_id` little-endian `u16`, and `secret_share` big-endian `u64` under SHA-256.
+- The only defensible zero-knowledge statement for the current prototype is the projected SLAP core transcript `(t_bytes, z_s, z_e)`; the full serialized proof bytes are not zero-knowledge once the audit-only witness openings are included.
+
+## B.I.5 P1 Bench (2026-05-03)
+
+- `RealNizkAdapter` prove/verify scales linearly with n; all results well under advisory thresholds.
+- n=1024: prove=0.023ms, verify=0.008ms, proof_size=24654B (24KB) — exceeds 10KB threshold; noted.
+- Proof size grows linearly with n (~24 bytes/coeff) due to `error_open` and `z_e` fields in payload.
+- Batch verify is sequential internally (no parallelism); ~0.008ms/proof at n=1024.
+- `pvthfhe-fhe` default feature already includes `real-nizk`; explicitly adding it in bench Cargo.toml is safe and clarifying.
+- LaTeX figure uses `\newcommand` macros for measured values; update macros after re-running bench.
+- `bench/p1/run.sh` must be run from repo root (script cds there automatically).
+
+## B.I.6 P1 Impl Gate + P1→P2 Bundle (2026-05-03)
+
+- Gate scripts must not import `make_subcheck` from `_gate_utils` — that function does not exist there; define subcheck functions directly.
+- The `_gate_utils.py` `run_gate` function takes `subchecks_map: dict[str, callable]`, not a list; build the dict explicitly.
+- The LSP error "Import '_gate_utils' could not be resolved" in `.sisyphus/scripts/` is a false positive — all gate scripts use `sys.path.insert(0, os.path.dirname(__file__))` which resolves at runtime.
+- P1→P2 bundle's most critical P2-facing sections are 5 (recursion-friendliness) and 6 (deserializer spec); P2 needs both the arithmetic verification equation and the exact binary layout.
+- SLAP proof bytes are NOT zero-knowledge in the strong sense: `secret_share_open` and `error_open` are directly included as witness openings. Document this prominently in security caveats.
+- The sigma transcript `(t_bytes, challenge_bytes, z_s, z_e)` is fully arithmetic and foldable; SHA-256 is the only non-arithmetic component (requires hash gadget in folding circuit).
+- All 6 gate subchecks pass on first run after upgrading the stub gate script and writing the bundle.

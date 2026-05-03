@@ -1,0 +1,4 @@
+usage: p1-impl-gate.py [-h]
+                       [--check {tests-pass,adversarial-tests-pass,bench-results-exist,proofs-exist,review-approve,bundle-exists}]
+                       [--stub]
+p1-impl-gate.py: error: argument --check: invalid choice: 'proofs' (choose from 'tests-pass', 'adversarial-tests-pass', 'bench-results-exist', 'proofs-exist', 'review-approve', 'bundle-exists')

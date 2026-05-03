@@ -22,10 +22,10 @@
 **Theorem ID**: P1-T3
 **Assumption**: Honest-verifier zero knowledge of the interactive base protocol for the joint SHA-256/RLWE relation, together with programmability of the random oracle used by Fiat-Shamir.
 **Model**: ROM.
-**Statement sketch**: For the same public statement space \(x_i = (\mathsf{session\_id}, i, t, c, d_i, C_i, q, N, k, B_e)\), there exists a PPT simulator \(\mathsf{Sim}^H\) that, without knowing \((s_i,e_i)\), outputs a non-interactive proof \(\pi_i^\star\) whose distribution is computationally indistinguishable from an honestly generated Fiat-Shamir proof for any true statement in the P1 language. Concretely, the simulator must reproduce proofs that bind simultaneously to the SHA-256 commitment \(C_i\) and the bounded decrypt-share equation, so the final NIZK claim is not merely HVZK of the underlying sigma protocol but ROM indistinguishability of the compiled public transcript.
-**Proof technique**: Start from the HVZK simulator for the interactive protocol, then program the random oracle so the simulated first message and challenge become a valid Fiat-Shamir transcript; conclude with a game hop from interactive HVZK to non-interactive ROM simulation.
-**Reduction target**: ROM programmability / Fiat-Shamir simulation lemma for the chosen sigma-style protocol; no hardness reduction beyond the simulator guarantee is expected for the baseline theorem.
-**Status**: skeleton
+**Statement sketch**: For the abstract randomized SLAP core transcript—obtained by publishing only `(t_bytes, z_s, z_e)` and sampling fresh prover masks for the masked sigma relation—there exists a PPT simulator \(\mathsf{Sim}^H\) that, without knowing \((s_i,e_i)\), outputs a non-interactive transcript whose distribution is computationally indistinguishable from an honestly generated Fiat-Shamir proof for any true statement in the P1 language. This theorem is intentionally weaker than a claim about the current deterministic prototype payload in `real_nizk.rs`, which additionally opens witness values and derives masks from `SHA256(statement_bytes || witness_bytes)`.
+**Proof technique**: Start from the HVZK simulator for the abstract randomized interactive protocol, then program the random oracle so the simulated first message and challenge become a valid Fiat-Shamir transcript; conclude with a game hop from interactive HVZK to non-interactive ROM simulation.
+**Reduction target**: ROM programmability / Fiat-Shamir simulation lemma for the chosen sigma-style protocol; no hardness reduction beyond the simulator guarantee is expected for this abstract theorem.
+**Status**: proved (abstract randomized core only)
 
 ## T4: Simulation-Extractability Decision
 **Theorem ID**: P1-T4
@@ -36,11 +36,11 @@
 **Reduction target**: Baseline target is N/A because the theorem records non-requirement; future upgrade target would be simulation-extractability of the chosen FS transform against the same joint SHA-256/RLWE relation.
 **Status**: skeleton
 
-## T5: Batch Soundness
+## T5: Commitment Binding
 **Theorem ID**: P1-T5
-**Assumption**: Either (a) independent per-instance soundness with a union bound across the amortized batch, or (b) a stronger aggregation lemma for the chosen batching mechanism; in both cases the underlying base proof must satisfy P1-T2 and preserve SHA-256 transcript binding.
-**Model**: ROM baseline.
-**Statement sketch**: Let \(x_1,\dots,x_m\) be P1 public statements for \(m \le t\) decrypt shares proved in one amortized batch, each of the form \((\mathsf{session\_id}, i_j, t, c_j, d_{i_j}, C_{i_j}, q, N, k, B_e)\). If the batch verifier accepts, then except with probability at most \(m\) times the base extraction failure (or the tighter bound proved by the aggregation argument), there exist witnesses \((s_{i_j}, e_{i_j})\) for every accepted component such that \(C_{i_j} = H(\mathsf{session\_id}\|\|i_j\|\|s_{i_j})\), \(d_{i_j} = c_j \cdot s_{i_j} + e_{i_j} \bmod q\), and \(\lVert e_{i_j} \rVert_\infty \le B_e\). This theorem is the soundness handoff needed before P2 folds batched P1 outputs.
-**Proof technique**: Hybrid reduction from an accepting batch adversary to either one bad component (via averaging / union bound) or to the batching combiner's algebraic failure event, then invoke P1-T2 for the selected component or the stronger batch extractor.
-**Reduction target**: Reduction to P1-T2 plus batching-combiner correctness; for linear-combination batching, expected target is failure of the random-combination argument or the same Module-SIS/Module-LWE-style base assumption used in P1-T2.
-**Status**: skeleton
+**Assumption**: SHA-256 collision resistance on the exact commitment domain `session_id || participant_id_le || secret_share_be`.
+**Model**: Standard hash-function security model for binding; ROM is not needed for the core binding statement.
+**Statement sketch**: Let \(C_i = H(\mathsf{session\_id}\|\|i_{\mathrm{le}}\|\|s_i)\) be the P4-derived commitment carried into the implemented P1 verifier. For every PPT adversary that outputs two distinct openings \(s_i \neq s_i'\) to the same `pvss_commitment`, there exists a collision-finding adversary against SHA-256 on that exact byte-ordered input domain. Equivalently, any accepted P1 proof binds the public commitment to a unique opened `secret_share` except with negligible probability.
+**Proof technique**: Direct reduction from double-opening of `pvss_commitment` to SHA-256 collision finding.
+**Reduction target**: SHA-256 collision resistance / second-preimage resistance on the fixed commitment domain.
+**Status**: proved

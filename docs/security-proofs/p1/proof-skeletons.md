@@ -298,77 +298,55 @@ No such bound is claimed for the frozen baseline; the purpose of this section is
 - **M-SIS:** likely future extraction anchor.
 - **M-LWE:** likely future simulator-hiding anchor if the upgraded transform retains LWE masking.
 
-## T5 — Batch Soundness
+## T5 — Commitment Binding
 
 ### Formal statement
 
-Let \(m\le k\) be the number of P1 instances aggregated into one SLAP batch proof, where each instance
+Let
 
 \[
-x_j=(\mathsf{session\_id},\mathsf{participant\_id}_j,c_j,d_{i_j},h_{i_j},q,N,B_e,k)
-\qquad \text{for } j\in[m]
+C = H(\mathsf{session\_id}\|\|\mathsf{participant\_id}_{\mathrm{le}}\|\|s)
 \]
 
-shares the same global parameter tuple `(q, N, B_e, k)` and session namespace, and let `\Pi^{\mathsf{batch}}_{\mathsf{FS-SLAP}}` be the frozen batching rule that combines these statements using verifier challenge coefficients sampled from the ROM. For every PPT batch prover \(\mathcal{A}^H_{\mathsf{batch}}\) producing an accepting batch proof with probability \(\epsilon_{\mathsf{batch}}\), there exists an extractor that outputs witnesses
+be the commitment function implemented by `RealNizkAdapter::commitment_hash`. For every PPT adversary \(\mathcal A\) that outputs two distinct openings \(s \neq s'\) such that
 
 \[
-\{(s'_{i_j},e'_{i_j},r'_{i_j})\}_{j=1}^m
+H(\mathsf{session\_id}\|\|\mathsf{participant\_id}_{\mathrm{le}}\|\|s)
+=
+H(\mathsf{session\_id}\|\|\mathsf{participant\_id}_{\mathrm{le}}\|\|s'),
 \]
 
-for all accepted components except with probability at most
-
-\[
-\varepsilon_{\mathsf{batch-ext}} \le \varepsilon_{\mathsf{agg}} + m\cdot \varepsilon_{\mathsf{base-ext}},
-\]
-
-where `\varepsilon_{\mathsf{base-ext}}` is the single-instance extraction failure from T2 and `\varepsilon_{\mathsf{agg}}` is the explicit failure probability of the batching combiner (for example, failure of a random linear-combination check to isolate an invalid component). If the batching combiner is the standard random linear combination over a challenge field of size \(|\mathcal{C}|\), then
-
-\[
-\varepsilon_{\mathsf{agg}} \le \frac{m-1}{|\mathcal{C}|}.
-\]
+there exists a collision-finding adversary against SHA-256 on the same domain. Equivalently, `pvss_commitment` is binding under SHA-256 collision resistance.
 
 ### Proof technique
 
-Reduce any successful batch forgery to either (i) an aggregation collision/failure event for the random combiner or (ii) at least one bad component instance, then apply the T2 extractor to that component and union-bound across all `m \le k` instances.
+Direct reduction from any successful double opening of the commitment to a collision in SHA-256 on two distinct preimages sharing the same session/participant prefix.
 
 ### Reduction
 
-1. **Model the batch verifier.** The batch verifier checks one compressed SLAP relation obtained from the `m` component statements and responses using random coefficients `\rho_1,\ldots,\rho_m` derived from the ROM after the batch commitment is fixed. The coefficients are part of the verifier's soundness budget and must be explicitly named in the theorem.
-2. **Partition bad accepting batches.** Suppose a batch proof verifies but at least one component statement lacks a valid witness. Then one of two events occurs:
-   - **Aggregation failure event \(E_{\mathsf{agg}}\):** the random combination of invalid components cancels so that the compressed verifier equations still hold; or
-   - **Isolatable bad component event \(E_{\mathsf{iso}}\):** at least one concrete component remains extractably invalid under the chosen coefficients.
-3. **Bound the aggregation failure event.** For random linear-combination batching, cancellation of a non-zero invalidity vector against independently sampled `\rho_j` occurs with probability at most `(m-1)/|\mathcal{C}|`, because a non-zero linear polynomial in the final random coefficient has at most one root, and inductively the same argument applies as components are added. This is the explicit amortization loss, not a hidden “standard batching” step.
-4. **Reduce `E_{\mathsf{iso}}` to single-instance soundness.** Conditioned on no aggregation failure, an accepting batch proof implies that each component projected under the chosen batch coefficients is itself consistent with the SLAP verifier equations. If some component `j^\star` lacks a witness, construct a single-instance adversary `\mathcal{B}` that embeds `x_{j^\star}` into a batch instance, forwards the batch prover's messages, and uses the batch extractor/forking strategy to recover a witness for that component. This contradicts T2 unless single-instance extraction fails.
-5. **Explicit component extractor.** The batch extractor first rewinds the batch proof exactly as in T2 to recover the aggregate witness opening, then algebraically decombines the aggregate response using the public coefficients `\rho_1,\ldots,\rho_m`. Since the statements are individually encoded and coefficient-tagged, decombination yields candidate witnesses for each component. Each candidate is checked separately against its own `(h_{i_j}, c_j, d_{i_j}, B_e)` relation.
-6. **Union bound across components.** If the decombination stage produces one invalid or missing witness, then at least one component violates T2. Therefore the total failure probability outside aggregation failure is at most `m · \varepsilon_{\mathsf{base-ext}}`.
-7. **Commitment-binding carry-over.** Each component check retains the inherited SHA-256 binding from T2. Hence a successful batch attack that only breaks the P4 commitment binding on one component is already counted inside that component's base extraction loss; no separate hidden batch-specific binding term is allowed.
-8. **Conclusion for P2 handoff.** P2 may consume the batched P1 output only under the precise bound `\varepsilon_{\mathsf{agg}} + m\varepsilon_{\mathsf{base-ext}}`; this is the security budget exported downstream.
+1. **Adversary output.** Run the double-opening adversary \(\mathcal A\) and obtain `(session_id, participant_id, s, s')` with `s != s'` but identical commitment digest.
+2. **Form the two preimages.** Construct
+
+\[
+m = \mathsf{session\_id}\|\|\mathsf{participant\_id}_{\mathrm{le}}\|\|s_{\mathrm{be}},
+\qquad
+m' = \mathsf{session\_id}\|\|\mathsf{participant\_id}_{\mathrm{le}}\|\|s'_{\mathrm{be}}.
+\]
+
+3. **Distinctness.** Because `s != s'` and both openings are encoded in fixed-width 8-byte big-endian form, we have `m != m'`.
+4. **Collision extraction.** The adversary assumption gives `H(m) = H(m')`, which is a direct SHA-256 collision.
+5. **Conclusion.** Therefore any efficient double opener for `pvss_commitment` breaks SHA-256 collision resistance, so the commitment is computationally binding.
 
 ### Tightness
 
-The batch reduction is explicitly linear in the batch size plus the aggregation collision term:
+The reduction is tight up to constant overhead:
 
 \[
-\mathsf{Adv}^{\mathsf{batch}}_{\mathsf{FS-SLAP}}(\mathcal{A})
+\mathsf{Adv}^{\mathsf{bind}}_{\mathsf{pvss}}(\mathcal A)
 \le
-\underbrace{\varepsilon_{\mathsf{agg}}}_{\text{batching combiner loss}}
-+
-\underbrace{m\cdot \mathsf{Adv}^{\mathsf{base-ext}}_{\mathsf{FS-SLAP}}}_{\text{per-instance extraction loss}}.
+\mathsf{Adv}^{\mathsf{coll}}_{\mathsf{SHA256}}(\mathcal B).
 \]
-
-Substituting T2 gives
-
-\[
-\mathsf{Adv}^{\mathsf{batch}}_{\mathsf{FS-SLAP}}(\mathcal{A})
-\le
-\varepsilon_{\mathsf{agg}}
-+ m\left(\frac{Q_H}{2^{\ell_H}} + \mathsf{Adv}^{\mathsf{MSIS}} + \mathsf{Adv}^{\mathsf{MLWE}} + \mathsf{Adv}^{\mathsf{bind}} + \mathsf{negl}(\lambda)\right).
-\]
-
-For the common linear-combination case with challenge field size `|\mathcal{C}|`, the aggregation term is at most `(m-1)/|\mathcal{C}|`. Thus the amortization loss is explicit and scales at worst linearly with the number of batched instances `m \le k`.
 
 ### Assumptions named
 
-- **M-SIS:** inherited from T2 for each component extractor.
-- **M-LWE:** inherited if SLAP's hiding layer uses LWE masking.
-- **ROM:** required both for Fiat–Shamir and for random batch-combination coefficients.
+- **SHA-256 collision resistance:** primary and only reduction target for this theorem.

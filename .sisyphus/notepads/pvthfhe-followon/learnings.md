@@ -364,6 +364,7 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - The clean frozen P3 on-chain boundary is a two-blob ABI: `verify(bytes proof, bytes publicInputs)`, with the 200-byte P2→P3 public-input object preserved byte-for-byte instead of exploded into Solidity tuple arguments.
 - Because the verifier entrypoint is `view`, failure attribution and abort-with-public-blame need to be frozen as router/coordinator events rather than verifier-emitted logs; otherwise the interface would contradict Solidity mutability.
 - The smallest robust gate for this task is literal and machine-readable: require the interface-spec artifact, require `## VERDICT: APPROVE`, require the word `calldata`, and require the markdown ABI sketch alongside it.
+- If malformed `publicInputs` cannot be decoded into `(dkgRoot, epoch, participantSetHash)`, blame events must stay hash-only; otherwise a future router can misattribute public blame using caller-supplied metadata.
 
 ## 2026-05-03 — Task D.D.2 (P3 stack decision memo)
 - SP1 + Groth16 wrap dominates the scorecard (score 27 vs 25 for fallback) primarily because it has the strongest published audit posture and the cleanest current Solidity verifier path, while still landing well inside both the 5M gas and 14 KB proof budgets (~270k gas, ~260 B proof, ~18.5× headroom on gas).

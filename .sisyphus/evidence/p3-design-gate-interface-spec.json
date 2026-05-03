@@ -1,0 +1,13 @@
+{
+  "gate": "p3-design-gate",
+  "subcheck": "interface-spec",
+  "status": "PASS",
+  "timestamp": "2026-05-03T05:02:54.933548+00:00",
+  "details": [
+    "subcheck: interface-spec",
+    "[OK] found artifact: .sisyphus/design/p3/interface-spec.md",
+    "[OK] verdict present: ## VERDICT: APPROVE",
+    "[OK] required phrase present: calldata",
+    "[OK] found artifact: .sisyphus/design/p3/iface.sol.md"
+  ]
+}

@@ -1,0 +1,6 @@
+subcheck: interface-spec
+[OK] found artifact: .sisyphus/design/p3/interface-spec.md
+[OK] verdict present: ## VERDICT: APPROVE
+[OK] required phrase present: calldata
+[OK] found artifact: .sisyphus/design/p3/iface.sol.md
+PASS: p3-design-gate/interface-spec

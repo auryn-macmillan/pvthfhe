@@ -5,10 +5,14 @@ license = "MIT"
 edition = "2021"
 
 [features]
+default = ["real-nizk"]
 mock = []
 real-nizk = []
+surrogate-decrypt-share = []
 
 [dependencies]
+rand_chacha = "0.3"
+sha2 = "0.10"
 serde = { version = "1", features = ["derive"] }
 thiserror = "1"
 rand_core = "0.6"
@@ -16,7 +20,6 @@ rand_core = "0.6"
 [dev-dependencies]
 rand = "0.8"
 pvthfhe-keygen = { path = "../pvthfhe-keygen" }
-sha2 = "0.10"
 
 [lints]
 workspace = true

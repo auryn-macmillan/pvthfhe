@@ -1,0 +1,25 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.03s
+     Running unittests src/lib.rs (target/debug/deps/pvthfhe_fhe-c01ec7907fc01bd0)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+     Running tests/conformance.rs (target/debug/deps/conformance-8a28c42e08ad3884)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+     Running tests/lattice_nizk.rs (target/debug/deps/lattice_nizk-2baedb5f4c1dcfff)
+
+running 6 tests
+test lattice_nizk::test_batch_verify_correctness ... ok
+test lattice_nizk::test_proof_is_deterministic ... ok
+test lattice_nizk::test_honest_prove_verify ... ok
+test lattice_nizk::test_tampered_share_rejected ... ok
+test lattice_nizk::test_verify_rejects_mismatched_participant_binding ... ok
+test lattice_nizk::test_wrong_pvss_commitment_rejected ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

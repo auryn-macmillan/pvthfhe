@@ -1,4 +1,5 @@
 // NizkDecShare surrogate circuit.
+// SURROGATE (retire per migration-plan.md Phase 4)
 // Proves d_i = c_1 * sk_i + e_i AND Keccak256(pk_i) = pk_i_hash AND ||sk_i||, ||e_i|| <= beta
 // AND MerkleVerify(dkg_root, leaf=Keccak256(party_id || pk_i_hash), path=merkle_path_i) = true
 // This is a surrogate for full LatticeFold+ NIZK (open problem P1).
@@ -43,8 +44,14 @@ fn main(
     // 5. Epoch binding
     assert(epoch as u32 > 0);
     
-    assert(ciphertext_hash == ciphertext_hash);
-    assert(d_i_hash == d_i_hash);
+    // SURROGATE (open problem P1): ciphertext_hash and d_i_hash are public inputs
+    // but are NOT constrained against witness computations in this surrogate circuit.
+    // In the full LatticeFold+ NIZK these would be bound to the actual decryption
+    // computation: d_i_hash == Keccak256(d_i) and ciphertext_hash == Keccak256(ct).
+    // The self-equality assertions below are intentional no-ops that document the
+    // intended constraint shape without enforcing it (deferred to P1 resolution).
+    let _ciphertext_hash_unconstrained = ciphertext_hash; // P1: bind to Keccak256(ct)
+    let _d_i_hash_unconstrained = d_i_hash;               // P1: bind to Keccak256(d_i)
 }
 
 #[test]

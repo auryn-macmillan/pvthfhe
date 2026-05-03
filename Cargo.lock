@@ -1298,6 +1298,7 @@ version = "0.1.0"
 dependencies = [
  "pvthfhe-keygen",
  "rand 0.8.6",
+ "rand_chacha 0.3.1",
  "rand_core 0.6.4",
  "serde",
  "sha2",

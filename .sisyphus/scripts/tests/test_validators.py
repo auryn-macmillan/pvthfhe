@@ -1093,6 +1093,62 @@ def test_p2_research_gate_rg_p2_fails_without_approve_verdict():
         assert "VERDICT: APPROVE" in out, out
 
 
+# ---------------------------------------------------------------------------
+# p3-research-gate.py
+# ---------------------------------------------------------------------------
+
+P3_PRIOR_ART_VALID = textwrap.dedent("""\
+    # P3 Prior-Art Matrix
+
+    | Stack | Gas Est. | Calldata (bytes) | Proof Size | Prover Time | Audit Status | License | EIP/Precompile |
+    | --- | --- | --- | --- | --- | --- | --- | --- |
+    | Primary — Halo2/PSE EVM verifier | reported ~350k gas | reported ~1,024 bytes | reported ~1 KB | reported minutes | some audits / production deployments | MIT/Apache-2.0 | BN254 pairing precompiles |
+    | Primary — Plonky3 + Groth16 wrap | reported ~250k gas | reported ~256 bytes | reported ~256 bytes | reported high wrap overhead | research / unaudited composition | Apache-2.0 + MIT | BN254 pairing precompiles |
+    | Fallback — RISC0 + Groth16 | reported ~250k gas | reported ~256 bytes | reported ~256 bytes | reported slower than succinct receipt | mixed-reviewed ecosystem | Apache-2.0 | BN254 pairing precompiles |
+    | Fallback — SP1 + Groth16/Plonk-EVM | reported ~270k / ~300k gas | reported ~260 / ~868 bytes | reported ~260 / ~868 bytes | reported +~90s for PLONK | audits published for SP1 stack | MIT OR Apache-2.0 | BN254 pairing precompiles |
+    | Rejected (no on-chain verifier yet) — Jolt EVM target | TBD | TBD | TBD | reported fast CPU proving | no public audit located | MIT OR Apache-2.0 | on-chain verifier still roadmap |
+    | Fallback — MicroNova on-chain variant | reported ~2.2M gas | reported ~1-2 KB | reported compressed SNARK | reported moderate-high | no public audit located | MIT code lineage / CC BY paper | pairing precompiles + KZG assumptions |
+    | Fallback — Nebra-style accumulation | reported ~350k batch verify | reported amortized by batch | reported Halo2-KZG aggregate | reported off-chain aggregation required | production service, contracts evolving | mixed open-source/docs | BN254 pairing precompiles |
+    | Fallback — Rust-in-zkVM with EVM final wrap | reported ~250k-300k gas final wrap | reported ~256-868 bytes | reported ~256-868 bytes | worst-case high but acceptable fallback | depends on zkVM chosen | depends on zkVM chosen | BN254 pairing precompiles |
+
+    VERDICT: APPROVE
+""")
+
+
+P3_PRIOR_ART_MISSING_RUST_ZKVM = P3_PRIOR_ART_VALID.replace(
+    "| Fallback — Rust-in-zkVM with EVM final wrap | reported ~250k-300k gas final wrap | reported ~256-868 bytes | reported ~256-868 bytes | worst-case high but acceptable fallback | depends on zkVM chosen | depends on zkVM chosen | BN254 pairing precompiles |\n",
+    "",
+)
+
+
+def test_p3_research_gate_prior_art_matrix_requires_matrix_rust_in_zkvm_and_approve_verdict():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        research_dir = os.path.join(tmpdir, ".sisyphus", "research", "p3")
+        os.makedirs(research_dir)
+        matrix_path = os.path.join(research_dir, "prior-art.md")
+        with open(matrix_path, "w", encoding="utf-8") as f:
+            _ = f.write(P3_PRIOR_ART_VALID)
+        rc, out, _ = run_script_in_cwd(
+            "p3-research-gate.py", tmpdir, "--check", "prior-art-matrix"
+        )
+        assert rc == 0, f"Expected 0, got {rc}. Output: {out}"
+        assert "PASS: p3-research-gate/prior-art-matrix" in out, out
+
+
+def test_p3_research_gate_prior_art_matrix_fails_without_rust_in_zkvm_row():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        research_dir = os.path.join(tmpdir, ".sisyphus", "research", "p3")
+        os.makedirs(research_dir)
+        matrix_path = os.path.join(research_dir, "prior-art.md")
+        with open(matrix_path, "w", encoding="utf-8") as f:
+            _ = f.write(P3_PRIOR_ART_MISSING_RUST_ZKVM)
+        rc, out, _ = run_script_in_cwd(
+            "p3-research-gate.py", tmpdir, "--check", "prior-art-matrix"
+        )
+        assert rc != 0, f"Expected non-zero, got {rc}. Output: {out}"
+        assert "Rust-in-zkVM" in out, out
+
+
 P1_SCORECARD_VALID = textwrap.dedent("""\
     # P1 Candidate Scorecard
 

@@ -1,6 +1,7 @@
 [package]
 name = "pvthfhe-bench"
 version = "0.1.0"
+license = "MIT"
 edition = "2021"
 
 [lints]
@@ -18,6 +19,7 @@ rand_chacha = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 pvthfhe-aggregator = { path = "../pvthfhe-aggregator" }
+pvthfhe-keygen = { path = "../pvthfhe-keygen" }
 pvthfhe-fhe = { path = "../pvthfhe-fhe", features = ["mock"] }
 rand_core = "0.6"
 sha2 = "0.10"
@@ -42,6 +44,10 @@ harness = false
 [[bin]]
 name = "bench_scaling"
 path = "src/bin/bench_scaling.rs"
+
+[[bin]]
+name = "bench_p4"
+path = "src/bin/bench_p4.rs"
 
 [[bin]]
 name = "worked_example"

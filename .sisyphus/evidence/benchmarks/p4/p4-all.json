@@ -1,0 +1,29 @@
+[
+  {
+    "n": 128,
+    "threshold": 65,
+    "keygen_ms": 0.0867144,
+    "verify_ms": 0.000032000000000000005,
+    "reconstruct_ms": 0.0538107,
+    "share_bytes": 4096,
+    "iters": 10
+  },
+  {
+    "n": 512,
+    "threshold": 257,
+    "keygen_ms": 1.5879745,
+    "verify_ms": 0.00006199999999999999,
+    "reconstruct_ms": 0.5538256,
+    "share_bytes": 16384,
+    "iters": 10
+  },
+  {
+    "n": 1024,
+    "threshold": 513,
+    "keygen_ms": 2.4921724000000003,
+    "verify_ms": 0.000059000000000000004,
+    "reconstruct_ms": 1.9665164000000002,
+    "share_bytes": 32768,
+    "iters": 10
+  }
+]

@@ -94,3 +94,35 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - Keeping the protocol tests in an integration test file makes the RED suite easy to run with `cargo test -p pvthfhe-keygen --test protocol_test` while still compiling against the public stub API.
 - Ten focused tests can map directly onto the five theorem areas (two per theorem) and all fail cleanly via `unimplemented!("TODO: implement in A.I.2")`.
 - `cargo test -p pvthfhe-keygen --no-run` and the integration test run both succeed at compile-time; the test run fails exactly where expected, producing the RED evidence log.
+
+## 2026-05-03 — Task A.I.2: GREEN Hermine PVSS implementation
+
+- Struct literal compatibility: adding new `pub` fields to existing types breaks every `Struct { field: val }` literal. Fix: `#[derive(Default)]` + `..Default::default()` in all constructors, including the `sample_*` helpers in the test file.
+- `check_and_blame` needs two independent mismatch conditions: (1) `commit(id, value)` absent from artifact and (2) stored `share.commitment` ≠ canonical. Checking only condition 1 fails the "corrupted commitment field" test because the secret_value is still correct.
+- Lagrange interpolation requires modular inverse via Fermat's little theorem (`base^(p-2) mod p`); intermediate products must use `u128` to avoid overflow in the 2^61-1 prime field.
+- The `surrogate-baseline` feature alias requires `surrogate-baseline = ["migration-stub"]` in `[features]`; `cargo check --workspace --features pvthfhe-keygen/surrogate-baseline` validates the full workspace feature graph.
+- `mod_p` helper should be removed or used — keep only what the compiler doesn't warn about; dead_code warns do not fail tests but signal unused paths.
+- Evidence logs written to `.sisyphus/evidence/task-A.I.2-green.log` and `task-A.I.2-surrogate.log`.
+
+## 2026-05-03 — Task A.I.5: Benchmarks + Paper Figures
+
+### What was done
+- Added `pvthfhe-keygen` as a dependency of `pvthfhe-bench` Cargo.toml
+- Created `crates/pvthfhe-bench/src/bin/bench_p4.rs`: benchmarks HermineAdapter for n∈{128,512,1024}
+- Added `bench-p4` target to Justfile (exits 0, tees output to run.log)
+- Results in `.sisyphus/evidence/benchmarks/p4/` (4 JSON files)
+- Created `paper/figures/p4/` with `scaling.svg` (SVG chart) and `scaling.txt` stub
+- Updated `paper/claims-table.md` P4 row with measured numbers
+- Wrote `.sisyphus/evidence/task-A.I.5-figures.log`
+
+### Key numbers (10-iter mean, HermineAdapter simulation)
+| n    | keygen_ms | verify_ms | reconstruct_ms | share_bytes |
+|------|-----------|-----------|----------------|-------------|
+| 128  | 0.087     | 0.000     | 0.054          | 4096        |
+| 512  | 1.588     | 0.000     | 0.554          | 16384       |
+| 1024 | 2.492     | 0.000     | 1.967          | 32768       |
+
+### Notes
+- verify_ms is essentially 0 because `verify_transcript` is a simple non-empty check (O(1) per commit)
+- The n-dealer verification loop time is dominated by allocation, not crypto
+- All benchmarks within bench-plan.md advisory thresholds

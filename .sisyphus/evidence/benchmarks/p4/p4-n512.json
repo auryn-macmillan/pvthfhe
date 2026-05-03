@@ -1,0 +1,9 @@
+{
+  "n": 512,
+  "threshold": 257,
+  "keygen_ms": 1.5879745,
+  "verify_ms": 0.00006199999999999999,
+  "reconstruct_ms": 0.5538256,
+  "share_bytes": 16384,
+  "iters": 10
+}

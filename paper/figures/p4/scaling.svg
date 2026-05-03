@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400">
+  <rect width="600" height="400" fill="white" stroke="#ccc" stroke-width="1"/>
+  <text x="300" y="30" text-anchor="middle" font-family="sans-serif" font-size="16" font-weight="bold">
+    P4 HermineAdapter — Scaling (keygen + verify + reconstruct)
+  </text>
+
+  <!-- Axes -->
+  <line x1="80" y1="340" x2="560" y2="340" stroke="black" stroke-width="1.5"/>
+  <line x1="80" y1="340" x2="80" y2="60" stroke="black" stroke-width="1.5"/>
+
+  <!-- X axis label -->
+  <text x="320" y="380" text-anchor="middle" font-family="sans-serif" font-size="13">Participants n</text>
+  <!-- Y axis label -->
+  <text x="20" y="200" text-anchor="middle" font-family="sans-serif" font-size="13" transform="rotate(-90,20,200)">Time (ms)</text>
+
+  <!-- X ticks: 128, 512, 1024 at x=160, 320, 480 -->
+  <text x="160" y="358" text-anchor="middle" font-family="sans-serif" font-size="12">128</text>
+  <text x="320" y="358" text-anchor="middle" font-family="sans-serif" font-size="12">512</text>
+  <text x="480" y="358" text-anchor="middle" font-family="sans-serif" font-size="12">1024</text>
+
+  <!-- Y scale: 0 to ~5ms; 1ms = 56px; origin y=340 -->
+  <text x="72" y="344" text-anchor="end" font-family="sans-serif" font-size="11">0</text>
+  <text x="72" y="288" text-anchor="end" font-family="sans-serif" font-size="11">1</text>
+  <text x="72" y="232" text-anchor="end" font-family="sans-serif" font-size="11">2</text>
+  <text x="72" y="176" text-anchor="end" font-family="sans-serif" font-size="11">3</text>
+  <text x="72" y="120" text-anchor="end" font-family="sans-serif" font-size="11">4</text>
+  <line x1="78" y1="288" x2="560" y2="288" stroke="#eee" stroke-width="1"/>
+  <line x1="78" y1="232" x2="560" y2="232" stroke="#eee" stroke-width="1"/>
+  <line x1="78" y1="176" x2="560" y2="176" stroke="#eee" stroke-width="1"/>
+  <line x1="78" y1="120" x2="560" y2="120" stroke="#eee" stroke-width="1"/>
+
+  <!-- keygen_ms: 0.087, 1.588, 2.492 → y = 340 - val*56 -->
+  <!-- n=128: y=340-4.9≈335; n=512: y=340-89≈251; n=1024: y=340-139≈201 -->
+  <polyline points="160,335 320,251 480,201"
+    fill="none" stroke="#1f77b4" stroke-width="2.5" marker-start="url(#dot)" marker-mid="url(#dot)" marker-end="url(#dot)"/>
+  <circle cx="160" cy="335" r="4" fill="#1f77b4"/>
+  <circle cx="320" cy="251" r="4" fill="#1f77b4"/>
+  <circle cx="480" cy="201" r="4" fill="#1f77b4"/>
+
+  <!-- reconstruct_ms: 0.054, 0.554, 1.967 → y = 340 - val*56 -->
+  <!-- n=128: y=340-3≈337; n=512: y=340-31≈309; n=1024: y=340-110≈230 -->
+  <polyline points="160,337 320,309 480,230"
+    fill="none" stroke="#ff7f0e" stroke-width="2.5"/>
+  <circle cx="160" cy="337" r="4" fill="#ff7f0e"/>
+  <circle cx="320" cy="309" r="4" fill="#ff7f0e"/>
+  <circle cx="480" cy="230" r="4" fill="#ff7f0e"/>
+
+  <!-- Legend -->
+  <rect x="390" y="65" width="160" height="60" fill="white" stroke="#ccc" stroke-width="1" rx="4"/>
+  <line x1="400" y1="83" x2="430" y2="83" stroke="#1f77b4" stroke-width="2.5"/>
+  <circle cx="415" cy="83" r="4" fill="#1f77b4"/>
+  <text x="436" y="87" font-family="sans-serif" font-size="12">keygen_ms</text>
+  <line x1="400" y1="107" x2="430" y2="107" stroke="#ff7f0e" stroke-width="2.5"/>
+  <circle cx="415" cy="107" r="4" fill="#ff7f0e"/>
+  <text x="436" y="111" font-family="sans-serif" font-size="12">reconstruct_ms</text>
+
+  <!-- Data labels -->
+  <text x="160" y="328" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1f77b4">0.09</text>
+  <text x="320" y="244" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1f77b4">1.59</text>
+  <text x="480" y="194" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1f77b4">2.49</text>
+  <text x="160" y="350" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#ff7f0e">0.05</text>
+  <text x="320" y="303" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#ff7f0e">0.55</text>
+  <text x="480" y="223" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#ff7f0e">1.97</text>
+</svg>

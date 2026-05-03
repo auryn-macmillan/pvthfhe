@@ -1,0 +1,19 @@
+P4 Benchmark Figures — Placeholder
+===================================
+
+Generated: 2026-05-03
+
+This directory contains scaling figures for the P4 HermineAdapter benchmarks.
+
+Files
+-----
+scaling.svg   — SVG line chart: keygen_ms and reconstruct_ms vs n ∈ {128, 512, 1024}
+scaling.txt   — This file (placeholder stub for PDF/PNG pipeline)
+
+Measured values (mean over 10 iterations)
+------------------------------------------
+n=128:   keygen=0.087ms  verify=0.000ms  reconstruct=0.054ms  share_bytes=4096
+n=512:   keygen=1.588ms  verify=0.000ms  reconstruct=0.554ms  share_bytes=16384
+n=1024:  keygen=2.492ms  verify=0.000ms  reconstruct=1.967ms  share_bytes=32768
+
+All values well within bench-plan.md thresholds (n=1024: keygen≤1600ms, reconstruct≤800ms).

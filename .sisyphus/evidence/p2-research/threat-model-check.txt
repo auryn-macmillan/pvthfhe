@@ -1,0 +1,7 @@
+subcheck: threat-model
+[OK] found artifact: .sisyphus/research/p2/threat-model.md
+[OK] required section present: Corruption Model
+[OK] required section present: Folding-Specific Threats
+[OK] required section present: Knowledge-Soundness
+[OK] required section present: P1 Consistency
+PASS: p2-research-gate/threat-model

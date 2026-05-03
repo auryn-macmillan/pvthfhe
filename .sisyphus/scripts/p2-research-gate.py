@@ -1,26 +1,34 @@
 #!/usr/bin/env python3
+# pyright: reportImplicitRelativeImport=false, reportUnknownVariableType=false
 """p2-research-gate gate."""
 import argparse
-import importlib
+import importlib.util
 import os
 from pathlib import Path
-import sys
-from typing import Callable
-sys.path.insert(0, os.path.dirname(__file__))
+from typing import Callable, cast
 
-run_gate = importlib.import_module("_gate_utils").run_gate
+RunGate = Callable[[str, dict[str, Callable[[], tuple[bool, list[str]]]], argparse.Namespace], None]
+
+_GATE_UTILS_PATH = os.path.join(os.path.dirname(__file__), '_gate_utils.py')
+_GATE_UTILS_SPEC = importlib.util.spec_from_file_location('_gate_utils', _GATE_UTILS_PATH)
+if _GATE_UTILS_SPEC is None or _GATE_UTILS_SPEC.loader is None:
+    raise ImportError(f"unable to load gate utilities from {_GATE_UTILS_PATH}")
+_gate_utils = importlib.util.module_from_spec(_GATE_UTILS_SPEC)
+_GATE_UTILS_SPEC.loader.exec_module(_gate_utils)
+run_gate = cast(RunGate, getattr(_gate_utils, 'run_gate'))
 
 GATE_NAME = "p2-research-gate"
 
 ARTIFACTS = ['.sisyphus/research/lit-survey.md']
 PRIOR_ART_PATH = Path('.sisyphus/research/p2/prior-art.md')
 NOVELTY_MEMO_PATH = Path('.sisyphus/research/p2/novelty-memo.md')
+THREAT_MODEL_PATH = Path('.sisyphus/research/p2/threat-model.md')
 
 SUBCHECKS = ['prior-art', 'novelty-gap', 'threat-model', 'prior-art-matrix', 'novelty-memo']
 
 
-def check_artifacts():
-    details = []
+def check_artifacts() -> tuple[bool, list[str]]:
+    details: list[str] = []
     ok = True
     for path in ARTIFACTS:
         if os.path.exists(path):
@@ -31,8 +39,8 @@ def check_artifacts():
     return ok, details
 
 
-def make_subcheck(name):
-    def fn():
+def make_subcheck(name: str) -> Callable[[], tuple[bool, list[str]]]:
+    def fn() -> tuple[bool, list[str]]:
         ok, details = check_artifacts()
         details.insert(0, f"subcheck: {name}")
         return ok, details
@@ -40,8 +48,8 @@ def make_subcheck(name):
     return fn
 
 
-def prior_art_matrix():
-    details = ["subcheck: prior-art-matrix"]
+def prior_art_matrix() -> tuple[bool, list[str]]:
+    details: list[str] = ["subcheck: prior-art-matrix"]
     ok = True
 
     if not PRIOR_ART_PATH.exists():
@@ -53,7 +61,7 @@ def prior_art_matrix():
 
     header_index = next((i for i, line in enumerate(lines) if line.startswith('| Scheme |')), -1)
     separator_index = header_index + 1 if header_index >= 0 else -1
-    table_rows = []
+    table_rows: list[str] = []
     if header_index >= 0 and separator_index < len(lines):
         for line in lines[separator_index + 1:]:
             if not line.startswith('|'):
@@ -84,8 +92,8 @@ def prior_art_matrix():
     return ok, details
 
 
-def novelty_memo():
-    details = ["subcheck: novelty-memo"]
+def novelty_memo() -> tuple[bool, list[str]]:
+    details: list[str] = ["subcheck: novelty-memo"]
     ok = True
 
     if not NOVELTY_MEMO_PATH.exists():
@@ -116,19 +124,46 @@ def novelty_memo():
     return ok, details
 
 
+def threat_model() -> tuple[bool, list[str]]:
+    details: list[str] = ["subcheck: threat-model"]
+    ok = True
+
+    if not THREAT_MODEL_PATH.exists():
+        return False, details + [f"[FAIL] missing artifact: {THREAT_MODEL_PATH}"]
+
+    details.append(f"[OK] found artifact: {THREAT_MODEL_PATH}")
+    content = THREAT_MODEL_PATH.read_text(encoding="utf-8")
+
+    required_sections = [
+        "Corruption Model",
+        "Folding-Specific Threats",
+        "Knowledge-Soundness",
+        "P1 Consistency",
+    ]
+    for section in required_sections:
+        if section in content:
+            details.append(f"[OK] required section present: {section}")
+        else:
+            details.append(f"[FAIL] missing required section: {section}")
+            ok = False
+
+    return ok, details
+
+
 def main():
     parser = argparse.ArgumentParser(description=f"{GATE_NAME} gate")
-    parser.add_argument("--check", default=None, choices=SUBCHECKS)
-    parser.add_argument("--stub", action="store_true", help="Always PASS (stub mode)")
+    _ = parser.add_argument("--check", default=None, choices=SUBCHECKS)
+    _ = parser.add_argument("--stub", action="store_true", help="Always PASS (stub mode)")
     args = parser.parse_args()
 
     subchecks_map: dict[str, Callable[[], tuple[bool, list[str]]]] = {
         name: make_subcheck(name)
         for name in SUBCHECKS
-        if name not in ['prior-art-matrix', 'novelty-memo']
+        if name not in ['prior-art-matrix', 'novelty-memo', 'threat-model']
     }
     subchecks_map['prior-art-matrix'] = prior_art_matrix
     subchecks_map['novelty-memo'] = novelty_memo
+    subchecks_map['threat-model'] = threat_model
     run_gate(GATE_NAME, subchecks_map, args)
 
 

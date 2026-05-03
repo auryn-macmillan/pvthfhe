@@ -923,6 +923,72 @@ def test_p1_research_gate_threat_model_fails_without_sim_soundness_row():
         assert "Simulation-soundness" in out, out
 
 
+# ---------------------------------------------------------------------------
+# p2-research-gate.py
+# ---------------------------------------------------------------------------
+
+P2_THREAT_MODEL_VALID = textwrap.dedent("""\
+    # P2 Folding Threat Model
+
+    ## 1. Corruption Model
+
+    - Static malicious adversary corrupting at most t-1 of n parties.
+
+    ## 2. Folding-Specific Threats
+
+    - Invalid inner P1 proof injection.
+
+    ## 3. Knowledge-Soundness Model
+
+    - Rewinding extractor over the fold tree.
+
+    ## 4. P1 Consistency Check
+
+    - Corruption model matches P1.
+""")
+
+
+P2_THREAT_MODEL_MISSING_SECTION = textwrap.dedent("""\
+    # P2 Folding Threat Model
+
+    ## 1. Corruption Model
+
+    - Static malicious adversary corrupting at most t-1 of n parties.
+
+    ## 2. Folding-Specific Threats
+
+    - Invalid inner P1 proof injection.
+""")
+
+
+def test_p2_research_gate_threat_model_requires_expected_sections():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        research_dir = os.path.join(tmpdir, ".sisyphus", "research", "p2")
+        os.makedirs(research_dir)
+        threat_model_path = os.path.join(research_dir, "threat-model.md")
+        with open(threat_model_path, "w", encoding="utf-8") as f:
+            _ = f.write(P2_THREAT_MODEL_VALID)
+        rc, out, _ = run_script_in_cwd(
+            "p2-research-gate.py", tmpdir, "--check", "threat-model"
+        )
+        assert rc == 0, f"Expected 0, got {rc}. Output: {out}"
+        assert "PASS: p2-research-gate/threat-model" in out, out
+
+
+def test_p2_research_gate_threat_model_fails_without_required_sections():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        research_dir = os.path.join(tmpdir, ".sisyphus", "research", "p2")
+        os.makedirs(research_dir)
+        threat_model_path = os.path.join(research_dir, "threat-model.md")
+        with open(threat_model_path, "w", encoding="utf-8") as f:
+            _ = f.write(P2_THREAT_MODEL_MISSING_SECTION)
+        rc, out, _ = run_script_in_cwd(
+            "p2-research-gate.py", tmpdir, "--check", "threat-model"
+        )
+        assert rc != 0, f"Expected non-zero, got {rc}. Output: {out}"
+        assert "Knowledge-Soundness" in out, out
+
+
 P1_SCORECARD_VALID = textwrap.dedent("""\
     # P1 Candidate Scorecard
 

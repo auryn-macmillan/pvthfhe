@@ -250,3 +250,15 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - Identified the key challenge: Folding over RLWE relations consuming P1's specific SLAP sigma transcript as an inner proof.
 - Aggressive bets include: Novel folding-over-NTT, Lattice-native accumulator with constant-size verifier, and Hybrid lattice→Plonk projection.
 - Fallback paths defined around MicroNova and Rust-in-zkVM as clear Pivot Triggers.
+
+## 2026-05-03 — Task C.R.4
+- P2 theorem inventory is safest as a single frozen inventory file mirroring the registry-first pattern used earlier: state all five theorems against the exact P1→P2 contract before any proof skeletons exist.
+- T2 must include the extraction-tree budget directly in the theorem statement: inherited ternary challenge loss gives `(1/3)^d`, while the conservative rewinding cost grows as `2^d` over fold depth `d`.
+- T4 currently has a named internal `norm_bound` but no repo-frozen numeric accumulator bound; the theorem should state that bound as an explicit accumulator-side obligation rather than inventing a concrete value.
+- T5 can be grounded today in the repo's existing wrapped-proof envelope (`~14 KB`) and on-chain budget (`≤5,000,000 gas`), but must be labeled as a compatibility goal/obligation instead of a proved fact at P2.
+
+## 2026-05-03 — Task C.R.3
+- The P2 threat model has to be phrased as a preservation layer over P1, not as a fresh security object: the key job is to keep the same corruption model, ternary challenge space, session/participant binding, ROM baseline, and deferred T4 posture while adding folding-specific threats.
+- For this repository, the sharpest P2-specific attacks are malformed-inner-proof injection, accumulator binding failure, and Fiat-Shamir grinding over fold order; each only becomes actionable if the fold relation underconstrains the already-frozen P1 verifier equation.
+- Soundness amplification cannot stay qualitative because P1's ternary challenge set gives only constant per-fold security; stating the baseline product bound `(1/3)^d` keeps the threat model aligned with the actual inherited challenge semantics.
+- A practical extractor warning belongs in the threat model itself: a naive fold-tree rewinding extractor costs `2^d`, so “deep recursion” is not a free theorem consequence even before implementation constraints are considered.

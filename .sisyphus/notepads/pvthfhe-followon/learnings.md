@@ -335,3 +335,9 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 ### Surrogate vs real
 - `bench/p2/` results are surrogate timings (hash-chain only); real LatticeFold+ timings will be orders of magnitude higher.
 - `validate_witness` in `RealFoldingScheme` is a structural check (all-equal bytes), not a cryptographic norm-bound check — T4 norm-bound obligation is still open.
+
+## 2026-05-03 — Task D.R.1
+- For P3, the dominant selection criterion is not just verifier gas: the fixed 200-byte public-input blob means final proof size directly translates into calldata budget pressure, so Groth16-class wraps materially outperform multi-kilobyte direct proofs.
+- SP1 is the cleanest present-day primary because its docs publish explicit proof-size and gas numbers for both Groth16 (~260 B, ~270k gas) and PLONK (~868 B, ~300k gas), making the P3 envelope easy to reason about against the frozen bundle.
+- Rust-in-zkVM with an EVM-final Groth16/PLONK wrap must remain a first-class fallback even if proving is expensive; the project mandate explicitly values guaranteed delivery of the frozen Rust verifier semantics over ideal proving efficiency.
+- Jolt should not be treated as deployment-ready for P3 yet: the public JoltBook still leaves on-chain verification as a roadmap item under construction, so it is a comparison row rather than a committed verifier path.

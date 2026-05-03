@@ -14,8 +14,9 @@ GATE_NAME = "p2-research-gate"
 
 ARTIFACTS = ['.sisyphus/research/lit-survey.md']
 PRIOR_ART_PATH = Path('.sisyphus/research/p2/prior-art.md')
+NOVELTY_MEMO_PATH = Path('.sisyphus/research/p2/novelty-memo.md')
 
-SUBCHECKS = ['prior-art', 'novelty-gap', 'threat-model', 'prior-art-matrix']
+SUBCHECKS = ['prior-art', 'novelty-gap', 'threat-model', 'prior-art-matrix', 'novelty-memo']
 
 
 def check_artifacts():
@@ -83,6 +84,38 @@ def prior_art_matrix():
     return ok, details
 
 
+def novelty_memo():
+    details = ["subcheck: novelty-memo"]
+    ok = True
+
+    if not NOVELTY_MEMO_PATH.exists():
+        return False, details + [f"[FAIL] missing artifact: {NOVELTY_MEMO_PATH}"]
+
+    details.append(f"[OK] found artifact: {NOVELTY_MEMO_PATH}")
+    content = NOVELTY_MEMO_PATH.read_text(encoding="utf-8")
+    
+    required_sections = [
+        "Required Novelty",
+        "Aggressive Bets",
+        "Risk Register",
+        "Pivot Triggers"
+    ]
+    for section in required_sections:
+        if section in content:
+            details.append(f"[OK] required section present: {section}")
+        else:
+            details.append(f"[FAIL] missing required section: {section}")
+            ok = False
+
+    if "1. **" in content:
+        details.append("[OK] found >=1 aggressive bet")
+    else:
+        details.append("[FAIL] aggressive bet missing")
+        ok = False
+
+    return ok, details
+
+
 def main():
     parser = argparse.ArgumentParser(description=f"{GATE_NAME} gate")
     parser.add_argument("--check", default=None, choices=SUBCHECKS)
@@ -92,9 +125,10 @@ def main():
     subchecks_map: dict[str, Callable[[], tuple[bool, list[str]]]] = {
         name: make_subcheck(name)
         for name in SUBCHECKS
-        if name != 'prior-art-matrix'
+        if name not in ['prior-art-matrix', 'novelty-memo']
     }
     subchecks_map['prior-art-matrix'] = prior_art_matrix
+    subchecks_map['novelty-memo'] = novelty_memo
     run_gate(GATE_NAME, subchecks_map, args)
 
 

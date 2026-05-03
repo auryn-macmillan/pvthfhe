@@ -245,3 +245,8 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - LatticeFold and LatticeFold+ are not interchangeable: LatticeFold is the first lattice-native baseline, while LatticeFold+ is the materially improved follow-on with faster proving, shorter proofs, and a simpler verifier.
 - The clean program shape for this repo is a two-track matrix: lattice-native primary candidates (`LatticeFold+`, `LatticeFold`) and delivery fallbacks (`Rust-in-zkVM`, `MicroNova`) in case the newest lattice-native paper remains too immature or unaudited.
 - `p2-research-gate.py` was still a generic stub; adding a dedicated `prior-art-matrix` subcheck is the fastest way to make the artifact enforceable without disturbing the older advisory subchecks.
+
+### P2 Novelty Gap Analysis
+- Identified the key challenge: Folding over RLWE relations consuming P1's specific SLAP sigma transcript as an inner proof.
+- Aggressive bets include: Novel folding-over-NTT, Lattice-native accumulator with constant-size verifier, and Hybrid lattice→Plonk projection.
+- Fallback paths defined around MicroNova and Rust-in-zkVM as clear Pivot Triggers.

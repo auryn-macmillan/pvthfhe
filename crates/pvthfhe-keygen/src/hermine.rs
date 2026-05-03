@@ -1,5 +1,3 @@
-#![allow(clippy::manual_contains)]
-
 //! Hermine-adapted PVSS dealer and participant implementation.
 //!
 //! This module provides `HermineAdapter`, a publicly-verifiable secret-sharing
@@ -365,7 +363,9 @@ impl KeygenAdapter for HermineAdapter {
             if s.session_id != *session_id {
                 return Err(KeygenError::new("shares belong to different sessions"));
             }
-            if s.threshold != Some(u16::try_from(threshold).expect("threshold fits u16")) {
+            if s.threshold
+                != Some(u16::try_from(threshold).expect("threshold fits u16 by construction"))
+            {
                 return Err(KeygenError::new("shares disagree on threshold"));
             }
             let x = u64::from(
@@ -411,7 +411,7 @@ pub fn check_and_blame(
     let dealer_id = artifact.dealer_id?;
 
     let expected_commit = commit(session_id, participant_id, secret_value);
-    let in_artifact = artifact.commitments.iter().any(|c| *c == expected_commit);
+    let in_artifact = artifact.commitments.contains(&expected_commit);
     let received_matches = share
         .commitment
         .as_deref()

@@ -14,6 +14,7 @@ PVTHFHE targets private-verifiable threshold FHE with $O(n)$ per-party work and 
 - **NOT battle-tested.**
 - **Open Problem P1**: Lattice NIZK well-formedness soundness is not formally proven.
 - **Open Problem P2**: LatticeFold+ over RLWE is simulated.
+- **Open Problem P3**: The deployed `P3RealVerifier.sol` uses a **trusted-signer surrogate** (`ecrecover` against a hard-coded key) — it does **not** cryptographically verify the P2 accumulator. Full on-chain soundness is an open implementation task.
 
 ## Quickstart
 

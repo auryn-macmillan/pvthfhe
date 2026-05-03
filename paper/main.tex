@@ -169,6 +169,16 @@ proof size.
 
 The P3 on-chain verifier is a Solidity contract that accepts the accumulated P2 proof.
 
+\textbf{Implementation note (current prototype):}
+The deployed \texttt{P3RealVerifier.sol} implements on-chain verification via
+\texttt{ecrecover}: the contract checks that the proof submission carries a valid
+ECDSA signature from a single hard-coded \texttt{TRUSTED\_SIGNER} address.
+This is a \emph{trusted-signer surrogate}, not a cryptographic verification of the
+P2 accumulator.  Under this model, Theorem~\ref{thm:p3-t1} reduces to
+``\texttt{ecrecover} completeness for a single trusted key''; it does \emph{not}
+provide soundness against a malicious or compromised signer.  Full on-chain
+soundness remains an open implementation task.
+
 \begin{theorem}[P3 On-chain Soundness]
 \label{thm:p3-t1}
 Any on-chain acceptance of the P3 verifier implies acceptance of the exact frozen P2

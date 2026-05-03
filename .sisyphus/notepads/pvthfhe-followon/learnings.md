@@ -317,3 +317,21 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - **T5 (On-chain)**: Current `FinalProof` is 32 bytes (SHA-256) — trivially within 14 KB. The gas, O(1)-verifier-work, and P3 public-input-boundary claims are Phase D obligations; the EVM path for LatticeFold+ will likely require a P3 wrapper (UltraHonk or Groth16 over the lattice verifier circuit).
 - **Key invariant**: `fold()` copies `params` unchanged; `verify_acc` checks `params` match. This makes parameter binding a zero-failure deterministic guarantee, not a probabilistic one.
 - **Implementation gap**: `validate_witness` checks `windows(2).all(|w| w[0]==w[1])` (uniform bytes), not a real RLWE norm bound. This is a harness stub, not a security check.
+
+## 2026-05-03 — Task C.I.6
+
+### Gate patterns
+- `_gate_utils.run_gate` handles both `--check <subcheck>` (single subcheck) and full-gate runs; each subcheck returns `(bool, list[str])`.
+- Evidence JSON is auto-emitted to `.sisyphus/evidence/<gate-name>-<subcheck>.json` by `emit_evidence`.
+- Gate scripts use `sys.path.insert(0, os.path.dirname(__file__))` to import `_gate_utils` at runtime; LSP cannot resolve this statically but it works fine.
+- subprocess.run with `capture_output=True, cwd=ROOT` is the right pattern for running cargo commands from a gate.
+
+### Bundle format
+- The P2→P3 bundle follows the same 7-section spirit as P1→P2: frozen types, op-budget, layout, caveats, regression baseline, gas projections, recursion path.
+- Key tension: the gate passes for *implementation completeness*, not *surrogate retirement*. The Security Caveats section must clearly document that `surrogate-folding` remains the default and IG-P2 does not imply LatticeFold+ soundness.
+- `FinalProof.proof_bytes` is 32 bytes (SHA-256) regardless of fold depth — O(1) proof size is already discharged; O(1) verifier work and gas are Phase D obligations.
+- `P3PublicInputs` is 200 bytes: 6 × 32-byte hashes + 1 × 8-byte epoch (not 7 × 32 = 224).
+
+### Surrogate vs real
+- `bench/p2/` results are surrogate timings (hash-chain only); real LatticeFold+ timings will be orders of magnitude higher.
+- `validate_witness` in `RealFoldingScheme` is a structural check (all-equal bytes), not a cryptographic norm-bound check — T4 norm-bound obligation is still open.

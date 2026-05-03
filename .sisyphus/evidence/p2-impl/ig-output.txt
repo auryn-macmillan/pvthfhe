@@ -1,0 +1,33 @@
+subcheck: tests-pass
+[RUN] cargo test -p pvthfhe-aggregator --features=real-folding -- --test-threads=4
+[OK] cargo test -p pvthfhe-aggregator --features=real-folding exited 0
+  PASS: tests-pass
+subcheck: adversarial-tests-pass
+[OK] found: /home/dev/pvthfhe/.sisyphus/evidence/p2-impl/adversarial.txt
+[OK] adversarial.txt contains '15 passed'
+  PASS: adversarial-tests-pass
+subcheck: proofs-exist
+[OK] T1.md exists and contains VERDICT: APPROVE
+[OK] T2.md exists and contains VERDICT: APPROVE
+[OK] T3.md exists and contains VERDICT: APPROVE
+[OK] T4.md exists and contains VERDICT: APPROVE
+[OK] T5.md exists and contains VERDICT: APPROVE
+  PASS: proofs-exist
+subcheck: bench-results-exist
+[OK] /home/dev/pvthfhe/bench/p2/results-128.json
+[OK] /home/dev/pvthfhe/bench/p2/results-512.json
+[OK] /home/dev/pvthfhe/bench/p2/results-1024.json
+  PASS: bench-results-exist
+subcheck: downstream-bundle
+[OK] found: /home/dev/pvthfhe/.sisyphus/contracts/p2-to-p3-bundle.md
+[OK] section present: '## 1. Frozen Accumulator Format'
+[OK] section present: '## 2. On-Chain Verifier Op-Budget'
+[OK] section present: '## 3. Public-Input Encoding'
+[OK] section present: '## 4. Security Caveats'
+[OK] section present: '## 5. Regression Baseline'
+[OK] section present: '## 6. Gas Projections'
+[OK] section present: '## 7. Recursion Path'
+[OK] bundle contains VERDICT: APPROVE
+  PASS: downstream-bundle
+
+PASS: p2-impl-gate

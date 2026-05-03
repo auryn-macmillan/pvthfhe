@@ -13,6 +13,8 @@
 
 #![deny(missing_docs)]
 
+pub mod hermine;
+
 /// Error type returned by `KeygenAdapter` methods.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KeygenError {
@@ -42,46 +44,64 @@ impl core::fmt::Display for KeygenError {
 impl std::error::Error for KeygenError {}
 
 /// Opaque placeholder for a participant descriptor (real types live in keygen-spec).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Participant {
     /// Participant index (1-based).
     pub id: u16,
 }
 
 /// Opaque placeholder for a keygen session (full type in keygen-spec).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct KeygenSession {
     /// Session identifier string.
     pub session_id: String,
     /// Threshold for the session.
     pub threshold: u16,
+    /// Participants registered for this session.
+    pub participants: Vec<Participant>,
+    /// Raw bytes of the derived session identifier.
+    pub session_id_bytes: Vec<u8>,
 }
 
 /// Opaque placeholder for a share.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Share {
     /// Owning session id.
     pub session_id: String,
+    /// Participant this share belongs to.
+    pub participant_id: Option<u16>,
+    /// The secret share value (Shamir evaluation).
+    pub secret_value: Option<u64>,
+    /// SHA-256 commitment to the share value.
+    pub commitment: Option<Vec<u8>>,
 }
 
 /// Opaque placeholder for a public verification artifact.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct PublicVerificationArtifact {
     /// Owning session id.
     pub session_id: String,
+    /// Per-participant commitments (SHA-256 hashes).
+    pub commitments: Vec<Vec<u8>>,
+    /// Dealer that produced this artifact.
+    pub dealer_id: Option<u16>,
 }
 
 /// Opaque placeholder for an abort-with-blame proof.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct BlameProof {
     /// Owning session id.
     pub session_id: String,
     /// Human-readable blame reason.
     pub reason: String,
+    /// Identifier of the accused party.
+    pub accused_id: Option<u16>,
+    /// Raw evidence bytes.
+    pub evidence: Option<Vec<u8>>,
 }
 
 /// Opaque placeholder for the reconstructed BFV public key.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct BFVPublicKey {
     /// Raw bytes of the BFV key (stub: empty).
     pub bytes: Vec<u8>,
@@ -138,6 +158,7 @@ pub mod stub {
             Ok(KeygenSession {
                 session_id: "stub-session".to_owned(),
                 threshold,
+                ..Default::default()
             })
         }
 
@@ -148,9 +169,11 @@ pub mod stub {
         ) -> Result<(Vec<Share>, PublicVerificationArtifact), KeygenError> {
             let share = Share {
                 session_id: session.session_id.clone(),
+                ..Default::default()
             };
             let artifact = PublicVerificationArtifact {
                 session_id: session.session_id.clone(),
+                ..Default::default()
             };
             Ok((vec![share], artifact))
         }

@@ -9,8 +9,11 @@ license = "MIT"
 # migration-stub keeps the surrogate code path active until the real HermineAdapter is ready.
 # CI always builds with this feature until Step M4 of the migration plan.
 migration-stub = []
+# surrogate-baseline is an alias for migration-stub (used in CI workspace-wide check).
+surrogate-baseline = ["migration-stub"]
 
 [dependencies]
+sha2 = "0.10"
 
 [lints]
 workspace = true

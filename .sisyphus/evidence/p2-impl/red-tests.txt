@@ -1,0 +1,80 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.04s
+     Running unittests src/lib.rs (target/debug/deps/pvthfhe_aggregator-a1e48c4ae05357ee)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/adversarial/mod.rs (target/debug/deps/adversarial-cf788538c0ef61b9)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.00s
+
+     Running tests/decrypt_rejections.rs (target/debug/deps/decrypt_rejections-b01a835fccd7e639)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s
+
+     Running tests/decrypt_roundtrip.rs (target/debug/deps/decrypt_roundtrip-5bcaa9d64252453f)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests/folding.rs (target/debug/deps/folding-7047c6b3d134283c)
+
+running 6 tests
+test folding::test_fold_determinism ... FAILED
+test folding::test_fold_two_valid_p1_nizks_verifies ... FAILED
+test folding::test_fold_of_fold_verifies_depth_three ... FAILED
+test folding::test_accumulator_binding ... FAILED
+test folding::test_tampered_inner_proof_rejected ... FAILED
+test folding::test_wrong_fhe_param_across_folds_rejected ... FAILED
+
+failures:
+
+---- folding::test_fold_determinism stdout ----
+
+thread 'folding::test_fold_determinism' (447103) panicked at crates/pvthfhe-aggregator/tests/folding.rs:98:5:
+not implemented: C.I.2: real folding scheme not yet implemented
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- folding::test_fold_two_valid_p1_nizks_verifies stdout ----
+
+thread 'folding::test_fold_two_valid_p1_nizks_verifies' (447105) panicked at crates/pvthfhe-aggregator/tests/folding.rs:98:5:
+not implemented: C.I.2: real folding scheme not yet implemented
+
+---- folding::test_fold_of_fold_verifies_depth_three stdout ----
+
+thread 'folding::test_fold_of_fold_verifies_depth_three' (447104) panicked at crates/pvthfhe-aggregator/tests/folding.rs:98:5:
+not implemented: C.I.2: real folding scheme not yet implemented
+
+---- folding::test_accumulator_binding stdout ----
+
+thread 'folding::test_accumulator_binding' (447102) panicked at crates/pvthfhe-aggregator/tests/folding.rs:98:5:
+not implemented: C.I.2: real folding scheme not yet implemented
+
+---- folding::test_tampered_inner_proof_rejected stdout ----
+
+thread 'folding::test_tampered_inner_proof_rejected' (447106) panicked at crates/pvthfhe-aggregator/tests/folding.rs:98:5:
+not implemented: C.I.2: real folding scheme not yet implemented
+
+---- folding::test_wrong_fhe_param_across_folds_rejected stdout ----
+
+thread 'folding::test_wrong_fhe_param_across_folds_rejected' (447107) panicked at crates/pvthfhe-aggregator/tests/folding.rs:98:5:
+not implemented: C.I.2: real folding scheme not yet implemented
+
+
+failures:
+    folding::test_accumulator_binding
+    folding::test_fold_determinism
+    folding::test_fold_of_fold_verifies_depth_three
+    folding::test_fold_two_valid_p1_nizks_verifies
+    folding::test_tampered_inner_proof_rejected
+    folding::test_wrong_fhe_param_across_folds_rejected
+
+test result: FAILED. 0 passed; 6 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p pvthfhe-aggregator --test folding`

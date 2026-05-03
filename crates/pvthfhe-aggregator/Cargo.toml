@@ -1,6 +1,7 @@
 [package]
 name = "pvthfhe-aggregator"
 version = "0.1.0"
+license = "MIT"
 edition = "2021"
 
 [lints]
@@ -20,3 +21,13 @@ thiserror = "1"
 tokio = { version = "1", features = ["rt", "macros", "test-util"] }
 rand = "0.8"
 
+[features]
+real-folding = []
+
+[[test]]
+name = "adversarial"
+path = "tests/adversarial/mod.rs"
+
+[[test]]
+name = "folding"
+path = "tests/folding.rs"

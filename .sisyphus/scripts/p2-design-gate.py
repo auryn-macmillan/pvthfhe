@@ -50,7 +50,7 @@ REQUIRED_STACK_DECISION_HEADINGS = [
     '## Reviewer Sign-off',
 ]
 
-SUBCHECKS = ['charter', 'bundle', 'reviewer-memo', 'interface-spec', 'stack-decision', 'proof-skeletons']
+SUBCHECKS = ['charter', 'bundle', 'reviewer-memo', 'interface-spec', 'stack-decision', 'proof-skeletons', 'bench-migration']
 
 
 def check_artifacts() -> tuple[bool, list[str]]:
@@ -157,6 +157,27 @@ def proof_skeletons() -> tuple[bool, list[str]]:
     return True, details
 
 
+
+def bench_migration() -> tuple[bool, list[str]]:
+    details = ["subcheck: bench-migration"]
+    bench_path = ROOT / ".sisyphus/design/p2/bench-plan.md"
+    mig_path = ROOT / ".sisyphus/design/p2/migration-plan.md"
+    for path, required_headings in [
+        (bench_path, ["## Benchmark Matrix", "## Projected Timings", "## Interpretation"]),
+        (mig_path, ["## Adapter Rollout", "## Feature-Flag Strategy", "## Surrogate Retirement Schedule", "## Rollback Criteria"]),
+    ]:
+        if not path.exists():
+            details.append(f"MISSING: {path}")
+            return False, details
+        text = path.read_text()
+        for h in required_headings:
+            if h not in text:
+                details.append(f"MISSING heading '{h}' in {path.name}")
+                return False, details
+    details.append("[OK] bench-plan.md and migration-plan.md found and validated")
+    return True, details
+
+
 def main():
     parser = argparse.ArgumentParser(description=f"{GATE_NAME} gate")
     _ = parser.add_argument("--check", default=None, choices=SUBCHECKS)
@@ -166,11 +187,12 @@ def main():
     subchecks_map: dict[str, Callable[[], tuple[bool, list[str]]]] = {
         name: make_subcheck(name)
         for name in SUBCHECKS
-        if name not in {'interface-spec', 'stack-decision', 'proof-skeletons'}
+        if name not in {'interface-spec', 'stack-decision', 'proof-skeletons', 'bench-migration'}
     }
     subchecks_map['interface-spec'] = interface_spec
     subchecks_map['stack-decision'] = stack_decision
     subchecks_map['proof-skeletons'] = proof_skeletons
+    subchecks_map['bench-migration'] = bench_migration
     run_gate(GATE_NAME, subchecks_map, args)
 
 

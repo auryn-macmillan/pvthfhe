@@ -1,0 +1,3 @@
+subcheck: bench-migration
+[OK] bench-plan.md and migration-plan.md found and validated
+PASS: p2-design-gate/bench-migration

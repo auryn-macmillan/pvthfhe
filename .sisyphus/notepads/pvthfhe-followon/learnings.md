@@ -279,3 +279,8 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - Recursion budget at `t=513` is depth `~10`, which implies a conservative extraction tree of `2^10 = 1024` rewinding branches; the depth is manageable, but it is not free.
 - PQ posture is the main reason to keep LatticeFold+ primary: MicroNova is the better present-day gas/proof-size story, while zkVM is the better delivery story, but only LatticeFold+ keeps the core folding line lattice-native.
 - On-chain cost projections remain the live pivot trigger: MicroNova is the clearest `≤5M` / `≤14KB` path, LatticeFold+ is still borderline pending P3 compression, and zkVM is acceptable only as the explicit fallback.
+- P2 proof skeletons should state LatticeFold+ claims against the frozen tuple `(q=65537, N=1024, B_e=17, k=ternary_challenge_set={-1,0,1})`, carry forward the exact five frozen P1 verifier sub-checks, and keep T3 scoped only to `(t_bytes, z_s, z_e)` rather than the full P1 payload.
+- The `p2-design-gate.py` subcheck pattern accepts a simple artifact validator registered in both `SUBCHECKS` and `subchecks_map`; the `proof-skeletons` check should use repo-root addressing plus a final `VERDICT: APPROVE` marker.
+
+- 2026-05-03: P2 design-gate subchecks follow the existing `tuple[bool, list[str]]` pattern; doc-only checks are easiest to keep robust by validating required headings and file presence rather than adding bespoke parsing.
+- 2026-05-03: The P2 benchmark-plan projections should stay explicitly anchored to `stack-decision.md` and checked-in `bench/results/` baselines, with every matrix cell labeled projected rather than measured.

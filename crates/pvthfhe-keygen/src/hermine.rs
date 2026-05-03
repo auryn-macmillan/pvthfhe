@@ -9,7 +9,7 @@
 use sha2::{Digest, Sha256};
 
 use crate::{
-    BFVPublicKey, KeygenAdapter, KeygenError, KeygenSession, Participant,
+    BFVPublicKey, BlameProof, KeygenAdapter, KeygenError, KeygenSession, Participant,
     PublicVerificationArtifact, Share,
 };
 
@@ -32,11 +32,6 @@ impl HermineAdapter {
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
-
-/// Reduces a `u128` value modulo `PRIME`.
-fn mod_p(x: u128) -> u64 {
-    (x % PRIME as u128) as u64
-}
 
 /// Evaluates a polynomial with the given coefficients at point `x` (mod PRIME).
 fn poly_eval(coeffs: &[u64], x: u64) -> u64 {
@@ -70,6 +65,116 @@ fn commit(session_id: &str, participant_id: u16, value: u64) -> Vec<u8> {
     h.update(participant_id.to_le_bytes());
     h.update(value.to_be_bytes());
     h.finalize().to_vec()
+}
+
+fn reject_invalid_session(participants: &[Participant], threshold: u16) -> Result<(), KeygenError> {
+    if threshold == 0 {
+        return Err(KeygenError::new("threshold must be at least one"));
+    }
+    if threshold as usize > participants.len() {
+        return Err(KeygenError::new("threshold exceeds participant count"));
+    }
+
+    let mut participant_ids = std::collections::BTreeSet::new();
+    for participant in participants {
+        if participant.id == 0 {
+            return Err(KeygenError::new("participant ids must be 1-based"));
+        }
+        if !participant_ids.insert(participant.id) {
+            return Err(KeygenError::new("duplicate participant id"));
+        }
+    }
+    Ok(())
+}
+
+fn verify_share_set(
+    artifact: &PublicVerificationArtifact,
+    shares: &[Share],
+) -> Result<Option<BlameProof>, KeygenError> {
+    if shares.is_empty() || shares.len() != artifact.commitments.len() {
+        return Ok(Some(BlameProof {
+            session_id: artifact.session_id.clone(),
+            reason: "commitment_count_mismatch".to_owned(),
+            accused_id: artifact.dealer_id,
+            evidence: Some(artifact.commitments.concat()),
+        }));
+    }
+
+    let artifact_threshold = artifact
+        .threshold
+        .ok_or_else(|| KeygenError::new("artifact missing threshold"))?;
+    let mut expected_commitments = Vec::with_capacity(shares.len());
+    let mut participant_ids = std::collections::BTreeSet::new();
+
+    for share in shares {
+        let participant_id = share.participant_id;
+
+        if share.session_id != artifact.session_id {
+            return Ok(Some(BlameProof {
+                session_id: artifact.session_id.clone(),
+                reason: "replayed_share".to_owned(),
+                accused_id: artifact.dealer_id,
+                evidence: share.commitment.clone(),
+            }));
+        }
+        if share.threshold != Some(artifact_threshold) {
+            return Ok(Some(BlameProof {
+                session_id: artifact.session_id.clone(),
+                reason: "threshold_mismatch".to_owned(),
+                accused_id: participant_id,
+                evidence: share.commitment.clone(),
+            }));
+        }
+
+        let participant_id = match participant_id {
+            Some(id) if id != 0 && participant_ids.insert(id) => id,
+            _ => {
+                return Ok(Some(BlameProof {
+                    session_id: artifact.session_id.clone(),
+                    reason: "invalid_share_identity".to_owned(),
+                    accused_id: participant_id,
+                    evidence: share.commitment.clone(),
+                }))
+            }
+        };
+
+        let secret_value = match share.secret_value {
+            Some(value) => value,
+            None => {
+                return Ok(Some(BlameProof {
+                    session_id: artifact.session_id.clone(),
+                    reason: "missing_secret_value".to_owned(),
+                    accused_id: Some(participant_id),
+                    evidence: share.commitment.clone(),
+                }))
+            }
+        };
+
+        let expected_commitment = commit(&artifact.session_id, participant_id, secret_value);
+        if share.commitment.as_deref() != Some(expected_commitment.as_slice()) {
+            return Ok(Some(BlameProof {
+                session_id: artifact.session_id.clone(),
+                reason: "forged_share".to_owned(),
+                accused_id: Some(participant_id),
+                evidence: share.commitment.clone(),
+            }));
+        }
+        expected_commitments.push(expected_commitment);
+    }
+
+    let mut published = artifact.commitments.clone();
+    published.sort();
+    expected_commitments.sort();
+    if published != expected_commitments {
+        return Ok(Some(BlameProof {
+            session_id: artifact.session_id.clone(),
+            reason: "commitment_mismatch".to_owned(),
+            accused_id: artifact.dealer_id,
+            evidence: Some(artifact.commitments.concat()),
+        }));
+    }
+
+    Ok(None)
 }
 
 /// Performs Lagrange interpolation over `PRIME` to recover the secret (constant
@@ -123,9 +228,7 @@ impl KeygenAdapter for HermineAdapter {
         participants: &[Participant],
         threshold: u16,
     ) -> Result<KeygenSession, KeygenError> {
-        if threshold as usize > participants.len() {
-            return Err(KeygenError::new("threshold exceeds participant count"));
-        }
+        reject_invalid_session(participants, threshold)?;
         // Derive a session ID from the participant list and threshold.
         let mut h = Sha256::new();
         for p in participants {
@@ -176,6 +279,7 @@ impl KeygenAdapter for HermineAdapter {
             commitments.push(c.clone());
             shares.push(Share {
                 session_id: session.session_id.clone(),
+                threshold: Some(session.threshold),
                 participant_id: Some(p.id),
                 secret_value: Some(y),
                 commitment: Some(c),
@@ -184,6 +288,7 @@ impl KeygenAdapter for HermineAdapter {
 
         let artifact = PublicVerificationArtifact {
             session_id: session.session_id.clone(),
+            threshold: Some(session.threshold),
             commitments,
             dealer_id: Some(dealer_id),
         };
@@ -195,27 +300,81 @@ impl KeygenAdapter for HermineAdapter {
         &self,
         artifact: &PublicVerificationArtifact,
     ) -> Result<bool, KeygenError> {
-        if artifact.commitments.is_empty() {
+        if artifact.session_id.is_empty()
+            || artifact.dealer_id.is_none()
+            || artifact.threshold.is_none()
+            || artifact.commitments.is_empty()
+        {
             return Ok(false);
         }
         for c in &artifact.commitments {
-            if c.is_empty() {
+            if c.len() != 32 {
                 return Ok(false);
             }
         }
         Ok(true)
     }
 
+    fn public_verify(
+        &self,
+        artifact: &PublicVerificationArtifact,
+        shares: &[Share],
+    ) -> Result<bool, KeygenError> {
+        if !self.verify_transcript(artifact)? {
+            return Ok(false);
+        }
+        Ok(verify_share_set(artifact, shares)?.is_none())
+    }
+
+    fn blame_dealing(
+        &self,
+        artifact: &PublicVerificationArtifact,
+        shares: &[Share],
+    ) -> Result<Option<BlameProof>, KeygenError> {
+        if !self.verify_transcript(artifact)? {
+            return Ok(Some(BlameProof {
+                session_id: artifact.session_id.clone(),
+                reason: "invalid_public_artifact".to_owned(),
+                accused_id: artifact.dealer_id,
+                evidence: Some(artifact.commitments.concat()),
+            }));
+        }
+        verify_share_set(artifact, shares)
+    }
+
     fn reconstruct_bfv_key(&self, shares: &[Share]) -> Result<BFVPublicKey, KeygenError> {
         if shares.is_empty() {
             return Err(KeygenError::new("no shares provided"));
         }
+        let threshold = shares[0]
+            .threshold
+            .ok_or_else(|| KeygenError::new("share missing threshold"))?
+            as usize;
+        if shares.len() < threshold {
+            return Err(KeygenError::new(
+                "insufficient shares for threshold reconstruction",
+            ));
+        }
         let mut points: Vec<(u64, u64)> = Vec::with_capacity(shares.len());
+        let session_id = &shares[0].session_id;
+        let mut participant_ids = std::collections::BTreeSet::new();
         for s in shares {
+            if s.session_id != *session_id {
+                return Err(KeygenError::new("shares belong to different sessions"));
+            }
+            if s.threshold != Some(threshold as u16) {
+                return Err(KeygenError::new("shares disagree on threshold"));
+            }
             let x = s
                 .participant_id
                 .ok_or_else(|| KeygenError::new("share missing participant_id"))?
                 as u64;
+            if x == 0 {
+                return Err(KeygenError::new("participant ids must be 1-based"));
+            }
+            if !participant_ids.insert(x) {
+                return Err(KeygenError::new("duplicate participant_id in shares"));
+            }
             let y = s
                 .secret_value
                 .ok_or_else(|| KeygenError::new("share missing secret_value"))?;

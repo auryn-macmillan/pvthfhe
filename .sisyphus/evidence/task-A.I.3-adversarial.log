@@ -1,0 +1,15 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.03s
+     Running tests/adversarial.rs (target/debug/deps/adversarial-0ededf91c887f669)
+
+running 8 tests
+test abort_blame_correct_names_cheating_participant ... ok
+test colluding_below_threshold_cannot_reconstruct ... ok
+test duplicate_participant_id_is_rejected ... ok
+test forged_share_blames_forging_participant ... ok
+test invalid_empty_commitment_artifact_is_rejected ... ok
+test threshold_tampering_blames_cheating_participant ... ok
+test malicious_dealer_bad_commitment_blames_dealer ... ok
+test replayed_share_from_other_session_is_rejected ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

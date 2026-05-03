@@ -68,6 +68,8 @@ pub struct KeygenSession {
 pub struct Share {
     /// Owning session id.
     pub session_id: String,
+    /// Session threshold required for reconstruction.
+    pub threshold: Option<u16>,
     /// Participant this share belongs to.
     pub participant_id: Option<u16>,
     /// The secret share value (Shamir evaluation).
@@ -81,6 +83,8 @@ pub struct Share {
 pub struct PublicVerificationArtifact {
     /// Owning session id.
     pub session_id: String,
+    /// Session threshold bound into the public artifact.
+    pub threshold: Option<u16>,
     /// Per-participant commitments (SHA-256 hashes).
     pub commitments: Vec<Vec<u8>>,
     /// Dealer that produced this artifact.
@@ -129,6 +133,20 @@ pub trait KeygenAdapter: Send + Sync {
     fn verify_transcript(&self, artifact: &PublicVerificationArtifact)
         -> Result<bool, KeygenError>;
 
+    /// Verifies that the public artifact matches the supplied shares.
+    fn public_verify(
+        &self,
+        artifact: &PublicVerificationArtifact,
+        shares: &[Share],
+    ) -> Result<bool, KeygenError>;
+
+    /// Produces a blame proof for the first detected dealing inconsistency.
+    fn blame_dealing(
+        &self,
+        artifact: &PublicVerificationArtifact,
+        shares: &[Share],
+    ) -> Result<Option<BlameProof>, KeygenError>;
+
     /// Reconstructs the BFV public key from a quorum of shares.
     fn reconstruct_bfv_key(&self, shares: &[Share]) -> Result<BFVPublicKey, KeygenError>;
 }
@@ -141,7 +159,7 @@ pub trait KeygenAdapter: Send + Sync {
 #[cfg(feature = "migration-stub")]
 pub mod stub {
     use super::{
-        BFVPublicKey, KeygenAdapter, KeygenError, KeygenSession, Participant,
+        BFVPublicKey, BlameProof, KeygenAdapter, KeygenError, KeygenSession, Participant,
         PublicVerificationArtifact, Share,
     };
 
@@ -169,10 +187,12 @@ pub mod stub {
         ) -> Result<(Vec<Share>, PublicVerificationArtifact), KeygenError> {
             let share = Share {
                 session_id: session.session_id.clone(),
+                threshold: Some(session.threshold),
                 ..Default::default()
             };
             let artifact = PublicVerificationArtifact {
                 session_id: session.session_id.clone(),
+                threshold: Some(session.threshold),
                 ..Default::default()
             };
             Ok((vec![share], artifact))
@@ -183,6 +203,22 @@ pub mod stub {
             _artifact: &PublicVerificationArtifact,
         ) -> Result<bool, KeygenError> {
             Ok(true)
+        }
+
+        fn public_verify(
+            &self,
+            _artifact: &PublicVerificationArtifact,
+            _shares: &[Share],
+        ) -> Result<bool, KeygenError> {
+            Ok(true)
+        }
+
+        fn blame_dealing(
+            &self,
+            _artifact: &PublicVerificationArtifact,
+            _shares: &[Share],
+        ) -> Result<Option<BlameProof>, KeygenError> {
+            Ok(None)
         }
 
         fn reconstruct_bfv_key(&self, _shares: &[Share]) -> Result<BFVPublicKey, KeygenError> {

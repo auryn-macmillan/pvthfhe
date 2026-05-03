@@ -111,14 +111,6 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - T5 closes cleanly for the simulated stack because the P4/P1 handoff state is already explicit in the five interface types plus blame metadata; no hidden witness or trapdoor state crosses the boundary.
 - The obligations validator needed CLI compatibility for this task's acceptance command: support a positional path argument and enforce `--problem P4 --status proven` over filtered rows.
 
-## 2026-05-03 — Task A.I.3: public verification + adversarial tests
-
-- `verify_transcript` was too weak for T3/T4-style checks; requiring non-empty session id, present dealer id, and fixed-width 32-byte commitments catches malformed public artifacts before share-level verification.
-- Public verification needs two layers: syntactic transcript checks (`verify_transcript`) and semantic share/artifact consistency (`public_verify`) that rejects session replays, duplicate participant ids, mismatched per-share commitments, and commitment-set divergence.
-- 100% blame attribution across the requested adversarial scenarios is easiest if participant-originated faults (forged share, replay, bad private commitment) accuse the offending share owner, while dealer-originated transcript inconsistencies accuse `artifact.dealer_id`.
-- Threshold failure cannot be tested reliably unless each share carries the session threshold; storing `threshold: Option<u16>` in `Share` lets `reconstruct_bfv_key` reject below-threshold subsets instead of silently interpolating the wrong secret.
-- Evidence logs for this task are `.sisyphus/evidence/task-A.I.3-adversarial.log` and `.sisyphus/evidence/task-A.I.3-honest.log`; both need force-add during commit because `.sisyphus/evidence/*.log` is gitignored.
-
 ## 2026-05-03 — Task A.I.5: Benchmarks + Paper Figures
 
 ### What was done
@@ -141,3 +133,12 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - verify_ms is essentially 0 because `verify_transcript` is a simple non-empty check (O(1) per commit)
 - The n-dealer verification loop time is dominated by allocation, not crypto
 - All benchmarks within bench-plan.md advisory thresholds
+
+## 2026-05-03 — Task A.I.3: public verification + adversarial tests
+
+- `verify_transcript` was too weak for T3/T4-style checks; requiring non-empty session id, present dealer id, present threshold, and fixed-width 32-byte commitments catches malformed public artifacts before share-level verification.
+- Public verification needs two layers at the trait boundary: syntactic transcript checks (`verify_transcript`) and semantic share/artifact consistency (`public_verify`) so downstream code can verify dealings without concrete `HermineAdapter` coupling.
+- Replay blame should target the dealer in this simulated flow because the artifact/share bundle has no authenticated sender provenance; blaming the share owner would violate the non-frameability goal from T4.
+- Threshold failure is only robust if the threshold is bound into both `Share` and `PublicVerificationArtifact`; otherwise tampered metadata can bypass below-threshold guards and yield silent wrong-key reconstruction.
+- Extra adversarial coverage worth keeping: threshold tampering and duplicate participant registration, because both are easy-to-mutate metadata attacks that the original six-scenario checklist did not directly exercise.
+- Evidence logs for this task are `.sisyphus/evidence/task-A.I.3-adversarial.log` and `.sisyphus/evidence/task-A.I.3-honest.log`; both need force-add during commit because `.sisyphus/evidence/*.log` is gitignored.

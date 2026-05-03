@@ -401,3 +401,31 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - Gate axis check uses `**n**` (Markdown bold table header) rather than `n=` to match what the bench-plan document actually contains — literal string matching requires knowing the exact rendered form.
 - Staged migration (S0 → S4) with dual-write phase (S2) ensures hot-swap fallback is live before cutting over, avoiding a hard flag-day migration.
 - Surrogate retirement criteria (R1–R5) tied to concrete evidence artifacts so the gate for S4 can be mechanically verified.
+
+## 2026-05-03 — D.I.1 RED Tests for Real On-Chain Verifier
+
+### What was done
+- Created `contracts/test/P3StubVerifier.sol` with:
+  - `IP3Verifier` interface (frozen D.D.1 ABI: `verify(bytes,bytes) external view returns (bool)`)
+  - `P3StubVerifier` contract that always `revert("unimplemented")`
+  - `P3ProofRouter` non-view wrapper that emits `ProofRejected` events (no try/catch, so it also reverts with stub)
+- Created `contracts/test/RealVerifier.t.sol` with 6 RED tests:
+  1. `test_honest_proof_verifies` — expects `true`, stub reverts → FAIL
+  2. `test_tampered_proof_rejects` — expects `false`, stub reverts → FAIL
+  3. `test_wrong_public_inputs_rejects` — expects `false`, stub reverts → FAIL
+  4. `test_gas_within_budget` — measures gas, stub reverts → FAIL
+  5. `test_blame_event_on_rejection` — expects `ProofRejected` event, stub reverts inside router → log mismatch → FAIL
+  6. `test_determinism_across_resubmissions` — two calls, first reverts → FAIL
+- Saved evidence to `.sisyphus/evidence/p3-impl/red-tests.txt`
+
+### Key design decisions
+- `P3StubVerifier` placed in `contracts/test/` (not `contracts/src/`) to avoid polluting the src tree.
+- `HonkVerifier.sol` left untouched (as required).
+- `P3ProofRouter` has no try/catch so the stub revert propagates — all 6 tests fail uniformly.
+- `_buildPublicInputs` helper uses inline assembly for precise 200-byte layout per spec offset table.
+- Result: `forge test --root contracts --match-contract RealVerifier` → 0 passed, 6 failed. ✓ RED confirmed.
+
+### Notes for D.I.2 (green phase)
+- Replace `P3StubVerifier` with the real UltraHonk verifier from `contracts/src/generated/HonkVerifier.sol` or a new SP1/Groth16 verifier.
+- Generate a real proof fixture (via BB CLI canonical flow) and update `validProof`/`validPublicInputs` in setUp.
+- Add try/catch to `P3ProofRouter` if the real verifier returns false rather than reverts on rejection.

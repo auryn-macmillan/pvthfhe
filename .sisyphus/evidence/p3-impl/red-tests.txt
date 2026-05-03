@@ -1,0 +1,25 @@
+No files changed, compilation skipped
+
+Ran 6 tests for test/RealVerifier.t.sol:RealVerifierTest
+[FAIL: log != expected log] test_blame_event_on_rejection() (gas: 58051)
+[FAIL: unimplemented] test_determinism_across_resubmissions() (gas: 33053)
+[FAIL: unimplemented] test_gas_within_budget() (gas: 33083)
+[FAIL: unimplemented] test_honest_proof_verifies() (gas: 33074)
+[FAIL: unimplemented] test_tampered_proof_rejects() (gas: 46188)
+[FAIL: unimplemented] test_wrong_public_inputs_rejects() (gas: 16052)
+Suite result: FAILED. 0 passed; 6 failed; 0 skipped; finished in 639.81µs (363.58µs CPU time)
+
+Ran 1 test suite in 4.79ms (639.81µs CPU time): 0 tests passed, 6 failed, 0 skipped (6 total tests)
+
+Failing tests:
+Encountered 6 failing tests in test/RealVerifier.t.sol:RealVerifierTest
+[FAIL: log != expected log] test_blame_event_on_rejection() (gas: 58051)
+[FAIL: unimplemented] test_determinism_across_resubmissions() (gas: 33053)
+[FAIL: unimplemented] test_gas_within_budget() (gas: 33083)
+[FAIL: unimplemented] test_honest_proof_verifies() (gas: 33074)
+[FAIL: unimplemented] test_tampered_proof_rejects() (gas: 46188)
+[FAIL: unimplemented] test_wrong_public_inputs_rejects() (gas: 16052)
+
+Encountered a total of 6 failing tests, 0 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 6 failed tests

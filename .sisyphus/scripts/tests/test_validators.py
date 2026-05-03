@@ -1435,3 +1435,63 @@ def test_p1_design_gate_reviewer_memo_fails_without_verdict():
         )
         assert rc != 0, f"Expected non-zero, got {rc}. Output: {out}"
         assert "VERDICT: APPROVE" in out, out
+
+
+# ---------------------------------------------------------------------------
+# p2-design-gate.py
+# ---------------------------------------------------------------------------
+
+P2_STACK_DECISION_VALID = textwrap.dedent("""\
+    # P2 Stack Decision Memo
+
+    ## Primary Stack
+    LatticeFold+ remains the primary stack.
+
+    ## Fallback Stacks
+    MicroNova and Rust-in-zkVM remain available.
+
+    ## Quantitative Comparison
+    | Candidate | RLWE-native | Fold-depth@t=513 | Prover-mem-peak | Accum-size | Verifier-gas | PQ-posture | Audit-surface | Weighted-score |
+    | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+    | LatticeFold+ | Yes | ~10 | projected | projected | projected | PQ-native | medium | 3.45 |
+
+    ## Recursion Fit
+    A fold depth of about 10 covers t=513 because 2^10 > 513.
+
+    ## Reviewer Sign-off
+    VERDICT: APPROVE
+""")
+
+
+P2_STACK_DECISION_MISSING_HEADING = P2_STACK_DECISION_VALID.replace(
+    "## Recursion Fit\n", "## Recursion Notes\n"
+)
+
+
+def write_p2_design_gate_fixture_files(tmpdir: str, stack_decision: str = P2_STACK_DECISION_VALID) -> None:
+    design_dir = os.path.join(tmpdir, ".sisyphus", "design", "p2")
+    os.makedirs(design_dir, exist_ok=True)
+    with open(os.path.join(design_dir, "stack-decision.md"), "w", encoding="utf-8") as f:
+        _ = f.write(stack_decision)
+
+
+def test_p2_design_gate_stack_decision_requires_required_headings_and_verdict():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        write_p2_design_gate_fixture_files(tmpdir)
+        rc, out, _ = run_script_in_cwd(
+            "p2-design-gate.py", tmpdir, "--check", "stack-decision"
+        )
+        assert rc == 0, f"Expected 0, got {rc}. Output: {out}"
+        assert "PASS: p2-design-gate/stack-decision" in out, out
+        evidence_path = os.path.join(tmpdir, ".sisyphus", "evidence", "p2-design", "stack-check.txt")
+        assert os.path.exists(evidence_path), f"Expected evidence file at {evidence_path}"
+
+
+def test_p2_design_gate_stack_decision_fails_without_required_heading():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        write_p2_design_gate_fixture_files(tmpdir, stack_decision=P2_STACK_DECISION_MISSING_HEADING)
+        rc, out, _ = run_script_in_cwd(
+            "p2-design-gate.py", tmpdir, "--check", "stack-decision"
+        )
+        assert rc != 0, f"Expected non-zero, got {rc}. Output: {out}"
+        assert "## Recursion Fit" in out, out

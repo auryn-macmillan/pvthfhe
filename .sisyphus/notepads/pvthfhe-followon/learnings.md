@@ -273,3 +273,9 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - Bound ordered fold history through `statement_hash_chain = SHA-256(prev_hash || current_fold_statement_bytes)` and exported that terminal digest as `d_commitment`, which keeps P3 tied to fold history without inheriting surrogate circuit shape.
 - Fixed the P3-facing public-input layout at 200 bytes with stable offsets for six 32-byte hashes plus one big-endian `epoch`, making downstream verifier integration independent of whether the active backend is lattice-native, MicroNova, or zkVM-based.
 - Kept surrogate isolation mechanical: the design gate now has a real `interface-spec` subcheck that requires the frozen sections and rejects current surrogate verifier/circuit identifiers from the spec text.
+
+## 2026-05-03 — Task C.D.2
+- Froze LatticeFold+ as the P2 primary, with MicroNova as the first on-chain-envelope pivot and Rust-in-zkVM as the guaranteed-delivery fallback; this preserves the C.R.5 ordering instead of re-opening the candidate freeze.
+- Recursion budget at `t=513` is depth `~10`, which implies a conservative extraction tree of `2^10 = 1024` rewinding branches; the depth is manageable, but it is not free.
+- PQ posture is the main reason to keep LatticeFold+ primary: MicroNova is the better present-day gas/proof-size story, while zkVM is the better delivery story, but only LatticeFold+ keeps the core folding line lattice-native.
+- On-chain cost projections remain the live pivot trigger: MicroNova is the clearest `≤5M` / `≤14KB` path, LatticeFold+ is still borderline pending P3 compression, and zkVM is acceptable only as the explicit fallback.

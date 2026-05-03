@@ -1,0 +1,9 @@
+subcheck: stack-decision
+[OK] found artifact: .sisyphus/design/p2/stack-decision.md
+[OK] required heading present: ## Primary Stack
+[OK] required heading present: ## Fallback Stacks
+[OK] required heading present: ## Quantitative Comparison
+[OK] required heading present: ## Recursion Fit
+[OK] required heading present: ## Reviewer Sign-off
+[OK] reviewer verdict present: VERDICT: APPROVE
+PASS: p2-design-gate/stack-decision

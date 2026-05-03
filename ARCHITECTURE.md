@@ -1,6 +1,6 @@
 # Architecture
 
-PVTHFHE implements **Architecture B**: Lattice PVSS + LatticeFold+ + MicroNova.
+PVTHFHE targets **Architecture B** (Lattice PVSS + LatticeFold+ + MicroNova), with the current prototype using cryptographic surrogates for the folding and on-chain verification layers.
 
 ## High-Level Intuition
 
@@ -54,12 +54,12 @@ For detailed parameter analysis, see [parameters.md](.sisyphus/design/parameters
 
 ## Formal Section
 
-### Security Properties
+### Security Properties (Target Design Goals)
 
-1.  **IND-CPA-PV**: Ciphertext indistinguishability under chosen-plaintext attack with public verifiability.
-2.  **Decryption-Soundness**: No adversary can force an incorrect decryption result to be accepted by the verifier.
-3.  **Public-Verifiability**: Any third party can verify the correctness of the protocol execution.
-4.  **Robustness**: The protocol succeeds as long as $t = \lfloor n/2 \rfloor + 1$ parties are honest.
+1.  **IND-CPA-PV**: Ciphertext indistinguishability under chosen-plaintext attack with public verifiability (target goal).
+2.  **Decryption-Soundness**: Cryptographically verified decryption soundness is an open implementation task; current prototype uses a trusted signer.
+3.  **Public-Verifiability**: The prototype targets public verifiability; current on-chain verification is restricted to a trusted signer.
+4.  **Robustness**: The protocol is designed to succeed as long as $t = \lfloor n/2 \rfloor + 1$ parties are honest (current simulation validates this for P4).
 
 ### Open Problems
 

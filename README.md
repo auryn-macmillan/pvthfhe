@@ -4,7 +4,7 @@ Research prototype for private-verifiable threshold Fully Homomorphic Encryption
 
 ## Intent
 
-PVTHFHE targets private-verifiable threshold FHE with $O(n)$ per-party work and $O(\text{polylog } n)$ verifier cost. It enables a set of parties to jointly perform FHE operations where each step is publicly verifiable without revealing secret shares.
+PVTHFHE targets private-verifiable threshold FHE with $O(n)$ per-party work and $O(\text{polylog } n)$ verifier cost. Our research prototype demonstrates the feasibility of this architecture, using cryptographic surrogates for the folding (P2) and on-chain verification (P3) layers.
 
 ## Status: Research Prototype
 

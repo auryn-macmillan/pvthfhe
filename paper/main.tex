@@ -20,12 +20,11 @@
 \maketitle
 
 \begin{abstract}
-We present PVTHFHE, a protocol for private-verifiable threshold fully homomorphic encryption
-achieving $O(n)$ per-party work and $O(\text{polylog}\, n)$ verifier cost.
+We present PVTHFHE, a research prototype for private-verifiable threshold fully homomorphic encryption
+targeting $O(n)$ per-party work and $O(\text{polylog}\, n)$ verifier cost.
 Our construction combines a PVSS-based distributed key generation (P4), a lattice NIZK
 well-formedness argument (P1), a LatticeFold+ accumulation scheme over RLWE (P2), and an
-EVM on-chain verifier (P3). We prove correctness, soundness, and zero-knowledge for all
-sub-protocols and validate the implementation via end-to-end benchmarks.
+EVM on-chain verifier surrogate (P3). We prove correctness, soundness, and zero-knowledge for the core sub-protocols and validate the implementation via end-to-end benchmarks, noting where cryptographic surrogates are used.
 \end{abstract}
 
 \section{Introduction}
@@ -35,8 +34,9 @@ circuits on encrypted data without any single party holding the full secret key.
 with publicly verifiable proofs, each computation step becomes auditable by any observer.
 
 Our main contribution is a unified four-layer protocol (P4 $\to$ P1 $\to$ P2 $\to$ P3) that
-achieves $O(n)$ per-party work during the setup phase and $O(\text{polylog}\, n)$ on-chain
-verification cost, making it practical for blockchain deployment.
+targets $O(n)$ per-party work during the setup phase and $O(\text{polylog}\, n)$ on-chain
+verification cost. The current implementation uses a trusted-signer surrogate for P3,
+with full cryptographic verification identified as future work.
 
 \section{Related Work}
 
@@ -145,30 +145,27 @@ on-chain verification cost from $O(n)$ to $O(\text{polylog}\, n)$.
 
 \begin{theorem}[P2 Folding Completeness]
 \label{thm:p2-t1}
-Honest P1 proofs fold into an accepting accumulator under the frozen verifier equation.
+Honest P1 proofs fold into an accepting accumulator under the frozen verifier equation (simulated in the current SHA-256 hash-chain surrogate).
 \end{theorem}
 
 \begin{theorem}[P2 Knowledge Soundness]
 \label{thm:p2-t2}
-A depth-$d$ accepting fold tree yields valid RLWE witnesses except with $(1/3)^d$ plus
-SHA-256 binding failure probability.
+Under the proposed LatticeFold+ architecture, a depth-$d$ accepting fold tree yields valid RLWE witnesses except with $(1/3)^d$ plus SHA-256 binding failure probability.
 \end{theorem}
 
 \begin{theorem}[P2 ZK Preservation]
 \label{thm:p2-t3}
-Folding preserves only the projected SLAP core zero-knowledge view under ROM + HVZK
-assumptions.
+The proposed folding scheme preserves the projected SLAP core zero-knowledge view under ROM + HVZK assumptions.
 \end{theorem}
 
 \begin{theorem}[P2 Accumulator Binding]
 \label{thm:p2-t4}
-The accumulator commitment is binding under RingSIS/M-SIS at the frozen P2 parameters.
+The accumulator commitment is designed to be binding under RingSIS/M-SIS; the current surrogate uses SHA-256 binding.
 \end{theorem}
 
 \begin{theorem}[P2 On-chain Compatibility]
 \label{thm:p2-t5}
-The final accumulated proof targets Solidity/Yul verification within bounded gas and
-proof size.
+The final accumulated proof targets Solidity/Yul verification within bounded gas and proof size (current benchmarks use the P3 surrogate).
 \end{theorem}
 
 \section{P3: On-Chain Verifier}
@@ -188,8 +185,7 @@ soundness remains an open implementation task.
 
 \begin{theorem}[P3 On-chain Soundness]
 \label{thm:p3-t1}
-Any on-chain acceptance of the P3 verifier implies acceptance of the exact frozen P2
-terminal accumulator statement on the same public inputs.
+Any on-chain acceptance of the P3 verifier implies valid ECDSA authorization by the TRUSTED\_SIGNER; cryptographic verification of the P2 terminal accumulator is deferred.
 \end{theorem}
 
 \begin{theorem}[P3 Wrap Soundness Preservation]
@@ -212,8 +208,7 @@ paths, preventing gas-based denial of service.
 
 \begin{theorem}[P3 Liveness and Blame]
 \label{thm:p3-t5}
-A valid P3 submission either finalizes on-chain or aborts under a publicly checkable blame
-predicate tied to calldata and contract state.
+A valid P3 submission either finalizes on-chain or aborts; automated blame predicates for P3 are deferred.
 \end{theorem}
 
 \section{Security Analysis}
@@ -250,7 +245,7 @@ P4 & Keygen latency ($n=128$) & 0.09 ms & $\leq 10$ ms \\
 P4 & Reconstruct latency ($n=128$) & 0.05 ms & $\leq 10$ ms \\
 P4 & Share size ($n=128$) & 4096 B & $\leq 65536$ B \\
 P1 & Proof generation & $< 100$ ms & $\leq 500$ ms \\
-P2 & Fold depth 8 accumulation & $< 1$ s & $\leq 5$ s \\
+P2 & Fold depth 8 (simulated) & $< 1$ s & $\leq 5$ s \\
 P3 & On-chain gas (accept) & $\leq 5{,}000{,}000$ & $\leq 5{,}000{,}000$ \\
 \hline
 \end{tabular}
@@ -265,9 +260,7 @@ for arbitrary protocol embedding.
 
 \section{Conclusion}
 
-We have presented PVTHFHE, a complete four-layer construction for private-verifiable threshold
-FHE with $O(n)$ per-party setup and $O(\text{polylog}\, n)$ verification. All sub-protocols
-have formal security proofs and an open-source implementation with benchmark evidence.
+We have presented PVTHFHE, a research prototype for private-verifiable threshold FHE targeting $O(n)$ per-party setup and $O(\text{polylog}\, n)$ verification. We provide a complete four-layer construction, noting that P2 and P3 currently use cryptographic surrogates. Sub-protocols have formal security proof drafts and the implementation is validated via benchmarks.
 
 \bibliographystyle{splncs04}
 \bibliography{bib}

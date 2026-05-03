@@ -1,0 +1,26 @@
+{
+  "gate": "p1-research-gate",
+  "subcheck": "theorem-inventory",
+  "status": "PASS",
+  "timestamp": "2026-05-03T01:22:13.284239+00:00",
+  "details": [
+    "subcheck: theorem-inventory",
+    "[OK] found theorem inventory artifact: docs/security-proofs/p1/theorem-inventory.md",
+    "[OK] found theorem heading: ## T1: Completeness",
+    "[OK] found theorem heading: ## T2: Knowledge Soundness",
+    "[OK] found theorem heading: ## T3: Zero-Knowledge / HVZK \\(\\rightarrow\\) NIZK via Fiat-Shamir",
+    "[OK] found theorem heading: ## T4: Simulation-Extractability Decision",
+    "[OK] found theorem heading: ## T5: Batch Soundness",
+    "[OK] required field '**Theorem ID**:' occurrences: 5",
+    "[OK] required field '**Assumption**:' occurrences: 5",
+    "[OK] required field '**Model**:' occurrences: 5",
+    "[OK] required field '**Statement sketch**:' occurrences: 5",
+    "[OK] required field '**Proof technique**:' occurrences: 5",
+    "[OK] required field '**Reduction target**:' occurrences: 5",
+    "[OK] required field '**Status**:' occurrences: 5",
+    "[OK] theorem inventory IDs match expected sequence: ['P1-T1', 'P1-T2', 'P1-T3', 'P1-T4', 'P1-T5']",
+    "[OK] obligations P1 theorem IDs match expected sequence: ['P1-T1', 'P1-T2', 'P1-T3', 'P1-T4', 'P1-T5']",
+    "[OK] theorem inventory IDs align with obligations P1 rows",
+    "[OK] theorem heading count: 5"
+  ]
+}

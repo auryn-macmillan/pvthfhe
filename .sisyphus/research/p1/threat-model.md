@@ -13,10 +13,10 @@ Freeze the adversary model, security assumptions, and proof interface for the P1
 ## Required Theorems
 
 - **T1 — Completeness.** Honest provers with a valid share/witness tuple produce accepting P1 proofs.
-- **T2 — Knowledge soundness.** Any PPT prover producing an accepting P1 proof yields an extractor that recovers a witness consistent with the bound decrypt-share relation, except with negligible probability.
-- **T3 — Statement binding.** The accepted witness must bind to the public transcript inherited from P4 and to the concrete FHE parameter tuple used by the decrypt-share relation.
-- **T4 — Sequential composition with P4.** P1 security statements must reuse the same static corruption interface and transcript semantics exported by P4 T5.
-- **T5 — Sequential composition with P2.** P2 may fold only proofs/statements whose soundness assumptions match this document; no hidden strengthening or weakening is allowed at folding time.
+- **T2 — Knowledge Soundness.** Any PPT prover producing an accepting P1 proof yields an extractor that recovers a witness consistent with the bounded decrypt-share relation, the inherited SHA-256 commitment, and the concrete FHE parameter tuple, except with negligible probability. The baseline theorem lives in the ROM with a rewinding extractor; QROM is a deferred strengthening.
+- **T3 — Zero-Knowledge / HVZK \(\rightarrow\) NIZK via Fiat-Shamir.** The interactive proof for the joint SHA-256 / RLWE relation admits an HVZK simulator, and the Fiat-Shamir-compiled non-interactive proof is ROM-indistinguishable from an honest transcript for true statements.
+- **T4 — Simulation-Extractability Decision.** Simulation-extractability is **not** a baseline requirement for the frozen P1→P2 handoff, because P2 consumes prover-generated P1 proofs rather than adversarial continuations from simulated accepting transcripts. If that interface changes, the stronger theorem must be stated explicitly as a cross-phase upgrade.
+- **T5 — Batch Soundness.** If P1 amortizes proofs across multiple decrypt shares before handing them to P2, acceptance of the batch implies witness validity for each accepted component up to the stated aggregation loss; P2 may fold only such batched statements whose soundness assumptions match this document.
 
 ## Allowed Assumptions
 

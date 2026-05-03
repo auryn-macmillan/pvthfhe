@@ -23,6 +23,23 @@ ARTIFACTS = ['.sisyphus/research/lit-survey.md']
 PRIOR_ART_MATRIX = '.sisyphus/research/p1/prior-art.md'
 THREAT_MODEL_PATH = '.sisyphus/research/p1/threat-model.md'
 THEOREM_INVENTORY_PATH = 'docs/security-proofs/p1/theorem-inventory.md'
+OBLIGATIONS_PATH = 'docs/security-proofs/obligations.md'
+REQUIRED_THEOREM_HEADINGS = [
+    '## T1: Completeness',
+    '## T2: Knowledge Soundness',
+    '## T3: Zero-Knowledge / HVZK \\(\\rightarrow\\) NIZK via Fiat-Shamir',
+    '## T4: Simulation-Extractability Decision',
+    '## T5: Batch Soundness',
+]
+REQUIRED_THEOREM_FIELDS = [
+    '**Theorem ID**:',
+    '**Assumption**:',
+    '**Model**:',
+    '**Statement sketch**:',
+    '**Proof technique**:',
+    '**Reduction target**:',
+    '**Status**:',
+]
 SCORECARD_PATH = '.sisyphus/research/p1/scorecard.md'
 
 SUBCHECKS = ['prior-art', 'prior-art-matrix', 'novelty-gap', 'threat-model', 'theorem-inventory', 'scorecard']
@@ -176,15 +193,76 @@ def count_theorem_headings(path: str) -> int:
     return len(re.findall(r'^##\s+T\d+\s*:', content, flags=re.MULTILINE))
 
 
+def parse_inventory_theorem_ids(content: str) -> list[str]:
+    return re.findall(r'\*\*Theorem ID\*\*:\s*(P1-T\d+)', content)
+
+
+def parse_obligation_theorem_ids(content: str) -> list[str]:
+    return re.findall(r'^\|\s*P1\s*\|\s*(P1-T\d+)\s*\|', content, flags=re.MULTILINE)
+
+
 def check_theorem_inventory() -> tuple[bool, list[str]]:
     details: list[str] = ["subcheck: theorem-inventory"]
     if not os.path.exists(THEOREM_INVENTORY_PATH):
         return False, details + [f"[FAIL] missing required artifact: {THEOREM_INVENTORY_PATH}"]
+    if not os.path.exists(OBLIGATIONS_PATH):
+        return False, details + [f"[FAIL] missing required artifact: {OBLIGATIONS_PATH}"]
 
     heading_count = count_theorem_headings(THEOREM_INVENTORY_PATH)
     details.append(f"[OK] found theorem inventory artifact: {THEOREM_INVENTORY_PATH}")
     if heading_count < 5:
         details.append(f"[FAIL] theorem inventory must contain at least 5 theorem headings; found {heading_count}")
+        return False, details
+
+    with open(THEOREM_INVENTORY_PATH, 'r', encoding='utf-8') as f:
+        content = f.read()
+    with open(OBLIGATIONS_PATH, 'r', encoding='utf-8') as f:
+        obligations_content = f.read()
+
+    ok = True
+    for heading in REQUIRED_THEOREM_HEADINGS:
+        if heading not in content:
+            details.append(f"[FAIL] missing required theorem heading: {heading}")
+            ok = False
+        else:
+            details.append(f"[OK] found theorem heading: {heading}")
+
+    for field in REQUIRED_THEOREM_FIELDS:
+        field_count = content.count(field)
+        if field_count < 5:
+            details.append(f"[FAIL] required field '{field}' must appear at least 5 times; found {field_count}")
+            ok = False
+        else:
+            details.append(f"[OK] required field '{field}' occurrences: {field_count}")
+
+    expected_ids = [f'P1-T{i}' for i in range(1, 6)]
+    inventory_ids = parse_inventory_theorem_ids(content)
+    obligation_ids = parse_obligation_theorem_ids(obligations_content)
+    if inventory_ids != expected_ids:
+        details.append(
+            f"[FAIL] theorem inventory IDs must be exactly {expected_ids}; found {inventory_ids}"
+        )
+        ok = False
+    else:
+        details.append(f"[OK] theorem inventory IDs match expected sequence: {inventory_ids}")
+
+    if obligation_ids != expected_ids:
+        details.append(
+            f"[FAIL] obligations P1 theorem IDs must be exactly {expected_ids}; found {obligation_ids}"
+        )
+        ok = False
+    else:
+        details.append(f"[OK] obligations P1 theorem IDs match expected sequence: {obligation_ids}")
+
+    if inventory_ids != obligation_ids:
+        details.append(
+            f"[FAIL] theorem inventory IDs and obligations IDs differ: {inventory_ids} vs {obligation_ids}"
+        )
+        ok = False
+    else:
+        details.append("[OK] theorem inventory IDs align with obligations P1 rows")
+
+    if not ok:
         return False, details
 
     details.append(f"[OK] theorem heading count: {heading_count}")

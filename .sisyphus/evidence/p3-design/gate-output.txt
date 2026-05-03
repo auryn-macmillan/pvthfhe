@@ -1,0 +1,59 @@
+subcheck: charter
+[OK] docs/governance/program-charter.md
+  PASS: charter
+subcheck: bundle
+[OK] docs/governance/program-charter.md
+  PASS: bundle
+subcheck: reviewer-memo
+[OK] docs/governance/program-charter.md
+  PASS: reviewer-memo
+subcheck: interface-spec
+[OK] found artifact: .sisyphus/design/p3/interface-spec.md
+[OK] verdict present: ## VERDICT: APPROVE
+[OK] required phrase present: calldata
+[OK] found artifact: .sisyphus/design/p3/iface.sol.md
+  PASS: interface-spec
+subcheck: stack-decision
+[OK] found artifact: .sisyphus/design/p3/stack-decision.md
+[OK] verdict present: ## VERDICT: APPROVE
+[OK] heading present: ## Primary:
+[OK] heading present: ## Fallback:
+[OK] required phrase present: gas
+  PASS: stack-decision
+subcheck: proof-skeletons
+[OK] found artifact: docs/security-proofs/p3/proof-skeletons.md
+[OK] found 5 theorem headings (## T1 – ## T5)
+[OK] required phrase present: gas
+[OK] verdict present: ## VERDICT: APPROVE
+  PASS: proof-skeletons
+subcheck: bench-plan
+[OK] found artifact: .sisyphus/design/p3/bench-plan.md
+[OK] heading present: ## Benchmark Matrix
+[OK] heading present: ## Measurement Protocol
+[OK] heading present: ## VERDICT: APPROVE
+[OK] network tier present: local-anvil
+[OK] network tier present: sepolia-fork
+[OK] network tier present: mainnet-fork
+[OK] axis/value present: **n**
+[OK] axis/value present: 128
+[OK] axis/value present: 512
+[OK] axis/value present: 1024
+[OK] axis/value present: SP1+Groth16
+[OK] axis/value present: Rust-in-zkVM
+[OK] metric present: gas used
+[OK] metric present: calldata bytes
+[OK] metric present: prover wall-time
+[OK] metric present: verifier wall-time
+  PASS: bench-plan
+subcheck: migration-plan
+[OK] found artifact: .sisyphus/design/p3/migration-plan.md
+[OK] heading present: ## Surrogate Retirement
+[OK] heading present: ## Rollback Criteria
+[OK] heading present: ## VERDICT: APPROVE
+[OK] surrogate verifier mentioned: HonkVerifier
+[OK] feature flag strategy present
+[OK] Foundry script path present: contracts/script/
+[OK] rollback gas threshold present
+  PASS: migration-plan
+
+PASS: p3-design-gate

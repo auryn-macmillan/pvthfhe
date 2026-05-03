@@ -388,3 +388,16 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - Used P2 `proof-skeletons.md` three-subsection format (Statement, Proof Sketch, Dependencies) as canonical template.
 - Gas bound computed from first principles (3 pairings × 43k + overhead = ~180k), giving ~27.8× margin; this makes the security argument quantitatively grounded.
 - T3 "N/A at verifier level" phrasing directly mirrors the threat model language and avoids misleading N/A-everywhere interpretation.
+
+## D.D.4 — P3 benchmark + migration plan + DG-P3 (2026-05-03)
+
+### What was done
+- Wrote `.sisyphus/design/p3/bench-plan.md`: 18-cell matrix (n×stack×network), all four metrics, rollback thresholds, measurement protocol commands, VERDICT: APPROVE.
+- Wrote `.sisyphus/design/p3/migration-plan.md`: staged rollout (S0–S4) via Cargo feature flag, Foundry deployment script changes under `contracts/script/`, surrogate retirement criteria R1–R5, rollback triggers consistent with stack-decision thresholds.
+- Extended `p3-design-gate.py` with real `bench_plan()` and `migration_plan()` validator functions; both wired into `subchecks_map`.
+- Full gate exited 0 (all 8 subchecks PASS).
+
+### Key design decisions
+- Gate axis check uses `**n**` (Markdown bold table header) rather than `n=` to match what the bench-plan document actually contains — literal string matching requires knowing the exact rendered form.
+- Staged migration (S0 → S4) with dual-write phase (S2) ensures hot-swap fallback is live before cutting over, avoiding a hard flag-day migration.
+- Surrogate retirement criteria (R1–R5) tied to concrete evidence artifacts so the gate for S4 can be mechanically verified.

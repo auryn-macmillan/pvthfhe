@@ -1,0 +1,10 @@
+subcheck: migration-plan
+[OK] found artifact: .sisyphus/design/p3/migration-plan.md
+[OK] heading present: ## Surrogate Retirement
+[OK] heading present: ## Rollback Criteria
+[OK] heading present: ## VERDICT: APPROVE
+[OK] surrogate verifier mentioned: HonkVerifier
+[OK] feature flag strategy present
+[OK] Foundry script path present: contracts/script/
+[OK] rollback gas threshold present
+PASS: p3-design-gate/migration-plan

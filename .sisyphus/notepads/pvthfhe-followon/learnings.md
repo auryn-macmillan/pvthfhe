@@ -153,3 +153,9 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - For this repository's inherited P4→P1 interface, the hardest mismatch is not only proving `d_i = c·s_i + e_i mod q`; it is simultaneously binding that relation back to today's SHA-256-based Shamir transcript while keeping the verifier recursion-friendly for P2.
 - The most credible native-lattice primary candidates are Beullens one-shot lattice ZK, SLAP, and Greyhound; the most credible implementation fallback remains a Rust verifier inside a zkVM, with SNARK-friendly witness hashing as the strongest non-lattice-primary systems option.
 - Lattice PoK papers frequently provide strong knowledge soundness for their native relation without giving simulation-soundness; the matrix must state that distinction explicitly or it overclaims deployability.
+
+## 2026-05-03 — Task B.R.2
+- Identified the central novelty gap for PVTHFHE: linking boolean SHA-256 PVSS commitments with algebraic RLWE relations in a single Fiat-Shamir transcript.
+- Proposed two aggressive bets: Hybrid zkVM (SNARKing the SHA-256 alongside the RLWE proof) and Custom Lattice IOP (Bridged Extractor).
+- Captured risks regarding LatticeFold+ compatibility and EVM gas costs.
+- Extended the `p1-research-gate.py` script to enforce structure of the novelty gap memo.

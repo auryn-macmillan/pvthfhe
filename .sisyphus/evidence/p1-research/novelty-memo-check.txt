@@ -1,0 +1,7 @@
+subcheck: novelty-gap
+[OK] found heading: ## Required Novelty
+[OK] found heading: ## Aggressive Bets
+[OK] found heading: ## Risk Register
+[OK] found heading: ## Pivot Triggers
+[OK] .sisyphus/research/p1/novelty-memo.md meets requirements
+PASS: p1-research-gate/novelty-gap

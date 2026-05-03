@@ -69,6 +69,29 @@ def check_prior_art_matrix() -> Tuple[bool, List[str]]:
     return True, details
 
 
+def check_novelty_gap() -> Tuple[bool, List[str]]:
+    details: List[str] = ["subcheck: novelty-gap"]
+    memo_path = ".sisyphus/research/p1/novelty-memo.md"
+    if not os.path.exists(memo_path):
+        return False, details + [f"[FAIL] missing required artifact: {memo_path}"]
+    
+    with open(memo_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    required_headings = ["## Required Novelty", "## Aggressive Bets", "## Risk Register", "## Pivot Triggers"]
+    ok = True
+    for heading in required_headings:
+        if heading not in content:
+            details.append(f"[FAIL] missing required heading: {heading}")
+            ok = False
+        else:
+            details.append(f"[OK] found heading: {heading}")
+            
+    if ok:
+        details.append(f"[OK] {memo_path} meets requirements")
+        
+    return ok, details
+
 def make_subcheck(name: str) -> Callable[[], Tuple[bool, List[str]]]:
     def fn() -> Tuple[bool, List[str]]:
         ok, details = check_artifacts()
@@ -89,6 +112,7 @@ def main():
     }
     _ = subchecks_map.__setitem__('prior-art', check_prior_art_matrix)
     _ = subchecks_map.__setitem__('prior-art-matrix', check_prior_art_matrix)
+    _ = subchecks_map.__setitem__('novelty-gap', check_novelty_gap)
     run_gate(GATE_NAME, subchecks_map, args)
 
 

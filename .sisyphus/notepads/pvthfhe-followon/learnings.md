@@ -357,3 +357,5 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - The P3 theorem inventory can stay registry-first and still be formal if each theorem states the exact frozen P2→P3 public-input boundary, explicit dependencies, and conditional branches for wrap/setup assumptions instead of pretending those stack choices are already settled.
 - The P3 gas theorem must be phrased as a denial-of-service security obligation, not a performance note: every accept/reject path has to halt within `≤ 5,000,000` gas for the fixed 200-byte public inputs and bounded proof size.
 - The cleanest `p3-research-gate.py` extension mirrors the existing P3 subchecks: add one dedicated `theorem_inventory()` validator, require at least five `## Tn` headings, require the word `gas`, and keep the machine-readable `## VERDICT: APPROVE` marker in the artifact.
+
+- P3 RG scorecard freeze favors verifier stacks that fit the gas/proof envelope on existing BN254 precompiles; any EIP-dependent idea must remain non-primary unless paired with a credible non-EIP fallback.

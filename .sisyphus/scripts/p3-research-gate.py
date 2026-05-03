@@ -24,8 +24,10 @@ PRIOR_ART_PATH = Path('.sisyphus/research/p3/prior-art.md')
 NOVELTY_MEMO_PATH = Path('.sisyphus/research/p3/novelty-memo.md')
 THREAT_MODEL_PATH = Path('.sisyphus/research/p3/threat-model.md')
 THEOREM_INVENTORY_PATH = Path('docs/security-proofs/p3/theorem-inventory.md')
+SCORECARD_PATH = Path('.sisyphus/research/p3/scorecard.md')
+RG_P3_DECISION_PATH = Path('.sisyphus/research/p3/RG-P3-decision.md')
 
-SUBCHECKS = ['prior-art', 'novelty-gap', 'threat-model', 'prior-art-matrix', 'novelty-memo', 'theorem-inventory']
+SUBCHECKS = ['prior-art', 'novelty-gap', 'threat-model', 'prior-art-matrix', 'novelty-memo', 'theorem-inventory', 'scorecard']
 
 
 def check_artifacts() -> tuple[bool, list[str]]:
@@ -191,6 +193,53 @@ def theorem_inventory() -> tuple[bool, list[str]]:
     return ok, details
 
 
+def scorecard() -> tuple[bool, list[str]]:
+    details: list[str] = ["subcheck: scorecard"]
+    ok = True
+
+    if not SCORECARD_PATH.exists():
+        return False, details + [f"[FAIL] missing artifact: {SCORECARD_PATH}"]
+    details.append(f"[OK] found artifact: {SCORECARD_PATH}")
+    scorecard_content = SCORECARD_PATH.read_text(encoding='utf-8')
+
+    if '## Primary:' in scorecard_content:
+        details.append('[OK] scorecard primary heading present')
+    else:
+        details.append('[FAIL] missing required heading in scorecard: ## Primary:')
+        ok = False
+
+    if '## Fallback:' in scorecard_content:
+        details.append('[OK] scorecard fallback heading present')
+    else:
+        details.append('[FAIL] missing required heading in scorecard: ## Fallback:')
+        ok = False
+
+    if not RG_P3_DECISION_PATH.exists():
+        return False, details + [f"[FAIL] missing artifact: {RG_P3_DECISION_PATH}"]
+    details.append(f"[OK] found artifact: {RG_P3_DECISION_PATH}")
+    decision_content = RG_P3_DECISION_PATH.read_text(encoding='utf-8')
+
+    if '## Primary:' in decision_content:
+        details.append('[OK] decision primary heading present')
+    else:
+        details.append('[FAIL] missing required heading in decision memo: ## Primary:')
+        ok = False
+
+    if '## Fallback:' in decision_content:
+        details.append('[OK] decision fallback heading present')
+    else:
+        details.append('[FAIL] missing required heading in decision memo: ## Fallback:')
+        ok = False
+
+    if 'VERDICT: APPROVE' in decision_content:
+        details.append('[OK] decision verdict present: VERDICT: APPROVE')
+    else:
+        details.append('[FAIL] missing required verdict line in decision memo: VERDICT: APPROVE')
+        ok = False
+
+    return ok, details
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=f"{GATE_NAME} gate")
     _ = parser.add_argument('--check', default=None, choices=SUBCHECKS)
@@ -200,12 +249,13 @@ def main() -> None:
     subchecks_map: dict[str, Callable[[], tuple[bool, list[str]]]] = {
         name: make_subcheck(name)
         for name in SUBCHECKS
-        if name not in ['prior-art-matrix', 'novelty-memo', 'threat-model', 'theorem-inventory']
+        if name not in ['prior-art-matrix', 'novelty-memo', 'threat-model', 'theorem-inventory', 'scorecard']
     }
     subchecks_map['prior-art-matrix'] = prior_art_matrix
     subchecks_map['novelty-memo'] = novelty_memo
     subchecks_map['threat-model'] = threat_model
     subchecks_map['theorem-inventory'] = theorem_inventory
+    subchecks_map['scorecard'] = scorecard
     run_gate(GATE_NAME, subchecks_map, args)
 
 

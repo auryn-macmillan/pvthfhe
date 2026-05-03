@@ -1249,6 +1249,110 @@ def test_p3_research_gate_threat_model_fails_without_p2_consistency_check_sectio
         assert "P2 Consistency Check" in out, out
 
 
+P3_SCORECARD_VALID = textwrap.dedent("""\
+    # P3 Candidate Scorecard
+
+    | stack | gas estimate | calldata bytes | proof size | trusted-setup posture | PQ-safe | audit maturity | novelty cost | SCORE |
+    | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+    | SP1 + Groth16 wrap | ~270k | ~496 | ~260 B | circuit-specific setup for Groth16 wrapper; non-EIP path | mixed: inner stack can be PQ-friendly but final wrap is not | published audits/security materials for SP1 stack | medium | 27 |
+    | Halo2/PSE EVM verifier | ~350k | ~1200-1600 | ~1.0-1.4 KB | KZG/setup-based lineage on BN254; non-EIP path | no | moderate production lineage, exact row not separately audited here | medium | 22 |
+    | Plonky3 + Groth16 wrap | ~250-270k | ~500-540 | ~256-300 B | transparent inner proof plus Groth16 trusted-setup wrapper; non-EIP path | mixed | low for exact composition | high | 21 |
+    | RISC0 + Groth16 | ~250-270k | ~480-520 | ~256 B | Groth16 trusted-setup wrapper; non-EIP path | mixed | mature zkVM ecosystem | medium | 23 |
+    | Rust-in-zkVM with EVM final wrap | ~250-300k | ~500-1104 | ~260-868 B | wrapper-dependent trusted setup, but non-EIP fallback remains available | mixed | wrapper-dependent | low-medium | 24 |
+    | MicroNova on-chain variant | ~2.2M | ~1200-2200 | ~1-2 KB | compression/setup assumptions; non-EIP path | no | low-medium | high | 18 |
+    | Nebra-style accumulation | ~350k aggregated | batch-amortized, payload ~1-2 KB | ~1-2 KB aggregate | Halo2-KZG/setup-based service path; non-EIP path | no | production service, contracts evolving | high | 17 |
+    | Jolt EVM target | unshipped | unshipped | unshipped | roadmap only; no dependable non-EIP verifier today | mixed | low | very high | 8 |
+
+    ## Primary: SP1 + Groth16 wrap
+
+    Freeze as primary because it stays far below the 5M gas and 14 KB calldata envelope, does not depend on landing a new EIP, and has the strongest current delivery/audit posture among the realistic wrappers.
+
+    ## Fallback: Rust-in-zkVM with EVM final wrap
+
+    Freeze as fallback because it preserves exact Rust semantics and remains a defensible non-EIP delivery path if the primary wrapper or circuit encoding stalls.
+""")
+
+
+P3_SCORECARD_MISSING_FALLBACK = P3_SCORECARD_VALID.replace("## Fallback: Rust-in-zkVM with EVM final wrap", "## Backup: Rust-in-zkVM with EVM final wrap")
+
+
+P3_DECISION_VALID = textwrap.dedent("""\
+    # RG-P3 Decision Memo
+
+    Date: 2026-05-03
+    Gate: RG-P3
+
+    ## VERDICT: APPROVE
+
+    ## Primary: SP1 + Groth16 wrap
+
+    Approved because it satisfies the concrete P3 gas and calldata budget today without depending on an unlanded EIP, while keeping verifier integration on established BN254 pairing precompiles.
+
+    ## Fallback: Rust-in-zkVM with EVM final wrap
+
+    Approved because it is the explicit worst-case delivery path and remains non-EIP, preserving exact Rust verifier semantics if the primary relation or tooling proves too novel.
+
+    Signed: Prometheus
+""")
+
+
+P3_DECISION_REJECTED = P3_DECISION_VALID.replace("## VERDICT: APPROVE", "## VERDICT: REJECT")
+
+
+
+def write_p3_gate_fixture_files(tmpdir: str, scorecard: str = P3_SCORECARD_VALID, decision: str = P3_DECISION_VALID) -> None:
+    research_dir = os.path.join(tmpdir, ".sisyphus", "research", "p3")
+    os.makedirs(research_dir, exist_ok=True)
+    with open(os.path.join(research_dir, "scorecard.md"), "w", encoding="utf-8") as f:
+        _ = f.write(scorecard)
+    with open(os.path.join(research_dir, "RG-P3-decision.md"), "w", encoding="utf-8") as f:
+        _ = f.write(decision)
+
+
+
+def test_p3_research_gate_scorecard_requires_primary_and_fallback_headings():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        write_p3_gate_fixture_files(tmpdir)
+        rc, out, _ = run_script_in_cwd(
+            "p3-research-gate.py", tmpdir, "--check", "scorecard"
+        )
+        assert rc == 0, f"Expected 0, got {rc}. Output: {out}"
+        assert "PASS: p3-research-gate/scorecard" in out, out
+
+
+
+def test_p3_research_gate_scorecard_fails_without_fallback_heading():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        write_p3_gate_fixture_files(tmpdir, scorecard=P3_SCORECARD_MISSING_FALLBACK)
+        rc, out, _ = run_script_in_cwd(
+            "p3-research-gate.py", tmpdir, "--check", "scorecard"
+        )
+        assert rc != 0, f"Expected non-zero, got {rc}. Output: {out}"
+        assert "Fallback" in out, out
+
+
+
+def test_p3_research_gate_scorecard_requires_approve_verdict_in_rg_p3_decision():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        write_p3_gate_fixture_files(tmpdir)
+        rc, out, _ = run_script_in_cwd(
+            "p3-research-gate.py", tmpdir, "--check", "scorecard"
+        )
+        assert rc == 0, f"Expected 0, got {rc}. Output: {out}"
+        assert "VERDICT: APPROVE" in out, out
+
+
+
+def test_p3_research_gate_scorecard_fails_without_approve_verdict_in_rg_p3_decision():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        write_p3_gate_fixture_files(tmpdir, decision=P3_DECISION_REJECTED)
+        rc, out, _ = run_script_in_cwd(
+            "p3-research-gate.py", tmpdir, "--check", "scorecard"
+        )
+        assert rc != 0, f"Expected non-zero, got {rc}. Output: {out}"
+        assert "VERDICT: APPROVE" in out, out
+
+
 P1_SCORECARD_VALID = textwrap.dedent("""\
     # P1 Candidate Scorecard
 

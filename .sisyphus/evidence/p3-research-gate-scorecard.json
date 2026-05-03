@@ -1,0 +1,16 @@
+{
+  "gate": "p3-research-gate",
+  "subcheck": "scorecard",
+  "status": "PASS",
+  "timestamp": "2026-05-03T04:47:45.630732+00:00",
+  "details": [
+    "subcheck: scorecard",
+    "[OK] found artifact: .sisyphus/research/p3/scorecard.md",
+    "[OK] scorecard primary heading present",
+    "[OK] scorecard fallback heading present",
+    "[OK] found artifact: .sisyphus/research/p3/RG-P3-decision.md",
+    "[OK] decision primary heading present",
+    "[OK] decision fallback heading present",
+    "[OK] decision verdict present: VERDICT: APPROVE"
+  ]
+}

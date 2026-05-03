@@ -1,0 +1,9 @@
+subcheck: scorecard
+[OK] found artifact: .sisyphus/research/p3/scorecard.md
+[OK] scorecard primary heading present
+[OK] scorecard fallback heading present
+[OK] found artifact: .sisyphus/research/p3/RG-P3-decision.md
+[OK] decision primary heading present
+[OK] decision fallback heading present
+[OK] decision verdict present: VERDICT: APPROVE
+PASS: p3-research-gate/scorecard

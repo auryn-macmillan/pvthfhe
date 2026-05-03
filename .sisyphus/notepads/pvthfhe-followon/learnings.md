@@ -307,3 +307,13 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - `just p2-bench` target now live in `Justfile`; outputs JSON to `bench/p2/` and evidence to `.sisyphus/evidence/p2-impl/bench.txt`.
 - LaTeX table at `paper/figures/p2-bench.tex`, comparison markdown at `paper/figures/p2-bench-comparison.md`.
 - Prior-art baselines used: LatticeFold (CRYPTO 2024), Nova (S&P 2022), Halo2 (ECC 2021).
+
+## 2026-05-03 — Task C.I.4
+
+- **T1 (Completeness)**: The five frozen P1 sub-checks (Fiat-Shamir, ternary challenge, mask-commitment equality, SHA-256 opening, norm bound `|z_e[i]|≤34`) each follow directly from honest-prover construction; the accumulator transition in `fold()` preserves params and produces a non-empty SHA-256 commitment, satisfying `verify_acc` trivially.
+- **T2 (Soundness)**: Ternary special soundness gives `(1/3)^d` per-fold error; for `t=513`, `d=10`, cost `2^10=1024` rewinds. The binding-failure-to-M-SIS reduction uses the SHA-256 preimage resistance of `acc_commitment` in the current implementation, and will use M-SIS at `(q=65537, N=1024, β=34)` once the algebraic commitment is instantiated.
+- **T3 (ZK)**: The hybrid argument replaces one inner projected-core transcript per step; degradation is `d·ε_HVZK + d·ε_SHA256`. Audit fields `secret_share_open` and `error_open` must be scoped out before any global ZK claim can be made.
+- **T4 (Binding)**: Part A (parameter binding) is unconditional — `validate_statement_binding` enforces `params` equality deterministically. Part B (norm-bound / M-SIS binding) is conditional: the current `validate_witness` performs only a uniformity check, NOT an arithmetic `B_e=17` norm check. This is a key open security obligation before LatticeFold+ is production-ready.
+- **T5 (On-chain)**: Current `FinalProof` is 32 bytes (SHA-256) — trivially within 14 KB. The gas, O(1)-verifier-work, and P3 public-input-boundary claims are Phase D obligations; the EVM path for LatticeFold+ will likely require a P3 wrapper (UltraHonk or Groth16 over the lattice verifier circuit).
+- **Key invariant**: `fold()` copies `params` unchanged; `verify_acc` checks `params` match. This makes parameter binding a zero-failure deterministic guarantee, not a probabilistic one.
+- **Implementation gap**: `validate_witness` checks `windows(2).all(|w| w[0]==w[1])` (uniform bytes), not a real RLWE norm bound. This is a harness stub, not a security check.

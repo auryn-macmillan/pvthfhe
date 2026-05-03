@@ -342,6 +342,11 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - Rust-in-zkVM with an EVM-final Groth16/PLONK wrap must remain a first-class fallback even if proving is expensive; the project mandate explicitly values guaranteed delivery of the frozen Rust verifier semantics over ideal proving efficiency.
 - Jolt should not be treated as deployment-ready for P3 yet: the public JoltBook still leaves on-chain verification as a roadmap item under construction, so it is a comparison row rather than a committed verifier path.
 
+## 2026-05-03 — Task D.R.3
+- The P3 threat model has to be written as a reconciliation layer over P2 plus EVM reality: keep the same corruption, parameter, and ternary-challenge baseline, then add public-calldata, MEV/reorg, verifier-bug, and trusted-setup risks explicitly.
+- For on-chain verification, replay/front-run risk is mostly a state-binding and liveness problem, not a reason to weaken the inherited proof-soundness claim; the memo should separate those two surfaces.
+- The strongest anti-drift check is literal: restate `q=65537`, `N=1024`, `B_e=17`, say the corruption model is carried forward, and say the ternary challenge space is preserved in a dedicated P2 consistency section.
+
 ## 2026-05-03 — Task D.R.2
 - P3 novelty memo successfully documents 4 main gaps: (a) on-chain accumulator gas cost, (b) lack of EVM lattice-native ops, (c) batched verification complexities, and (d) trust assumptions (setup per protocol).
 - Explicitly documented aggressive bets to address these gaps: EVM precompiles for lattice ops, STIR/WHIR final-step recursion, and novel cycle-of-curves adapted for RLWE.

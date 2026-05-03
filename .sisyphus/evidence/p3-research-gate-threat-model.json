@@ -1,0 +1,24 @@
+{
+  "gate": "p3-research-gate",
+  "subcheck": "threat-model",
+  "status": "PASS",
+  "timestamp": "2026-05-03T04:31:38.678503+00:00",
+  "details": [
+    "subcheck: threat-model",
+    "[OK] found artifact: .sisyphus/research/p3/threat-model.md",
+    "[OK] required heading present: ## Corruption Model (inherited from P2)",
+    "[OK] required heading present: ## P3-Specific Threats",
+    "[OK] required heading present: ### Malicious Prover with Chosen Ciphertexts",
+    "[OK] required heading present: ### MEV / Reorg Interaction",
+    "[OK] required heading present: ### Calldata Manipulation",
+    "[OK] required heading present: ### On-Chain Verifier Bug Exploitation",
+    "[OK] required heading present: ### Trusted Setup Ceremony Assumptions",
+    "[OK] required heading present: ## P2 Consistency Check",
+    "[OK] required heading present: ## VERDICT: APPROVE",
+    "[OK] P2 consistency phrase present: q=65537",
+    "[OK] P2 consistency phrase present: N=1024",
+    "[OK] P2 consistency phrase present: B_e=17",
+    "[OK] P2 consistency phrase present: corruption model carried forward",
+    "[OK] P2 consistency phrase present: ternary challenge space preserved"
+  ]
+}

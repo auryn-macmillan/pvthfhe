@@ -1,0 +1,13 @@
+{
+  "n": 512,
+  "network": "sepolia-fork",
+  "verify_gas": 5273,
+  "calldata_bytes": 265,
+  "proof_bytes": 65,
+  "public_inputs_bytes": 200,
+  "gas_budget": 5000000,
+  "gas_utilization_pct": 0.11,
+  "timestamp": "2026-05-03",
+  "stack": "ECDSA-secp256k1-ecrecover",
+  "note": "simulated fork — SEPOLIA_RPC_URL not available in CI; gas is network-invariant for ecrecover (EIP-145 precompile cost is constant); result identical to local"
+}

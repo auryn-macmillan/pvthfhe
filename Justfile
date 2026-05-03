@@ -130,8 +130,10 @@ p2-bench:
     cargo test -p pvthfhe-aggregator --features=real-folding --test p2_bench -- --nocapture 2>&1 | tee .sisyphus/evidence/p2-impl/bench.txt
 
 p3-bench:
-    @echo "p3-bench not yet implemented"
-    @exit 2
+    @echo "Running P3 benchmarks..."
+    mkdir -p .sisyphus/evidence/p3-impl
+    forge test --root contracts --match-contract RealVerifier --gas-report 2>&1 | tee .sisyphus/evidence/p3-impl/bench.txt
+    @echo "P3 bench complete. Evidence: .sisyphus/evidence/p3-impl/bench.txt"
 
 e2e-real:
     mkdir -p .sisyphus/evidence/p3-impl

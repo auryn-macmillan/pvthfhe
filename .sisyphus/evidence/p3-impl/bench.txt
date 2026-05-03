@@ -1,0 +1,58 @@
+No files changed, compilation skipped
+
+Ran 6 tests for test/RealVerifier.t.sol:RealVerifierTest
+[PASS] test_blame_event_on_rejection() (gas: 91213)
+[PASS] test_determinism_across_resubmissions() (gas: 75226)
+[PASS] test_gas_within_budget() (gas: 37993)
+[PASS] test_honest_proof_verifies() (gas: 37777)
+[PASS] test_tampered_proof_rejects() (gas: 50709)
+[PASS] test_wrong_public_inputs_rejects() (gas: 20767)
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 1.10ms (701.59µs CPU time)
+
+Ran 14 tests for test/RealVerifierAdversarial.t.sol:RealVerifierAdversarial
+[PASS] test_adv_64byte_proof_rejected() (gas: 24903)
+[PASS] test_adv_cross_input_reuse_rejected() (gas: 20744)
+[PASS] test_adv_empty_proof_rejected() (gas: 24827)
+[PASS] test_adv_gas_griefing_large_proof() (gas: 2211514)
+[PASS] test_adv_invalid_v_rejected() (gas: 31304)
+[PASS] test_adv_r_zero_rejected() (gas: 35201)
+[PASS] test_adv_replay_deterministic() (gas: 75354)
+[PASS] test_adv_router_emits_proof_rejected() (gas: 91232)
+[PASS] test_adv_s_zero_rejected() (gas: 35157)
+[PASS] test_adv_tampered_r_rejected() (gas: 50726)
+[PASS] test_adv_tampered_s_rejected() (gas: 50727)
+[PASS] test_adv_too_long_pubinputs_rejected() (gas: 16227)
+[PASS] test_adv_wrong_pubinputs_length_rejected() (gas: 16206)
+[PASS] test_adv_wrong_signer_rejected() (gas: 35218)
+Suite result: ok. 14 passed; 0 failed; 0 skipped; finished in 5.00ms (4.64ms CPU time)
+
+╭------------------------------------------------+-----------------+------+--------+------+---------╮
+| src/P3RealVerifier.sol:P3RealVerifier Contract |                 |      |        |      |         |
++===================================================================================================+
+| Deployment Cost                                | Deployment Size |      |        |      |         |
+|------------------------------------------------+-----------------+------+--------+------+---------|
+|                                         324770 |            1285 |      |        |      |         |
+|------------------------------------------------+-----------------+------+--------+------+---------|
+|                                                |                 |      |        |      |         |
+|------------------------------------------------+-----------------+------+--------+------+---------|
+| Function Name                                  | Min             | Avg  | Median | Max  | # Calls |
+|------------------------------------------------+-----------------+------+--------+------+---------|
+| verify                                         |             944 | 4116 |   5263 | 5273 |      22 |
+╰------------------------------------------------+-----------------+------+--------+------+---------╯
+
+╭------------------------------------------------+-----------------+-------+--------+-------+---------╮
+| test/P3StubVerifier.sol:P3ProofRouter Contract |                 |       |        |       |         |
++=====================================================================================================+
+| Deployment Cost                                | Deployment Size |       |        |       |         |
+|------------------------------------------------+-----------------+-------+--------+-------+---------|
+|                                         331086 |            1572 |       |        |       |         |
+|------------------------------------------------+-----------------+-------+--------+-------+---------|
+|                                                |                 |       |        |       |         |
+|------------------------------------------------+-----------------+-------+--------+-------+---------|
+| Function Name                                  | Min             | Avg   | Median | Max   | # Calls |
+|------------------------------------------------+-----------------+-------+--------+-------+---------|
+| submitProof                                    |           38427 | 38433 |  38433 | 38439 |       2 |
+╰------------------------------------------------+-----------------+-------+--------+-------+---------╯
+
+
+Ran 2 test suites in 6.29ms (6.09ms CPU time): 20 tests passed, 0 failed, 0 skipped (20 total tests)

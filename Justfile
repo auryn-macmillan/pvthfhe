@@ -143,4 +143,6 @@ e2e-real:
     cargo test -p pvthfhe-aggregator --features=real-verifier,real-pvss,real-nizk,real-folding --test e2e_real -- --nocapture 2>&1 | tee .sisyphus/evidence/p3-impl/adversarial-e2e.txt
 
 artifact-reproduce:
-    bash .sisyphus/scripts/clean-clone-reproduce.sh
+    cargo build --workspace
+    just p3-bench
+    just e2e-real

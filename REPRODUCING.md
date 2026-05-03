@@ -73,3 +73,25 @@ The P4 Hermine-adapted PVSS design memo fixes the Rust-side cryptographic and se
 - `sp1-sdk = "5.0.0"`
 
 These pins cover the frozen serde/JSON wire format, SHA-256 transcript digests, SHAKE256 transcript challenges, the native Rust Fiat-Shamir transcript layer, and the approved zkVM fallbacks.
+
+## Artifact Reproduction (Paper Claims)
+
+To reproduce the core paper claims in one command:
+
+```bash
+just artifact-reproduce
+```
+
+This runs, in order:
+1. `cargo build --workspace` — builds all Rust crates
+2. `just p3-bench` — on-chain gas benchmark (verifies P3 gas-bound claim)
+3. `just e2e-real` — end-to-end real integration test
+
+Expected total runtime: ≤ 5 minutes on reference hardware.
+Evidence files are written to `.sisyphus/evidence/p3-impl/`.
+
+For the full gate suite:
+
+```bash
+just phase1-gate && just phase2-gate && just phase3-gate && just paper-gate
+```

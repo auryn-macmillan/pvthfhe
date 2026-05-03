@@ -372,3 +372,19 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - Fallback (Rust-in-zkVM + EVM wrap) is the explicit worst-case delivery path: preserves Rust semantics for the frozen verifier relation and stays inside the same BN254 precompile envelope, making it a credible escape hatch without rewriting the relation into a new circuit language.
 - Rollback criteria are quantitative: trigger if gas reaches 80% of budget (4M) or calldata reaches 85% of ceiling (12 KB) in real benchmarks — not just estimates.
 - Gate pattern: `stack_decision()` follows the same literal-string-check idiom as `interface_spec()` — file exists, `## VERDICT: APPROVE` present, `## Primary:` present, `## Fallback:` present, word `gas` present.
+
+## 2026-05-03 — D.D.3 P3 Proof Skeletons
+
+### What was done
+- Wrote `docs/security-proofs/p3/proof-skeletons.md` with formal theorem statements and proof skeletons for T1–T5 against the SP1 + Groth16 EVM wrap primary stack.
+- T4 framed as a DoS-security theorem (not performance): static pairing op-count bounds gas to ~180k ≤ 5M for all adversarial inputs.
+- T2 explicitly references SP1 + Groth16 EVM wrap from D.D.2 with fallback note.
+- T3 clarifies N/A scope: verifier is setup-free (pairing checks only); setup risk is prover-side only.
+- Added `proof-skeletons` subcheck to `p3-design-gate.py`: checks file exists, ≥5 `## T1`–`## T5` headings, `gas` phrase, and `## VERDICT: APPROVE`.
+- Updated `docs/security-proofs/obligations.md` P3 rows to point to `proof-skeletons.md` instead of `theorem-inventory.md`.
+- Evidence captured at `.sisyphus/evidence/p3-design/proof-skeletons-check.txt` (PASS, exit 0).
+
+### Key design decisions
+- Used P2 `proof-skeletons.md` three-subsection format (Statement, Proof Sketch, Dependencies) as canonical template.
+- Gas bound computed from first principles (3 pairings × 43k + overhead = ~180k), giving ~27.8× margin; this makes the security argument quantitatively grounded.
+- T3 "N/A at verifier level" phrasing directly mirrors the threat model language and avoids misleading N/A-everywhere interpretation.

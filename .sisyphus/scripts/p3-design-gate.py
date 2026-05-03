@@ -24,8 +24,9 @@ ARTIFACTS = ['docs/governance/program-charter.md']
 INTERFACE_SPEC_PATH = Path('.sisyphus/design/p3/interface-spec.md')
 IFACE_SOL_MD_PATH = Path('.sisyphus/design/p3/iface.sol.md')
 STACK_DECISION_PATH = Path('.sisyphus/design/p3/stack-decision.md')
+PROOF_SKELETONS_PATH = Path('docs/security-proofs/p3/proof-skeletons.md')
 
-SUBCHECKS = ['charter', 'bundle', 'reviewer-memo', 'interface-spec', 'stack-decision']
+SUBCHECKS = ['charter', 'bundle', 'reviewer-memo', 'interface-spec', 'stack-decision', 'proof-skeletons']
 
 
 def check_artifacts() -> tuple[bool, list[str]]:
@@ -117,6 +118,42 @@ def stack_decision() -> tuple[bool, list[str]]:
     return ok, details
 
 
+def proof_skeletons() -> tuple[bool, list[str]]:
+    details: list[str] = ['subcheck: proof-skeletons']
+    ok = True
+
+    if not PROOF_SKELETONS_PATH.exists():
+        return False, details + [f"[FAIL] missing artifact: {PROOF_SKELETONS_PATH}"]
+    details.append(f"[OK] found artifact: {PROOF_SKELETONS_PATH}")
+
+    content = PROOF_SKELETONS_PATH.read_text(encoding='utf-8')
+
+    # Check ≥5 theorem skeleton headings (## T1 through ## T5)
+    import re
+    headings = re.findall(r'^## T[1-5]\b', content, re.MULTILINE)
+    if len(headings) >= 5:
+        details.append(f"[OK] found {len(headings)} theorem headings (## T1 – ## T5)")
+    else:
+        details.append(f"[FAIL] expected ≥5 theorem headings ## T1–T5, found {len(headings)}: {headings}")
+        ok = False
+
+    # Check 'gas' phrase present (T4 DoS security argument)
+    if 'gas' in content:
+        details.append('[OK] required phrase present: gas')
+    else:
+        details.append('[FAIL] missing required phrase: gas')
+        ok = False
+
+    # Check ## VERDICT: APPROVE present
+    if '## VERDICT: APPROVE' in content:
+        details.append('[OK] verdict present: ## VERDICT: APPROVE')
+    else:
+        details.append('[FAIL] missing required verdict line: ## VERDICT: APPROVE')
+        ok = False
+
+    return ok, details
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=f"{GATE_NAME} gate")
     _ = parser.add_argument("--check", default=None, choices=SUBCHECKS)
@@ -128,6 +165,7 @@ def main() -> None:
     }
     subchecks_map['interface-spec'] = interface_spec
     subchecks_map['stack-decision'] = stack_decision
+    subchecks_map['proof-skeletons'] = proof_skeletons
     run_gate(GATE_NAME, subchecks_map, args)
 
 

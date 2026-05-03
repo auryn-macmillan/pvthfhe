@@ -1,0 +1,6 @@
+subcheck: proof-skeletons
+[OK] found artifact: docs/security-proofs/p3/proof-skeletons.md
+[OK] found 5 theorem headings (## T1 – ## T5)
+[OK] required phrase present: gas
+[OK] verdict present: ## VERDICT: APPROVE
+PASS: p3-design-gate/proof-skeletons

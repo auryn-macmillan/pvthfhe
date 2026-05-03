@@ -179,3 +179,8 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - The frozen P1 API should expose only semantic objects (`NizkStatement`, `NizkWitness`, `NizkProof`) and keep all backend proof plumbing behind an adapter, mirroring the existing `FheBackend` style rather than leaking proof-system internals into callers.
 - The public-input layout needs a fixed ordering with explicit length prefixes for variable-width byte fields so P2 folding and evidence fixtures can consume one canonical verifier object across SLAP, Greyhound, zkVM, and surrogate-backed implementations.
 - Surrogate isolation is easiest to enforce mechanically in the design gate: require the interface-spec headings and fail if `Noir`, `UltraHonk`, or `HonkVerifier` appear in the spec text.
+
+## 2026-05-03 — Task B.D.2
+- The P1 stack memo needs to optimize for verifier-object shape, not just prover throughput: the scorecard ranking only makes sense once recursion fit for P2 is treated as a first-class quantitative metric.
+- Checked-in repo benches are useful as anchors even when they are surrogate measurements: the ~15.29 ms NTT multiply and ~196 ms recursive aggregator baseline give a defensible lower bound for native-lattice and wrapper projections, respectively.
+- Gate-script extension should mirror the existing `interface-spec` pattern exactly: add the new subcheck to `SUBCHECKS`, implement a real function, and wire it into `subchecks_map` rather than relying on the generic stub path.

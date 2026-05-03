@@ -1,0 +1,8 @@
+subcheck: stack-decision
+[OK] found required artifact: .sisyphus/design/p1/stack-decision.md
+[OK] found heading: ## Primary Decision
+[OK] found heading: ## Fallback Decision
+[OK] found heading: ## Bench Projections
+[OK] found heading: ## Recursion Compatibility
+[OK] .sisyphus/design/p1/stack-decision.md meets stack-decision requirements
+PASS: p1-design-gate/stack-decision

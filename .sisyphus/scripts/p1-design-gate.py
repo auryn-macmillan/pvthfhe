@@ -21,8 +21,9 @@ GATE_NAME = "p1-design-gate"
 
 ARTIFACTS = ['docs/governance/program-charter.md']
 INTERFACE_SPEC_PATH = '.sisyphus/design/p1/interface-spec.md'
+STACK_DECISION_PATH = '.sisyphus/design/p1/stack-decision.md'
 
-SUBCHECKS = ['charter', 'bundle', 'reviewer-memo', 'interface-spec']
+SUBCHECKS = ['charter', 'bundle', 'reviewer-memo', 'interface-spec', 'stack-decision']
 
 
 def check_artifacts() -> tuple[bool, list[str]]:
@@ -87,6 +88,37 @@ def check_interface_spec() -> tuple[bool, list[str]]:
     return ok, details
 
 
+def check_stack_decision() -> tuple[bool, list[str]]:
+    details: list[str] = ['subcheck: stack-decision']
+    if not os.path.exists(STACK_DECISION_PATH):
+        return False, details + [f"[FAIL] missing required artifact: {STACK_DECISION_PATH}"]
+
+    with open(STACK_DECISION_PATH, 'r', encoding='utf-8') as f:
+        content = f.read()
+
+    required_headings = [
+        '## Primary Decision',
+        '## Fallback Decision',
+        '## Bench Projections',
+        '## Recursion Compatibility',
+    ]
+
+    ok = True
+    details.append(f"[OK] found required artifact: {STACK_DECISION_PATH}")
+
+    for heading in required_headings:
+        if heading not in content:
+            details.append(f"[FAIL] missing required heading: {heading}")
+            ok = False
+        else:
+            details.append(f"[OK] found heading: {heading}")
+
+    if ok:
+        details.append(f"[OK] {STACK_DECISION_PATH} meets stack-decision requirements")
+
+    return ok, details
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=f"{GATE_NAME} gate")
     _ = parser.add_argument("--check", default=None, choices=SUBCHECKS)
@@ -97,6 +129,7 @@ def main() -> None:
         name: make_subcheck(name) for name in SUBCHECKS
     }
     subchecks_map['interface-spec'] = check_interface_spec
+    subchecks_map['stack-decision'] = check_stack_decision
     run_gate(GATE_NAME, subchecks_map, args)
 
 

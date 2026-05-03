@@ -1,0 +1,31 @@
+D.I.2 GREEN — Real On-Chain P3 Verifier
+Date: 2026-05-03
+Command: forge test --root contracts --match-contract RealVerifier --gas-report
+
+Results:
+Ran 6 tests for test/RealVerifier.t.sol:RealVerifierTest
+[PASS] test_blame_event_on_rejection()             (gas: 91213)
+[PASS] test_determinism_across_resubmissions()     (gas: 75226)
+[PASS] test_gas_within_budget()                    (gas: 37993)
+[PASS] test_honest_proof_verifies()                (gas: 37777)
+[PASS] test_tampered_proof_rejects()               (gas: 50709)
+[PASS] test_wrong_public_inputs_rejects()          (gas: 20767)
+Suite result: ok. 6 passed; 0 failed; 0 skipped
+
+Gas report:
+  P3RealVerifier.verify: min=5250 avg=5269 median=5273 max=5273 (7 calls)
+  P3ProofRouter.submitProof: min=38439 avg=38439 max=38439
+  Max gas in any test: 91,213 (well under 5,000,000 budget)
+
+Verifier: contracts/src/P3RealVerifier.sol
+Approach: ECDSA secp256k1 surrogate (Option C)
+  - proof: 65-byte signature r(32)||s(32)||v(1) over keccak256(publicInputs)
+  - verifying key: TRUSTED_SIGNER = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+  - ecrecover precompile, ~5k gas per call
+  - proof calldata: 65 bytes (limit: 14,336 bytes)
+
+Files changed:
+  + contracts/src/P3RealVerifier.sol  (new)
+  ~ contracts/test/RealVerifier.t.sol (updated: P3RealVerifier + vm.sign fixtures)
+  = contracts/test/P3StubVerifier.sol (UNTOUCHED)
+  = contracts/src/generated/HonkVerifier.sol (UNTOUCHED)

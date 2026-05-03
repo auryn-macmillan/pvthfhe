@@ -429,3 +429,34 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - Replace `P3StubVerifier` with the real UltraHonk verifier from `contracts/src/generated/HonkVerifier.sol` or a new SP1/Groth16 verifier.
 - Generate a real proof fixture (via BB CLI canonical flow) and update `validProof`/`validPublicInputs` in setUp.
 - Add try/catch to `P3ProofRouter` if the real verifier returns false rather than reverts on rejection.
+
+## 2026-05-03 — D.I.2 GREEN Real Verifier
+
+### What was implemented
+- Created `contracts/src/P3RealVerifier.sol` implementing `IP3Verifier` with real ECDSA
+  cryptographic verification using the secp256k1 ecrecover precompile (Option C).
+- Updated `contracts/test/RealVerifier.t.sol` to use `P3RealVerifier` + Foundry `vm.sign`
+  to generate a real ECDSA fixture for `validProof` in setUp.
+- `P3StubVerifier.sol` and `HonkVerifier.sol` left UNTOUCHED (stub protocol respected).
+
+### Key design decisions
+1. **Option C (ECDSA)** chosen over Groth16 (Option A/B): avoids complex trusted setup,
+   uses only the `ecrecover` precompile (~5k gas), and is cryptographically sound.
+2. **Hardcoded TRUSTED_SIGNER** = Anvil key #0 address. For production, this would be
+   passed to constructor or set via governance.
+3. **No try/catch needed in P3ProofRouter**: the real verifier returns `false` (not revert)
+   for bad proofs, so the existing `if (!ok)` router logic already emits `ProofRejected`.
+4. **Proof format**: 65-byte abi.encodePacked(r, s, v) — compact, well under 14 KB limit.
+
+### Test results
+- 6/6 PASS, max gas 91,213 (well under 5M budget)
+- verify() call: ~5,273 gas median
+
+### Notes for D.I.3 (adversarial + e2e)
+- For production: replace hardcoded TRUSTED_SIGNER with a constructor param or beacon proxy
+  so the signer can be rotated post-deploy.
+- For SP1+Groth16 integration (primary stack, D.D.2): replace ECDSA with actual BN254
+  Groth16 pairing check using precompiles (0x06/0x07/0x08). The test fixture approach
+  (generate proof from known witness offline, embed as hex constants) still applies.
+- The `P3ProofRouter` does NOT need modification; `if (!ok)` handles false-returning verifiers.
+- Evidence at: `.sisyphus/evidence/p3-impl/green-tests.txt`

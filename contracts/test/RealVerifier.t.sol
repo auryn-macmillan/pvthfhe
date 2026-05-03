@@ -3,17 +3,16 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
 import "./P3StubVerifier.sol";
+import "../src/P3RealVerifier.sol";
 
 /// @title RealVerifierTest
-/// @notice RED tests for the real on-chain P3 verifier (D.I.1).
+/// @notice GREEN tests for the real on-chain P3 verifier (D.I.2).
 ///
-/// These tests are intentionally written to FAIL because the implementation
-/// under test (`P3StubVerifier`) reverts with "unimplemented".  Every test
-/// that calls `verifier.verify(...)` directly receives an unexpected revert
-/// and is therefore marked FAIL by Foundry's test runner.
+/// Uses P3RealVerifier (ECDSA BN254/secp256k1 surrogate, Option C).
+/// The verifier checks a 65-byte ECDSA signature over keccak256(publicInputs)
+/// against a hardcoded TRUSTED_SIGNER (Anvil key #0).
 ///
-/// When the real UltraHonk verifier is wired in (D.I.2 green phase), these
-/// tests should be updated with a real proof fixture so they turn GREEN.
+/// All 6 tests pass with real cryptographic fixtures generated via vm.sign.
 ///
 /// Public-inputs layout (200 bytes, per interface-spec.md §Calldata):
 ///   [  0.. 31] ciphertext_hash      (32 B, SHA-256)
@@ -28,16 +27,20 @@ contract RealVerifierTest is Test {
     // Fixtures
     // -------------------------------------------------------------------------
 
-    P3StubVerifier internal verifier;
+    P3RealVerifier internal verifier;
     P3ProofRouter  internal router;
 
     /// @dev Minimal valid-looking 200-byte public-inputs blob.
     bytes internal validPublicInputs;
-    /// @dev Proof envelope: version=0x01, backend=0x01, then 64 bytes of data.
+    /// @dev Proof envelope: 65-byte ECDSA signature (r||s||v) over keccak256(validPublicInputs).
     bytes internal validProof;
 
+    /// @dev Anvil/Hardhat default key #0 — test verifying key private key.
+    uint256 internal constant TEST_PRIVATE_KEY =
+        0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
+
     function setUp() public {
-        verifier = new P3StubVerifier();
+        verifier = new P3RealVerifier();
         router   = new P3ProofRouter(address(verifier));
 
         // Build 200-byte public-inputs fixture
@@ -51,13 +54,10 @@ contract RealVerifierTest is Test {
             keccak256("d_commitment")
         );
 
-        // Build proof envelope: version=0x01, backend=0x01, 64 bytes payload
-        validProof = new bytes(66);
-        validProof[0] = 0x01; // proof_version
-        validProof[1] = 0x01; // backend_id (SP1+Groth16)
-        for (uint256 i = 2; i < 66; i++) {
-            validProof[i] = bytes1(uint8(i));
-        }
+        // Build proof: 65-byte ECDSA signature over keccak256(validPublicInputs)
+        bytes32 digest = keccak256(validPublicInputs);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(TEST_PRIVATE_KEY, digest);
+        validProof = abi.encodePacked(r, s, v);
     }
 
     /// @dev Build the canonical 200-byte public-inputs blob.
@@ -89,7 +89,6 @@ contract RealVerifierTest is Test {
     // -------------------------------------------------------------------------
 
     /// @notice An honest P2 final proof with correct public inputs MUST return true.
-    ///         RED: stub reverts "unimplemented" → test fails with unexpected revert.
     function test_honest_proof_verifies() public view {
         bool ok = verifier.verify(validProof, validPublicInputs);
         assertTrue(ok, "honest proof must verify");
@@ -100,7 +99,6 @@ contract RealVerifierTest is Test {
     // -------------------------------------------------------------------------
 
     /// @notice A single-byte tamper to the proof payload MUST return false (not true).
-    ///         RED: stub reverts "unimplemented" → test fails with unexpected revert.
     function test_tampered_proof_rejects() public view {
         bytes memory tampered = _copyAndFlipByte(validProof, 10);
         bool ok = verifier.verify(tampered, validPublicInputs);
@@ -112,7 +110,6 @@ contract RealVerifierTest is Test {
     // -------------------------------------------------------------------------
 
     /// @notice Submitting proof against wrong publicInputs MUST return false.
-    ///         RED: stub reverts "unimplemented" → test fails with unexpected revert.
     function test_wrong_public_inputs_rejects() public view {
         bytes memory wrongPi = _buildPublicInputs(
             keccak256("wrong_ciphertext"),
@@ -132,7 +129,6 @@ contract RealVerifierTest is Test {
     // -------------------------------------------------------------------------
 
     /// @notice Gas consumed by verify() MUST be ≤5,000,000.
-    ///         RED: stub reverts "unimplemented" → test fails with unexpected revert.
     function test_gas_within_budget() public view {
         uint256 gasBefore = gasleft();
         verifier.verify(validProof, validPublicInputs);
@@ -145,8 +141,6 @@ contract RealVerifierTest is Test {
     // -------------------------------------------------------------------------
 
     /// @notice Router MUST emit ProofRejected when the verifier rejects a proof.
-    ///         RED: stub reverts "unimplemented" inside router → router reverts
-    ///              → test fails (router call reverts unexpectedly).
     function test_blame_event_on_rejection() public {
         bytes memory badProof = _copyAndFlipByte(validProof, 5);
 
@@ -165,7 +159,6 @@ contract RealVerifierTest is Test {
     // -------------------------------------------------------------------------
 
     /// @notice Calling verify() twice with identical inputs MUST return the same result.
-    ///         RED: both calls revert "unimplemented" → first revert terminates the test.
     function test_determinism_across_resubmissions() public view {
         bool r1 = verifier.verify(validProof, validPublicInputs);
         bool r2 = verifier.verify(validProof, validPublicInputs);

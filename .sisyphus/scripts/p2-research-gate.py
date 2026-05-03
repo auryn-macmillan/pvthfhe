@@ -25,8 +25,19 @@ NOVELTY_MEMO_PATH = Path('.sisyphus/research/p2/novelty-memo.md')
 THREAT_MODEL_PATH = Path('.sisyphus/research/p2/threat-model.md')
 THEOREM_INVENTORY_PATH = Path('docs/security-proofs/p2/theorem-inventory.md')
 OBLIGATIONS_PATH = Path('docs/security-proofs/obligations.md')
+SCORECARD_PATH = Path('.sisyphus/research/p2/scorecard.md')
+RG_P2_DECISION_PATH = Path('.sisyphus/research/p2/RG-P2-decision.md')
 
-SUBCHECKS = ['prior-art', 'novelty-gap', 'threat-model', 'prior-art-matrix', 'novelty-memo', 'theorem-inventory']
+SUBCHECKS = [
+    'prior-art',
+    'novelty-gap',
+    'threat-model',
+    'prior-art-matrix',
+    'novelty-memo',
+    'theorem-inventory',
+    'scorecard',
+    'rg-p2',
+]
 
 
 def check_artifacts() -> tuple[bool, list[str]]:
@@ -103,7 +114,7 @@ def novelty_memo() -> tuple[bool, list[str]]:
 
     details.append(f"[OK] found artifact: {NOVELTY_MEMO_PATH}")
     content = NOVELTY_MEMO_PATH.read_text(encoding="utf-8")
-    
+
     required_sections = [
         "Required Novelty",
         "Aggressive Bets",
@@ -185,6 +196,60 @@ def theorem_inventory() -> tuple[bool, list[str]]:
     return ok, details
 
 
+def scorecard() -> tuple[bool, list[str]]:
+    details: list[str] = ["subcheck: scorecard"]
+    ok = True
+
+    if not SCORECARD_PATH.exists():
+        return False, details + [f"[FAIL] missing artifact: {SCORECARD_PATH}"]
+
+    details.append(f"[OK] found artifact: {SCORECARD_PATH}")
+    content = SCORECARD_PATH.read_text(encoding="utf-8")
+
+    candidate_lines = [
+        line for line in content.splitlines()
+        if any(name in line for name in ('LatticeFold', 'MicroNova', 'Rust-in-zkVM'))
+    ]
+    if len(candidate_lines) >= 3:
+        details.append(f"[OK] candidate rows present: {len(candidate_lines)}")
+    else:
+        details.append(f"[FAIL] expected at least 3 candidate rows, found {len(candidate_lines)}")
+        ok = False
+
+    if 'Primary:' in content:
+        details.append('[OK] Primary declaration present')
+    else:
+        details.append('[FAIL] missing Primary: declaration')
+        ok = False
+
+    if 'Fallback:' in content:
+        details.append('[OK] Fallback declaration present')
+    else:
+        details.append('[FAIL] missing Fallback: declaration')
+        ok = False
+
+    return ok, details
+
+
+def rg_p2() -> tuple[bool, list[str]]:
+    details: list[str] = ["subcheck: rg-p2"]
+    ok = True
+
+    if not RG_P2_DECISION_PATH.exists():
+        return False, details + [f"[FAIL] missing artifact: {RG_P2_DECISION_PATH}"]
+
+    details.append(f"[OK] found artifact: {RG_P2_DECISION_PATH}")
+    content = RG_P2_DECISION_PATH.read_text(encoding="utf-8")
+
+    if 'VERDICT: APPROVE' in content:
+        details.append('[OK] advisor sign-off present: VERDICT: APPROVE')
+    else:
+        details.append('[FAIL] missing required verdict line: VERDICT: APPROVE')
+        ok = False
+
+    return ok, details
+
+
 def main():
     parser = argparse.ArgumentParser(description=f"{GATE_NAME} gate")
     _ = parser.add_argument("--check", default=None, choices=SUBCHECKS)
@@ -194,12 +259,14 @@ def main():
     subchecks_map: dict[str, Callable[[], tuple[bool, list[str]]]] = {
         name: make_subcheck(name)
         for name in SUBCHECKS
-        if name not in ['prior-art-matrix', 'novelty-memo', 'threat-model']
+        if name not in ['prior-art-matrix', 'novelty-memo', 'threat-model', 'theorem-inventory', 'scorecard', 'rg-p2']
     }
     subchecks_map['prior-art-matrix'] = prior_art_matrix
     subchecks_map['novelty-memo'] = novelty_memo
     subchecks_map['threat-model'] = threat_model
     subchecks_map['theorem-inventory'] = theorem_inventory
+    subchecks_map['scorecard'] = scorecard
+    subchecks_map['rg-p2'] = rg_p2
     run_gate(GATE_NAME, subchecks_map, args)
 
 

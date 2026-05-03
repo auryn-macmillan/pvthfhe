@@ -262,3 +262,8 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - For this repository, the sharpest P2-specific attacks are malformed-inner-proof injection, accumulator binding failure, and Fiat-Shamir grinding over fold order; each only becomes actionable if the fold relation underconstrains the already-frozen P1 verifier equation.
 - Soundness amplification cannot stay qualitative because P1's ternary challenge set gives only constant per-fold security; stating the baseline product bound `(1/3)^d` keeps the threat model aligned with the actual inherited challenge semantics.
 - A practical extractor warning belongs in the threat model itself: a naive fold-tree rewinding extractor costs `2^d`, so “deep recursion” is not a free theorem consequence even before implementation constraints are considered.
+
+## 2026-05-03 — Task C.R.5
+- Froze LatticeFold+ as the P2 primary only with explicit fallback coverage, because the repo guidance already flags it as the best RLWE-native fit but too new to stand alone.
+- Froze MicroNova as the first pivot when the blocking constraint is the P2-T5 on-chain envelope (≤14KB proof, ≤5M gas), and kept Rust-in-zkVM as the guaranteed delivery fallback when semantic fidelity to the frozen Rust P1 verifier matters more than lattice purity.
+- Primary kill criteria are concrete rather than stylistic: inability to encode the full frozen P1 verifier equation faithfully, inability to keep a credible path to the P3 verifier budget, or inability to demonstrate a believable t=513, n=1024 delivery path with available tooling.

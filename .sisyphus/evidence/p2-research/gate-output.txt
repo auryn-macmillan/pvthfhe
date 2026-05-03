@@ -1,0 +1,46 @@
+python3 .sisyphus/scripts/p2-research-gate.py
+subcheck: prior-art
+[OK] .sisyphus/research/lit-survey.md
+  PASS: prior-art
+subcheck: novelty-gap
+[OK] .sisyphus/research/lit-survey.md
+  PASS: novelty-gap
+subcheck: prior-art-matrix
+[OK] found artifact: .sisyphus/research/p2/prior-art.md
+[OK] data rows in matrix: 10
+[OK] required column present: RLWE-native?
+[OK] required column present: Verifier-cost-on-chain
+[OK] Rust-in-zkVM row present
+  PASS: prior-art-matrix
+subcheck: novelty-memo
+[OK] found artifact: .sisyphus/research/p2/novelty-memo.md
+[OK] required section present: Required Novelty
+[OK] required section present: Aggressive Bets
+[OK] required section present: Risk Register
+[OK] required section present: Pivot Triggers
+[OK] found >=1 aggressive bet
+  PASS: novelty-memo
+subcheck: threat-model
+[OK] found artifact: .sisyphus/research/p2/threat-model.md
+[OK] required section present: Corruption Model
+[OK] required section present: Folding-Specific Threats
+[OK] required section present: Knowledge-Soundness
+[OK] required section present: P1 Consistency
+  PASS: threat-model
+subcheck: theorem-inventory
+[OK] found artifact: docs/security-proofs/p2/theorem-inventory.md
+[OK] theorem sections found: 5
+[OK] P2 obligation rows: 5
+  PASS: theorem-inventory
+subcheck: scorecard
+[OK] found artifact: .sisyphus/research/p2/scorecard.md
+[OK] candidate rows present: 19
+[OK] Primary declaration present
+[OK] Fallback declaration present
+  PASS: scorecard
+subcheck: rg-p2
+[OK] found artifact: .sisyphus/research/p2/RG-P2-decision.md
+[OK] advisor sign-off present: VERDICT: APPROVE
+  PASS: rg-p2
+
+PASS: p2-research-gate

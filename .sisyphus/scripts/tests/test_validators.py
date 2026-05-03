@@ -989,6 +989,110 @@ def test_p2_research_gate_threat_model_fails_without_required_sections():
         assert "Knowledge-Soundness" in out, out
 
 
+P2_SCORECARD_VALID = textwrap.dedent("""\
+    # P2 Candidate Scorecard
+
+    ## Weighted Criteria
+
+    | Criterion | Weight |
+    | --- | --- |
+    | RLWE-native | 25% |
+    | Folding depth scalability | 20% |
+    | Prover memory per fold step | 15% |
+    | On-chain verifier cost (P3) | 20% |
+    | Maturity/auditability | 10% |
+    | Implementation deliverability | 10% |
+
+    ## Weighted Scores
+
+    | Candidate | RLWE-native 25% | Folding depth scalability 20% | Prover memory per fold step 15% | On-chain verifier cost (P3) 20% | Maturity/auditability 10% | Implementation deliverability 10% | Weighted total | Rank |
+    | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+    | LatticeFold+ | 5 | 4 | 3 | 2 | 2 | 3 | 3.40 | 1 |
+    | MicroNova | 1 | 3 | 3 | 5 | 4 | 4 | 3.10 | 2 |
+    | Rust-in-zkVM | 1 | 4 | 2 | 4 | 4 | 5 | 3.05 | 3 |
+
+    ## Freeze Decision
+
+    Primary: LatticeFold+
+    Fallback: MicroNova
+""")
+
+
+P2_DECISION_VALID = textwrap.dedent("""\
+    # RG-P2 Decision Memo
+
+    ## Primary: LatticeFold+
+
+    Best native fit for the frozen P1 verifier relation because it keeps the fold relation inside a lattice-native commitment world. It is also the only surveyed candidate that directly optimizes the verifier and proof shape for lattice folding rather than wrapping the relation in a non-lattice accumulator. Its novelty risk is real, so the decision is only acceptable with an explicit delivery fallback.
+
+    ## Fallback: MicroNova
+
+    Delivery fallback when the native lattice path fails to satisfy the P2-T5 on-chain budget or cannot absorb the frozen SHA-256 and range-check obligations without unacceptable prover cost.
+
+    ## Kill Criteria
+
+    - Abandon the primary if the folded verifier cannot plausibly target <=14 KB proof size and <=5M gas after wrapping.
+
+    ## Advisor Sign-off
+    VERDICT: APPROVE
+""")
+
+
+def write_p2_gate_fixture_files(
+    tmpdir: str,
+    scorecard: str = P2_SCORECARD_VALID,
+    decision: str = P2_DECISION_VALID,
+) -> None:
+    research_dir = os.path.join(tmpdir, ".sisyphus", "research", "p2")
+    os.makedirs(research_dir, exist_ok=True)
+    with open(os.path.join(research_dir, "scorecard.md"), "w", encoding="utf-8") as f:
+        _ = f.write(scorecard)
+    with open(os.path.join(research_dir, "RG-P2-decision.md"), "w", encoding="utf-8") as f:
+        _ = f.write(decision)
+
+
+def test_p2_research_gate_scorecard_requires_candidates_primary_and_fallback():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        write_p2_gate_fixture_files(tmpdir)
+        rc, out, _ = run_script_in_cwd(
+            "p2-research-gate.py", tmpdir, "--check", "scorecard"
+        )
+        assert rc == 0, f"Expected 0, got {rc}. Output: {out}"
+        assert "PASS: p2-research-gate/scorecard" in out, out
+
+
+def test_p2_research_gate_scorecard_fails_without_fallback():
+    bad_scorecard = P2_SCORECARD_VALID.replace("Fallback: MicroNova\n", "")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        write_p2_gate_fixture_files(tmpdir, scorecard=bad_scorecard)
+        rc, out, _ = run_script_in_cwd(
+            "p2-research-gate.py", tmpdir, "--check", "scorecard"
+        )
+        assert rc != 0, f"Expected non-zero, got {rc}. Output: {out}"
+        assert "Fallback" in out, out
+
+
+def test_p2_research_gate_rg_p2_requires_approve_verdict():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        write_p2_gate_fixture_files(tmpdir)
+        rc, out, _ = run_script_in_cwd(
+            "p2-research-gate.py", tmpdir, "--check", "rg-p2"
+        )
+        assert rc == 0, f"Expected 0, got {rc}. Output: {out}"
+        assert "PASS: p2-research-gate/rg-p2" in out, out
+
+
+def test_p2_research_gate_rg_p2_fails_without_approve_verdict():
+    bad_decision = P2_DECISION_VALID.replace("VERDICT: APPROVE", "VERDICT: REJECT")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        write_p2_gate_fixture_files(tmpdir, decision=bad_decision)
+        rc, out, _ = run_script_in_cwd(
+            "p2-research-gate.py", tmpdir, "--check", "rg-p2"
+        )
+        assert rc != 0, f"Expected non-zero, got {rc}. Output: {out}"
+        assert "VERDICT: APPROVE" in out, out
+
+
 P1_SCORECARD_VALID = textwrap.dedent("""\
     # P1 Candidate Scorecard
 

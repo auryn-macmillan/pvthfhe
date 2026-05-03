@@ -22,6 +22,7 @@ GATE_NAME = "p3-research-gate"
 ARTIFACTS = ['.sisyphus/research/lit-survey.md']
 PRIOR_ART_PATH = Path('.sisyphus/research/p3/prior-art.md')
 NOVELTY_MEMO_PATH = Path('.sisyphus/research/p3/novelty-memo.md')
+THREAT_MODEL_PATH = Path('.sisyphus/research/p3/threat-model.md')
 
 SUBCHECKS = ['prior-art', 'novelty-gap', 'threat-model', 'prior-art-matrix', 'novelty-memo']
 
@@ -113,6 +114,50 @@ def novelty_memo() -> tuple[bool, list[str]]:
     return ok, details
 
 
+def threat_model() -> tuple[bool, list[str]]:
+    details: list[str] = ["subcheck: threat-model"]
+    if not THREAT_MODEL_PATH.exists():
+        return False, details + [f"[FAIL] missing artifact: {THREAT_MODEL_PATH}"]
+
+    content = THREAT_MODEL_PATH.read_text(encoding='utf-8')
+    ok = True
+    details.append(f"[OK] found artifact: {THREAT_MODEL_PATH}")
+
+    required_headers = [
+        '## Corruption Model (inherited from P2)',
+        '## P3-Specific Threats',
+        '### Malicious Prover with Chosen Ciphertexts',
+        '### MEV / Reorg Interaction',
+        '### Calldata Manipulation',
+        '### On-Chain Verifier Bug Exploitation',
+        '### Trusted Setup Ceremony Assumptions',
+        '## P2 Consistency Check',
+        '## VERDICT: APPROVE',
+    ]
+    for header in required_headers:
+        if header in content:
+            details.append(f"[OK] required heading present: {header}")
+        else:
+            details.append(f"[FAIL] missing required heading: {header}")
+            ok = False
+
+    required_p2_phrases = [
+        'q=65537',
+        'N=1024',
+        'B_e=17',
+        'corruption model carried forward',
+        'ternary challenge space preserved',
+    ]
+    for phrase in required_p2_phrases:
+        if phrase in content:
+            details.append(f"[OK] P2 consistency phrase present: {phrase}")
+        else:
+            details.append(f"[FAIL] missing P2 consistency phrase: {phrase}")
+            ok = False
+
+    return ok, details
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=f"{GATE_NAME} gate")
     _ = parser.add_argument('--check', default=None, choices=SUBCHECKS)
@@ -122,10 +167,11 @@ def main() -> None:
     subchecks_map: dict[str, Callable[[], tuple[bool, list[str]]]] = {
         name: make_subcheck(name)
         for name in SUBCHECKS
-        if name not in ['prior-art-matrix', 'novelty-memo']
+        if name not in ['prior-art-matrix', 'novelty-memo', 'threat-model']
     }
     subchecks_map['prior-art-matrix'] = prior_art_matrix
     subchecks_map['novelty-memo'] = novelty_memo
+    subchecks_map['threat-model'] = threat_model
     run_gate(GATE_NAME, subchecks_map, args)
 
 

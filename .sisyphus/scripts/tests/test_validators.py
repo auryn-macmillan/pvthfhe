@@ -1121,6 +1121,78 @@ P3_PRIOR_ART_MISSING_RUST_ZKVM = P3_PRIOR_ART_VALID.replace(
 )
 
 
+P3_THREAT_MODEL_VALID = textwrap.dedent("""\
+    # P3 Threat Model: On-Chain Lattice Proof Verifier
+
+    ## Corruption Model (inherited from P2)
+
+    - Static malicious adversary corrupting at most `t-1` of `n` parties under honest majority.
+
+    ## P3-Specific Threats
+
+    ### Malicious Prover with Chosen Ciphertexts
+
+    - Public calldata and chosen-ciphertext shaping are in scope.
+
+    ### MEV / Reorg Interaction
+
+    - Front-running, replay, and short reorgs are in scope.
+
+    ### Calldata Manipulation
+
+    - ABI decoding, truncation, and calldata griefing are in scope.
+
+    ### On-Chain Verifier Bug Exploitation
+
+    - Arithmetic, parsing, and memory-safety equivalent contract bugs are in scope.
+
+    ### Trusted Setup Ceremony Assumptions
+
+    - If a Groth16 wrap is used, toxic-waste compromise breaks soundness.
+
+    ## P2 Consistency Check
+
+    - inherited parameters: q=65537, N=1024, B_e=17
+    - corruption model carried forward
+    - ternary challenge space preserved
+
+    ## VERDICT: APPROVE
+""")
+
+
+P3_THREAT_MODEL_MISSING_P2_CHECK = textwrap.dedent("""\
+    # P3 Threat Model: On-Chain Lattice Proof Verifier
+
+    ## Corruption Model (inherited from P2)
+
+    - Static malicious adversary corrupting at most `t-1` of `n` parties under honest majority.
+
+    ## P3-Specific Threats
+
+    ### Malicious Prover with Chosen Ciphertexts
+
+    - Public calldata and chosen-ciphertext shaping are in scope.
+
+    ### MEV / Reorg Interaction
+
+    - Front-running, replay, and short reorgs are in scope.
+
+    ### Calldata Manipulation
+
+    - ABI decoding, truncation, and calldata griefing are in scope.
+
+    ### On-Chain Verifier Bug Exploitation
+
+    - Arithmetic, parsing, and memory-safety equivalent contract bugs are in scope.
+
+    ### Trusted Setup Ceremony Assumptions
+
+    - If a Groth16 wrap is used, toxic-waste compromise breaks soundness.
+
+    ## VERDICT: APPROVE
+""")
+
+
 def test_p3_research_gate_prior_art_matrix_requires_matrix_rust_in_zkvm_and_approve_verdict():
     with tempfile.TemporaryDirectory() as tmpdir:
         research_dir = os.path.join(tmpdir, ".sisyphus", "research", "p3")
@@ -1147,6 +1219,34 @@ def test_p3_research_gate_prior_art_matrix_fails_without_rust_in_zkvm_row():
         )
         assert rc != 0, f"Expected non-zero, got {rc}. Output: {out}"
         assert "Rust-in-zkVM" in out, out
+
+
+def test_p3_research_gate_threat_model_requires_expected_sections_and_verdict():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        research_dir = os.path.join(tmpdir, ".sisyphus", "research", "p3")
+        os.makedirs(research_dir)
+        threat_model_path = os.path.join(research_dir, "threat-model.md")
+        with open(threat_model_path, "w", encoding="utf-8") as f:
+            _ = f.write(P3_THREAT_MODEL_VALID)
+        rc, out, _ = run_script_in_cwd(
+            "p3-research-gate.py", tmpdir, "--check", "threat-model"
+        )
+        assert rc == 0, f"Expected 0, got {rc}. Output: {out}"
+        assert "PASS: p3-research-gate/threat-model" in out, out
+
+
+def test_p3_research_gate_threat_model_fails_without_p2_consistency_check_section():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        research_dir = os.path.join(tmpdir, ".sisyphus", "research", "p3")
+        os.makedirs(research_dir)
+        threat_model_path = os.path.join(research_dir, "threat-model.md")
+        with open(threat_model_path, "w", encoding="utf-8") as f:
+            _ = f.write(P3_THREAT_MODEL_MISSING_P2_CHECK)
+        rc, out, _ = run_script_in_cwd(
+            "p3-research-gate.py", tmpdir, "--check", "threat-model"
+        )
+        assert rc != 0, f"Expected non-zero, got {rc}. Output: {out}"
+        assert "P2 Consistency Check" in out, out
 
 
 P1_SCORECARD_VALID = textwrap.dedent("""\

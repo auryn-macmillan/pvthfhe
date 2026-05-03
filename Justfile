@@ -114,7 +114,10 @@ p3-design-gate:
     python3 .sisyphus/scripts/p3-design-gate.py
 
 p3-impl-gate:
+    @echo "Running P3 impl gate..."
     python3 .sisyphus/scripts/p3-impl-gate.py
+    python3 .sisyphus/scripts/surrogate-retirement-check.py
+    @echo "IG-P3 PASSED"
 
 paper-gate:
     python3 .sisyphus/scripts/paper-gate.py

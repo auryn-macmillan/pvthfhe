@@ -1,0 +1,26 @@
+Running P3 impl gate...
+python3 .sisyphus/scripts/p3-impl-gate.py
+[OK] red-tests: 6 failed confirmed (.sisyphus/evidence/p3-impl/red-tests.txt)
+  PASS: tests-red
+[OK] impl-green: 6 tests passed confirmed (.sisyphus/evidence/p3-impl/green-tests.txt)
+  PASS: impl-green
+[OK] on-chain-verifier: contracts/src/generated/HonkVerifier.sol — SURROGATE-annotated
+[OK] api-leakage: crates/pvthfhe-aggregator/src/keygen/protocol.rs — SURROGATE-annotated
+[OK] aggregator-circuit: circuits/aggregator_final/src/main.nr — SURROGATE-annotated
+[OK] decrypt-circuit: circuits/decrypt_share/src/main.nr — SURROGATE-annotated
+[OK] surrogate-retired: 4/4 surrogates present and annotated
+  PASS: surrogate-retired
+[OK] proofs: advisor verdict APPROVE found (docs/security-proofs/p3/advisor-verdict.md)
+  PASS: proofs
+[OK] bench: bench/p3/results-128-local.json exists
+  PASS: bench
+
+PASS: p3-impl-gate
+python3 .sisyphus/scripts/surrogate-retirement-check.py
+[OK] api-leakage: crates/pvthfhe-aggregator/src/keygen/protocol.rs — present, SURROGATE-annotated
+[OK] on-chain-verifier: contracts/src/generated/HonkVerifier.sol — present, SURROGATE-annotated
+[OK] decrypt-circuit: circuits/decrypt_share/src/main.nr — present, SURROGATE-annotated
+[OK] aggregator-circuit: circuits/aggregator_final/src/main.nr — present, SURROGATE-annotated
+surrogate-retirement-check: 4/4 feature-flagged or annotated
+PASS: surrogate-retirement-check
+IG-P3 PASSED

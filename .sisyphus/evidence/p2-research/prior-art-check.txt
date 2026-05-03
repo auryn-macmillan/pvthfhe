@@ -1,0 +1,7 @@
+subcheck: prior-art-matrix
+[OK] found artifact: .sisyphus/research/p2/prior-art.md
+[OK] data rows in matrix: 10
+[OK] required column present: RLWE-native?
+[OK] required column present: Verifier-cost-on-chain
+[OK] Rust-in-zkVM row present
+PASS: p2-research-gate/prior-art-matrix

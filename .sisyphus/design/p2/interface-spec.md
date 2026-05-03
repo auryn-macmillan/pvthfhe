@@ -136,4 +136,4 @@ Requirements:
 
 ## Surrogate-Shape Contamination Policy
 
-The design gate's `interface-spec` subcheck treats any direct mention of current surrogate verifier/circuit identifiers as a failure signal for surrogate leakage. The denylist includes the present contract verifier name (`Honk​Verifier`), wrapped-proof family name (`Ultra​Honk`), circuit-language marker (`No​ir`), surrogate package marker (`aggregator_​final`), and surrogate entry-file marker (`main.‌nr`). The public interface must stay semantic and backend-agnostic rather than inheriting shapes from temporary recursive surrogates.
+The design gate's `interface-spec` subcheck will fail if this spec mentions any current surrogate verifier, wrapped-proof family, circuit-language, surrogate package, or surrogate entry-file identifiers from the temporary recursive path. Those denylisted identifiers are enforced by the gate script rather than repeated verbatim here so the public interface stays semantic and backend-agnostic instead of inheriting temporary surrogate shapes.

@@ -267,3 +267,9 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - Froze LatticeFold+ as the P2 primary only with explicit fallback coverage, because the repo guidance already flags it as the best RLWE-native fit but too new to stand alone.
 - Froze MicroNova as the first pivot when the blocking constraint is the P2-T5 on-chain envelope (≤14KB proof, ≤5M gas), and kept Rust-in-zkVM as the guaranteed delivery fallback when semantic fidelity to the frozen Rust P1 verifier matters more than lattice purity.
 - Primary kill criteria are concrete rather than stylistic: inability to encode the full frozen P1 verifier equation faithfully, inability to keep a credible path to the P3 verifier budget, or inability to demonstrate a believable t=513, n=1024 delivery path with available tooling.
+
+## 2026-05-03 — Task C.D.1
+- Froze the P2 boundary as semantic fold objects (`FoldStatement`, `FoldWitness`, `FoldAccumulator`, `FinalProof`, `P3PublicInputs`) so every real or fallback backend can swap underneath one trait without leaking commitment gadgets or field choices into callers.
+- Bound ordered fold history through `statement_hash_chain = SHA-256(prev_hash || current_fold_statement_bytes)` and exported that terminal digest as `d_commitment`, which keeps P3 tied to fold history without inheriting surrogate circuit shape.
+- Fixed the P3-facing public-input layout at 200 bytes with stable offsets for six 32-byte hashes plus one big-endian `epoch`, making downstream verifier integration independent of whether the active backend is lattice-native, MicroNova, or zkVM-based.
+- Kept surrogate isolation mechanical: the design gate now has a real `interface-spec` subcheck that requires the frozen sections and rejects current surrogate verifier/circuit identifiers from the spec text.

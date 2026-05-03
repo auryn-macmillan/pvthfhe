@@ -4,8 +4,9 @@ subcheck: interface-spec
 [OK] required heading present: ## Witness Type
 [OK] required heading present: ## Accumulator Type
 [OK] required heading present: ## Folding API
-[OK] required heading present: ## Public-Input Layout
+[OK] required heading present: ## Public-Input Layout (P3 Interface)
 [OK] required heading present: ## Adapter Strategy
+[OK] required heading present: ## Surrogate-Shape Contamination Policy
 [OK] surrogate contamination marker absent: HonkVerifier
 [OK] surrogate contamination marker absent: UltraHonk
 [OK] surrogate contamination marker absent: Noir

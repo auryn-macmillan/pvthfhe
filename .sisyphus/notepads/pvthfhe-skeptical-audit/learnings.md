@@ -92,3 +92,18 @@ FORBIDDEN: `nargo prove`, `nargo verify`
 - **P3 (Verifier)**: 18 REAL tests exist but only for the ECDSA authenticator, not the FHE soundness.
 - **P4 (Keygen)**: Entirely MOCK against the Hermine/Simulator stub.
 - **Impact**: The "green" test state is deceptive; it reflects surrogate passing, not cryptographic soundness.
+
+## T20 Missing Theorem Completion (2026-05-03)
+
+- `paper/main.tex` originally contained 19 `\begin{theorem}` environments; adding the deferred `P1-T4` theorem restores parity with the 20 proof obligations.
+- `P2-T4` is supportable only as a **conditional** theorem in the current repo state: the proof can cite the standard linear-commitment-to-SIS reduction, but only if the paper and registry explicitly state the two missing implementation hooks.
+- The two open hooks that must stay explicit are: (1) arithmetic norm enforcement inside `validate_witness`, and (2) replacing the SHA-256 accumulator surrogate with a linear lattice commitment.
+- `paper/main.tex` already contained a `P2 Accumulator Binding` theorem environment; the missing paper theorem was `P1-T4`, not `P2-T4`.
+
+## T13 Paper Claim Fidelity Classification (2026-05-03)
+
+- Classified all 68 extracted paper/docs claims into `supported` / `overstated` / `contradicted` / `untestable from repo`.
+- Final counts: **40 supported, 19 overstated, 9 contradicted, 0 untestable**.
+- P3 claims about on-chain soundness/public verifiability are the clearest hard failures: the audit matrix and vacuity evidence force `contradicted` for any statement that equates `P3RealVerifier.sol` with cryptographic verification of the P2/FHE relation.
+- P2 performance/security language is usually **overstated** rather than fully contradicted: the repo does contain a measured SHA-256 hash-chain surrogate, but the real folding path is dead in production and `P2-T4` remains an explicit GAP.
+- Narrowly scoped theorem statements that honestly name the current simulated/placeholder boundaries (especially P4 theorems and P1's abstract ZK/binding statements) can still be `supported` even when the broader construction-level marketing claims are not.

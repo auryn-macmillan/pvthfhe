@@ -1,0 +1,15 @@
+   Compiling pvthfhe-aggregator v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-aggregator)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.44s
+     Running tests/e2e_real.rs (target/debug/deps/e2e_real-9c6638dcbb0fa945)
+
+running 1 test
+e2e-real PASSED: P4→P1→P2→P3 pipeline verified
+  fold_depth = 4
+  final_proof_bytes = 32 bytes
+  public_inputs length = 200 bytes
+  trusted proof verified: true
+  wrong-key rejected: true
+test test_e2e_real_pipeline_p4_p1_p2_p3 ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

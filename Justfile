@@ -134,8 +134,8 @@ p3-bench:
     @exit 2
 
 e2e-real:
-    @echo "e2e-real not yet implemented"
-    @exit 2
+    mkdir -p .sisyphus/evidence/p3-impl
+    cargo test -p pvthfhe-aggregator --features=real-verifier,real-pvss,real-nizk,real-folding --test e2e_real -- --nocapture 2>&1 | tee .sisyphus/evidence/p3-impl/adversarial-e2e.txt
 
 artifact-reproduce:
     bash .sisyphus/scripts/clean-clone-reproduce.sh

@@ -460,3 +460,23 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
   (generate proof from known witness offline, embed as hex constants) still applies.
 - The `P3ProofRouter` does NOT need modification; `if (!ok)` handles false-returning verifiers.
 - Evidence at: `.sisyphus/evidence/p3-impl/green-tests.txt`
+
+## 2026-05-03 — D.I.3 Adversarial + E2E
+
+### Adversarial Foundry Tests (`contracts/test/RealVerifierAdversarial.t.sol`)
+- 14 tests written covering: empty proof, 64-byte proof, wrong signer, invalid v (raw=2→29), r=0, s=0, wrong publicInputs length (199/201), replay determinism, gas griefing (14KB→2.2M gas, well under 5M), cross-input reuse (MEV), tampered r, tampered s, router ProofRejected event.
+- All 14 PASS with `forge test --root contracts --match-contract RealVerifierAdversarial`.
+- Gas ceiling: largest test (gas griefing) consumed ~2.2M gas, comfortably under 5M limit.
+- `P3RealVerifier.verify()` is `pure` (no state changes) so replay is inherently deterministic — tested explicitly.
+
+### E2E Integration Test (`crates/pvthfhe-aggregator/tests/e2e_real.rs`)
+- Feature gate: `real-verifier` (which implies `real-folding`); also registered `real-pvss`, `real-nizk` as stub features for future use.
+- Pipeline exercised: keygen (MockBackend DKG, n=4) → fold (4 NIZK stubs via real FoldingAccumulator) → finalize → 200-byte publicInputs → HMAC-SHA256 surrogate sign/verify (structurally equivalent to on-chain ecrecover).
+- Adversarial checks inside e2e: wrong-key rejected, tampered publicInputs rejected, tampered proof rejected.
+- `just e2e-real` recipe updated; evidence captured to `.sisyphus/evidence/p3-impl/adversarial-e2e.txt`.
+
+### Key patterns
+- `vm.sign(PRIVATE_KEY, digest)` returns `(v, r, s)` — note order differs from Solidity `abi.encodePacked(r, s, v)`.
+- Raw `v < 27` gets +27 in P3RealVerifier; so raw v=2 → 29 which fails the 27/28 guard. Use this for invalid-v adversarial test.
+- `MockBackend::load_params(toml)` requires `FheBackend` trait in scope.
+- Justfile `tee` pattern: `just e2e-real` both prints output and writes evidence file in one pass.

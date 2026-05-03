@@ -23,6 +23,9 @@ rand = "0.8"
 
 [features]
 real-folding = []
+real-verifier = ["real-folding"]
+real-pvss = []
+real-nizk = []
 
 [[test]]
 name = "adversarial"
@@ -41,3 +44,8 @@ required-features = ["real-folding"]
 name = "p2_bench"
 path = "tests/p2_bench.rs"
 required-features = ["real-folding"]
+
+[[test]]
+name = "e2e_real"
+path = "tests/e2e_real.rs"
+required-features = ["real-verifier"]

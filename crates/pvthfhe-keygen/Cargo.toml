@@ -1,0 +1,16 @@
+[package]
+name = "pvthfhe-keygen"
+version = "0.1.0"
+edition = "2021"
+description = "P4 keygen adapter crate: bridges pvthfhe-keygen-spec interface to real Hermine-adapted PVSS (real impl deferred to T4)."
+license = "MIT"
+
+[features]
+# migration-stub keeps the surrogate code path active until the real HermineAdapter is ready.
+# CI always builds with this feature until Step M4 of the migration plan.
+migration-stub = []
+
+[dependencies]
+
+[lints]
+workspace = true

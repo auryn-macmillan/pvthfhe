@@ -1,0 +1,12 @@
+{
+  "gate": "p4-design-gate",
+  "subcheck": "charter",
+  "status": "PASS",
+  "timestamp": "2026-05-03T00:03:17.268923+00:00",
+  "details": [
+    "subcheck: charter",
+    "[OK] docs/governance/problem-charter-template.md",
+    "[OK] docs/governance/downstream-contract-bundle-template.md",
+    "[OK] docs/governance/reviewer-memo-template.md"
+  ]
+}

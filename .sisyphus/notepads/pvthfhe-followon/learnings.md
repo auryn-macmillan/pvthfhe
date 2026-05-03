@@ -73,8 +73,24 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - The proof-skeleton validator needed a CLI compatibility upgrade: this task's acceptance command uses a positional directory argument and `--min-thms`, so the script now counts `## Theorem` sections instead of only checking files.
 - P4 theorem skeletons are easiest to keep reviewable as one theorem per file because the obligations registry can point each theorem ID directly at a concrete markdown path.
 - The right place to expose proof debt is inside each theorem's own `Unresolved Lemmas` list; pushing those gaps into a shared note would hide which dependency blocks which theorem.
+- Post-review hardening mattered: the validator must ignore non-skeleton markdown such as `README.md` and `obligations.md`, otherwise its default repo-wide invocation is misleadingly broken.
+- The validator contract should match `docs/security-proofs/README.md`; enforcing only `## Theorem`, `## Proof`, and `Status` was too weak to guarantee actual proof-skeleton shape.
 
 ## 2026-05-02 — Task A.D.2: P4 stack decision
 - The candidate scorecard is strong enough to drive stack-level choices, not just candidate selection: every concrete commitment/proof/hash decision should preserve Hermine's assumption, public-verifiability, blame, and O(n) communication advantages.
 - For P4-T3, the proof choice has to be phrased as public-verifiability soundness of the full BFV-coupled witness relation, not merely correctness of ciphertext formation in isolation.
 - `validate-pins.py` originally only handled TeX `\cite{}` / `\ref{}` checks; it now also accepts a positional Markdown path and passes when it finds at least four TOML-style crate pins like ``crate = "version"``.
+
+## A.D.4 — P4 Benchmark + Migration Plan + Design Gate (2026-05-03)
+
+- `p4-design-gate.py` only checks that the three governance template files exist (`docs/governance/problem-charter-template.md`, `docs/governance/downstream-contract-bundle-template.md`, `docs/governance/reviewer-memo-template.md`); all artifact-specific checks are advisory WARNs. The gate therefore passes as long as those templates are on disk.
+- The reviewer memo needs a `VERDICT:` line; the gate script itself does not parse it — but the plan's QA scenario requires `grep "VERDICT:"` to succeed.
+- `.sisyphus/evidence/*.log` files are gitignored by default; use `git add -f` to force-add them.
+- `pvthfhe-keygen` (impl crate) is distinct from `pvthfhe-keygen-spec` (spec/types crate). The spec crate holds frozen interface traits; the impl crate holds the adapter and future real implementation.
+- `migration-stub` feature flag pattern: empty feature in `[features]`, all stub code under `#[cfg(feature = "migration-stub")]`. No extra dependencies needed for the stub path.
+
+## 2026-05-03 — Task A.I.1: RED protocol tests
+- The impl crate already exposes enough stub surface for RED coverage with only one extra placeholder type: `BlameProof`.
+- Keeping the protocol tests in an integration test file makes the RED suite easy to run with `cargo test -p pvthfhe-keygen --test protocol_test` while still compiling against the public stub API.
+- Ten focused tests can map directly onto the five theorem areas (two per theorem) and all fail cleanly via `unimplemented!("TODO: implement in A.I.2")`.
+- `cargo test -p pvthfhe-keygen --no-run` and the integration test run both succeed at compile-time; the test run fails exactly where expected, producing the RED evidence log.

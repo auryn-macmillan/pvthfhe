@@ -71,6 +71,15 @@ pub struct PublicVerificationArtifact {
     pub session_id: String,
 }
 
+/// Opaque placeholder for an abort-with-blame proof.
+#[derive(Debug, Clone)]
+pub struct BlameProof {
+    /// Owning session id.
+    pub session_id: String,
+    /// Human-readable blame reason.
+    pub reason: String,
+}
+
 /// Opaque placeholder for the reconstructed BFV public key.
 #[derive(Debug, Clone)]
 pub struct BFVPublicKey {

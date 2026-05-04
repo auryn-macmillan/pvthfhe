@@ -5,6 +5,9 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
+ark-bn254 = "0.6"
+ark-ff = "0.6"
+ark-grumpkin = "0.6"
 thiserror = "1"
 
 [lints]

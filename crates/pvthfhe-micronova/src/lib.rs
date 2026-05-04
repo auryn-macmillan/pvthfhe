@@ -5,6 +5,8 @@
 
 #![deny(missing_docs)]
 
+pub mod cycle;
+
 use thiserror::Error;
 
 /// Placeholder prover entry point for the future MicroNova backend.

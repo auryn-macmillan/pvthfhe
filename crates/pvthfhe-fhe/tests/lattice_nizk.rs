@@ -40,8 +40,12 @@ mod lattice_nizk {
             session_id: share.session_id.clone(),
             participant_id,
         };
+        let mut secret_share_poly = vec![0i64; 8192];
+        secret_share_poly[0] = 1;
+        secret_share_poly[1] = -1;
         let witness = NizkWitness {
             secret_share: secret_value,
+            secret_share_poly,
             error: vec![1, -1, 0, 2],
             randomness: vec![0xAA, 0xBB, 0xCC, 0xDD],
         };

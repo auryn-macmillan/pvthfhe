@@ -21,9 +21,9 @@
 
 use fhe_math::rq::{traits::TryConvertFrom, Context, Poly, Representation};
 use rand_core::RngCore;
-use sha2::{Digest, Sha256};
 use std::sync::{Arc, OnceLock};
 
+use crate::fiat_shamir::Transcript;
 use crate::NizkError;
 
 /// RLWE polynomial degree N = 8192.
@@ -111,7 +111,12 @@ pub fn compute_d_rns(c_rns: &[u64], s_i: &[i64], e_i: &[i64]) -> Result<Vec<u64>
 }
 
 /// Produce a sigma proof for statement (c, d_i) and witness (s_i, e_i).
+///
+/// `session_id` and `participant_id` are bound into the Fiat-Shamir transcript
+/// via the locked domain separator from [`crate::fiat_shamir::Transcript`].
 pub fn prove(
+    session_id: &[u8],
+    participant_id: u32,
     stmt: &SigmaStatement,
     wit: &SigmaWitness,
     rng: &mut dyn RngCore,
@@ -134,7 +139,7 @@ pub fn prove(
     let c_ys_rns = poly_mul_rq(&stmt.c_rns, &y_s_rns, ctx)?;
     let t_rns = rns_add(&c_ys_rns, &y_e_rns, ctx)?;
 
-    let ch = derive_challenge(&t_rns, &stmt.c_rns, &stmt.d_rns);
+    let ch = derive_challenge(session_id, participant_id, &t_rns, &stmt.c_rns, &stmt.d_rns);
 
     let ch_si = poly_mul_rq_to_int(&ch, &wit.s_i, ctx)?;
     let ch_ei = poly_mul_rq_to_int(&ch, &wit.e_i, ctx)?;
@@ -152,8 +157,15 @@ pub fn prove(
 
 /// Verify a sigma proof against a statement.
 ///
+/// `session_id` and `participant_id` must match those used during [`prove`].
+///
 /// Returns Ok(()) iff the algebraic equation holds and response norms are within bounds.
-pub fn verify(stmt: &SigmaStatement, proof: &SigmaProof) -> Result<(), NizkError> {
+pub fn verify(
+    session_id: &[u8],
+    participant_id: u32,
+    stmt: &SigmaStatement,
+    proof: &SigmaProof,
+) -> Result<(), NizkError> {
     if stmt.c_rns.len() != RNS_LEN || stmt.d_rns.len() != RNS_LEN {
         return Err(NizkError::InvalidInput("statement RNS lengths must be 3*N"));
     }
@@ -167,7 +179,13 @@ pub fn verify(stmt: &SigmaStatement, proof: &SigmaProof) -> Result<(), NizkError
     }
     let ctx = rlwe_context()?;
 
-    let expected_ch = derive_challenge(&proof.t_rns, &stmt.c_rns, &stmt.d_rns);
+    let expected_ch = derive_challenge(
+        session_id,
+        participant_id,
+        &proof.t_rns,
+        &stmt.c_rns,
+        &stmt.d_rns,
+    );
     if expected_ch != proof.ch {
         return Err(NizkError::VerificationFailed("challenge mismatch"));
     }
@@ -266,28 +284,31 @@ fn poly_mul_rq_to_int(
     Ok(result)
 }
 
-fn derive_challenge(t_rns: &[u64], c_rns: &[u64], d_rns: &[u64]) -> Vec<i64> {
-    let mut transcript = Vec::with_capacity((t_rns.len() + c_rns.len() + d_rns.len()) * 8);
-    for &x in t_rns.iter().chain(c_rns).chain(d_rns) {
-        transcript.extend_from_slice(&x.to_le_bytes());
-    }
-    // Produce N=8192 binary bits via SHA-256 with a counter (32 bytes * 256 iterations >= 8192 bits).
+fn derive_challenge(
+    session_id: &[u8],
+    participant_id: u32,
+    t_rns: &[u64],
+    c_rns: &[u64],
+    d_rns: &[u64],
+) -> Vec<i64> {
+    let mut ts = Transcript::new(session_id, participant_id);
+    let t_bytes: Vec<u8> = t_rns.iter().flat_map(|x| x.to_le_bytes()).collect();
+    ts.absorb(b"t_rns", &t_bytes);
+    let c_bytes: Vec<u8> = c_rns.iter().flat_map(|x| x.to_le_bytes()).collect();
+    ts.absorb(b"c_rns", &c_bytes);
+    let d_bytes: Vec<u8> = d_rns.iter().flat_map(|x| x.to_le_bytes()).collect();
+    ts.absorb(b"d_rns", &d_bytes);
+    let mut raw = [0u8; RLWE_N / 8];
+    ts.challenge_bytes(b"binary_challenge", &mut raw);
     let mut bits = Vec::with_capacity(RLWE_N);
-    let mut counter = 0u32;
-    while bits.len() < RLWE_N {
-        let mut h = Sha256::new();
-        h.update(&transcript);
-        h.update(counter.to_le_bytes());
-        let hash = h.finalize();
-        for byte in hash.iter() {
-            for bit_pos in 0u32..8u32 {
-                if bits.len() < RLWE_N {
-                    let bit_val: u8 = (byte >> bit_pos) & 1u8;
-                    bits.push(i64::from(bit_val));
-                }
+    'outer: for byte in &raw {
+        for bit_pos in 0..8u32 {
+            if bits.len() < RLWE_N {
+                bits.push(i64::from((byte >> bit_pos) & 1u8));
+            } else {
+                break 'outer;
             }
         }
-        counter += 1;
     }
     bits
 }

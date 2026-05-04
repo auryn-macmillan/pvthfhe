@@ -32,8 +32,12 @@ mod lattice_nizk_adversarial {
             session_id: share.session_id.clone(),
             participant_id,
         };
+        let mut secret_share_poly = vec![0i64; 8192];
+        secret_share_poly[0] = 1;
+        secret_share_poly[1] = -1;
         let witness = NizkWitness {
             secret_share: secret_value,
+            secret_share_poly,
             error: vec![1, -1, 0, 2],
             randomness: vec![0xAA, 0xBB, 0xCC, 0xDD],
         };
@@ -59,7 +63,7 @@ mod lattice_nizk_adversarial {
     fn test_malformed_proof_bytes_rejected() {
         let (statement, _) = sample_statement_and_witness(41);
         let proof = NizkProof {
-            backend_id: "slap".to_owned(),
+            backend_id: "cyclo-ajtai-d2-conditional".to_owned(),
             proof_bytes: vec![0xDE, 0xAD, 0xBE, 0xEF],
         };
 
@@ -180,7 +184,7 @@ mod lattice_nizk_adversarial {
     fn test_empty_proof_bytes_rejected() {
         let (statement, _) = sample_statement_and_witness(41);
         let proof = NizkProof {
-            backend_id: "slap".to_owned(),
+            backend_id: "cyclo-ajtai-d2-conditional".to_owned(),
             proof_bytes: vec![],
         };
 
@@ -192,6 +196,7 @@ mod lattice_nizk_adversarial {
         let (statement, _) = sample_statement_and_witness(100);
         let wrong_witness = NizkWitness {
             secret_share: 999,
+            secret_share_poly: vec![0i64; 8192],
             error: vec![0, 0, 0, 0],
             randomness: vec![0x11, 0x22, 0x33, 0x44],
         };

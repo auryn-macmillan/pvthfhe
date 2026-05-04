@@ -81,6 +81,7 @@ fn make_statement_witness(n: usize, rng: &mut ChaCha20Rng) -> (NizkStatement, Ni
 
     let witness = NizkWitness {
         secret_share,
+        secret_share_poly: vec![0i64; 8192],
         error,
         randomness,
     };

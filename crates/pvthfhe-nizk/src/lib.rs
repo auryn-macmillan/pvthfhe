@@ -14,6 +14,7 @@
 //! [`NizkAdapter::verify`] as a formal security guarantee until T2 is closed.
 #![deny(missing_docs)]
 
+pub mod adapter;
 pub mod ajtai;
 pub mod fiat_shamir;
 pub mod hash_bridge;
@@ -52,8 +53,19 @@ pub struct NizkStatement {
 /// TODO(N4): extend with Cyclo fold witness fields.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NizkWitness {
-    /// Secret share value inherited from P4.
+    /// Secret share value inherited from P4 (scalar u64).
+    ///
+    /// Kept for backward compatibility; the Cyclo backend uses
+    /// [`NizkWitness::secret_share_poly`] for the algebraic RLWE proof and only
+    /// uses this field for the D2 hash-binding commitment.
     pub secret_share: u64,
+    /// Ternary RLWE secret-share polynomial (length N=8192, coefficients ∈ {-1,0,1}).
+    ///
+    /// This is the polynomial form of the secret share used by the
+    /// `CycloNizkAdapter` sigma protocol.  It is independent of
+    /// [`NizkWitness::secret_share`]: the scalar is the D2 binding value while
+    /// the polynomial is the RLWE algebraic witness.
+    pub secret_share_poly: Vec<i64>,
     /// Canonical lattice error vector (`e_i`; must satisfy `‖e_i‖_∞ ≤ B_e`).
     pub error: Vec<i64>,
     /// Canonical prover randomness bytes.

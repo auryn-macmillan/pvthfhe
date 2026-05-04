@@ -11,6 +11,7 @@ real-nizk = []
 surrogate-decrypt-share = []
 
 [dependencies]
+pvthfhe-nizk = { path = "../pvthfhe-nizk" }
 rand_chacha = "0.3"
 sha2 = "0.10"
 serde = { version = "1", features = ["derive"] }

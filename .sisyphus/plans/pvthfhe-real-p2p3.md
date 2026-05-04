@@ -141,7 +141,7 @@ Gate: `just phase1-gate`
 
 **RED test** (`crates/pvthfhe-fhe/tests/nizk_roundtrip.rs`): end-to-end prove+verify through `RealNizkAdapter` using new backend — fails while impl still delegates to old stub.
 
-**GREEN criteria**: `RealNizkAdapter` in `crates/pvthfhe-fhe` now calls `pvthfhe-nizk`; old stub removed; `backend_id()` returns `"ajtai-d2-sha256"`; full workspace `cargo test` green.
+**GREEN criteria**: `RealNizkAdapter` in `crates/pvthfhe-fhe` now calls `pvthfhe-nizk`; old stub removed; `backend_id()` returns `"cyclo-ajtai-d2-conditional"`; full workspace `cargo test` green.
 
 ---
 
@@ -829,7 +829,7 @@ A1, A2 (after M3), A3 (after F8+O7) — parallel admin tasks
 - [x] N3: D2 SHA-256 hash-bridge golden-vector tested
 - [x] N4: Sigma protocol complete/sound for RLWE relation; norm bound enforced
 - [x] N5: Fiat-Shamir transcript with locked domain separator (spec §3.6)
-- [ ] N6: `RealNizkAdapter` in `pvthfhe-fhe` wired to new backend; `backend_id` = `"ajtai-d2-sha256"`
+- [ ] N6: `RealNizkAdapter` in `pvthfhe-fhe` wired to new backend; `backend_id` = `"cyclo-ajtai-d2-conditional"`
 - [ ] N7: `NizkError::ConditionalSoundness` variant; rustdoc + README badge + SECURITY.md banner
 - [ ] N8: 6+ adversarial NIZK scenarios pass; `just phase1-gate` exits 0
 - [ ] F1: `pvthfhe-cyclo` crate created; ring backend locked and documented

@@ -75,9 +75,9 @@ fn honest_instances_all_accept() -> Result<(), String> {
         };
         let wit = SigmaWitness { s_i, e_i };
 
-        let proof =
-            prove(&stmt, &wit, &mut rng).map_err(|err| format!("trial {trial}: prove: {err}"))?;
-        verify(&stmt, &proof)
+        let proof = prove(b"test-session-n4", 0, &stmt, &wit, &mut rng)
+            .map_err(|err| format!("trial {trial}: prove: {err}"))?;
+        verify(b"test-session-n4", 0, &stmt, &proof)
             .map_err(|err| format!("trial {trial}: honest verify rejected: {err}"))?;
     }
     Ok(())
@@ -98,10 +98,10 @@ fn cheating_instances_all_reject() -> Result<(), String> {
             s_i[0] += 2;
             let stmt = SigmaStatement { c_rns, d_rns };
             let wit = SigmaWitness { s_i, e_i };
-            let proof = prove(&stmt, &wit, &mut rng)
+            let proof = prove(b"test-session-n4", 0, &stmt, &wit, &mut rng)
                 .map_err(|err| format!("flip-key prove trial {trial}: {err}"))?;
             assert!(
-                verify(&stmt, &proof).is_err(),
+                verify(b"test-session-n4", 0, &stmt, &proof).is_err(),
                 "flip-key trial {trial}: should have been rejected"
             );
         }
@@ -116,10 +116,10 @@ fn cheating_instances_all_reject() -> Result<(), String> {
             e_i[0] = B_E + 17;
             let stmt = SigmaStatement { c_rns, d_rns };
             let wit = SigmaWitness { s_i, e_i };
-            let proof = prove(&stmt, &wit, &mut rng)
+            let proof = prove(b"test-session-n4", 0, &stmt, &wit, &mut rng)
                 .map_err(|err| format!("change-err prove trial {trial}: {err}"))?;
             assert!(
-                verify(&stmt, &proof).is_err(),
+                verify(b"test-session-n4", 0, &stmt, &proof).is_err(),
                 "change-err trial {trial}: should have been rejected"
             );
         }
@@ -143,10 +143,10 @@ fn cheating_instances_all_reject() -> Result<(), String> {
                 d_rns: d_tampered,
             };
             let wit = SigmaWitness { s_i, e_i };
-            let proof = prove(&stmt_honest, &wit, &mut rng)
+            let proof = prove(b"test-session-n4", 0, &stmt_honest, &wit, &mut rng)
                 .map_err(|err| format!("tamper-stmt prove trial {trial}: {err}"))?;
             assert!(
-                verify(&stmt_tampered, &proof).is_err(),
+                verify(b"test-session-n4", 0, &stmt_tampered, &proof).is_err(),
                 "tamper-stmt trial {trial}: should have been rejected"
             );
         }

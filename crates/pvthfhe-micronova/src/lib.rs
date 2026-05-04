@@ -7,6 +7,7 @@
 
 pub mod cycle;
 pub mod hash_bridge;
+pub mod r1cs_encode;
 
 use thiserror::Error;
 
@@ -21,6 +22,8 @@ pub struct R1csInstance {
     pub num_constraints: usize,
     /// Number of variables in the encoded step circuit.
     pub num_variables: usize,
+    /// Whether the encoded instance is structurally satisfiable.
+    pub satisfiable: bool,
     /// Encoded public inputs bound to the instance.
     pub public_inputs: Vec<u8>,
 }

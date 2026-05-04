@@ -1,3 +1,5 @@
+//! Banner regression test for the Cyclo backend identifier.
+
 use pvthfhe_cyclo::{adapter::StubCycloAdapter, CycloAdapter};
 
 #[test]

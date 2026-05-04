@@ -1,14 +1,15 @@
 //! Cyclo LatticeFold+ backend for PVTHFHE Phase 2.
 //!
 //! Implements sequential T=10 folding of per-share CCS instances over
-//! R_{q_commit} = Z_{q_commit}[X]/(X^256+1).
+//! R_{q_commit} = Z_{q_commit}\[X\]/(X^256+1).
 //!
 //! # Security — Phase 2 Status
 //!
 //! ⚠️ This crate implements real Cyclo LatticeFold+ folding.
-//! Soundness is conditional on M-SIS hardness over R_{q_commit} and
-//! Cyclo Theorem 3 (ePrint 2026/359). The joint extractor (T2) remains
-//! a skeleton — see `SECURITY.md §P1`.
+//! Soundness is conditional on M-SIS hardness over R_{q_commit},
+//! Cyclo Theorem 3 (ePrint 2026/359), and the Lemma 9 invertibility
+//! heuristic used by the folding backend. The joint extractor (T2)
+//! remains a skeleton — see `SECURITY.md §P1`.
 
 pub mod adapter;
 pub mod ccs_encode;
@@ -19,7 +20,7 @@ pub mod range_check;
 pub mod ring;
 
 /// Backend identifier for the Cyclo LatticeFold+ implementation.
-pub const CYCLO_BACKEND_ID: &str = "cyclo-rlwe-t10";
+pub const CYCLO_BACKEND_ID: &str = "cyclo-rlwe-t10-lemma9-heuristic";
 
 /// Locked Cyclo LatticeFold+ parameters for PVTHFHE Phase 2.
 ///
@@ -143,6 +144,11 @@ pub trait CycloAdapter {
     ) -> Result<(), CycloError>;
 
     /// Fold all `instances` sequentially, returning the final accumulator.
+    ///
+    /// # Soundness
+    ///
+    /// This fold is conditional on the Cyclo Lemma 9 invertibility
+    /// heuristic for the backend's challenge sampling.
     ///
     /// Instances are folded in the order supplied; callers should sort by
     /// ascending `participant_id` before calling.

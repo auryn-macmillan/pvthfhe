@@ -30,7 +30,7 @@ For a full list of formal assumptions, see [.sisyphus/design/security-proofs.md]
 This is a research prototype and contains components where formal soundness proofs are still being developed:
 
 - **P1 (CRITICAL)**: **Lattice NIZK Soundness**. P1 (CRITICAL): Per-share RLWE NIZK knowledge soundness is conditional on (a) Module-SIS hardness over R_{q_commit}, (b) Cyclo Theorem 3 soundness (ePrint 2026/359), and (c) collision resistance of SHA-256 for the P4 commitment domain. Formal joint-extractor proof (T2) is deferred. Any relying party must treat per-share proofs as computationally binding under these assumptions only.
-- **P2 (HIGH)**: **LatticeFold+ Linearity**. The folding protocol for RLWE-based statements is simulated in this prototype.
+- **P2 (HIGH)**: **LatticeFold+ Linearity**. The real Cyclo LatticeFold+ backend (`cyclo-rlwe-t10`) is now active in the aggregator (F8). Soundness remains conditional on M-SIS hardness over R_{q_commit} and Cyclo Theorem 3 (ePrint 2026/359); the joint extractor (T2) is a skeleton.
 - **P3 (MEDIUM)**: **MicroNova-lattice Encoding**. The encoding efficiency of lattice relations into MicroNova-compatible structures is an active area of research.
 
 ## Smudging

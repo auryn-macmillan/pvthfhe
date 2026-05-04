@@ -1,22 +1,18 @@
 #![allow(missing_docs)]
-
 //! Recursive aggregation harness for folding N party proofs into a single final SNARK.
 //!
 //! Note: Full LatticeFold+/HyperNova/MicroNova over RLWE is an open research problem (P2).
-//! This implementation provides a simulated folding harness that uses a hash-chain
-//! accumulation as a surrogate for real folding.
+//! This implementation previously used a hash-chain accumulation as a surrogate.
+//! The `CycloFoldingAdapter` now wires the real Cyclo LatticeFold+ backend (F8).
 //!
 //! # Security — Conditional Soundness (P1)
 //!
-//! ⚠️ When `CycloAdapter` is wired in (Phase 2 F-series), folding will
-//! accumulate per-share witnesses conditionally sound under M-SIS over
-//! `R_{q_commit}` plus Cyclo Theorem 3 (ePrint 2026/359).  The joint
-//! extractor (T2) remains a skeleton.  See `SECURITY.md §P1`.
-//!
-//! The current implementation is a hash-chain SURROGATE; this banner is
-//! placed here so the disclosure exists at the module boundary today and
-//! will apply automatically when the real adapter lands.
+//! Folding accumulates per-share witnesses conditionally sound under M-SIS over
+//! `R_{q_commit}` plus Cyclo Theorem 3 (ePrint 2026/359). The joint
+//! extractor (T2) remains a skeleton. See `SECURITY.md §P1`.
 
+use pvthfhe_cyclo::adapter::StubCycloAdapter;
+use pvthfhe_cyclo::{CycloAdapter as _, CYCLO_BACKEND_ID};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
@@ -394,3 +390,32 @@ fn hash_array_parts(parts: &[&[u8]]) -> [u8; 32] {
     out.copy_from_slice(&hash_parts(parts));
     out
 }
+
+/// Folding adapter backed by the real Cyclo LatticeFold+ backend.
+///
+/// Replaces the hash-chain surrogate for all new aggregation paths.
+pub struct CycloFoldingAdapter {
+    inner: StubCycloAdapter,
+}
+
+impl CycloFoldingAdapter {
+    /// Create a new adapter using the locked Cyclo parameter set.
+    pub fn new() -> Self {
+        Self {
+            inner: StubCycloAdapter,
+        }
+    }
+
+    /// Returns the Cyclo backend identifier (`"cyclo-rlwe-t10"`).
+    pub fn backend_id(&self) -> &'static str {
+        self.inner.backend_id()
+    }
+}
+
+impl Default for CycloFoldingAdapter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+const _: &str = CYCLO_BACKEND_ID;

@@ -146,3 +146,49 @@ pub fn norm_sq(poly: &RqPoly) -> u128 {
         })
         .sum()
 }
+
+/// Lifts a byte slice to an [`RqPoly`] by reading up to [`PHI_COMMIT`] u64-LE
+/// chunks, each reduced mod [`Q_COMMIT`]. Remaining coefficients are zero-padded.
+pub fn bytes_to_rqpoly(bytes: &[u8]) -> RqPoly {
+    let mut coeffs = vec![0u64; PHI_COMMIT];
+    for (i, chunk) in bytes.chunks(8).take(PHI_COMMIT).enumerate() {
+        let mut arr = [0u8; 8];
+        arr[..chunk.len()].copy_from_slice(chunk);
+        coeffs[i] = u64::from_le_bytes(arr) % Q_COMMIT;
+    }
+    RqPoly(coeffs)
+}
+
+/// Serialises an [`RqPoly`] to `PHI_COMMIT * 8` raw bytes (u64-LE per coefficient).
+pub fn rqpoly_to_bytes(poly: &RqPoly) -> Vec<u8> {
+    poly.0.iter().flat_map(|&c| c.to_le_bytes()).collect()
+}
+
+/// Coefficient-wise addition in `R_{q_commit}`: `(a + b) mod q_commit`.
+pub fn ring_add_poly(a: &RqPoly, b: &RqPoly) -> RqPoly {
+    RqPoly(
+        a.0.iter()
+            .zip(b.0.iter())
+            .map(|(&x, &y)| (x + y) % Q_COMMIT)
+            .collect(),
+    )
+}
+
+/// Ternary scalar multiplication: `r * poly` in `R_{q_commit}` for `r ∈ {-1, 0, 1}`.
+///
+/// - `r = 0`  → zero polynomial
+/// - `r = 1`  → `poly` (clone)
+/// - `r = -1` → negation: each coefficient `c` becomes `Q_COMMIT - c` (or 0 if c=0)
+pub fn ternary_mul(poly: &RqPoly, r: i8) -> RqPoly {
+    match r {
+        0 => RqPoly::zero(),
+        1 => poly.clone(),
+        -1 => RqPoly(
+            poly.0
+                .iter()
+                .map(|&c| if c == 0 { 0 } else { Q_COMMIT - c })
+                .collect(),
+        ),
+        _ => RqPoly::zero(),
+    }
+}

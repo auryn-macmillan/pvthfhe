@@ -1,6 +1,10 @@
 //! Extension sub-protocol (Cyclo §5, T2).
 
-use crate::{ccs_encode::CcsInstance, CycloError};
+use crate::{
+    ccs_encode::CcsInstance,
+    ring::{bytes_to_rqpoly, ring_add_poly, rqpoly_to_bytes, ternary_mul},
+    CycloError,
+};
 use sha2::{Digest, Sha256};
 
 /// An extended CCS instance: the result of the T2 linear combination step.
@@ -33,10 +37,12 @@ pub fn extend(a: &CcsInstance, b: &CcsInstance, r: i8) -> Result<ExtendedInstanc
 
     let r_bytes = [r.to_le_bytes()[0]];
 
+    let a_poly = bytes_to_rqpoly(&a.ajtai_hash);
+    let b_poly = bytes_to_rqpoly(&b.ajtai_hash);
+    let combined_poly = ring_add_poly(&a_poly, &ternary_mul(&b_poly, r));
     let combined_ajtai_hash: [u8; 32] = Sha256::new()
-        .chain_update(r_bytes)
-        .chain_update(a.ajtai_hash)
-        .chain_update(b.ajtai_hash)
+        .chain_update(b"pvthfhe-cyclo-ext-ajtai-v1")
+        .chain_update(&rqpoly_to_bytes(&combined_poly))
         .finalize()
         .into();
 

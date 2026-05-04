@@ -1,22 +1,10 @@
-//! Folding sub-protocol (Cyclo §6, T3).
-//!
-//! Provides `init_accumulator`, `fold_one_step`, and `verify_fold` for the
-//! Cyclo LatticeFold+ sequential folding of [`CcsPShareInstance`] values into a
-//! [`CycloAccumulator`].
-
 use crate::{
-    ccs_encode::{self, CcsInstance},
-    extension, CcsPShareInstance, CycloAccumulator, CycloError, PVTHFHE_CYCLO_PARAMS,
+    ccs_encode,
+    fiat_shamir,
+    ring::{bytes_to_rqpoly, ring_add_poly, rqpoly_to_bytes, ternary_mul},
+    CcsPShareInstance, CycloAccumulator, CycloError, PVTHFHE_CYCLO_PARAMS,
 };
 use rand_core::RngCore;
-use sha2::{Digest, Sha256};
-
-fn params_digest() -> [u8; 32] {
-    Sha256::new()
-        .chain_update(b"pvthfhe-cyclo-params-v1")
-        .finalize()
-        .into()
-}
 
 fn per_step_norm_budget() -> u64 {
     PVTHFHE_CYCLO_PARAMS.norm_bound_b / u64::from(PVTHFHE_CYCLO_PARAMS.sequential_t)
@@ -30,14 +18,20 @@ fn witness_norm_estimate(witness_bytes: &[u8]) -> u64 {
         .unwrap_or(0)
 }
 
-/// Derives a ternary Fiat-Shamir challenge from the current accumulator
-/// commitment and the incoming instance ajtai hash.
-fn derive_challenge(acc_commitment: &[u8], instance_ajtai: &[u8; 32]) -> i8 {
-    let h: [u8; 32] = Sha256::new()
-        .chain_update(acc_commitment)
-        .chain_update(instance_ajtai)
-        .finalize()
-        .into();
+fn derive_challenge(
+    session_id: &str,
+    fold_depth: u32,
+    acc_commitment: &[u8],
+    inst_ajtai_bytes: &[u8],
+    inst_public_io_bytes: &[u8],
+) -> i8 {
+    let h = fiat_shamir::challenge_v1(
+        session_id,
+        fold_depth,
+        acc_commitment,
+        inst_ajtai_bytes,
+        inst_public_io_bytes,
+    );
     match h[0] % 3 {
         0 => 0,
         1 => 1,
@@ -45,27 +39,13 @@ fn derive_challenge(acc_commitment: &[u8], instance_ajtai: &[u8; 32]) -> i8 {
     }
 }
 
-/// Initialises a fresh [`CycloAccumulator`] from the first [`CcsPShareInstance`].
-///
-/// Sets `fold_depth = 0`, computes initial commitment as
-/// `SHA256("init" ∥ instance.ajtai_commitment_bytes)`, initial public_io as
-/// `SHA256("init" ∥ instance.public_io_bytes)`, and norm bound =
-/// `PVTHFHE_CYCLO_PARAMS.norm_bound_b`.
 pub fn init_accumulator(
     instance: &CcsPShareInstance,
     session_id: &str,
 ) -> Result<CycloAccumulator, CycloError> {
-    let acc_commitment_bytes: Vec<u8> = Sha256::new()
-        .chain_update(b"init")
-        .chain_update(&instance.ajtai_commitment_bytes)
-        .finalize()
-        .to_vec();
-
-    let acc_public_io_bytes: Vec<u8> = Sha256::new()
-        .chain_update(b"init")
-        .chain_update(&instance.public_io_bytes)
-        .finalize()
-        .to_vec();
+    let init_poly = bytes_to_rqpoly(&instance.ajtai_commitment_bytes);
+    let acc_commitment_bytes = fiat_shamir::init_commitment_v1(session_id, &rqpoly_to_bytes(&init_poly)).to_vec();
+    let acc_public_io_bytes = fiat_shamir::init_public_io_v1(session_id, &instance.public_io_bytes).to_vec();
 
     Ok(CycloAccumulator {
         fold_depth: 0,
@@ -73,7 +53,7 @@ pub fn init_accumulator(
         acc_public_io_bytes,
         norm_bound_current: PVTHFHE_CYCLO_PARAMS.norm_bound_b,
         session_id: session_id.to_string(),
-        params_digest: params_digest(),
+        params_digest: fiat_shamir::params_digest_v1(b"pvthfhe-cyclo-params-v1"),
     })
 }
 
@@ -98,41 +78,46 @@ fn fold_one_deterministic(
         });
     }
 
-    let r = derive_challenge(&acc.acc_commitment_bytes, &encoded_instance.ajtai_hash);
+    let r = derive_challenge(
+        &acc.session_id,
+        acc.fold_depth,
+        &acc.acc_commitment_bytes,
+        &instance.ajtai_commitment_bytes,
+        &instance.public_io_bytes,
+    );
 
-    let acc_ajtai_hash: [u8; 32] = Sha256::new()
-        .chain_update(&acc.acc_commitment_bytes)
-        .finalize()
-        .into();
+    let acc_poly = bytes_to_rqpoly(&acc.acc_commitment_bytes);
+    let inst_poly = bytes_to_rqpoly(&instance.ajtai_commitment_bytes);
+    let combined_poly = ring_add_poly(&acc_poly, &ternary_mul(&inst_poly, r));
 
-    let acc_public_io_hash: [u8; 32] = Sha256::new()
-        .chain_update(&acc.acc_public_io_bytes)
-        .finalize()
-        .into();
+    let new_depth = acc.fold_depth + 1;
+    let new_commitment_bytes = fiat_shamir::commitment_v1(
+        &acc.session_id,
+        new_depth,
+        &rqpoly_to_bytes(&combined_poly),
+        &instance.ajtai_commitment_bytes,
+    )
+    .to_vec();
 
-    let acc_as_ccs = CcsInstance {
-        participant_id: 0,
-        ajtai_hash: acc_ajtai_hash,
-        public_io_hash: acc_public_io_hash,
-        sha256_binding: [0u8; 32],
-        witness_bytes: acc.acc_commitment_bytes.clone(),
-    };
-
-    let ext = extension::extend(&acc_as_ccs, &encoded_instance, r)?;
+    let new_public_io_bytes = fiat_shamir::public_io_v1(
+        &acc.session_id,
+        new_depth,
+        &acc.acc_public_io_bytes,
+        &instance.public_io_bytes,
+        r.to_le_bytes()[0],
+    )
+    .to_vec();
 
     Ok(CycloAccumulator {
-        fold_depth: acc.fold_depth + 1,
-        acc_commitment_bytes: ext.combined_ajtai_hash.to_vec(),
-        acc_public_io_bytes: ext.combined_public_io_hash.to_vec(),
+        fold_depth: new_depth,
+        acc_commitment_bytes: new_commitment_bytes,
+        acc_public_io_bytes: new_public_io_bytes,
         norm_bound_current: acc.norm_bound_current + u64::from(PVTHFHE_CYCLO_PARAMS.base_b) * 16,
         session_id: acc.session_id,
         params_digest: acc.params_digest,
     })
 }
 
-/// Folds `instance` into `acc`, producing a new accumulator.
-///
-/// Returns `Err(FoldDepthExhausted)` if all T steps are consumed.
 pub fn fold_one_step(
     acc: CycloAccumulator,
     instance: &CcsPShareInstance,
@@ -142,15 +127,6 @@ pub fn fold_one_step(
     fold_one_deterministic(acc, instance)
 }
 
-/// Verifies that `acc` represents a valid fold over `instances`.
-///
-/// Checks:
-/// 1. `acc.fold_depth == instances.len() as u32`.
-/// 2. `acc.norm_bound_current ≤ PVTHFHE_CYCLO_PARAMS.beta_at_t` (1344).
-/// 3. `acc.acc_commitment_bytes.len() == 32`.
-/// 4. `acc.acc_public_io_bytes.len() == 32`.
-///
-/// Returns `Ok(())` if all checks pass, `Err(AccumulatorVerificationFailed(...))` otherwise.
 pub fn verify_fold(
     acc: &CycloAccumulator,
     instances: &[CcsPShareInstance],

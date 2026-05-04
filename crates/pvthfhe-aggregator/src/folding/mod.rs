@@ -5,6 +5,17 @@
 //! Note: Full LatticeFold+/HyperNova/MicroNova over RLWE is an open research problem (P2).
 //! This implementation provides a simulated folding harness that uses a hash-chain
 //! accumulation as a surrogate for real folding.
+//!
+//! # Security — Conditional Soundness (P1)
+//!
+//! ⚠️ When `CycloAdapter` is wired in (Phase 2 F-series), folding will
+//! accumulate per-share witnesses conditionally sound under M-SIS over
+//! `R_{q_commit}` plus Cyclo Theorem 3 (ePrint 2026/359).  The joint
+//! extractor (T2) remains a skeleton.  See `SECURITY.md §P1`.
+//!
+//! The current implementation is a hash-chain SURROGATE; this banner is
+//! placed here so the disclosure exists at the module boundary today and
+//! will apply automatically when the real adapter lands.
 
 use sha2::{Digest, Sha256};
 use thiserror::Error;

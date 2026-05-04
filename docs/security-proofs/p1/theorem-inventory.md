@@ -16,7 +16,7 @@
 **Statement sketch**: Let \(x_i = (\mathsf{session\_id}, i, t, c, d_i, C_i, q, N, k, B_e)\), where the relation requires a witness \(w_i = (s_i,e_i)\) satisfying \(C_i = H(\mathsf{session\_id}\|\|i\|\|s_i)\), \(d_i = c \cdot s_i + e_i \bmod q\), and \(\lVert e_i \rVert_\infty \le B_e\). For every PPT prover \(\mathcal{P}^H\) that makes the Fiat-Shamir verifier accept \((x_i,\pi_i)\) with non-negligible probability, there exists a ROM extractor \(\mathcal{E}^{\mathcal{P},H}\) that rewinds on the hash challenge and outputs \((s_i',e_i')\) satisfying the same relation except with probability bounded by the reduction loss to the underlying Module-SIS/Module-LWE-style argument and the probability of breaking SHA-256 commitment binding. Any QROM upgrade must restate the same witness relation with a quantum extractor or measure-and-reprogram analysis rather than inheriting this ROM theorem automatically.
 **Proof technique**: Fiat-Shamir forking / rewinding extraction from two accepting transcripts with the same first message and distinct challenges, followed by relation checking against the RLWE equation and the SHA-256 commitment inherited from P4.
 **Reduction target**: Primary reduction to the algebraic knowledge soundness target of the chosen proof system (expected Module-SIS for inconsistent openings / short-kernel violations, with Module-LWE entering only if the concrete relation proof uses an indistinguishability-based subargument), plus SHA-256 second-preimage or collision resistance for transcript-binding failures.
-**Status**: skeleton
+**Status**: skeleton (reduction target: Cyclo T3 ∘ T5)
 
 ## T3: Zero-Knowledge / HVZK \(\rightarrow\) NIZK via Fiat-Shamir
 **Theorem ID**: P1-T3

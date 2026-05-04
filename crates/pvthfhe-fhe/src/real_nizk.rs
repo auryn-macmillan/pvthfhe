@@ -89,6 +89,10 @@ pub trait LatticeNizk {
     ) -> Result<NizkProof, NizkError>;
 
     /// Verify a single proof.
+    ///
+    /// # Security
+    ///
+    /// Verification success is conditional on T2 (knowledge soundness — skeleton). See SECURITY.md §P1.
     fn verify(stmt: &NizkStatement, proof: &NizkProof) -> Result<(), NizkError>;
 
     /// Verify a batch of statements and proofs.
@@ -178,4 +182,9 @@ impl LatticeNizk for RealNizkAdapter {
     }
 }
 
+/// Cyclo-companion D2 NIZK backend identifier.
+///
+/// The `-conditional` suffix is intentional: it signals to consumers that
+/// verification is conditional on the unproven joint extractor (T2 — see
+/// SECURITY.md §P1).
 pub use pvthfhe_nizk::BACKEND_ID as CYCLO_BACKEND_ID;

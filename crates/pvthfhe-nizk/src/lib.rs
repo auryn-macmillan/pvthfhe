@@ -14,6 +14,8 @@
 //! [`NizkAdapter::verify`] as a formal security guarantee until T2 is closed.
 #![deny(missing_docs)]
 
+pub mod ajtai;
+
 use thiserror::Error;
 
 /// Canonical backend identifier for the Cyclo-companion Ajtai D2 NIZK.

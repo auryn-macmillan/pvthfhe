@@ -1,4 +1,14 @@
 \documentclass{llncs}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% DO NOT DEPLOY — RESEARCH PROTOTYPE ONLY
+%
+% This repository contains critical cryptographic surrogates that provide no real security:
+% - no on-chain cryptographic verification — verifier accepts any proof bytes
+% - Noir circuits are tautological surrogates (assert(x == x) — no real constraints)
+% - do not use for The Interfold or any production deployment
+%
+% See SECURITY-ADVISORY-001.md and SECURITY.md for details.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Paper strategy: UNIFIED (see .sisyphus/design/p2/paper-strategy-decision.md, C.D.5 APPROVE)
 % Target venue: Crypto 2027 (primary), Eurocrypt 2027 (fallback), CCS 2026 (fast-track)
 

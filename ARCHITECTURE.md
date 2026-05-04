@@ -1,5 +1,14 @@
 # Architecture
 
+> ⚠️  **DO NOT DEPLOY — RESEARCH PROTOTYPE ONLY**
+>
+> This repository contains **critical cryptographic surrogates** that provide no real security:
+> - **no on-chain cryptographic verification — verifier accepts any proof bytes**
+> - **Noir circuits are tautological surrogates** (assert(x == x) — no real constraints)
+> - **do not use for The Interfold or any production deployment**
+>
+> See [SECURITY-ADVISORY-001.md](SECURITY-ADVISORY-001.md) and [SECURITY.md](SECURITY.md) for details.
+
 PVTHFHE targets **Architecture B** (Lattice PVSS + LatticeFold+ + MicroNova), with the current prototype using cryptographic surrogates for the folding and on-chain verification layers.
 
 ## High-Level Intuition

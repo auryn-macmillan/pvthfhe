@@ -15,6 +15,14 @@ phase3-gate:
     python3 .sisyphus/scripts/phase3-gate.py
 
 demo-e2e:
+    @echo "********************************************************************************"
+    @echo "* ⚠️  DO NOT DEPLOY — RESEARCH PROTOTYPE ONLY                                   *"
+    @echo "*                                                                              *"
+    @echo "* This repository contains critical cryptographic surrogates:                  *"
+    @echo "* - no on-chain cryptographic verification — verifier accepts any proof bytes  *"
+    @echo "* - Noir circuits are tautological surrogates                                  *"
+    @echo "* - do not use for The Interfold or any production deployment                  *"
+    @echo "********************************************************************************"
     mkdir -p .sisyphus/evidence
     cargo run --release -p pvthfhe-cli -- demo --n 128 --seed 1 2>&1 | tee .sisyphus/evidence/task-40-demo.log
 

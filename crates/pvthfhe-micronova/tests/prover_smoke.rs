@@ -1,7 +1,7 @@
 //! Smoke test for the scaffolded MicroNova prover API.
 
 use pvthfhe_cyclo::CycloAccumulator;
-use pvthfhe_micronova::{MicroNovaError, MicroNovaProver, R1csInstance};
+use pvthfhe_micronova::{MicroNovaProver, R1csInstance};
 
 fn smoke_accumulator() -> CycloAccumulator {
     CycloAccumulator {
@@ -21,16 +21,23 @@ fn prover_smoke_calls_prove() {
 
     let result = MicroNovaProver::prove(&r1cs, &accumulator);
 
-    assert_eq!(result, Err(MicroNovaError::Unimplemented));
+    assert!(
+        result.is_ok(),
+        "prove should succeed for the prototype binding"
+    );
 }
 
 #[test]
 fn prover_smoke_calls_verify() {
     let r1cs = R1csInstance::default();
     let accumulator = smoke_accumulator();
-    let proof = Default::default();
+    let proof = MicroNovaProver::prove(&r1cs, &accumulator)
+        .expect("prove should succeed before verify is exercised");
 
     let result = MicroNovaProver::verify(&proof, &accumulator, &r1cs);
 
-    assert_eq!(result, Err(MicroNovaError::Unimplemented));
+    assert!(
+        result.is_ok(),
+        "verify should accept the matching prototype proof"
+    );
 }

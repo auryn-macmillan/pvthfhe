@@ -149,21 +149,20 @@ mod enabled {
 }
 
 #[cfg(not(feature = "backend-fhe-rs"))]
-#[allow(clippy::panic)]
 impl RqOps for FheRsBackend {
     fn ntt_fwd(&self, _x: &mut [u64]) {
-        panic!("fhe.rs adapter requires --features backend-fhe-rs");
+        unreachable!("fhe.rs adapter requires --features backend-fhe-rs");
     }
 
     fn ntt_inv(&self, _x: &mut [u64]) {
-        panic!("fhe.rs adapter requires --features backend-fhe-rs");
+        unreachable!("fhe.rs adapter requires --features backend-fhe-rs");
     }
 
     fn poly_mul(&self, _a: &[u64], _b: &[u64], _out: &mut [u64]) {
-        panic!("fhe.rs adapter requires --features backend-fhe-rs");
+        unreachable!("fhe.rs adapter requires --features backend-fhe-rs");
     }
 
     fn sample_uniform(&self, _out: &mut [u64], _seed: u64) {
-        panic!("fhe.rs adapter requires --features backend-fhe-rs");
+        unreachable!("fhe.rs adapter requires --features backend-fhe-rs");
     }
 }

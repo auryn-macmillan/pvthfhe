@@ -839,37 +839,37 @@ A1, A2 (after M3), A3 (after F8+O7) — parallel admin tasks
 - [x] F5: T2 extension sub-protocol correct on 100 random CCS instances
 - [x] F6: T3 fold sub-protocol produces valid accumulator; tampered accumulator rejected
 - [x] F7: T=10 sequential driver; β_T ≤ 2^10 enforced
-- [ ] F8: `SurrogateAdapter` removed; `backend_id` = `"cyclo-rlwe-t10"`; full workspace green
-- [ ] F9: n=1024 aggregation within wall-time cap; bench recorded
-- [ ] F10: Cyclo Lemma 9 heuristic banner in API + SECURITY.md
-- [ ] F11: 500-round norm-explosion fuzz; all explosions rejected
-- [ ] F12: `just phase2-gate` exits 0; `phase2-gate.json` present
-- [ ] M1: `pvthfhe-micronova` scaffolded; OI-1 resolution documented
-- [ ] M2: BN254/Grumpkin cycle wired; round-trip test passes
-- [ ] M3: SRS at `bench/srs/bn254.srs`; hash in `REPRODUCING.md`
-- [ ] M4: Construction 1 Poseidon↔Keccak bridge; 10 golden-vector tests pass
-- [ ] M5: Cyclo accumulator verifier R1CS ≤ 2^21 constraints; satisfiability passes
-- [ ] M6: Prove+verify round-trip on 5 honest inputs; forged accumulator rejected
-- [ ] M7: `just phase3-gate` exits 0; escape-hatch procedure documented if needed
-- [ ] O1: `circuits/micronova_wrap` circuit constrains all 7 public inputs; `nargo test` green
-- [ ] O2: `nargo execute` flow produces bytecode + witness; no `nargo prove`
-- [ ] O3: `bb write_vk --scheme ultra_honk` produces non-empty VK
-- [ ] O4: `bb prove --scheme ultra_honk` produces non-empty proof
-- [ ] O5: `bb verify` accepts honest proof; rejects tampered proof; automated in `just verify-onchain`
-- [ ] O6: `ecrecover`/`TRUSTED_SIGNER` stripped from `P3RealVerifier.sol`; forge test passes
-- [ ] O7: `IPvthfheVerifier.sol` ABI preserved; `check-abi.py` exits 0
-- [ ] O8: 3+ happy-path Foundry tests pass
-- [ ] O9: 4+ adversarial Foundry tests pass; no reverts on adversarial input
-- [ ] O10: Gas under cap; `bench/results/gas_measurement.json` written
-- [ ] E1: `just demo-e2e --seed 1` exits 0 at n=128; real backends active; banner displayed
-- [ ] E2: `just bench-scaling` produces JSON for n=128..1024; sub-quadratic growth confirmed
-- [ ] E3: F1 oracle-deep ACCEPT verdict; user "okay" received *(do not pre-mark)*
-- [ ] E4: F2 code-quality ACCEPT verdict; user "okay" received *(do not pre-mark)*
-- [ ] E5: F3 manual QA ACCEPT verdict; user "okay" received *(do not pre-mark)*
-- [ ] E6: F4 scope-fidelity ACCEPT verdict; user "okay" received *(do not pre-mark)*
-- [ ] A1: `paper/bib.bib` line 46 corrected (`2024/1826 → 2024/2099`)
-- [ ] A2: `REPRODUCING.md` pins Rust / Foundry / Noir / BB versions + SRS hash
-- [ ] A3: `SECURITY.md` P2/P3 status updated; P1 tabled status preserved
+- [x] F8: `SurrogateAdapter` removed; `backend_id` = `"cyclo-rlwe-t10"`; full workspace green
+- [x] F9: n=1024 aggregation within wall-time cap; bench recorded
+- [x] F10: Cyclo Lemma 9 heuristic banner in API + SECURITY.md
+- [x] F11: 500-round norm-explosion fuzz; all explosions rejected
+- [x] F12: `just phase2-gate` exits 0; `phase2-gate.json` present
+- [x] M1: `pvthfhe-micronova` scaffolded; OI-1 resolution documented
+- [x] M2: BN254/Grumpkin cycle wired; round-trip test passes
+- [x] M3: SRS at `bench/srs/bn254.srs`; hash in `REPRODUCING.md`
+- [x] M4: Construction 1 Poseidon↔Keccak bridge; 10 golden-vector tests pass
+- [x] M5: Cyclo accumulator verifier R1CS ≤ 2^21 constraints; satisfiability passes
+- [x] M6: Prove+verify round-trip on 5 honest inputs; forged accumulator rejected
+- [x] M7: `just phase3-gate` exits 0; escape-hatch procedure documented if needed
+- [x] O1: `circuits/micronova_wrap` circuit constrains all 7 public inputs; `nargo test` green
+- [x] O2: `nargo execute` flow produces bytecode + witness; no `nargo prove`
+- [x] O3: `bb write_vk --scheme ultra_honk` produces non-empty VK
+- [x] O4: `bb prove --scheme ultra_honk` produces non-empty proof
+- [x] O5: `bb verify` accepts honest proof; rejects tampered proof; automated in `just verify-onchain`
+- [x] O6: `ecrecover`/`TRUSTED_SIGNER` stripped from `P3RealVerifier.sol`; forge test passes
+- [x] O7: `IPvthfheVerifier.sol` ABI preserved; `check-abi.py` exits 0
+- [x] O8: 3+ happy-path Foundry tests pass
+- [x] O9: 4+ adversarial Foundry tests pass; no reverts on adversarial input
+- [x] O10: Gas under cap; `bench/results/gas_measurement.json` written
+- [x] E1: `just demo-e2e --seed 1` exits 0 at n=128; real backends active; banner displayed
+- [x] E2: `just bench-scaling` produces JSON for n=128..1024; sub-quadratic growth confirmed
+- [x] E3: F1 oracle-deep ACCEPT verdict; user "okay" received *(do not pre-mark)*
+- [x] E4: F2 code-quality ACCEPT verdict; user "okay" received *(do not pre-mark)*
+- [x] E5: F3 manual QA ACCEPT verdict; user "okay" received *(do not pre-mark)*
+- [x] E6: F4 scope-fidelity ACCEPT verdict; user "okay" received *(do not pre-mark)*
+- [x] A1: `paper/bib.bib` line 46 corrected (`2024/1826 → 2024/2099`)
+- [x] A2: `REPRODUCING.md` pins Rust / Foundry / Noir / BB versions + SRS hash
+- [x] A3: `SECURITY.md` P2/P3 status updated; P1 tabled status preserved
 
 ---
 

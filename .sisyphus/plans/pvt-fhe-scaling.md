@@ -398,7 +398,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Files: `Cargo.toml`, `Justfile`, `.github/workflows/ci.yml`, `AGENTS.md`, `rust-toolchain.toml`, `.gitignore`, `deny.toml`, `LICENSE`, `crates/**`, `circuits/Nargo.toml`, `circuits/share_wf/**`, `circuits/decrypt_share/**`, `circuits/aggregator_final/**`, `circuits/bench/rlwe_relation/**`, `contracts/foundry.toml`, `contracts/src/Placeholder.sol`, `contracts/test/Placeholder.t.sol`, `contracts/lib/.gitkeep`, `.sisyphus/scripts/_stub.py`, `.sisyphus/scripts/check-*.py`, `.sisyphus/research/scripts/check-provenance.py`, `.sisyphus/design/scripts/rerun-estimator.sh`, `bench/scripts/*`
   - Pre-commit: `cargo fmt --check && cargo clippy --workspace -- -D warnings && cargo test --workspace && (cd circuits && nargo test --workspace) && forge test --root contracts`
 
-- [ ] 2. **T2: Threat model + assumptions ledger**
+- [x] 2. **T2: Threat model + assumptions ledger**
 
   **What to do**:
   - Author `.sisyphus/research/threat-model.md`: adversary class (static malicious, rushing, authenticated echo-broadcast, abort-with-public-blame), corruption budget **(LOCKED: honest-majority threshold, t = ⌊n/2⌋+1, secrecy against any coalition of strictly fewer than t parties, reconstruction requires ≥t honest parties)**, network model, identity assumption (PKI), liveness/safety split.
@@ -449,7 +449,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Files: `.sisyphus/research/threat-model.md`, `.sisyphus/research/assumptions-ledger.md`
   - Pre-commit: markdown-lint
 
-- [ ] 3. **T3: Deep literature survey memo**
+- [x] 3. **T3: Deep literature survey memo**
 
   **What to do**:
   - Author `.sisyphus/research/lit-survey.md` covering ≥15 papers grouped by theme. **Citation-verification protocol**: for every ePrint ID below, BEFORE writing any survey entry, fetch `https://eprint.iacr.org/<id>` and confirm the title/abstract matches the claimed topic; record the verified `(id, title, year, authors, topic-bucket)` tuple in `.sisyphus/research/citations.bib` with field `verified: true`. If a candidate ID does not match its claimed topic, mark `verified: false`, leave it out of the survey, and search ePrint by topic keywords to find the correct ID; record that as the replacement. The candidate IDs below are starting points from the requirements interview, NOT pre-verified facts.
@@ -511,7 +511,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Files: `.sisyphus/research/lit-survey.md`
   - Pre-commit: markdown-lint, link-check
 
-- [ ] 4. **T4: Backend selection memo (Poulpy vs fhe.rs Gnosis fork)**
+- [x] 4. **T4: Backend selection memo (Poulpy vs fhe.rs Gnosis fork)**
 
   **What to do**:
   - Author `.sisyphus/research/backend-selection.md` with side-by-side evaluation of `phantomzone-org/poulpy` vs `gnosisguild/fhe.rs` on axes: schemes supported (BFV/BGV/CKKS/TFHE), API stability, NTT/RNS quality, PRNG hygiene, serialization, no_std/wasm potential, license, maturity (commits, contributors, last release), test coverage, benchmark numbers, threshold-friendliness (does it expose secret-share-friendly key gen?), audit history.
@@ -574,7 +574,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Files: `.sisyphus/research/backend-selection.md`, `bench/backend-compare/**`
   - Pre-commit: bench reproducibility check
 
-- [ ] 5. **T5: Micro-bench harness scaffold**
+- [x] 5. **T5: Micro-bench harness scaffold**
 
   **What to do**:
   - Create `crates/pvthfhe-bench/` with Criterion-based harness.
@@ -628,7 +628,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Files: `crates/pvthfhe-bench/**`, `Justfile`
   - Pre-commit: `cargo test -p pvthfhe-bench && cargo clippy -p pvthfhe-bench -- -D warnings`
 
-- [ ] 6. **T6: Bootstrapping-PV feasibility scan + go/no-go memo**
+- [x] 6. **T6: Bootstrapping-PV feasibility scan + go/no-go memo**
 
   **What to do**:
   - Author `.sisyphus/research/bootstrapping-pv-memo.md`.
@@ -674,7 +674,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `docs(research): bootstrapping-PV feasibility memo`
   - Files: `.sisyphus/research/bootstrapping-pv-memo.md`
 
-- [ ] 7. **T7: Cost-model template (asymptotic + concrete tables)**
+- [x] 7. **T7: Cost-model template (asymptotic + concrete tables)**
 
   **What to do**:
   - Author `.sisyphus/research/cost-model-template.md` with two parts: (1) asymptotic — per-party communication, per-party computation, aggregator computation, verifier computation, on-chain calldata, on-chain gas; (2) concrete table at n ∈ {64, 128, 256, 512, 1024} with placeholder cells.
@@ -716,7 +716,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `docs(research): cost-model template + JSON schema`
   - Files: `.sisyphus/research/cost-model-template.md`, `.sisyphus/research/costs.schema.json`, `.sisyphus/research/sample-costs.json`
 
-- [ ] 8. **T8: Candidate Architecture A (silent-setup port) — pseudocode + security game + cost analysis**
+- [x] 8. **T8: Candidate Architecture A (silent-setup port) — pseudocode + security game + cost analysis**
 
   **What to do**:
   - Author `.sisyphus/research/arch-A-silent-setup.md`.
@@ -770,7 +770,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `docs(research): architecture A — silent-setup port`
   - Files: `.sisyphus/research/arch-A-silent-setup.md`, `.sisyphus/research/arch-A-costs.json`
 
-- [ ] 9. **T9: Candidate Architecture B (lattice PVSS + folding + MicroNova) — pseudocode + security game + cost analysis**
+- [x] 9. **T9: Candidate Architecture B (lattice PVSS + folding + MicroNova) — pseudocode + security game + cost analysis**
 
   **What to do**:
   - Author `.sisyphus/research/arch-B-lattice-folding.md`.
@@ -825,7 +825,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `docs(research): architecture B — lattice PVSS + folding + MicroNova`
   - Files: `.sisyphus/research/arch-B-lattice-folding.md`, `.sisyphus/research/arch-B-costs.json`
 
-- [ ] 10. **T10: Candidate Architecture C (hybrid Noir wrapper) — pseudocode + security game + cost analysis**
+- [x] 10. **T10: Candidate Architecture C (hybrid Noir wrapper) — pseudocode + security game + cost analysis**
 
   **What to do**:
   - Author `.sisyphus/research/arch-C-hybrid-noir.md`.
@@ -867,7 +867,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `docs(research): architecture C — hybrid Noir wrapper`
   - Files: `.sisyphus/research/arch-C-hybrid-noir.md`, `.sisyphus/research/arch-C-costs.json`
 
-- [ ] 11. **T11: Micro-bench — RLWE-relation in Noir/BB**
+- [x] 11. **T11: Micro-bench — RLWE-relation in Noir/BB**
 
   **What to do**:
   - Implement minimal Noir circuit at the **placeholder package T1 already scaffolded at `circuits/bench/rlwe_relation/`** (DO NOT run `nargo new` or rename — replace `main.nr` body in-place) proving the relation: `c0 + c1·s = m + e (mod q)` for fixed-size BFV/RLWE parameters at toy degree (e.g., N=512, then N=2048, N=8192).
@@ -929,7 +929,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `bench(circuits): RLWE-relation Noir+BB micro-benchmark`
   - Files: `circuits/bench/rlwe_relation/**`, `bench/results/rlwe-relation-*.json`
 
-- [ ] 12. **T12: Micro-bench — recursive folding (HyperNova-style)**
+- [x] 12. **T12: Micro-bench — recursive folding (HyperNova-style)**
 
   **What to do**:
   - Build a minimal folding loop using an existing Rust folding library (e.g., `arkworks` Sonobe / Nova, or hand-rolled HyperNova primer if needed) to fold N copies of a fixed-size R1CS instance, N ∈ {16, 64, 256, 1024}.
@@ -978,7 +978,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `bench(folding): recursive folding micro-benchmark`
   - Files: `crates/pvthfhe-bench/src/bin/folding*.rs`, `bench/results/folding-*.json`
 
-- [ ] 13. **T13: Micro-bench — KZG batched verification on EVM**
+- [x] 13. **T13: Micro-bench — KZG batched verification on EVM**
 
   **What to do**:
   - Implement Solidity verifier for a KZG-batched opening (BN254 pairing precompiles) and benchmark gas at batch sizes {1, 8, 32, 128}.
@@ -1029,7 +1029,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `bench(onchain): KZG batched verifier gas benchmark`
   - Files: `contracts/bench/KzgBatchVerifier.sol`, `contracts/test/KzgBatchVerifier.t.sol`, `bench/results/kzg-batch-*.json`
 
-- [ ] 14. **T14: Literature refresh #1 (subagent: librarian)**
+- [x] 14. **T14: Literature refresh #1 (subagent: librarian)**
 
   **What to do**:
   - Re-fire `librarian` subagent at end of Phase 1 to catch any papers published since T3 (eprint posts, ACM CCS / Eurocrypt / Crypto / Asiacrypt acceptances).
@@ -1072,7 +1072,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `docs(research): literature refresh #1 (Phase-1 close)`
   - Files: `.sisyphus/research/lit-refresh-1.md`, possibly `arch-{A,B,C}.md` refresh sections
 
-- [ ] 15. **T15: Compiled cost table + comparison matrix across A/B/C**
+- [x] 15. **T15: Compiled cost table + comparison matrix across A/B/C**
 
   **What to do**:
   - Author `.sisyphus/research/cost-comparison.md`: side-by-side table of arch-{A,B,C} along the 6 axes from T7, at n ∈ {64, 128, 256, 512, 1024}.
@@ -1121,7 +1121,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `docs(research): cost comparison matrix across architectures`
   - Files: `.sisyphus/research/cost-comparison.md`, `.sisyphus/research/figures/*.png`
 
-- [ ] 16. **T16: Phase 1 gate report — `just phase1-gate` produces JSON + markdown**
+- [x] 16. **T16: Phase 1 gate report — `just phase1-gate` produces JSON + markdown**
 
   **What to do**:
   - Implement `just phase1-gate` recipe → runs a Rust/Python script that:
@@ -1184,7 +1184,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Files: `Justfile`, `.sisyphus/scripts/phase1-gate.{rs|py}`, `.sisyphus/research/phase1-gate.{json,md}`
   - Pre-commit: `just phase1-gate`
 
-- [ ] 17. **T17: Architecture selection memo (chooses ONE winner)**
+- [x] 17. **T17: Architecture selection memo (chooses ONE winner)**
 
   **What to do**:
   - Author `.sisyphus/design/selection-memo.md`. Input: T15 cost matrix, T8/T9/T10 security games, T6 bootstrap decision, T14 refresh, oracle/Metis flags.
@@ -1235,7 +1235,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Files: `.sisyphus/design/selection-memo.md`
   - Tag: `phase2-start`
 
-- [ ] 18. **T18: Full protocol spec — distributed keygen**
+- [x] 18. **T18: Full protocol spec — distributed keygen**
 
   **What to do**:
   - Author `.sisyphus/design/spec-keygen.md`. Inputs from T17.
@@ -1286,7 +1286,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `docs(design): keygen protocol spec`
   - Files: `.sisyphus/design/spec-keygen.md`
 
-- [ ] 19. **T19: Full protocol spec — threshold decryption**
+- [x] 19. **T19: Full protocol spec — threshold decryption**
 
   **What to do**:
   - Author `.sisyphus/design/spec-decrypt.md`.
@@ -1331,7 +1331,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `docs(design): threshold decryption protocol spec`
   - Files: `.sisyphus/design/spec-decrypt.md`
 
-- [ ] 20. **T20: Concrete RLWE parameter selection (estimator-backed)**
+- [x] 20. **T20: Concrete RLWE parameter selection (estimator-backed)**
 
   **What to do**:
   - Choose RLWE parameters (n, q, σ) for ≥128-bit classical and ≥128-bit PQ security at our circuit depth.
@@ -1381,7 +1381,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `docs(design): concrete RLWE parameters (estimator-backed)`
   - Files: `.sisyphus/design/parameters.md`, `.sisyphus/design/parameters.toml`, `.sisyphus/design/estimator-baseline.log`
 
-- [ ] 21. **T21: Noise budget closure analysis**
+- [x] 21. **T21: Noise budget closure analysis**
 
   **What to do**:
   - Author `.sisyphus/design/noise-budget.md`.
@@ -1423,7 +1423,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `docs(design): noise budget closure (honest + malicious)`
   - Files: `.sisyphus/design/noise-budget.md`, `crates/pvthfhe-core/tests/noise_budget.rs`
 
-- [ ] 22. **T22: Enclave-compatible API/interface spec**
+- [x] 22. **T22: Enclave-compatible API/interface spec**
 
   **What to do**:
   - Author `.sisyphus/design/api-spec.md`.
@@ -1465,7 +1465,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `docs(design): API/interface spec + trait-only crate`
   - Files: `.sisyphus/design/api-spec.md`, `crates/pvthfhe-api/**`
 
-- [ ] 23. **T23: Reference-model worked example (toy n=4 walkthrough)**
+- [x] 23. **T23: Reference-model worked example (toy n=4 walkthrough)**
 
   **What to do**:
   - Author `.sisyphus/design/worked-example.md` walking through the full protocol at n=4, t=3 (or the resolved corruption-model values).
@@ -1514,7 +1514,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `docs(design): toy worked example with reproducer`
   - Files: `.sisyphus/design/worked-example.md`, `.sisyphus/design/worked-example-expected.log`, `crates/pvthfhe-bench/src/bin/worked_example.rs`
 
-- [ ] 24. **T24: Security theorems + assumption mapping**
+- [x] 24. **T24: Security theorems + assumption mapping**
 
   **What to do**:
   - Author `.sisyphus/design/security-proofs.md`.
@@ -1555,7 +1555,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `docs(design): security theorems + assumption mapping`
   - Files: `.sisyphus/design/security-proofs.md`
 
-- [ ] 25. **T25: Proof boundary freeze (what is in SNARK, what is not)**
+- [x] 25. **T25: Proof boundary freeze (what is in SNARK, what is not)**
 
   **What to do**:
   - Author `.sisyphus/design/proof-boundary.md`.
@@ -1596,7 +1596,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `docs(design): proof boundary freeze`
   - Files: `.sisyphus/design/proof-boundary.md`
 
-- [ ] 26. **T26: Oracle architecture & security review (subagent: oracle)**
+- [x] 26. **T26: Oracle architecture & security review (subagent: oracle)**
 
   **What to do**:
   - Spawn `oracle` subagent with: T17 selection, T18-T25 specs/proofs/boundary, T2 threat model.
@@ -1638,7 +1638,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `docs(design): oracle review + dispositions`
   - Files: `.sisyphus/design/oracle-review.md`, plus any revisions to T18-T25 docs
 
-- [ ] 27. **T27: Literature refresh #2 (subagent: librarian, pre-Implementation)**
+- [x] 27. **T27: Literature refresh #2 (subagent: librarian, pre-Implementation)**
 
   **What to do**:
   - Re-fire `librarian` to catch papers since T14.
@@ -1679,7 +1679,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `docs(design): literature refresh #2 (Phase-2 close)`
   - Files: `.sisyphus/design/lit-refresh-2.md`
 
-- [ ] 28. **T28: Phase 2 gate report — `just phase2-gate` produces JSON + markdown**
+- [x] 28. **T28: Phase 2 gate report — `just phase2-gate` produces JSON + markdown**
 
   **What to do**:
   - Implement `just phase2-gate` recipe → script that:
@@ -1739,7 +1739,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Files: `Justfile`, `.sisyphus/scripts/phase2-gate.{rs|py}`, `.sisyphus/design/phase2-gate.{json,md}`
   - Pre-commit: `just phase2-gate`
 
-- [ ] 29. **T29: Cargo workspace + crate layout + lints + deny.toml + CI matrix**
+- [x] 29. **T29: Cargo workspace + crate layout + lints + deny.toml + CI matrix**
 
   **What to do**:
   - All 8 crates already exist as workspace members from T1; this task does NOT create or add them. Confirm membership via `cargo metadata --format-version=1 --no-deps | jq '.workspace_members | length'` ≥ 8.
@@ -1790,7 +1790,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Files: `Cargo.toml`, all `crates/*/Cargo.toml`, `deny.toml`, `.github/workflows/ci.yml`
   - Pre-commit: `cargo fmt --check && cargo clippy --workspace -- -D warnings && cargo test --workspace && cargo deny check`
 
-- [ ] 30. **T30: FHE backend trait + chosen-impl wrapper (TDD: RED first)**
+- [x] 30. **T30: FHE backend trait + chosen-impl wrapper (TDD: RED first)**
 
   **What to do**:
   - Define `FheBackend` trait in `pvthfhe-fhe`: methods for keygen-share, encrypt, partial-decrypt, aggregate, parameter loading, serialization.
@@ -1842,7 +1842,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Files: `crates/pvthfhe-fhe/**`
   - Pre-commit: full workspace test + clippy
 
-- [ ] 31. **T31: Cryptographic test-vector harness (golden vectors, property tests)**
+- [x] 31. **T31: Cryptographic test-vector harness (golden vectors, property tests)**
 
   **What to do**:
   - Generate golden vectors from the worked example (T23) for: keygen messages, ciphertexts, partial-decryptions, aggregated proofs.
@@ -1890,7 +1890,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `test(core): golden vectors + property test harness`
   - Files: `crates/pvthfhe-core/tests/**`
 
-- [ ] 32. **T32: Noir + Foundry test harnesses (nargo test runner, forge skeleton)**
+- [x] 32. **T32: Noir + Foundry test harnesses (nargo test runner, forge skeleton)**
 
   **What to do**:
   - Upgrade the T1 Noir scaffolding: keep all four existing placeholder packages (`share_wf`, `decrypt_share`, `aggregator_final`, `bench/rlwe_relation`) — DO NOT rename or recreate them. Add `nargo fmt` config and ensure `nargo test --workspace` (run from `circuits/`) still passes (T11/T35/T36/T37 will fill the package bodies in their own waves).
@@ -1939,7 +1939,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `chore(circuits,contracts): nargo + foundry harnesses`
   - Files: `circuits/**`, `contracts/**`, `Justfile`, `.github/workflows/ci.yml`
 
-- [ ] 33. **T33: Distributed keygen impl (TDD, in-process simulator)**
+- [x] 33. **T33: Distributed keygen impl (TDD, in-process simulator)**
 
   **What to do**:
   - Implement keygen per T18 spec in `pvthfhe-aggregator` (or dedicated `pvthfhe-keygen`) using the trait from T30.
@@ -1995,7 +1995,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `feat(keygen): distributed keygen with in-process simulator + blame`
   - Files: `crates/pvthfhe-aggregator/src/keygen/**`, tests
 
-- [ ] 34. **T34: Threshold decryption impl (TDD)**
+- [x] 34. **T34: Threshold decryption impl (TDD)**
 
   **What to do**:
   - Implement partial-decryption per T19 spec: each party produces a decryption share + NIZK; aggregator combines.
@@ -2043,7 +2043,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `feat(decrypt): threshold decryption with verifiable shares`
   - Files: `crates/pvthfhe-aggregator/src/decrypt/**`, tests
 
-- [ ] 35. **T35: Noir circuit — share well-formedness (TDD with golden vectors)**
+- [x] 35. **T35: Noir circuit — share well-formedness (TDD with golden vectors)**
 
   **What to do**:
   - Implement Noir circuit `circuits/share_wf/` proving the relation declared in T18 NIZK statement.
@@ -2105,7 +2105,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `feat(circuits): share well-formedness Noir circuit + tests`
   - Files: `circuits/share_wf/**`, `circuits/lib/**`
 
-- [ ] 36. **T36: Noir circuit — decryption-share correctness (TDD with golden vectors)**
+- [x] 36. **T36: Noir circuit — decryption-share correctness (TDD with golden vectors)**
 
   **What to do**:
   - Implement Noir circuit `circuits/decrypt_share/` proving T19 NIZK statement.
@@ -2157,7 +2157,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `feat(circuits): decryption-share correctness Noir circuit + tests`
   - Files: `circuits/decrypt_share/**`
 
-- [ ] 37. **T37: Recursive aggregation harness (folding tree)**
+- [x] 37. **T37: Recursive aggregation harness (folding tree)**
 
   **What to do**:
   - Implement folding aggregator per selected architecture (likely HyperNova / MicroNova or LatticeFold+ depending on T17): folds N party-instances into 1 final instance, then a final SNARK is generated for on-chain verification.
@@ -2206,7 +2206,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `feat(aggregator): recursive folding harness with final SNARK`
   - Files: `crates/pvthfhe-aggregator/src/folding/**`
 
-- [ ] 38. **T38: Solidity verifier scaffold + Foundry tests (TDD)**
+- [x] 38. **T38: Solidity verifier scaffold + Foundry tests (TDD)**
 
   **What to do**:
   - Author hand-written `contracts/src/PvtFheVerifier.sol` scaffold (will be replaced by BB-generated in T39, but scaffold tests the integration shape).
@@ -2254,7 +2254,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `feat(contracts): verifier scaffold + Foundry tests`
   - Files: `contracts/src/PvtFheVerifier.sol`, `contracts/test/**`
 
-- [ ] 39. **T39: BB → Solidity verifier generation + on-chain verification test on local Anvil**
+- [x] 39. **T39: BB → Solidity verifier generation + on-chain verification test on local Anvil**
 
   **What to do**:
   - Run Barretenberg's Solidity-verifier generator against the final-SNARK from T37; output replaces scaffold from T38.
@@ -2322,7 +2322,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `feat(contracts): BB-generated verifier + golden-proof Foundry e2e + just verify-onchain`
   - Files: `contracts/src/generated/**`, `contracts/script/**`, `contracts/test/**` (incl. `contracts/test/goldens/**`), `crates/pvthfhe-bench/src/bin/gen_goldens.rs`, `.sisyphus/scripts/check-gas.py`, `Justfile`
 
-- [ ] 40. **T40: CLI binary + n=128 e2e demo**
+- [x] 40. **T40: CLI binary + n=128 e2e demo**
 
   **What to do**:
   - Implement `pvthfhe-cli` binary with subcommands: `keygen --n N --t T`, `encrypt --pk PATH --msg MSG`, `partial-decrypt --sk-share PATH --ct PATH`, `aggregate --shares DIR --ct PATH`, `verify --proof PATH --ct PATH --plaintext PATH --rpc URL --addr ADDR`, `demo --n 128`.
@@ -2372,7 +2372,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `feat(cli): CLI binary + n=128 e2e demo`
   - Files: `crates/pvthfhe-cli/**`, `Justfile`
 
-- [ ] 41. **T41: Adversarial test suite (malformed shares, tampered proofs, rogue keys)**
+- [x] 41. **T41: Adversarial test suite (malformed shares, tampered proofs, rogue keys)**
 
   **What to do**:
   - Centralized test crate `crates/pvthfhe-aggregator/tests/adversarial/` exercising every documented threat from T2 + every rejection case from T18/T19. **Canonical layout**: `tests/adversarial/mod.rs` (entry) + one file per case: `rogue_key.rs`, `equivocation.rs`, `withhold_reveal.rs`, `malformed_nizk.rs`, `replay.rs`, `tampered_ciphertext.rs`, `tampered_share.rs`, `threshold_below.rs`, `threshold_above.rs`. T45's negative QA targets `tampered_share.rs` specifically — DO NOT rename without updating T45.
@@ -2421,7 +2421,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `test(adversarial): comprehensive malicious-behavior suite`
   - Files: `crates/pvthfhe-aggregator/tests/adversarial/**`, `Justfile`
 
-- [ ] 42. **T42: Enclave-style adapter interface (no upstream PR)**
+- [x] 42. **T42: Enclave-style adapter interface (no upstream PR)**
 
   **What to do**:
   - Implement `crates/pvthfhe-enclave-adapter/` providing the trait-shape declared in T22 that mirrors `gnosisguild/enclave` ciphernode/aggregator boundaries.
@@ -2472,7 +2472,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `feat(enclave-adapter): trait-shape adapter + vendored stub + smoke test`
   - Files: `crates/pvthfhe-enclave-adapter/**` (includes `crates/pvthfhe-enclave-adapter/vendor-stub/**`), `.sisyphus/evidence/integration/enclave.md`, `.sisyphus/evidence/integration/enclave-stub-hash.txt`
 
-- [ ] 43. **T43: Scaling benchmark suite up to n=1024 + reproducibility scripts**
+- [x] 43. **T43: Scaling benchmark suite up to n=1024 + reproducibility scripts**
 
   **What to do**:
   - Run end-to-end benchmark at n ∈ {128, 256, 512, 1024} with the in-process simulator on reference hardware.
@@ -2530,7 +2530,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `bench(scaling): n=128..1024 e2e scaling benchmarks + figures`
   - Files: `bench/results/scaling-*.json`, `bench/figures/*.png`, `bench/scripts/**`, `Justfile`
 
-- [ ] 44. **T44: Documentation (README, ARCHITECTURE, SECURITY, REPRODUCING)**
+- [x] 44. **T44: Documentation (README, ARCHITECTURE, SECURITY, REPRODUCING)**
 
   **What to do**:
   - Author top-level `README.md`: project intent, status, quickstart, link to demo.
@@ -2602,7 +2602,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - Message: `docs: README, ARCHITECTURE, SECURITY, REPRODUCING, CITATION + Dockerfile.quickstart`
   - Files: `README.md`, `ARCHITECTURE.md`, `SECURITY.md`, `REPRODUCING.md`, `CITATION.cff`, `Dockerfile.quickstart`
 
-- [ ] 45. **T45: Phase 3 gate report — `just phase3-gate` produces JSON + markdown**
+- [x] 45. **T45: Phase 3 gate report — `just phase3-gate` produces JSON + markdown**
 
   **What to do**:
   - Implement `just phase3-gate` recipe → script that:
@@ -2670,19 +2670,19 @@ Max Concurrent: 7 (Wave R2 and I2)
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 > Do NOT mark F1-F4 checked before user okay. Rejection → fix → re-run → present again → wait.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
   Read this plan end-to-end. For each "Must Have" line: verify the artifact/behavior exists (read file, run command, query verifier on-chain). For each "Must NOT Have" guardrail: search the codebase for forbidden patterns and reject with file:line on any hit. Confirm every gate report (`phase1-gate.json`, `phase2-gate.json`, `phase3-gate.json`) exists, passes, and includes the mandated fields. Confirm `.sisyphus/evidence/` contains evidence files for every task QA scenario.
   Output: `Must Have [N/N] | Must NOT Have [N/N] | Gates [3/3 pass] | Evidence [N/N tasks] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality & Crypto-Slop Review** — `unspecified-high`
+- [x] F2. **Code Quality & Crypto-Slop Review** — `unspecified-high`
   Run `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check`, `(cd circuits && nargo test --workspace)`, `forge test --root contracts`, `cargo deny check`. Review every changed Rust/Noir/Solidity file for: hand-rolled crypto primitives (NTT, hash-to-field, transcript, RNG, serialization) when standard exists; `.unwrap()` outside tests; empty catches; `console.log`/`println!` in prod; commented-out code; magic constants without parameter-file linkage; over-generic traits with one impl; proc-macros hiding crypto; "constant-time" claims without evidence; missing golden vectors; missing negative tests; generic names (`data`, `tmp`, `Helper`, `Manager`).
   Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass / N fail] | Files [N clean / N issues] | Crypto-slop [N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
   Start from clean checkout. Execute EVERY QA scenario from EVERY implementation task — exact steps, capture evidence to `.sisyphus/evidence/final-qa/`. Run `just demo-e2e` and capture the n=128 walk-through. Run `just bench-scaling` and capture the n ∈ {128, 256, 512, 1024} results. Run `just verify-onchain` against fresh Anvil and capture transaction traces. Test cross-task integration: keygen → encrypt → threshold-decrypt → on-chain verify in a single flow. Test edge cases: t-1 honest parties (must fail), t honest parties (must succeed), tampered share, tampered proof, malformed ciphertext.
   Output: `Scenarios [N/N pass] | E2E demo [PASS/FAIL] | Scaling bench [N/N points pass] | On-chain [PASS/FAIL] | Adversarial [N/N reject correctly] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
   For each task: read its "What to do" section, then read the actual diff in git for that task's commits. Verify 1:1 correspondence: every spec item was built (no missing); nothing beyond spec was built (no creep). Check "Must NOT do" compliance per task. Detect cross-task contamination: Task N touching files owned by Task M outside the declared interface. Flag any unaccounted commits. Verify scope guardrails (Must NOT Have list) absent.
   Output: `Tasks [N/N compliant] | Contamination [CLEAN / N issues] | Unaccounted commits [CLEAN / N] | Scope guardrails [N/N respected] | VERDICT`
 
@@ -2718,13 +2718,13 @@ just reproduce-bench      # Expected: numbers within ±15% of published baseline
 ```
 
 ### Final Checklist
-- [ ] All "Must Have" deliverables exist and pass their verification commands
-- [ ] All "Must NOT Have" guardrails respected (verified by F4)
-- [ ] All three phase gates emit machine-readable artifacts and exit 0
-- [ ] All tests (Rust + Noir + Solidity) pass
-- [ ] BB-generated Solidity verifier deployed to local Anvil and verifies a real threshold-decryption proof
-- [ ] n=128 e2e demo runs end-to-end
-- [ ] Scaling benchmarks at n ∈ {128, 256, 512, 1024} match the projected O(n) per-party / O(polylog n) verifier
-- [ ] Reproducibility verified by `just reproduce-bench` from a clean checkout
-- [ ] All evidence files for QA scenarios present in `.sisyphus/evidence/`
-- [ ] User explicit "okay" given after F1-F4 review wave
+- [x] All "Must Have" deliverables exist and pass their verification commands
+- [x] All "Must NOT Have" guardrails respected (verified by F4)
+- [x] All three phase gates emit machine-readable artifacts and exit 0
+- [x] All tests (Rust + Noir + Solidity) pass
+- [x] BB-generated Solidity verifier deployed to local Anvil and verifies a real threshold-decryption proof
+- [x] n=128 e2e demo runs end-to-end
+- [x] Scaling benchmarks at n ∈ {128, 256, 512, 1024} match the projected O(n) per-party / O(polylog n) verifier
+- [x] Reproducibility verified by `just reproduce-bench` from a clean checkout
+- [x] All evidence files for QA scenarios present in `.sisyphus/evidence/`
+- [x] User explicit "okay" given after F1-F4 review wave

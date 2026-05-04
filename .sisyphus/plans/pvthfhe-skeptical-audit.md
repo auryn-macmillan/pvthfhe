@@ -1283,7 +1283,7 @@ Max Concurrent: 8 (Wave 1)
   **Commit**: YES
   - Message: `docs(audit): final severity-rated audit report`
 
-- [ ] 23. **Update Obligations, Claims-Table, and Gates**
+ - [x] 23. **Update Obligations, Claims-Table, and Gates**
 
   **What to do**:
   - Update `docs/security-proofs/obligations.md` to reflect final theorem state (all 20 PROVED-WITH-CITATION)

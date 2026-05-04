@@ -1,0 +1,12 @@
+[package]
+name = "pvthfhe-nizk"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[dependencies]
+rand_core = "0.6"
+thiserror = "1"
+
+[lints]
+workspace = true

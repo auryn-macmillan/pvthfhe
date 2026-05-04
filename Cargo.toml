@@ -11,6 +11,7 @@ members = [
     "crates/pvthfhe-bench",
     "crates/pvthfhe-api",
     "crates/pvthfhe-enclave-adapter",
+    "crates/pvthfhe-nizk",
 ]
 
 [workspace.lints.rust]

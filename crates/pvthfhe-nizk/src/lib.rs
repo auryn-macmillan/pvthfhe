@@ -15,6 +15,7 @@
 #![deny(missing_docs)]
 
 pub mod ajtai;
+pub mod fiat_shamir;
 pub mod hash_bridge;
 pub mod sigma;
 

@@ -154,6 +154,29 @@ def run_check_cargo_check():
     return "FAIL", f"cargo check failed: {result.stderr.strip()[-300:]}"
 
 
+def run_check_cyclo_tests():
+    result = subprocess.run(
+        ["cargo", "test", "-p", "pvthfhe-cyclo"],
+        capture_output=True, text=True
+    )
+    if result.returncode == 0:
+        return "PASS", "cargo test -p pvthfhe-cyclo passed"
+    return "FAIL", f"cargo test -p pvthfhe-cyclo failed: {result.stderr.strip()[-300:]}"
+
+
+def run_check_aggregate_1024_smoke():
+    result = subprocess.run(
+        ["cargo", "test", "-p", "pvthfhe-aggregator", "--test", "aggregate_1024_smoke"],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        return "FAIL", f"cargo test -p pvthfhe-aggregator --test aggregate_1024_smoke failed: {result.stderr.strip()[-300:]}"
+    path = "bench/results/aggregate_1024.json"
+    if not os.path.exists(path):
+        return "FAIL", f"{path} not found after aggregate_1024_smoke"
+    return "PASS", f"cargo test -p pvthfhe-aggregator --test aggregate_1024_smoke passed and {path} exists"
+
+
 CHECKS = [
     ("artifacts", run_check_artifacts),
     ("parameters_toml", run_check_parameters_toml),
@@ -162,6 +185,8 @@ CHECKS = [
     ("boundary_coverage", run_check_boundary_coverage),
     ("oracle_dispositions", run_check_oracle_dispositions),
     ("lit_refresh_no_blocking", run_check_lit_refresh_no_blocking),
+    ("cyclo_tests", run_check_cyclo_tests),
+    ("aggregate_1024_smoke", run_check_aggregate_1024_smoke),
     ("cargo_check", run_check_cargo_check),
 ]
 
@@ -194,6 +219,25 @@ def main():
     with open(".sisyphus/design/phase2-gate.json", "w") as f:
         json.dump(gate_json, f, indent=2)
     print("Wrote .sisyphus/design/phase2-gate.json")
+
+    bench_gate_json = {
+        "schema_version": "1",
+        "gate": "phase2-cyclo",
+        "timestamp": timestamp,
+        "status": gate_status.lower(),
+        "checks": [
+            {
+                **r,
+                "status": r["status"].lower(),
+            }
+            for r in results
+        ],
+    }
+
+    os.makedirs("bench/results", exist_ok=True)
+    with open("bench/results/phase2-gate.json", "w") as f:
+        json.dump(bench_gate_json, f, indent=2)
+    print("Wrote bench/results/phase2-gate.json")
 
     rows = "\n".join(
         f"| {r['id']} | {r['status']} | {r['detail']} |"

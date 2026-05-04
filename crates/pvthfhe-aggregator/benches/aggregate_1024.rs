@@ -30,7 +30,7 @@ fn make_share(participant_id: u16) -> CcsPShareInstance {
     let seed = participant_id.to_le_bytes();
     let ajtai_commitment_bytes = vec![seed[0]; 32];
     let public_io_bytes = vec![seed[1].wrapping_add(1); 32];
-    let ccs_witness_bytes = vec![seed[0].wrapping_add(seed[1]).wrapping_add(2); 32];
+    let ccs_witness_bytes = vec![(seed[0] % 101).wrapping_add(seed[1] % 2); 32];
     let sha256_binding_bytes: [u8; 32] = Sha256::new()
         .chain_update(&ajtai_commitment_bytes)
         .chain_update(&public_io_bytes)

@@ -1,0 +1,58 @@
+{
+  "schema_version": "1",
+  "gate": "phase2-cyclo",
+  "timestamp": "2026-05-04T17:02:11Z",
+  "status": "pass",
+  "checks": [
+    {
+      "id": "artifacts",
+      "status": "pass",
+      "detail": "All 13 T17-T27 artifacts present"
+    },
+    {
+      "id": "parameters_toml",
+      "status": "pass",
+      "detail": "parameters.toml valid with required keys"
+    },
+    {
+      "id": "noise_budget_test",
+      "status": "pass",
+      "detail": "cargo test noise_budget passed"
+    },
+    {
+      "id": "theorem_mapping",
+      "status": "pass",
+      "detail": "Success: All theorems mapped correctly (4 theorems, 13 assumption references)"
+    },
+    {
+      "id": "boundary_coverage",
+      "status": "pass",
+      "detail": "Success: All 12 boundary entries present with valid primary assignments"
+    },
+    {
+      "id": "oracle_dispositions",
+      "status": "pass",
+      "detail": "All findings ADDRESSED"
+    },
+    {
+      "id": "lit_refresh_no_blocking",
+      "status": "pass",
+      "detail": "No BLOCKING+undecided lines in lit-refresh-2.md"
+    },
+    {
+      "id": "cyclo_tests",
+      "status": "pass",
+      "detail": "cargo test -p pvthfhe-cyclo passed"
+    },
+    {
+      "id": "aggregate_1024_smoke",
+      "status": "pass",
+      "detail": "cargo test -p pvthfhe-aggregator --test aggregate_1024_smoke passed and bench/results/aggregate_1024.json exists"
+    },
+    {
+      "id": "cargo_check",
+      "status": "pass",
+      "detail": "cargo check --workspace passed"
+    }
+  ]
+}

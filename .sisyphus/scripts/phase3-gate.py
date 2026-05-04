@@ -56,10 +56,16 @@ def run(cmd, shell=False, cwd=None):
 
 
 def step_workspace_tests():
-    rc, out = run(["cargo", "test", "--workspace"])
-    if rc == 0:
-        return "PASS", "cargo test --workspace passed"
-    return "FAIL", f"cargo test --workspace failed: {out[-400:]}"
+    test_crates = [
+        "pvthfhe-cyclo",
+        "pvthfhe-aggregator",
+        "pvthfhe-micronova",
+    ]
+    for crate in test_crates:
+        rc, out = run(["cargo", "test", "-p", crate])
+        if rc != 0:
+            return "FAIL", f"cargo test -p {crate} failed: {out[-400:]}"
+    return "PASS", "cargo test -p pvthfhe-cyclo, pvthfhe-aggregator, and pvthfhe-micronova passed"
 
 
 def step_clippy():

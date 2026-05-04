@@ -32,4 +32,4 @@ def test_fit_loglog_defaults_to_scaling_results_and_accepts_scaling_schema(tmp_p
     )
 
     assert result.returncode == 0, result.stderr or result.stdout
-    assert "sub-quadratic growth: CONFIRMED" in result.stdout
+    assert "sub-quadratic per-party growth: CONFIRMED" in result.stdout

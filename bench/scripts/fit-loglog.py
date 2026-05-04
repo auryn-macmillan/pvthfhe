@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fit a log-log slope for scaling results and assert sub-quadratic growth."""
+"""Fit a log-log slope for scaling results and assert sub-quadratic per-party growth."""
 
 # pyright: reportAny=false, reportUnknownMemberType=false
 
@@ -92,9 +92,9 @@ def main(argv: Sequence[str]) -> int:
         )
     print(f"log-log slope (exponent): {slope:.3f}")
     if slope >= 2.0:
-        print(f"sub-quadratic growth: FAILED (slope {slope:.3f} >= 2.0)", file=sys.stderr)
+        print(f"sub-quadratic per-party growth: FAILED (slope {slope:.3f} >= 2.0)", file=sys.stderr)
         return 1
-    print("sub-quadratic growth: CONFIRMED")
+    print("sub-quadratic per-party growth: CONFIRMED")
     return 0
 
 

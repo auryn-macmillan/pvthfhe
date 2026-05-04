@@ -829,7 +829,7 @@ A1, A2 (after M3), A3 (after F8+O7) — parallel admin tasks
 - [x] N3: D2 SHA-256 hash-bridge golden-vector tested
 - [x] N4: Sigma protocol complete/sound for RLWE relation; norm bound enforced
 - [x] N5: Fiat-Shamir transcript with locked domain separator (spec §3.6)
-- [ ] N6: `RealNizkAdapter` in `pvthfhe-fhe` wired to new backend; `backend_id` = `"cyclo-ajtai-d2-conditional"`
+- [x] N6: `RealNizkAdapter` in `pvthfhe-fhe` wired to new backend; `backend_id` = `"cyclo-ajtai-d2-conditional"`
 - [ ] N7: `NizkError::ConditionalSoundness` variant; rustdoc + README badge + SECURITY.md banner
 - [ ] N8: 6+ adversarial NIZK scenarios pass; `just phase1-gate` exits 0
 - [ ] F1: `pvthfhe-cyclo` crate created; ring backend locked and documented

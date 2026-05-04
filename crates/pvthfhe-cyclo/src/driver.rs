@@ -4,7 +4,10 @@
 //! T3 fold sub-protocol from [`crate::fold`], enforces the final norm budget
 //! β_T ≤ 1344, and exposes [`fold_all`] as the top-level entry point.
 
-use crate::{CcsPShareInstance, CycloAccumulator, CycloError};
+use crate::{
+    fold::{fold_one_step, init_accumulator},
+    CcsPShareInstance, CycloAccumulator, CycloError, PVTHFHE_CYCLO_PARAMS,
+};
 use rand_core::RngCore;
 
 /// Folds all `instances` sequentially, returning the final accumulator.
@@ -19,9 +22,33 @@ use rand_core::RngCore;
 /// [`CycloError::NormBoundExceeded`] if the final norm exceeds β_T.
 pub fn fold_all(
     instances: &[CcsPShareInstance],
-    _session_id: &str,
-    _rng: &mut dyn RngCore,
+    session_id: &str,
+    rng: &mut dyn RngCore,
 ) -> Result<CycloAccumulator, CycloError> {
-    let _ = instances;
-    Err(CycloError::InvalidInstance("driver not yet implemented"))
+    if instances.is_empty() {
+        return Err(CycloError::InvalidInstance(
+            "at least one instance required",
+        ));
+    }
+    let t = usize::try_from(PVTHFHE_CYCLO_PARAMS.sequential_t)
+        .map_err(|_| CycloError::InvalidInstance("sequential_t overflows usize"))?;
+    if instances.len() > t {
+        return Err(CycloError::FoldDepthExhausted(
+            PVTHFHE_CYCLO_PARAMS.sequential_t,
+        ));
+    }
+
+    let mut acc = init_accumulator(&instances[0], session_id)?;
+    for instance in instances {
+        acc = fold_one_step(acc, instance, rng)?;
+    }
+
+    if acc.norm_bound_current > PVTHFHE_CYCLO_PARAMS.beta_at_t {
+        return Err(CycloError::NormBoundExceeded {
+            got: acc.norm_bound_current,
+            max: PVTHFHE_CYCLO_PARAMS.beta_at_t,
+        });
+    }
+
+    Ok(acc)
 }

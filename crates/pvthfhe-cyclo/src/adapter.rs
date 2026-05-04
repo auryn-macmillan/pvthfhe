@@ -1,16 +1,11 @@
-//! Stub [`CycloAdapter`] implementation.
-//!
-//! All methods return errors until F2–F7 replace this skeleton.
+//! Real [`CycloAdapter`] implementation wired to the F7 fold driver.
 
 use crate::{
-    CcsPShareInstance, CycloAccumulator, CycloAdapter, CycloError, CycloParams, CYCLO_BACKEND_ID,
-    PVTHFHE_CYCLO_PARAMS,
+    driver, fold, CcsPShareInstance, CycloAccumulator, CycloAdapter, CycloError, CycloParams,
+    CYCLO_BACKEND_ID, PVTHFHE_CYCLO_PARAMS,
 };
 
-/// Zero-sized stub implementing [`CycloAdapter`].
-///
-/// Every method returns an appropriate [`CycloError`] until the real
-/// LatticeFold+ logic is wired in by tasks F2–F7.
+/// Production implementation of [`CycloAdapter`] backed by the F7 fold driver.
 pub struct StubCycloAdapter;
 
 impl CycloAdapter for StubCycloAdapter {
@@ -24,21 +19,19 @@ impl CycloAdapter for StubCycloAdapter {
 
     fn fold_one(
         &self,
-        _acc: CycloAccumulator,
-        _instance: &CcsPShareInstance,
-        _rng: &mut dyn rand_core::RngCore,
+        acc: CycloAccumulator,
+        instance: &CcsPShareInstance,
+        rng: &mut dyn rand_core::RngCore,
     ) -> Result<CycloAccumulator, CycloError> {
-        Err(CycloError::InvalidInstance("F2-F7 not yet implemented"))
+        fold::fold_one_step(acc, instance, rng)
     }
 
     fn verify_accumulator(
         &self,
-        _acc: &CycloAccumulator,
-        _instances: &[CcsPShareInstance],
+        acc: &CycloAccumulator,
+        instances: &[CcsPShareInstance],
     ) -> Result<(), CycloError> {
-        Err(CycloError::AccumulatorVerificationFailed(
-            "F2-F7 not yet implemented",
-        ))
+        fold::verify_fold(acc, instances)
     }
 
     fn fold_all(
@@ -47,27 +40,6 @@ impl CycloAdapter for StubCycloAdapter {
         session_id: &str,
         rng: &mut dyn rand_core::RngCore,
     ) -> Result<CycloAccumulator, CycloError> {
-        use sha2::{Digest, Sha256};
-
-        let params_digest: [u8; 32] = {
-            let mut h = Sha256::new();
-            h.update(b"pvthfhe-cyclo-params-v1");
-            h.finalize().into()
-        };
-
-        let mut acc = CycloAccumulator {
-            fold_depth: 0,
-            acc_commitment_bytes: Vec::new(),
-            acc_public_io_bytes: Vec::new(),
-            norm_bound_current: PVTHFHE_CYCLO_PARAMS.norm_bound_b,
-            session_id: session_id.to_owned(),
-            params_digest,
-        };
-
-        for instance in instances {
-            acc = self.fold_one(acc, instance, rng)?;
-        }
-
-        Ok(acc)
+        driver::fold_all(instances, session_id, rng)
     }
 }

@@ -6,6 +6,7 @@
 #![deny(missing_docs)]
 
 pub mod cycle;
+pub mod hash_bridge;
 
 use thiserror::Error;
 

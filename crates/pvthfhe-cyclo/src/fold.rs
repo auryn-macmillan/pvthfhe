@@ -18,6 +18,18 @@ fn params_digest() -> [u8; 32] {
         .into()
 }
 
+fn per_step_norm_budget() -> u64 {
+    PVTHFHE_CYCLO_PARAMS.norm_bound_b / u64::from(PVTHFHE_CYCLO_PARAMS.sequential_t)
+}
+
+fn witness_norm_estimate(witness_bytes: &[u8]) -> u64 {
+    witness_bytes
+        .iter()
+        .map(|&byte| u64::from(byte))
+        .max()
+        .unwrap_or(0)
+}
+
 /// Derives a ternary Fiat-Shamir challenge from the current accumulator
 /// commitment and the incoming instance ajtai hash.
 fn derive_challenge(acc_commitment: &[u8], instance_ajtai: &[u8; 32]) -> i8 {
@@ -76,6 +88,15 @@ fn fold_one_deterministic(
     }
 
     let encoded_instance = ccs_encode::encode(instance)?;
+
+    let beta_step = witness_norm_estimate(&encoded_instance.witness_bytes);
+    let per_step_budget = per_step_norm_budget();
+    if beta_step > per_step_budget {
+        return Err(CycloError::NormBoundExceeded {
+            got: beta_step,
+            max: per_step_budget,
+        });
+    }
 
     let r = derive_challenge(&acc.acc_commitment_bytes, &encoded_instance.ajtai_hash);
 

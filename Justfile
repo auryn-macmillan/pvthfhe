@@ -27,6 +27,7 @@ bench-scaling:
     cargo run --release -p pvthfhe-bench --bin bench_scaling 2>&1 | tee .sisyphus/evidence/task-43-envelopes.log
     python3 bench/scripts/gen_figures.py
     python3 bench/scripts/compare-predictions.py 2>&1 | tee .sisyphus/evidence/task-43-vsmodel.log
+    python3 bench/scripts/fit-loglog.py
 
 verify-onchain:
     mkdir -p .sisyphus/evidence

@@ -150,6 +150,12 @@ fn run_demo(n: usize, seed: u64) -> anyhow::Result<()> {
     let threshold = n / 2 + 1;
     info!(n, threshold, "step 1/5: keygen");
     println!("step 1/5: keygen  n={n} threshold={threshold}");
+    info!("banner: P1 NIZK: conditional soundness only");
+    info!("backend_id_p2: cyclo-rlwe-t10-lemma9-heuristic");
+    info!("backend_id_p3: ultra-honk-micronova");
+    println!("banner: P1 NIZK: conditional soundness only");
+    println!("backend_id_p2: cyclo-rlwe-t10-lemma9-heuristic");
+    println!("backend_id_p3: ultra-honk-micronova");
 
     let backend = MockBackend::load_params("[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\n")
         .map_err(|e| anyhow::anyhow!("backend init: {e}"))?;

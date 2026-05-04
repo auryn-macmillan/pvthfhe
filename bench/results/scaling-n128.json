@@ -1,16 +1,16 @@
 {
   "n": 128,
-  "mean": 1533194.8,
-  "median": 1457817.0,
-  "p99": 1849145.0,
-  "stddev": 158758.89122994026,
-  "aggregator_wall_ms": 1.5331948,
+  "mean": 1570238.0,
+  "median": 1482282.0,
+  "p99": 1896892.0,
+  "stddev": 168564.2917192132,
+  "aggregator_wall_ms": 1.570238,
   "final_snark_size_bytes": 2752,
   "verifier_gas": 1278,
-  "peak_mem_kb": 8131800,
+  "peak_mem_kb": 8131784,
   "env": {
     "cpu": "AMD RYZEN AI MAX+ 395 w/ Radeon 8060S",
-    "mem_kb": 8131800,
-    "kernel": "Linux version 6.8.0-90-generic"
+    "mem_kb": 8131784,
+    "kernel": "Linux version 6.8.0-110-generic"
   }
 }

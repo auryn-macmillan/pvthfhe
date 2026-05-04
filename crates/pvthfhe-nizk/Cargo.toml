@@ -8,6 +8,10 @@ license = "MIT"
 rand_core = "0.6"
 rand_chacha = "0.3"
 thiserror = "1"
+sha2 = "0.10"
+
+[dev-dependencies]
+hex = "0.4"
 
 [lints]
 workspace = true

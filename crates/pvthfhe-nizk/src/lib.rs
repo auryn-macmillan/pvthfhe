@@ -15,6 +15,7 @@
 #![deny(missing_docs)]
 
 pub mod ajtai;
+pub mod hash_bridge;
 
 use thiserror::Error;
 

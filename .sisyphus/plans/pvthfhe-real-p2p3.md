@@ -826,7 +826,7 @@ A1, A2 (after M3), A3 (after F8+O7) — parallel admin tasks
 
 - [x] N1: `crates/pvthfhe-nizk` scaffolded; `NizkAdapter` trait defined and object-safe
 - [x] N2: Ajtai commitment over R_{q_commit} (φ=256, q_commit≈2^50); binding holds
-- [ ] N3: D2 SHA-256 hash-bridge golden-vector tested
+- [x] N3: D2 SHA-256 hash-bridge golden-vector tested
 - [ ] N4: Sigma protocol complete/sound for RLWE relation; norm bound enforced
 - [ ] N5: Fiat-Shamir transcript with locked domain separator (spec §3.6)
 - [ ] N6: `RealNizkAdapter` in `pvthfhe-fhe` wired to new backend; `backend_id` = `"ajtai-d2-sha256"`

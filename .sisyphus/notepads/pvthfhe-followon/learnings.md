@@ -564,3 +564,8 @@ All five theorems approved. Gas arithmetic independently verified. No open gaps 
 - All 4 surrogate files pass: HonkVerifier.sol, protocol.rs, aggregator_final/main.nr, decrypt_share/main.nr — all have `// SURROGATE` headers
 - `just p3-impl-gate` exits 0; evidence at `.sisyphus/evidence/p3-impl/ig-output.txt`
 - ig-advisor-verdict.md created at `.sisyphus/evidence/p3-impl/ig-advisor-verdict.md` with `## VERDICT: APPROVE`
+## 2026-05-04 Quarantine of Suspect Final-QA Evidence
+
+- The suspect APPROVE evidence from `.sisyphus/evidence/final-qa/` was moved with `git mv` into `.sisyphus/evidence/quarantine/final-qa/` to preserve history.
+- Prior follow-on JSONs were also quarantined: `f2-proof-quality.json` and `f5-paper-readiness.json`.
+- The quarantine README documents C1–C6 and points to the two red-team plan files for re-audit context.

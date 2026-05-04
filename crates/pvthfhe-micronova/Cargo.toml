@@ -8,6 +8,7 @@ license = "MIT"
 ark-bn254 = "0.6"
 ark-ff = "0.6"
 ark-grumpkin = "0.6"
+sha3 = "0.10"
 thiserror = "1"
 
 [lints]

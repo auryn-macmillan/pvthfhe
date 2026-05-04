@@ -12,7 +12,9 @@
 //! extractor (T2) remains a skeleton. See `SECURITY.md §P1`.
 
 use pvthfhe_cyclo::adapter::StubCycloAdapter;
-use pvthfhe_cyclo::{CycloAdapter as _, CYCLO_BACKEND_ID};
+use pvthfhe_cyclo::{
+    CcsPShareInstance, CycloAccumulator, CycloAdapter as _, CycloError, CYCLO_BACKEND_ID,
+};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
@@ -398,6 +400,30 @@ pub struct CycloFoldingAdapter {
     inner: StubCycloAdapter,
 }
 
+pub struct CycloFoldAllReport {
+    accumulators: Vec<CycloAccumulator>,
+    share_count: usize,
+    batch_size: usize,
+}
+
+impl CycloFoldAllReport {
+    pub fn accumulators(&self) -> &[CycloAccumulator] {
+        &self.accumulators
+    }
+
+    pub fn batch_count(&self) -> usize {
+        self.accumulators.len()
+    }
+
+    pub fn batch_size(&self) -> usize {
+        self.batch_size
+    }
+
+    pub fn share_count(&self) -> usize {
+        self.share_count
+    }
+}
+
 impl CycloFoldingAdapter {
     /// Create a new adapter using the locked Cyclo parameter set.
     pub fn new() -> Self {
@@ -409,6 +435,70 @@ impl CycloFoldingAdapter {
     /// Returns the Cyclo backend identifier (`"cyclo-rlwe-t10"`).
     pub fn backend_id(&self) -> &'static str {
         self.inner.backend_id()
+    }
+
+    pub fn fold_all(
+        &self,
+        instances: &[CcsPShareInstance],
+        session_id: &str,
+        rng: &mut dyn rand_core::RngCore,
+    ) -> Result<CycloFoldAllReport, CycloError> {
+        if instances.is_empty() {
+            return Err(CycloError::InvalidInstance(
+                "at least one instance required",
+            ));
+        }
+
+        let batch_size = usize::try_from(self.inner.params().sequential_t)
+            .map_err(|_| CycloError::InvalidInstance("sequential_t overflows usize"))?;
+        let mut accumulators = Vec::with_capacity(instances.len().div_ceil(batch_size));
+
+        for (batch_index, batch) in instances.chunks(batch_size).enumerate() {
+            let batch_session_id = format!("{session_id}-batch-{batch_index}");
+            let accumulator = self.inner.fold_all(batch, &batch_session_id, rng)?;
+            self.inner.verify_accumulator(&accumulator, batch)?;
+            accumulators.push(accumulator);
+        }
+
+        Ok(CycloFoldAllReport {
+            accumulators,
+            share_count: instances.len(),
+            batch_size,
+        })
+    }
+
+    pub fn verify_fold_all(
+        &self,
+        report: &CycloFoldAllReport,
+        instances: &[CcsPShareInstance],
+    ) -> Result<(), CycloError> {
+        if instances.len() != report.share_count {
+            return Err(CycloError::AccumulatorVerificationFailed(
+                "share_count does not match number of instances",
+            ));
+        }
+        if report.batch_size == 0 {
+            return Err(CycloError::AccumulatorVerificationFailed(
+                "batch_size must be non-zero",
+            ));
+        }
+
+        let expected_batches = instances.len().div_ceil(report.batch_size);
+        if report.accumulators.len() != expected_batches {
+            return Err(CycloError::AccumulatorVerificationFailed(
+                "batch count does not match number of instance chunks",
+            ));
+        }
+
+        for (accumulator, batch) in report
+            .accumulators
+            .iter()
+            .zip(instances.chunks(report.batch_size))
+        {
+            self.inner.verify_accumulator(accumulator, batch)?;
+        }
+
+        Ok(())
     }
 }
 

@@ -1,0 +1,2 @@
+- 2026-05-04 F9: `pvthfhe-aggregator::folding::CycloFoldingAdapter::fold_all` can satisfy the 1024-share smoke path by chunking shares into `sequential_t=10` batches and verifying each batch accumulator with the underlying Cyclo adapter.
+- 2026-05-04 F9: a lightweight bench can emit `bench/results/aggregate_1024.json` directly from the bench target while Criterion measures the same aggregation path.

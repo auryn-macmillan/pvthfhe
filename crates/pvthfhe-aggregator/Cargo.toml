@@ -21,6 +21,7 @@ thiserror = "1"
 [dev-dependencies]
 tokio = { version = "1", features = ["rt", "macros", "test-util"] }
 rand = "0.8"
+criterion = { version = "0.5", features = ["html_reports"] }
 
 [features]
 real-folding = []
@@ -54,3 +55,7 @@ required-features = ["real-folding"]
 name = "e2e_real"
 path = "tests/e2e_real.rs"
 required-features = ["real-verifier"]
+
+[[bench]]
+name = "aggregate_1024"
+harness = false

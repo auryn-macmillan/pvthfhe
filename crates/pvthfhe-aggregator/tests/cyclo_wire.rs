@@ -1,3 +1,5 @@
+//! Basic wiring test for the Cyclo folding adapter.
+
 use pvthfhe_aggregator::folding::CycloFoldingAdapter;
 
 #[test]

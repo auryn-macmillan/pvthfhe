@@ -1,5 +1,9 @@
+//! Smoke test for F9 aggregate_1024 support.
+#![allow(missing_docs)]
+
 use pvthfhe_aggregator::folding::CycloFoldingAdapter;
 use pvthfhe_cyclo::CcsPShareInstance;
+use pvthfhe_cyclo::CycloError;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use sha2::{Digest, Sha256};
@@ -29,20 +33,36 @@ fn make_share(participant_id: u16) -> CcsPShareInstance {
     }
 }
 
-#[test]
-fn aggregate_1024_smoke_completes_within_wall_time_cap() {
+fn run_aggregate_smoke(
+) -> Result<(pvthfhe_aggregator::folding::CycloFoldAllReport, u128), CycloError> {
     let adapter = CycloFoldingAdapter::new();
     let shares: Vec<CcsPShareInstance> = (1..=N_SHARES).map(make_share).collect();
     let mut rng = StdRng::from_seed([0xA5; 32]);
 
     let start = Instant::now();
-    let result = adapter.fold_all(&shares, "aggregate-1024-smoke", &mut rng);
+    let report = adapter.fold_all(&shares, "aggregate-1024-smoke", &mut rng)?;
     let wall_ms = start.elapsed().as_millis();
+    adapter.verify_fold_all(&report, &shares)?;
 
+    Ok((report, wall_ms))
+}
+
+#[test]
+fn aggregate_1024_smoke_completes_within_wall_time_cap() {
+    let result = run_aggregate_smoke();
     assert!(
         result.is_ok(),
-        "aggregating 1024 per-share NIZKs should succeed end-to-end"
+        "aggregate_1024 smoke should succeed: {:?}",
+        result.err()
     );
+    let (report, wall_ms) = match result {
+        Ok(result) => result,
+        Err(_) => return,
+    };
+
+    assert_eq!(report.share_count(), usize::from(N_SHARES));
+    assert_eq!(report.batch_size(), 10);
+    assert_eq!(report.batch_count(), 103);
     assert!(
         wall_ms <= WALL_TIME_CAP_MS,
         "aggregation exceeded wall-time cap: {wall_ms}ms > {WALL_TIME_CAP_MS}ms"

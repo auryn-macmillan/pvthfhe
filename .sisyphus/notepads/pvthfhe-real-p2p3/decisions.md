@@ -1,0 +1,1 @@
+- 2026-05-04 F9: preserved the locked Cyclo backend parameters by implementing aggregator-side batch orchestration instead of modifying `pvthfhe-cyclo` fold internals or raising `sequential_t` above 10.

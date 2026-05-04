@@ -12,6 +12,7 @@
 
 pub mod adapter;
 pub mod ccs_encode;
+pub mod extension;
 pub mod range_check;
 pub mod ring;
 

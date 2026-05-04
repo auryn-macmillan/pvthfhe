@@ -38,6 +38,12 @@ fn hash_bytes(data: &[u8]) -> [u8; 32] {
 
 impl KeygenSimulator {
     pub fn new(n_parties: usize, threshold: usize, backend: MockBackend) -> Self {
+        if std::env::var("PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK").as_deref() != Ok("1") {
+            panic!(
+                "PVTHFHE: mock backend requires PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK=1 \
+                 to be set in the environment."
+            );
+        }
         Self {
             n_parties,
             _threshold: threshold,

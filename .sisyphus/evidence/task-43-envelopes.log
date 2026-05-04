@@ -1,19 +1,15 @@
-    Blocking waiting for file lock on package cache
-    Blocking waiting for file lock on package cache
-    Blocking waiting for file lock on package cache
-    Blocking waiting for file lock on artifact directory
-    Finished `release` profile [optimized] target(s) in 0.19s
+    Finished `release` profile [optimized] target(s) in 0.05s
      Running `target/release/bench_scaling`
 Benchmarking n=128...
   wrote bench/results/scaling-n128.json
-  mean=1.57ms median=1.48ms p99=1.90ms stddev=0.17ms snark=2752B gas=1278
+  mean=1.58ms median=1.48ms p99=1.99ms stddev=0.21ms snark=2752B gas=1278
 Benchmarking n=256...
   wrote bench/results/scaling-n256.json
-  mean=6.55ms median=5.71ms p99=8.24ms stddev=1.23ms snark=5472B gas=1278
+  mean=7.87ms median=7.76ms p99=9.32ms stddev=0.81ms snark=5472B gas=1278
 Benchmarking n=512...
   wrote bench/results/scaling-n512.json
-  mean=40.49ms median=41.74ms p99=44.73ms stddev=3.64ms snark=10944B gas=1278
+  mean=48.63ms median=48.52ms p99=50.19ms stddev=1.11ms snark=10944B gas=1278
 Benchmarking n=1024...
   wrote bench/results/scaling-n1024.json
-  mean=174.03ms median=162.10ms p99=202.83ms stddev=17.77ms snark=21856B gas=1278
+  mean=198.47ms median=200.40ms p99=207.86ms stddev=6.91ms snark=21856B gas=1278
 Done.

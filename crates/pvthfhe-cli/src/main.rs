@@ -10,11 +10,13 @@ use rand::SeedableRng;
 use sha2::{Digest, Sha256};
 use tracing::{info, warn};
 
+#[cfg(feature = "mock")]
 use pvthfhe_aggregator::{
     decrypt::{aggregate_decrypt, partial_decrypt},
     folding::{FoldingAccumulator, PartyProof},
     keygen::simulator::{KeygenResult, KeygenSimulator},
 };
+#[cfg(feature = "mock")]
 use pvthfhe_fhe::{mock::MockBackend, FheBackend};
 
 /// PVTHFHE command-line interface.
@@ -134,7 +136,17 @@ fn main() -> anyhow::Result<()> {
             println!("verify: proof={proof} (stub)");
         }
         Commands::Demo { n, seed } => {
+            #[cfg(feature = "mock")]
             run_demo(n, seed)?;
+            #[cfg(not(feature = "mock"))]
+            {
+                let _ = (n, seed);
+                anyhow::bail!(
+                    "demo requires the `mock` feature and \
+                     PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK=1 env var; \
+                     rebuild with --features mock"
+                );
+            }
         }
     }
 
@@ -142,6 +154,7 @@ fn main() -> anyhow::Result<()> {
 }
 
 /// Run the full demo pipeline with `n` parties and deterministic `seed`.
+#[cfg(feature = "mock")]
 fn run_demo(n: usize, seed: u64) -> anyhow::Result<()> {
     info!(n, seed, "starting demo pipeline");
     println!("demo: n={n} seed={seed}");
@@ -285,6 +298,7 @@ fn run_demo(n: usize, seed: u64) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "mock")]
 fn sha256_bytes(data: &[u8]) -> [u8; 32] {
     let mut h = Sha256::new();
     h.update(data);

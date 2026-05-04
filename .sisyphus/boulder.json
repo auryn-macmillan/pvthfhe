@@ -1,96 +1,41 @@
 {
-  "active_plan": "/home/dev/pvthfhe/.sisyphus/plans/pvt-fhe-scaling.md",
-  "started_at": "2026-05-02T11:15:15.082Z",
+  "active_plan": "/home/dev/pvthfhe/.sisyphus/plans/redteam-stage0-killswitch.md",
+  "started_at": "2026-05-04T22:50:44.610Z",
   "session_ids": [
-    "ses_219ed884effeD7S91DU3bc6IJe",
-    "ses_21113b96effeYk9PtFa6UgbxFh",
-    "ses_21113949fffedpN73B9MEPykt6",
-    "ses_211135f0fffeJuaK9m2SrFm8m5",
-    "ses_21113239fffeka5A3q432qoi1h",
-    "ses_210f6ac90ffehxB4FUtI4Wtbey",
-    "ses_210f682baffe4ac5PY25ZW74yh",
-    "ses_210f6543bffeAKTJyyi3zBd8Jg",
-    "ses_210f62145ffeLoGd6P00UK2CVQ",
-    "ses_210d9dd67ffeSlq9gYczpKSgxh",
-    "ses_20b9922a2ffen5oTUmHMB2RT5f",
-    "ses_20b98d16affe1pZXw8RZoN20JJ"
+    "ses_219ed884effeD7S91DU3bc6IJe"
   ],
   "session_origins": {
-    "ses_219ed884effeD7S91DU3bc6IJe": "direct",
-    "ses_21113b96effeYk9PtFa6UgbxFh": "appended",
-    "ses_21113949fffedpN73B9MEPykt6": "appended",
-    "ses_211135f0fffeJuaK9m2SrFm8m5": "appended",
-    "ses_21113239fffeka5A3q432qoi1h": "appended",
-    "ses_210f6ac90ffehxB4FUtI4Wtbey": "appended",
-    "ses_210f682baffe4ac5PY25ZW74yh": "appended",
-    "ses_210f6543bffeAKTJyyi3zBd8Jg": "appended",
-    "ses_210f62145ffeLoGd6P00UK2CVQ": "appended",
-    "ses_210d9dd67ffeSlq9gYczpKSgxh": "appended",
-    "ses_20b9922a2ffen5oTUmHMB2RT5f": "appended",
-    "ses_20b98d16affe1pZXw8RZoN20JJ": "appended"
+    "ses_219ed884effeD7S91DU3bc6IJe": "direct"
   },
-  "plan_name": "pvt-fhe-scaling",
+  "plan_name": "redteam-stage0-killswitch",
   "agent": "atlas",
   "task_sessions": {
+    "todo:0": {
+      "task_key": "todo:0",
+      "task_label": "0",
+      "task_title": "**Quarantine Suspect F1–F4 APPROVE Evidence**",
+      "session_id": "ses_20acefd45ffe4C7iMKhqkIDD23",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-04T22:53:54.697Z"
+    },
     "todo:1": {
       "task_key": "todo:1",
       "task_label": "1",
-      "task_title": "**T1: Repo bootstrap + Justfile + CI skeleton + AGENTS.md**",
-      "session_id": "ses_2179765e1ffeV166JdaXPJYeaC",
+      "task_title": "**Repo-Wide Big-Banner Disclosure**",
+      "session_id": "ses_20acc5989ffemfs9GC99BMKfyY",
       "agent": "Sisyphus-Junior",
-      "category": "quick",
-      "updated_at": "2026-05-02T11:21:46.609Z"
+      "category": "writing",
+      "updated_at": "2026-05-04T22:56:10.136Z"
     },
     "todo:2": {
       "task_key": "todo:2",
       "task_label": "2",
-      "task_title": "**T2: Threat model + assumptions ledger**",
-      "session_id": "ses_210894c89ffeXLX5RJt3HYdq7w",
-      "agent": "oracle",
-      "updated_at": "2026-05-03T20:10:46.156Z"
-    },
-    "todo:18": {
-      "task_key": "todo:18",
-      "task_label": "18",
-      "task_title": "**SURROGATE Retirement OR Dead-Code Proof**",
-      "session_id": "ses_2114683f9ffe6wiTfgIm1TEk08",
+      "task_title": "**Compile-Time Surrogate Tripwire**",
+      "session_id": "ses_20aca8c52ffepbkAphmC1RaC6r",
       "agent": "Sisyphus-Junior",
       "category": "unspecified-high",
-      "updated_at": "2026-05-03T17:02:17.642Z"
-    },
-    "final-wave:f1": {
-      "task_key": "final-wave:f1",
-      "task_label": "F1",
-      "task_title": "**Plan Compliance Audit** — `oracle`",
-      "session_id": "ses_2108766faffeyGuLaiKXVwsga9",
-      "agent": "oracle",
-      "updated_at": "2026-05-03T20:13:51.686Z"
-    },
-    "final-wave:f2": {
-      "task_key": "final-wave:f2",
-      "task_label": "F2",
-      "task_title": "**Code Quality & Crypto-Slop Review** — `unspecified-high`",
-      "session_id": "ses_21084581dffeuyLfCQwxBHJNmB",
-      "agent": "Sisyphus-Junior",
-      "category": "unspecified-high",
-      "updated_at": "2026-05-03T20:16:43.972Z"
-    },
-    "final-wave:f3": {
-      "task_key": "final-wave:f3",
-      "task_label": "F3",
-      "task_title": "**Real Manual QA** — `unspecified-high`",
-      "session_id": "ses_2108312bfffeV2Q266ql8xGr4p",
-      "agent": "Sisyphus-Junior",
-      "category": "unspecified-high",
-      "updated_at": "2026-05-03T20:18:00.267Z"
-    },
-    "final-wave:f4": {
-      "task_key": "final-wave:f4",
-      "task_label": "F4",
-      "task_title": "**Scope Fidelity Check** — `deep`",
-      "session_id": "ses_2107c5809ffeTj9qni39Ko20iF",
-      "agent": "oracle",
-      "updated_at": "2026-05-03T20:28:09.854Z"
+      "updated_at": "2026-05-04T23:00:38.164Z"
     }
   }
 }

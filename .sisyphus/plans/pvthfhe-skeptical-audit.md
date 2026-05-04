@@ -1329,19 +1329,19 @@ Max Concurrent: 8 (Wave 1)
 >
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
   Read this plan end-to-end. For each "Must Have": verify deliverable exists (read evidence file, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Verify all evidence files exist in `.sisyphus/evidence/`. Cross-check every TODO acceptance criterion against actual artifacts.
   Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
   Run `just phase1-gate`, `just phase2-gate`, `just phase3-gate`, `cargo clippy --all-targets -- -D warnings`, `forge test --root contracts`. Review every changed file for: any new `#[allow(clippy::...)]`, `as any`/`@ts-ignore`, empty catches, commented-out code, AI slop (over-abstraction, generic names, excessive comments).
   Output: `Gates [N/3 pass] | Clippy [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
   From clean state, execute EVERY adversarial test added in Wave 3 (T15, T16) plus the P3 vacuity test (T1). Re-run all canonical Noir+BB flows for affected circuits. Verify each evidence file in `.sisyphus/evidence/audit-*` is non-empty and parseable. Save outputs to `.sisyphus/evidence/final-qa/`.
   Output: `Adversarial Tests [N/N pass] | Evidence Files [N/N valid] | BB Verify [N/N] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
   For each task: read "What to do", read actual diff (`git log/diff`). Verify 1:1 — everything in spec was built (no missing), nothing beyond spec was built (no creep). Check "Must NOT Have" compliance. Detect cross-task contamination. Verify per-axis verdicts (Impl × Proof × Test) are present for every P1–P4 row in `audit-matrix.md` (no scalar collapse).
   Output: `Tasks [N/N compliant] | Per-Axis [N/4 constructions] | Contamination [CLEAN/N issues] | VERDICT`
 

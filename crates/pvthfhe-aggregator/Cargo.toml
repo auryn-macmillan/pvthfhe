@@ -8,7 +8,7 @@ edition = "2021"
 workspace = true
 
 [dependencies]
-pvthfhe-fhe = { path = "../pvthfhe-fhe", features = ["mock"] }
+pvthfhe-fhe = { path = "../pvthfhe-fhe" }
 pvthfhe-cyclo = { path = "../pvthfhe-cyclo" }
 tokio = { version = "1", features = ["rt", "macros"] }
 sha2 = "0.10"
@@ -28,6 +28,7 @@ real-folding = []
 real-verifier = ["real-folding"]
 real-pvss = []
 real-nizk = []
+mock = ["pvthfhe-fhe/mock"]
 
 [[test]]
 name = "cyclo_wire"

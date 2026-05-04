@@ -60,3 +60,10 @@ Replace stubs in place. Never delete and recreate a stub file.
 4. `bb verify --scheme ultra_honk -k target/vk -p target/proof -i target/public_inputs`
 
 Forbidden: `nargo prove`, `nargo verify`.
+
+## Backend Lock (F1, 2026-05-04)
+
+FHE backend: **`gnosisguild/fhe.rs`** (locked in F1).
+Ring backend for Cyclo folding: **`fhe-math`** from the same repo (git rev pinned in `crates/pvthfhe-cyclo/Cargo.toml`).
+Decision recorded: `.sisyphus/design/spec-real-p2p3.md §4.1 addendum`.
+

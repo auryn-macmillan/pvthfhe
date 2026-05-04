@@ -261,6 +261,12 @@ PVTHFHE constraints in `nizk-selection.md` §6.4:
 | Sequential depth T | **10** (= ⌈log₂(1024)⌉) | cyclo-digest.md §6.3; norm explosion risk at L≥2 |
 | Initial norm B_Cyclo | **2^10** | cyclo-digest.md Table 2 |
 
+> **Backend lock (F1)**: Ring arithmetic for Cyclo folding uses
+> `fhe-math` from `gnosisguild/fhe.rs` (git rev pinned in `pvthfhe-cyclo/Cargo.toml`).
+> `q_commit = 562_949_953_438_721` (50-bit prime, already used by pvthfhe-nizk).
+> `beta_at_t_10 = 1344` (= 1024 + 10·2·16); verifier checks `norm_bound ≤ beta_at_t`,
+> not `norm_bound ≤ B`.
+
 ### 4.2 Aggregation Strategy
 
 - **n = 1024 per-share NIZKs** each produce a CCS instance over R_{q_commit}.

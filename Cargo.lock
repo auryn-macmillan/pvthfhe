@@ -1284,6 +1284,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "pvthfhe-cyclo"
+version = "0.1.0"
+dependencies = [
+ "fhe-math",
+ "pvthfhe-nizk",
+ "rand_chacha 0.3.1",
+ "rand_core 0.6.4",
+ "sha2",
+ "thiserror",
+]
+
+[[package]]
 name = "pvthfhe-enclave-adapter"
 version = "0.1.0"
 dependencies = [

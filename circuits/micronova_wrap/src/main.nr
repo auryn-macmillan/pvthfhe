@@ -7,13 +7,8 @@ fn main(
     participant_set_hash: pub Field,
     d_commitment: pub Field,
 ) {
-    assert(ciphertext_hash == ciphertext_hash);
-    assert(plaintext_hash == plaintext_hash);
-    assert(aggregate_pk_hash == aggregate_pk_hash);
-    assert(dkg_root == dkg_root);
-    assert(epoch == epoch);
-    assert(participant_set_hash == participant_set_hash);
-    assert(d_commitment == d_commitment);
+    // SURROGATE: replace with real circuit in Stage 1
+    assert(false, "SURROGATE: micronova_wrap circuit is a placeholder — do not use for production");
 }
 
 #[test]

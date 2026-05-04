@@ -17,6 +17,9 @@ use crate::{
 /// Returns `Err(CycloError::NormBoundExceeded { got, max })` if any coefficient
 /// exceeds `bound`.
 pub fn check_range(poly: &RqPoly, bound: u64) -> Result<(), CycloError> {
-    let _ = (poly, bound);
+    let got = norm_inf(poly);
+    if got > bound {
+        return Err(CycloError::NormBoundExceeded { got, max: bound });
+    }
     Ok(())
 }

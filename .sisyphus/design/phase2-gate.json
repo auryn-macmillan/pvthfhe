@@ -1,7 +1,7 @@
 {
   "schema_version": "1",
   "gate": "phase2",
-  "timestamp": "2026-05-03T17:37:34Z",
+  "timestamp": "2026-05-04T19:11:30Z",
   "status": "PASS",
   "checks": [
     {
@@ -38,6 +38,16 @@
       "id": "lit_refresh_no_blocking",
       "status": "PASS",
       "detail": "No BLOCKING+undecided lines in lit-refresh-2.md"
+    },
+    {
+      "id": "cyclo_tests",
+      "status": "PASS",
+      "detail": "cargo test -p pvthfhe-cyclo passed"
+    },
+    {
+      "id": "aggregate_1024_smoke",
+      "status": "PASS",
+      "detail": "cargo test -p pvthfhe-aggregator --test aggregate_1024_smoke passed and bench/results/aggregate_1024.json exists"
     },
     {
       "id": "cargo_check",

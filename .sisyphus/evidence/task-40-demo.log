@@ -1,160 +1,165 @@
-   Compiling pvthfhe-fhe v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-fhe)
-   Compiling pvthfhe-aggregator v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-aggregator)
-   Compiling pvthfhe-cli v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-cli)
-    Finished `release` profile [optimized] target(s) in 1.69s
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Finished `release` profile [optimized] target(s) in 0.19s
      Running `target/release/pvthfhe-cli demo --n 128 --seed 1`
-[2m2026-05-03T17:34:24.636417Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m starting demo pipeline [3mn[0m[2m=[0m128 [3mseed[0m[2m=[0m1
+[2m2026-05-04T19:12:59.101330Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m starting demo pipeline [3mn[0m[2m=[0m128 [3mseed[0m[2m=[0m1
 demo: n=128 seed=1
-[2m2026-05-03T17:34:24.636436Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m step 1/5: keygen [3mn[0m[2m=[0m128 [3mthreshold[0m[2m=[0m65
+[2m2026-05-04T19:12:59.101350Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m step 1/5: keygen [3mn[0m[2m=[0m128 [3mthreshold[0m[2m=[0m65
 step 1/5: keygen  n=128 threshold=65
-[2m2026-05-03T17:34:24.638195Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m keygen complete [3mparties[0m[2m=[0m128
+[2m2026-05-04T19:12:59.101353Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m banner: P1 NIZK: conditional soundness only
+[2m2026-05-04T19:12:59.101354Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m backend_id_p2: cyclo-rlwe-t10-lemma9-heuristic
+[2m2026-05-04T19:12:59.101355Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m backend_id_p3: ultra-honk-micronova
+banner: P1 NIZK: conditional soundness only
+backend_id_p2: cyclo-rlwe-t10-lemma9-heuristic
+backend_id_p3: ultra-honk-micronova
+[2m2026-05-04T19:12:59.103285Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m keygen complete [3mparties[0m[2m=[0m128
 keygen: COMPLETE  parties=128
-[2m2026-05-03T17:34:24.638206Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m aggregate public key [sk: REDACTED] [3mpk_hash[0m[2m=[0mdf3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119
+[2m2026-05-04T19:12:59.103297Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m aggregate public key [sk: REDACTED] [3mpk_hash[0m[2m=[0mdf3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119
 aggregate_pk_hash: df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119
-[2m2026-05-03T17:34:24.638210Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m step 2/5: encrypt
+[2m2026-05-04T19:12:59.103300Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m step 2/5: encrypt
 step 2/5: encrypt
-[2m2026-05-03T17:34:24.638225Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m ciphertext produced [3mct_hash[0m[2m=[0m8666cab5e3c4f411d1fdea87cf26ce6a3cfc58f28993715d02671bde3c29a48c
+[2m2026-05-04T19:12:59.103316Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m ciphertext produced [3mct_hash[0m[2m=[0m8666cab5e3c4f411d1fdea87cf26ce6a3cfc58f28993715d02671bde3c29a48c
 ciphertext_hash: 8666cab5e3c4f411d1fdea87cf26ce6a3cfc58f28993715d02671bde3c29a48c
-[2m2026-05-03T17:34:24.638232Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m step 3/5: partial decrypt
+[2m2026-05-04T19:12:59.103320Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m step 3/5: partial decrypt
 step 3/5: partial-decrypt
-[2m2026-05-03T17:34:24.638235Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m0
-[2m2026-05-03T17:34:24.638238Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m1
-[2m2026-05-03T17:34:24.638239Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m2
-[2m2026-05-03T17:34:24.638240Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m3
-[2m2026-05-03T17:34:24.638240Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m4
-[2m2026-05-03T17:34:24.638353Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m5
-[2m2026-05-03T17:34:24.638360Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m6
-[2m2026-05-03T17:34:24.638364Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m7
-[2m2026-05-03T17:34:24.638365Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m8
-[2m2026-05-03T17:34:24.638366Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m9
-[2m2026-05-03T17:34:24.638367Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m10
-[2m2026-05-03T17:34:24.638367Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m11
-[2m2026-05-03T17:34:24.638368Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m12
-[2m2026-05-03T17:34:24.638369Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m13
-[2m2026-05-03T17:34:24.638369Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m14
-[2m2026-05-03T17:34:24.638370Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m15
-[2m2026-05-03T17:34:24.638371Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m16
-[2m2026-05-03T17:34:24.638372Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m17
-[2m2026-05-03T17:34:24.638372Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m18
-[2m2026-05-03T17:34:24.638373Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m19
-[2m2026-05-03T17:34:24.638374Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m20
-[2m2026-05-03T17:34:24.638374Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m21
-[2m2026-05-03T17:34:24.638375Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m22
-[2m2026-05-03T17:34:24.638376Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m23
-[2m2026-05-03T17:34:24.638377Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m24
-[2m2026-05-03T17:34:24.638377Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m25
-[2m2026-05-03T17:34:24.638378Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m26
-[2m2026-05-03T17:34:24.638379Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m27
-[2m2026-05-03T17:34:24.638379Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m28
-[2m2026-05-03T17:34:24.638380Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m29
-[2m2026-05-03T17:34:24.638381Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m30
-[2m2026-05-03T17:34:24.638381Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m31
-[2m2026-05-03T17:34:24.638382Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m32
-[2m2026-05-03T17:34:24.638383Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m33
-[2m2026-05-03T17:34:24.638384Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m34
-[2m2026-05-03T17:34:24.638384Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m35
-[2m2026-05-03T17:34:24.638385Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m36
-[2m2026-05-03T17:34:24.638386Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m37
-[2m2026-05-03T17:34:24.638387Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m38
-[2m2026-05-03T17:34:24.638393Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m39
-[2m2026-05-03T17:34:24.638396Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m40
-[2m2026-05-03T17:34:24.638398Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m41
-[2m2026-05-03T17:34:24.638398Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m42
-[2m2026-05-03T17:34:24.638399Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m43
-[2m2026-05-03T17:34:24.638400Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m44
-[2m2026-05-03T17:34:24.638400Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m45
-[2m2026-05-03T17:34:24.638401Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m46
-[2m2026-05-03T17:34:24.638402Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m47
-[2m2026-05-03T17:34:24.638403Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m48
-[2m2026-05-03T17:34:24.638404Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m49
-[2m2026-05-03T17:34:24.638404Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m50
-[2m2026-05-03T17:34:24.638405Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m51
-[2m2026-05-03T17:34:24.638406Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m52
-[2m2026-05-03T17:34:24.638406Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m53
-[2m2026-05-03T17:34:24.638407Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m54
-[2m2026-05-03T17:34:24.638408Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m55
-[2m2026-05-03T17:34:24.638409Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m56
-[2m2026-05-03T17:34:24.638415Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m57
-[2m2026-05-03T17:34:24.638418Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m58
-[2m2026-05-03T17:34:24.638419Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m59
-[2m2026-05-03T17:34:24.638420Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m60
-[2m2026-05-03T17:34:24.638421Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m61
-[2m2026-05-03T17:34:24.638421Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m62
-[2m2026-05-03T17:34:24.638422Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m63
-[2m2026-05-03T17:34:24.638423Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m64
-[2m2026-05-03T17:34:24.638424Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m65
-[2m2026-05-03T17:34:24.638425Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m66
-[2m2026-05-03T17:34:24.638426Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m67
-[2m2026-05-03T17:34:24.638426Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m68
-[2m2026-05-03T17:34:24.638427Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m69
-[2m2026-05-03T17:34:24.638428Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m70
-[2m2026-05-03T17:34:24.638429Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m71
-[2m2026-05-03T17:34:24.638429Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m72
-[2m2026-05-03T17:34:24.638430Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m73
-[2m2026-05-03T17:34:24.638431Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m74
-[2m2026-05-03T17:34:24.638431Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m75
-[2m2026-05-03T17:34:24.638432Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m76
-[2m2026-05-03T17:34:24.638433Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m77
-[2m2026-05-03T17:34:24.638433Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m78
-[2m2026-05-03T17:34:24.638434Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m79
-[2m2026-05-03T17:34:24.638435Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m80
-[2m2026-05-03T17:34:24.638435Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m81
-[2m2026-05-03T17:34:24.638436Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m82
-[2m2026-05-03T17:34:24.638437Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m83
-[2m2026-05-03T17:34:24.638437Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m84
-[2m2026-05-03T17:34:24.638438Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m85
-[2m2026-05-03T17:34:24.638439Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m86
-[2m2026-05-03T17:34:24.638440Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m87
-[2m2026-05-03T17:34:24.638441Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m88
-[2m2026-05-03T17:34:24.638441Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m89
-[2m2026-05-03T17:34:24.638442Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m90
-[2m2026-05-03T17:34:24.638443Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m91
-[2m2026-05-03T17:34:24.638443Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m92
-[2m2026-05-03T17:34:24.638444Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m93
-[2m2026-05-03T17:34:24.638445Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m94
-[2m2026-05-03T17:34:24.638445Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m95
-[2m2026-05-03T17:34:24.638446Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m96
-[2m2026-05-03T17:34:24.638447Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m97
-[2m2026-05-03T17:34:24.638447Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m98
-[2m2026-05-03T17:34:24.638448Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m99
-[2m2026-05-03T17:34:24.638449Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m100
-[2m2026-05-03T17:34:24.638452Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m101
-[2m2026-05-03T17:34:24.638453Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m102
-[2m2026-05-03T17:34:24.638454Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m103
-[2m2026-05-03T17:34:24.638454Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m104
-[2m2026-05-03T17:34:24.638455Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m105
-[2m2026-05-03T17:34:24.638456Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m106
-[2m2026-05-03T17:34:24.638456Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m107
-[2m2026-05-03T17:34:24.638457Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m108
-[2m2026-05-03T17:34:24.638458Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m109
-[2m2026-05-03T17:34:24.638458Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m110
-[2m2026-05-03T17:34:24.638459Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m111
-[2m2026-05-03T17:34:24.638460Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m112
-[2m2026-05-03T17:34:24.638460Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m113
-[2m2026-05-03T17:34:24.638461Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m114
-[2m2026-05-03T17:34:24.638462Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m115
-[2m2026-05-03T17:34:24.638462Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m116
-[2m2026-05-03T17:34:24.638463Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m117
-[2m2026-05-03T17:34:24.638464Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m118
-[2m2026-05-03T17:34:24.638464Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m119
-[2m2026-05-03T17:34:24.638465Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m120
-[2m2026-05-03T17:34:24.638466Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m121
-[2m2026-05-03T17:34:24.638466Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m122
-[2m2026-05-03T17:34:24.638467Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m123
-[2m2026-05-03T17:34:24.638468Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m124
-[2m2026-05-03T17:34:24.638468Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m125
-[2m2026-05-03T17:34:24.638472Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m126
-[2m2026-05-03T17:34:24.638472Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m127
+[2m2026-05-04T19:12:59.103322Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m0
+[2m2026-05-04T19:12:59.103325Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m1
+[2m2026-05-04T19:12:59.103325Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m2
+[2m2026-05-04T19:12:59.103326Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m3
+[2m2026-05-04T19:12:59.103327Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m4
+[2m2026-05-04T19:12:59.103434Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m5
+[2m2026-05-04T19:12:59.103440Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m6
+[2m2026-05-04T19:12:59.103441Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m7
+[2m2026-05-04T19:12:59.103442Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m8
+[2m2026-05-04T19:12:59.103444Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m9
+[2m2026-05-04T19:12:59.103444Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m10
+[2m2026-05-04T19:12:59.103445Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m11
+[2m2026-05-04T19:12:59.103446Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m12
+[2m2026-05-04T19:12:59.103447Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m13
+[2m2026-05-04T19:12:59.103448Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m14
+[2m2026-05-04T19:12:59.103448Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m15
+[2m2026-05-04T19:12:59.103449Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m16
+[2m2026-05-04T19:12:59.103450Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m17
+[2m2026-05-04T19:12:59.103451Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m18
+[2m2026-05-04T19:12:59.103452Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m19
+[2m2026-05-04T19:12:59.103452Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m20
+[2m2026-05-04T19:12:59.103453Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m21
+[2m2026-05-04T19:12:59.103454Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m22
+[2m2026-05-04T19:12:59.103455Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m23
+[2m2026-05-04T19:12:59.103456Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m24
+[2m2026-05-04T19:12:59.103457Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m25
+[2m2026-05-04T19:12:59.103457Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m26
+[2m2026-05-04T19:12:59.103458Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m27
+[2m2026-05-04T19:12:59.103459Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m28
+[2m2026-05-04T19:12:59.103460Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m29
+[2m2026-05-04T19:12:59.103461Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m30
+[2m2026-05-04T19:12:59.103461Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m31
+[2m2026-05-04T19:12:59.103462Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m32
+[2m2026-05-04T19:12:59.103463Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m33
+[2m2026-05-04T19:12:59.103464Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m34
+[2m2026-05-04T19:12:59.103466Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m35
+[2m2026-05-04T19:12:59.103466Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m36
+[2m2026-05-04T19:12:59.103467Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m37
+[2m2026-05-04T19:12:59.103468Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m38
+[2m2026-05-04T19:12:59.103469Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m39
+[2m2026-05-04T19:12:59.103469Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m40
+[2m2026-05-04T19:12:59.103470Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m41
+[2m2026-05-04T19:12:59.103471Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m42
+[2m2026-05-04T19:12:59.103472Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m43
+[2m2026-05-04T19:12:59.103472Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m44
+[2m2026-05-04T19:12:59.103473Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m45
+[2m2026-05-04T19:12:59.103474Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m46
+[2m2026-05-04T19:12:59.103474Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m47
+[2m2026-05-04T19:12:59.103475Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m48
+[2m2026-05-04T19:12:59.103476Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m49
+[2m2026-05-04T19:12:59.103477Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m50
+[2m2026-05-04T19:12:59.103477Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m51
+[2m2026-05-04T19:12:59.103478Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m52
+[2m2026-05-04T19:12:59.103479Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m53
+[2m2026-05-04T19:12:59.103479Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m54
+[2m2026-05-04T19:12:59.103480Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m55
+[2m2026-05-04T19:12:59.103481Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m56
+[2m2026-05-04T19:12:59.103482Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m57
+[2m2026-05-04T19:12:59.103482Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m58
+[2m2026-05-04T19:12:59.103483Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m59
+[2m2026-05-04T19:12:59.103484Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m60
+[2m2026-05-04T19:12:59.103484Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m61
+[2m2026-05-04T19:12:59.103485Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m62
+[2m2026-05-04T19:12:59.103486Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m63
+[2m2026-05-04T19:12:59.103487Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m64
+[2m2026-05-04T19:12:59.103488Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m65
+[2m2026-05-04T19:12:59.103489Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m66
+[2m2026-05-04T19:12:59.103489Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m67
+[2m2026-05-04T19:12:59.103490Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m68
+[2m2026-05-04T19:12:59.103491Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m69
+[2m2026-05-04T19:12:59.103492Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m70
+[2m2026-05-04T19:12:59.103492Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m71
+[2m2026-05-04T19:12:59.103493Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m72
+[2m2026-05-04T19:12:59.103494Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m73
+[2m2026-05-04T19:12:59.103494Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m74
+[2m2026-05-04T19:12:59.103495Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m75
+[2m2026-05-04T19:12:59.103496Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m76
+[2m2026-05-04T19:12:59.103496Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m77
+[2m2026-05-04T19:12:59.103497Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m78
+[2m2026-05-04T19:12:59.103498Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m79
+[2m2026-05-04T19:12:59.103499Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m80
+[2m2026-05-04T19:12:59.103499Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m81
+[2m2026-05-04T19:12:59.103500Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m82
+[2m2026-05-04T19:12:59.103501Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m83
+[2m2026-05-04T19:12:59.103501Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m84
+[2m2026-05-04T19:12:59.103502Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m85
+[2m2026-05-04T19:12:59.103503Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m86
+[2m2026-05-04T19:12:59.103503Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m87
+[2m2026-05-04T19:12:59.103504Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m88
+[2m2026-05-04T19:12:59.103505Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m89
+[2m2026-05-04T19:12:59.103506Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m90
+[2m2026-05-04T19:12:59.103506Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m91
+[2m2026-05-04T19:12:59.103507Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m92
+[2m2026-05-04T19:12:59.103508Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m93
+[2m2026-05-04T19:12:59.103509Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m94
+[2m2026-05-04T19:12:59.103509Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m95
+[2m2026-05-04T19:12:59.103510Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m96
+[2m2026-05-04T19:12:59.103511Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m97
+[2m2026-05-04T19:12:59.103511Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m98
+[2m2026-05-04T19:12:59.103512Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m99
+[2m2026-05-04T19:12:59.103513Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m100
+[2m2026-05-04T19:12:59.103514Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m101
+[2m2026-05-04T19:12:59.103514Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m102
+[2m2026-05-04T19:12:59.103515Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m103
+[2m2026-05-04T19:12:59.103516Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m104
+[2m2026-05-04T19:12:59.103516Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m105
+[2m2026-05-04T19:12:59.103517Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m106
+[2m2026-05-04T19:12:59.103518Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m107
+[2m2026-05-04T19:12:59.103519Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m108
+[2m2026-05-04T19:12:59.103519Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m109
+[2m2026-05-04T19:12:59.103520Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m110
+[2m2026-05-04T19:12:59.103521Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m111
+[2m2026-05-04T19:12:59.103521Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m112
+[2m2026-05-04T19:12:59.103522Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m113
+[2m2026-05-04T19:12:59.103523Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m114
+[2m2026-05-04T19:12:59.103523Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m115
+[2m2026-05-04T19:12:59.103524Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m116
+[2m2026-05-04T19:12:59.103525Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m117
+[2m2026-05-04T19:12:59.103526Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m118
+[2m2026-05-04T19:12:59.103526Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m119
+[2m2026-05-04T19:12:59.103527Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m120
+[2m2026-05-04T19:12:59.103528Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m121
+[2m2026-05-04T19:12:59.103529Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m122
+[2m2026-05-04T19:12:59.103530Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m123
+[2m2026-05-04T19:12:59.103530Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m124
+[2m2026-05-04T19:12:59.103531Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m125
+[2m2026-05-04T19:12:59.103532Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m126
+[2m2026-05-04T19:12:59.103532Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m partial decrypt share produced [3mparty_id[0m[2m=[0m127
 partial_decrypt: 128 shares collected
-[2m2026-05-03T17:34:24.638474Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m step 4/5: aggregate decrypt
+[2m2026-05-04T19:12:59.103534Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m step 4/5: aggregate decrypt
 step 4/5: aggregate-decrypt
-[2m2026-05-03T17:34:24.638485Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m plaintext round-trip: OK
+[2m2026-05-04T19:12:59.103544Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m plaintext round-trip: OK
 plaintext_roundtrip: OK
-[2m2026-05-03T17:34:24.638489Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m step 5/5: folding accumulator
+[2m2026-05-04T19:12:59.103545Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m step 5/5: folding accumulator
 step 5/5: folding
-[2m2026-05-03T17:34:24.638505Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m final snark produced [3mproof_size[0m[2m=[0m32 [3mprover_time_ms[0m[2m=[0m0 [3mproof_hash[0m[2m=[0m53b46cdd3731d65d92c38c3abb7ed852290016075cd7381b3c100348cddcc666
+[2m2026-05-04T19:12:59.103576Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m final snark produced [3mproof_size[0m[2m=[0m32 [3mprover_time_ms[0m[2m=[0m0 [3mproof_hash[0m[2m=[0m53b46cdd3731d65d92c38c3abb7ed852290016075cd7381b3c100348cddcc666
 snark_proof_hash: 53b46cdd3731d65d92c38c3abb7ed852290016075cd7381b3c100348cddcc666
 snark_proof_size_bytes: 32
 snark_prover_time_ms: 0
 verify: ACCEPT
-[2m2026-05-03T17:34:24.638513Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m demo complete: ACCEPT
+[2m2026-05-04T19:12:59.103583Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m demo complete: ACCEPT

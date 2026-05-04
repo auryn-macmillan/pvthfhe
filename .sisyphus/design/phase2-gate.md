@@ -1,7 +1,7 @@
 # Phase 2 Gate Report
 
 **Status**: PASS
-**Date**: 2026-05-03T17:37:34Z
+**Date**: 2026-05-04T19:11:30Z
 
 ## Checks
 
@@ -14,6 +14,8 @@
 | boundary_coverage | PASS | Success: All 12 boundary entries present with valid primary assignments |
 | oracle_dispositions | PASS | All findings ADDRESSED |
 | lit_refresh_no_blocking | PASS | No BLOCKING+undecided lines in lit-refresh-2.md |
+| cyclo_tests | PASS | cargo test -p pvthfhe-cyclo passed |
+| aggregate_1024_smoke | PASS | cargo test -p pvthfhe-aggregator --test aggregate_1024_smoke passed and bench/results/aggregate_1024.json exists |
 | cargo_check | PASS | cargo check --workspace passed |
 
 ## Summary

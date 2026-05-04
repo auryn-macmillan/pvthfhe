@@ -74,6 +74,16 @@ The P4 Hermine-adapted PVSS design memo fixes the Rust-side cryptographic and se
 
 These pins cover the frozen serde/JSON wire format, SHA-256 transcript digests, SHAKE256 transcript challenges, the native Rust Fiat-Shamir transcript layer, and the approved zkVM fallbacks.
 
+## KZG SRS
+
+The MicroNova tests bind to a local BN254 KZG SRS stub at `bench/srs/bn254.srs`.
+
+- **Provenance**: research-prototype placeholder; replace with a real universal BN254 SRS via `bench/scripts/fetch_srs.sh`
+- **Stub size**: 52 bytes
+- **SHA-256**: `a4b591ff765bb642dd9950db30568f220c0e86c8c390241bf048fab234399d3a`
+
+The test suite only checks that the artifact exists and is non-empty; real KZG parsing is deferred to later tasks.
+
 ## Artifact Reproduction (Paper Claims)
 
 To reproduce the core paper claims in one command:

@@ -1,5 +1,7 @@
 //! RED tests for Cyclo verifier R1CS sizing.
 
+use std::{fs, path::PathBuf};
+
 use pvthfhe_cyclo::{driver::fold_all, fold::verify_fold, CcsPShareInstance};
 use pvthfhe_micronova::r1cs_encode::{
     check_cyclo_verifier_satisfied, cyclo_verifier_witness, encode_cyclo_verifier,
@@ -58,11 +60,33 @@ fn honest_accumulator() -> (
     (session_id, instances, accumulator)
 }
 
+fn results_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../bench/results/r1cs_size.json")
+}
+
+fn write_result_file(num_constraints: usize) {
+    let path = results_path();
+    let parent = path
+        .parent()
+        .expect("results file should have parent directory");
+    fs::create_dir_all(parent).expect("bench/results directory should be creatable");
+    let status = if num_constraints <= MAX_ALLOWED_CONSTRAINTS {
+        "pass"
+    } else {
+        "fail"
+    };
+    let payload = format!(
+        "{{\"num_constraints\": {num_constraints}, \"max_allowed\": {MAX_ALLOWED_CONSTRAINTS}, \"status\": \"{status}\"}}\n"
+    );
+    fs::write(path, payload).expect("r1cs size result should be written");
+}
+
 #[test]
 fn r1cs_constraint_count_is_within_budget() {
     let (_, _, accumulator) = honest_accumulator();
 
     let r1cs = encode_cyclo_verifier(&accumulator);
+    write_result_file(r1cs.num_constraints);
 
     assert!(
         r1cs.num_constraints <= MAX_ALLOWED_CONSTRAINTS,

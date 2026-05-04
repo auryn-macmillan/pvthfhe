@@ -12,6 +12,7 @@
 
 pub mod adapter;
 pub mod ccs_encode;
+pub mod range_check;
 pub mod ring;
 
 /// Backend identifier for the Cyclo LatticeFold+ implementation.

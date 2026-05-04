@@ -3,13 +3,6 @@
 
 use pvthfhe_aggregator::folding::{FoldingAccumulator, FoldingError, PartyProof};
 
-fn ok<T, E: std::fmt::Debug>(r: Result<T, E>, ctx: &str) -> T {
-    match r {
-        Ok(v) => v,
-        Err(e) => unreachable!("{ctx}: {e:?}"),
-    }
-}
-
 #[test]
 fn test_folding_tamper() {
     let mut accumulator = FoldingAccumulator::new();

@@ -105,6 +105,53 @@ paper-build:
 phase0-gate:
     python3 .sisyphus/scripts/phase0-gate.py
 
+stage0-gate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    echo "=== Stage 0 Gate: re-running raw verification ==="
+
+    # Check 1: quarantine — final-qa/ must not contain f1-f4 JSONs
+    echo "[1] Checking quarantine..."
+    count=$(ls .sisyphus/evidence/final-qa/ 2>/dev/null | grep -cE '^f[1-4].*\.json$' || true)
+    [ "$count" -eq 0 ] || { echo "FAIL: f1-f4 JSONs still in final-qa/"; exit 1; }
+
+    # Check 2: DO-NOT-DEPLOY banner in README
+    echo "[2] Checking banners..."
+    head -15 README.md | grep -q "DO NOT DEPLOY" || { echo "FAIL: README missing DO NOT DEPLOY banner"; exit 1; }
+    head -15 ARCHITECTURE.md | grep -q "DO NOT DEPLOY" || { echo "FAIL: ARCHITECTURE.md missing banner"; exit 1; }
+    head -15 SECURITY.md | grep -q "DO NOT DEPLOY" || { echo "FAIL: SECURITY.md missing banner"; exit 1; }
+
+    # Check 3: SURROGATE ACTIVE on cargo build
+    echo "[3] Checking cargo surrogate tripwire..."
+    cargo build -p pvthfhe-fhe -q 2>&1 | grep -q "SURROGATE ACTIVE" || { echo "FAIL: cargo build missing SURROGATE ACTIVE warning"; exit 1; }
+
+    # Check 4: no mock in default features
+    echo "[4] Checking mock feature gates..."
+    grep -E '^default\s*=.*mock' crates/pvthfhe-fhe/Cargo.toml && { echo "FAIL: mock in pvthfhe-fhe default features"; exit 1; } || true
+
+    # Check 5: PvtFheVerifier has no return-true path
+    echo "[5] Checking PvtFheVerifier hard-revert..."
+    count=$(grep -cE 'return\s+true|return\s+_honkVerifier' contracts/src/PvtFheVerifier.sol || true)
+    [ "$count" -eq 0 ] || { echo "FAIL: PvtFheVerifier still has vacuous accept path"; exit 1; }
+
+    # Check 6: no tautological assert(x==x) in Noir circuits
+    echo "[6] Checking Noir circuit hard-revert..."
+    count=$(grep -rE 'assert\(([a-zA-Z_]+)\s*==\s*\1\)' circuits/ --exclude-dir=target | wc -l || true)
+    [ "$count" -eq 0 ] || { echo "FAIL: tautological assert(x==x) still present in circuits/"; exit 1; }
+
+    # Check 7: forge tests pass
+    echo "[7] Running forge tests..."
+    forge test --root contracts 2>&1 | grep -qE '[0-9]+ tests? passed' || { echo "FAIL: forge tests did not pass"; exit 1; }
+
+    # Check 8: advisory draft exists with STATUS: DRAFT
+    echo "[8] Checking advisory draft..."
+    grep -q "STATUS: DRAFT" SECURITY-ADVISORY-001.md || { echo "FAIL: SECURITY-ADVISORY-001.md missing STATUS: DRAFT"; exit 1; }
+
+    echo ""
+    echo "=== Stage 0 Gate: ALL CHECKS PASSED ==="
+    echo "Ready to proceed to Stage 1 (with user acknowledgement)."
+
 p4-research-gate:
     python3 .sisyphus/scripts/p4-research-gate.py
 

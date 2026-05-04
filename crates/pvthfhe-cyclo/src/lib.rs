@@ -12,6 +12,7 @@
 
 pub mod adapter;
 pub mod ccs_encode;
+pub mod driver;
 pub mod extension;
 pub mod fold;
 pub mod range_check;

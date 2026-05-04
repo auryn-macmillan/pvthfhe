@@ -31,6 +31,20 @@ bench-scaling:
 verify-onchain:
     mkdir -p .sisyphus/evidence
     forge test --root contracts --match-contract PvtFheVerifierE2ETest --gas-report 2>&1 | tee .sisyphus/evidence/task-39-forge.log | python3 .sisyphus/scripts/check-gas.py | tee .sisyphus/evidence/task-39-gas.log
+    # O5: bb UltraHonk verify — honest proof accepted
+    bb verify --scheme ultra_honk \
+        -k circuits/micronova_wrap/target/vk \
+        -p circuits/micronova_wrap/target/proof \
+        -i circuits/micronova_wrap/target/public_inputs
+    # O5: tampered proof rejected
+    cp circuits/micronova_wrap/target/proof /tmp/proof_tampered_verify_onchain
+    printf '\xde\xad\xbe\xef' | dd of=/tmp/proof_tampered_verify_onchain bs=1 seek=10 conv=notrunc 2>/dev/null
+    bb verify --scheme ultra_honk \
+        -k circuits/micronova_wrap/target/vk \
+        -p /tmp/proof_tampered_verify_onchain \
+        -i circuits/micronova_wrap/target/public_inputs \
+        && exit 1 || true
+    @echo "O5: honest proof accepted, tampered proof rejected — PASS"
 
 bench-backend-compare:
     @echo "not implemented"

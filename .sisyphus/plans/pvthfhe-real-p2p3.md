@@ -838,7 +838,7 @@ A1, A2 (after M3), A3 (after F8+O7) — parallel admin tasks
 - [x] F4: T1 range-check sub-protocol rejects all out-of-bound witnesses
 - [x] F5: T2 extension sub-protocol correct on 100 random CCS instances
 - [x] F6: T3 fold sub-protocol produces valid accumulator; tampered accumulator rejected
-- [ ] F7: T=10 sequential driver; β_T ≤ 2^10 enforced
+- [x] F7: T=10 sequential driver; β_T ≤ 2^10 enforced
 - [ ] F8: `SurrogateAdapter` removed; `backend_id` = `"cyclo-rlwe-t10"`; full workspace green
 - [ ] F9: n=1024 aggregation within wall-time cap; bench recorded
 - [ ] F10: Cyclo Lemma 9 heuristic banner in API + SECURITY.md

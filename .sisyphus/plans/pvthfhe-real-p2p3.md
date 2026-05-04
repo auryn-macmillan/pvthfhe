@@ -831,7 +831,7 @@ A1, A2 (after M3), A3 (after F8+O7) — parallel admin tasks
 - [x] N5: Fiat-Shamir transcript with locked domain separator (spec §3.6)
 - [x] N6: `RealNizkAdapter` in `pvthfhe-fhe` wired to new backend; `backend_id` = `"cyclo-ajtai-d2-conditional"`
 - [x] N7: `NizkError::ConditionalSoundness` variant; rustdoc + README badge + SECURITY.md banner
-- [ ] N8: 6+ adversarial NIZK scenarios pass; `just phase1-gate` exits 0
+- [x] N8: 6+ adversarial NIZK scenarios pass; `just phase1-gate` exits 0
 - [ ] F1: `pvthfhe-cyclo` crate created; ring backend locked and documented
 - [ ] F2: NTT + norm arithmetic over R_{q_commit} correct on 500 random inputs
 - [ ] F3: CCS instance encoding for one share passes satisfiability check

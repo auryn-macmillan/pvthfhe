@@ -8,10 +8,12 @@ fn make_valid_instance() -> CcsPShareInstance {
     let public_io = b"public_io_data_for_the_instance!".to_vec();
     let witness = b"witness_bytes_for_ccs_relation!!!".to_vec();
 
-    // sha256_binding = SHA256(ajtai ∥ public_io ∥ witness)
+    // sha256_binding = SHA256(SHA256(ajtai) ∥ SHA256(public_io) ∥ witness)
+    let ajtai_hash: [u8; 32] = Sha256::new().chain_update(&ajtai).finalize().into();
+    let public_io_hash: [u8; 32] = Sha256::new().chain_update(&public_io).finalize().into();
     let binding: [u8; 32] = Sha256::new()
-        .chain_update(&ajtai)
-        .chain_update(&public_io)
+        .chain_update(ajtai_hash)
+        .chain_update(public_io_hash)
         .chain_update(&witness)
         .finalize()
         .into();

@@ -1,0 +1,7 @@
+[package]
+name = "micronova_wrap"
+type = "bin"
+authors = [""]
+compiler_version = ">=0.36.0"
+
+[dependencies]

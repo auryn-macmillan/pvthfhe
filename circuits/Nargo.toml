@@ -3,5 +3,6 @@ members = [
     "share_wf",
     "decrypt_share",
     "aggregator_final",
+    "micronova_wrap",
     "bench/rlwe_relation",
 ]

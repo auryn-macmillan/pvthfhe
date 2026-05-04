@@ -110,7 +110,7 @@ fn to_nizk_stmt(stmt: &NizkStatement) -> pvthfhe_nizk::NizkStatement {
         ciphertext_bytes: stmt.ciphertext_bytes.clone(),
         decrypt_share_bytes: stmt.decrypt_share_bytes.clone(),
         pvss_commitment: stmt.pvss_commitment,
-        params: stmt.params,
+        params: (stmt.params.0, pvthfhe_nizk::sigma::RLWE_N, stmt.params.2),
         session_id: stmt.session_id.clone(),
         participant_id: stmt.participant_id,
     }

@@ -74,6 +74,11 @@ impl NizkAdapter for CycloNizkAdapter {
 
         let d_rns = sigma::compute_d_rns(&c_rns, &s_i, &e_i)?;
 
+        let ajtai_commitment = compute_ajtai_commitment(&ccs_id, &s_i)?;
+        let ajtai_bytes = serialize_ajtai_commitment(&ajtai_commitment);
+
+        let sigma_binding = ajtai_sigma_session_binding(stmt.session_id.as_bytes(), &ajtai_bytes);
+
         let sigma_stmt = SigmaStatement {
             c_rns,
             d_rns: d_rns.clone(),
@@ -83,14 +88,12 @@ impl NizkAdapter for CycloNizkAdapter {
             e_i,
         };
         let sigma_proof = sigma::prove(
-            stmt.session_id.as_bytes(),
+            &sigma_binding,
             u32::from(stmt.participant_id),
             &sigma_stmt,
             &sigma_wit,
             rng,
         )?;
-
-        let ajtai_commitment = compute_ajtai_commitment(&ccs_id, &s_i)?;
 
         let hash_commitment =
             hash_bridge::commit(&stmt.session_id, stmt.participant_id, witness.secret_share);
@@ -133,7 +136,7 @@ impl NizkAdapter for CycloNizkAdapter {
             return Err(NizkError::VerificationFailed("ccs_instance_id mismatch"));
         }
 
-        cur.skip(26_624)?;
+        let ajtai_commitment_bytes = cur.read_exact(26_624)?.to_vec();
 
         let session_id_encoded = cur.read_len_prefixed_bytes()?;
         let encoded_pid = cur.read_u16()?;
@@ -160,8 +163,11 @@ impl NizkAdapter for CycloNizkAdapter {
         let c_rns = expand_c_rns(&ccs_id)?;
         let sigma_stmt = SigmaStatement { c_rns, d_rns };
 
+        let sigma_binding =
+            ajtai_sigma_session_binding(stmt.session_id.as_bytes(), &ajtai_commitment_bytes);
+
         sigma::verify(
-            stmt.session_id.as_bytes(),
+            &sigma_binding,
             u32::from(stmt.participant_id),
             &sigma_stmt,
             &sigma_proof,
@@ -195,6 +201,11 @@ fn validate_statement(stmt: &NizkStatement) -> Result<(), NizkError> {
     }
     if stmt.params.1 == 0 {
         return Err(NizkError::InvalidInput("ring degree must be non-zero"));
+    }
+    if stmt.params.1 != RLWE_N {
+        return Err(NizkError::InvalidInput(
+            "ring degree must equal RLWE_N=8192",
+        ));
     }
     if stmt.session_id.is_empty() {
         return Err(NizkError::InvalidInput("session_id must be non-empty"));
@@ -270,6 +281,24 @@ fn pad_or_truncate_to_rlwe_n(v: &[i64]) -> Vec<i64> {
     let mut out = vec![0i64; RLWE_N];
     let take = v.len().min(RLWE_N);
     out[..take].copy_from_slice(&v[..take]);
+    out
+}
+
+fn ajtai_sigma_session_binding(session_id: &[u8], ajtai_bytes: &[u8]) -> Vec<u8> {
+    use sha2::{Digest, Sha256};
+    let mut h = Sha256::new();
+    h.update(session_id);
+    h.update(ajtai_bytes);
+    h.finalize().to_vec()
+}
+
+fn serialize_ajtai_commitment(ajtai: &AjtaiCommitment) -> Vec<u8> {
+    let mut out = Vec::with_capacity(26_624);
+    for elem in &ajtai.elems {
+        for &c in &elem.coeffs {
+            out.extend_from_slice(&c.to_le_bytes());
+        }
+    }
     out
 }
 

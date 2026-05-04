@@ -1,1 +1,3 @@
 - 2026-05-04 F9: preserved the locked Cyclo backend parameters by implementing aggregator-side batch orchestration instead of modifying `pvthfhe-cyclo` fold internals or raising `sequential_t` above 10.
+- 2026-05-04 O1: used the exact seven-input `micronova_wrap` public-input shape from the phase-4 spec and chose leading-zero hexadecimal test vectors for four inputs so the values stay within the BN254 field modulus while remaining distinct and non-zero.
+- 2026-05-04 O2: kept the canonical AGENTS.md step-1 command unchanged for witness generation, then copied the resulting workspace-level `circuits/target/micronova_wrap.{json,gz}` files into `circuits/micronova_wrap/target/` instead of changing Noir package layout or circuit code.

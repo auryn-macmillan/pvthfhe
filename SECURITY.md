@@ -31,7 +31,7 @@ This is a research prototype and contains components where formal soundness proo
 
 - **P1 (CRITICAL)**: **Lattice NIZK Soundness**. P1 (CRITICAL): Per-share RLWE NIZK knowledge soundness is conditional on (a) Module-SIS hardness over R_{q_commit}, (b) Cyclo Theorem 3 soundness (ePrint 2026/359), and (c) collision resistance of SHA-256 for the P4 commitment domain. Formal joint-extractor proof (T2) is deferred. Any relying party must treat per-share proofs as computationally binding under these assumptions only.
 - **P2 (HIGH)**: **LatticeFold+ Linearity**. The real Cyclo LatticeFold+ backend (`cyclo-rlwe-t10-lemma9-heuristic`) is now active in the aggregator (F8). Soundness remains conditional on M-SIS hardness over R_{q_commit}, Cyclo Theorem 3 (ePrint 2026/359), and the Lemma 9 invertibility heuristic; the joint extractor (T2) is a skeleton.
-- **P3 (MEDIUM)**: **MicroNova-lattice Encoding**. The encoding efficiency of lattice relations into MicroNova-compatible structures is an active area of research.
+- **P3 (MEDIUM)**: **MicroNova-lattice Encoding**. The trusted-signer `ecrecover` surrogate has been removed from `P3RealVerifier`. The contract now delegates to `UltraHonkVerifier`, which adapts the frozen 200-byte public-input ABI to the prototype `generated/HonkVerifier.sol` backend while Barretenberg `write_solidity_verifier` remains blocked by the current VK size mismatch (`expected 1888, got 3680`). This preserves interface shape but does not yet provide a fully BB-generated Solidity verifier for the production VK.
 
 ## Smudging
 

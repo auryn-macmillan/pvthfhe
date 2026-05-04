@@ -15,6 +15,8 @@ phase3-gate:
     python3 .sisyphus/scripts/phase3-gate.py
 
 demo-e2e:
+    @echo "*** SURROGATE ACTIVE: build contains cryptographic surrogates — do not deploy ***"
+    @echo "*** Surrogates: HonkVerifier, micronova_wrap, aggregator_final               ***"
     @echo "********************************************************************************"
     @echo "* ⚠️  DO NOT DEPLOY — RESEARCH PROTOTYPE ONLY                                   *"
     @echo "*                                                                              *"

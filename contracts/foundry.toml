@@ -2,6 +2,8 @@
 src = "src"
 out = "out"
 libs = ["lib"]
+# Disable compiler cache so that surrogate-active warnings always appear on every `forge build`
+cache = false
 fs_permissions = [
     { access = "read", path = "test/goldens" },
     { access = "read", path = "src" },

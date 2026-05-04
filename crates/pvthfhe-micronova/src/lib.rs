@@ -9,6 +9,7 @@ pub mod cycle;
 pub mod hash_bridge;
 pub mod r1cs_encode;
 
+use pvthfhe_cyclo::CycloAccumulator;
 use thiserror::Error;
 
 /// Placeholder prover entry point for the future MicroNova backend.
@@ -41,14 +42,27 @@ pub enum MicroNovaError {
     /// The real MicroNova prover is intentionally deferred to later tasks.
     #[error("MicroNova prover scaffold is not implemented yet")]
     Unimplemented,
+    /// The proof bytes do not match the supplied accumulator and R1CS instance.
+    #[error("MicroNova proof is invalid for the supplied accumulator and R1CS instance")]
+    InvalidProof,
 }
 
 impl MicroNovaProver {
     /// Attempt to produce a compressed MicroNova proof.
-    ///
-    /// Task M1 intentionally returns [`MicroNovaError::Unimplemented`] while the
-    /// real BN254/Grumpkin IVC backend is still open.
-    pub fn prove(_r1cs: &R1csInstance, _witness: &[u8]) -> Result<MicroNovaProof, MicroNovaError> {
+    pub fn prove(
+        _r1cs: &R1csInstance,
+        _accumulator: &CycloAccumulator,
+    ) -> Result<MicroNovaProof, MicroNovaError> {
+        Err(MicroNovaError::Unimplemented)
+    }
+
+    /// Verify a compressed MicroNova proof against the supplied accumulator and
+    /// R1CS instance.
+    pub fn verify(
+        _proof: &MicroNovaProof,
+        _accumulator: &CycloAccumulator,
+        _r1cs: &R1csInstance,
+    ) -> Result<(), MicroNovaError> {
         Err(MicroNovaError::Unimplemented)
     }
 }

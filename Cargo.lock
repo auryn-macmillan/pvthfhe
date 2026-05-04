@@ -1324,7 +1324,9 @@ dependencies = [
 name = "pvthfhe-nizk"
 version = "0.1.0"
 dependencies = [
+ "fhe-math",
  "hex",
+ "num-bigint",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
  "sha2",

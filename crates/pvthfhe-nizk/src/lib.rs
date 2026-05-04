@@ -16,6 +16,7 @@
 
 pub mod ajtai;
 pub mod hash_bridge;
+pub mod sigma;
 
 use thiserror::Error;
 

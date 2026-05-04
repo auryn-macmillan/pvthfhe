@@ -1,15 +1,8 @@
 //! `pvthfhe-keygen` — P4 keygen adapter crate.
 //!
 //! This crate provides the `KeygenAdapter` trait that bridges the frozen
-//! P4 interface (from `pvthfhe-keygen-spec`) to the real Hermine-adapted
-//! PVSS implementation (deferred to T4).
-//!
-//! # Feature flags
-//!
-//! * `migration-stub` — enables the `SurrogateAdapter` stub implementation.
-//!   CI always builds with this flag until the surrogate coordinator in
-//!   `pvthfhe-aggregator` is replaced by the real `HermineAdapter` (Step M4 of
-//!   the migration plan).
+//! P4 interface (from `pvthfhe-keygen-spec`) to the `HermineAdapter`
+//! PVSS implementation.
 
 #![deny(missing_docs)]
 
@@ -112,8 +105,7 @@ pub struct BFVPublicKey {
 }
 
 /// Adapter trait that decouples the aggregator coordinator from the concrete
-/// PVSS back-end.  Implementors are `SurrogateAdapter` (feature `migration-stub`)
-/// and the future `HermineAdapter` (T4).
+/// PVSS back-end.  The real implementation is `HermineAdapter`.
 pub trait KeygenAdapter: Send + Sync {
     /// Creates a new keygen session for the given participants and threshold.
     fn generate_session(
@@ -149,102 +141,4 @@ pub trait KeygenAdapter: Send + Sync {
 
     /// Reconstructs the BFV public key from a quorum of shares.
     fn reconstruct_bfv_key(&self, shares: &[Share]) -> Result<BFVPublicKey, KeygenError>;
-}
-
-/// Stub adapter enabled by the `migration-stub` feature.
-///
-/// All methods return stub/placeholder values and perform no cryptographic
-/// operations.  The surrogate coordinator in `pvthfhe-aggregator` remains the
-/// live code path until Step M4 of the migration plan.
-#[cfg(feature = "migration-stub")]
-pub mod stub {
-    use super::{
-        BFVPublicKey, BlameProof, KeygenAdapter, KeygenError, KeygenSession, Participant,
-        PublicVerificationArtifact, Share,
-    };
-
-    /// Stub implementation of `KeygenAdapter`.  Does nothing real.
-    #[derive(Debug, Default)]
-    pub struct SurrogateAdapter;
-
-    impl KeygenAdapter for SurrogateAdapter {
-        fn generate_session(
-            &self,
-            _participants: &[Participant],
-            threshold: u16,
-        ) -> Result<KeygenSession, KeygenError> {
-            Ok(KeygenSession {
-                session_id: "stub-session".to_owned(),
-                threshold,
-                ..Default::default()
-            })
-        }
-
-        fn generate_shares(
-            &self,
-            session: &KeygenSession,
-            _dealer_id: u16,
-        ) -> Result<(Vec<Share>, PublicVerificationArtifact), KeygenError> {
-            let share = Share {
-                session_id: session.session_id.clone(),
-                threshold: Some(session.threshold),
-                ..Default::default()
-            };
-            let artifact = PublicVerificationArtifact {
-                session_id: session.session_id.clone(),
-                threshold: Some(session.threshold),
-                ..Default::default()
-            };
-            Ok((vec![share], artifact))
-        }
-
-        fn verify_transcript(
-            &self,
-            _artifact: &PublicVerificationArtifact,
-        ) -> Result<bool, KeygenError> {
-            Ok(true)
-        }
-
-        fn public_verify(
-            &self,
-            _artifact: &PublicVerificationArtifact,
-            _shares: &[Share],
-        ) -> Result<bool, KeygenError> {
-            Ok(true)
-        }
-
-        fn blame_dealing(
-            &self,
-            _artifact: &PublicVerificationArtifact,
-            _shares: &[Share],
-        ) -> Result<Option<BlameProof>, KeygenError> {
-            Ok(None)
-        }
-
-        fn reconstruct_bfv_key(&self, _shares: &[Share]) -> Result<BFVPublicKey, KeygenError> {
-            Ok(BFVPublicKey { bytes: vec![] })
-        }
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        fn ok<T, E: std::fmt::Debug>(r: Result<T, E>, ctx: &str) -> T {
-            match r {
-                Ok(v) => v,
-                Err(e) => unreachable!("{ctx}: {e:?}"),
-            }
-        }
-
-        #[test]
-        fn stub_round_trip_compiles_and_runs() {
-            let adapter = SurrogateAdapter;
-            let participants = vec![Participant { id: 1 }, Participant { id: 2 }];
-            let session = ok(adapter.generate_session(&participants, 2), "session");
-            let (_shares, artifact) = ok(adapter.generate_shares(&session, 1), "shares");
-            let valid = ok(adapter.verify_transcript(&artifact), "verify");
-            assert!(valid);
-        }
-    }
 }

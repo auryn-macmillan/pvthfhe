@@ -5,13 +5,6 @@ edition = "2021"
 description = "P4 keygen adapter crate: bridges pvthfhe-keygen-spec interface to real Hermine-adapted PVSS (real impl deferred to T4)."
 license = "MIT"
 
-[features]
-# migration-stub keeps the surrogate code path active until the real HermineAdapter is ready.
-# CI always builds with this feature until Step M4 of the migration plan.
-migration-stub = []
-# surrogate-baseline is an alias for migration-stub (used in CI workspace-wide check).
-surrogate-baseline = ["migration-stub"]
-
 [dependencies]
 sha2 = "0.10"
 

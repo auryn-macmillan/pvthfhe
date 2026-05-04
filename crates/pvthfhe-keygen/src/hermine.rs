@@ -5,8 +5,6 @@
 //! cryptography uses integer Shamir secret sharing over a Mersenne prime field
 //! with SHA-256 commitments — a correctly-structured simulation sufficient for
 //! the A.I.2 milestone (lattice hardness is deferred to T4).
-#![allow(clippy::expect_used)]
-
 use sha2::{Digest, Sha256};
 
 use crate::{
@@ -42,7 +40,8 @@ fn poly_eval(coeffs: &[u64], x: u64) -> u64 {
         result = (result + u128::from(c) * xpow) % u128::from(PRIME);
         xpow = xpow * u128::from(x) % u128::from(PRIME);
     }
-    u64::try_from(result).expect("poly_eval result fits u64 after mod PRIME")
+    u64::try_from(result)
+        .unwrap_or_else(|_| unreachable!("poly_eval result fits u64 after mod PRIME"))
 }
 
 /// Derives a deterministic u64 field element from a SHA-256 hash of the inputs.
@@ -204,7 +203,8 @@ fn lagrange_interpolate(shares: &[(u64, u64)]) -> u64 {
         let term = u128::from(yi) * num % p * den_inv % p;
         secret = (secret + term) % p;
     }
-    u64::try_from(secret).expect("lagrange secret fits u64 after mod PRIME")
+    u64::try_from(secret)
+        .unwrap_or_else(|_| unreachable!("lagrange secret fits u64 after mod PRIME"))
 }
 
 /// Modular exponentiation: computes `base^exp mod modulus`.
@@ -266,7 +266,7 @@ impl KeygenAdapter for HermineAdapter {
                 &session.session_id,
                 dealer_id,
                 b"coeff",
-                u64::try_from(i).expect("polynomial degree fits u64"),
+                u64::try_from(i).unwrap_or_else(|_| unreachable!("polynomial degree fits u64")),
             ));
         }
 
@@ -364,9 +364,7 @@ impl KeygenAdapter for HermineAdapter {
             if s.session_id != *session_id {
                 return Err(KeygenError::new("shares belong to different sessions"));
             }
-            if s.threshold
-                != Some(u16::try_from(threshold).expect("threshold fits u16 by construction"))
-            {
+            if s.threshold.map(usize::from) != Some(threshold) {
                 return Err(KeygenError::new("shares disagree on threshold"));
             }
             let x = u64::from(
@@ -454,17 +452,16 @@ mod hermine_unit_tests {
     }
 
     #[test]
-    fn round_trip_3_of_3() {
+    fn round_trip_3_of_3() -> Result<(), Box<dyn std::error::Error>> {
         let adapter = HermineAdapter::new();
-        let session = adapter
-            .generate_session(&participants(), 2)
-            .expect("session");
-        let (shares, artifact) = adapter.generate_shares(&session, 1).expect("shares");
+        let session = adapter.generate_session(&participants(), 2)?;
+        let (shares, artifact) = adapter.generate_shares(&session, 1)?;
         assert_eq!(shares.len(), 3);
-        let valid = adapter.verify_transcript(&artifact).expect("verify");
+        let valid = adapter.verify_transcript(&artifact)?;
         assert!(valid);
-        let key = adapter.reconstruct_bfv_key(&shares).expect("key");
+        let key = adapter.reconstruct_bfv_key(&shares)?;
         assert_eq!(key.bytes.len(), 8);
+        Ok(())
     }
 
     #[test]

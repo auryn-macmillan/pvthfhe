@@ -82,33 +82,20 @@ contract PvtFheVerifier is IPvthfheVerifier {
     // -------------------------------------------------------------------------
 
     /// @inheritdoc IPvthfheVerifier
-    /// @dev SCAFFOLD: always returns false.
-    ///      Calldata is parsed (all parameters are read) to validate ABI shape.
-    ///      T39 will replace this body with the BB-generated UltraHonk verifier.
+    /// @dev KILLSWITCH (Stage-0 red-team): unconditionally reverts until a
+    ///      sound UltraHonk verifier replaces this body in Stage 1.
+    ///      The previous body allowed ANY proof bytes to pass (C1 vulnerability).
     function verify(
-        bytes32 ciphertextHash,
-        bytes32 plaintextHash,
-        bytes32 aggregatePkHash,
-        bytes32 dkgRoot,
-        uint64  epoch,
-        bytes32 participantSetHash,
-        bytes32 dCommitment,
-        bytes calldata proof
-    ) external view override returns (bool valid) {
-        _touchInputs(
-            ciphertextHash,
-            plaintextHash,
-            aggregatePkHash,
-            dkgRoot,
-            epoch,
-            participantSetHash,
-            dCommitment,
-            proof
-        );
-
-        bytes32[] memory publicInputs = new bytes32[](1);
-        publicInputs[0] = keccak256(proof);
-        return _honkVerifier.verify(proof, publicInputs);
+        bytes32,
+        bytes32,
+        bytes32,
+        bytes32,
+        uint64,
+        bytes32,
+        bytes32,
+        bytes calldata
+    ) external pure override returns (bool) {
+        revert(unicode"PVTHFHE: on-chain verifier is a research surrogate \u2014 do not deploy");
     }
 
     /// @inheritdoc IPvthfheVerifier

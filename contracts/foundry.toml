@@ -4,6 +4,8 @@ out = "out"
 libs = ["lib"]
 # Disable compiler cache so that surrogate-active warnings always appear on every `forge build`
 cache = false
+# Enable IR-based code generation to avoid stack-too-deep on high-arity functions
+via_ir = true
 fs_permissions = [
     { access = "read", path = "test/goldens" },
     { access = "read", path = "src" },

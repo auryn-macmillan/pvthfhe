@@ -156,7 +156,7 @@ Wave 5 (Synthesis & Audit):
 
 ## TODOs
 
-- [ ] 0. **BRANCH-A vs BRANCH-B Decision**
+- [x] 0. **BRANCH-A vs BRANCH-B Decision**
 
   **What to do**:
   - Compare (A) Custom LatticeFold+ implementation vs (B) Off-the-shelf Nova/HyperNova.

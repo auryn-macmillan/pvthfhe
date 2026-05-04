@@ -11,6 +11,7 @@
 //! a skeleton — see `SECURITY.md §P1`.
 
 pub mod adapter;
+pub mod ccs_encode;
 pub mod ring;
 
 /// Backend identifier for the Cyclo LatticeFold+ implementation.

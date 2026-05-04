@@ -13,6 +13,7 @@ members = [
     "crates/pvthfhe-enclave-adapter",
     "crates/pvthfhe-nizk",
     "crates/pvthfhe-cyclo",
+    "crates/pvthfhe-micronova",
 ]
 
 [workspace.lints.rust]

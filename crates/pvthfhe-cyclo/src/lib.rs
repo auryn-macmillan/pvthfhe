@@ -11,6 +11,7 @@
 //! a skeleton — see `SECURITY.md §P1`.
 
 pub mod adapter;
+pub mod ring;
 
 /// Backend identifier for the Cyclo LatticeFold+ implementation.
 pub const CYCLO_BACKEND_ID: &str = "cyclo-rlwe-t10";

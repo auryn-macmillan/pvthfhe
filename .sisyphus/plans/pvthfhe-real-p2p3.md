@@ -836,7 +836,7 @@ A1, A2 (after M3), A3 (after F8+O7) — parallel admin tasks
 - [x] F2: NTT + norm arithmetic over R_{q_commit} correct on 500 random inputs
 - [x] F3: CCS instance encoding for one share passes satisfiability check
 - [x] F4: T1 range-check sub-protocol rejects all out-of-bound witnesses
-- [ ] F5: T2 extension sub-protocol correct on 100 random CCS instances
+- [x] F5: T2 extension sub-protocol correct on 100 random CCS instances
 - [ ] F6: T3 fold sub-protocol produces valid accumulator; tampered accumulator rejected
 - [ ] F7: T=10 sequential driver; β_T ≤ 2^10 enforced
 - [ ] F8: `SurrogateAdapter` removed; `backend_id` = `"cyclo-rlwe-t10"`; full workspace green

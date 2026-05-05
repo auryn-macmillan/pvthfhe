@@ -75,8 +75,14 @@ impl FheBackend for MockBackendInner {
     }
 
     fn aggregate_keygen(&self, shares: &[KeygenShare]) -> Result<PublicKey, FheError> {
+        let mut seen = std::collections::BTreeSet::new();
         let mut acc = vec![0u8; 4];
         for s in shares {
+            if !seen.insert(s.party_id) {
+                return Err(FheError::MalformedKeygenShare {
+                    party_id: s.party_id,
+                });
+            }
             acc = xor_bytes(&acc, &s.bytes);
         }
         Ok(PublicKey { bytes: acc })
@@ -108,6 +114,15 @@ impl FheBackend for MockBackendInner {
         shares: &[DecryptShare],
         threshold: usize,
     ) -> Result<Vec<u8>, FheError> {
+        let mut seen = std::collections::BTreeSet::new();
+        for s in shares {
+            if !seen.insert(s.party_id) {
+                return Err(FheError::MalformedDecryptShare {
+                    party_id: s.party_id,
+                });
+            }
+        }
+
         if shares.len() < threshold {
             return Err(FheError::InsufficientShares {
                 received: shares.len(),
@@ -129,6 +144,39 @@ mod unit_tests {
     use super::*;
 
     const TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\n";
+
+    #[test]
+    fn t11_6_aggregate_decrypt_rejects_duplicate_party_id() {
+        let backend = MockBackendInner::load_params(TOML).unwrap();
+        let ct = Ciphertext {
+            bytes: vec![0xAA; 4],
+        };
+        let share1 = DecryptShare {
+            party_id: 1,
+            bytes: 1u32.to_le_bytes().to_vec(),
+        };
+        let shares = vec![share1.clone(), share1.clone()];
+        let result = backend.aggregate_decrypt(&ct, &shares, 2);
+        assert!(
+            matches!(result, Err(FheError::MalformedDecryptShare { party_id: 1 })),
+            "expected MalformedDecryptShare for duplicate party_id 1, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn t11_6_aggregate_keygen_rejects_duplicate_party_id() {
+        let backend = MockBackendInner::load_params(TOML).unwrap();
+        let share1 = KeygenShare {
+            party_id: 1,
+            bytes: 1u32.to_le_bytes().to_vec(),
+        };
+        let shares = vec![share1.clone(), share1.clone()];
+        let result = backend.aggregate_keygen(&shares);
+        assert!(
+            matches!(result, Err(FheError::MalformedKeygenShare { party_id: 1 })),
+            "expected MalformedKeygenShare for duplicate party_id 1, got: {result:?}"
+        );
+    }
 
     #[test]
     fn parse_params_ok() {

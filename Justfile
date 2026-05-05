@@ -218,3 +218,6 @@ artifact-reproduce:
     cargo build --workspace
     just p3-bench
     just e2e-real
+
+stage1-gate:
+    python3 .sisyphus/scripts/stage1-gate.py

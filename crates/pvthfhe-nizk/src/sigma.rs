@@ -22,6 +22,7 @@
 use fhe_math::rq::{traits::TryConvertFrom, Context, Poly, Representation};
 use rand_core::RngCore;
 use std::sync::{Arc, OnceLock};
+use subtle::ConstantTimeEq;
 
 use crate::fiat_shamir::Transcript;
 use crate::NizkError;
@@ -196,7 +197,13 @@ pub fn verify(
         &stmt.d_rns,
         pvss_commitment,
     );
-    if expected_ch != proof.ch {
+    let expected_ch_bytes: Vec<u8> = expected_ch.iter().flat_map(|x| x.to_le_bytes()).collect();
+    let proof_ch_bytes: Vec<u8> = proof.ch.iter().flat_map(|x| x.to_le_bytes()).collect();
+    if !bool::from(
+        expected_ch_bytes
+            .as_slice()
+            .ct_eq(proof_ch_bytes.as_slice()),
+    ) {
         return Err(NizkError::VerificationFailed("challenge mismatch"));
     }
 

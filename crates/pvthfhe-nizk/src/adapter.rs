@@ -41,6 +41,7 @@ use crate::{NizkAdapter, NizkError, NizkProof, NizkStatement, NizkWitness, BACKE
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
 use sha2::{Digest, Sha256};
+use subtle::ConstantTimeEq;
 
 const PROOF_VERSION: u16 = 0x0001;
 
@@ -190,7 +191,7 @@ impl NizkAdapter for CycloNizkAdapter {
             &stmt.pvss_commitment,
         )?;
 
-        if encoded_commitment != stmt.pvss_commitment {
+        if !bool::from(encoded_commitment.ct_eq(&stmt.pvss_commitment)) {
             return Err(NizkError::VerificationFailed(
                 "pvss_commitment hash binding mismatch",
             ));

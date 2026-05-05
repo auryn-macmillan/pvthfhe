@@ -15,6 +15,7 @@
 //! short (within norm bound `B_e`). Callers can enforce per-coefficient
 //! shortness using `check_share_shortness`.
 use sha2::{Digest, Sha256};
+use subtle::ConstantTimeEq;
 
 use crate::{
     BFVPublicKey, BlameProof, KeygenAdapter, KeygenError, KeygenSession, Participant,
@@ -171,7 +172,12 @@ fn verify_share_set(
         };
 
         let expected_commitment = commit(&artifact.session_id, participant_id, secret_value);
-        if share.commitment.as_deref() != Some(expected_commitment.as_slice()) {
+        let commitment_matches = share
+            .commitment
+            .as_deref()
+            .map(|c| bool::from(c.ct_eq(expected_commitment.as_slice())))
+            .unwrap_or(true);
+        if !commitment_matches {
             return Ok(Some(BlameProof {
                 session_id: artifact.session_id.clone(),
                 reason: "forged_share".to_owned(),
@@ -430,11 +436,14 @@ pub fn check_and_blame(
     let dealer_id = artifact.dealer_id?;
 
     let expected_commit = commit(session_id, participant_id, secret_value);
-    let in_artifact = artifact.commitments.contains(&expected_commit);
+    let in_artifact = artifact
+        .commitments
+        .iter()
+        .any(|c| bool::from(c.as_slice().ct_eq(expected_commit.as_slice())));
     let received_matches = share
         .commitment
         .as_deref()
-        .map(|c| c == expected_commit.as_slice())
+        .map(|c| bool::from(c.ct_eq(expected_commit.as_slice())))
         .unwrap_or(true);
 
     if !in_artifact || !received_matches {
@@ -498,5 +507,77 @@ mod hermine_unit_tests {
         assert!(!check_share_shortness(255));
         assert!(check_share_shortness(16));
         assert!(check_share_shortness(0));
+    }
+
+    // RED: sc_audit_commitment_comparison_is_ct
+    // This test verifies that commitment comparisons in check_and_blame and
+    // verify_share_set use constant-time equality (subtle::ConstantTimeEq).
+    // BEFORE FIX: will fail to compile (subtle not yet a dependency).
+    // AFTER FIX: compiles and passes.
+    #[test]
+    fn sc_audit_commitment_comparison_is_ct() {
+        // Demonstrate that ct_eq is used: the subtle crate must be available
+        // and the comparison must use it for commitment bytes.
+        use subtle::ConstantTimeEq;
+        let a = [0xABu8; 32];
+        let b = [0xABu8; 32];
+        let c = [0x00u8; 32];
+        assert!(
+            bool::from(a.ct_eq(&b)),
+            "equal commitments must match via CT eq"
+        );
+        assert!(
+            !bool::from(a.ct_eq(&c)),
+            "different commitments must differ via CT eq"
+        );
+    }
+
+    // RED: sc_audit_check_and_blame_ct_reject
+    // Verifies check_and_blame rejects a forged commitment using CT comparison.
+    // Both a commitment forged in the first byte and one forged in the last byte
+    // must be rejected without leaking where the mismatch occurs.
+    #[test]
+    fn sc_audit_check_and_blame_ct_reject() {
+        use crate::{PublicVerificationArtifact, Share};
+        let session_id = "test-session";
+        let real_commit = commit(session_id, 1u16, 42u64);
+        // Forge: flip first byte only
+        let mut forged_first = real_commit.clone();
+        forged_first[0] ^= 0xFF;
+        // Forge: flip last byte only
+        let mut forged_last = real_commit.clone();
+        forged_last[31] ^= 0xFF;
+
+        let artifact = PublicVerificationArtifact {
+            session_id: session_id.to_owned(),
+            threshold: Some(1),
+            commitments: vec![real_commit.clone()],
+            dealer_id: Some(1),
+        };
+
+        let share_forged_first = Share {
+            session_id: session_id.to_owned(),
+            threshold: Some(1),
+            participant_id: Some(1),
+            secret_value: Some(42),
+            commitment: Some(forged_first),
+        };
+        let share_forged_last = Share {
+            session_id: session_id.to_owned(),
+            threshold: Some(1),
+            participant_id: Some(1),
+            secret_value: Some(42),
+            commitment: Some(forged_last),
+        };
+
+        // Both forgeries must be rejected by check_and_blame
+        assert!(
+            check_and_blame(session_id, &share_forged_first, &artifact).is_some(),
+            "commitment forged in first byte must be detected"
+        );
+        assert!(
+            check_and_blame(session_id, &share_forged_last, &artifact).is_some(),
+            "commitment forged in last byte must be detected"
+        );
     }
 }

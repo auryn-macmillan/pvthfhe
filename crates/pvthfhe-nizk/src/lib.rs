@@ -30,8 +30,8 @@ pub const BACKEND_ID: &str = "cyclo-ajtai-d2-conditional";
 
 /// Frozen public statement for one per-share lattice NIZK claim.
 ///
-/// TODO(N4): extend with Cyclo CCS instance identifier and Ajtai matrix
-/// parameters once `crates/pvthfhe-nizk/src/ajtai.rs` is implemented.
+/// Phase 2 (N4): will extend with Cyclo CCS instance identifier and Ajtai
+/// matrix parameters when `crates/pvthfhe-nizk/src/ajtai.rs` is implemented.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NizkStatement {
     /// Canonical ciphertext bytes.
@@ -50,7 +50,7 @@ pub struct NizkStatement {
 
 /// Frozen prover witness for one per-share lattice NIZK claim.
 ///
-/// TODO(N4): extend with Cyclo fold witness fields.
+/// Phase 2 (N4): will extend with Cyclo fold witness fields.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NizkWitness {
     /// Secret share value inherited from P4 (scalar u64).
@@ -138,8 +138,8 @@ pub trait NizkAdapter {
     ///
     /// # Security
     ///
-    /// ⚠️ Returns `Ok(())` conditionally — see [`NizkError::ConditionalSoundnessDisclosure`]
-    /// and `SECURITY.md §P1`.
+    /// ⚠️ May return [`NizkError::ConditionalSoundnessDisclosure`] on algebraic success
+    /// — soundness is conditional.
     fn verify(&self, stmt: &NizkStatement, proof: &NizkProof) -> Result<(), NizkError>;
 
     /// Verify a batch of statements and proofs.

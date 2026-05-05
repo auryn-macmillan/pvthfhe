@@ -3,7 +3,7 @@
 > ⚠️  **DO NOT DEPLOY — RESEARCH PROTOTYPE ONLY**
 >
 > This repository contains **critical cryptographic surrogates** that provide no real security:
-> - **no on-chain cryptographic verification — verifier accepts any proof bytes**
+> - **on-chain verifier is a Stage 0 killswitch and reverts on all inputs**
 > - **Noir circuits are tautological surrogates** (assert(x == x) — no real constraints)
 > - **do not use for The Interfold or any production deployment**
 >
@@ -23,7 +23,7 @@ PVTHFHE targets private-verifiable threshold FHE with $O(n)$ per-party work and 
 - **NOT battle-tested.**
 - **Open Problem P1**: Lattice NIZK well-formedness soundness is not formally proven.
 - **Open Problem P2**: LatticeFold+ over RLWE is simulated.
-- **Open Problem P3**: The deployed `P3RealVerifier.sol` uses a **trusted-signer surrogate** (`ecrecover` against a hard-coded key) — it does **not** cryptographically verify the P2 accumulator. Full on-chain soundness is an open implementation task.
+- **Open Problem P3**: The on-chain `PvtFheVerifier` reverts on all inputs (Stage 0 killswitch — see `SECURITY.md`). Full on-chain soundness is an open implementation task.
 
 ## Quickstart
 

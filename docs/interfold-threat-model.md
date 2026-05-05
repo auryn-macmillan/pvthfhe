@@ -30,11 +30,11 @@ This matrix enumerates specific attack scenarios, their mitigations, and current
 
 | # | Adversary Type | Capability | Targeted Asset | Mitigation | Evidence Pointer | Residual Risk |
 |---|----------------|------------|---------------|------------|-----------------|---------------|
-| **A1** | Passive Eavesdropper | Observe all P2P/broadcast traffic | Plaintext data | RLWE hardness + T-IND-CPA | `security-proofs.md §T-IND-CPA` | Traffic analysis (timing/volume) |
+| **A1** | Passive Eavesdropper | Observe all P2P/broadcast traffic | Plaintext data | RLWE hardness + T-IND-CPA (aspirational — Stage 0 killswitch; live implementation deferred to Stage 2) | `security-proofs.md §T-IND-CPA` | Traffic analysis (timing/volume) |
 | **A2** | Corrupt Dealer (DKG) | Distribute malformed or biased shares | Collective public key | Hermine PVSS (T7) + Blame Protocol | `t11.8-adversary-model.md §1.3` | NIZK soundness (P1) |
 | **A3** | Corrupt Minority (< t) | Withhold decryption shares | Protocol liveness | Threshold $t = \lfloor n/2 \rfloor + 1$ | `t11.6-withholding-griefing.md §H1` | Silent withholding attribution |
 | **A4** | Sybil Aggregator | Submit duplicate shares to meet threshold | Integrity of sum | `party_id` deduplication (T11.6) | `t11.6-withholding-griefing.md §C1` | None |
-| **A5** | Malicious Prover | Forge proof of incorrect decryption | On-chain state | LatticeFold+ Soundness (P2) + T-PV-SOUND | `security-proofs.md §T-PV-SOUND` | Open Problems P1, P2, P3 |
+| **A5** | Malicious Prover | Forge proof of incorrect decryption | On-chain state | LatticeFold+ Soundness (P2) + T-PV-SOUND (aspirational — lattice NIZK soundness conditional on Open Problem P1; live proofs deferred to Stage 2) | `security-proofs.md §T-PV-SOUND` | Open Problems P1, P2, P3 |
 | **A6** | Replay Adversary | Replay old DKG or decryption transcripts | `SessionRegistry` state | `epoch` tracking + `markEpochConsumed` (T4) | `t11.7-liveness.md §L1` | None |
 | **A7** | Side-Channel Observer | Measure timing of NIZK verification | Secret share bits | Constant-time comparisons (T11.5) | `t11.5-side-channel-audit.md §1-5` | Micro-architectural leaks |
 | **A8** | Byzantine Node | Submit malformed shares (norm > $B_e$) | Noise budget (DoS) | `check_share_shortness` (T8) | `t11.6-withholding-griefing.md §L1` | Integration into `verify_share_set` |

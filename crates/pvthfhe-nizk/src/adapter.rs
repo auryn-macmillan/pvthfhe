@@ -30,8 +30,8 @@
 //! requires a `SigmaStatement` containing `d_rns`, which the verifier cannot
 //! derive without the witness.  Flag to Prometheus for spec §3.4 update.
 //!
-//! # TODO
-//! TODO(F-series Phase 2): populate `cyclo_accumulator_bytes` with real Cyclo fold transcript bytes.
+//! # Phase 2 Placeholder
+//! Phase 2 (F-series): `cyclo_accumulator_bytes` will be populated with real Cyclo fold transcript bytes.
 
 use crate::ajtai::{AjtaiCommitment, AjtaiMatrix, AjtaiParams, Rq, PHI, Q_COMMIT};
 use crate::hash_bridge;
@@ -403,7 +403,7 @@ fn encode_proof(
     out.extend_from_slice(&sigma_len.to_be_bytes());
     out.extend_from_slice(&sigma_section);
 
-    // TODO(F-series Phase 2): populate with real Cyclo fold transcript bytes.
+    // Phase 2 (F-series): populate with real Cyclo fold transcript bytes.
     out.extend_from_slice(&0u32.to_be_bytes());
 
     Ok(out)

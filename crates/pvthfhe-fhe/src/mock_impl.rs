@@ -57,12 +57,13 @@ pub(crate) fn xor_bytes(a: &[u8], b: &[u8]) -> Vec<u8> {
 }
 
 /// Internal mock backend, always compiled.
+#[cfg(any(feature = "mock", test))]
 #[derive(Clone, Debug)]
 pub struct MockBackendInner {
-    #[allow(dead_code)]
     pub(crate) params: Params,
 }
 
+#[cfg(any(feature = "mock", test))]
 impl FheBackend for MockBackendInner {
     fn load_params(toml: &str) -> Result<Self, FheError> {
         let params = parse_params(toml)?;

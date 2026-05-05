@@ -74,7 +74,7 @@ impl Rq {
 
     /// Schoolbook negacyclic multiplication in `Z_q[X]/(X^256+1)`.
     ///
-    /// TODO(N4): replace with NTT for O(n log n) performance.
+    /// Phase 2 (N4): will replace with NTT for O(n log n) performance.
     pub fn mul(&self, other: &Self) -> Result<Self, NizkError> {
         debug_assert_eq!(self.q, other.q);
         let mut raw = [0_i128; PHI];
@@ -231,7 +231,7 @@ impl AjtaiCommitment {
     ///
     /// Recomputes `A · s'` and compares element-wise with the stored commitment.
     ///
-    /// TODO(N4): replace the coefficient comparison with `subtle::ConstantTimeEq`
+    /// Phase 2 (N4): will replace the coefficient comparison with `subtle::ConstantTimeEq`
     /// to eliminate timing side-channels before production use.
     pub fn verify_open(
         &self,

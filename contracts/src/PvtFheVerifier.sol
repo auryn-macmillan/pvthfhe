@@ -2,6 +2,13 @@
 pragma solidity ^0.8.24;
 
 import "./generated/HonkVerifier.sol";
+import "./SessionRegistry.sol";
+
+/// @title ISessionRegistry
+/// @notice Minimal interface used by PvtFheVerifier to query the session registry.
+interface ISessionRegistry {
+    function sessions(bytes32 dkgRoot) external view returns (uint32 n, uint32 t, bytes32 rosterHash, bool registered);
+}
 
 /// @title IPvthfheVerifier
 /// @notice Interface for the PVTHFHE on-chain verifier (T22 ABI spec).
@@ -69,12 +76,13 @@ contract PvtFheVerifier is IPvthfheVerifier {
     // -------------------------------------------------------------------------
 
     uint32 private constant _RLWE_DEGREE = 8192;
-    uint32 private constant _THRESHOLD = 4097;
 
     HonkVerifier private immutable _honkVerifier;
+    ISessionRegistry public immutable registry;
 
-    constructor() {
+    constructor(address registry_) {
         _honkVerifier = new HonkVerifier();
+        registry = ISessionRegistry(registry_);
     }
 
     // -------------------------------------------------------------------------
@@ -99,8 +107,17 @@ contract PvtFheVerifier is IPvthfheVerifier {
     }
 
     /// @inheritdoc IPvthfheVerifier
+    /// @dev Returns 0 — dynamic threshold is now stored in SessionRegistry per dkgRoot.
+    ///      Use registeredThreshold(dkgRoot) to query the threshold for a specific session.
     function threshold() external pure override returns (uint32) {
-        return _THRESHOLD;
+        return 0;
+    }
+
+    /// @notice Returns the threshold t for a registered session.
+    /// @param dkgRoot The DKG transcript root identifying the session.
+    function registeredThreshold(bytes32 dkgRoot) external view returns (uint32) {
+        (, uint32 t, , ) = registry.sessions(dkgRoot);
+        return t;
     }
 
     /// @inheritdoc IPvthfheVerifier

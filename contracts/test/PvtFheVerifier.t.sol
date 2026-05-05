@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import "forge-std/Test.sol";
 import "../test/BaseVerifierTest.t.sol";
 import "../src/PvtFheVerifier.sol";
+import "../src/SessionRegistry.sol";
 
 /// @title PvtFheVerifierTest
 /// @notice Foundry tests for PvtFheVerifier hard-revert killswitch.
@@ -23,7 +24,8 @@ contract PvtFheVerifierTest is BaseVerifierTest {
 
     function setUp() public override {
         super.setUp();
-        verifier = new PvtFheVerifier();
+        SessionRegistry reg = new SessionRegistry();
+        verifier = new PvtFheVerifier(address(reg));
         // Override sampleProof with a non-empty byte array to exercise proof parsing.
         sampleProof = new bytes(64);
         for (uint256 i = 0; i < 64; i++) {
@@ -114,9 +116,9 @@ contract PvtFheVerifierTest is BaseVerifierTest {
     // 5. Threshold value
     // -------------------------------------------------------------------------
 
-    /// @notice threshold() returns floor(8192/2)+1 = 4097.
+    /// @notice threshold() returns 0 — dynamic threshold is now in SessionRegistry.
     function test_threshold_value() public view {
-        assertEq(verifier.threshold(), 4097, "threshold must be 4097 (floor(N/2)+1)");
+        assertEq(verifier.threshold(), 0, "threshold must be 0 (dynamic, use registeredThreshold)");
     }
 
     // -------------------------------------------------------------------------

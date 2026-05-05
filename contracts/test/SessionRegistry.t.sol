@@ -31,7 +31,7 @@ contract SessionRegistryTest is Test {
     /// @notice After registration, isRegistered returns true.
     function test_registerSession_setsRegistered() public {
         reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
-        (, , , bool registered) = reg.sessions(DKG_ROOT_A);
+        (, , , bool registered, ) = reg.sessions(DKG_ROOT_A);
         assertTrue(registered);
     }
 
@@ -162,5 +162,79 @@ contract SessionRegistryTest is Test {
         reg.markEpochConsumed(DKG_ROOT_A, 1);
         // Session B, same epoch 1 → should NOT revert
         reg.verifySession(DKG_ROOT_B, 1, ROSTER_HASH);
+    }
+
+    // =========================================================================
+    // T11.7 LIVENESS TESTS — abortSession path
+    // =========================================================================
+    // HIGH liveness gap: hermine.rs derives dkgRoot deterministically from
+    // (participant set, threshold) only. If DKG stalls and the same committee
+    // retries, the same dkgRoot is produced → AlreadyRegistered revert →
+    // permanent on-chain deadlock. abortSession unblocks restarts.
+
+    /// @notice RED → GREEN: abortSession emits SessionAborted.
+    function test_liveness_abortSession_emitsEvent() public {
+        reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
+        vm.expectEmit(true, false, false, false);
+        emit SessionRegistry.SessionAborted(DKG_ROOT_A);
+        reg.abortSession(DKG_ROOT_A);
+    }
+
+    /// @notice RED → GREEN: after abortSession, verifySession reverts SessionAbortedError.
+    function test_liveness_abortSession_blocksVerify() public {
+        reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
+        reg.abortSession(DKG_ROOT_A);
+        vm.expectRevert(abi.encodeWithSelector(SessionRegistry.SessionAbortedError.selector, DKG_ROOT_A));
+        reg.verifySession(DKG_ROOT_A, 1, ROSTER_HASH);
+    }
+
+    /// @notice RED → GREEN: after abortSession, markEpochConsumed reverts SessionAbortedError.
+    function test_liveness_abortSession_blocksMarkEpoch() public {
+        reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
+        reg.abortSession(DKG_ROOT_A);
+        vm.expectRevert(abi.encodeWithSelector(SessionRegistry.SessionAbortedError.selector, DKG_ROOT_A));
+        reg.markEpochConsumed(DKG_ROOT_A, 1);
+    }
+
+    /// @notice RED → GREEN: abortSession on unregistered dkgRoot reverts SessionNotFound.
+    function test_liveness_abortSession_rejectsUnregistered() public {
+        vm.expectRevert(abi.encodeWithSelector(SessionRegistry.SessionNotFound.selector, DKG_ROOT_A));
+        reg.abortSession(DKG_ROOT_A);
+    }
+
+    /// @notice RED → GREEN: double abortSession reverts SessionAbortedError.
+    function test_liveness_abortSession_rejectsDoubleAbort() public {
+        reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
+        reg.abortSession(DKG_ROOT_A);
+        vm.expectRevert(abi.encodeWithSelector(SessionRegistry.SessionAbortedError.selector, DKG_ROOT_A));
+        reg.abortSession(DKG_ROOT_A);
+    }
+
+    /// @notice RED → GREEN: the critical liveness fix — same committee can re-register after abort.
+    /// Simulates hermine.rs deterministic dkgRoot: same participants+threshold → same dkgRoot.
+    /// Without abortSession this would permanently deadlock via AlreadyRegistered.
+    function test_liveness_reregisterAfterAbort_unblocksDKGRestart() public {
+        // First DKG attempt
+        reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
+        // DKG stalls off-chain — abort on-chain
+        reg.abortSession(DKG_ROOT_A);
+        // Same committee (same dkgRoot) registers again — must succeed
+        reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
+        // New attempt is active
+        (, , , bool registered, bool aborted) = reg.sessions(DKG_ROOT_A);
+        assertTrue(registered, "session must be registered");
+        assertFalse(aborted, "re-registered session must not be aborted");
+    }
+
+    /// @notice RED → GREEN: epochs consumed in aborted session are NOT reusable after re-register
+    /// (prevents epoch replay across DKG retry rounds).
+    function test_liveness_consumedEpochsNotReusableAfterReregister() public {
+        reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
+        reg.markEpochConsumed(DKG_ROOT_A, 99);
+        reg.abortSession(DKG_ROOT_A);
+        reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
+        // Epoch 99 was consumed before abort — must still be consumed (no replay)
+        vm.expectRevert(abi.encodeWithSelector(SessionRegistry.EpochAlreadyConsumed.selector, DKG_ROOT_A, uint64(99)));
+        reg.markEpochConsumed(DKG_ROOT_A, 99);
     }
 }

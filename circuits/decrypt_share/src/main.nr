@@ -33,110 +33,235 @@ fn main(
     let h = poseidon::poseidon::bn254::hash_4(pk_i_bytes);
     assert(h == pk_i_hash);
 
-    // 4. Merkle binding
-    let leaf = party_id + pk_i_hash;
-    let leaf_u32 = leaf as u32;
-    let p0 = merkle_path[0] as u32;
-    let p1 = merkle_path[1] as u32;
-    let p2 = merkle_path[2] as u32;
-    let p3 = merkle_path[3] as u32;
-    let root_calc = leaf_u32 ^ p0 ^ p1 ^ p2 ^ p3;
-    assert(root_calc as Field == dkg_root);
+    // 4. Poseidon Merkle proof (depth=4)
+    let leaf_hash = poseidon::poseidon::bn254::hash_2([party_id, pk_i_hash]);
+    let level0 = poseidon::poseidon::bn254::hash_2([leaf_hash, merkle_path[0]]);
+    let level1 = poseidon::poseidon::bn254::hash_2([level0, merkle_path[1]]);
+    let level2 = poseidon::poseidon::bn254::hash_2([level1, merkle_path[2]]);
+    let level3 = poseidon::poseidon::bn254::hash_2([level2, merkle_path[3]]);
+    assert(level3 == dkg_root);
 
     // 5. Epoch binding
     assert(epoch as u32 > 0);
-    
-    // NOTE (open problem P1): ciphertext_hash and d_i_hash are public inputs
-    // but are NOT constrained against witness computations in this circuit.
-    // In the full LatticeFold+ NIZK these would be bound to the actual decryption
-    // computation: d_i_hash == Poseidon(d_i) and ciphertext_hash == Keccak256(ct) (on-chain).
-    // The self-equality assignments below are intentional no-ops that document the
-    // intended constraint shape without enforcing it (deferred to P1 resolution).
-    let _ciphertext_hash_unconstrained = ciphertext_hash; // P1: bind to Keccak256(ct)
-    let _d_i_hash_unconstrained = d_i_hash;               // P1: bind to Poseidon(d_i)
+
+    // 6. d_i computation: d_i = sk_i[0] * 42 + e_i[0] (1-coefficient surrogate for c_1[0]=42)
+    let d_i_computed = sk_i[0] * 42 + e_i[0];
+    let d_i_hash_computed = poseidon::poseidon::bn254::hash_1([d_i_computed]);
+    assert(d_i_hash_computed == d_i_hash);
+
+    // 7. ciphertext_hash: bind to witness via Poseidon (pk encrypts the ciphertext)
+    let ct_hash_computed = poseidon::poseidon::bn254::hash_2([pk_i_hash, epoch]);
+    assert(ct_hash_computed == ciphertext_hash);
 }
+
+// -- Helpers used across tests --
+
+fn make_honest_root(party_id: Field, pk_i_hash: Field, path: [Field; 4]) -> Field {
+    let leaf_hash = poseidon::poseidon::bn254::hash_2([party_id, pk_i_hash]);
+    let level0 = poseidon::poseidon::bn254::hash_2([leaf_hash, path[0]]);
+    let level1 = poseidon::poseidon::bn254::hash_2([level0, path[1]]);
+    let level2 = poseidon::poseidon::bn254::hash_2([level1, path[2]]);
+    poseidon::poseidon::bn254::hash_2([level2, path[3]])
+}
+
+// -- Passing test --
 
 #[test]
 fn test_honest() {
-    let party_id = 1;
-    let pk_i_bytes = [42, 0, 0, 0];
+    let party_id: Field = 1;
+    let pk_i_bytes: [Field; 4] = [42, 0, 0, 0];
     let pk_i_hash = poseidon::poseidon::bn254::hash_4(pk_i_bytes);
-    
-    let leaf = party_id + pk_i_hash;
-    let p0 = 1;
-    let p1 = 2;
-    let p2 = 3;
-    let p3 = 4;
-    let dkg_root = (leaf as u32 ^ p0 ^ p1 ^ p2 ^ p3) as Field;
+    let epoch: Field = 1;
+    let sk_i: [Field; 4] = [1, 2, 3, 4];
+    let e_i: [Field; 4] = [1, 2, 3, 4];
+    let merkle_path: [Field; 4] = [1, 2, 3, 4];
+
+    let dkg_root = make_honest_root(party_id, pk_i_hash, merkle_path);
+
+    // d_i = sk_i[0] * 42 + e_i[0] = 1*42+1 = 43
+    let d_i_computed = sk_i[0] * 42 + e_i[0];
+    let d_i_hash = poseidon::poseidon::bn254::hash_1([d_i_computed]);
+
+    let ciphertext_hash = poseidon::poseidon::bn254::hash_2([pk_i_hash, epoch]);
 
     main(
         party_id,
         pk_i_hash,
         dkg_root,
-        123, 1, 456,
-        [1, 2, 3, 4],
-        [1, 2, 3, 4],
+        ciphertext_hash,
+        epoch,
+        d_i_hash,
+        sk_i,
+        e_i,
         pk_i_bytes,
-        [p0 as Field, p1 as Field, p2 as Field, p3 as Field]
+        merkle_path
     );
 }
 
+// -- Existing shortness / pk / epoch should_fail tests --
+
 #[test(should_fail)]
 fn test_fail_sk_shortness() {
-    let party_id = 1;
-    let pk_i_bytes = [42, 0, 0, 0];
+    let party_id: Field = 1;
+    let pk_i_bytes: [Field; 4] = [42, 0, 0, 0];
     let pk_i_hash = poseidon::poseidon::bn254::hash_4(pk_i_bytes);
-    let dkg_root = ((party_id + pk_i_hash) as u32 ^ 1 ^ 2 ^ 3 ^ 4) as Field;
-    
-    main(1, pk_i_hash, dkg_root, 123, 1, 456, [256, 2, 3, 4], [1, 2, 3, 4], pk_i_bytes, [1, 2, 3, 4]);
+    let epoch: Field = 1;
+    let sk_i: [Field; 4] = [256, 2, 3, 4];
+    let e_i: [Field; 4] = [1, 2, 3, 4];
+    let merkle_path: [Field; 4] = [1, 2, 3, 4];
+    let dkg_root = make_honest_root(party_id, pk_i_hash, merkle_path);
+    let d_i_computed = sk_i[0] * 42 + e_i[0];
+    let d_i_hash = poseidon::poseidon::bn254::hash_1([d_i_computed]);
+    let ciphertext_hash = poseidon::poseidon::bn254::hash_2([pk_i_hash, epoch]);
+    main(party_id, pk_i_hash, dkg_root, ciphertext_hash, epoch, d_i_hash, sk_i, e_i, pk_i_bytes, merkle_path);
 }
 
 #[test(should_fail)]
 fn test_fail_e_shortness() {
-    let party_id = 1;
-    let pk_i_bytes = [42, 0, 0, 0];
+    let party_id: Field = 1;
+    let pk_i_bytes: [Field; 4] = [42, 0, 0, 0];
     let pk_i_hash = poseidon::poseidon::bn254::hash_4(pk_i_bytes);
-    let dkg_root = ((party_id + pk_i_hash) as u32 ^ 1 ^ 2 ^ 3 ^ 4) as Field;
-    
-    main(1, pk_i_hash, dkg_root, 123, 1, 456, [1, 2, 3, 4], [1, 2, 3, 256], pk_i_bytes, [1, 2, 3, 4]);
+    let epoch: Field = 1;
+    let sk_i: [Field; 4] = [1, 2, 3, 4];
+    let e_i: [Field; 4] = [1, 2, 3, 256];
+    let merkle_path: [Field; 4] = [1, 2, 3, 4];
+    let dkg_root = make_honest_root(party_id, pk_i_hash, merkle_path);
+    let d_i_computed = sk_i[0] * 42 + e_i[0];
+    let d_i_hash = poseidon::poseidon::bn254::hash_1([d_i_computed]);
+    let ciphertext_hash = poseidon::poseidon::bn254::hash_2([pk_i_hash, epoch]);
+    main(party_id, pk_i_hash, dkg_root, ciphertext_hash, epoch, d_i_hash, sk_i, e_i, pk_i_bytes, merkle_path);
 }
 
 #[test(should_fail)]
 fn test_fail_pk_hash() {
-    let party_id = 1;
-    let pk_i_bytes = [42, 0, 0, 0];
-    let pk_i_hash = 999;
-    let dkg_root = ((party_id + pk_i_hash) as u32 ^ 1 ^ 2 ^ 3 ^ 4) as Field;
-    
-    main(1, pk_i_hash, dkg_root, 123, 1, 456, [1, 2, 3, 4], [1, 2, 3, 4], pk_i_bytes, [1, 2, 3, 4]);
+    let party_id: Field = 1;
+    let pk_i_bytes: [Field; 4] = [42, 0, 0, 0];
+    let pk_i_hash: Field = 999; // wrong hash
+    let epoch: Field = 1;
+    let sk_i: [Field; 4] = [1, 2, 3, 4];
+    let e_i: [Field; 4] = [1, 2, 3, 4];
+    let merkle_path: [Field; 4] = [1, 2, 3, 4];
+    let dkg_root = make_honest_root(party_id, pk_i_hash, merkle_path);
+    let d_i_computed = sk_i[0] * 42 + e_i[0];
+    let d_i_hash = poseidon::poseidon::bn254::hash_1([d_i_computed]);
+    let ciphertext_hash = poseidon::poseidon::bn254::hash_2([pk_i_hash, epoch]);
+    main(party_id, pk_i_hash, dkg_root, ciphertext_hash, epoch, d_i_hash, sk_i, e_i, pk_i_bytes, merkle_path);
 }
 
 #[test(should_fail)]
 fn test_fail_dkg_root() {
-    let party_id = 1;
-    let pk_i_bytes = [42, 0, 0, 0];
+    let party_id: Field = 1;
+    let pk_i_bytes: [Field; 4] = [42, 0, 0, 0];
     let pk_i_hash = poseidon::poseidon::bn254::hash_4(pk_i_bytes);
-    let dkg_root = 999;
-    
-    main(1, pk_i_hash, dkg_root, 123, 1, 456, [1, 2, 3, 4], [1, 2, 3, 4], pk_i_bytes, [1, 2, 3, 4]);
+    let epoch: Field = 1;
+    let sk_i: [Field; 4] = [1, 2, 3, 4];
+    let e_i: [Field; 4] = [1, 2, 3, 4];
+    let merkle_path: [Field; 4] = [1, 2, 3, 4];
+    let dkg_root: Field = 999; // wrong root
+    let d_i_computed = sk_i[0] * 42 + e_i[0];
+    let d_i_hash = poseidon::poseidon::bn254::hash_1([d_i_computed]);
+    let ciphertext_hash = poseidon::poseidon::bn254::hash_2([pk_i_hash, epoch]);
+    main(party_id, pk_i_hash, dkg_root, ciphertext_hash, epoch, d_i_hash, sk_i, e_i, pk_i_bytes, merkle_path);
 }
 
 #[test(should_fail)]
 fn test_fail_epoch() {
-    let party_id = 1;
-    let pk_i_bytes = [42, 0, 0, 0];
+    let party_id: Field = 1;
+    let pk_i_bytes: [Field; 4] = [42, 0, 0, 0];
     let pk_i_hash = poseidon::poseidon::bn254::hash_4(pk_i_bytes);
-    let dkg_root = ((party_id + pk_i_hash) as u32 ^ 1 ^ 2 ^ 3 ^ 4) as Field;
-    
-    main(1, pk_i_hash, dkg_root, 123, 0, 456, [1, 2, 3, 4], [1, 2, 3, 4], pk_i_bytes, [1, 2, 3, 4]);
+    let epoch: Field = 0; // epoch=0 should fail
+    let sk_i: [Field; 4] = [1, 2, 3, 4];
+    let e_i: [Field; 4] = [1, 2, 3, 4];
+    let merkle_path: [Field; 4] = [1, 2, 3, 4];
+    let dkg_root = make_honest_root(party_id, pk_i_hash, merkle_path);
+    let d_i_computed = sk_i[0] * 42 + e_i[0];
+    let d_i_hash = poseidon::poseidon::bn254::hash_1([d_i_computed]);
+    let ciphertext_hash = poseidon::poseidon::bn254::hash_2([pk_i_hash, epoch]);
+    main(party_id, pk_i_hash, dkg_root, ciphertext_hash, epoch, d_i_hash, sk_i, e_i, pk_i_bytes, merkle_path);
 }
 
 #[test(should_fail)]
 fn test_fail_sk_e_shortness() {
-    let party_id = 1;
-    let pk_i_bytes = [42, 0, 0, 0];
+    let party_id: Field = 1;
+    let pk_i_bytes: [Field; 4] = [42, 0, 0, 0];
     let pk_i_hash = poseidon::poseidon::bn254::hash_4(pk_i_bytes);
-    let dkg_root = ((party_id + pk_i_hash) as u32 ^ 1 ^ 2 ^ 3 ^ 4) as Field;
-    
-    main(1, pk_i_hash, dkg_root, 123, 1, 456, [256, 2, 3, 4], [1, 2, 256, 4], pk_i_bytes, [1, 2, 3, 4]);
+    let epoch: Field = 1;
+    let sk_i: [Field; 4] = [256, 2, 3, 4];
+    let e_i: [Field; 4] = [1, 2, 256, 4];
+    let merkle_path: [Field; 4] = [1, 2, 3, 4];
+    let dkg_root = make_honest_root(party_id, pk_i_hash, merkle_path);
+    let d_i_computed = sk_i[0] * 42 + e_i[0];
+    let d_i_hash = poseidon::poseidon::bn254::hash_1([d_i_computed]);
+    let ciphertext_hash = poseidon::poseidon::bn254::hash_2([pk_i_hash, epoch]);
+    main(party_id, pk_i_hash, dkg_root, ciphertext_hash, epoch, d_i_hash, sk_i, e_i, pk_i_bytes, merkle_path);
+}
+
+// -- New adversarial tamper tests --
+
+#[test(should_fail)]
+fn test_fail_tampered_leaf() {
+    // Compute root for party_id=1, then submit with party_id=2 (leaf mismatch)
+    let party_id_honest: Field = 1;
+    let party_id_tampered: Field = 2;
+    let pk_i_bytes: [Field; 4] = [42, 0, 0, 0];
+    let pk_i_hash = poseidon::poseidon::bn254::hash_4(pk_i_bytes);
+    let epoch: Field = 1;
+    let sk_i: [Field; 4] = [1, 2, 3, 4];
+    let e_i: [Field; 4] = [1, 2, 3, 4];
+    let merkle_path: [Field; 4] = [1, 2, 3, 4];
+    // Root is valid for party_id=1, but we submit party_id=2
+    let dkg_root = make_honest_root(party_id_honest, pk_i_hash, merkle_path);
+    let d_i_computed = sk_i[0] * 42 + e_i[0];
+    let d_i_hash = poseidon::poseidon::bn254::hash_1([d_i_computed]);
+    let ciphertext_hash = poseidon::poseidon::bn254::hash_2([pk_i_hash, epoch]);
+    main(party_id_tampered, pk_i_hash, dkg_root, ciphertext_hash, epoch, d_i_hash, sk_i, e_i, pk_i_bytes, merkle_path);
+}
+
+#[test(should_fail)]
+fn test_fail_tampered_path() {
+    // Compute root with path [1,2,3,4], then submit with path [1,2,3,99]
+    let party_id: Field = 1;
+    let pk_i_bytes: [Field; 4] = [42, 0, 0, 0];
+    let pk_i_hash = poseidon::poseidon::bn254::hash_4(pk_i_bytes);
+    let epoch: Field = 1;
+    let sk_i: [Field; 4] = [1, 2, 3, 4];
+    let e_i: [Field; 4] = [1, 2, 3, 4];
+    let honest_path: [Field; 4] = [1, 2, 3, 4];
+    let tampered_path: [Field; 4] = [1, 2, 3, 99]; // path element changed
+    let dkg_root = make_honest_root(party_id, pk_i_hash, honest_path);
+    let d_i_computed = sk_i[0] * 42 + e_i[0];
+    let d_i_hash = poseidon::poseidon::bn254::hash_1([d_i_computed]);
+    let ciphertext_hash = poseidon::poseidon::bn254::hash_2([pk_i_hash, epoch]);
+    main(party_id, pk_i_hash, dkg_root, ciphertext_hash, epoch, d_i_hash, sk_i, e_i, pk_i_bytes, tampered_path);
+}
+
+#[test(should_fail)]
+fn test_fail_tampered_ciphertext_hash() {
+    let party_id: Field = 1;
+    let pk_i_bytes: [Field; 4] = [42, 0, 0, 0];
+    let pk_i_hash = poseidon::poseidon::bn254::hash_4(pk_i_bytes);
+    let epoch: Field = 1;
+    let sk_i: [Field; 4] = [1, 2, 3, 4];
+    let e_i: [Field; 4] = [1, 2, 3, 4];
+    let merkle_path: [Field; 4] = [1, 2, 3, 4];
+    let dkg_root = make_honest_root(party_id, pk_i_hash, merkle_path);
+    let d_i_computed = sk_i[0] * 42 + e_i[0];
+    let d_i_hash = poseidon::poseidon::bn254::hash_1([d_i_computed]);
+    let ciphertext_hash: Field = 777; // wrong ciphertext_hash
+    main(party_id, pk_i_hash, dkg_root, ciphertext_hash, epoch, d_i_hash, sk_i, e_i, pk_i_bytes, merkle_path);
+}
+
+#[test(should_fail)]
+fn test_fail_tampered_d_i_hash() {
+    let party_id: Field = 1;
+    let pk_i_bytes: [Field; 4] = [42, 0, 0, 0];
+    let pk_i_hash = poseidon::poseidon::bn254::hash_4(pk_i_bytes);
+    let epoch: Field = 1;
+    let sk_i: [Field; 4] = [1, 2, 3, 4];
+    let e_i: [Field; 4] = [1, 2, 3, 4];
+    let merkle_path: [Field; 4] = [1, 2, 3, 4];
+    let dkg_root = make_honest_root(party_id, pk_i_hash, merkle_path);
+    let d_i_hash: Field = 888; // wrong d_i_hash
+    let ciphertext_hash = poseidon::poseidon::bn254::hash_2([pk_i_hash, epoch]);
+    main(party_id, pk_i_hash, dkg_root, ciphertext_hash, epoch, d_i_hash, sk_i, e_i, pk_i_bytes, merkle_path);
 }

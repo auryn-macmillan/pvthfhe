@@ -44,6 +44,18 @@ use sha2::{Digest, Sha256};
 
 const PROOF_VERSION: u16 = 0x0001;
 
+/// Maximum allowed proof byte length (prevents heap-exhaustion from crafted proof).
+const MAX_PROOF_BYTES: usize = 1_048_576; // 1 MiB
+
+/// Maximum ciphertext/share byte length.
+const MAX_INPUT_BYTES: usize = 1_048_576; // 1 MiB
+
+/// Maximum session_id length in bytes.
+const MAX_SESSION_ID_LEN: usize = 256;
+
+/// Maximum number of participants in a batch_verify call.
+const MAX_BATCH_STMTS: usize = 1024;
+
 /// Number of `Rq` elements (PHI=256 each) needed to pack RLWE_N coefficients.
 const AJTAI_M: usize = RLWE_N / PHI;
 
@@ -92,6 +104,7 @@ impl NizkAdapter for CycloNizkAdapter {
             u32::from(stmt.participant_id),
             &sigma_stmt,
             &sigma_wit,
+            &stmt.pvss_commitment,
             rng,
         )?;
 
@@ -117,6 +130,9 @@ impl NizkAdapter for CycloNizkAdapter {
         validate_statement(stmt)?;
         if proof.backend_id != BACKEND_ID {
             return Err(NizkError::VerificationFailed("unexpected proof backend"));
+        }
+        if proof.proof_bytes.len() > MAX_PROOF_BYTES {
+            return Err(NizkError::InvalidInput("proof too large"));
         }
 
         let mut cur = Cursor::new(&proof.proof_bytes);
@@ -171,11 +187,12 @@ impl NizkAdapter for CycloNizkAdapter {
             u32::from(stmt.participant_id),
             &sigma_stmt,
             &sigma_proof,
+            &stmt.pvss_commitment,
         )?;
 
         if encoded_commitment != stmt.pvss_commitment {
-            return Err(NizkError::ConditionalSoundnessDisclosure(
-                "hash binding mismatch",
+            return Err(NizkError::VerificationFailed(
+                "pvss_commitment hash binding mismatch",
             ));
         }
 
@@ -186,6 +203,11 @@ impl NizkAdapter for CycloNizkAdapter {
         if stmts.len() != proofs.len() {
             return Err(NizkError::InvalidInput(
                 "statement/proof batch length mismatch",
+            ));
+        }
+        if stmts.len() > MAX_BATCH_STMTS {
+            return Err(NizkError::InvalidInput(
+                "batch_verify participant count exceeds maximum",
             ));
         }
         for (s, p) in stmts.iter().zip(proofs.iter()) {
@@ -210,15 +232,24 @@ fn validate_statement(stmt: &NizkStatement) -> Result<(), NizkError> {
     if stmt.session_id.is_empty() {
         return Err(NizkError::InvalidInput("session_id must be non-empty"));
     }
+    if stmt.session_id.len() > MAX_SESSION_ID_LEN {
+        return Err(NizkError::InvalidInput("session_id too long"));
+    }
     if stmt.ciphertext_bytes.is_empty() {
         return Err(NizkError::InvalidInput(
             "ciphertext bytes must be non-empty",
         ));
     }
+    if stmt.ciphertext_bytes.len() > MAX_INPUT_BYTES {
+        return Err(NizkError::InvalidInput("ciphertext bytes too large"));
+    }
     if stmt.decrypt_share_bytes.is_empty() {
         return Err(NizkError::InvalidInput(
             "decrypt-share bytes must be non-empty",
         ));
+    }
+    if stmt.decrypt_share_bytes.len() > MAX_INPUT_BYTES {
+        return Err(NizkError::InvalidInput("decrypt-share bytes too large"));
     }
     Ok(())
 }

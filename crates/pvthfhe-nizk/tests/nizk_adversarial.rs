@@ -5,7 +5,10 @@
 
 use pvthfhe_nizk::adapter::CycloNizkAdapter;
 use pvthfhe_nizk::hash_bridge;
-use pvthfhe_nizk::sigma::{B_Z_E, RLWE_N};
+use pvthfhe_nizk::sigma::{
+    compute_d_rns, prove as sigma_prove, B_Z_E, RLWE_N, RLWE_Q0, RLWE_Q1, RLWE_Q2,
+};
+use pvthfhe_nizk::sigma::{SigmaStatement, SigmaWitness};
 use pvthfhe_nizk::{NizkAdapter, NizkError, NizkProof, NizkStatement, NizkWitness};
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
@@ -85,6 +88,98 @@ fn sigma_section_offset(session_id: &str) -> usize {
     sha256_binding_commitment_offset(session_id) + 32 + 4
 }
 
+/// Test: mismatched pvss_commitment must produce VerificationFailed, not ConditionalSoundnessDisclosure.
+#[test]
+fn mismatched_pvss_commitment_produces_verification_failed() {
+    let mut rng = ChaCha20Rng::seed_from_u64(0xDEAD_BEEF_C4);
+    let adapter = CycloNizkAdapter;
+
+    let s_i = sample_ternary(&mut rng);
+    let e_i = sample_error(&mut rng).expect("error sample");
+    let secret_share: u64 = s_i[0].unsigned_abs();
+
+    let commit_a = hash_bridge::commit("c4-session", 1, secret_share);
+    let stmt_a = NizkStatement {
+        ciphertext_bytes: vec![0u8; 32],
+        decrypt_share_bytes: vec![0u8; 32],
+        pvss_commitment: commit_a,
+        params: (65_537_u64, RLWE_N, 16_u64),
+        session_id: "c4-session".to_owned(),
+        participant_id: 1,
+    };
+    let witness = NizkWitness {
+        secret_share,
+        secret_share_poly: s_i,
+        error: e_i,
+        randomness: vec![],
+    };
+    let proof = adapter.prove(&stmt_a, &witness, &mut rng).expect("prove");
+
+    let mut commit_b = commit_a;
+    commit_b[0] ^= 0xFF;
+    let stmt_b = NizkStatement {
+        pvss_commitment: commit_b,
+        ..stmt_a
+    };
+
+    match adapter.verify(&stmt_b, &proof) {
+        Err(NizkError::VerificationFailed(_)) => {}
+        Err(NizkError::ConditionalSoundnessDisclosure(_)) => {
+            panic!("C4 bug still present: got ConditionalSoundnessDisclosure instead of VerificationFailed")
+        }
+        other => panic!("expected VerificationFailed, got {other:?}"),
+    }
+}
+
+/// Differential test: prove with two different pvss_commitment values for identical (s_i, e_i).
+#[test]
+fn different_pvss_commitments_produce_different_challenges() {
+    let mut rng = ChaCha20Rng::seed_from_u64(0xC4D1FF01);
+
+    let c_rns: Vec<u64> = {
+        let moduli = [RLWE_Q0, RLWE_Q1, RLWE_Q2];
+        let mut out = vec![0u64; RLWE_N * 3];
+        for (limb, &q) in moduli.iter().enumerate() {
+            let threshold = u64::MAX - (u64::MAX % q);
+            for j in 0..RLWE_N {
+                loop {
+                    let v = rng.next_u64();
+                    if v < threshold {
+                        out[limb * RLWE_N + j] = v % q;
+                        break;
+                    }
+                }
+            }
+        }
+        out
+    };
+    let s_i = sample_ternary(&mut rng);
+    let e_i = sample_error(&mut rng).expect("error sample");
+    let d_rns = compute_d_rns(&c_rns, &s_i, &e_i).expect("compute_d_rns");
+
+    let stmt = SigmaStatement { c_rns, d_rns };
+    let wit = SigmaWitness {
+        s_i: s_i.clone(),
+        e_i: e_i.clone(),
+    };
+
+    let mut rng_a = ChaCha20Rng::seed_from_u64(0xC4D1FF02);
+    let mut rng_b = ChaCha20Rng::seed_from_u64(0xC4D1FF02);
+
+    let commit_a = [0u8; 32];
+    let commit_b = [1u8; 32];
+
+    let proof_a =
+        sigma_prove(b"c4-diff", 1, &stmt, &wit, &commit_a, &mut rng_a).expect("sigma prove a");
+    let proof_b =
+        sigma_prove(b"c4-diff", 1, &stmt, &wit, &commit_b, &mut rng_b).expect("sigma prove b");
+
+    assert_ne!(
+        proof_a.ch, proof_b.ch,
+        "same (s_i, e_i) with different pvss_commitments must produce different challenges"
+    );
+}
+
 /// Offset inside the sigma section where z_e[0] data lives.
 ///
 /// Sigma section layout (spec §3.4 EXTENSION):
@@ -128,9 +223,9 @@ fn scenario_03_tampered_sha256_binding() -> Result<(), NizkError> {
     let offset = sha256_binding_commitment_offset("n8-session");
     proof.proof_bytes[offset] ^= 0x01;
     match adapter.verify(&stmt, &proof) {
-        Err(NizkError::ConditionalSoundnessDisclosure("hash binding mismatch")) => Ok(()),
+        Err(NizkError::VerificationFailed(_)) => Ok(()),
         _ => Err(NizkError::VerificationFailed(
-            "scenario_03: expected ConditionalSoundnessDisclosure(hash binding mismatch)",
+            "scenario_03: expected VerificationFailed for tampered sha256_binding",
         )),
     }
 }

@@ -119,6 +119,7 @@ pub fn prove(
     participant_id: u32,
     stmt: &SigmaStatement,
     wit: &SigmaWitness,
+    pvss_commitment: &[u8; 32],
     rng: &mut dyn RngCore,
 ) -> Result<SigmaProof, NizkError> {
     if stmt.c_rns.len() != RNS_LEN || stmt.d_rns.len() != RNS_LEN {
@@ -139,7 +140,14 @@ pub fn prove(
     let c_ys_rns = poly_mul_rq(&stmt.c_rns, &y_s_rns, ctx)?;
     let t_rns = rns_add(&c_ys_rns, &y_e_rns, ctx)?;
 
-    let ch = derive_challenge(session_id, participant_id, &t_rns, &stmt.c_rns, &stmt.d_rns);
+    let ch = derive_challenge(
+        session_id,
+        participant_id,
+        &t_rns,
+        &stmt.c_rns,
+        &stmt.d_rns,
+        pvss_commitment,
+    );
 
     let ch_si = poly_mul_rq_to_int(&ch, &wit.s_i, ctx)?;
     let ch_ei = poly_mul_rq_to_int(&ch, &wit.e_i, ctx)?;
@@ -165,6 +173,7 @@ pub fn verify(
     participant_id: u32,
     stmt: &SigmaStatement,
     proof: &SigmaProof,
+    pvss_commitment: &[u8; 32],
 ) -> Result<(), NizkError> {
     if stmt.c_rns.len() != RNS_LEN || stmt.d_rns.len() != RNS_LEN {
         return Err(NizkError::InvalidInput("statement RNS lengths must be 3*N"));
@@ -185,6 +194,7 @@ pub fn verify(
         &proof.t_rns,
         &stmt.c_rns,
         &stmt.d_rns,
+        pvss_commitment,
     );
     if expected_ch != proof.ch {
         return Err(NizkError::VerificationFailed("challenge mismatch"));
@@ -290,6 +300,7 @@ fn derive_challenge(
     t_rns: &[u64],
     c_rns: &[u64],
     d_rns: &[u64],
+    pvss_commitment: &[u8; 32],
 ) -> Vec<i64> {
     let mut ts = Transcript::new(session_id, participant_id);
     let t_bytes: Vec<u8> = t_rns.iter().flat_map(|x| x.to_le_bytes()).collect();
@@ -298,6 +309,7 @@ fn derive_challenge(
     ts.absorb(b"c_rns", &c_bytes);
     let d_bytes: Vec<u8> = d_rns.iter().flat_map(|x| x.to_le_bytes()).collect();
     ts.absorb(b"d_rns", &d_bytes);
+    ts.absorb(b"pvss_commitment", pvss_commitment);
     let mut raw = [0u8; RLWE_N / 8];
     ts.challenge_bytes(b"binary_challenge", &mut raw);
     let mut bits = Vec::with_capacity(RLWE_N);

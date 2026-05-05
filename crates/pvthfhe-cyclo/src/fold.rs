@@ -1,10 +1,12 @@
 use crate::{
-    ccs_encode,
-    fiat_shamir,
+    ccs_encode, fiat_shamir,
     ring::{bytes_to_rqpoly, ring_add_poly, rqpoly_to_bytes, ternary_mul},
     CcsPShareInstance, CycloAccumulator, CycloError, PVTHFHE_CYCLO_PARAMS,
 };
 use rand_core::RngCore;
+
+/// Maximum instance public-io length (prevents unbounded hash computation).
+const MAX_INSTANCE_BYTES: usize = 4096;
 
 fn per_step_norm_budget() -> u64 {
     PVTHFHE_CYCLO_PARAMS.norm_bound_b / u64::from(PVTHFHE_CYCLO_PARAMS.sequential_t)
@@ -44,8 +46,10 @@ pub fn init_accumulator(
     session_id: &str,
 ) -> Result<CycloAccumulator, CycloError> {
     let init_poly = bytes_to_rqpoly(&instance.ajtai_commitment_bytes);
-    let acc_commitment_bytes = fiat_shamir::init_commitment_v1(session_id, &rqpoly_to_bytes(&init_poly)).to_vec();
-    let acc_public_io_bytes = fiat_shamir::init_public_io_v1(session_id, &instance.public_io_bytes).to_vec();
+    let acc_commitment_bytes =
+        fiat_shamir::init_commitment_v1(session_id, &rqpoly_to_bytes(&init_poly)).to_vec();
+    let acc_public_io_bytes =
+        fiat_shamir::init_public_io_v1(session_id, &instance.public_io_bytes).to_vec();
 
     Ok(CycloAccumulator {
         fold_depth: 0,
@@ -137,6 +141,19 @@ pub fn verify_fold(
         return Err(CycloError::AccumulatorVerificationFailed(
             "fold_depth does not match number of instances",
         ));
+    }
+
+    for inst in instances {
+        if inst.public_io_bytes.len() > MAX_INSTANCE_BYTES {
+            return Err(CycloError::InvalidInstance(
+                "public_io_bytes exceeds maximum allowed size",
+            ));
+        }
+        if inst.ajtai_commitment_bytes.len() > MAX_INSTANCE_BYTES {
+            return Err(CycloError::InvalidInstance(
+                "ajtai_commitment_bytes exceeds maximum allowed size",
+            ));
+        }
     }
 
     if acc.norm_bound_current > PVTHFHE_CYCLO_PARAMS.beta_at_t {

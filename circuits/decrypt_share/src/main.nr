@@ -1,10 +1,12 @@
 // NizkDecShare circuit.
 // NOTE: This is a Noir test-only circuit implementing partial constraints for the full LatticeFold+ NIZK (Open Problem P1).
-// Proves d_i = c_1 * sk_i + e_i AND Keccak256(pk_i) = pk_i_hash AND ||sk_i||, ||e_i|| <= beta
-// AND MerkleVerify(dkg_root, leaf=Keccak256(party_id || pk_i_hash), path=merkle_path_i) = true
+// Proves d_i = c_1 * sk_i + e_i AND Poseidon(pk_i) = pk_i_hash AND ||sk_i||, ||e_i|| <= beta
+// AND MerkleVerify(dkg_root, leaf=Poseidon(party_id || pk_i_hash), path=merkle_path_i) = true
 // This implements partial constraints for the full LatticeFold+ NIZK (open problem P1).
-// Note: We use std::hash::pedersen_hash as a substitute for Keccak256 since keccak256
-// was moved/removed in Noir 1.0 standard library for simple array hashing.
+// Poseidon is the canonical in-circuit hash primitive; Keccak-256 is reserved for on-chain/EVM use.
+
+use poseidon;
+
 fn main(
     party_id: pub Field,
     pk_i_hash: pub Field,
@@ -14,7 +16,7 @@ fn main(
     d_i_hash: pub Field,
     sk_i: [Field; 4],
     e_i: [Field; 4],
-    pk_i_bytes: [Field; 4], // Reduced to 4 Fields to simulate bytes for pedersen hash
+    pk_i_bytes: [Field; 4],
     merkle_path: [Field; 4]
 ) {
     // 1. Shortness of sk_i
@@ -27,8 +29,8 @@ fn main(
         assert(e_i[i] as u32 <= 255);
     }
 
-    // 3. PK hash check (pedersen hash used in place of keccak256; see NOTE above)
-    let h = std::hash::pedersen_hash(pk_i_bytes);
+    // 3. PK hash check (Poseidon is the canonical in-circuit hash)
+    let h = poseidon::poseidon::bn254::hash_4(pk_i_bytes);
     assert(h == pk_i_hash);
 
     // 4. Merkle binding
@@ -47,18 +49,18 @@ fn main(
     // NOTE (open problem P1): ciphertext_hash and d_i_hash are public inputs
     // but are NOT constrained against witness computations in this circuit.
     // In the full LatticeFold+ NIZK these would be bound to the actual decryption
-    // computation: d_i_hash == Keccak256(d_i) and ciphertext_hash == Keccak256(ct).
+    // computation: d_i_hash == Poseidon(d_i) and ciphertext_hash == Keccak256(ct) (on-chain).
     // The self-equality assignments below are intentional no-ops that document the
     // intended constraint shape without enforcing it (deferred to P1 resolution).
     let _ciphertext_hash_unconstrained = ciphertext_hash; // P1: bind to Keccak256(ct)
-    let _d_i_hash_unconstrained = d_i_hash;               // P1: bind to Keccak256(d_i)
+    let _d_i_hash_unconstrained = d_i_hash;               // P1: bind to Poseidon(d_i)
 }
 
 #[test]
 fn test_honest() {
     let party_id = 1;
     let pk_i_bytes = [42, 0, 0, 0];
-    let pk_i_hash = std::hash::pedersen_hash(pk_i_bytes);
+    let pk_i_hash = poseidon::poseidon::bn254::hash_4(pk_i_bytes);
     
     let leaf = party_id + pk_i_hash;
     let p0 = 1;
@@ -83,7 +85,7 @@ fn test_honest() {
 fn test_fail_sk_shortness() {
     let party_id = 1;
     let pk_i_bytes = [42, 0, 0, 0];
-    let pk_i_hash = std::hash::pedersen_hash(pk_i_bytes);
+    let pk_i_hash = poseidon::poseidon::bn254::hash_4(pk_i_bytes);
     let dkg_root = ((party_id + pk_i_hash) as u32 ^ 1 ^ 2 ^ 3 ^ 4) as Field;
     
     main(1, pk_i_hash, dkg_root, 123, 1, 456, [256, 2, 3, 4], [1, 2, 3, 4], pk_i_bytes, [1, 2, 3, 4]);
@@ -93,7 +95,7 @@ fn test_fail_sk_shortness() {
 fn test_fail_e_shortness() {
     let party_id = 1;
     let pk_i_bytes = [42, 0, 0, 0];
-    let pk_i_hash = std::hash::pedersen_hash(pk_i_bytes);
+    let pk_i_hash = poseidon::poseidon::bn254::hash_4(pk_i_bytes);
     let dkg_root = ((party_id + pk_i_hash) as u32 ^ 1 ^ 2 ^ 3 ^ 4) as Field;
     
     main(1, pk_i_hash, dkg_root, 123, 1, 456, [1, 2, 3, 4], [1, 2, 3, 256], pk_i_bytes, [1, 2, 3, 4]);
@@ -113,7 +115,7 @@ fn test_fail_pk_hash() {
 fn test_fail_dkg_root() {
     let party_id = 1;
     let pk_i_bytes = [42, 0, 0, 0];
-    let pk_i_hash = std::hash::pedersen_hash(pk_i_bytes);
+    let pk_i_hash = poseidon::poseidon::bn254::hash_4(pk_i_bytes);
     let dkg_root = 999;
     
     main(1, pk_i_hash, dkg_root, 123, 1, 456, [1, 2, 3, 4], [1, 2, 3, 4], pk_i_bytes, [1, 2, 3, 4]);
@@ -123,7 +125,7 @@ fn test_fail_dkg_root() {
 fn test_fail_epoch() {
     let party_id = 1;
     let pk_i_bytes = [42, 0, 0, 0];
-    let pk_i_hash = std::hash::pedersen_hash(pk_i_bytes);
+    let pk_i_hash = poseidon::poseidon::bn254::hash_4(pk_i_bytes);
     let dkg_root = ((party_id + pk_i_hash) as u32 ^ 1 ^ 2 ^ 3 ^ 4) as Field;
     
     main(1, pk_i_hash, dkg_root, 123, 0, 456, [1, 2, 3, 4], [1, 2, 3, 4], pk_i_bytes, [1, 2, 3, 4]);
@@ -133,7 +135,7 @@ fn test_fail_epoch() {
 fn test_fail_sk_e_shortness() {
     let party_id = 1;
     let pk_i_bytes = [42, 0, 0, 0];
-    let pk_i_hash = std::hash::pedersen_hash(pk_i_bytes);
+    let pk_i_hash = poseidon::poseidon::bn254::hash_4(pk_i_bytes);
     let dkg_root = ((party_id + pk_i_hash) as u32 ^ 1 ^ 2 ^ 3 ^ 4) as Field;
     
     main(1, pk_i_hash, dkg_root, 123, 1, 456, [256, 2, 3, 4], [1, 2, 256, 4], pk_i_bytes, [1, 2, 3, 4]);

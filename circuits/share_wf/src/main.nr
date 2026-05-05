@@ -1,6 +1,8 @@
 // Surrogate circuit for NizkWellFormed (P1: LatticeFold+ NIZK placeholder)
 // Proves: Exists s_i in Rq^k short such that for all j: Enc(pk_j, s_{i,j}) = encrypted_shares[j]
 
+use poseidon;
+
 fn main(
     pk_hash: pub Field,
     share_commitment: pub Field,
@@ -19,15 +21,14 @@ fn main(
     }
 
     // 3. Commitment check
-    // The spec mentions std::hash::keccak256, but since Noir 1.0 removed it from stdlib
-    // and share_commitment is a Field, we use pedersen_hash as the surrogate hash.
+    // Poseidon is the canonical in-circuit hash (Keccak-256 is reserved for on-chain/EVM use).
     let mut input = [0; 5];
     for i in 0..4 {
         input[i] = secret_share[i];
     }
     input[4] = randomness;
     
-    let computed_hash = std::hash::pedersen_hash(input);
+    let computed_hash = poseidon::poseidon::bn254::hash_5(input);
     assert(computed_hash == share_commitment, "commitment mismatch");
 }
 
@@ -43,7 +44,7 @@ fn test_honest() {
         input[i] = secret_share[i];
     }
     input[4] = randomness;
-    let share_commitment = std::hash::pedersen_hash(input);
+    let share_commitment = poseidon::poseidon::bn254::hash_5(input);
 
     main(pk_hash, share_commitment, party_id, secret_share, randomness);
 }
@@ -60,7 +61,7 @@ fn rejects_tamper_a_out_of_range() {
         input[i] = secret_share[i];
     }
     input[4] = randomness;
-    let share_commitment = std::hash::pedersen_hash(input);
+    let share_commitment = poseidon::poseidon::bn254::hash_5(input);
 
     main(pk_hash, share_commitment, party_id, secret_share, randomness);
 }
@@ -89,7 +90,7 @@ fn rejects_tamper_c_party_zero() {
         input[i] = secret_share[i];
     }
     input[4] = randomness;
-    let share_commitment = std::hash::pedersen_hash(input);
+    let share_commitment = poseidon::poseidon::bn254::hash_5(input);
 
     main(pk_hash, share_commitment, party_id, secret_share, randomness);
 }
@@ -118,7 +119,7 @@ fn rejects_tamper_e_modified_randomness() {
         input[i] = secret_share[i];
     }
     input[4] = randomness;
-    let share_commitment = std::hash::pedersen_hash(input);
+    let share_commitment = poseidon::poseidon::bn254::hash_5(input);
 
     // Modify randomness before passing to circuit
     main(pk_hash, share_commitment, party_id, secret_share, 43);
@@ -136,7 +137,7 @@ fn rejects_tamper_f_two_out_of_range() {
         input[i] = secret_share[i];
     }
     input[4] = randomness;
-    let share_commitment = std::hash::pedersen_hash(input);
+    let share_commitment = poseidon::poseidon::bn254::hash_5(input);
 
     main(pk_hash, share_commitment, party_id, secret_share, randomness);
 }

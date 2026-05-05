@@ -38,7 +38,7 @@ fn main(
     participant_set_hash: pub Field,
     d_commitment: pub Field,
     accumulated_hash: Field,
-) {
+) -> pub Field {
     assert(epoch as u64 > 0, "epoch must be positive");
     assert(participant_set_hash != 0, "participant_set_hash must be non-zero");
     assert(ciphertext_hash != plaintext_hash, "ciphertext_hash must differ from plaintext_hash");
@@ -56,6 +56,8 @@ fn main(
         d_commitment,
     );
     assert(expected_accumulated == accumulated_hash, "accumulator mismatch");
+
+    accumulated_hash
 }
 
 #[test]
@@ -77,7 +79,7 @@ fn test_honest() {
         d_commitment,
     );
 
-    main(
+    let output = main(
         ciphertext_hash,
         plaintext_hash,
         aggregate_pk_hash,
@@ -87,6 +89,8 @@ fn test_honest() {
         d_commitment,
         accumulated_hash,
     );
+
+    assert(output == accumulated_hash, "public accumulator output mismatch");
 }
 
 #[test(should_fail)]
@@ -108,7 +112,7 @@ fn test_fail_zero_epoch() {
         d_commitment,
     );
 
-    main(
+    let _ = main(
         ciphertext_hash,
         plaintext_hash,
         aggregate_pk_hash,
@@ -140,7 +144,7 @@ fn test_fail_tampered_d_commitment() {
         tampered_d_commitment,
     );
 
-    main(
+    let _ = main(
         ciphertext_hash,
         plaintext_hash,
         aggregate_pk_hash,
@@ -171,7 +175,38 @@ fn test_fail_wrong_accumulated_hash() {
         d_commitment,
     ) + 1;
 
-    main(
+    let _ = main(
+        ciphertext_hash,
+        plaintext_hash,
+        aggregate_pk_hash,
+        dkg_root,
+        epoch,
+        participant_set_hash,
+        d_commitment,
+        accumulated_hash,
+    );
+}
+
+#[test]
+fn test_all_seven_inputs_constrained() {
+    let ciphertext_hash = 0x1111111111111111111111111111111111111111111111111111111111111111;
+    let plaintext_hash = 0x2222222222222222222222222222222222222222222222222222222222222222;
+    let aggregate_pk_hash = 0x0333333333333333333333333333333333333333333333333333333333333333;
+    let dkg_root = 0x0444444444444444444444444444444444444444444444444444444444444444;
+    let epoch = 0x0000000000000000000000000000000000000000000000000000000000000001;
+    let participant_set_hash = 0x0555555555555555555555555555555555555555555555555555555555555555;
+    let d_commitment = expected_d_commitment(dkg_root, participant_set_hash);
+    let accumulated_hash = expected_accumulated_hash(
+        ciphertext_hash,
+        plaintext_hash,
+        aggregate_pk_hash,
+        dkg_root,
+        epoch,
+        participant_set_hash,
+        d_commitment,
+    );
+
+    let _ = main(
         ciphertext_hash,
         plaintext_hash,
         aggregate_pk_hash,

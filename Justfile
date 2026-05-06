@@ -5,6 +5,10 @@ test-all:
     cd circuits && nargo test --workspace
     forge test --root contracts
 
+prereq-gate:
+    cargo test --test spec_consistency
+    cargo test --test policy_invariants
+
 phase1-gate:
     python3 .sisyphus/scripts/phase1-gate.py
 
@@ -14,7 +18,7 @@ phase2-gate:
 phase3-gate:
     python3 .sisyphus/scripts/phase3-gate.py
 
-demo-e2e:
+demo-e2e n="32" threshold="17":
     @echo "*** SURROGATE ACTIVE: build contains cryptographic surrogates — do not deploy ***"
     @echo "*** Surrogates: HonkVerifier, micronova_wrap, aggregator_final               ***"
     @echo "********************************************************************************"
@@ -26,7 +30,7 @@ demo-e2e:
     @echo "* - do not use for The Interfold or any production deployment                  *"
     @echo "********************************************************************************"
     mkdir -p .sisyphus/evidence
-    cargo run --release -p pvthfhe-cli -- demo --n 128 --seed 1 2>&1 | tee .sisyphus/evidence/task-40-demo.log
+    cargo run --release -p pvthfhe-cli -- demo --n {{n}} --threshold {{threshold}} --seed 1 2>&1 | tee .sisyphus/evidence/task-40-demo.log
 
 bench-p4:
     mkdir -p .sisyphus/evidence/benchmarks/p4
@@ -38,6 +42,22 @@ bench-scaling:
     python3 bench/scripts/gen_figures.py
     python3 bench/scripts/compare-predictions.py 2>&1 | tee .sisyphus/evidence/task-43-vsmodel.log
     python3 bench/scripts/fit-loglog.py
+
+bench-comparison n t seed:
+    cargo run -p pvthfhe-bench --bin bench_comparison -- --n {{n}} --t {{t}} --seed {{seed}}
+
+bench-comparison-dryrun n t seed:
+    cargo run -p pvthfhe-bench --bin bench_comparison -- --n {{n}} --t {{t}} --seed {{seed}} --dry-run
+
+wire-gate:
+    cargo test -p pvthfhe-cli
+    cargo test -p pvthfhe-aggregator
+    cargo test -p pvthfhe-bench
+    cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features surrogate-compressor -- --n 3 --t 2 --seed 1
+    just bench-comparison-dryrun 3 1 1
+
+bench-fhe-baseline n_max="64":
+    FHE_BENCH_N_MAX={{n_max}} cargo run --release -p pvthfhe-bench --bin fhe_baseline
 
 verify-onchain:
     mkdir -p .sisyphus/evidence
@@ -122,9 +142,10 @@ stage0-gate:
     head -15 ARCHITECTURE.md | grep -q "DO NOT DEPLOY" || { echo "FAIL: ARCHITECTURE.md missing banner"; exit 1; }
     head -15 SECURITY.md | grep -q "DO NOT DEPLOY" || { echo "FAIL: SECURITY.md missing banner"; exit 1; }
 
-    # Check 3: SURROGATE ACTIVE on cargo build
+    # Check 3: Stage-0 default banner on cargo build
     echo "[3] Checking cargo surrogate tripwire..."
-    cargo build -p pvthfhe-fhe -q 2>&1 | grep -q "SURROGATE ACTIVE" || { echo "FAIL: cargo build missing SURROGATE ACTIVE warning"; exit 1; }
+    cargo clean -p pvthfhe-fhe >/dev/null 2>&1
+    cargo build -p pvthfhe-fhe 2>&1 | grep -q "FOLDING ACCUMULATOR IS A SURROGATE" || { echo "FAIL: cargo build missing Stage-0 folding warning"; exit 1; }
 
     # Check 4: no mock in default features
     echo "[4] Checking mock feature gates..."

@@ -12,18 +12,32 @@
 //! extractor (T2) remains a skeleton. See `SECURITY.md §P1`.
 
 use pvthfhe_cyclo::adapter::StubCycloAdapter;
-use pvthfhe_cyclo::{
-    CcsPShareInstance, CycloAccumulator, CycloAdapter as _, CycloError, CYCLO_BACKEND_ID,
-};
+pub use pvthfhe_cyclo::CcsPShareInstance;
+use pvthfhe_cyclo::{CycloAccumulator, CycloAdapter as _, CycloError, CYCLO_BACKEND_ID};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
+#[cfg(all(feature = "real-folding", feature = "hash-chain-surrogate"))]
+compile_error!("Do not enable both real-folding and hash-chain-surrogate at the same time.");
+
+#[cfg(feature = "hash-chain-surrogate")]
+fn assert_hash_chain_surrogate_acknowledged() {
+    if std::env::var("PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK").as_deref() != Ok("1") {
+        panic!(
+            "PVTHFHE: hash-chain folding surrogate requires PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK=1 \
+             to be set in the environment. This path is a mock and fails closed by default."
+        );
+    }
+}
+
+#[cfg(feature = "hash-chain-surrogate")]
 #[derive(Debug, Error)]
 pub enum FoldingError {
     #[error("Invalid leaf proof for party {0}")]
     InvalidLeaf(u32),
 }
 
+#[cfg(feature = "hash-chain-surrogate")]
 #[derive(Debug, Clone)]
 pub struct PartyProof {
     pub party_id: u32,
@@ -31,6 +45,7 @@ pub struct PartyProof {
     pub nizk_bytes: Vec<u8>,
 }
 
+#[cfg(feature = "hash-chain-surrogate")]
 #[derive(Debug, Clone)]
 pub struct FinalSnark {
     pub proof_bytes: Vec<u8>,
@@ -39,18 +54,22 @@ pub struct FinalSnark {
     pub proof_size_bytes: usize,
 }
 
+#[cfg(feature = "hash-chain-surrogate")]
 pub struct FoldingAccumulator {
     proofs: Vec<PartyProof>,
 }
 
+#[cfg(feature = "hash-chain-surrogate")]
 impl Default for FoldingAccumulator {
     fn default() -> Self {
         Self::new()
     }
 }
 
+#[cfg(feature = "hash-chain-surrogate")]
 impl FoldingAccumulator {
     pub fn new() -> Self {
+        assert_hash_chain_surrogate_acknowledged();
         Self { proofs: Vec::new() }
     }
 

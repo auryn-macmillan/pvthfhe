@@ -8,7 +8,11 @@ use pvthfhe_fhe::FheBackend;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 
-const TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\n";
+const TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
+
+fn acknowledge_mock_backend() {
+    std::env::set_var("PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK", "1");
+}
 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(10_000))]
@@ -19,6 +23,7 @@ proptest! {
         tamper_byte in 1u8..=255u8,
         tamper_pos in any::<usize>()
     ) {
+        acknowledge_mock_backend();
         let backend = MockBackend::load_params(TOML).unwrap();
         let mut rng = ChaCha8Rng::seed_from_u64(99);
 

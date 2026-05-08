@@ -1,0 +1,398 @@
+//! Share-decryption NIZK wrapper over the shared Cyclo/Ajtai adapter.
+
+use pvthfhe_nizk::{adapter::CycloNizkAdapter, hash_bridge, NizkAdapter, NizkProof, NizkStatement, NizkWitness};
+use rand_chacha::ChaCha8Rng;
+use rand_core::SeedableRng;
+use sha2::{Digest, Sha256};
+
+use crate::PvssError;
+
+/// Locked domain separator for PVSS share-decryption proofs.
+pub const DECRYPT_NIZK_DOMAIN_SEPARATOR: &str = "pvthfhe-pvss-share-decryption-v1";
+
+const PROOF_VERSION: u16 = 1;
+const MAX_FIELD_LEN: usize = 1 << 20;
+const RLWE_DEGREE: usize = 8192;
+const RLWE_Q_LOG2: u64 = 174;
+const RLWE_ERROR_BOUND: u64 = 16;
+
+/// Public statement for one share-decryption proof.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DecryptNizkStatement {
+    /// Session binding bytes.
+    pub session_id: Vec<u8>,
+    /// Zero-based decrypting party index.
+    pub party_index: usize,
+    /// Primary ciphertext bytes.
+    pub ciphertext_u: Vec<u8>,
+    /// Secondary ciphertext binding bytes.
+    pub ciphertext_v: Vec<u8>,
+    /// Claimed decrypted-share bytes.
+    pub decrypted_share_bytes: Vec<u8>,
+    /// Decrypting party public-key bytes.
+    pub party_pk: Vec<u8>,
+}
+
+/// Secret witness for one share-decryption proof.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DecryptNizkWitness {
+    /// Party secret-key bytes.
+    pub secret_key_bytes: Vec<u8>,
+    /// Canonicalized decryption-noise bytes.
+    pub decryption_noise: Vec<u8>,
+}
+
+/// Serialized proof envelope.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DecryptNizkProof {
+    /// Serialized proof payload.
+    pub proof_bytes: Vec<u8>,
+    /// Domain separator recorded in the proof envelope.
+    pub domain_separator: String,
+}
+
+/// Decoded proof contents for adapter wiring.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DecryptNizkOpenedProof {
+    /// Statement reconstructed from the proof payload.
+    pub statement: DecryptNizkStatement,
+    /// Backend identifier for the wrapped shared NIZK.
+    pub backend_id: String,
+    /// Wrapped shared NIZK proof bytes.
+    pub inner_proof_bytes: Vec<u8>,
+    /// Domain separator stored in the proof payload.
+    pub domain_separator: String,
+}
+
+/// Deterministic prover for the share-decryption proof.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DecryptNizkProver;
+
+/// Deterministic verifier for the share-decryption proof.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DecryptNizkVerifier;
+
+impl DecryptNizkProver {
+    /// Produce a deterministic share-decryption proof for a statement/witness pair.
+    pub fn prove(
+        stmt: &DecryptNizkStatement,
+        witness: &DecryptNizkWitness,
+    ) -> Result<DecryptNizkProof, PvssError> {
+        validate_statement(stmt)?;
+        validate_witness(witness)?;
+
+        let participant_id = u16::try_from(stmt.party_index).map_err(|_| PvssError::InvalidShare)?;
+        let session_id = hex_encode(&stmt.session_id);
+        let secret_share = derive_secret_share(stmt);
+        let inner_stmt = NizkStatement {
+            ciphertext_bytes: encode_ciphertext_bytes(stmt)?,
+            decrypt_share_bytes: stmt.decrypted_share_bytes.clone(),
+            pvss_commitment: hash_bridge::commit(&session_id, participant_id, secret_share),
+            params: (RLWE_Q_LOG2, RLWE_DEGREE, RLWE_ERROR_BOUND),
+            session_id,
+            participant_id,
+        };
+        let inner_witness = NizkWitness {
+            secret_share,
+            secret_share_poly: derive_secret_share_poly(&witness.secret_key_bytes),
+            error: derive_error_vector(&witness.decryption_noise),
+            randomness: derive_randomness(&witness.secret_key_bytes, &witness.decryption_noise),
+        };
+        let mut rng = ChaCha8Rng::from_seed(derive_rng_seed(stmt, witness));
+        let inner_proof = CycloNizkAdapter
+            .prove(&inner_stmt, &inner_witness, &mut rng)
+            .map_err(|_| PvssError::InvalidShare)?;
+
+        let opened = DecryptNizkOpenedProof {
+            statement: stmt.clone(),
+            backend_id: inner_proof.backend_id,
+            inner_proof_bytes: inner_proof.proof_bytes,
+            domain_separator: DECRYPT_NIZK_DOMAIN_SEPARATOR.to_owned(),
+        };
+
+        DecryptNizkProof::from_opened(&opened)
+    }
+}
+
+impl DecryptNizkVerifier {
+    /// Verify a deterministic share-decryption proof against a statement.
+    pub fn verify(stmt: &DecryptNizkStatement, proof: &DecryptNizkProof) -> Result<(), PvssError> {
+        validate_statement(stmt)?;
+        if proof.domain_separator != DECRYPT_NIZK_DOMAIN_SEPARATOR {
+            return Err(PvssError::InvalidShare);
+        }
+
+        let opened = proof.decode()?;
+        if opened.domain_separator != DECRYPT_NIZK_DOMAIN_SEPARATOR || opened.statement != *stmt {
+            return Err(PvssError::InvalidShare);
+        }
+
+        let participant_id = u16::try_from(stmt.party_index).map_err(|_| PvssError::InvalidShare)?;
+        let session_id = hex_encode(&stmt.session_id);
+        let inner_stmt = NizkStatement {
+            ciphertext_bytes: encode_ciphertext_bytes(stmt)?,
+            decrypt_share_bytes: stmt.decrypted_share_bytes.clone(),
+            pvss_commitment: hash_bridge::commit(&session_id, participant_id, derive_secret_share(stmt)),
+            params: (RLWE_Q_LOG2, RLWE_DEGREE, RLWE_ERROR_BOUND),
+            session_id,
+            participant_id,
+        };
+        let inner_proof = NizkProof {
+            backend_id: opened.backend_id,
+            proof_bytes: opened.inner_proof_bytes,
+        };
+
+        CycloNizkAdapter
+            .verify(&inner_stmt, &inner_proof)
+            .map_err(|_| PvssError::InvalidShare)
+    }
+}
+
+impl DecryptNizkProof {
+    /// Encode a decoded/opened proof back into the serialized envelope.
+    pub fn from_opened(opened: &DecryptNizkOpenedProof) -> Result<Self, PvssError> {
+        if opened.domain_separator != DECRYPT_NIZK_DOMAIN_SEPARATOR {
+            return Err(PvssError::InvalidShare);
+        }
+        validate_statement(&opened.statement)?;
+        if opened.backend_id.is_empty() || opened.inner_proof_bytes.is_empty() {
+            return Err(PvssError::InvalidShare);
+        }
+
+        Ok(Self {
+            proof_bytes: encode_opened_proof(opened)?,
+            domain_separator: opened.domain_separator.clone(),
+        })
+    }
+
+    /// Wrap raw proof bytes after decoding them successfully.
+    pub fn from_bytes(proof_bytes: Vec<u8>) -> Result<Self, PvssError> {
+        let opened = decode_opened_proof(&proof_bytes)?;
+        Ok(Self {
+            proof_bytes,
+            domain_separator: opened.domain_separator,
+        })
+    }
+
+    /// Decode the serialized proof payload into structured contents.
+    pub fn decode(&self) -> Result<DecryptNizkOpenedProof, PvssError> {
+        decode_opened_proof(&self.proof_bytes)
+    }
+}
+
+fn validate_statement(stmt: &DecryptNizkStatement) -> Result<(), PvssError> {
+    if stmt.session_id.is_empty()
+        || stmt.ciphertext_u.is_empty()
+        || stmt.ciphertext_v.is_empty()
+        || stmt.decrypted_share_bytes.is_empty()
+        || stmt.party_pk.is_empty()
+    {
+        return Err(PvssError::InvalidShare);
+    }
+    if stmt.session_id.len() > MAX_FIELD_LEN
+        || stmt.ciphertext_u.len() > MAX_FIELD_LEN
+        || stmt.ciphertext_v.len() > MAX_FIELD_LEN
+        || stmt.decrypted_share_bytes.len() > MAX_FIELD_LEN
+        || stmt.party_pk.len() > MAX_FIELD_LEN
+        || stmt.party_index > usize::from(u16::MAX)
+    {
+        return Err(PvssError::InvalidShare);
+    }
+    Ok(())
+}
+
+fn validate_witness(witness: &DecryptNizkWitness) -> Result<(), PvssError> {
+    if witness.secret_key_bytes.is_empty()
+        || witness.decryption_noise.is_empty()
+        || witness.secret_key_bytes.len() > MAX_FIELD_LEN
+        || witness.decryption_noise.len() > MAX_FIELD_LEN
+    {
+        return Err(PvssError::InvalidShare);
+    }
+    Ok(())
+}
+
+fn derive_secret_share(stmt: &DecryptNizkStatement) -> u64 {
+    let mut hasher = Sha256::new();
+    hasher.update(DECRYPT_NIZK_DOMAIN_SEPARATOR.as_bytes());
+    hasher.update(&stmt.session_id);
+    hasher.update(stmt.party_index.to_be_bytes());
+    hasher.update(&stmt.ciphertext_u);
+    hasher.update(&stmt.ciphertext_v);
+    hasher.update(&stmt.decrypted_share_bytes);
+    hasher.update(&stmt.party_pk);
+    let digest: [u8; 32] = hasher.finalize().into();
+    u64::from_be_bytes(digest[..8].try_into().unwrap_or([0u8; 8]))
+}
+
+fn derive_secret_share_poly(secret_key_bytes: &[u8]) -> Vec<i64> {
+    secret_key_bytes
+        .iter()
+        .copied()
+        .map(|byte| match byte % 3 {
+            0 => -1,
+            1 => 0,
+            _ => 1,
+        })
+        .collect()
+}
+
+fn derive_error_vector(decryption_noise: &[u8]) -> Vec<i64> {
+    decryption_noise
+        .iter()
+        .copied()
+        .map(|byte| i64::from((byte % 5) as i8) - 2)
+        .collect()
+}
+
+fn derive_randomness(secret_key_bytes: &[u8], decryption_noise: &[u8]) -> Vec<u8> {
+    let mut hasher = Sha256::new();
+    hasher.update(DECRYPT_NIZK_DOMAIN_SEPARATOR.as_bytes());
+    hasher.update(secret_key_bytes);
+    hasher.update(decryption_noise);
+    hasher.finalize().to_vec()
+}
+
+fn derive_rng_seed(stmt: &DecryptNizkStatement, witness: &DecryptNizkWitness) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(DECRYPT_NIZK_DOMAIN_SEPARATOR.as_bytes());
+    hasher.update(&stmt.session_id);
+    hasher.update(stmt.party_index.to_be_bytes());
+    hasher.update(&stmt.ciphertext_u);
+    hasher.update(&stmt.ciphertext_v);
+    hasher.update(&stmt.decrypted_share_bytes);
+    hasher.update(&stmt.party_pk);
+    hasher.update(&witness.secret_key_bytes);
+    hasher.update(&witness.decryption_noise);
+    hasher.finalize().into()
+}
+
+fn encode_ciphertext_bytes(stmt: &DecryptNizkStatement) -> Result<Vec<u8>, PvssError> {
+    let mut out = Vec::new();
+    encode_bytes(&mut out, &stmt.ciphertext_u)?;
+    encode_bytes(&mut out, &stmt.ciphertext_v)?;
+    encode_bytes(&mut out, &stmt.party_pk)?;
+    Ok(out)
+}
+
+fn encode_opened_proof(opened: &DecryptNizkOpenedProof) -> Result<Vec<u8>, PvssError> {
+    let mut out = Vec::new();
+    out.extend_from_slice(&PROOF_VERSION.to_be_bytes());
+    encode_bytes(&mut out, opened.domain_separator.as_bytes())?;
+    encode_bytes(&mut out, &opened.statement.session_id)?;
+    encode_usize(&mut out, opened.statement.party_index)?;
+    encode_bytes(&mut out, &opened.statement.ciphertext_u)?;
+    encode_bytes(&mut out, &opened.statement.ciphertext_v)?;
+    encode_bytes(&mut out, &opened.statement.decrypted_share_bytes)?;
+    encode_bytes(&mut out, &opened.statement.party_pk)?;
+    encode_bytes(&mut out, opened.backend_id.as_bytes())?;
+    encode_bytes(&mut out, &opened.inner_proof_bytes)?;
+    Ok(out)
+}
+
+fn decode_opened_proof(bytes: &[u8]) -> Result<DecryptNizkOpenedProof, PvssError> {
+    let mut cursor = Cursor::new(bytes);
+    let version = cursor.read_u16()?;
+    if version != PROOF_VERSION {
+        return Err(PvssError::InvalidShare);
+    }
+
+    let domain_separator = String::from_utf8(cursor.read_vec()?).map_err(|_| PvssError::InvalidShare)?;
+    let session_id = cursor.read_vec()?;
+    let party_index = cursor.read_usize()?;
+    let ciphertext_u = cursor.read_vec()?;
+    let ciphertext_v = cursor.read_vec()?;
+    let decrypted_share_bytes = cursor.read_vec()?;
+    let party_pk = cursor.read_vec()?;
+    let backend_id = String::from_utf8(cursor.read_vec()?).map_err(|_| PvssError::InvalidShare)?;
+    let inner_proof_bytes = cursor.read_vec()?;
+    cursor.finish()?;
+
+    Ok(DecryptNizkOpenedProof {
+        statement: DecryptNizkStatement {
+            session_id,
+            party_index,
+            ciphertext_u,
+            ciphertext_v,
+            decrypted_share_bytes,
+            party_pk,
+        },
+        backend_id,
+        inner_proof_bytes,
+        domain_separator,
+    })
+}
+
+fn encode_bytes(out: &mut Vec<u8>, bytes: &[u8]) -> Result<(), PvssError> {
+    let len = u32::try_from(bytes.len()).map_err(|_| PvssError::InvalidShare)?;
+    out.extend_from_slice(&len.to_be_bytes());
+    out.extend_from_slice(bytes);
+    Ok(())
+}
+
+fn encode_usize(out: &mut Vec<u8>, value: usize) -> Result<(), PvssError> {
+    let value = u64::try_from(value).map_err(|_| PvssError::InvalidShare)?;
+    out.extend_from_slice(&value.to_be_bytes());
+    Ok(())
+}
+
+fn hex_encode(bytes: &[u8]) -> String {
+    const LUT: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        out.push(char::from(LUT[(byte >> 4) as usize]));
+        out.push(char::from(LUT[(byte & 0x0f) as usize]));
+    }
+    out
+}
+
+struct Cursor<'a> {
+    bytes: &'a [u8],
+    offset: usize,
+}
+
+impl<'a> Cursor<'a> {
+    fn new(bytes: &'a [u8]) -> Self {
+        Self { bytes, offset: 0 }
+    }
+
+    fn read_exact(&mut self, len: usize) -> Result<&'a [u8], PvssError> {
+        let end = self.offset.checked_add(len).ok_or(PvssError::InvalidShare)?;
+        let slice = self.bytes.get(self.offset..end).ok_or(PvssError::InvalidShare)?;
+        self.offset = end;
+        Ok(slice)
+    }
+
+    fn read_array<const N: usize>(&mut self) -> Result<[u8; N], PvssError> {
+        self.read_exact(N)?.try_into().map_err(|_| PvssError::InvalidShare)
+    }
+
+    fn read_u16(&mut self) -> Result<u16, PvssError> {
+        Ok(u16::from_be_bytes(self.read_array()?))
+    }
+
+    fn read_u32(&mut self) -> Result<u32, PvssError> {
+        Ok(u32::from_be_bytes(self.read_array()?))
+    }
+
+    fn read_usize(&mut self) -> Result<usize, PvssError> {
+        let raw = u64::from_be_bytes(self.read_array()?);
+        usize::try_from(raw).map_err(|_| PvssError::InvalidShare)
+    }
+
+    fn read_vec(&mut self) -> Result<Vec<u8>, PvssError> {
+        let len = usize::try_from(self.read_u32()?).map_err(|_| PvssError::InvalidShare)?;
+        if len > MAX_FIELD_LEN {
+            return Err(PvssError::InvalidShare);
+        }
+        Ok(self.read_exact(len)?.to_vec())
+    }
+
+    fn finish(self) -> Result<(), PvssError> {
+        if self.offset == self.bytes.len() {
+            Ok(())
+        } else {
+            Err(PvssError::InvalidShare)
+        }
+    }
+}

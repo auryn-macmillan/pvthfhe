@@ -14,9 +14,11 @@ panic = "warn"
 as_conversions = "warn"
 
 [features]
-default = []
+default = ["sonobe-compressor"]
 backend-fhe-rs = ["dep:fhe", "dep:fhe-math"]
 backend-poulpy = ["dep:poulpy-hal", "dep:poulpy-cpu-ref"]
+surrogate-compressor = []
+sonobe-compressor = ["dep:pvthfhe-compressor"]
 
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
@@ -24,13 +26,16 @@ rand = "0.8"
 rand_chacha = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+pvthfhe-pvss = { path = "../pvthfhe-pvss" }
 pvthfhe-aggregator = { path = "../pvthfhe-aggregator" }
 pvthfhe-keygen = { path = "../pvthfhe-keygen" }
-pvthfhe-fhe = { path = "../pvthfhe-fhe", features = ["real-nizk"] }
+pvthfhe-fhe = { path = "../pvthfhe-fhe", features = ["real-nizk", "mock"] }
 rand_core = "0.6"
 sha2 = "0.10"
 hex = "0.4"
 clap = { version = "4", features = ["derive"] }
+pvthfhe-compressor = { path = "../pvthfhe-compressor", optional = true }
+tera = "1"
 
 # fhe.rs - pin by exact commit SHA
 fhe = { package = "fhe", git = "https://github.com/gnosisguild/fhe.rs", rev = "5f24d0b62a7329b789db07a065b68accd614a47b", optional = true }
@@ -66,3 +71,15 @@ path = "src/bin/gen_goldens.rs"
 [[bin]]
 name = "bench_nizk"
 path = "src/bin/bench_nizk.rs"
+
+[[bin]]
+name = "fhe_baseline"
+path = "src/bin/fhe_baseline.rs"
+
+[[bin]]
+name = "bench_comparison"
+path = "src/bin/bench_comparison.rs"
+
+[[bin]]
+name = "render_comparison"
+path = "src/bin/render_comparison.rs"

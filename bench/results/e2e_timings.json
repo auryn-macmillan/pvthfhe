@@ -1,0 +1,81 @@
+{
+  "schema_version": "1.0.0",
+  "n": 3,
+  "t": 1,
+  "seed": 1,
+  "compressor_backend_id": "sonobe-nova-bn254-grumpkin",
+  "phases": {
+    "keygen": {
+      "total_ms": 10.247189,
+      "instances_run": 1
+    },
+    "nizk_prove": {
+      "total_ms": 54.14977199999999,
+      "instances_run": 3,
+      "per_instance_ms": [
+        18.927493,
+        17.943299999999997,
+        17.278979
+      ]
+    },
+    "nizk_verify": {
+      "total_ms": 12.683800000000002,
+      "instances_run": 6,
+      "per_instance_ms": [
+        2.218227,
+        2.016222,
+        2.025503,
+        2.330784,
+        2.071981,
+        2.021083
+      ]
+    },
+    "pvss_share_encrypt": {
+      "total_ms": 12.0,
+      "instances_run": 6,
+      "deal_ms": 12.0,
+      "verify_ms": 3.0,
+      "recover_ms": 3.0
+    },
+    "pvss_decrypt_prove": {
+      "total_ms": 19.137606,
+      "instances_run": 1,
+      "per_instance_ms": [
+        19.137606
+      ]
+    },
+    "cyclo_fold": {
+      "total_ms": 0.024729,
+      "instances_run": 1
+    },
+    "compressor_prove": {
+      "total_ms": 1490.658694,
+      "instances_run": 1
+    },
+    "compressor_verify": {
+      "total_ms": 585.169472,
+      "instances_run": 1
+    },
+    "partial_decrypt": {
+      "total_ms": 1.538906,
+      "instances_run": 1,
+      "per_instance_ms": [
+        1.538906
+      ]
+    },
+    "aggregate_decrypt": {
+      "total_ms": 6.396419000000001,
+      "instances_run": 1
+    },
+    "noir_sonobe_wrap": {
+      "total_ms": 0.0037199999999999998,
+      "instances_run": 1
+    },
+    "onchain_verify": {
+      "total_ms": 0.00038,
+      "instances_run": 1
+    }
+  },
+  "produced_at_unix_secs": 1778195702,
+  "git_sha": "5d7853a"
+}

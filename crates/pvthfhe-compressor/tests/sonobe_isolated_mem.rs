@@ -1,0 +1,86 @@
+//! Peak RSS gate for isolated Sonobe proving.
+
+use std::{
+    fs,
+    sync::{
+        atomic::{AtomicBool, AtomicU64, Ordering},
+        Arc,
+    },
+    thread,
+    time::Duration,
+};
+
+use pvthfhe_compressor::{sonobe::SonobeCompressor, ProofCompressor};
+
+fn rss_kb() -> u64 {
+    fs::read_to_string("/proc/self/statm")
+        .ok()
+        .and_then(|statm| statm.split_whitespace().nth(1)?.parse::<u64>().ok())
+        .map(|pages| pages * 4096 / 1024)
+        .unwrap_or(0)
+}
+
+#[test]
+fn sonobe_prove_peak_rss_under_12gb() {
+    let stop = Arc::new(AtomicBool::new(false));
+    let peak_rss_kb = Arc::new(AtomicU64::new(rss_kb()));
+
+    let sampler_stop = Arc::clone(&stop);
+    let sampler_peak = Arc::clone(&peak_rss_kb);
+    let sampler = thread::spawn(move || {
+        while !sampler_stop.load(Ordering::Relaxed) {
+            let sample = rss_kb();
+            let mut current = sampler_peak.load(Ordering::Relaxed);
+            while sample > current {
+                match sampler_peak.compare_exchange(
+                    current,
+                    sample,
+                    Ordering::Relaxed,
+                    Ordering::Relaxed,
+                ) {
+                    Ok(_) => break,
+                    Err(observed) => current = observed,
+                }
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        let sample = rss_kb();
+        let mut current = sampler_peak.load(Ordering::Relaxed);
+        while sample > current {
+            match sampler_peak.compare_exchange(
+                current,
+                sample,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => break,
+                Err(observed) => current = observed,
+            }
+        }
+    });
+
+    let compressor = SonobeCompressor::new(1).expect("construct sonobe compressor");
+    let acc = [0u8; 32];
+    let public_inputs = [0u8; 32];
+    let proof = compressor.prove(&acc, &public_inputs).expect("prove isolated sonobe");
+    let vk = compressor.verifier_key();
+
+    assert!(
+        compressor
+            .verify(&vk, &proof, &public_inputs)
+            .expect("verify isolated sonobe")
+    );
+
+    stop.store(true, Ordering::Relaxed);
+    sampler.join().expect("join RSS sampler");
+
+    let peak_rss_kb = peak_rss_kb.load(Ordering::Relaxed);
+    assert!(
+        peak_rss_kb < 12 * 1024 * 1024,
+        "expected peak RSS under 12 GiB, observed {peak_rss_kb} KiB"
+    );
+
+    panic!(
+        "RED phase: keep failing until the memory fix lands; observed peak RSS {peak_rss_kb} KiB"
+    );
+}

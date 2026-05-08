@@ -18,19 +18,16 @@ phase2-gate:
 phase3-gate:
     python3 .sisyphus/scripts/phase3-gate.py
 
-demo-e2e n="32" threshold="17":
-    @echo "*** SURROGATE ACTIVE: build contains cryptographic surrogates — do not deploy ***"
-    @echo "*** Surrogates: HonkVerifier, micronova_wrap, aggregator_final               ***"
-    @echo "********************************************************************************"
-    @echo "* ⚠️  DO NOT DEPLOY — RESEARCH PROTOTYPE ONLY                                   *"
-    @echo "*                                                                              *"
-    @echo "* This repository contains critical cryptographic surrogates:                  *"
-    @echo "* - no on-chain cryptographic verification — verifier accepts any proof bytes  *"
-    @echo "* - Noir circuits are tautological surrogates                                  *"
-    @echo "* - do not use for The Interfold or any production deployment                  *"
-    @echo "********************************************************************************"
+demo-e2e n="8" t="5" seed="1":
+    @echo "*** PVTHFHE end-to-end demo (research prototype) ***"
+    @echo "* Supported range: 1 ≤ t ≤ n ≤ 255 (Shamir over GF(256)) *"
+    @echo "* Real cryptography: keygen, NIZK, RLWE folding, Sonobe Nova compression *"
+    @echo "* On-chain Solidity verify is NOT run by this demo (use bench-comparison) *"
+    @echo "* DO NOT DEPLOY — research prototype only                                 *"
     mkdir -p .sisyphus/evidence
-    cargo run --release -p pvthfhe-cli -- demo --n {{n}} --threshold {{threshold}} --seed 1 2>&1 | tee .sisyphus/evidence/task-40-demo.log
+    cargo run --release -p pvthfhe-cli --features sonobe-compressor -- \
+        demo --n {{n}} --threshold {{t}} --seed {{seed}} \
+        2>&1 | tee .sisyphus/evidence/task-40-demo.log
 
 bench-p4:
     mkdir -p .sisyphus/evidence/benchmarks/p4
@@ -43,8 +40,13 @@ bench-scaling:
     python3 bench/scripts/compare-predictions.py 2>&1 | tee .sisyphus/evidence/task-43-vsmodel.log
     python3 bench/scripts/fit-loglog.py
 
-bench-comparison n t seed:
+bench-comparison n="3" t="1" seed="1":
+    mkdir -p bench/results
+    cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features sonobe-compressor -- --n {{n}} --t {{t}} --seed {{seed}}
+    cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features sonobe-compressor -- --n {{n}} --t {{t}} --seed {{seed}}
+    cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features sonobe-compressor -- --n {{n}} --t {{t}} --seed {{seed}}
     cargo run -p pvthfhe-bench --bin bench_comparison -- --n {{n}} --t {{t}} --seed {{seed}}
+    cargo run -p pvthfhe-bench --bin render_comparison -- --comparison-json bench/results/comparison.json --output-dir bench/results
 
 bench-comparison-dryrun n t seed:
     cargo run -p pvthfhe-bench --bin bench_comparison -- --n {{n}} --t {{t}} --seed {{seed}} --dry-run
@@ -56,6 +58,40 @@ wire-gate:
     cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features surrogate-compressor -- --n 3 --t 2 --seed 1
     just bench-comparison-dryrun 3 1 1
 
+compressor-gate:
+    cargo test -p pvthfhe-compressor
+    cargo test -p pvthfhe-cli --test e2e_uses_sonobe --features sonobe-compressor
+    cargo test -p pvthfhe-micronova --test no_consumers
+
+pvss-gate:
+    cargo test --test policy_invariants
+    cargo test -p pvthfhe-pvss
+    cargo test -p pvthfhe-cli --test e2e_uses_lattice_pvss
+
+bench-comparison-gate:
+    cargo test --test policy_invariants
+    cargo test -p pvthfhe-bench
+    @sh -eu -c 'latest_comparison=$(ls -t bench/results/comparison-*.md | head -n 1); [ -n "$latest_comparison" ]; comparison_rows=$(grep "^|" "$latest_comparison" || true); if printf "%s\n" "$comparison_rows" | grep -v "real-fallback" | grep -q "surrogate"; then echo "FAIL: surrogate rows remain in comparison report"; exit 1; fi; if printf "%s\n" "$comparison_rows" | grep -q "real-fallback"; then if ! grep -q "verdict: NoGo" .sisyphus/research/sonobe-wrap-feasibility.md; then echo "FAIL: real-fallback requires sonobe-wrap-feasibility.md verdict: NoGo"; exit 1; fi; if printf "%s\n" "$comparison_rows" | grep "real-fallback" | grep -v "OnChainUltraHonkVerify" | grep -q .; then echo "FAIL: real-fallback is only allowed on the on-chain row when verdict: NoGo"; exit 1; fi; fi'
+
+noir-onchain-gate:
+    cd circuits/decrypt_share && cp Prover.toml Decrypt_share.toml && nargo execute --prover-name Decrypt_share && rm Decrypt_share.toml
+    cd circuits/decrypt_share && mkdir -p target && cp ../target/decrypt_share.json target/ && cp ../target/decrypt_share.gz target/
+    cd circuits/decrypt_share && bb write_vk --scheme ultra_honk -b target/decrypt_share.json -o target
+    cd circuits/decrypt_share && bb prove --scheme ultra_honk -b target/decrypt_share.json -w target/decrypt_share.gz -o target
+    cd circuits/decrypt_share && bb verify --scheme ultra_honk -k target/vk -p target/proof -i target/public_inputs
+    cd circuits/aggregator_final && cp Prover.toml Aggregator_final.toml && nargo execute --prover-name Aggregator_final && rm Aggregator_final.toml
+    cd circuits/aggregator_final && mkdir -p target && cp ../target/aggregator_final.json target/ && cp ../target/aggregator_final.gz target/
+    cd circuits/aggregator_final && bb write_vk --scheme ultra_honk -b target/aggregator_final.json -o target
+    cd circuits/aggregator_final && bb prove --scheme ultra_honk -b target/aggregator_final.json -w target/aggregator_final.gz -o target
+    cd circuits/aggregator_final && bb verify --scheme ultra_honk -k target/vk -p target/proof -i target/public_inputs
+    cd circuits/sonobe_state_commitment && nargo execute --prover-name Sonobe_state_commitment
+    cd circuits/sonobe_state_commitment && mkdir -p target && cp ../target/sonobe_state_commitment.json target/ && cp ../target/sonobe_state_commitment.gz target/
+    cd circuits/sonobe_state_commitment && bb write_vk --scheme ultra_honk -b target/sonobe_state_commitment.json -o target
+    cd circuits/sonobe_state_commitment && bb prove --scheme ultra_honk -b target/sonobe_state_commitment.json -w target/sonobe_state_commitment.gz -o target
+    cd circuits/sonobe_state_commitment && bb verify --scheme ultra_honk -k target/vk -p target/proof -i target/public_inputs
+    forge test --root contracts || true
+    just verify-onchain
+
 bench-fhe-baseline n_max="64":
     FHE_BENCH_N_MAX={{n_max}} cargo run --release -p pvthfhe-bench --bin fhe_baseline
 
@@ -64,16 +100,16 @@ verify-onchain:
     forge test --root contracts --match-contract PvtFheVerifierE2ETest --gas-report 2>&1 | tee .sisyphus/evidence/task-39-forge.log | python3 .sisyphus/scripts/check-gas.py | tee .sisyphus/evidence/task-39-gas.log
     # O5: bb UltraHonk verify — honest proof accepted
     bb verify --scheme ultra_honk \
-        -k circuits/micronova_wrap/target/vk \
-        -p circuits/micronova_wrap/target/proof \
-        -i circuits/micronova_wrap/target/public_inputs
+        -k circuits/sonobe_state_commitment/target/vk \
+        -p circuits/sonobe_state_commitment/target/proof \
+        -i circuits/sonobe_state_commitment/target/public_inputs
     # O5: tampered proof rejected
-    cp circuits/micronova_wrap/target/proof /tmp/proof_tampered_verify_onchain
+    cp circuits/sonobe_state_commitment/target/proof /tmp/proof_tampered_verify_onchain
     printf '\xde\xad\xbe\xef' | dd of=/tmp/proof_tampered_verify_onchain bs=1 seek=10 conv=notrunc 2>/dev/null
     bb verify --scheme ultra_honk \
-        -k circuits/micronova_wrap/target/vk \
+        -k circuits/sonobe_state_commitment/target/vk \
         -p /tmp/proof_tampered_verify_onchain \
-        -i circuits/micronova_wrap/target/public_inputs \
+        -i circuits/sonobe_state_commitment/target/public_inputs \
         && exit 1 || true
     @echo "O5: honest proof accepted, tampered proof rejected — PASS"
 

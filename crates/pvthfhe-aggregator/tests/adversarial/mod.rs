@@ -18,9 +18,15 @@ mod threshold_above;
 mod threshold_below;
 mod withhold_reveal;
 
-const TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\n";
+const TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
 const N_PARTIES: usize = 4;
 const THRESHOLD: usize = 2;
+
+fn acknowledge_mock_backend() {
+    unsafe {
+        std::env::set_var("PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK", "1");
+    }
+}
 
 struct DecryptFixture {
     backend: MockBackend,
@@ -35,6 +41,7 @@ struct DecryptFixture {
 }
 
 fn backend_from_seed(_seed: u64) -> MockBackend {
+    acknowledge_mock_backend();
     MockBackend::load_params(TOML).unwrap()
 }
 

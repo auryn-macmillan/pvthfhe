@@ -1,0 +1,28 @@
+[package]
+name = "pvthfhe-compressor"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[dependencies]
+ark-bn254 = "0.5"
+ark-ff = "0.5"
+ark-grumpkin = "0.5"
+ark-r1cs-std = "0.5"
+ark-relations = "0.5"
+ark-serialize = "0.5"
+folding-schemes = { git = "https://github.com/privacy-scaling-explorations/sonobe", package = "folding-schemes", rev = "63f2930d363150d4490ce2c4be8e0c25c2e1d92c" }
+rand_chacha = "0.3"
+rand_core = "0.6"
+sha3 = "0.10"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "sonobe-min-compressor"
+path = "src/bin/sonobe_min.rs"

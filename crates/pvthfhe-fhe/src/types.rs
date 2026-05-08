@@ -37,7 +37,7 @@ pub struct DecryptShare {
 }
 
 /// RLWE parameters loaded from a TOML configuration string.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Params {
     /// RLWE polynomial degree.
     pub n: u32,
@@ -45,4 +45,8 @@ pub struct Params {
     pub log2_q: u32,
     /// Plaintext modulus t.
     pub t_plain: u32,
+    /// Explicit RNS ciphertext moduli.
+    pub moduli: Vec<u64>,
+    /// Discrete Gaussian variance used for error sampling.
+    pub variance: usize,
 }

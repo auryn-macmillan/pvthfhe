@@ -12,6 +12,7 @@ pub mod fhers;
 #[cfg(feature = "real-nizk")]
 pub mod real_nizk;
 pub mod types;
+pub mod wire;
 
 mod mock_impl;
 
@@ -34,6 +35,9 @@ pub trait FheBackend: Send + Sync {
     /// - `n`: polynomial degree (u32)
     /// - `log2_q`: base-2 log of ciphertext modulus (u32)
     /// - `t_plain`: plaintext modulus (u32)
+    /// - `variance`: discrete Gaussian variance (usize)
+    /// - `moduli`: explicit RNS moduli list (`parse_params` currently shims a
+    ///   canonical default when omitted)
     fn load_params(toml: &str) -> Result<Self, FheError>
     where
         Self: Sized;
@@ -41,7 +45,38 @@ pub trait FheBackend: Send + Sync {
     /// Generate a keygen share for the given party.
     ///
     /// Returns a [`KeygenShare`] with `party_id` set to `party_id`.
-    fn keygen_share(&self, party_id: u32, rng: &mut dyn RngCore) -> Result<KeygenShare, FheError>;
+    fn keygen_share(&self, party_id: u32, rng: &mut dyn RngCore) -> Result<KeygenShare, FheError> {
+        let mut session_id = [0u8; 32];
+        rng.fill_bytes(&mut session_id);
+        self.keygen_share_with_session(&session_id, party_id, rng)
+    }
+
+    /// Generate a keygen share for the given party within a specific session.
+    fn keygen_share_with_session(
+        &self,
+        _session_id: &[u8; 32],
+        _party_id: u32,
+        _rng: &mut dyn RngCore,
+    ) -> Result<KeygenShare, FheError> {
+        Err(FheError::Backend {
+            reason: "keygen_share_with_session not implemented".into(),
+        })
+    }
+
+    /// Returns whether this backend supports deterministic session-scoped keygen.
+    fn supports_session_scoped_keygen(&self) -> bool {
+        false
+    }
+
+    /// Prepare threshold-decryption state after all keygen shares exist.
+    fn setup_threshold(&self, _n: usize, _t: usize) -> Result<(), FheError> {
+        Ok(())
+    }
+
+    /// Returns whether this backend requires the mock acknowledgement env var.
+    fn requires_mock_acknowledgement(&self) -> bool {
+        false
+    }
 
     /// Aggregate keygen shares into a collective public key.
     ///

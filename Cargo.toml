@@ -1,9 +1,21 @@
+[package]
+name = "pvthfhe-spec-tests"
+version = "0.1.0"
+edition = "2021"
+publish = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+
 [workspace]
 resolver = "2"
 members = [
     "crates/pvthfhe-core",
     "crates/pvthfhe-fhe",
     "crates/pvthfhe-circuits",
+    "crates/pvthfhe-circuit-tests",
+    "crates/pvthfhe-offchain-verifier",
     "crates/pvthfhe-aggregator",
     "crates/pvthfhe-keygen-spec",
     "crates/pvthfhe-keygen",
@@ -12,8 +24,10 @@ members = [
     "crates/pvthfhe-api",
     "crates/pvthfhe-enclave-adapter",
     "crates/pvthfhe-nizk",
+    "crates/pvthfhe-pvss",
     "crates/pvthfhe-cyclo",
     "crates/pvthfhe-micronova",
+    "crates/pvthfhe-compressor",
 ]
 
 [workspace.lints.rust]
@@ -24,3 +38,30 @@ unwrap_used = "deny"
 expect_used = "deny"
 panic = "warn"
 as_conversions = "warn"
+
+[patch.crates-io]
+ark-groth16 = { git = "https://github.com/arkworks-rs/groth16", rev = "b3b4a15" }
+ark-ff = { git = "https://github.com/arkworks-rs/algebra" }
+ark-ec = { git = "https://github.com/arkworks-rs/algebra" }
+ark-serialize = { git = "https://github.com/arkworks-rs/algebra" }
+ark-poly = { git = "https://github.com/arkworks-rs/algebra" }
+ark-relations = { git = "https://github.com/arkworks-rs/snark" }
+ark-snark = { git = "https://github.com/arkworks-rs/snark" }
+ark-crypto-primitives = { git = "https://github.com/flyingnobita/crypto-primitives", rev = "f559264" }
+ark-r1cs-std = { git = "https://github.com/flyingnobita/r1cs-std_yelhousni", rev = "b4bab0c" }
+ark-std = { git = "https://github.com/arkworks-rs/std" }
+ark-poly-commit = { git = "https://github.com/arkworks-rs/poly-commit" }
+ark-bn254 = { git = "https://github.com/arkworks-rs/algebra" }
+ark-grumpkin = { git = "https://github.com/arkworks-rs/algebra" }
+
+[[test]]
+name = "spec_consistency"
+path = "tests/integration/spec_consistency.rs"
+
+[[test]]
+name = "policy_invariants"
+path = "tests/integration/policy_invariants.rs"
+
+[[test]]
+name = "docs_truthful"
+path = "tests/integration/docs_truthful.rs"

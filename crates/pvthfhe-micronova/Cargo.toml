@@ -17,5 +17,9 @@ thiserror = "1"
 rand_chacha = "0.3"
 rand_core = "0.6"
 
+[[test]]
+name = "no_consumers"
+path = "tests/no_consumers.rs"
+
 [lints]
 workspace = true

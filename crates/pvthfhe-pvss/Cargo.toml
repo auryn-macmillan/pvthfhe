@@ -1,0 +1,18 @@
+[package]
+name = "pvthfhe-pvss"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[dependencies]
+pvthfhe-fhe = { path = "../pvthfhe-fhe" }
+pvthfhe-nizk = { path = "../pvthfhe-nizk" }
+rand_chacha = "0.3"
+rand_core = "0.6"
+sha2 = "0.10"
+
+[dev-dependencies]
+pvthfhe-fhe = { path = "../pvthfhe-fhe", features = ["mock"] }
+
+[lints]
+workspace = true

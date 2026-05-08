@@ -1,8 +1,11 @@
 use super::types::{DkgTranscript, PartyId, Round1Message, Round2Message, Round3Aggregate};
-use pvthfhe_fhe::{mock::MockBackend, FheBackend, PublicKey};
+use pvthfhe_fhe::{FheBackend, PublicKey};
 use rand_core::OsRng;
 use sha2::{Digest, Sha256};
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FaultType {
@@ -19,13 +22,13 @@ pub enum KeygenResult {
 
 pub struct KeygenSimulator {
     n_parties: usize,
-    _threshold: usize,
-    backend: MockBackend,
+    threshold: usize,
+    backend: Arc<dyn FheBackend>,
     faults: HashMap<PartyId, FaultType>,
 }
 
 fn party_id_from_index(index: usize) -> PartyId {
-    u32::try_from(index).unwrap_or(u32::MAX)
+    u32::try_from(index.saturating_add(1)).unwrap_or(u32::MAX)
 }
 
 fn hash_bytes(data: &[u8]) -> [u8; 32] {
@@ -37,18 +40,65 @@ fn hash_bytes(data: &[u8]) -> [u8; 32] {
 }
 
 impl KeygenSimulator {
-    pub fn new(n_parties: usize, threshold: usize, backend: MockBackend) -> Self {
+    pub fn new<B: FheBackend + 'static>(n_parties: usize, threshold: usize, backend: B) -> Self {
+        Self::assert_mock_acknowledged_if_needed(&backend);
+        Self {
+            n_parties,
+            threshold,
+            backend: Arc::new(backend),
+            faults: HashMap::new(),
+        }
+    }
+
+    pub fn new_with_backend<B: FheBackend + 'static>(
+        n_parties: usize,
+        threshold: usize,
+        backend: B,
+    ) -> Self {
+        Self::new(n_parties, threshold, backend)
+    }
+
+    fn assert_mock_acknowledged_if_needed(backend: &dyn FheBackend) {
+        if !backend.requires_mock_acknowledgement() {
+            return;
+        }
+
         if std::env::var("PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK").as_deref() != Ok("1") {
             panic!(
                 "PVTHFHE: mock backend requires PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK=1 \
                  to be set in the environment."
             );
         }
-        Self {
-            n_parties,
-            _threshold: threshold,
-            backend,
-            faults: HashMap::new(),
+    }
+
+    fn session_id(&self) -> [u8; 32] {
+        let participant_set_hash = self.participant_set_hash();
+        let mut data = Vec::with_capacity(72);
+        data.extend_from_slice(b"pvthfhe/keygen-simulator/session/v1");
+        data.extend_from_slice(&participant_set_hash);
+        data.extend_from_slice(&self.threshold.to_be_bytes());
+        hash_bytes(&data)
+    }
+
+    fn participant_set_hash(&self) -> [u8; 32] {
+        let mut data = Vec::with_capacity(self.n_parties * std::mem::size_of::<PartyId>());
+        for index in 0..self.n_parties {
+            data.extend_from_slice(&party_id_from_index(index).to_be_bytes());
+        }
+        hash_bytes(&data)
+    }
+
+    fn keygen_share_with_session(
+        &self,
+        session_id: &[u8; 32],
+        party_id: PartyId,
+    ) -> Result<pvthfhe_fhe::KeygenShare, pvthfhe_fhe::FheError> {
+        let mut rng = OsRng;
+        if self.backend.supports_session_scoped_keygen() {
+            self.backend
+                .keygen_share_with_session(session_id, party_id, &mut rng)
+        } else {
+            self.backend.keygen_share(party_id, &mut rng)
         }
     }
 
@@ -57,6 +107,8 @@ impl KeygenSimulator {
     }
 
     pub fn run(&mut self) -> Result<KeygenResult, pvthfhe_fhe::FheError> {
+        let session_id = self.session_id();
+
         // ROUND 1
         let mut r1_msgs = Vec::new();
         let mut equivocated = HashSet::new();
@@ -66,7 +118,7 @@ impl KeygenSimulator {
             let fault = self.faults.get(&party_id);
 
             // Generate normal message
-            let mut msg = self.generate_r1_msg(party_id)?;
+            let mut msg = self.generate_r1_msg(&session_id, party_id)?;
 
             // Apply faults
             if fault == Some(&FaultType::MalformedProof) {
@@ -168,11 +220,7 @@ impl KeygenSimulator {
         let aggregate_pk = self.backend.aggregate_keygen(&shares)?;
 
         // Merkle root and hash mock
-        let mut p_set_bytes = Vec::new();
-        for p in &participant_set {
-            p_set_bytes.extend_from_slice(&p.to_be_bytes());
-        }
-        let participant_set_hash = hash_bytes(&p_set_bytes);
+        let participant_set_hash = self.participant_set_hash();
 
         // Sort round 1 messages for transcript (by party_id)
         valid_r1.sort_by_key(|m| m.party_id);
@@ -208,9 +256,12 @@ impl KeygenSimulator {
         Ok(KeygenResult::Complete(transcript))
     }
 
-    fn generate_r1_msg(&self, party_id: PartyId) -> Result<Round1Message, pvthfhe_fhe::FheError> {
-        let mut rng = OsRng;
-        let share = self.backend.keygen_share(party_id, &mut rng)?;
+    fn generate_r1_msg(
+        &self,
+        session_id: &[u8; 32],
+        party_id: PartyId,
+    ) -> Result<Round1Message, pvthfhe_fhe::FheError> {
+        let share = self.keygen_share_with_session(session_id, party_id)?;
         let pk_i = PublicKey { bytes: share.bytes };
         let pk_i_hash = hash_bytes(&pk_i.bytes);
 

@@ -1,0 +1,23 @@
+{
+  "backend_id": "fhers-bfv",
+  "nizk_backend_id": "cyclo-ajtai-d2-conditional",
+  "folding_backend_id": "cyclo-rlwe-t10-lemma9-heuristic",
+  "compressor_backend_id": "ultra-honk-micronova",
+  "n": 4,
+  "t": 2,
+  "seed": 1,
+  "mean": 0.0,
+  "median": 0.0,
+  "p99": 0.0,
+  "stddev": 0.0,
+  "aggregator_wall_ms": 0.0,
+  "final_snark_size_bytes": 32,
+  "verifier_gas": 1278,
+  "peak_mem_kb": 65847072,
+  "env": {
+    "cpu": "AMD RYZEN AI MAX+ 395 w/ Radeon 8060S",
+    "cpu_cores": 8,
+    "mem_kb": 65847072,
+    "kernel": "Linux version 6.8.0-111-generic"
+  }
+}

@@ -47,7 +47,7 @@ Neutralize the risk of accidental or malicious production deployment of the curr
 
 ### Concrete Deliverables
 
-- [ ] Suspect F1–F4 APPROVE evidence quarantined to `.sisyphus/evidence/quarantine/` with forensic README
+- [x] Suspect F1–F4 APPROVE evidence quarantined to `.sisyphus/evidence/quarantine/` with forensic README
 - Top-of-file "DO NOT DEPLOY" banners in README.md, ARCHITECTURE.md, SECURITY.md, STATUS.md, WARNING.txt, and paper/main.tex.
 - Stderr build-time warning emitted by Cargo and Justfile.
 - Modified `crates/*/Cargo.toml` removing default mock features.
@@ -57,16 +57,16 @@ Neutralize the risk of accidental or malicious production deployment of the curr
 
 ### Definition of Done
 
-- [ ] Suspect F1–F4 APPROVE evidence quarantined to `.sisyphus/evidence/quarantine/` with forensic README
-- [ ] DO-NOT-DEPLOY banner on README, ARCHITECTURE, SECURITY, STATUS, WARNING.txt, paper abstract (mandated 3-claim text in first 15 lines)
-- [ ] just demo-e2e --seed 1 emits visible warning before success
-- [ ] Build-time surrogate tripwire surfaces stderr on every cargo/just/forge build
-- [ ] No default-feature mock path resolves to a usable FHE primitive; feature inventory complete
-- [ ] PvtFheVerifier.verify reverts; vacuous accept path removed; random adversarial tests pass
-- [ ] Tautological Noir circuits replaced with assert(false); grep -rE 'assert\(([a-zA-Z_]+)\s*==\s*\1\)' returns 0
-- [ ] SECURITY-ADVISORY-001 drafted (min 80 lines), gated on user okay
-- [ ] just stage0-gate passes (reruns raw verification, no cached logs)
-- [ ] User has acknowledged Stage 0 completion before Stage 1 begins
+- [x] Suspect F1–F4 APPROVE evidence quarantined to `.sisyphus/evidence/quarantine/` with forensic README
+- [x] DO-NOT-DEPLOY banner on README, ARCHITECTURE, SECURITY, STATUS, WARNING.txt, paper abstract (mandated 3-claim text in first 15 lines)
+- [x] just demo-e2e --seed 1 emits visible warning before success
+- [x] Build-time surrogate tripwire surfaces stderr on every cargo/just/forge build
+- [x] No default-feature mock path resolves to a usable FHE primitive; feature inventory complete
+- [x] PvtFheVerifier.verify reverts; vacuous accept path removed; random adversarial tests pass
+- [x] Tautological Noir circuits replaced with assert(false); grep -rE 'assert\(([a-zA-Z_]+)\s*==\s*\1\)' returns 0
+- [x] SECURITY-ADVISORY-001 drafted (min 80 lines), gated on user okay
+- [x] just stage0-gate passes (reruns raw verification, no cached logs)
+- [x] User has acknowledged Stage 0 completion before Stage 1 begins
 
 ### Must Have
 
@@ -288,7 +288,7 @@ Wave 2 (Synthesis):
 
   **Commit**: `disclosure: surrogate-active build-time tripwire`.
 
-- [ ] 3. **Disable Mock-Default Feature Paths**
+- [x] 3. **Disable Mock-Default Feature Paths**
 
   **What to do**:
   - Remove mock backends from default features in all `Cargo.toml` files.
@@ -324,7 +324,7 @@ Wave 2 (Synthesis):
 
   **Commit**: `feature-flags: opt-in mock backends with understanding env var`.
 
-- [ ] 4. **PvtFheVerifier `verify()` Hard-Revert**
+- [x] 4. **PvtFheVerifier `verify()` Hard-Revert**
 
   **What to do**:
   - Replace body of `PvtFheVerifier.verify` with `revert("PVTHFHE: on-chain verifier is a research surrogate — do not deploy");`.
@@ -361,7 +361,7 @@ Wave 2 (Synthesis):
 
   **Commit**: `contracts: PvtFheVerifier hard-revert until real verifier lands`.
 
-- [ ] 5. **Noir Circuit Hard-Revert Equivalent**
+- [x] 5. **Noir Circuit Hard-Revert Equivalent**
 
   **What to do**:
   - Replace `circuits/micronova_wrap/src/main.nr` and `circuits/aggregator_final/src/main.nr` with `assert(false)`.
@@ -396,7 +396,7 @@ Wave 2 (Synthesis):
 
   **Commit**: `circuits: hard-revert tautological surrogate circuits`.
 
-- [ ] 6. **Public Advisory Drafting**
+- [x] 6. **Public Advisory Drafting**
 
   **What to do**:
   - Draft `SECURITY-ADVISORY-001.md` covering C1/C2/C3 findings.
@@ -432,7 +432,7 @@ Wave 2 (Synthesis):
 
   **Commit**: `advisory: draft SECURITY-ADVISORY-001 (gated on user approval)`.
 
-- [ ] 7. **Stage 0 Final Synthesis & Gate**
+- [x] 7. **Stage 0 Final Synthesis & Gate**
 
   **What to do**:
   - Compile reports and evidence.

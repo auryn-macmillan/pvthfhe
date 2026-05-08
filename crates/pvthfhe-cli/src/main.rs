@@ -5,19 +5,13 @@
 #![warn(missing_docs)]
 
 use clap::{Parser, Subcommand};
-use rand::rngs::StdRng;
-use rand::SeedableRng;
-use sha2::{Digest, Sha256};
+#[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]
+use pvthfhe_cli::full_pipeline::{run_full_pipeline, PipelineConfig, PipelineObserver};
+#[cfg(feature = "with-fhe")]
+use pvthfhe_cli::pvss_support::PVSS_BACKEND_ID;
+#[cfg(feature = "with-fhe")]
+use pvthfhe_fhe::real_nizk::CYCLO_BACKEND_ID;
 use tracing::{info, warn};
-
-#[cfg(feature = "mock")]
-use pvthfhe_aggregator::{
-    decrypt::{aggregate_decrypt, partial_decrypt},
-    folding::{FoldingAccumulator, PartyProof},
-    keygen::simulator::{KeygenResult, KeygenSimulator},
-};
-#[cfg(feature = "mock")]
-use pvthfhe_fhe::{mock::MockBackend, FheBackend};
 
 /// PVTHFHE command-line interface.
 #[derive(Parser, Debug)]
@@ -81,21 +75,41 @@ enum Commands {
     },
     /// Run the full n-party demo pipeline in-process.
     Demo {
-        /// Number of parties.
-        #[arg(long, default_value_t = 4)]
+        /// Number of parties (maximum 255).
+        #[arg(long, default_value_t = 8)]
         n: usize,
+        /// Threshold (default: n/2+1).
+        #[arg(long)]
+        threshold: Option<usize>,
         /// Deterministic seed for RNG.
-        #[arg(long, default_value_t = 0)]
+        #[arg(long, default_value_t = 1)]
         seed: u64,
     },
 }
 
+const SAFE_DEFAULT_TRACING_FILTER: &str = "pvthfhe_cli=info,pvthfhe_compressor=info,pvthfhe_fhe=info,pvthfhe_lattice_pvss=info,pvthfhe_aggregator=info,pvthfhe_pvss=info,pvthfhe_bench=info,sonobe=info";
+
+fn build_env_filter() -> tracing_subscriber::EnvFilter {
+    match std::env::var("RUST_LOG") {
+        Ok(value) if rust_log_is_unsafe_global(&value) => {
+            tracing_subscriber::EnvFilter::new(SAFE_DEFAULT_TRACING_FILTER)
+        }
+        Ok(value) => tracing_subscriber::EnvFilter::try_new(&value)
+            .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(SAFE_DEFAULT_TRACING_FILTER)),
+        Err(_) => tracing_subscriber::EnvFilter::new(SAFE_DEFAULT_TRACING_FILTER),
+    }
+}
+
+fn rust_log_is_unsafe_global(value: &str) -> bool {
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "trace" | "debug" | "info" | "warn" | "error"
+    )
+}
+
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
-        )
+        .with_env_filter(build_env_filter())
         .init();
 
     let cli = Cli::parse();
@@ -135,18 +149,8 @@ fn main() -> anyhow::Result<()> {
             info!(proof = %proof, "verify stub");
             println!("verify: proof={proof} (stub)");
         }
-        Commands::Demo { n, seed } => {
-            #[cfg(feature = "mock")]
-            run_demo(n, seed)?;
-            #[cfg(not(feature = "mock"))]
-            {
-                let _ = (n, seed);
-                anyhow::bail!(
-                    "demo requires the `mock` feature and \
-                     PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK=1 env var; \
-                     rebuild with --features mock"
-                );
-            }
+        Commands::Demo { n, threshold, seed } => {
+            run_demo(n, threshold.unwrap_or(n / 2 + 1), seed)?;
         }
     }
 
@@ -154,155 +158,186 @@ fn main() -> anyhow::Result<()> {
 }
 
 /// Run the full demo pipeline with `n` parties and deterministic `seed`.
-#[cfg(feature = "mock")]
-fn run_demo(n: usize, seed: u64) -> anyhow::Result<()> {
-    info!(n, seed, "starting demo pipeline");
-    println!("demo: n={n} seed={seed}");
+#[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]
+fn run_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
+    const MAX_N: usize = 255;
+    if n == 0 || n > MAX_N {
+        anyhow::bail!(
+            "invalid n: n={n} must satisfy 1 <= n <= {MAX_N} (Shamir over GF(256))"
+        );
+    }
+    if threshold == 0 || threshold > n {
+        anyhow::bail!(
+            "invalid threshold: threshold={threshold} must satisfy 1 <= threshold <= n={n}"
+        );
+    }
+    let backend_threshold = threshold.min((n + 1) / 2);
+    if backend_threshold != threshold {
+        warn!(
+            requested_threshold = threshold,
+            backend_threshold,
+            n,
+            "real backend supports up to ceil(n/2); using capped threshold internally"
+        );
+    }
 
-    // ── 1. Keygen ────────────────────────────────────────────────────────────
-    let threshold = n / 2 + 1;
-    info!(n, threshold, "step 1/5: keygen");
-    println!("step 1/5: keygen  n={n} threshold={threshold}");
-    info!("banner: P1 NIZK: conditional soundness only");
+    let mut observer = DemoObserver::default();
+
+    info!(n, threshold, seed, "starting demo pipeline");
+    println!("demo: n={n} threshold={threshold} seed={seed}");
+    println!("pvss_backend_id={PVSS_BACKEND_ID}");
+
+    info!(backend_id = CYCLO_BACKEND_ID, "backend_id_p1");
     info!("backend_id_p2: cyclo-rlwe-t10-lemma9-heuristic");
     info!("backend_id_p3: ultra-honk-micronova");
-    println!("banner: P1 NIZK: conditional soundness only");
+    println!("backend_id == \"{CYCLO_BACKEND_ID}\"");
     println!("backend_id_p2: cyclo-rlwe-t10-lemma9-heuristic");
     println!("backend_id_p3: ultra-honk-micronova");
+    println!("note: on-chain Solidity verify is NOT run by demo (use bench-comparison)");
+    println!("pvss_backend_id={PVSS_BACKEND_ID}");
+    let report = run_full_pipeline(
+        &PipelineConfig {
+            n,
+            t: threshold,
+            seed,
+        },
+        &mut observer,
+    )?;
 
-    let backend = MockBackend::load_params("[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\n")
-        .map_err(|e| anyhow::anyhow!("backend init: {e}"))?;
-
-    let mut sim = KeygenSimulator::new(n, threshold, backend.clone());
-    let keygen_result = sim.run().map_err(|e| anyhow::anyhow!("keygen: {e}"))?;
-
-    let transcript = match keygen_result {
-        KeygenResult::Complete(t) => {
-            info!(parties = t.participant_set.len(), "keygen complete");
-            println!("keygen: COMPLETE  parties={}", t.participant_set.len());
-            t
-        }
-        KeygenResult::Blamed(blamed) => {
-            warn!(?blamed, "keygen blamed parties");
-            return Err(anyhow::anyhow!("keygen blamed: {blamed:?}"));
-        }
-    };
-
-    let aggregate_pk = &transcript.round3_aggregate.aggregate_pk;
-    // Do NOT log secret key material; log only pk hash
-    let pk_hash = hex::encode(sha256_bytes(&aggregate_pk.bytes));
-    info!(pk_hash = %pk_hash, "aggregate public key [sk: REDACTED]");
-    println!("aggregate_pk_hash: {pk_hash}");
-
-    // ── 2. Encrypt ───────────────────────────────────────────────────────────
-    info!("step 2/5: encrypt");
-    println!("step 2/5: encrypt");
-
-    let plaintext = b"hello pvthfhe!";
-    let mut rng: StdRng = StdRng::seed_from_u64(seed);
-
-    let ct = backend
-        .encrypt(aggregate_pk, plaintext, &mut rng)
-        .map_err(|e| anyhow::anyhow!("encrypt: {e}"))?;
-
-    let ct_hash = sha256_bytes(&ct.bytes);
-    let ct_hash_hex = hex::encode(ct_hash);
-    info!(ct_hash = %ct_hash_hex, "ciphertext produced");
-    println!("ciphertext_hash: {ct_hash_hex}");
-
-    // ── 3. Partial decrypt ───────────────────────────────────────────────────
-    info!("step 3/5: partial decrypt");
-    println!("step 3/5: partial-decrypt");
-
-    let dkg_root = transcript.dkg_root;
-    let epoch: u64 = 1;
-
-    let mut shares = Vec::new();
-    for &party_id in &transcript.participant_set {
-        let mut party_rng: StdRng = StdRng::seed_from_u64(seed ^ u64::from(party_id));
-        let payload = partial_decrypt(
-            &backend,
-            &ct,
-            party_id,
-            &dkg_root,
-            &ct_hash,
-            epoch,
-            &mut party_rng,
-        )
-        .map_err(|e| anyhow::anyhow!("partial_decrypt party {party_id}: {e}"))?;
-        info!(party_id, "partial decrypt share produced");
-        shares.push(payload);
-    }
-    println!("partial_decrypt: {} shares collected", shares.len());
-
-    // ── 4. Aggregate decrypt ─────────────────────────────────────────────────
-    info!("step 4/5: aggregate decrypt");
-    println!("step 4/5: aggregate-decrypt");
-
-    let allowed_parties: Vec<u32> = transcript.participant_set.clone();
-    let plaintext_out = aggregate_decrypt(
-        &backend,
-        &ct,
-        &shares,
-        threshold,
-        &allowed_parties,
-        &dkg_root,
-        &ct_hash,
-        epoch,
-    )
-    .map_err(|e| anyhow::anyhow!("aggregate_decrypt: {e}"))?;
-
-    if plaintext_out == plaintext {
-        info!("plaintext round-trip: OK");
-        println!("plaintext_roundtrip: OK");
+    let plaintext_roundtrip = if report.plaintext_roundtrip_ok {
+        "OK"
     } else {
-        warn!("plaintext round-trip: MISMATCH");
-        println!("plaintext_roundtrip: MISMATCH");
-    }
+        "MISMATCH"
+    };
+    let keygen_ms = report.timings.phases.keygen.total_ms;
+    let aggregate_keygen_ms = observer.aggregate_keygen_ms.unwrap_or(0.0);
+    let encrypt_ms = observer.encrypt_ms.unwrap_or(0.0);
+    let partial_decrypt_ms = report.timings.phases.partial_decrypt.total_ms;
+    let aggregate_decrypt_ms = report.timings.phases.aggregate_decrypt.total_ms;
+    let decrypt_ms = partial_decrypt_ms + aggregate_decrypt_ms;
+    let share_encryption_proof_ms = report.timings.phases.pvss_share_encrypt.total_ms;
 
-    // ── 5. Folding ───────────────────────────────────────────────────────────
-    info!("step 5/5: folding accumulator");
-    println!("step 5/5: folding");
-
-    let mut acc = FoldingAccumulator::new();
-    for payload in &shares {
-        let share_hash = sha256_bytes(&payload.share.bytes);
-        let proof = PartyProof {
-            party_id: payload.party_id,
-            share_hash,
-            nizk_bytes: payload.nizk.clone(),
-        };
-        acc.add_proof(proof)
-            .map_err(|e| anyhow::anyhow!("add_proof party {}: {e}", payload.party_id))?;
-    }
-
-    let snark = acc
-        .finalize()
-        .map_err(|e| anyhow::anyhow!("folding finalize: {e}"))?;
-
-    let proof_hex = hex::encode(&snark.proof_bytes);
-    info!(
-        proof_size = snark.proof_size_bytes,
-        prover_time_ms = snark.prover_time_ms,
-        proof_hash = %proof_hex,
-        "final snark produced"
+    println!("plaintext_roundtrip: {plaintext_roundtrip}");
+    println!("aggregate_pk_hash: {}", report.aggregate_pk_hash_hex);
+    println!("ciphertext_hash: {}", report.ciphertext_hash_hex);
+    println!(
+        "compressed_proof_digest: {}",
+        report.compressed_proof_digest_hex
     );
-    println!("snark_proof_hash: {proof_hex}");
-    println!("snark_proof_size_bytes: {}", snark.proof_size_bytes);
-    println!("snark_prover_time_ms: {}", snark.prover_time_ms);
-
-    // ── Result ───────────────────────────────────────────────────────────────
+    println!("keygen_ms={keygen_ms}");
+    println!("aggregate_keygen_ms={aggregate_keygen_ms}");
+    println!("encrypt_ms={encrypt_ms}");
+    println!("share_encryption_proof_ms={share_encryption_proof_ms}");
+    println!("partial_decrypt_ms={partial_decrypt_ms}");
+    println!("aggregate_decrypt_ms={aggregate_decrypt_ms}");
+    println!("decrypt_ms={decrypt_ms}");
+    println!("threshold={threshold}");
+    println!("n={n}");
     println!("verify: ACCEPT");
+    println!("pvss_backend_id={}", observer.pvss_backend_id());
     info!("demo complete: ACCEPT");
 
     Ok(())
 }
 
-#[cfg(feature = "mock")]
-fn sha256_bytes(data: &[u8]) -> [u8; 32] {
-    let mut h = Sha256::new();
-    h.update(data);
-    let mut out = [0u8; 32];
-    out.copy_from_slice(&h.finalize());
-    out
+#[cfg(not(all(feature = "with-fhe", feature = "sonobe-compressor")))]
+fn run_demo(_n: usize, _threshold: usize, _seed: u64) -> anyhow::Result<()> {
+    anyhow::bail!("demo requires the `with-fhe` and `sonobe-compressor` features")
+}
+
+#[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]
+#[derive(Default)]
+struct DemoObserver {
+    keygen_announced: bool,
+    pvss_announced: bool,
+    cyclo_fold_announced: bool,
+    compressor_prove_announced: bool,
+    compressor_verify_announced: bool,
+    partial_decrypt_announced: bool,
+    aggregate_decrypt_announced: bool,
+    aggregate_keygen_ms: Option<f64>,
+    encrypt_ms: Option<f64>,
+    pvss_backend_id: Option<String>,
+}
+
+#[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]
+impl DemoObserver {
+    const STEP_COUNT: usize = 9;
+
+    fn pvss_backend_id(&self) -> &str {
+        self.pvss_backend_id.as_deref().unwrap_or(PVSS_BACKEND_ID)
+    }
+
+    fn print_step(step: usize, name: &str, detail: Option<&str>) {
+        match detail {
+            Some(detail) => println!("step {step}/{total}: {name} ({detail})", total = Self::STEP_COUNT),
+            None => println!("step {step}/{total}: {name}", total = Self::STEP_COUNT),
+        }
+    }
+}
+
+#[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]
+impl PipelineObserver for DemoObserver {
+    fn phase_start(&mut self, name: &str, detail: Option<&str>) {
+        match name {
+            "keygen" if !self.keygen_announced => {
+                self.keygen_announced = true;
+                Self::print_step(1, "keygen", detail);
+            }
+            "nizk_prove" => match detail {
+                Some(detail) => println!("step 2/9: nizk_prove ({detail})"),
+                None => println!("step 2/9: nizk_prove"),
+            },
+            "nizk_verify" => match detail {
+                Some(detail) => println!("step 3/9: nizk_verify ({detail})"),
+                None => println!("step 3/9: nizk_verify"),
+            },
+            "pvss_share_encrypt" if !self.pvss_announced => {
+                self.pvss_announced = true;
+                Self::print_step(4, "pvss_share_encrypt", detail);
+            }
+            "cyclo_fold" if !self.cyclo_fold_announced => {
+                self.cyclo_fold_announced = true;
+                Self::print_step(5, "cyclo_fold", detail);
+            }
+            "compressor_prove" if !self.compressor_prove_announced => {
+                self.compressor_prove_announced = true;
+                Self::print_step(6, "compressor_prove", detail);
+            }
+            "compressor_verify" if !self.compressor_verify_announced => {
+                self.compressor_verify_announced = true;
+                Self::print_step(7, "compressor_verify", detail);
+            }
+            "partial_decrypt" if !self.partial_decrypt_announced => {
+                self.partial_decrypt_announced = true;
+                Self::print_step(8, "partial_decrypt", detail);
+            }
+            "aggregate_decrypt" if !self.aggregate_decrypt_announced => {
+                self.aggregate_decrypt_announced = true;
+                Self::print_step(9, "aggregate_decrypt", detail);
+            }
+            _ => {}
+        }
+    }
+
+    fn phase_end(&mut self, name: &str, ms: f64) {
+        match name {
+            "aggregate_keygen" => self.aggregate_keygen_ms = Some(ms),
+            "encrypt" => self.encrypt_ms = Some(ms),
+            "keygen"
+            | "pvss_share_encrypt"
+            | "cyclo_fold"
+            | "compressor_prove"
+            | "compressor_verify"
+            | "partial_decrypt"
+            | "aggregate_decrypt" => println!("{name}: complete ({ms:.3} ms)"),
+            _ => {}
+        }
+    }
+
+    fn note(&mut self, msg: &str) {
+        if let Some(value) = msg.strip_prefix("pvss_backend_id=") {
+            self.pvss_backend_id = Some(value.to_owned());
+        }
+    }
 }

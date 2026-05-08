@@ -1,0 +1,73 @@
+{
+  "_provenance": {
+    "source_url": "https://github.com/gnosisguild/enclave/tree/main/circuits/benchmarks/results_secure",
+    "source_commit": "c7e98029193f548ac4575fd05d007b034b75385c",
+    "retrieved": "2026-05-06",
+    "hardware": "Apple M4 Pro, 14c/48GB",
+    "toolchain": "Nargo 1.0.0-beta.16, BB 3.0.0-nightly.20260102",
+    "config": "H=N=3, T=1",
+    "estimation_method": "Heuristic proportional split of the published 8056 s total, preserving the plan's ~75% ZkShareEncryption share and ~85% PVSS-proof-cluster share."
+  },
+  "circuit_timings": [
+    {
+      "name": "ZkPkBfv",
+      "ms": 161120,
+      "note": "Heuristic 2% share of the published 8056 s total; PK-share well-formedness is secondary to share encryption in the plan narrative."
+    },
+    {
+      "name": "ZkShareComputation",
+      "ms": 80560,
+      "note": "Heuristic 1% share of the published 8056 s total; small standalone share-computation cost."
+    },
+    {
+      "name": "ZkShareEncryption",
+      "ms": 6042000,
+      "note": "Plan-source published figure: approximately 75% of DKG cost is concentrated in ZkShareEncryption."
+    },
+    {
+      "name": "ZkVerifyShareProofs",
+      "ms": 483360,
+      "note": "Heuristic 6% share so the PVSS proof cluster (share encryption + verify + decrypt-side proofs) sums to approximately 85% of the published total."
+    },
+    {
+      "name": "ZkNodeDkgFold",
+      "ms": 161120,
+      "note": "Heuristic 2% share for the first node-fold stage outside the PVSS-proof-dominated portion."
+    },
+    {
+      "name": "ZkPkAggregation",
+      "ms": 80560,
+      "note": "Heuristic 1% share for the PK aggregation step."
+    },
+    {
+      "name": "ZkDkgAggregation",
+      "ms": 241680,
+      "note": "Heuristic 3% share for the final DKG aggregation SNARK."
+    },
+    {
+      "name": "ZkThresholdShareDecryption",
+      "ms": 241680,
+      "note": "Heuristic 3% share for threshold-share decryption proofs."
+    },
+    {
+      "name": "ZkDkgShareDecryption",
+      "ms": 322240,
+      "note": "Heuristic 4% share to keep the PVSS proof cluster near the plan's stated approximately 85% of DKG cost."
+    },
+    {
+      "name": "ZkDecryptedSharesAggregation",
+      "ms": 80560,
+      "note": "Heuristic 1% share for decrypted-share aggregation."
+    },
+    {
+      "name": "ZkDecryptionAggregation",
+      "ms": 80560,
+      "note": "Heuristic 1% share for final decryption aggregation."
+    },
+    {
+      "name": "OnChainUltraHonkVerify",
+      "ms": 80560,
+      "note": "Heuristic 1% share for the on-chain UltraHonk verification step; Interfold's published circuit name differs from PVTHFHE's onchain_verify row label."
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+commit_pk = "1"
+commit_ct_in = "2"
+commit_ct_out = "3"
+session_id = "1"
+sonobe_final_state_commitment = "3115281239805795994436322590308493735630519107973543550375762423685232930936"
+cyclo_aggregate_commitment = "14639489563875930293360535959061086502985370761089446542052300578029463560770"
+sonobe_state_preimage = ["10", "20", "30", "40"]
+cyclo_aggregate_preimage = ["50", "60", "70", "80"]

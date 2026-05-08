@@ -3,17 +3,35 @@
 //! The public [`crate::mock`] module re-exports from here when the `mock`
 //! feature is enabled. [`crate::fhers`] uses this as a fallback until T33.
 
+use crate::{error::FheError, types::Params};
+
+#[cfg(any(feature = "mock", test))]
 use crate::{
-    error::FheError,
-    types::{Ciphertext, DecryptShare, KeygenShare, Params, PublicKey},
+    types::{Ciphertext, DecryptShare, KeygenShare, PublicKey},
     FheBackend,
 };
+#[cfg(any(feature = "mock", test))]
 use rand_core::RngCore;
+
+fn parse_u64_list(value: &str) -> Option<Vec<u64>> {
+    let trimmed = value.trim();
+    let inner = trimmed.strip_prefix('[')?.strip_suffix(']')?.trim();
+    if inner.is_empty() {
+        return Some(Vec::new());
+    }
+
+    inner
+        .split(',')
+        .map(|item| item.trim().parse::<u64>().ok())
+        .collect()
+}
 
 pub(crate) fn parse_params(toml: &str) -> Result<Params, FheError> {
     let mut n: Option<u32> = None;
     let mut log2_q: Option<u32> = None;
     let mut t_plain: Option<u32> = None;
+    let mut moduli: Option<Vec<u64>> = None;
+    let mut variance: Option<usize> = None;
     let mut in_rlwe = false;
 
     for line in toml.lines() {
@@ -34,17 +52,36 @@ pub(crate) fn parse_params(toml: &str) -> Result<Params, FheError> {
             log2_q = val.trim().parse().ok();
         } else if let Some(val) = trimmed.strip_prefix("t_plain =") {
             t_plain = val.trim().parse().ok();
+        } else if let Some(val) = trimmed.strip_prefix("plaintext_modulus =") {
+            t_plain = val.trim().parse().ok();
+        } else if let Some(val) = trimmed.strip_prefix("moduli =") {
+            moduli = parse_u64_list(val);
+        } else if let Some(val) = trimmed.strip_prefix("variance =") {
+            variance = val.trim().parse().ok();
         }
     }
 
-    match (n, log2_q, t_plain) {
-        (Some(n), Some(log2_q), Some(t_plain)) => Ok(Params { n, log2_q, t_plain }),
+    if moduli.is_none() {
+        return Err(FheError::InvalidParams {
+            reason: "moduli required in [rlwe] section".into(),
+        });
+    }
+
+    match (n, log2_q, t_plain, moduli, variance) {
+        (Some(n), Some(log2_q), Some(t_plain), Some(moduli), Some(variance)) => Ok(Params {
+            n,
+            log2_q,
+            t_plain,
+            moduli,
+            variance,
+        }),
         _ => Err(FheError::InvalidParams {
-            reason: "missing required [rlwe] fields: n, log2_q, t_plain".into(),
+            reason: "missing required [rlwe] fields: n, log2_q, t_plain, variance".into(),
         }),
     }
 }
 
+#[cfg(any(feature = "mock", test))]
 pub(crate) fn xor_bytes(a: &[u8], b: &[u8]) -> Vec<u8> {
     let len = a.len().max(b.len());
     (0..len)
@@ -60,17 +97,22 @@ pub(crate) fn xor_bytes(a: &[u8], b: &[u8]) -> Vec<u8> {
 #[cfg(any(feature = "mock", test))]
 #[derive(Clone, Debug)]
 pub struct MockBackendInner {
-    pub(crate) params: Params,
+    pub(crate) _params: Params,
 }
 
 #[cfg(any(feature = "mock", test))]
 impl FheBackend for MockBackendInner {
     fn load_params(toml: &str) -> Result<Self, FheError> {
         let params = parse_params(toml)?;
-        Ok(Self { params })
+        Ok(Self { _params: params })
     }
 
-    fn keygen_share(&self, party_id: u32, _rng: &mut dyn RngCore) -> Result<KeygenShare, FheError> {
+    fn keygen_share_with_session(
+        &self,
+        _session_id: &[u8; 32],
+        party_id: u32,
+        _rng: &mut dyn RngCore,
+    ) -> Result<KeygenShare, FheError> {
         let bytes = party_id.to_le_bytes().to_vec();
         Ok(KeygenShare { party_id, bytes })
     }
@@ -126,8 +168,8 @@ impl FheBackend for MockBackendInner {
 
         if shares.len() < threshold {
             return Err(FheError::InsufficientShares {
-                received: shares.len(),
-                threshold,
+                have: shares.len(),
+                need: threshold,
             });
         }
 
@@ -144,7 +186,7 @@ impl FheBackend for MockBackendInner {
 mod unit_tests {
     use super::*;
 
-    const TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\n";
+    const TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
 
     #[test]
     fn t11_6_aggregate_decrypt_rejects_duplicate_party_id() {
@@ -188,6 +230,15 @@ mod unit_tests {
         assert_eq!(p.n, 8192);
         assert_eq!(p.log2_q, 174);
         assert_eq!(p.t_plain, 65536);
+        assert_eq!(
+            p.moduli,
+            [
+                288230376173076481u64,
+                288230376167047169,
+                288230376161280001
+            ]
+        );
+        assert_eq!(p.variance, 10);
     }
 
     #[test]

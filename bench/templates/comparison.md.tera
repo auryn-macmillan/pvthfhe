@@ -1,0 +1,31 @@
+# PVTHFHE vs Interfold trBFV — Side-by-Side Comparison
+
+## Hardware & Toolchain Disclosure
+| | PVTHFHE | Interfold trBFV |
+|---|---|---|
+| Hardware | {{ our_hardware }} | {{ their_hardware }} |
+| Toolchain | {{ our_toolchain }} | {{ their_toolchain }} |
+| Parameters | {{ our_params }} | {{ their_params }} |
+
+## Circuit Timings
+
+| Circuit | Cardinality | PVTHFHE (ms) | Interfold (ms) | Ratio | Status | Notes |
+|---|---|---|---|---|---|---|
+{% for row in circuit_rows %}| {{ row.name }} | {{ row.cardinality }} | {{ row.our_ms }} | {{ row.their_ms }} | {{ row.ratio }} | {{ row.status }} | {{ row.note }} |
+{% endfor %}
+
+## Status Legend
+- `real`: proof system fully implemented
+- `real-fallback`: off-chain verification with on-chain commitment (N3a NoGo path)
+- `surrogate`: placeholder/mock — not comparable
+- `n/a`: not applicable for this configuration
+
+## Comparison Notes
+- {{ no_normalization_note }}
+
+## Provenance
+- PVTHFHE commit: `{{ our_commit_sha }}`
+- Interfold source: {{ baseline_source_url }}
+- Interfold source commit: `{{ baseline_source_commit }}`
+- Interfold retrieval date: {{ baseline_retrieved }}
+- Interfold estimation method: {{ baseline_estimation_method }}

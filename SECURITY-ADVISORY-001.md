@@ -14,15 +14,15 @@ An adversary can successfully submit forged or garbage proofs to the on-chain ve
 
 ## Affected Components
 
-### C1: Vacuous On-chain Verification
-**Location:** `contracts/src/generated/HonkVerifier.sol:7` and `contracts/src/PvtFheVerifier.sol:88-99` (pre-remediation).
+### C1: On-chain Verification Topology
+**Location:** `contracts/src/PvtFheVerifier.sol`
 
-The original implementation of the `HonkVerifier` was vacuous, returning `true` if the keccak256 hash of the proof matched the first public input. Since the calling contract `PvtFheVerifier` (in its pre-remediation state) would set the first public input to the hash of the provided proof, any arbitrary byte array was accepted as a valid proof. This allowed an attacker to bypass all on-chain cryptographic checks.
+The research prototype uses an off-chain Sonobe + on-chain commitment topology (N3a NoGo path). While this replaces the Stage 0 killswitch, it shifts the trust assumption to a combination of an UltraHonk proof (verifying the Sonobe state commitment) and an off-chain attestation bundle.
 
-### C2: Tautological Noir Circuits
-**Location:** `circuits/micronova_wrap/src/main.nr:10-16` and `circuits/aggregator_final/src/main.nr:1-3`.
+### C2: Sonobe Substitution
+**Location:** `circuits/sonobe_wrap/`
 
-The Noir circuits used for wrapping and aggregation contained no real constraints on the public inputs. In earlier versions, they used `assert(x == x)` patterns, and currently use `assert(false)` as a killswitch. In the surrogate state, these circuits prove nothing about the witness or the computation, allowing any witness to satisfy the circuit logic if the killswitch is removed without implementing real constraints.
+Noir circuits now implement the real aggregation and wrapping logic, substituting MicroNova with Sonobe. The previously used `assert(false)` killswitches and tautological constraints have been replaced by real constraints that verify the Sonobe state transition and commitment.
 
 ### C3: SHA-256 Surrogate for Lattice Folding
 **Location:** `crates/pvthfhe-cyclo/src/fold.rs`.
@@ -64,9 +64,21 @@ The CVSS score of 10.0 is justified by the following factors:
 
 ## Mitigation
 Stage 0 red-team efforts have implemented the following emergency mitigations:
-- **Verifier Killswitch**: `PvtFheVerifier.sol` now unconditionally reverts with a warning message.
-- **Circuit Killswitch**: `micronova_wrap` and `aggregator_final` circuits now contain `assert(false)` to prevent compilation and use.
+- **Verifier Remediation**: `PvtFheVerifier.sol` uses the off-chain Sonobe + on-chain commitment topology.
+- **Circuit Implementation**: Real constraints have been implemented in the aggregation circuits using Sonobe.
 - **Documentation**: README and source files have been updated with "DO NOT DEPLOY" banners and explicit surrogate disclosures.
+
+## Trust assumption: NoGo branch (N3a verdict)
+
+Under the NoGo branch (N3a verdict: Sonobe-in-UltraHonk infeasible), on-chain verification
+uses `verifyWithAttestation` which combines:
+1. A UltraHonk proof for the `sonobe_state_commitment` circuit (6 public inputs)
+2. An off-chain attestation bundle from `pvthfhe-offchain-verifier`
+
+This shifts trust from purely cryptographic verification to attestation-augmented verification.
+The attestor set is stored in contract state and administered on-chain. Key rotation is flagged
+for follow-on work. See `.sisyphus/research/sonobe-wrap-feasibility.md` for the N3a feasibility
+analysis.
 
 ## Deployment Warning
 This repository is a research prototype only. Do not use this code for The Interfold or any production deployment. It is trivially breakable and provides no security. Production use must wait until Stage 1 cryptographic core remediation is complete and a sound UltraHonk verifier is implemented.

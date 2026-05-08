@@ -1,4 +1,5 @@
 //! Integration tests: folding_n64.
+#![cfg(feature = "hash-chain-surrogate")]
 #![allow(clippy::unwrap_used)]
 
 use pvthfhe_aggregator::folding::{FoldingAccumulator, PartyProof};

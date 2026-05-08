@@ -238,3 +238,11 @@ Mirroring `spec-real-p2p3.md §9`. Each knob is paired with the assumptions it t
 | ID | Event | References |
 |----|-------|------------|
 | A27 | Disclosure surfaces wired (N7) — 5 surfaces: LatticeNizk::verify rustdoc, BACKEND_ID const comment, SECURITY.md §P1, folding/mod.rs module banner, theorem-inventory.md T2 status | nizk-selection.md §5.2; spec-real-p2p3.md §3.5 |
+
+## pvss-bfv-composition (added P0a, 2026-05-06)
+
+**Source**: P0a feasibility spike verdict GoWithCaveat
+**Assumption**: The composed Sigma+Ajtai + BFV-share-encryption NIZK is conditionally sound under the same RLWE hardness assumptions as the existing pvthfhe-nizk, PLUS the additional assumption that the BFV encryption relation is extractable from the composed transcript (i.e., a joint extractor exists that opens both the decrypt-share relation and the BFV encryption relation consistently).
+**Status**: Unproven. The current conditional-soundness banner covers the existing Ajtai+RLWE share relation but does NOT close the new extraction obligation introduced by BFV share encryption.
+**Required before production**: A formal joint extractor argument or a reduction to a standard lattice assumption.
+**Impact**: P1–P4 may proceed under this assumption; the conditional-soundness banner must be updated to mention this additional obligation.

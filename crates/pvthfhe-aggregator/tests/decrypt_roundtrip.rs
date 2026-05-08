@@ -6,6 +6,12 @@ use pvthfhe_fhe::{mock::MockBackend, types::Ciphertext, FheBackend};
 use serde_json::Value;
 use std::fs;
 
+fn acknowledge_mock_backend() {
+    unsafe {
+        std::env::set_var("PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK", "1");
+    }
+}
+
 fn ok<T, E: std::fmt::Debug>(r: Result<T, E>, ctx: &str) -> T {
     match r {
         Ok(v) => v,
@@ -15,6 +21,7 @@ fn ok<T, E: std::fmt::Debug>(r: Result<T, E>, ctx: &str) -> T {
 
 #[test]
 fn decrypt_roundtrip_golden() {
+    acknowledge_mock_backend();
     let vector_str = ok(
         fs::read_to_string("../../crates/pvthfhe-core/tests/vectors/vector_01.json"),
         "Failed to read golden vector",
@@ -30,8 +37,7 @@ fn decrypt_roundtrip_golden() {
     };
 
     let mut rng = rand::thread_rng();
-    let backend =
-        MockBackend::load_params("[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536").unwrap();
+    let backend = MockBackend::load_params("[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10").unwrap();
 
     let dkg_root = [0u8; 32];
     let ciphertext_hash = [0u8; 32];
@@ -42,7 +48,7 @@ fn decrypt_roundtrip_golden() {
         partial_decrypt(&backend, &ct, 2, &dkg_root, &ciphertext_hash, 1, &mut rng).unwrap();
 
     let threshold = 2;
-    let allowed_parties = vec![0, 1, 2];
+    let allowed_parties = vec![1, 2, 3];
 
     let recovered = aggregate_decrypt(
         &backend,

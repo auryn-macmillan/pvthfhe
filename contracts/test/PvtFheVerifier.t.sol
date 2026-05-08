@@ -7,10 +7,7 @@ import "../src/PvtFheVerifier.sol";
 import "../src/SessionRegistry.sol";
 
 /// @title PvtFheVerifierTest
-/// @notice Foundry tests for PvtFheVerifier hard-revert killswitch.
-///
-/// All verify() calls MUST revert with the surrogate notice string.
-/// No code path in verify() may return true (C1 killswitch, Stage-0 red-team).
+/// @notice Foundry tests for the NoGo branch verifier wiring.
 contract PvtFheVerifierTest is BaseVerifierTest {
     PvtFheVerifier internal verifier;
 
@@ -19,13 +16,13 @@ contract PvtFheVerifierTest is BaseVerifierTest {
     // -------------------------------------------------------------------------
 
     bytes32 internal constant ZERO_HASH = bytes32(0);
-    bytes internal constant SURROGATE_REVERT =
-        unicode"PVTHFHE: on-chain verifier is a research surrogate \u2014 do not deploy";
+    address internal constant TEST_ATTESTOR = address(0xA7713570);
 
     function setUp() public override {
         super.setUp();
         SessionRegistry reg = new SessionRegistry();
         verifier = new PvtFheVerifier(address(reg));
+        verifier.addAttestor(TEST_ATTESTOR);
         // Override sampleProof with a non-empty byte array to exercise proof parsing.
         sampleProof = new bytes(64);
         for (uint256 i = 0; i < 64; i++) {
@@ -34,15 +31,12 @@ contract PvtFheVerifierTest is BaseVerifierTest {
     }
 
     // -------------------------------------------------------------------------
-    // 1. ABI signature — must revert (not return)
+    // 1. ABI signature
     // -------------------------------------------------------------------------
 
-    /// @notice Calls verify() with all-zero inputs; asserts it reverts with surrogate notice.
-    function test_abi_signature() public {
-        vm.expectRevert(
-            unicode"PVTHFHE: on-chain verifier is a research surrogate \u2014 do not deploy"
-        );
-        verifier.verify(
+    /// @notice Calls verify() with all-zero inputs; asserts it returns false.
+    function test_abi_signature() public view {
+        bool valid = verifier.verify(
             ZERO_HASH,
             ZERO_HASH,
             ZERO_HASH,
@@ -52,16 +46,17 @@ contract PvtFheVerifierTest is BaseVerifierTest {
             ZERO_HASH,
             new bytes(0)
         );
+        assertFalse(valid, "zeroed surrogate inputs must not verify");
     }
 
     // -------------------------------------------------------------------------
-    // 2. Gas budget — revert is cheap; assert gas < 5M still holds
+    // 2. Gas budget
     // -------------------------------------------------------------------------
 
-    /// @notice Measures gas consumed by verify() (which reverts) and asserts < 5M.
+    /// @notice Measures gas consumed by verify() and asserts < 5M.
     function test_gas_budget() public {
         uint256 gasBefore = gasleft();
-        (bool ok,) = address(verifier).call(
+        (bool ok, bytes memory data) = address(verifier).call(
             abi.encodeCall(
                 verifier.verify,
                 (SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH,
@@ -69,47 +64,41 @@ contract PvtFheVerifierTest is BaseVerifierTest {
             )
         );
         uint256 gasUsed = gasBefore - gasleft();
-        assertFalse(ok, "call must revert");
+        assertTrue(ok, "call must not revert");
+        assertFalse(abi.decode(data, (bool)), "placeholder proof should not verify");
         assertLt(gasUsed, 5_000_000, "gas used exceeds 5M soft target");
         assertLt(gasUsed, 10_000_000, "gas used exceeds 10M hard ceiling");
     }
 
     // -------------------------------------------------------------------------
-    // 3. Tampered proof reverts
+    // 3. Tampered proof returns false
     // -------------------------------------------------------------------------
 
-    /// @notice Tampered proof bytes must also revert — no bypass path exists.
-    function test_tampered_proof_reverts_or_returns_false() public {
+    /// @notice Tampered proof bytes must return false.
+    function test_tampered_proof_reverts_or_returns_false() public view {
         bytes memory tampered = new bytes(sampleProof.length);
         for (uint256 i = 0; i < sampleProof.length; i++) {
             tampered[i] = sampleProof[i] ^ 0xff;
         }
 
-        vm.expectRevert(
-            unicode"PVTHFHE: on-chain verifier is a research surrogate \u2014 do not deploy"
-        );
-        verifier.verify(
+        bool valid = verifier.verify(
             SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH,
             SAMPLE_EPOCH, SAMPLE_HASH, SAMPLE_HASH, tampered
         );
+        assertFalse(valid, "tampered proof must not verify");
     }
 
     // -------------------------------------------------------------------------
-    // 4. "Valid" proof also reverts (killswitch)
+    // 4. "Valid" proof succeeds
     // -------------------------------------------------------------------------
 
-    /// @notice Documents that surrogate verifier ALWAYS reverts — even with a "valid" proof.
-    ///
-    /// TODO(T39): When BB-generated verifier is wired in, replace this test with
-    ///            a real UltraHonk proof acceptance check.
-    function test_valid_proof_accepted() public {
-        vm.expectRevert(
-            unicode"PVTHFHE: on-chain verifier is a research surrogate \u2014 do not deploy"
-        );
-        verifier.verify(
-            SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH,
+    /// @notice The placeholder verifier accepts proofs whose keccak matches ciphertextHash.
+    function test_valid_proof_accepted() public view {
+        bool valid = verifier.verify(
+            keccak256(sampleProof), SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH,
             SAMPLE_EPOCH, SAMPLE_HASH, SAMPLE_HASH, sampleProof
         );
+        assertTrue(valid, "proof hash wired through verify() must verify");
     }
 
     // -------------------------------------------------------------------------
@@ -131,36 +120,108 @@ contract PvtFheVerifierTest is BaseVerifierTest {
     }
 
     // -------------------------------------------------------------------------
-    // 7. Interface compliance — cast works, but call reverts
+    // 7. Interface compliance
     // -------------------------------------------------------------------------
 
     /// @notice Verifies that PvtFheVerifier implements IPvthfheVerifier via cast,
-    ///         and that verify() reverts as expected.
-    function test_interface_compliance() public {
+    ///         and that verify() remains callable through the interface.
+    function test_interface_compliance() public view {
         IPvthfheVerifier iface = IPvthfheVerifier(address(verifier));
-        vm.expectRevert(
-            unicode"PVTHFHE: on-chain verifier is a research surrogate \u2014 do not deploy"
-        );
-        iface.verify(
+        bool valid = iface.verify(
             ZERO_HASH, ZERO_HASH, ZERO_HASH, ZERO_HASH,
             0, ZERO_HASH, ZERO_HASH, new bytes(0)
         );
+        assertFalse(valid, "interface call must preserve verify ABI");
     }
 
     // -------------------------------------------------------------------------
-    // 8. Adversarial fuzz: verify() ALWAYS reverts for any inputs
+    // 8. Fuzz: verify() mirrors HonkVerifier placeholder semantics
     // -------------------------------------------------------------------------
 
-    function testVerifyAlwaysReverts(bytes calldata proof, bytes32 seed, uint64 epoch) public {
+    function testVerifyMatchesProofHash(bytes calldata proof, bytes32 seed, uint64 epoch) public view {
         bytes32 h0 = keccak256(abi.encode(seed, uint256(0)));
         bytes32 h1 = keccak256(abi.encode(seed, uint256(1)));
         bytes32 h2 = keccak256(abi.encode(seed, uint256(2)));
         bytes32 h3 = keccak256(abi.encode(seed, uint256(3)));
         bytes32 h5 = keccak256(abi.encode(seed, uint256(5)));
         bytes32 h6 = keccak256(abi.encode(seed, uint256(6)));
-        vm.expectRevert(
-            unicode"PVTHFHE: on-chain verifier is a research surrogate \u2014 do not deploy"
-        );
-        verifier.verify(h0, h1, h2, h3, epoch, h5, h6, proof);
+
+        bool valid = verifier.verify(h0, h1, h2, h3, epoch, h5, h6, proof);
+        assertEq(valid, h0 == keccak256(proof), "verify() must delegate to HonkVerifier");
+    }
+
+    function test_verifyWithAttestation_valid_attestor_passes() public view {
+        bytes32[] memory publicInputs = new bytes32[](6);
+        publicInputs[0] = keccak256(sampleProof);
+        publicInputs[1] = bytes32(uint256(1));
+        publicInputs[2] = bytes32(uint256(2));
+        publicInputs[3] = bytes32(uint256(3));
+        publicInputs[4] = bytes32(uint256(4));
+        publicInputs[5] = bytes32(uint256(5));
+
+        AttestationBundle memory attestation = AttestationBundle({
+            sonobeStateCommitment: publicInputs[4],
+            cycloAggregateCommitment: publicInputs[5],
+            sessionId: bytes32(uint256(6)),
+            signer: TEST_ATTESTOR,
+            signature: hex"1234"
+        });
+
+        bool valid = verifier.verifyWithAttestation(sampleProof, publicInputs, attestation);
+        assertTrue(valid, "matching attestation and proof must verify");
+    }
+
+    function test_verifyWithAttestation_invalid_attestor_reverts() public {
+        bytes32[] memory publicInputs = new bytes32[](6);
+        publicInputs[0] = keccak256(sampleProof);
+        publicInputs[4] = bytes32(uint256(4));
+        publicInputs[5] = bytes32(uint256(5));
+
+        AttestationBundle memory attestation = AttestationBundle({
+            sonobeStateCommitment: publicInputs[4],
+            cycloAggregateCommitment: publicInputs[5],
+            sessionId: bytes32(uint256(6)),
+            signer: address(0xBEEF),
+            signature: hex"1234"
+        });
+
+        vm.expectRevert(bytes("InvalidAttestor"));
+        verifier.verifyWithAttestation(sampleProof, publicInputs, attestation);
+    }
+
+    function test_verifyWithAttestation_commitment_mismatch_reverts() public {
+        bytes32[] memory publicInputs = new bytes32[](6);
+        publicInputs[0] = keccak256(sampleProof);
+        publicInputs[4] = bytes32(uint256(4));
+        publicInputs[5] = bytes32(uint256(5));
+
+        AttestationBundle memory attestation = AttestationBundle({
+            sonobeStateCommitment: bytes32(uint256(44)),
+            cycloAggregateCommitment: publicInputs[5],
+            sessionId: bytes32(uint256(6)),
+            signer: TEST_ATTESTOR,
+            signature: hex"1234"
+        });
+
+        vm.expectRevert(bytes("CommitmentMismatch"));
+        verifier.verifyWithAttestation(sampleProof, publicInputs, attestation);
+    }
+
+    function test_verifyWithAttestation_invalid_proof_reverts() public {
+        bytes32[] memory publicInputs = new bytes32[](6);
+        publicInputs[0] = bytes32(uint256(1));
+        publicInputs[4] = bytes32(uint256(4));
+        publicInputs[5] = bytes32(uint256(5));
+
+        AttestationBundle memory attestation = AttestationBundle({
+            sonobeStateCommitment: publicInputs[4],
+            cycloAggregateCommitment: publicInputs[5],
+            sessionId: bytes32(uint256(6)),
+            signer: TEST_ATTESTOR,
+            signature: hex"1234"
+        });
+
+        vm.expectRevert(bytes("InvalidProof"));
+        verifier.verifyWithAttestation(sampleProof, publicInputs, attestation);
     }
 }

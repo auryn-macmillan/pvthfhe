@@ -1,0 +1,38 @@
+[package]
+name = "pvthfhe-circuit-tests"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[dependencies]
+ark-bn254 = "0.5"
+ark-ff = "0.5"
+light-poseidon = "0.4"
+thiserror = "1"
+
+[[test]]
+name = "harness_smoke"
+path = "tests/harness_smoke.rs"
+
+[[test]]
+name = "decrypt_share_full_dim"
+path = "tests/decrypt_share_full_dim.rs"
+
+[[test]]
+name = "aggregator_final_full_dim"
+path = "tests/aggregator_final_full_dim.rs"
+
+[[test]]
+name = "sonobe_state_commitment_full"
+path = "tests/sonobe_state_commitment_full.rs"
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "gen_witness"
+path = "src/bin/gen_witness.rs"
+
+[[bin]]
+name = "gen_sonobe_state_witness"
+path = "src/bin/gen_sonobe_state_witness.rs"

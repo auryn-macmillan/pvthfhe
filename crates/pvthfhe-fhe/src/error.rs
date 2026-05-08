@@ -20,12 +20,12 @@ pub enum FheError {
     },
 
     /// Fewer valid decryption shares were provided than the required threshold.
-    #[error("insufficient shares: got {received}, need {threshold}")]
+    #[error("insufficient shares: got {have}, need {need}")]
     InsufficientShares {
         /// Number of shares actually provided.
-        received: usize,
+        have: usize,
         /// Minimum number of shares required.
-        threshold: usize,
+        need: usize,
     },
 
     /// A keygen share is structurally invalid (wrong length, bad encoding, etc.).
@@ -42,6 +42,13 @@ pub enum FheError {
         party_id: u32,
     },
 
+    /// No backend state exists for the requested party.
+    #[error("unknown party: {party_id}")]
+    UnknownParty {
+        /// The party identifier that was requested.
+        party_id: u32,
+    },
+
     /// The ciphertext is structurally invalid.
     #[error("malformed ciphertext")]
     MalformedCiphertext,
@@ -49,6 +56,26 @@ pub enum FheError {
     /// The public key is structurally invalid.
     #[error("malformed public key")]
     MalformedPublicKey,
+
+    /// The plaintext exceeds the maximum size for one BFV plaintext.
+    #[error("plaintext too long: max {max} bytes, got {got}")]
+    PlaintextTooLong {
+        /// Maximum number of bytes that fit in one plaintext.
+        max: usize,
+        /// Number of bytes that were provided.
+        got: usize,
+    },
+
+    /// Keygen shares in the same aggregation carried different CRP bytes.
+    #[error("inconsistent CRP across keygen shares")]
+    InconsistentCrp,
+
+    /// Wire-format decoding failed.
+    #[error("decode error: {reason}")]
+    DecodeError {
+        /// Human-readable description of the decode failure.
+        reason: String,
+    },
 
     /// An RNG operation failed.
     #[error("RNG failure")]

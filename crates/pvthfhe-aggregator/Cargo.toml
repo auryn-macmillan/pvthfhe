@@ -19,12 +19,15 @@ rand_core = { version = "0.6", features = ["getrandom"] }
 thiserror = "1"
 
 [dev-dependencies]
+pvthfhe-fhe = { path = "../pvthfhe-fhe", features = ["mock"] }
 tokio = { version = "1", features = ["rt", "macros", "test-util"] }
 rand = "0.8"
 criterion = { version = "0.5", features = ["html_reports"] }
 
 [features]
+default = ["real-folding"]
 real-folding = []
+hash-chain-surrogate = []
 real-verifier = ["real-folding"]
 real-pvss = []
 real-nizk = []

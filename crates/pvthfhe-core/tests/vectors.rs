@@ -11,6 +11,10 @@ use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use serde::Deserialize;
 
+fn acknowledge_mock_backend() {
+    std::env::set_var("PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK", "1");
+}
+
 #[derive(Debug, Deserialize)]
 struct VectorKeygenShare {
     party_id: u32,
@@ -28,9 +32,21 @@ struct VectorParams {
     n: u32,
     log2_q: u32,
     t_plain: u32,
+    #[serde(default = "default_moduli")]
+    moduli: Vec<u64>,
+    #[serde(default = "default_variance")]
+    variance: usize,
     threshold: usize,
     #[allow(dead_code)]
     n_parties: usize,
+}
+
+fn default_moduli() -> Vec<u64> {
+    vec![288230376173076481, 288230376167047169, 288230376161280001]
+}
+
+const fn default_variance() -> usize {
+    10
 }
 
 #[derive(Debug, Deserialize)]
@@ -47,9 +63,10 @@ struct TestVector {
 }
 
 fn load_backend(params: &VectorParams) -> MockBackend {
+    acknowledge_mock_backend();
     let toml = format!(
-        "[rlwe]\nn = {}\nlog2_q = {}\nt_plain = {}\n",
-        params.n, params.log2_q, params.t_plain
+        "[rlwe]\nn = {}\nlog2_q = {}\nt_plain = {}\nmoduli = {:?}\nvariance = {}\n",
+        params.n, params.log2_q, params.t_plain, params.moduli, params.variance
     );
     MockBackend::load_params(&toml).expect("load_params failed")
 }

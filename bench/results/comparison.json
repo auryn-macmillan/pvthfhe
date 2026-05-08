@@ -1,0 +1,182 @@
+{
+  "circuit_timings": [
+    {
+      "name": "ZkPkBfv",
+      "prove_ms": 1864.380555,
+      "verify_ms": null,
+      "witness_ms": null,
+      "vk_kb": null,
+      "proof_kb": null,
+      "status": "real",
+      "cardinality_tag": "1:N",
+      "instances_run": 5,
+      "comparability_note": "Maps to one Sigma+Ajtai proof per party; report aggregate-of-N when wired."
+    },
+    {
+      "name": "ZkShareComputation",
+      "prove_ms": 16422.474756,
+      "verify_ms": null,
+      "witness_ms": null,
+      "vk_kb": null,
+      "proof_kb": null,
+      "status": "real",
+      "cardinality_tag": "1:1",
+      "instances_run": 1,
+      "comparability_note": "PVTHFHE measures full keygen simulator (Round1+Round2+Round3); Interfold ZkShareComputation is the share-computation step in isolation. Reader-side adjustment may be needed."
+    },
+    {
+      "name": "ZkShareEncryption",
+      "prove_ms": 459.0,
+      "verify_ms": 150.0,
+      "witness_ms": 459.0,
+      "vk_kb": null,
+      "proof_kb": null,
+      "status": "real",
+      "cardinality_tag": "1:N(N-1)",
+      "instances_run": 20,
+      "comparability_note": "Will map to lattice PVSS share-encryption proofs once Phase P lands.",
+      "gap_reason": "Verifier key size is not exposed by the PVSS adapter"
+    },
+    {
+      "name": "ZkVerifyShareProofs",
+      "prove_ms": 150.0,
+      "verify_ms": null,
+      "witness_ms": null,
+      "vk_kb": null,
+      "proof_kb": null,
+      "status": "real",
+      "cardinality_tag": "1:N(N-1)",
+      "instances_run": 20,
+      "comparability_note": "Will map to verifier-side PVSS share-proof checks once Phase P lands."
+    },
+    {
+      "name": "ZkNodeDkgFold",
+      "prove_ms": 0.873756,
+      "verify_ms": null,
+      "witness_ms": null,
+      "vk_kb": null,
+      "proof_kb": null,
+      "status": "real",
+      "cardinality_tag": "2:2 split-merge",
+      "instances_run": 1,
+      "comparability_note": "PVTHFHE merged this stage into a single cyclo_fold pass; the merged timing is reported in both rows and should not be double-counted.",
+      "gap_reason": "merged into single PVTHFHE cyclo_fold pass"
+    },
+    {
+      "name": "ZkPkAggregation",
+      "prove_ms": 0.873756,
+      "verify_ms": null,
+      "witness_ms": null,
+      "vk_kb": null,
+      "proof_kb": null,
+      "status": "real",
+      "cardinality_tag": "2:2 split-merge",
+      "instances_run": 1,
+      "comparability_note": "PVTHFHE merged this stage into a single cyclo_fold pass; the merged timing is reported in both rows and should not be double-counted.",
+      "gap_reason": "merged into single PVTHFHE cyclo_fold pass"
+    },
+    {
+      "name": "ZkDkgAggregation",
+      "prove_ms": 19172.926102,
+      "verify_ms": null,
+      "witness_ms": null,
+      "vk_kb": null,
+      "proof_kb": null,
+      "status": "real",
+      "cardinality_tag": "1:1",
+      "instances_run": 1,
+      "comparability_note": "Will map to compressor proof once comparison wiring is implemented."
+    },
+    {
+      "name": "ZkThresholdShareDecryption",
+      "prove_ms": 49.611349,
+      "verify_ms": null,
+      "witness_ms": null,
+      "vk_kb": null,
+      "proof_kb": null,
+      "status": "real",
+      "cardinality_tag": "1:N",
+      "instances_run": 2,
+      "comparability_note": "Maps to one Sigma+Ajtai decrypt proof per participating party."
+    },
+    {
+      "name": "ZkDkgShareDecryption",
+      "prove_ms": 783.2222429999999,
+      "verify_ms": null,
+      "witness_ms": null,
+      "vk_kb": null,
+      "proof_kb": null,
+      "status": "real",
+      "cardinality_tag": "1:N",
+      "instances_run": 2,
+      "comparability_note": "Will map to decrypt-side PVSS proofs once Phase P lands."
+    },
+    {
+      "name": "ZkDecryptedSharesAggregation",
+      "prove_ms": 117.123069,
+      "verify_ms": null,
+      "witness_ms": null,
+      "vk_kb": null,
+      "proof_kb": null,
+      "status": "real",
+      "cardinality_tag": "2:2 split-merge",
+      "instances_run": 1,
+      "comparability_note": "PVTHFHE merged this cost into a single aggregate_decrypt pass; merged timing is reported in both rows.",
+      "gap_reason": "merged into single PVTHFHE aggregate_decrypt pass"
+    },
+    {
+      "name": "ZkDecryptionAggregation",
+      "prove_ms": 117.123069,
+      "verify_ms": null,
+      "witness_ms": null,
+      "vk_kb": null,
+      "proof_kb": null,
+      "status": "real",
+      "cardinality_tag": "2:2 split-merge",
+      "instances_run": 1,
+      "comparability_note": "PVTHFHE merged this cost into a single aggregate_decrypt pass; merged timing is reported in both rows.",
+      "gap_reason": "merged into single PVTHFHE aggregate_decrypt pass"
+    },
+    {
+      "name": "onchain_verify",
+      "prove_ms": 8088.927628,
+      "verify_ms": null,
+      "witness_ms": null,
+      "vk_kb": null,
+      "proof_kb": null,
+      "status": "real-fallback",
+      "cardinality_tag": "1:1",
+      "instances_run": 1,
+      "comparability_note": "Will map to BB UltraHonk verifier execution once Noir/on-chain wiring lands.",
+      "gap_reason": "Measured via fallback compressor.verify proxy on the NoGo on-chain path"
+    }
+  ],
+  "phase_totals": {
+    "dkg_ms": 459.0,
+    "decrypt_ms": null,
+    "onchain_verify_ms": null,
+    "end_to_end_ms": 743.0
+  },
+  "hardware": {
+    "cpu": "AMD RYZEN AI MAX+ 395 w/ Radeon 8060S",
+    "cpu_cores": 8,
+    "ram_gb": 62,
+    "kernel": "Linux version 6.8.0-111-generic"
+  },
+  "backend_ids": {
+    "fhe": "fhers-bfv",
+    "nizk": "cyclo-ajtai-d2-conditional",
+    "folding": "cyclo-rlwe-t10-lemma9-heuristic",
+    "compressor": "sonobe-nova-bn254-grumpkin",
+    "pvss": "lattice-pvss-bfv-d2"
+  },
+  "commit_sha": "5d7853a",
+  "comparison_target": {
+    "name": "Interfold integration_summary.json",
+    "source": "https://github.com/gnosisguild/enclave/tree/main/circuits/benchmarks/results_secure",
+    "n": 5,
+    "t": 2,
+    "seed": 1,
+    "dry_run": false
+  }
+}

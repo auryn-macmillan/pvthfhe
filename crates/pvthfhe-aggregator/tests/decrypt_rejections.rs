@@ -4,11 +4,17 @@
 use pvthfhe_aggregator::decrypt::{aggregate_decrypt, partial_decrypt, DecryptError};
 use pvthfhe_fhe::{mock::MockBackend, types::Ciphertext, FheBackend};
 
+fn acknowledge_mock_backend() {
+    unsafe {
+        std::env::set_var("PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK", "1");
+    }
+}
+
 #[test]
 fn rejects_malformed_share() {
+    acknowledge_mock_backend();
     let mut rng = rand::thread_rng();
-    let backend =
-        MockBackend::load_params("[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536").unwrap();
+    let backend = MockBackend::load_params("[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10").unwrap();
     let ct = Ciphertext {
         bytes: vec![1, 2, 3],
     };
@@ -44,9 +50,9 @@ fn rejects_malformed_share() {
 
 #[test]
 fn rejects_insufficient_shares() {
+    acknowledge_mock_backend();
     let mut rng = rand::thread_rng();
-    let backend =
-        MockBackend::load_params("[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536").unwrap();
+    let backend = MockBackend::load_params("[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10").unwrap();
     let ct = Ciphertext {
         bytes: vec![1, 2, 3],
     };
@@ -78,9 +84,9 @@ fn rejects_insufficient_shares() {
 
 #[test]
 fn rejects_duplicate_party() {
+    acknowledge_mock_backend();
     let mut rng = rand::thread_rng();
-    let backend =
-        MockBackend::load_params("[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536").unwrap();
+    let backend = MockBackend::load_params("[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10").unwrap();
     let ct = Ciphertext {
         bytes: vec![1, 2, 3],
     };
@@ -109,9 +115,9 @@ fn rejects_duplicate_party() {
 
 #[test]
 fn rejects_unknown_party() {
+    acknowledge_mock_backend();
     let mut rng = rand::thread_rng();
-    let backend =
-        MockBackend::load_params("[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536").unwrap();
+    let backend = MockBackend::load_params("[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10").unwrap();
     let ct = Ciphertext {
         bytes: vec![1, 2, 3],
     };

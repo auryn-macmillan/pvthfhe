@@ -43,6 +43,7 @@ fn assert_mock_acknowledged() {
 /// **Not cryptographically secure.**
 ///
 /// Requires `PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK=1` in the environment.
+#[derive(Clone)]
 pub struct MockBackend {
     inner: MockBackendInner,
 }
@@ -57,9 +58,23 @@ impl FheBackend for MockBackend {
         Ok(Self { inner })
     }
 
-    fn keygen_share(&self, party_id: u32, rng: &mut dyn RngCore) -> Result<KeygenShare, FheError> {
+    fn keygen_share_with_session(
+        &self,
+        session_id: &[u8; 32],
+        party_id: u32,
+        rng: &mut dyn RngCore,
+    ) -> Result<KeygenShare, FheError> {
         assert_mock_acknowledged();
-        self.inner.keygen_share(party_id, rng)
+        self.inner
+            .keygen_share_with_session(session_id, party_id, rng)
+    }
+
+    fn supports_session_scoped_keygen(&self) -> bool {
+        true
+    }
+
+    fn requires_mock_acknowledgement(&self) -> bool {
+        true
     }
 
     fn aggregate_keygen(&self, shares: &[KeygenShare]) -> Result<PublicKey, FheError> {

@@ -30,17 +30,19 @@ fn run_demo_invokes_nizk() -> Result<(), Box<dyn std::error::Error>> {
         String::from_utf8_lossy(&output.stderr)
     );
 
+    let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    let prove_calls = stderr.matches("nizk_prove").count();
-    let verify_calls = stderr.matches("nizk_verify").count();
+    let combined = format!("{stdout}\n{stderr}");
+    let prove_calls = combined.matches("nizk_prove").count();
+    let verify_calls = combined.matches("nizk_verify").count();
 
     assert_eq!(
         prove_calls, 3,
-        "expected 3 prove calls in tracing output, got {prove_calls}; stderr:\n{stderr}"
+        "expected 3 prove calls in tracing output, got {prove_calls}; output:\n{combined}"
     );
     assert_eq!(
         verify_calls, 6,
-        "expected 6 verify calls in tracing output, got {verify_calls}; stderr:\n{stderr}"
+        "expected 6 verify calls in tracing output, got {verify_calls}; output:\n{combined}"
     );
 
     Ok(())

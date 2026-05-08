@@ -38,6 +38,12 @@ use pvthfhe_aggregator::keygen::simulator::{KeygenResult, KeygenSimulator};
 use pvthfhe_fhe::{mock::MockBackend, FheBackend};
 use sha2::{Digest, Sha256};
 
+fn acknowledge_mock_backend() {
+    unsafe {
+        std::env::set_var("PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK", "1");
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers: build a canonical 200-byte public-inputs blob (mirrors Solidity layout)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -153,12 +159,15 @@ const WRONG_KEY: &[u8] = b"wrong-signer-secret-key-anvil-1";
 
 #[test]
 fn test_e2e_real_pipeline_p4_p1_p2_p3() {
+    acknowledge_mock_backend();
     // ── PHASE 4: DKG / keygen ─────────────────────────────────────────────────
     let toml = r#"
         [rlwe]
         n = 1024
         log2_q = 54
         t_plain = 65537
+        moduli = [288230376173076481, 288230376167047169, 288230376161280001]
+        variance = 10
     "#;
     let backend = ok(MockBackend::load_params(toml), "backend params load");
     let mut sim = KeygenSimulator::new(4, 3, backend);

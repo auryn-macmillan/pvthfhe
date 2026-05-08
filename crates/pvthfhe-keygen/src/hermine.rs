@@ -1,5 +1,9 @@
 //! Hermine-adapted PVSS dealer and participant implementation.
 //!
+//! DEPRECATED: HermineAdapter (integer-Shamir) is retained only as a legacy
+//! path for P4-era tests and benchmarks. Default demo/e2e wiring must use the
+//! lattice-backed `LatticePvssBfvAdapter` instead.
+//!
 //! This module provides `HermineAdapter`, a real publicly-verifiable secret-sharing
 //! scheme following Hermine's PVSS transcript structure. The underlying
 //! cryptography uses integer Shamir secret sharing over a Mersenne prime field

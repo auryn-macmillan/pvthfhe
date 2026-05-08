@@ -1,8 +1,10 @@
 //! Integration tests: folding_tamper.
 #![allow(missing_docs, clippy::unwrap_used, clippy::as_conversions)]
 
+#[cfg(feature = "hash-chain-surrogate")]
 use pvthfhe_aggregator::folding::{FoldingAccumulator, FoldingError, PartyProof};
 
+#[cfg(feature = "hash-chain-surrogate")]
 #[test]
 fn test_folding_tamper() {
     let mut accumulator = FoldingAccumulator::new();
@@ -28,7 +30,10 @@ fn test_folding_tamper() {
 
 #[cfg(feature = "real-folding")]
 mod real_folding_gaps {
-    use super::ok;
+    fn ok<T, E: std::fmt::Debug>(r: Result<T, E>, msg: &str) -> T {
+        r.unwrap_or_else(|e| panic!("{msg}: {e:?}"))
+    }
+
     use pvthfhe_aggregator::folding::{
         fold, FoldAccumulator, FoldStatement, FoldWitness, NizkProof, NizkStatement,
     };

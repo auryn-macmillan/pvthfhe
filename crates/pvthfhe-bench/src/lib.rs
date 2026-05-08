@@ -1,7 +1,10 @@
 #![allow(missing_docs, clippy::as_conversions)]
 
 pub mod backends;
+pub mod comparison_map;
+pub mod e2e_timings;
 pub mod folding;
+pub mod render_comparison;
 pub mod worked_example;
 
 use serde::{Deserialize, Serialize};
@@ -9,13 +12,20 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScalingBenchEnv {
     pub cpu: String,
+    pub cpu_cores: usize,
     pub mem_kb: u64,
     pub kernel: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScalingEnvelope {
+    pub backend_id: String,
+    pub nizk_backend_id: String,
+    pub folding_backend_id: String,
+    pub compressor_backend_id: String,
     pub n: usize,
+    pub t: usize,
+    pub seed: u64,
     pub mean: f64,
     pub median: f64,
     pub p99: f64,
@@ -96,6 +106,22 @@ impl BenchEnv {
             git_sha,
             timestamp,
         }
+    }
+
+    pub fn cpu_cores() -> usize {
+        std::thread::available_parallelism()
+            .map(usize::from)
+            .unwrap_or(1)
+    }
+
+    pub fn mem_kb() -> u64 {
+        std::fs::read_to_string("/proc/meminfo")
+            .unwrap_or_default()
+            .lines()
+            .find(|line| line.starts_with("MemTotal:"))
+            .and_then(|line| line.split_whitespace().nth(1))
+            .and_then(|value| value.parse::<u64>().ok())
+            .unwrap_or(0)
     }
 }
 
@@ -198,7 +224,13 @@ mod tests {
         use crate::ScalingEnvelope;
         let env = crate::BenchEnv::capture();
         let envelope = ScalingEnvelope {
+            backend_id: "fhers-bfv".to_owned(),
+            nizk_backend_id: "cyclo-ajtai-d2-conditional".to_owned(),
+            folding_backend_id: "cyclo-rlwe-t10-lemma9-heuristic".to_owned(),
+            compressor_backend_id: "ultra-honk-micronova".to_owned(),
             n: 128,
+            t: 85,
+            seed: 1,
             mean: 1.0,
             median: 1.0,
             p99: 1.0,
@@ -209,6 +241,7 @@ mod tests {
             peak_mem_kb: 1024,
             env: crate::ScalingBenchEnv {
                 cpu: env.cpu,
+                cpu_cores: crate::BenchEnv::cpu_cores(),
                 mem_kb: env.ram_gb * 1_048_576,
                 kernel: env.kernel,
             },
@@ -221,7 +254,26 @@ mod tests {
         assert!(json["median"].is_number(), "missing median");
         assert!(json["p99"].is_number(), "missing p99");
         assert!(json["stddev"].is_number(), "missing stddev");
+        assert!(json["backend_id"].is_string(), "missing backend_id");
+        assert!(
+            json["nizk_backend_id"].is_string(),
+            "missing nizk_backend_id"
+        );
+        assert!(
+            json["folding_backend_id"].is_string(),
+            "missing folding_backend_id"
+        );
+        assert!(
+            json["compressor_backend_id"].is_string(),
+            "missing compressor_backend_id"
+        );
+        assert!(json["t"].is_number(), "missing t");
+        assert!(json["seed"].is_number(), "missing seed");
         assert!(json["env"]["cpu"].is_string(), "missing env.cpu");
+        assert!(
+            json["env"]["cpu_cores"].is_number(),
+            "missing env.cpu_cores"
+        );
         assert!(json["env"]["mem_kb"].is_number(), "missing env.mem_kb");
         assert!(json["env"]["kernel"].is_string(), "missing env.kernel");
     }

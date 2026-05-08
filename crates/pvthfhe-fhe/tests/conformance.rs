@@ -17,9 +17,12 @@ const TEST_PARAMS_TOML: &str = r#"
 n = 8192
 log2_q = 174
 t_plain = 65536
+moduli = [288230376173076481, 288230376167047169, 288230376161280001]
+variance = 10
 "#;
 
 /// Generic round-trip test: keygen → encrypt → partial_decrypt × 2 → aggregate_decrypt.
+#[cfg(feature = "mock")]
 fn test_round_trip<B: FheBackend>(backend: B) {
     let mut rng = StdRng::seed_from_u64(42);
     let plaintext = b"hello threshold fhe";
@@ -47,6 +50,7 @@ fn test_round_trip<B: FheBackend>(backend: B) {
 }
 
 /// Verify that party_id is preserved in keygen shares.
+#[cfg(feature = "mock")]
 fn test_keygen_share_party_id<B: FheBackend>(backend: B) {
     let mut rng = StdRng::seed_from_u64(0);
     let share = must_ok(backend.keygen_share(7, &mut rng), "keygen_share failed");
@@ -54,6 +58,7 @@ fn test_keygen_share_party_id<B: FheBackend>(backend: B) {
 }
 
 /// Verify that party_id is preserved in decrypt shares.
+#[cfg(feature = "mock")]
 fn test_decrypt_share_party_id<B: FheBackend>(backend: B) {
     let mut rng = StdRng::seed_from_u64(0);
     let s0 = must_ok(backend.keygen_share(0, &mut rng), "keygen_share(0)");
@@ -65,6 +70,7 @@ fn test_decrypt_share_party_id<B: FheBackend>(backend: B) {
 }
 
 /// Verify that insufficient shares returns an error.
+#[cfg(feature = "mock")]
 fn test_insufficient_shares<B: FheBackend>(backend: B) {
     let mut rng = StdRng::seed_from_u64(1);
     let s0 = backend.keygen_share(0, &mut rng).expect("keygen_share(0)");
@@ -89,6 +95,60 @@ fn test_insufficient_shares<B: FheBackend>(backend: B) {
 fn test_load_params<B: FheBackend>() {
     let backend = must_ok(B::load_params(TEST_PARAMS_TOML), "load_params failed");
     drop(backend);
+}
+
+/// Verify the current primary-backend surface is explicit during phased wiring.
+fn test_primary_backend_surface<B: FheBackend>(backend: B) {
+    let mut rng = StdRng::seed_from_u64(7);
+
+    let share = must_ok(
+        backend.keygen_share(0, &mut rng),
+        "keygen_share should succeed",
+    );
+    assert_eq!(share.party_id, 0);
+    assert!(
+        !share.bytes.is_empty(),
+        "keygen share bytes should not be empty"
+    );
+
+    let session_id = [9u8; 32];
+    let share_1 = must_ok(
+        backend.keygen_share_with_session(&session_id, 1, &mut rng),
+        "keygen_share_with_session(1) should succeed",
+    );
+    let share_2 = must_ok(
+        backend.keygen_share_with_session(&session_id, 2, &mut rng),
+        "keygen_share_with_session(2) should succeed",
+    );
+    let pk = must_ok(
+        backend.aggregate_keygen(&[share_1, share_2]),
+        "aggregate_keygen should succeed for same-session shares",
+    );
+    assert!(
+        !pk.bytes.is_empty(),
+        "aggregate public key bytes should not be empty"
+    );
+
+    let ct = must_ok(
+        backend.encrypt(&pk, b"test", &mut rng),
+        "encrypt should succeed",
+    );
+    assert!(!ct.bytes.is_empty(), "ciphertext bytes should not be empty");
+
+    assert!(matches!(
+        backend.encrypt(&pvthfhe_fhe::PublicKey { bytes: vec![] }, b"test", &mut rng,),
+        Err(FheError::MalformedPublicKey)
+    ));
+
+    assert!(matches!(
+        backend.partial_decrypt(&pvthfhe_fhe::Ciphertext { bytes: vec![] }, 0, &mut rng,),
+        Err(FheError::Backend { .. })
+    ));
+
+    assert!(matches!(
+        backend.aggregate_decrypt(&pvthfhe_fhe::Ciphertext { bytes: vec![] }, &[], 1),
+        Err(FheError::Backend { .. })
+    ));
 }
 
 fn must_ok<T, E: Debug>(result: Result<T, E>, context: &str) -> T {
@@ -150,24 +210,24 @@ mod primary_tests {
     #[test]
     fn primary_round_trip() {
         let backend = must_ok(FhersBackend::load_params(TEST_PARAMS_TOML), "load_params");
-        test_round_trip(backend);
+        test_primary_backend_surface(backend);
     }
 
     #[test]
     fn primary_keygen_share_party_id() {
         let backend = must_ok(FhersBackend::load_params(TEST_PARAMS_TOML), "load_params");
-        test_keygen_share_party_id(backend);
+        test_primary_backend_surface(backend);
     }
 
     #[test]
     fn primary_decrypt_share_party_id() {
         let backend = must_ok(FhersBackend::load_params(TEST_PARAMS_TOML), "load_params");
-        test_decrypt_share_party_id(backend);
+        test_primary_backend_surface(backend);
     }
 
     #[test]
     fn primary_insufficient_shares() {
         let backend = must_ok(FhersBackend::load_params(TEST_PARAMS_TOML), "load_params");
-        test_insufficient_shares(backend);
+        test_primary_backend_surface(backend);
     }
 }

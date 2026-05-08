@@ -13,14 +13,20 @@ surrogate-decrypt-share = []
 [dependencies]
 pvthfhe-nizk = { path = "../pvthfhe-nizk" }
 rand_chacha = "0.3"
+rand = "0.8"
 sha2 = "0.10"
 serde = { version = "1", features = ["derive"] }
 thiserror = "1"
 rand_core = "0.6"
+fhe = { git = "https://github.com/gnosisguild/fhe.rs", rev = "5f24d0b62a7329b789db07a065b68accd614a47b" }
+fhe-traits = { git = "https://github.com/gnosisguild/fhe.rs", rev = "5f24d0b62a7329b789db07a065b68accd614a47b" }
+fhe-math = { package = "fhe-math", git = "https://github.com/gnosisguild/fhe.rs", rev = "5f24d0b62a7329b789db07a065b68accd614a47b" }
+tracing = "0.1"
+ndarray = "0.15"
 
 [dev-dependencies]
-rand = "0.8"
 pvthfhe-keygen = { path = "../pvthfhe-keygen" }
+serde_json = "1"
 
 [lints]
 workspace = true

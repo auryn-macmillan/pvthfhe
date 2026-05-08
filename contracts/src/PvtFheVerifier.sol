@@ -4,6 +4,15 @@ pragma solidity ^0.8.24;
 import "./generated/HonkVerifier.sol";
 import "./SessionRegistry.sol";
 
+/// @notice EIP-712 attestation bundle emitted by the off-chain Sonobe verifier.
+struct AttestationBundle {
+    bytes32 sonobeStateCommitment;
+    bytes32 cycloAggregateCommitment;
+    bytes32 sessionId;
+    address signer;
+    bytes signature;
+}
+
 /// @title ISessionRegistry
 /// @notice Minimal interface used by PvtFheVerifier to query the session registry.
 interface ISessionRegistry {
@@ -37,6 +46,13 @@ interface IPvthfheVerifier {
         bytes32 participantSetHash,
         bytes32 dCommitment,
         bytes calldata proof
+    ) external view returns (bool valid);
+
+    /// @notice Verify a sonobe_state_commitment proof with off-chain attestation (NoGo branch).
+    function verifyWithAttestation(
+        bytes calldata proof,
+        bytes32[] calldata publicInputs,
+        AttestationBundle calldata attestation
     ) external view returns (bool valid);
 
     /// @notice Returns the minimum threshold t = floor(N/2)+1 for the current parameter set.
@@ -79,10 +95,15 @@ contract PvtFheVerifier is IPvthfheVerifier {
 
     HonkVerifier private immutable _honkVerifier;
     ISessionRegistry public immutable registry;
+    address public immutable admin;
+
+    /// @notice Designated attestors for the NoGo branch off-chain verification.
+    mapping(address => bool) public attestors;
 
     constructor(address registry_) {
         _honkVerifier = new HonkVerifier();
         registry = ISessionRegistry(registry_);
+        admin = msg.sender;
     }
 
     // -------------------------------------------------------------------------
@@ -90,20 +111,52 @@ contract PvtFheVerifier is IPvthfheVerifier {
     // -------------------------------------------------------------------------
 
     /// @inheritdoc IPvthfheVerifier
-    /// @dev KILLSWITCH (Stage-0 red-team): unconditionally reverts until a
-    ///      sound UltraHonk verifier replaces this body in Stage 1.
-    ///      The previous body allowed ANY proof bytes to pass (C1 vulnerability).
     function verify(
-        bytes32,
-        bytes32,
-        bytes32,
-        bytes32,
-        uint64,
-        bytes32,
-        bytes32,
-        bytes calldata
-    ) external pure override returns (bool) {
-        revert(unicode"PVTHFHE: on-chain verifier is a research surrogate \u2014 do not deploy");
+        bytes32 ciphertextHash,
+        bytes32 plaintextHash,
+        bytes32 aggregatePkHash,
+        bytes32 dkgRoot,
+        uint64 epoch,
+        bytes32 participantSetHash,
+        bytes32 dCommitment,
+        bytes calldata proof
+    ) external view override returns (bool) {
+        bytes32[] memory publicInputs = new bytes32[](7);
+        publicInputs[0] = ciphertextHash;
+        publicInputs[1] = plaintextHash;
+        publicInputs[2] = aggregatePkHash;
+        publicInputs[3] = dkgRoot;
+        publicInputs[4] = bytes32(uint256(epoch));
+        publicInputs[5] = participantSetHash;
+        publicInputs[6] = dCommitment;
+        return _honkVerifier.verify(proof, publicInputs);
+    }
+
+    /// @inheritdoc IPvthfheVerifier
+    /// @dev NoGo branch: proof is for the sonobe_state_commitment circuit (6 public inputs).
+    function verifyWithAttestation(
+        bytes calldata proof,
+        bytes32[] calldata publicInputs,
+        AttestationBundle calldata attestation
+    ) external view override returns (bool) {
+        if (!attestors[attestation.signer]) {
+            revert("InvalidAttestor");
+        }
+        if (publicInputs.length < 6) {
+            revert("CommitmentMismatch");
+        }
+        if (
+            publicInputs[4] != attestation.sonobeStateCommitment
+                || publicInputs[5] != attestation.cycloAggregateCommitment
+        ) {
+            revert("CommitmentMismatch");
+        }
+
+        bool proofValid = _honkVerifier.verify(proof, publicInputs);
+        if (!proofValid) {
+            revert("InvalidProof");
+        }
+        return true;
     }
 
     /// @inheritdoc IPvthfheVerifier
@@ -123,6 +176,18 @@ contract PvtFheVerifier is IPvthfheVerifier {
     /// @inheritdoc IPvthfheVerifier
     function rlweDegree() external pure override returns (uint32) {
         return _RLWE_DEGREE;
+    }
+
+    /// @notice Adds an attestor for NoGo-branch attestations.
+    function addAttestor(address attestor) external {
+        require(msg.sender == admin, "Unauthorized");
+        attestors[attestor] = true;
+    }
+
+    /// @notice Removes an attestor for NoGo-branch attestations.
+    function removeAttestor(address attestor) external {
+        require(msg.sender == admin, "Unauthorized");
+        attestors[attestor] = false;
     }
 
     // -------------------------------------------------------------------------

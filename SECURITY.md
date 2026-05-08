@@ -2,14 +2,21 @@
 
 > ⚠️  **DO NOT DEPLOY — RESEARCH PROTOTYPE ONLY**
 >
-> This repository contains **critical cryptographic surrogates** that provide no real security:
-> - **no on-chain cryptographic verification — verifier accepts any proof bytes**
-> - **Noir circuits are tautological surrogates** (assert(x == x) — no real constraints)
+> This repository contains a **research implementation** of private-verifiable threshold FHE:
+> - **on-chain verifier uses Sonobe substitution (off-chain Sonobe + on-chain commitment)**
+> - **Noir circuits implement the real aggregation and wrapping logic**
 > - **do not use for The Interfold or any production deployment**
 >
 > See [SECURITY-ADVISORY-001.md](SECURITY-ADVISORY-001.md) and [SECURITY.md](SECURITY.md) for details.
 
 This document outlines the security model, assumptions, and limitations of the PVTHFHE research prototype.
+
+## Implementation status
+
+- **FHE backend**: real threshold BFV via `gnosisguild/fhe.rs`, under an **honest-but-curious** threat model.
+- **Greco / well-formedness ZK proofs**: **not yet implemented**. The real FHE path therefore remains unproven against malicious share construction and ciphertext well-formedness attacks.
+- **Folding accumulator**: implemented via Sonobe substitution.
+- **On-chain verifier**: real UltraHonk verifier (committing to Sonobe state) + off-chain attestation.
 
 ## Threat Model
 
@@ -40,7 +47,7 @@ This is a research prototype and contains components where formal soundness proo
 
 - **P1 (CRITICAL)**: **Lattice NIZK Soundness**. P1 (CRITICAL): Per-share RLWE NIZK knowledge soundness is conditional on (a) Module-SIS hardness over R_{q_commit}, (b) Cyclo Theorem 3 soundness (ePrint 2026/359), and (c) collision resistance of SHA-256 for the P4 commitment domain. Formal joint-extractor proof (T2) is deferred. Any relying party must treat per-share proofs as computationally binding under these assumptions only.
 - **P2 (HIGH)**: **LatticeFold+ Linearity**. Real — Cyclo LatticeFold+ over RLWE, T=10, Lemma 9 heuristic (conditional soundness). The active backend is `cyclo-rlwe-t10-lemma9-heuristic`; soundness remains conditional on M-SIS hardness over R_{q_commit}, Cyclo Theorem 3 (ePrint 2026/359), and the Lemma 9 invertibility heuristic, while the joint extractor (T2) remains a skeleton.
-- **P3 (MEDIUM)**: **MicroNova-lattice Encoding**. Real — UltraHonkVerifier wired; `HonkVerifier.sol` prototype stub (Barretenberg `bb write_solidity_verifier` VK size mismatch pending). The trusted-signer `ecrecover` surrogate has been stripped from `P3RealVerifier`, but the production VK still cannot be emitted as a fully BB-generated Solidity verifier until the current format mismatch is resolved.
+- **P3 (MEDIUM)**: **MicroNova-lattice Encoding**. Substitituted by off-chain Sonobe + on-chain commitment topology. The aggregator submits an UltraHonk proof of the Sonobe state commitment, which is checked on-chain alongside an off-chain attestation.
 
 ## Smudging
 

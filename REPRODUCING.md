@@ -11,6 +11,13 @@ Reproducibility requires the exact toolchain versions used during development:
 - **BB CLI (Barretenberg)**: `5.0.0-nightly.20260324`
 - **Forge (Foundry)**: `1.6.0-v1.7.0` (commit `f83bad912a9dba7bf0371def1e70bb1896048356`)
 
+## Git Dependency Pins (PINNED)
+
+- **`fhe`**: `gnosisguild/fhe.rs` rev `5f24d0b62a7329b789db07a065b68accd614a47b`
+- **`fhe-traits`**: `gnosisguild/fhe.rs` rev `5f24d0b62a7329b789db07a065b68accd614a47b`
+- **`fhe-math`**: `gnosisguild/fhe.rs` rev `5f24d0b62a7329b789db07a065b68accd614a47b`
+- **`e3-trbfv`**: intentionally not pinned in F1; plan A3 currently prefers direct composition of `fhe::mbfv` + `fhe::trbfv`, and `fhe::trbfv` is present at the locked `fhe.rs` rev above.
+
 ## Hardware Fingerprint
 
 The benchmarks were executed on the following hardware:

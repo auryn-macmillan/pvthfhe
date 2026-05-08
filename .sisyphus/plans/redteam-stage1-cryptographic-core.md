@@ -59,18 +59,18 @@ Deliver a cryptographically sound core for PVTHFHE, suitable for deployment in T
 
 ### Definition of Done
 
-- [ ] BRANCH decision recorded with user approval
-- [ ] H1–H8 disposition matrix complete (no Deferred items for deployment-relevant Highs)
-- [ ] Confidentiality side-channel audit complete (T11.5)
-- [ ] Withholding/griefing resistance proven (T11.6)
-- [ ] Liveness engineering complete (T11.7)
-- [ ] Decentralized adversary model published (T11.8)
-- [ ] All C2–C6 findings have RED-then-GREEN test pairs
-- [ ] All five F1–F5 reviews APPROVE independently (T13)
-- [ ] `just stage1-gate` passes (including all 3 phase gates)
-- [ ] Banner downgraded to "RESEARCH PROTOTYPE" only after all above
-- [ ] Interfold threat-model attack matrix published with cross-walk to T11.8 (T15)
-- [ ] Stage 0 T2 tripwire and T3 opt-in mock policy preserved
+- [x] BRANCH decision recorded with user approval
+- [x] H1–H8 disposition matrix complete (no Deferred items for deployment-relevant Highs)
+- [x] Confidentiality side-channel audit complete (T11.5)
+- [x] Withholding/griefing resistance proven (T11.6)
+- [x] Liveness engineering complete (T11.7)
+- [x] Decentralized adversary model published (T11.8)
+- [x] All C2–C6 findings have RED-then-GREEN test pairs
+- [x] All five F1–F5 reviews APPROVE independently (T13)
+- [x] `just stage1-gate` passes (including all 3 phase gates)
+- [x] Banner downgraded to "RESEARCH PROTOTYPE" only after all above
+- [x] Interfold threat-model attack matrix published with cross-walk to T11.8 (T15)
+- [x] Stage 0 T2 tripwire and T3 opt-in mock policy preserved
 
 ### Must Have
 
@@ -196,7 +196,7 @@ Wave 5 (Synthesis & Audit):
   **Commit**: `design: record branch decision with rubric and task matrix`.
 
 
-- [ ] 1. **Real Ajtai/Nova folding**
+- [x] 1. **Real Ajtai/Nova folding**
 
   **What to do**:
   - Replace SHA-256 hash chain in `crates/pvthfhe-cyclo/src/fold.rs` with real Ajtai commitments (Branch A) or Nova/HyperNova (Branch B).
@@ -234,7 +234,7 @@ Wave 5 (Synthesis & Audit):
 
   **Commit**: `fhe: implement real folding commitment aligned with fhe-math`.
 
-- [ ] 2. **Re-author Noir circuits**
+- [x] 2. **Re-author Noir circuits**
 
   **What to do**:
   - Author real `circuits/micronova_wrap/src/main.nr` and `aggregator_final` to enforce the chosen folding relation.
@@ -265,7 +265,7 @@ Wave 5 (Synthesis & Audit):
 
   **Commit**: `circuits: implement production folding relations with adversarial tests`.
 
-- [ ] 3. **NIZK Fiat-Shamir absorption fix**
+- [x] 3. **NIZK Fiat-Shamir absorption fix**
 
   **What to do**:
   - Ensure all public components (especially `pvss_commitment`) are absorbed into the challenge hash.
@@ -301,7 +301,7 @@ Wave 5 (Synthesis & Audit):
 
   **Commit**: `nizk: fix Fiat-Shamir transcript absorption and remove disclosure`.
 
-- [ ] 4. **On-chain Registry & Replay Protection**
+- [x] 4. **On-chain Registry & Replay Protection**
 
   **What to do**:
   - Implement a registry contract for sessions and rosters.
@@ -338,7 +338,7 @@ Wave 5 (Synthesis & Audit):
   **Commit**: `contracts: integrated registry and replay protection`.
 
 
-- [ ] 5. **Forged-share rejection**
+- [x] 5. **Forged-share rejection**
 
   **What to do**:
   - Fix binding in `share_wf` and `decrypt_share`.
@@ -365,7 +365,7 @@ Wave 5 (Synthesis & Audit):
 
   **Commit**: `fhe: reject forged shares via binding fixes`.
 
-- [ ] 6. **decrypt_share circuit constraints**
+- [x] 6. **decrypt_share circuit constraints**
 
   **What to do**:
   - Constrain `ciphertext_hash` and `d_i_hash`.
@@ -389,7 +389,7 @@ Wave 5 (Synthesis & Audit):
 
   **Commit**: `circuits: harden decrypt_share with real Merkle and hash constraints`.
 
-- [ ] 7. **Hermine real PVSS implementation**
+- [x] 7. **Hermine real PVSS implementation**
 
   **What to do**:
   - Replace simulation with the real PVSS protocol from the paper OR remove paper claim and acknowledge.
@@ -408,25 +408,25 @@ Wave 5 (Synthesis & Audit):
 
   **Commit**: `keygen: implement real Hermine PVSS (retire simulation)`.
 
-- [ ] 8. **Norm-bound fix**
+- [x] 8. **Norm-bound fix**
 
   **What to do**: Correct shortness check (>255) in `hermine.rs`.
 
   **Commit**: `keygen: correct norm-bound check in shortness verification`.
 
-- [ ] 9. **Lemma 9 formalization**
+- [x] 9. **Lemma 9 formalization**
 
   **What to do**: Produce `docs/security-proofs/lemma9.md` with formal proof or conjecture downgrade.
 
   **Commit**: `docs: formalize Lemma 9 security status`.
 
-- [ ] 10. **Hash-family alignment**
+- [x] 10. **Hash-family alignment**
 
   **What to do**: Unify on Poseidon (in-circuit) and Keccak (on-chain).
 
   **Commit**: `crypto: unify hash family and domain separation`.
 
-- [ ] 11. **DoS hardening**
+- [x] 11. **DoS hardening**
 
   **What to do**:
   - Add input bounds and time limits to all verification paths.
@@ -441,10 +441,10 @@ Wave 5 (Synthesis & Audit):
 
   **Commit**: `security: add DoS protections to verification entry points`.
 
-- [ ] 12. **ABSORBED INTO T4**
+- [x] 12. **ABSORBED INTO T4**
 
 
-- [ ] 13. **Stage 1 Multi-Review Anti-Rubber-Stamp Re-Audit**
+- [x] 13. **Stage 1 Multi-Review Anti-Rubber-Stamp Re-Audit**
 
   **What to do**:
   - Model audit on `pvthfhe-skeptical-audit`'s F1–F4 wave.
@@ -464,7 +464,7 @@ Wave 5 (Synthesis & Audit):
 
   **Commit**: `audit: Stage 1 multi-review re-audit report`.
 
-- [ ] 14. **Final integration & Gate**
+- [x] 14. **Final integration & Gate**
 
   **What to do**:
   - Run full suite, lift tripwires for fixed issues, downgrade banner.
@@ -482,7 +482,7 @@ Wave 5 (Synthesis & Audit):
 
   **Commit**: `stage1: final integration and gate success`.
 
-- [ ] 15. **Interfold Threat Model & Attack Matrix**
+- [x] 15. **Interfold Threat Model & Attack Matrix**
 
   **What to do**:
   - Produce an Interfold attack matrix (table) with columns: adversary type, capability, targeted asset, mitigation task ID, test/evidence pointer, residual risk.

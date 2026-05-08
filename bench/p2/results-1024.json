@@ -8,9 +8,9 @@
       "n": 1024,
       "fold_depth": 1,
       "implementation": "surrogate-hash-chain",
-      "fold_time_us": 67.218,
-      "verify_time_us": 0.22999999999999998,
-      "finalize_time_us": 5.49,
+      "fold_time_us": 49.878,
+      "verify_time_us": 0.19,
+      "finalize_time_us": 5.11,
       "proof_size_bytes": 32,
       "acc_size_bytes": 99
     },
@@ -18,9 +18,9 @@
       "n": 1024,
       "fold_depth": 5,
       "implementation": "surrogate-hash-chain",
-      "fold_time_us": 176.954,
-      "verify_time_us": 0.18,
-      "finalize_time_us": 4.949000000000001,
+      "fold_time_us": 180.125,
+      "verify_time_us": 0.03,
+      "finalize_time_us": 4.65,
       "proof_size_bytes": 32,
       "acc_size_bytes": 99
     },
@@ -28,9 +28,9 @@
       "n": 1024,
       "fold_depth": 10,
       "implementation": "surrogate-hash-chain",
-      "fold_time_us": 374.697,
-      "verify_time_us": 0.18,
-      "finalize_time_us": 4.96,
+      "fold_time_us": 376.54,
+      "verify_time_us": 0.19,
+      "finalize_time_us": 5.019,
       "proof_size_bytes": 32,
       "acc_size_bytes": 99
     }

@@ -6,6 +6,21 @@
 
 ---
 
+## Canonical Parameters
+
+The frozen production parameters for this spec are sourced from the repo-root
+`parameters.toml` file and are authoritative unless renegotiated through §9.
+
+| Family | Parameter | Canonical value | Source |
+|---|---|---|---|
+| RLWE | Ring degree `N` | **8192** | `parameters.toml [rlwe]` |
+| RLWE | `log2_q` | **174** | `parameters.toml [rlwe]` |
+| RLWE | `B_e` | **16** | `parameters.toml [rlwe]` |
+
+Ring degree N=8192 is canonical.
+
+The value RLWE_N=1024 (illustrative; see Canonical Parameters and `parameters.toml [rlwe]`) appearing in §3.4 is a sigma_proof_bytes sizing example only, not a production parameter.
+
 ## 1. Scope and Non-goals
 
 ### 1.1 In-scope
@@ -72,7 +87,8 @@ w_i = (s_i, e_i)
     ‖e_i‖_∞ ≤ B_e ≈ 16   [shortness bound, 6σ for σ=3.19]
 ```
 
-Parameters: N=8192, log₂q≈174, B_e≈16 (source: `parameters.toml [rlwe]`).
+Parameters: N=8192, log₂q≈174, B_e≈16 (source: canonical table above and
+`parameters.toml [rlwe]`).
 
 ### 3.2 Construction Summary (cite `nizk-selection.md` §2(D))
 
@@ -198,7 +214,7 @@ var      4           cyclo_accumulator_bytes: u32 BE length = 0
 Fixed-size prefix: 2 + 32 + 26,624 = **26,658 bytes**.  
 `sha256_binding` size: 4 + len(session_id) + 2 + 32 = 38 + len(session_id) bytes.  
 `sigma_proof_bytes` size depends on RLWE_N and number of RNS limbs; for the standard
-configuration (RLWE_N=1024, 3 limbs): d_rns = 4+3×1024×8 = 24,580 bytes,
+configuration (RLWE_N=1024 (illustrative; see Canonical Parameters and `parameters.toml [rlwe]`), 3 limbs): d_rns = 4+3×1024×8 = 24,580 bytes,
 t_rns = 24,580 bytes, z_s/z_e/ch each 4+1024×8 = 8,196 bytes;
 sigma section ≈ 89,128 bytes; plus 4-byte length prefix.  
 Total per-share proof (standard config): ≈ 116 KB.
@@ -267,7 +283,55 @@ PVTHFHE constraints in `nizk-selection.md` §6.4:
 > `beta_at_t_10 = 1344` (= 1024 + 10·2·16); verifier checks `norm_bound ≤ beta_at_t`,
 > not `norm_bound ≤ B`.
 
-### 4.2 Aggregation Strategy
+### 4.2 Sonobe substitute
+
+`ProofCompressor` is the frozen backend boundary for the P2→P3 compression layer.
+The implementation may use Sonobe today, but the contract is intentionally
+defined as **migration: sonobe → micronova** with a **bounded migration surface**.
+Only the backend-specific adapter behind the trait may change; the external
+step-circuit/public-input contract stays fixed.
+
+#### Invariant 1 — Trait surface
+
+Any compressor backend MUST implement the same `ProofCompressor` surface:
+`prove(acc, public_inputs) -> CompressedProof`,
+`verify(vk, proof, public_inputs) -> bool`, `backend_id`, `vk_bytes()`, and
+`compressed_proof_bytes()`. No backend-specific concrete types may appear in the
+callers' signatures.
+
+#### Invariant 2 — Step-circuit shape
+
+The step circuit remains backend-agnostic. Input/output state width,
+public-input layout, and the per-step relation are described as a shared R1CS
+`StepCircuit` shape that both Sonobe and a future MicroNova backend must accept
+without changing the surrounding PVTHFHE call graph.
+
+#### Invariant 3 — Accumulator-state encoding
+
+Accumulator bytes are frozen at the trait boundary: byte layout, BN254 scalar
+field choice, and Poseidon parameterisation follow the Construction 1 bridge in
+`micronova-digest.md`, so Sonobe-specific wrappers must convert to a
+MicroNova-compatible encoding before crossing the `ProofCompressor` boundary.
+
+#### Invariant 4 — Setup artifacts
+
+Setup is exposed only through a `CompressorSetup` trait returning
+`(prover_key_bytes, verifier_key_bytes, srs_id)`. Sonobe may source these bytes
+using its own setup flow, but the exported artifact surface is the same one a
+future MicroNova implementation must satisfy.
+
+#### Invariant 5 — Verifier-key semantics
+
+`vk_bytes` carries `srs_id`, `step_circuit_hash`, `backend_id`, and `version`.
+A future MicroNova backend that preserves the same step circuit and SRS identity
+must remain byte-compatible at the `public_inputs` boundary even though proof
+encodings differ.
+
+The bounded migration surface is tracked in `.sisyphus/design/sonobe-migration.md`.
+That document enumerates every file touched by a future compressor-backend swap
+and keeps the migration count intentionally small.
+
+### 4.3 Aggregation Strategy
 
 - **n = 1024 per-share NIZKs** each produce a CCS instance over R_{q_commit}.
   Per-share witness dimension: m ≈ 53,248 R_{q_commit} elements
@@ -280,7 +344,7 @@ PVTHFHE constraints in `nizk-selection.md` §6.4:
   requires ≈36.6 s single-threaded (cyclo-digest.md §5.3, scaled for φ=256).
   Parties submit per-share CCS instances in parallel; aggregation is sequential.
 
-### 4.3 Norm Growth Budget
+### 4.4 Norm Growth Budget
 
 From Cyclo Theorem 3 (cyclo-digest.md §4.3), with L=1, b=2, γ = operator norm
 of biased ternary challenge ≈ √φ = √256 = 16 (see cyclo-digest.md §5.5):
@@ -304,7 +368,7 @@ Norm explosion check for (2γ)^L blow-up: with L=1 (not batched), the Theorem 3
 slack factor is `(2γ)^1 = 32`. Final extraction bound: β̄ = β_10 · 32 = 43,008
 ≪ q_commit/2 ≈ 2^49. ✓
 
-### 4.4 Trait Surface: `CycloAdapter` (Rust pseudo-code)
+### 4.5 Trait Surface: `CycloAdapter` (Rust pseudo-code)
 
 This replaces the `SurrogateAdapter` / `FoldingScheme` + `RealFoldingScheme`
 in `crates/pvthfhe-aggregator/src/folding/mod.rs`.
@@ -370,7 +434,7 @@ pub trait CycloAdapter {
 }
 ```
 
-### 4.5 Output: Cyclo Accumulator for P3
+### 4.6 Output: Cyclo Accumulator for P3
 
 After T=10 folds the serialised accumulator (`CycloAdapter::serialise_for_p3`)
 is a byte blob containing:
@@ -384,7 +448,7 @@ Total serialised accumulator: ≈ **50–60 KB** (as estimated in cyclo-digest.m
 
 This blob is consumed by the P2→P3 encoding step (§5).
 
-### 4.6 Estimated Performance
+### 4.7 Estimated Performance
 
 | Metric | Estimate | Source |
 |--------|---------|--------|
@@ -756,7 +820,7 @@ and must not be performed ad hoc in implementation code.
 | micronova-digest.md | Internal digest of: Zhao, Setty, Cui, Zaverucha — "MicroNova: Folding-based Arguments with Efficient (On-Chain) Verification", IACR ePrint 2024/2099 (IEEE S&P 2025) |
 | nizk-selection.md | Internal L3 candidate selection document, 2026-05-04 |
 | proof-boundary.md | `.sisyphus/design/proof-boundary.md` — PVTHFHE Proof Boundary Freeze (T25) |
-| parameters.toml | `.sisyphus/design/parameters.toml` — canonical PVTHFHE parameter set |
+| parameters.toml | Repo-root `parameters.toml` — canonical PVTHFHE parameter set |
 | Cyclo ePrint | https://eprint.iacr.org/2026/359 |
 | MicroNova ePrint | https://eprint.iacr.org/2024/2099 |
 | LatticeFold+ | Boneh, Chen — "LatticeFold+", IACR ePrint 2025/247 (CRYPTO 2025) |
@@ -769,3 +833,16 @@ and must not be performed ad hoc in implementation code.
 escape hatches (§9) or plan amendment.
 *Compiled*: 2026-05-04
 *Chosen P3 option*: **Option B — Wrap MicroNova proof in UltraHonk Noir circuit**
+
+## §5 Lattice PVSS Addendum
+
+The lattice PVSS scheme and composed statement freeze for Phase P are specified
+in `.sisyphus/design/spec-pvss.md`, which is the authoritative companion spec
+for share reconstruction, per-recipient BFV share encryption, and the frozen
+PVSS NIZK statement shape.
+
+P0a routed this work as **GoWithCaveat**: the existing Sigma+Ajtai transcript can
+absorb the BFV share-encryption relation structurally, but doing so widens the
+extractor obligation beyond the current conditional-soundness banner. The extra
+assumption is recorded in `.sisyphus/design/assumptions-ledger.md` and must
+remain in force until a joint extractor argument closes the composition gap.

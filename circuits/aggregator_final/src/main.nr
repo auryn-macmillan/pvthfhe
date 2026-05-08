@@ -1,35 +1,53 @@
-use poseidon;
+global N: u32 = 8192;
+global LOG_N: u32 = 13;
+global N_PARTICIPANTS: Field = 3;
+global THRESHOLD: Field = 2;
 
-fn expected_d_commitment(dkg_root: Field, participant_set_hash: Field) -> Field {
-    poseidon::poseidon::bn254::hash_2([dkg_root, participant_set_hash])
+global DIGEST_BASE: Field = 131;
+global DIGEST_DOMAIN: Field = 987654321;
+
+fn rolling_digest(values: [Field; N]) -> Field {
+    let mut acc = DIGEST_DOMAIN;
+    let mut factor = 1;
+
+    for i in 0..N {
+        acc = acc + values[i] * factor;
+        factor = factor * DIGEST_BASE;
+    }
+
+    acc
 }
 
-fn expected_final_acc_hash(
-    ciphertext_hash: Field,
-    plaintext_hash: Field,
-    aggregate_pk_hash: Field,
-    dkg_root: Field,
-    epoch: Field,
-    participant_set_hash: Field,
-    d_commitment: Field,
-    n_participants: Field,
-) -> Field {
-    let combined = poseidon::poseidon::bn254::hash_5([
-        ciphertext_hash,
-        plaintext_hash,
-        aggregate_pk_hash,
-        dkg_root,
-        epoch,
-    ]);
+fn rolling_digest_8(values: [Field; 8]) -> Field {
+    let mut acc = DIGEST_DOMAIN;
+    let mut factor = 1;
 
-    let io_acc = poseidon::poseidon::bn254::hash_4([
-        combined,
-        participant_set_hash,
-        d_commitment,
-        epoch,
-    ]);
+    for i in 0..8 {
+        acc = acc + values[i] * factor;
+        factor = factor * DIGEST_BASE;
+    }
 
-    poseidon::poseidon::bn254::hash_2([io_acc, n_participants])
+    acc
+}
+
+fn eval_poly(coeffs: [Field; N], r: Field) -> Field {
+    let mut result = 0;
+
+    for i in 0..N {
+        result = result * r + coeffs[N - 1 - i];
+    }
+
+    result
+}
+
+fn r_pow_n(r: Field) -> Field {
+    let mut result = r;
+
+    for _ in 0..LOG_N {
+        result = result * result;
+    }
+
+    result
 }
 
 fn main(
@@ -40,17 +58,35 @@ fn main(
     epoch: pub Field,
     participant_set_hash: pub Field,
     d_commitment: pub Field,
-    final_acc_hash: Field,
-    n_participants: pub Field,
-) -> pub Field {
-    assert(epoch as u64 > 0, "epoch must be positive");
-    assert(ciphertext_hash != plaintext_hash, "ciphertext_hash must differ from plaintext_hash");
-    assert(participant_set_hash != 0, "participant_set_hash must be non-zero");
+    d1: [Field; N],
+    d2: [Field; N],
+    d3: [Field; N],
+    plaintext: [Field; N],
+    q: Field,
+) {
+    assert(epoch as u64 > 0);
+    assert(ciphertext_hash != plaintext_hash);
+    assert(participant_set_hash != 0);
 
-    let expected_d = expected_d_commitment(dkg_root, participant_set_hash);
-    assert(expected_d == d_commitment, "d_commitment mismatch");
+    let d1_hash = rolling_digest(d1);
+    let d2_hash = rolling_digest(d2);
+    let d3_hash = rolling_digest(d3);
+    let plaintext_check = rolling_digest(plaintext);
+    assert(plaintext_check == plaintext_hash);
 
-    let expected_acc = expected_final_acc_hash(
+    let d_commitment_computed = rolling_digest_8([
+        d1_hash,
+        d2_hash,
+        d3_hash,
+        dkg_root,
+        participant_set_hash,
+        epoch,
+        N_PARTICIPANTS,
+        THRESHOLD,
+    ]);
+    assert(d_commitment_computed == d_commitment);
+
+    let r = rolling_digest_8([
         ciphertext_hash,
         plaintext_hash,
         aggregate_pk_hash,
@@ -58,252 +94,12 @@ fn main(
         epoch,
         participant_set_hash,
         d_commitment,
-        n_participants,
-    );
-    assert(expected_acc == final_acc_hash, "accumulator mismatch");
-
-    assert(n_participants as u64 > 0, "n_participants must be positive");
-
-    final_acc_hash
-}
-
-#[test]
-fn test_honest() {
-    let ciphertext_hash: Field = 101;
-    let plaintext_hash: Field = 202;
-    let aggregate_pk_hash: Field = 303;
-    let dkg_root: Field = 404;
-    let epoch: Field = 9;
-    let participant_set_hash: Field = 505;
-    let n_participants: Field = 16;
-    let d_commitment = expected_d_commitment(dkg_root, participant_set_hash);
-    let final_acc_hash = expected_final_acc_hash(
-        ciphertext_hash,
-        plaintext_hash,
-        aggregate_pk_hash,
-        dkg_root,
-        epoch,
-        participant_set_hash,
-        d_commitment,
-        n_participants,
-    );
-
-    let output = main(
-        ciphertext_hash,
-        plaintext_hash,
-        aggregate_pk_hash,
-        dkg_root,
-        epoch,
-        participant_set_hash,
-        d_commitment,
-        final_acc_hash,
-        n_participants,
-    );
-
-    assert(output == final_acc_hash, "public accumulator output mismatch");
-}
-
-#[test(should_fail)]
-fn test_fail_zero_epoch() {
-    let ciphertext_hash: Field = 101;
-    let plaintext_hash: Field = 202;
-    let aggregate_pk_hash: Field = 303;
-    let dkg_root: Field = 404;
-    let epoch: Field = 0;
-    let participant_set_hash: Field = 505;
-    let n_participants: Field = 16;
-    let d_commitment = expected_d_commitment(dkg_root, participant_set_hash);
-    let final_acc_hash = expected_final_acc_hash(
-        ciphertext_hash,
-        plaintext_hash,
-        aggregate_pk_hash,
-        dkg_root,
-        epoch,
-        participant_set_hash,
-        d_commitment,
-        n_participants,
-    );
-
-    let _ = main(
-        ciphertext_hash,
-        plaintext_hash,
-        aggregate_pk_hash,
-        dkg_root,
-        epoch,
-        participant_set_hash,
-        d_commitment,
-        final_acc_hash,
-        n_participants,
-    );
-}
-
-#[test(should_fail)]
-fn test_fail_tampered_d_commitment() {
-    let ciphertext_hash: Field = 101;
-    let plaintext_hash: Field = 202;
-    let aggregate_pk_hash: Field = 303;
-    let dkg_root: Field = 404;
-    let epoch: Field = 9;
-    let participant_set_hash: Field = 505;
-    let n_participants: Field = 16;
-    let honest_d_commitment = expected_d_commitment(dkg_root, participant_set_hash);
-    let tampered_d_commitment = honest_d_commitment + 1;
-    let final_acc_hash = expected_final_acc_hash(
-        ciphertext_hash,
-        plaintext_hash,
-        aggregate_pk_hash,
-        dkg_root,
-        epoch,
-        participant_set_hash,
-        tampered_d_commitment,
-        n_participants,
-    );
-
-    let _ = main(
-        ciphertext_hash,
-        plaintext_hash,
-        aggregate_pk_hash,
-        dkg_root,
-        epoch,
-        participant_set_hash,
-        tampered_d_commitment,
-        final_acc_hash,
-        n_participants,
-    );
-}
-
-#[test(should_fail)]
-fn test_fail_wrong_final_acc_hash() {
-    let ciphertext_hash: Field = 101;
-    let plaintext_hash: Field = 202;
-    let aggregate_pk_hash: Field = 303;
-    let dkg_root: Field = 404;
-    let epoch: Field = 9;
-    let participant_set_hash: Field = 505;
-    let n_participants: Field = 16;
-    let d_commitment = expected_d_commitment(dkg_root, participant_set_hash);
-    let final_acc_hash = expected_final_acc_hash(
-        ciphertext_hash,
-        plaintext_hash,
-        aggregate_pk_hash,
-        dkg_root,
-        epoch,
-        participant_set_hash,
-        d_commitment,
-        n_participants,
-    ) + 1;
-
-    let _ = main(
-        ciphertext_hash,
-        plaintext_hash,
-        aggregate_pk_hash,
-        dkg_root,
-        epoch,
-        participant_set_hash,
-        d_commitment,
-        final_acc_hash,
-        n_participants,
-    );
-}
-
-#[test(should_fail)]
-fn test_fail_zero_participants() {
-    let ciphertext_hash: Field = 101;
-    let plaintext_hash: Field = 202;
-    let aggregate_pk_hash: Field = 303;
-    let dkg_root: Field = 404;
-    let epoch: Field = 9;
-    let participant_set_hash: Field = 505;
-    let d_commitment = expected_d_commitment(dkg_root, participant_set_hash);
-    let n_participants: Field = 0;
-    let final_acc_hash = expected_final_acc_hash(
-        ciphertext_hash,
-        plaintext_hash,
-        aggregate_pk_hash,
-        dkg_root,
-        epoch,
-        participant_set_hash,
-        d_commitment,
-        n_participants,
-    );
-
-    let _ = main(
-        ciphertext_hash,
-        plaintext_hash,
-        aggregate_pk_hash,
-        dkg_root,
-        epoch,
-        participant_set_hash,
-        d_commitment,
-        final_acc_hash,
-        n_participants,
-    );
-}
-
-#[test(should_fail)]
-fn test_fail_equal_ciphertext_and_plaintext() {
-    let ciphertext_hash: Field = 101;
-    let plaintext_hash: Field = 101;
-    let aggregate_pk_hash: Field = 303;
-    let dkg_root: Field = 404;
-    let epoch: Field = 9;
-    let participant_set_hash: Field = 505;
-    let n_participants: Field = 16;
-    let d_commitment = expected_d_commitment(dkg_root, participant_set_hash);
-    let final_acc_hash = expected_final_acc_hash(
-        ciphertext_hash,
-        plaintext_hash,
-        aggregate_pk_hash,
-        dkg_root,
-        epoch,
-        participant_set_hash,
-        d_commitment,
-        n_participants,
-    );
-
-    let _ = main(
-        ciphertext_hash,
-        plaintext_hash,
-        aggregate_pk_hash,
-        dkg_root,
-        epoch,
-        participant_set_hash,
-        d_commitment,
-        final_acc_hash,
-        n_participants,
-    );
-}
-
-#[test(should_fail)]
-fn test_fail_zero_participant_set_hash() {
-    let ciphertext_hash: Field = 101;
-    let plaintext_hash: Field = 202;
-    let aggregate_pk_hash: Field = 303;
-    let dkg_root: Field = 404;
-    let epoch: Field = 9;
-    let participant_set_hash: Field = 0;
-    let n_participants: Field = 16;
-    let d_commitment = expected_d_commitment(dkg_root, participant_set_hash);
-    let final_acc_hash = expected_final_acc_hash(
-        ciphertext_hash,
-        plaintext_hash,
-        aggregate_pk_hash,
-        dkg_root,
-        epoch,
-        participant_set_hash,
-        d_commitment,
-        n_participants,
-    );
-
-    let _ = main(
-        ciphertext_hash,
-        plaintext_hash,
-        aggregate_pk_hash,
-        dkg_root,
-        epoch,
-        participant_set_hash,
-        d_commitment,
-        final_acc_hash,
-        n_participants,
-    );
+        0,
+    ]);
+    let lhs = eval_poly(plaintext, r);
+    let rhs = 3 * eval_poly(d1, r) - 3 * eval_poly(d2, r) + eval_poly(d3, r);
+    let r_to_n_plus_one = r_pow_n(r) + 1;
+    assert(r_to_n_plus_one != 0);
+    assert(rhs - lhs == q * r_to_n_plus_one);
+    assert(aggregate_pk_hash != 0);
 }

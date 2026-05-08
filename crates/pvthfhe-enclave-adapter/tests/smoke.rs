@@ -8,7 +8,7 @@ use pvthfhe_enclave_adapter::{
 };
 use pvthfhe_fhe::{mock::MockBackend, FheBackend};
 
-const TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\n";
+const TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
 
 #[test]
 fn smoke_ciphernode_generate_key_share() {

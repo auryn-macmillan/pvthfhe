@@ -189,6 +189,16 @@ Phase 0 → P4 IG → P1 IG → P2 DG (unified-paper decision) → P2 IG → P3 
 
 ---
 
+## Additional deferred items from `pvthfhe-real-fhe-demo`
+
+- **Greco well-formedness ZK proofs** — carry forward from `pvthfhe-real-fhe-demo` **E1** / D2 status change. Scope: replace the honest-but-curious-only gap on the now-real FHE backend with malicious-share and ciphertext well-formedness proofs.
+- **Eval-key/relinearization DKG** — carry forward from `pvthfhe-real-fhe-demo` **E2**. Reference design note: `EVAL_KEY_MPC_DESIGN.md`. Scope: distributed eval-key, relinearization, and Galois-key generation for the multiplication/rotation path.
+- **Multi-ciphertext encrypt** — carry forward from `pvthfhe-real-fhe-demo` **B2** and E-series follow-on. Scope: lift the current single-plaintext length cap by chunking across multiple ciphertexts with explicit framing and round-trip tests.
+- **Cross-process share distribution** — carry forward from `pvthfhe-real-fhe-demo` **E3**. Scope: replace the current in-process simulator share handoff with authenticated networked delivery and recovery semantics.
+- **Smudging-noise tuning at n≥1024** — carry forward from `pvthfhe-real-fhe-demo` Phase **E** / F4 follow-on. Scope: parameter-sweep and benchmark smudging settings for large-party deployments once the real backend path is stable.
+
+---
+
 ## TODOs
 
 ### Phase 0 — Program Governance & Shadow Writing Scaffold

@@ -1,7 +1,9 @@
 #![allow(missing_docs, clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use clap::Parser;
-use pvthfhe_aggregator::folding::{FoldingAccumulator, PartyProof};
+use pvthfhe_aggregator::folding::{CcsPShareInstance, CycloFoldingAdapter};
+use rand_chacha::ChaCha20Rng;
+use rand_core::SeedableRng;
 use serde_json::json;
 use std::path::PathBuf;
 
@@ -23,27 +25,35 @@ fn main() {
 
     std::fs::create_dir_all(&args.out).expect("create output directory");
 
-    let mut acc = FoldingAccumulator::new();
-    for party_id in 0..N_PARTIES {
-        let share_hash = sha2_hash(&[&SEED.to_le_bytes()[..], &party_id.to_le_bytes()[..]]);
-        let nizk_bytes = sha2_hash(&[
-            b"nizk",
-            &SEED.to_le_bytes()[..],
-            &party_id.to_le_bytes()[..],
-        ])
-        .to_vec();
+    let adapter = CycloFoldingAdapter::new();
+    let instances = (0..N_PARTIES)
+        .map(|party_id| {
+            let share_hash = sha2_hash(&[&SEED.to_le_bytes()[..], &party_id.to_le_bytes()[..]]);
+            let nizk_bytes = sha2_hash(&[
+                b"nizk",
+                &SEED.to_le_bytes()[..],
+                &party_id.to_le_bytes()[..],
+            ])
+            .to_vec();
 
-        acc.add_proof(PartyProof {
-            party_id,
-            share_hash,
-            nizk_bytes,
+            CcsPShareInstance {
+                participant_id: (party_id + 1) as u16,
+                ajtai_commitment_bytes: share_hash.to_vec(),
+                public_io_bytes: nizk_bytes,
+                ccs_witness_bytes: vec![1u8; 32],
+                sha256_binding_bytes: share_hash.to_vec(),
+            }
         })
-        .expect("add_proof");
-    }
-
-    let snark = acc.finalize().expect("finalize");
-    let honest_proof = snark.proof_bytes;
-    assert_eq!(honest_proof.len(), 32, "expected 32-byte SHA256 digest");
+        .collect::<Vec<_>>();
+    let mut rng = ChaCha20Rng::seed_from_u64(SEED);
+    let report = adapter
+        .fold_all(&instances, "gen-goldens", &mut rng)
+        .expect("fold_all");
+    adapter
+        .verify_fold_all(&report, &instances)
+        .expect("verify_fold_all");
+    let honest_proof = report.accumulators()[0].acc_commitment_bytes.clone();
+    assert!(!honest_proof.is_empty(), "expected non-empty proof bytes");
 
     let honest_path = args.out.join("honest.proof");
     std::fs::write(&honest_path, &honest_proof).expect("write honest.proof");

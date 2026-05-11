@@ -71,3 +71,88 @@ jobs:
         with:
           node-version: "20"
       - run: npx -y markdownlint-cli2 "**/*.md"
+
+  docs-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash docs/lints/test_no_doc_contradictions.sh
+
+  forbid-raw-pvthfhe-domain-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: Run R0.4 forbid::raw_pvthfhe_domain_tag lint
+        run: bash crates/pvthfhe-domain-tags/lints/forbid_raw_pvthfhe_domain_tag.sh
+
+  solidity-no-tautology:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash contracts/test/lints/test_no_keccak_tautology.sh
+
+  forbid-seeded-rng-outside-demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Run R0.7 forbid::seeded_rng_outside_demo lint
+        run: cargo test -p pvthfhe-rng --test no_seeded_rng_outside_demo
+
+  r02-gate-stub-not-default:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Run R0.2 production-stub-allowed default gate
+        run: cargo test -p pvthfhe-pvss --test gate_noop_absent_by_default
+
+  forbid-vec-u8-in-secret-field:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Run R0.3 forbid::vec_u8_in_secret_field lint
+        run: cargo test -p pvthfhe-types --test secret_types_present
+
+  bb-flow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: de-vri-es/setup-noir@v1
+      - name: Install bb CLI (Barretenberg)
+        run: |
+          curl -L https://raw.githubusercontent.com/AztecProtocol/aztec-packages/master/barretenberg/bbup/install | bash
+      - name: nargo execute
+        run: (cd circuits && nargo execute --package decrypt_share)
+      - name: bb write_vk
+        run: (cd circuits && bb write_vk --scheme ultra_honk -b target/decrypt_share.json -o target)
+      - name: bb prove
+        run: (cd circuits && bb prove --scheme ultra_honk -b target/decrypt_share.json -w target/decrypt_share.gz -o target)
+      - name: bb verify
+        run: (cd circuits && bb verify --scheme ultra_honk -k target/vk -p target/proof -i target/public_inputs)
+
+  no-skeleton-crates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run R11.1 no-skeleton-crates lint
+        run: bash tests/lints/no_skeleton_crates.sh
+
+  forbid-micronova-crate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run R5.0 forbid::micronova_crate lint
+        run: |
+          if [ -d crates/pvthfhe-micronova ]; then
+            echo "ERROR: crates/pvthfhe-micronova directory must be deleted (R5.0)"
+            exit 1
+          fi
+          if grep -q 'pvthfhe-micronova' Cargo.toml; then
+            echo "ERROR: Cargo.toml must not reference pvthfhe-micronova (R5.0)"
+            exit 1
+          fi
+          echo "PASS: pvthfhe-micronova crate is absent"

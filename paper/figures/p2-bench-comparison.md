@@ -1,7 +1,7 @@
 # P2 Benchmark Comparison: PVTHFHE vs Prior Art
 
 > **Note on PVTHFHE measurements**: All PVTHFHE numbers below are produced by a
-> *surrogate hash-chain* implementation of `RealFoldingScheme` (SHA-256 accumulation).
+> *surrogate hash-chain* implementation of `HashChainFoldingScheme` (SHA-256 accumulation).
 > They reflect hash-chain cost only and are **not** from a native LatticeFold+ or
 > RLWE-based prover.  These timings are a lower-bound proxy; a real lattice prover
 > will be slower.  Label: `surrogate-hash-chain / 2026-05-03`.

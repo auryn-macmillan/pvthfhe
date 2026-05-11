@@ -105,20 +105,9 @@ name = "ark-bn254"
 version = "0.5.0"
 source = "git+https://github.com/arkworks-rs/algebra#4cec9f0e7a9a4f0d26433917980b1d4d5d8e521c"
 dependencies = [
- "ark-ec 0.5.0",
- "ark-ff 0.5.0",
+ "ark-ec",
+ "ark-ff",
  "ark-std 0.5.0 (git+https://github.com/arkworks-rs/std)",
-]
-
-[[package]]
-name = "ark-bn254"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6bc66f96ebe2a17a499475b4f94791d379817592ef494171586967ffdc6f95db"
-dependencies = [
- "ark-ec 0.6.0",
- "ark-ff 0.6.0",
- "ark-std 0.6.0",
 ]
 
 [[package]]
@@ -128,11 +117,11 @@ source = "git+https://github.com/flyingnobita/crypto-primitives?rev=f559264#f559
 dependencies = [
  "ahash",
  "ark-crypto-primitives-macros 0.5.0 (git+https://github.com/flyingnobita/crypto-primitives?rev=f559264)",
- "ark-ec 0.5.0",
- "ark-ff 0.5.0",
+ "ark-ec",
+ "ark-ff",
  "ark-r1cs-std 0.5.0 (git+https://github.com/flyingnobita/r1cs-std_yelhousni?rev=b4bab0c)",
  "ark-relations",
- "ark-serialize 0.5.0",
+ "ark-serialize",
  "ark-snark",
  "ark-std 0.5.0 (git+https://github.com/arkworks-rs/std)",
  "blake2",
@@ -154,11 +143,11 @@ source = "git+https://github.com/arkworks-rs/crypto-primitives.git#535235d656db2
 dependencies = [
  "ahash",
  "ark-crypto-primitives-macros 0.5.0 (git+https://github.com/arkworks-rs/crypto-primitives.git)",
- "ark-ec 0.5.0",
- "ark-ff 0.5.0",
+ "ark-ec",
+ "ark-ff",
  "ark-r1cs-std 0.5.0 (git+https://github.com/arkworks-rs/r1cs-std)",
  "ark-relations",
- "ark-serialize 0.5.0",
+ "ark-serialize",
  "ark-snark",
  "ark-std 0.5.0 (git+https://github.com/arkworks-rs/std)",
  "blake2",
@@ -198,9 +187,9 @@ version = "0.5.0"
 source = "git+https://github.com/arkworks-rs/algebra#4cec9f0e7a9a4f0d26433917980b1d4d5d8e521c"
 dependencies = [
  "ahash",
- "ark-ff 0.5.0",
- "ark-poly 0.5.0",
- "ark-serialize 0.5.0",
+ "ark-ff",
+ "ark-poly",
+ "ark-serialize",
  "ark-std 0.5.0 (git+https://github.com/arkworks-rs/std)",
  "educe",
  "fnv",
@@ -214,34 +203,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "ark-ec"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8352a2b2aedf6ba2cc38f7520fc51191d518dde96175c729af19f2d059f191c4"
-dependencies = [
- "ahash",
- "ark-ff 0.6.0",
- "ark-poly 0.6.0",
- "ark-serialize 0.6.0",
- "ark-std 0.6.0",
- "educe",
- "fnv",
- "hashbrown 0.17.0",
- "itertools 0.14.0",
- "num-bigint",
- "num-integer",
- "num-traits",
- "zeroize",
-]
-
-[[package]]
 name = "ark-ff"
 version = "0.5.0"
 source = "git+https://github.com/arkworks-rs/algebra#4cec9f0e7a9a4f0d26433917980b1d4d5d8e521c"
 dependencies = [
- "ark-ff-asm 0.5.0",
- "ark-ff-macros 0.5.0",
- "ark-serialize 0.5.0",
+ "ark-ff-asm",
+ "ark-ff-macros",
+ "ark-serialize",
  "ark-std 0.5.0 (git+https://github.com/arkworks-rs/std)",
  "digest",
  "educe",
@@ -252,23 +220,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ark-ff"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7a806ac6c8307b929df4645776290a50ee2aac754ad09d8bdf73391309e43af"
-dependencies = [
- "ark-ff-asm 0.6.0",
- "ark-ff-macros 0.6.0",
- "ark-serialize 0.6.0",
- "ark-std 0.6.0",
- "digest",
- "educe",
- "num-bigint",
- "num-traits",
- "zeroize",
-]
-
-[[package]]
 name = "ark-ff-asm"
 version = "0.5.0"
 source = "git+https://github.com/arkworks-rs/algebra#4cec9f0e7a9a4f0d26433917980b1d4d5d8e521c"
@@ -278,32 +229,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "ark-ff-asm"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1479009684adc073dff49a1025d3a7065b317a9ead25aaaca38cdc70058ba8a2"
-dependencies = [
- "quote",
- "syn 2.0.117",
-]
-
-[[package]]
 name = "ark-ff-macros"
 version = "0.5.0"
 source = "git+https://github.com/arkworks-rs/algebra#4cec9f0e7a9a4f0d26433917980b1d4d5d8e521c"
-dependencies = [
- "num-bigint",
- "num-traits",
- "proc-macro2",
- "quote",
- "syn 2.0.117",
-]
-
-[[package]]
-name = "ark-ff-macros"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a0691ed21ef00ef89c1e9bda832eba493dda3ec2f8d892fb25b705f73f06bb8"
 dependencies = [
  "num-bigint",
  "num-traits",
@@ -318,11 +246,11 @@ version = "0.5.0"
 source = "git+https://github.com/arkworks-rs/groth16?rev=b3b4a15#b3b4a152b2f379930011ad0699b710d3746a552e"
 dependencies = [
  "ark-crypto-primitives 0.5.0 (git+https://github.com/arkworks-rs/crypto-primitives.git)",
- "ark-ec 0.5.0",
- "ark-ff 0.5.0",
- "ark-poly 0.5.0",
+ "ark-ec",
+ "ark-ff",
+ "ark-poly",
  "ark-relations",
- "ark-serialize 0.5.0",
+ "ark-serialize",
  "ark-snark",
  "ark-std 0.5.0 (git+https://github.com/arkworks-rs/std)",
  "rayon",
@@ -333,22 +261,10 @@ name = "ark-grumpkin"
 version = "0.5.0"
 source = "git+https://github.com/arkworks-rs/algebra#4cec9f0e7a9a4f0d26433917980b1d4d5d8e521c"
 dependencies = [
- "ark-bn254 0.5.0",
- "ark-ec 0.5.0",
- "ark-ff 0.5.0",
+ "ark-bn254",
+ "ark-ec",
+ "ark-ff",
  "ark-std 0.5.0 (git+https://github.com/arkworks-rs/std)",
-]
-
-[[package]]
-name = "ark-grumpkin"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2c969a12ceed8881e5c66277dabd3e7a5aa2c72c9370f3f42eca3f2dd33a21a"
-dependencies = [
- "ark-bn254 0.6.0",
- "ark-ec 0.6.0",
- "ark-ff 0.6.0",
- "ark-std 0.6.0",
 ]
 
 [[package]]
@@ -357,28 +273,13 @@ version = "0.5.0"
 source = "git+https://github.com/arkworks-rs/algebra#4cec9f0e7a9a4f0d26433917980b1d4d5d8e521c"
 dependencies = [
  "ahash",
- "ark-ff 0.5.0",
- "ark-serialize 0.5.0",
+ "ark-ff",
+ "ark-serialize",
  "ark-std 0.5.0 (git+https://github.com/arkworks-rs/std)",
  "educe",
  "fnv",
  "hashbrown 0.17.0",
  "rayon",
-]
-
-[[package]]
-name = "ark-poly"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75f55af10b672002b8d953e230282c51206842e20e5791a94432219b4201de5c"
-dependencies = [
- "ahash",
- "ark-ff 0.6.0",
- "ark-serialize 0.6.0",
- "ark-std 0.6.0",
- "educe",
- "fnv",
- "hashbrown 0.17.0",
 ]
 
 [[package]]
@@ -388,11 +289,11 @@ source = "git+https://github.com/arkworks-rs/poly-commit#a05ec99d0d3e46c8ba0d6d3
 dependencies = [
  "ahash",
  "ark-crypto-primitives 0.5.0 (git+https://github.com/flyingnobita/crypto-primitives?rev=f559264)",
- "ark-ec 0.5.0",
- "ark-ff 0.5.0",
- "ark-poly 0.5.0",
+ "ark-ec",
+ "ark-ff",
+ "ark-poly",
  "ark-relations",
- "ark-serialize 0.5.0",
+ "ark-serialize",
  "ark-std 0.5.0 (git+https://github.com/arkworks-rs/std)",
  "blake2",
  "derivative",
@@ -409,8 +310,8 @@ name = "ark-r1cs-std"
 version = "0.5.0"
 source = "git+https://github.com/flyingnobita/r1cs-std_yelhousni?rev=b4bab0c#b4bab0cefa00530e44f06045162af4c6328baf2d"
 dependencies = [
- "ark-ec 0.5.0",
- "ark-ff 0.5.0",
+ "ark-ec",
+ "ark-ff",
  "ark-relations",
  "ark-std 0.5.0 (git+https://github.com/arkworks-rs/std?rev=73dcad0)",
  "educe",
@@ -426,8 +327,8 @@ name = "ark-r1cs-std"
 version = "0.5.0"
 source = "git+https://github.com/arkworks-rs/r1cs-std#45e4e2697626a9f9481fe57e70ed29c687194102"
 dependencies = [
- "ark-ec 0.5.0",
- "ark-ff 0.5.0",
+ "ark-ec",
+ "ark-ff",
  "ark-relations",
  "ark-std 0.5.0 (git+https://github.com/arkworks-rs/std)",
  "educe",
@@ -443,9 +344,9 @@ name = "ark-relations"
 version = "0.5.1"
 source = "git+https://github.com/arkworks-rs/snark#845ce9d50bbe535792f04b44db78b009ee402ed7"
 dependencies = [
- "ark-ff 0.5.0",
- "ark-poly 0.5.0",
- "ark-serialize 0.5.0",
+ "ark-ff",
+ "ark-poly",
+ "ark-serialize",
  "ark-std 0.5.0 (git+https://github.com/arkworks-rs/std)",
  "foldhash",
  "indexmap 2.14.0",
@@ -459,24 +360,12 @@ name = "ark-serialize"
 version = "0.5.0"
 source = "git+https://github.com/arkworks-rs/algebra#4cec9f0e7a9a4f0d26433917980b1d4d5d8e521c"
 dependencies = [
- "ark-serialize-derive 0.5.0",
+ "ark-serialize-derive",
  "ark-std 0.5.0 (git+https://github.com/arkworks-rs/std)",
  "digest",
  "num-bigint",
  "rayon",
  "serde_with",
-]
-
-[[package]]
-name = "ark-serialize"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a74dd304fd536fb95d0a328e72be759209cc496a9da094c5bc56e5fea4f9e86b"
-dependencies = [
- "ark-serialize-derive 0.6.0",
- "ark-std 0.6.0",
- "digest",
- "num-bigint",
 ]
 
 [[package]]
@@ -490,24 +379,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "ark-serialize-derive"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f153690697a2b91e5e1251ff98411ee5371500a111a0fd317a70e588eb300f9"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.117",
-]
-
-[[package]]
 name = "ark-snark"
 version = "0.5.1"
 source = "git+https://github.com/arkworks-rs/snark#845ce9d50bbe535792f04b44db78b009ee402ed7"
 dependencies = [
- "ark-ff 0.5.0",
+ "ark-ff",
  "ark-relations",
- "ark-serialize 0.5.0",
+ "ark-serialize",
  "ark-std 0.5.0 (git+https://github.com/arkworks-rs/std)",
 ]
 
@@ -529,16 +407,6 @@ dependencies = [
  "num-traits",
  "rand 0.8.6",
  "rayon",
-]
-
-[[package]]
-name = "ark-std"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "367c9c827ed431bff6868b7aa926e05b16eb46603cc8b6e768e4a5553fa1d155"
-dependencies = [
- "num-traits",
- "rand 0.8.6",
 ]
 
 [[package]]
@@ -1195,19 +1063,19 @@ checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 [[package]]
 name = "folding-schemes"
 version = "0.1.0"
-source = "git+https://github.com/privacy-scaling-explorations/sonobe?rev=63f2930d363150d4490ce2c4be8e0c25c2e1d92c#63f2930d363150d4490ce2c4be8e0c25c2e1d92c"
+source = "git+https://github.com/privacy-ethereum/sonobe?rev=63f2930d363150d4490ce2c4be8e0c25c2e1d92c#63f2930d363150d4490ce2c4be8e0c25c2e1d92c"
 dependencies = [
- "ark-bn254 0.5.0",
+ "ark-bn254",
  "ark-crypto-primitives 0.5.0 (git+https://github.com/flyingnobita/crypto-primitives?rev=f559264)",
- "ark-ec 0.5.0",
- "ark-ff 0.5.0",
+ "ark-ec",
+ "ark-ff",
  "ark-groth16",
- "ark-grumpkin 0.5.0",
- "ark-poly 0.5.0",
+ "ark-grumpkin",
+ "ark-poly",
  "ark-poly-commit",
  "ark-r1cs-std 0.5.0 (git+https://github.com/flyingnobita/r1cs-std_yelhousni?rev=b4bab0c)",
  "ark-relations",
- "ark-serialize 0.5.0",
+ "ark-serialize",
  "ark-snark",
  "ark-std 0.5.0 (git+https://github.com/arkworks-rs/std)",
  "getrandom 0.2.17",
@@ -1551,8 +1419,8 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "47a1ccadd0bb5a32c196da536fd72c59183de24a055f6bf0513bf845fefab862"
 dependencies = [
- "ark-bn254 0.5.0",
- "ark-ff 0.5.0",
+ "ark-bn254",
+ "ark-ff",
  "num-bigint",
  "thiserror",
 ]
@@ -2123,21 +1991,20 @@ dependencies = [
  "criterion",
  "hex",
  "pvthfhe-cyclo",
+ "pvthfhe-domain-tags",
  "pvthfhe-fhe",
+ "pvthfhe-nizk",
+ "pvthfhe-pvss",
+ "pvthfhe-types",
  "rand 0.8.6",
  "rand_core 0.6.4",
  "serde",
  "serde_json",
  "sha2",
+ "syn 2.0.117",
  "thiserror",
  "tokio",
-]
-
-[[package]]
-name = "pvthfhe-api"
-version = "0.1.0"
-dependencies = [
- "rand_core 0.6.4",
+ "walkdir",
 ]
 
 [[package]]
@@ -2157,6 +2024,8 @@ dependencies = [
  "pvthfhe-fhe",
  "pvthfhe-keygen",
  "pvthfhe-pvss",
+ "pvthfhe-rng",
+ "pvthfhe-types",
  "rand 0.8.6",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
@@ -2170,8 +2039,8 @@ dependencies = [
 name = "pvthfhe-circuit-tests"
 version = "0.1.0"
 dependencies = [
- "ark-bn254 0.5.0",
- "ark-ff 0.5.0",
+ "ark-bn254",
+ "ark-ff",
  "light-poseidon",
  "thiserror",
 ]
@@ -2185,6 +2054,7 @@ name = "pvthfhe-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "ark-bn254",
  "assert_cmd",
  "clap",
  "hex",
@@ -2192,9 +2062,14 @@ dependencies = [
  "pvthfhe-aggregator",
  "pvthfhe-bench",
  "pvthfhe-compressor",
+ "pvthfhe-cyclo",
+ "pvthfhe-domain-tags",
  "pvthfhe-fhe",
+ "pvthfhe-keygen",
  "pvthfhe-nizk",
  "pvthfhe-pvss",
+ "pvthfhe-rng",
+ "pvthfhe-types",
  "rand 0.8.6",
  "rand_core 0.6.4",
  "serde_json",
@@ -2207,13 +2082,16 @@ dependencies = [
 name = "pvthfhe-compressor"
 version = "0.1.0"
 dependencies = [
- "ark-bn254 0.5.0",
- "ark-ff 0.5.0",
- "ark-grumpkin 0.5.0",
+ "ark-bn254",
+ "ark-ff",
+ "ark-grumpkin",
  "ark-r1cs-std 0.5.0 (git+https://github.com/flyingnobita/r1cs-std_yelhousni?rev=b4bab0c)",
  "ark-relations",
- "ark-serialize 0.5.0",
+ "ark-serialize",
  "folding-schemes",
+ "pvthfhe-domain-tags",
+ "pvthfhe-rng",
+ "pvthfhe-types",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
  "sha3",
@@ -2239,21 +2117,32 @@ dependencies = [
 name = "pvthfhe-cyclo"
 version = "0.1.0"
 dependencies = [
+ "ark-bn254",
+ "ark-ff",
  "fhe-math",
  "pvthfhe-nizk",
+ "pvthfhe-types",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
  "sha2",
+ "syn 2.0.117",
  "thiserror",
+ "walkdir",
 ]
+
+[[package]]
+name = "pvthfhe-domain-tags"
+version = "0.1.0"
 
 [[package]]
 name = "pvthfhe-enclave-adapter"
 version = "0.1.0"
 dependencies = [
  "pvthfhe-fhe",
+ "pvthfhe-types",
  "rand 0.8.6",
  "rand_core 0.6.4",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -2264,22 +2153,31 @@ dependencies = [
  "fhe-math",
  "fhe-traits",
  "ndarray",
+ "pvthfhe-domain-tags",
  "pvthfhe-keygen",
  "pvthfhe-nizk",
+ "pvthfhe-rng",
+ "pvthfhe-types",
+ "pvthfhe-wire",
  "rand 0.8.6",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
+ "rand_distr 0.4.3",
  "serde",
  "serde_json",
  "sha2",
  "thiserror",
  "tracing",
+ "zeroize",
 ]
 
 [[package]]
 name = "pvthfhe-keygen"
 version = "0.1.0"
 dependencies = [
+ "pvthfhe-fhe",
+ "pvthfhe-rng",
+ "rand_core 0.6.4",
  "sha2",
  "subtle",
 ]
@@ -2293,27 +2191,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "pvthfhe-micronova"
-version = "0.1.0"
-dependencies = [
- "ark-bn254 0.6.0",
- "ark-ff 0.6.0",
- "ark-grumpkin 0.6.0",
- "pvthfhe-cyclo",
- "rand_chacha 0.3.1",
- "rand_core 0.6.4",
- "sha2",
- "sha3",
- "thiserror",
-]
-
-[[package]]
 name = "pvthfhe-nizk"
 version = "0.1.0"
 dependencies = [
  "fhe-math",
  "hex",
  "num-bigint",
+ "pvthfhe-rng",
+ "pvthfhe-types",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
  "sha2",
@@ -2325,9 +2210,11 @@ dependencies = [
 name = "pvthfhe-offchain-verifier"
 version = "0.1.0"
 dependencies = [
+ "ark-bn254",
  "clap",
  "hex",
  "pvthfhe-compressor",
+ "pvthfhe-domain-tags",
  "serde",
  "serde_json",
  "sha3",
@@ -2337,16 +2224,54 @@ dependencies = [
 name = "pvthfhe-pvss"
 version = "0.1.0"
 dependencies = [
+ "ark-bn254",
+ "ark-ff",
+ "fhe-math",
+ "proptest",
+ "pvthfhe-domain-tags",
  "pvthfhe-fhe",
  "pvthfhe-nizk",
+ "pvthfhe-rng",
+ "pvthfhe-types",
+ "pvthfhe-wire",
+ "rand 0.8.6",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
+ "serde_json",
  "sha2",
+ "syn 2.0.117",
+]
+
+[[package]]
+name = "pvthfhe-rng"
+version = "0.1.0"
+dependencies = [
+ "rand 0.8.6",
+ "rand_core 0.6.4",
 ]
 
 [[package]]
 name = "pvthfhe-spec-tests"
 version = "0.1.0"
+
+[[package]]
+name = "pvthfhe-types"
+version = "0.1.0"
+dependencies = [
+ "quote",
+ "serde",
+ "syn 2.0.117",
+ "walkdir",
+ "zeroize",
+]
+
+[[package]]
+name = "pvthfhe-wire"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+ "pvthfhe-domain-tags",
+]
 
 [[package]]
 name = "quick-error"

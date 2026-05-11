@@ -182,3 +182,50 @@ is intentionally RED but must not block CI.
 - `just phase1-gate`: **PASS** ✓
 - `just phase2-gate`: **PASS** ✓
 - `just phase3-gate`: **PASS** ✓
+
+## R9 Benchmarks, Docs, External-Audit Prep (2026-05-09)
+
+### R9.1 — Benchmarks
+
+- **`bench/tests/` directory does not exist** — no `results_freshness.sh` script present. Benchmarks marked preliminary as allowed by plan.
+- **`bench-comparison-gate` policy test failed** due to a new `#[allow(unexpected_cfgs)]` in `crates/pvthfhe-fhe/tests/reshare_entropy.rs` (added during R0.7 F23 fix). Fixed by adding the file to the allowed list in `tests/integration/policy_invariants.rs`.
+- **Compilation errors in `pvthfhe-bench`**: `partial_decrypt` signature changed from 10 args to 7 args (removed `sk`, `pk`, duplicate dkg_root params). Fixed `bench_scaling.rs` caller. Also fixed 4 aggregator test files (`decrypt_roundtrip.rs`, `decrypt_rejections.rs`, `decrypt_real.rs`, `adversarial/mod.rs`) that used old calling convention.
+- **Removed dead code**: `mock_sk_pk` functions in `decrypt_roundtrip.rs` and `decrypt_rejections.rs` were unused after signature change.
+- **Pre-existing failure**: `baseline_smoke` test fails with "decoded plaintext length 41610 exceeds max 16382" — not introduced by R9.
+- **Verdict**: Benchmarks marked preliminary per audit INFO-1 (SHA chains, toy circuits, not target protocol).
+
+### R9.2 — README Rewrite
+
+- Completely rewritten to reflect post-audit reality:
+  - Added prominent audit status section with per-layer finding summary
+  - Added soundness budget section (folding, noise, open problems)
+  - Added threat model reference
+  - Retracted "real-cryptography pipeline" language
+  - Added benchmark preliminary notice
+  - Preserved DO NOT DEPLOY warning
+
+### R9.3 — REPRODUCING.md Update
+
+- Toolchain pins already present: Rust 1.95.0, Foundry 1.6.0-1.7.0, Noir 1.0.0-beta.20, BB 5.0.0-nightly.20260324
+- Added preliminary-benchmark notice at top (referencing audit INFO-1)
+- Added preliminary notice on Expected Runtimes table
+
+### R9.4 — Threat Model v1
+
+- Created `.sisyphus/design/threat-model-v1.md` synthesizing from:
+  - AUDIT-2026-05-08 §§1.1-1.3 (adversary model, properties, prototype status)
+  - assumptions-ledger.md (21 cryptographic assumptions)
+  - security-proofs.md (4 theorems: T-IND-CPA, T-DEC-SOUND, T-PV-SOUND, T-ROBUSTNESS)
+  - proof-boundary.md (12 enforcement properties, frozen Phase 2)
+  - fold-soundness-budget.md (|C|=2^16, T=10, ε=2^(-160))
+  - noise-budget.md (honest 2^46.2, malicious 2^50.7)
+- Documents: scope (in/out), adversary model, 8 security properties, primitives table, soundness budgets, enforcement layers, residual assumptions, trust assumptions.
+
+### R9.5 — External-Audit Packet
+
+- Created `.sisyphus/audit/EXTERNAL-PACKET.md` as single-entry document for external auditors:
+  - Executive summary (69 findings, NOT SUITABLE FOR PRODUCTION)
+  - Document bundle (audit report, threat model, assumptions ledger, security proofs, proof boundary, design specs, soundness budgets, benchmarks, codebase map)
+  - Quick-start guide for auditors (5-step process)
+  - Key cryptographic parameters table
+  - Critical open items for external review (P1, P2, P3, Sonobe substitution, on-chain vacuity, DKG break, end-to-end decoupling)

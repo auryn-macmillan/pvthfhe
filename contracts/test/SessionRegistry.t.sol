@@ -15,23 +15,26 @@ contract SessionRegistryTest is Test {
 
     function setUp() public {
         reg = new SessionRegistry();
+        // Grant both SESSION_CREATOR and VERIFIER roles to this test contract.
+        reg.grantRole(reg.SESSION_CREATOR_ROLE(), address(this));
+        reg.grantRole(reg.VERIFIER_ROLE(), address(this));
     }
 
     // -------------------------------------------------------------------------
     // registerSession — happy path
     // -------------------------------------------------------------------------
 
-    /// @notice Valid registration (t > n/2) emits SessionRegistered event.
+    /// @notice Valid registration (t > n/2) emits SessionRegistered event with runId=0.
     function test_registerSession_emitsEvent() public {
         vm.expectEmit(true, false, false, true);
-        emit SessionRegistry.SessionRegistered(DKG_ROOT_A, 10, 6, ROSTER_HASH);
+        emit SessionRegistry.SessionRegistered(DKG_ROOT_A, 10, 6, ROSTER_HASH, 0);
         reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
     }
 
     /// @notice After registration, isRegistered returns true.
     function test_registerSession_setsRegistered() public {
         reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
-        (, , , bool registered, ) = reg.sessions(DKG_ROOT_A);
+        (, , , bool registered, , ) = reg.sessions(DKG_ROOT_A);
         assertTrue(registered);
     }
 
@@ -68,19 +71,19 @@ contract SessionRegistryTest is Test {
     // markEpochConsumed — happy path
     // -------------------------------------------------------------------------
 
-    /// @notice markEpochConsumed emits EpochConsumed.
+    /// @notice markEpochConsumed emits EpochConsumed with runId.
     function test_markEpochConsumed_emitsEvent() public {
         reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
         vm.expectEmit(true, false, false, true);
-        emit SessionRegistry.EpochConsumed(DKG_ROOT_A, 1);
+        emit SessionRegistry.EpochConsumed(DKG_ROOT_A, 1, 0);
         reg.markEpochConsumed(DKG_ROOT_A, 1);
     }
 
-    /// @notice After markEpochConsumed, consumed mapping is true.
+    /// @notice After markEpochConsumed, isEpochConsumed returns true (R6.9: scoped to current runId).
     function test_markEpochConsumed_setsConsumed() public {
         reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
         reg.markEpochConsumed(DKG_ROOT_A, 1);
-        assertTrue(reg.consumed(DKG_ROOT_A, 1));
+        assertTrue(reg.isEpochConsumed(DKG_ROOT_A, 1));
     }
 
     // -------------------------------------------------------------------------
@@ -172,11 +175,11 @@ contract SessionRegistryTest is Test {
     // retries, the same dkgRoot is produced → AlreadyRegistered revert →
     // permanent on-chain deadlock. abortSession unblocks restarts.
 
-    /// @notice RED → GREEN: abortSession emits SessionAborted.
+    /// @notice RED → GREEN: abortSession emits SessionAborted with runId.
     function test_liveness_abortSession_emitsEvent() public {
         reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
         vm.expectEmit(true, false, false, false);
-        emit SessionRegistry.SessionAborted(DKG_ROOT_A);
+        emit SessionRegistry.SessionAborted(DKG_ROOT_A, 0);
         reg.abortSession(DKG_ROOT_A);
     }
 
@@ -221,20 +224,31 @@ contract SessionRegistryTest is Test {
         // Same committee (same dkgRoot) registers again — must succeed
         reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
         // New attempt is active
-        (, , , bool registered, bool aborted) = reg.sessions(DKG_ROOT_A);
+        (, , , bool registered, bool aborted, ) = reg.sessions(DKG_ROOT_A);
         assertTrue(registered, "session must be registered");
         assertFalse(aborted, "re-registered session must not be aborted");
     }
 
-    /// @notice RED → GREEN: epochs consumed in aborted session are NOT reusable after re-register
-    /// (prevents epoch replay across DKG retry rounds).
-    function test_liveness_consumedEpochsNotReusableAfterReregister() public {
+    /// @notice RED → GREEN (R6.9): epochs consumed in aborted session ARE reusable after re-register
+    ///         because consumption is scoped to runId. Old run's consumed flag is preserved
+    ///         in _consumed[dkgRoot][epoch][oldRunId] but does NOT block the new run.
+    function test_liveness_consumedEpochsReusableAfterReregister() public {
         reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
+        // Consume epoch 99 under run 0
         reg.markEpochConsumed(DKG_ROOT_A, 99);
+        // Verify it was consumed under runId=0
+        assertTrue(reg.consumed(DKG_ROOT_A, 99, 0), "epoch 99 consumed under runId=0");
+
         reg.abortSession(DKG_ROOT_A);
         reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
-        // Epoch 99 was consumed before abort — must still be consumed (no replay)
-        vm.expectRevert(abi.encodeWithSelector(SessionRegistry.EpochAlreadyConsumed.selector, DKG_ROOT_A, uint64(99)));
+
+        // R6.9: epoch 99 is NOT consumed under new runId=1
+        assertFalse(reg.isEpochConsumed(DKG_ROOT_A, 99), "epoch 99 must be reusable under runId=1");
+        // But still consumed under old runId=0 (off-chain audit trail)
+        assertTrue(reg.consumed(DKG_ROOT_A, 99, 0), "epoch 99 still consumed under runId=0");
+
+        // New run can consume epoch 99 fresh
         reg.markEpochConsumed(DKG_ROOT_A, 99);
+        assertTrue(reg.isEpochConsumed(DKG_ROOT_A, 99), "epoch 99 consumed under runId=1");
     }
 }

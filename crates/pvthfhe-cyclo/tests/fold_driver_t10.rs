@@ -1,14 +1,29 @@
 //! Integration tests for the T=10 sequential fold driver (F7).
 
+use ark_bn254::Fr;
+use ark_ff::{AdditiveGroup, BigInteger, PrimeField};
 use pvthfhe_cyclo::{driver::fold_all, fold::verify_fold, CcsPShareInstance};
+use pvthfhe_types::CcsWitnessSecret;
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
 use sha2::{Digest, Sha256};
 
+fn matrix_1x1(e: Fr) -> Vec<u8> {
+    let mut m = vec![0u8, 0, 0, 1, 0, 0, 0, 1]; // rows=1, cols=1
+    m.extend_from_slice(&e.into_bigint().to_bytes_le());
+    m
+}
+
+fn witness_1var(fr: Fr) -> Vec<u8> {
+    let mut bytes = vec![0u8, 0, 0, 1]; // num_vars=1
+    bytes.extend_from_slice(&fr.into_bigint().to_bytes_le());
+    bytes
+}
+
 fn make_instance(id: u16, seed: u8) -> CcsPShareInstance {
     let ajtai = vec![seed; 32];
     let public_io = vec![seed.wrapping_add(1); 32];
-    let witness = vec![seed.wrapping_add(2); 32];
+    let witness = witness_1var(Fr::ZERO);
     let binding: [u8; 32] = Sha256::new()
         .chain_update(&ajtai)
         .chain_update(&public_io)
@@ -17,10 +32,11 @@ fn make_instance(id: u16, seed: u8) -> CcsPShareInstance {
         .into();
     CcsPShareInstance {
         participant_id: id,
-        ajtai_commitment_bytes: ajtai,
-        public_io_bytes: public_io,
-        ccs_witness_bytes: witness,
-        sha256_binding_bytes: binding.to_vec(),
+        ajtai_commitment_bytes: ajtai.into(),
+        public_io_bytes: public_io.into(),
+        ccs_witness_bytes: CcsWitnessSecret::new(witness),
+        sha256_binding_bytes: binding.to_vec().into(),
+        ccs_matrix_bytes: matrix_1x1(Fr::from(1u64)).into(),
     }
 }
 

@@ -1,13 +1,14 @@
-# Stage 1 Decisions
+# R7.3 Decision: share_wf Circuit
 
-## [2026-05-04] T0 pending — BRANCH-A vs BRANCH-B
+**Date**: 2026-05-09
+**Decision**: DELETE
+**Rationale**: The `share_wf` (Share Well-Formedness) circuit was a surrogate placeholder for a LatticeFold+ NIZK that would prove encrypted shares are well-formed (binding to party secret key, correct encryption, etc.). Under the current architecture, the R3 NIZK output (partial-decryption shares from `decrypt_share`) is what gets aggregated by `aggregator_final`. The well-formedness of encrypted shares is proven by the NIZK protocol itself (T3: Fiat-Shamir transcript absorbs `pvss_commitment`), not by a standalone circuit. Since no other task depends on `share_wf` for Stage 1 remediation, and the circuit logic is out of scope for the current proof system design, the default disposition is deletion.
 
-BRANCH decision requires oracle analysis → ADR → `APPROVED-BY-USER:` marker.
-Default: BRANCH-B (Nova-over-cycles) if no consensus within 14 days.
+**Impact**:
+- `circuits/share_wf/` removed from workspace `circuits/Nargo.toml`
+- No CI dependencies on `share_wf`
+- If well-formedness proofs are needed later, they should be part of a new circuit designed against the real NIZK transcript structure
 
-spec-real-p2p3.md §1.3 (P3 decision) already selected Option B — UltraHonk via Noir circuit wrapping MicroNova.
-This strongly implies BRANCH-B was the design intent. T0 must confirm and record formally.
-
-## [2026-05-04] T0 ADR created — awaiting user approval
-BRANCH-B selected. ADR at: .sisyphus/design/branch-decision-adr.md
-Status: APPROVED-BY-USER: PENDING
+**Alternatives considered**:
+- Keep as a stub: rejected — creates dead code and confusion about scope
+- Formalize into a real circuit: rejected — out of scope for this remediation wave; R3 NIZK already handles well-formedness

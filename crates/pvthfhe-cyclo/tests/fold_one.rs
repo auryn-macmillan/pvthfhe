@@ -1,21 +1,47 @@
 //! Integration tests for the Cyclo folding sub-protocol (F6).
 
+use ark_bn254::Fr;
+use ark_ff::{AdditiveGroup, BigInteger, PrimeField};
 use pvthfhe_cyclo::{
     fold::{fold_one_step, init_accumulator, verify_fold},
     CcsPShareInstance, PVTHFHE_CYCLO_PARAMS,
 };
+use pvthfhe_types::CcsWitnessSecret;
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
+
+/// 1×1 CCS matrix with element `e`.
+fn matrix_1x1(e: Fr) -> Vec<u8> {
+    let mut m = vec![0u8, 0, 0, 1, 0, 0, 0, 1]; // rows=1, cols=1
+    m.extend_from_slice(&e.into_bigint().to_bytes_le());
+    m
+}
+
+/// Witness wire-format: one variable.
+fn witness_1var(fr: Fr) -> Vec<u8> {
+    let mut bytes = vec![0u8, 0, 0, 1]; // num_vars=1
+    bytes.extend_from_slice(&fr.into_bigint().to_bytes_le());
+    bytes
+}
+
+fn good_matrix() -> Vec<u8> {
+    matrix_1x1(Fr::from(1u64))
+}
+
+fn good_witness() -> Vec<u8> {
+    witness_1var(Fr::ZERO)
+}
 
 fn make_instance(id: u16) -> CcsPShareInstance {
     let mut binding = [0u8; 32];
     binding[0] = id as u8;
     CcsPShareInstance {
         participant_id: id,
-        ajtai_commitment_bytes: vec![id as u8; 32],
-        public_io_bytes: vec![id as u8 ^ 0xAA; 32],
-        ccs_witness_bytes: vec![1u8; 32],
-        sha256_binding_bytes: binding.to_vec(),
+        ajtai_commitment_bytes: vec![id as u8; 32].into(),
+        public_io_bytes: vec![id as u8 ^ 0xAA; 32].into(),
+        ccs_witness_bytes: CcsWitnessSecret::new(good_witness()),
+        sha256_binding_bytes: binding.to_vec().into(),
+        ccs_matrix_bytes: good_matrix().into(),
     }
 }
 

@@ -237,6 +237,11 @@ Scaffolded paper directory with main.tex, bib.bib, and claims-table.md. Added pa
 - The LSP error "Import '_gate_utils' could not be resolved" in `.sisyphus/scripts/` is a false positive — all gate scripts use `sys.path.insert(0, os.path.dirname(__file__))` which resolves at runtime.
 - P1→P2 bundle's most critical P2-facing sections are 5 (recursion-friendliness) and 6 (deserializer spec); P2 needs both the arithmetic verification equation and the exact binary layout.
 - SLAP proof bytes are NOT zero-knowledge in the strong sense: `secret_share_open` and `error_open` are directly included as witness openings. Document this prominently in security caveats.
+
+## 2026-05-07 — CLI NIZK params consistency fix
+- Moved the demo NIZK statement construction into a shared helper so both CLI binaries use one canonical source of truth for the parameter tuple.
+- The regression test intentionally fails with `params.2 == 17` before the fix, then passes once the helper switches to `pvthfhe_nizk::sigma::B_E as u64`.
+- `pvthfhe-cli` needs a direct `pvthfhe-nizk` dependency for the shared helper and regression test.
 - The sigma transcript `(t_bytes, challenge_bytes, z_s, z_e)` is fully arithmetic and foldable; SHA-256 is the only non-arithmetic component (requires hash gadget in folding circuit).
 - All 6 gate subchecks pass on first run after upgrading the stub gate script and writing the bundle.
 
@@ -569,3 +574,38 @@ All five theorems approved. Gas arithmetic independently verified. No open gaps 
 - The suspect APPROVE evidence from `.sisyphus/evidence/final-qa/` was moved with `git mv` into `.sisyphus/evidence/quarantine/final-qa/` to preserve history.
 - Prior follow-on JSONs were also quarantined: `f2-proof-quality.json` and `f5-paper-readiness.json`.
 - The quarantine README documents C1–C6 and points to the two red-team plan files for re-audit context.
+
+## 2026-05-06 — pvthfhe-cli e2e startup fast-path
+- Added `--dry-run` to `pvthfhe-e2e` so tests can assert backend selection without waiting for Sonobe initialization.
+- The binary now prints backend IDs before expensive setup, making startup introspection deterministic for both compressor modes.
+- The Sonobe-specific test should use the compiled binary directly and exit immediately via `--dry-run`.
+
+
+## 2026-05-07 — BFV plaintext modulus alignment rerun
+- For the benchmark/demo-only `DEMO_PARAMS_TOML` constants in `pvthfhe-cli`, moving `t_plain` from `65536` to `131072` was accepted by fhe.rs without `load_params`/`keygen` failure in the Phase-0 smoke probe.
+- The aligned rerun kept the existing comparison artifact path `bench/results/comparison-5d7853a.md`; no new commit-hash markdown filename was produced.
+- Track-A regressions still pass after the alignment rerun: `cargo test -p pvthfhe-cli`, `cargo test -p pvthfhe-cli --test e2e_memory_budget`, `cargo test -p pvthfhe-aggregator`, and `cargo test -p pvthfhe-bench`.
+
+## 2026-05-09 — R5.0+R5.1: Delete micronova + typed Compressor<S>
+
+### R5.0 — Delete micronova
+- Deleted `crates/pvthfhe-micronova/` directory and all contents; removed from workspace `Cargo.toml` members.
+- Added CI lint job `forbid-micronova-crate` in `.github/workflows/ci.yml` verifying directory absent and Cargo.toml has no reference.
+- Research files (`.sisyphus/research/micronova-*.md`) and bench results (`bench/results/micronova_prove.json`) left as historical artifacts — not in the deleted crate dir.
+
+### R5.1 — Typed Compressor<S: StepCircuit>
+- Added `fn circuit_hash(&self) -> [u8; 32]` to `StepCircuit` trait in `lib.rs`.
+- Made `SonobeCompressor` generic: `SonobeCompressor<S: FCircuit<Fr, Params = (), ExternalInputs = Fr> + StepCircuit + Clone + Debug>`.
+  - Associated types on `FCircuit` must be constrained (`Params = ()`, `ExternalInputs = Fr`) for the `prove_step` and `vp_deserialize_with_mode` APIs to type-check.
+- `ToyStepCircuit<Fr>` now implements `StepCircuit`; `circuit_hash()` returns `Keccak256::digest(Tag::SonobeToyStep.as_bytes())`.
+- Removed `STEP_CIRCUIT_TAG` constant and `step_circuit_hash()` free function — hash now derived from `S::circuit_hash()` per instance.
+- Made `ToyStepCircuit` `pub` (was private) so tests can reference it via `SonobeCompressor::<ToyStepCircuit<Fr>>::new(seed)`.
+- Type alias `SonobeNova<S>` replaces hardcoded `SonobeNova`.
+- Updated all call sites: 3 test files, 1 bin, 1 example.
+- Wrote 3 GREEN tests in `typed_step_circuit.rs`:
+  1. `typed_compressor_roundtrip_with_step_circuit_hash` — prove/verify roundtrip, vk hash non-zero
+  2. `verifier_rejects_tampered_step_circuit_hash` — tampered hash causes verify rejection (type mismatch)
+  3. `step_circuit_hash_matches_type_implementation` — vk hash matches canonical Keccak256(Tag::SonobeToyStep)
+- Existing trait_object test (`proof_compressor_is_object_safe`) still passes — `ProofCompressor` trait remains non-generic for object safety.
+- 2 pre-existing RED tests remain: `sonobe_prove_peak_rss_under_12gb` (R4 memory gate) and `sonobe_proof_bytes_are_deterministic_for_same_seed` (R5.3 SRS discipline — `_seed` unused, `OsRng` produces different keys per instance).
+- Full workspace `cargo build` clean; zero LSP errors.

@@ -15,6 +15,7 @@ fn minimal_valid_stmt() -> NizkStatement {
         params: (65_537_u64, RLWE_N, 16_u64),
         session_id: session_id.to_owned(),
         participant_id,
+        epoch: 0,
     }
 }
 
@@ -41,6 +42,7 @@ fn oversized_session_id_rejected() {
         params: (65_537_u64, RLWE_N, 16_u64),
         session_id: long_sid,
         participant_id: 1,
+        epoch: 0,
     };
     let witness = NizkWitness {
         secret_share: 0,

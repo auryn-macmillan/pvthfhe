@@ -41,7 +41,6 @@ fn decrypt_roundtrip_golden() {
 
     let dkg_root = [0u8; 32];
     let ciphertext_hash = [0u8; 32];
-
     let share1 =
         partial_decrypt(&backend, &ct, 1, &dkg_root, &ciphertext_hash, 1, &mut rng).unwrap();
     let share2 =

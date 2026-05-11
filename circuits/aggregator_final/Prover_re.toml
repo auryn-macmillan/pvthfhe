@@ -1,0 +1,12 @@
+ciphertext_hash = "42"
+plaintext_hash = "0x07057e50c726909e29dff5661b813cdfeb3972bc71a91de057b80184f7c59787"
+aggregate_pk_hash = "100"
+dkg_root = "200"
+epoch = "1"
+participant_set_hash = "300"
+d_commitment = "0x268533399572e3bc32e850f2addb7ccaec5438d2445e96831ee82ff48960f52c"
+d1 = ["1", "0", "0", "0", "0", "0", "0", "0"]
+d2 = ["0", "0", "0", "0", "0", "0", "0", "0"]
+d3 = ["0", "0", "0", "0", "0", "0", "0", "0"]
+plaintext = ["3", "0", "0", "0", "0", "0", "0", "0"]
+z_q = "0"

@@ -6,6 +6,7 @@ const AGGREGATOR_SRC_DIR: &str = "crates/pvthfhe-aggregator/src";
 const CRATES_DIR: &str = "crates";
 const CIRCUIT_TESTS_SRC_DIR: &str = "crates/pvthfhe-circuit-tests/src";
 const VECTORS_ALLOW_PATH: &str = "crates/pvthfhe-core/tests/vectors.rs";
+const RESHARE_ENTROPY_ALLOW_PATH: &str = "crates/pvthfhe-fhe/tests/reshare_entropy.rs";
 const BENCH_SCRIPTS_DIR: &str = "bench/scripts";
 const JUSTFILE_PATH: &str = "Justfile";
 
@@ -105,8 +106,11 @@ fn no_new_allow_attributes_exist_outside_vectors_test_file() {
 
     assert_eq!(
         allow_files,
-        vec![VECTORS_ALLOW_PATH.to_string()],
-        "only crates/pvthfhe-core/tests/vectors.rs may contain #[allow(...)]"
+        vec![
+            VECTORS_ALLOW_PATH.to_string(),
+            RESHARE_ENTROPY_ALLOW_PATH.to_string(),
+        ],
+        "only crates/pvthfhe-core/tests/vectors.rs and crates/pvthfhe-fhe/tests/reshare_entropy.rs may contain #[allow(...)]"
     );
 }
 

@@ -11,7 +11,12 @@ real-nizk = []
 surrogate-decrypt-share = []
 
 [dependencies]
+pvthfhe-rng = { path = "../pvthfhe-rng" }
+rand_distr = "0.4"
 pvthfhe-nizk = { path = "../pvthfhe-nizk" }
+pvthfhe-domain-tags = { path = "../pvthfhe-domain-tags" }
+pvthfhe-types = { path = "../pvthfhe-types" }
+pvthfhe-wire = { path = "../pvthfhe-wire" }
 rand_chacha = "0.3"
 rand = "0.8"
 sha2 = "0.10"
@@ -21,6 +26,7 @@ rand_core = "0.6"
 fhe = { git = "https://github.com/gnosisguild/fhe.rs", rev = "5f24d0b62a7329b789db07a065b68accd614a47b" }
 fhe-traits = { git = "https://github.com/gnosisguild/fhe.rs", rev = "5f24d0b62a7329b789db07a065b68accd614a47b" }
 fhe-math = { package = "fhe-math", git = "https://github.com/gnosisguild/fhe.rs", rev = "5f24d0b62a7329b789db07a065b68accd614a47b" }
+zeroize = { version = "1", features = ["zeroize_derive"] }
 tracing = "0.1"
 ndarray = "0.15"
 

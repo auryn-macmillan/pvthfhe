@@ -14,8 +14,8 @@ fn wire_keygen_share_round_trips_with_v1_prefix() {
     let decoded = decode_keygen_share(&encoded).expect("keygen share should decode");
 
     assert_eq!(encoded[0], 0x01);
-    assert_eq!(decoded.crp, crp_bytes);
-    assert_eq!(decoded.p0_share, p0_share_bytes);
+    assert_eq!(decoded.crp.as_slice(), crp_bytes);
+    assert_eq!(decoded.p0_share.as_slice(), p0_share_bytes);
 }
 
 #[test]
@@ -39,5 +39,5 @@ fn wire_decrypt_share_round_trips_with_v1_prefix() {
     let decoded = decode_decrypt_share(&encoded).expect("decrypt share should decode");
 
     assert_eq!(encoded[0], 0x01);
-    assert_eq!(decoded.d_share_poly, d_share_poly);
+    assert_eq!(decoded.d_share_poly.as_slice(), d_share_poly);
 }

@@ -51,6 +51,17 @@ fn noise_budget_closes_honest() {
     }
 }
 
+/// Adversarial noise-inflation multiplier for a single malicious party.
+///
+/// A malicious party may refuse to apply proper smudging and instead
+/// inject drastically amplified noise into its share. This constant
+/// models the amplification factor applied by the adversary.
+const MALICIOUS_AMPLIFY: f64 = 10.0;
+
+/// Simulates one malicious party injecting amplified noise while the
+/// remaining honest parties apply normal smudging. This test is
+/// structurally different from the honest test, which assumes all
+/// parties are cooperative.
 #[test]
 fn noise_budget_closes_malicious() {
     let mut rng = ChaCha20Rng::seed_from_u64(123);
@@ -58,7 +69,18 @@ fn noise_budget_closes_malicious() {
     let budget_bound = 2_f64.powi(BUDGET_LOG2_PROXY.try_into().unwrap_or(60));
 
     for _ in 0..ITERATIONS {
-        let aggregate_noise = aggregate_smudging_noise(&mut rng, T_HONEST, sigma_smudge);
+        let honest_noise: f64 = (0..T_HONEST.saturating_sub(1))
+            .map(|_| {
+                let sampled = sample_gaussian(&mut rng, N, sigma_smudge);
+                norm_inf(&sampled)
+            })
+            .sum();
+
+        let malicious_sigma = sigma_smudge * MALICIOUS_AMPLIFY;
+        let malicious_sampled = sample_gaussian(&mut rng, N, malicious_sigma);
+        let malicious_noise = norm_inf(&malicious_sampled);
+
+        let aggregate_noise = honest_noise + malicious_noise;
         assert!(
             aggregate_noise < budget_bound / SAFETY_DIVISOR,
             "Malicious noise budget violated: aggregate_noise={aggregate_noise} >= {}",

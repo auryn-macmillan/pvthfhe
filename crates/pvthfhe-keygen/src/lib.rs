@@ -6,6 +6,7 @@
 
 #![deny(missing_docs)]
 
+pub mod dkg;
 pub mod hermine;
 
 /// Error type returned by `KeygenAdapter` methods.

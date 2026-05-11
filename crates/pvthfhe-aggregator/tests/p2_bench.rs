@@ -1,6 +1,6 @@
 //! P2 benchmark matrix: surrogate hash-chain folding at n ∈ {128, 512, 1024}.
 //!
-//! NOTE: All measurements use the surrogate hash-chain implementation of RealFoldingScheme.
+//! NOTE: All measurements use the surrogate hash-chain implementation of HashChainFoldingScheme.
 //! Results are *not* from a native LatticeFold+ or RLWE-based prover; they reflect SHA-256
 //! hash-chain accumulation cost only.  Label all artifacts accordingly.
 //!
@@ -56,6 +56,7 @@ fn make_stmt(fold_index: u64, n: usize, tag: u8) -> FoldStatement {
 fn make_witness(tag: u8, n: usize) -> FoldWitness {
     FoldWitness {
         nizk_proof: NizkProof {
+            nizk_backend_id: NizkProof::EXPECTED_BACKEND_ID,
             // All-same-byte vector passes the uniformity check in validate_witness.
             proof_bytes: vec![tag; n],
         },
@@ -141,7 +142,7 @@ fn write_results(n: usize, rows: Vec<BenchRow>) {
         schema_version: "1",
         date: "2026-05-03",
         implementation_note: concat!(
-            "Surrogate hash-chain implementation of RealFoldingScheme. ",
+            "Surrogate hash-chain implementation of HashChainFoldingScheme. ",
             "Uses SHA-256 accumulation as a standin for LatticeFold+ over RLWE. ",
             "Timings reflect hash-chain cost only, not real lattice prover work."
         ),

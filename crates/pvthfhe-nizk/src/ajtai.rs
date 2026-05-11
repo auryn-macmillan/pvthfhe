@@ -1,6 +1,8 @@
 //! Ajtai commitment scheme over `R_{q_commit} = Z_{q_commit}[X]/(X^{256}+1)`.
 use crate::NizkError;
 use rand_core::RngCore;
+use sha2::{Digest, Sha256};
+use subtle::{Choice, ConstantTimeEq};
 
 /// `q_commit = 562_949_953_438_721`
 ///
@@ -177,10 +179,10 @@ pub struct AjtaiMatrix {
 impl AjtaiMatrix {
     /// Constructs the matrix by sampling each entry uniformly from `R_q`
     /// using a seeded `ChaCha20Rng`.
-    pub fn from_seed(seed: [u8; 32], params: &AjtaiParams, m: usize) -> Result<Self, NizkError> {
+    pub fn from_seed(seed: [u8; 32], params: &AjtaiParams, m: usize) -> Result<Self, NizkError> { // allow-seeded-rng: API surface; binding enforced at callsite
         use rand_chacha::ChaCha20Rng;
         use rand_core::SeedableRng;
-        let mut rng = ChaCha20Rng::from_seed(seed);
+        let mut rng = ChaCha20Rng::from_seed(seed); // allow-seeded-rng: matrix sampler internal to from_seed
         let mut rows = Vec::with_capacity(params.rank);
         for _ in 0..params.rank {
             let mut row = Vec::with_capacity(m);
@@ -194,6 +196,24 @@ impl AjtaiMatrix {
             params: params.clone(),
             m,
         })
+    }
+
+    /// Returns true when every element of `self` and `other` is equal.
+    pub fn eq(&self, other: &Self) -> bool {
+        if self.rows.len() != other.rows.len() {
+            return false;
+        }
+        for (row_self, row_other) in self.rows.iter().zip(other.rows.iter()) {
+            if row_self.len() != row_other.len() {
+                return false;
+            }
+            for (a, b) in row_self.iter().zip(row_other.iter()) {
+                if a != b {
+                    return false;
+                }
+            }
+        }
+        true
     }
 }
 
@@ -230,24 +250,45 @@ impl AjtaiCommitment {
     /// Verifies that `claimed_witness` opens this commitment.
     ///
     /// Recomputes `A · s'` and compares element-wise with the stored commitment.
-    ///
-    /// Phase 2 (N4): will replace the coefficient comparison with `subtle::ConstantTimeEq`
-    /// to eliminate timing side-channels before production use.
     pub fn verify_open(
         &self,
         matrix: &AjtaiMatrix,
         claimed_witness: &[Rq],
     ) -> Result<(), NizkError> {
         let recomputed = Self::commit(matrix, claimed_witness)?;
-        let matches = self
-            .elems
-            .iter()
-            .zip(recomputed.elems.iter())
-            .all(|(a, b)| a.coeffs == b.coeffs);
-        if matches {
+        if self.elems.len() != recomputed.elems.len() {
+            return Err(NizkError::VerificationFailed("ajtai opening mismatch"));
+        }
+
+        let mut matches = Choice::from(1u8);
+        for (a, b) in self.elems.iter().zip(recomputed.elems.iter()) {
+            if a.coeffs.len() != b.coeffs.len() {
+                return Err(NizkError::VerificationFailed("ajtai opening mismatch"));
+            }
+            for (a_coeff, b_coeff) in a.coeffs.iter().zip(b.coeffs.iter()) {
+                matches &= a_coeff.ct_eq(b_coeff);
+            }
+        }
+
+        if bool::from(matches) {
             Ok(())
         } else {
             Err(NizkError::VerificationFailed("ajtai opening mismatch"))
         }
+    }
+
+    /// Returns a 32-byte SHA-256 digest of the commitment for D2 hash binding.
+    ///
+    /// The digest commits to all ring element coefficients in the commitment
+    /// vector `C = A · s ∈ R_q^a`.
+    pub fn to_d2_digest(&self) -> [u8; 32] {
+        let mut hasher = Sha256::new();
+        hasher.update(b"pvthfhe-ajtai-d2-commitment-v1");
+        for elem in &self.elems {
+            for coeff in &elem.coeffs {
+                hasher.update(coeff.to_le_bytes());
+            }
+        }
+        hasher.finalize().into()
     }
 }

@@ -64,6 +64,7 @@ fn make_valid_proof(
         params: (65_537_u64, RLWE_N, 16_u64),
         session_id: session_id.to_owned(),
         participant_id,
+        epoch: 0,
     };
     let witness = NizkWitness {
         secret_share,
@@ -106,6 +107,7 @@ fn mismatched_pvss_commitment_produces_verification_failed() {
         params: (65_537_u64, RLWE_N, 16_u64),
         session_id: "c4-session".to_owned(),
         participant_id: 1,
+        epoch: 0,
     };
     let witness = NizkWitness {
         secret_share,
@@ -259,6 +261,7 @@ fn scenario_05_degree_mismatch() -> Result<(), NizkError> {
         params: (65_537_u64, 1024_usize, 16_u64),
         session_id: "n8-session".to_owned(),
         participant_id: 1,
+        epoch: 0,
     };
     let witness = NizkWitness {
         secret_share,
@@ -303,6 +306,7 @@ fn scenario_07_replay_attack() -> Result<(), NizkError> {
         params: (65_537_u64, RLWE_N, 16_u64),
         session_id: "n8-session-B".to_owned(),
         participant_id: 1,
+        epoch: 0,
     };
     match adapter.verify(&stmt_b, &proof_a) {
         Err(NizkError::VerificationFailed(_)) => Ok(()),
@@ -327,6 +331,7 @@ fn scenario_08_participant_id_collision() -> Result<(), NizkError> {
         params: (65_537_u64, RLWE_N, 16_u64),
         session_id: "n8-session".to_owned(),
         participant_id: 2,
+        epoch: 0,
     };
     match adapter.verify(&stmt_p2, &proof_p1) {
         Err(NizkError::VerificationFailed(_)) => Ok(()),
@@ -365,6 +370,7 @@ fn scenario_10_zero_witness_completeness() -> Result<(), NizkError> {
         params: (65_537_u64, RLWE_N, 16_u64),
         session_id: "n8-session".to_owned(),
         participant_id: 1,
+        epoch: 0,
     };
     let witness = NizkWitness {
         secret_share,

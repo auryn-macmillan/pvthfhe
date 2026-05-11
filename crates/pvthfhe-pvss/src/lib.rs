@@ -1,11 +1,15 @@
 //! Frozen trait surface for the P1 PVSS backend boundary.
 
+/// BN254 scalar Shamir secret sharing.
+pub mod shamir;
 /// BFV-backed PVSS encryption adapter.
 pub mod encrypt;
 /// Share-encryption NIZK helpers and proof types.
 pub mod nizk_share;
 /// Share-decryption NIZK helpers and proof types.
 pub mod nizk_decrypt;
+
+use pvthfhe_types::{ProtocolBytes, ShareSecret};
 
 pub use encrypt::LatticePvssBfvAdapter;
 
@@ -18,6 +22,8 @@ pub struct PvssContext {
     pub t: usize,
     /// Session binding bytes. Treat as sensitive session metadata.
     pub session_id: Vec<u8>,
+    /// On-chain epoch that binds the CRS.
+    pub epoch: u64,
 }
 
 /// Encrypted-share bundle emitted by a PVSS dealer.
@@ -25,6 +31,11 @@ pub struct PvssContext {
 pub struct EncryptedShares {
     /// One ciphertext per recipient public key.
     pub ciphertexts: Vec<Vec<u8>>,
+    /// Plaintext share bytes per recipient (same order as `ciphertexts`).
+    ///
+    /// Stored by the dealer to support decrypted-share proof construction
+    /// without requiring the NIZK envelope to leak witness material.
+    pub share_bytes: Vec<Vec<u8>>,
     /// Backend-defined proofs for the encrypted shares.
     pub proofs: Vec<Vec<u8>>,
     /// Stable backend identifier recorded in the artifact.
@@ -40,9 +51,9 @@ pub struct DecryptedShare {
     /// Zero-based share index.
     pub index: usize,
     /// Serialized share bytes. Treat as sensitive material.
-    pub share_bytes: Vec<u8>,
+    pub share_bytes: ShareSecret,
     /// Backend-defined proof of correct decryption.
-    pub proof: Vec<u8>,
+    pub proof: ProtocolBytes,
 }
 
 /// Errors returned by PVSS backends.
@@ -54,6 +65,20 @@ pub enum PvssError {
     RecoveryFailed,
     /// Backend-specific failure surfaced as a string payload.
     BackendError(String),
+    /// Domain separator in proof envelope does not match expected value.
+    InvalidDomainSeparator,
+    /// Statement in opened proof does not match verify statement.
+    StatementMismatch,
+    /// Fiat-Shamir challenge verification failed.
+    ChallengeVerificationFailed,
+    /// Reconstructed ciphertext_v does not match statement.
+    CiphertextVMismatch,
+    /// Commitment structure is invalid (empty, too large, or cannot be recovered).
+    InvalidCommitmentStructure,
+    /// Lattice binding tag verification failed.
+    LatticeBindingVerificationFailed,
+    /// D2 hash binding verification failed (Ajtaï share-commitment check).
+    D2HashBindingFailed,
 }
 
 impl core::fmt::Debug for PvssContext {
@@ -80,7 +105,7 @@ impl core::fmt::Debug for DecryptedShare {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("DecryptedShare")
             .field("index", &self.index)
-            .field("share_len", &self.share_bytes.len())
+            .field("share_len", &self.share_bytes.expose().len())
             .field("proof_len", &self.proof.len())
             .finish()
     }
@@ -92,6 +117,13 @@ impl core::fmt::Debug for PvssError {
             Self::InvalidShare => f.write_str("InvalidShare"),
             Self::RecoveryFailed => f.write_str("RecoveryFailed"),
             Self::BackendError(_) => f.write_str("BackendError(<redacted>)"),
+            Self::InvalidDomainSeparator => f.write_str("InvalidDomainSeparator"),
+            Self::StatementMismatch => f.write_str("StatementMismatch"),
+            Self::ChallengeVerificationFailed => f.write_str("ChallengeVerificationFailed"),
+            Self::CiphertextVMismatch => f.write_str("CiphertextVMismatch"),
+            Self::InvalidCommitmentStructure => f.write_str("InvalidCommitmentStructure"),
+            Self::LatticeBindingVerificationFailed => f.write_str("LatticeBindingVerificationFailed"),
+            Self::D2HashBindingFailed => f.write_str("D2HashBindingFailed"),
         }
     }
 }
@@ -102,6 +134,13 @@ impl core::fmt::Display for PvssError {
             Self::InvalidShare => f.write_str("invalid PVSS share"),
             Self::RecoveryFailed => f.write_str("PVSS recovery failed"),
             Self::BackendError(s) => write!(f, "PVSS backend error: {s}"),
+            Self::InvalidDomainSeparator => f.write_str("PVSS proof domain separator mismatch"),
+            Self::StatementMismatch => f.write_str("PVSS proof statement mismatch"),
+            Self::ChallengeVerificationFailed => f.write_str("PVSS Fiat-Shamir challenge verification failed"),
+            Self::CiphertextVMismatch => f.write_str("PVSS ciphertext_v reconstruction mismatch"),
+            Self::InvalidCommitmentStructure => f.write_str("PVSS commitment structure invalid"),
+            Self::LatticeBindingVerificationFailed => f.write_str("PVSS lattice binding verification failed"),
+            Self::D2HashBindingFailed => f.write_str("PVSS D2 hash binding verification failed"),
         }
     }
 }
@@ -139,9 +178,11 @@ pub trait PvssAdapter {
 }
 
 /// Minimal no-op adapter for trait-surface smoke tests.
+#[cfg(feature = "production-stub-allowed")]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NoopPvssAdapter;
 
+#[cfg(feature = "production-stub-allowed")]
 impl PvssAdapter for NoopPvssAdapter {
     fn deal(
         &self,

@@ -8,6 +8,7 @@
 
 use pvthfhe_fhe::{FheBackend, FheError};
 use rand::rngs::StdRng;
+use rand::RngCore;
 use rand::SeedableRng;
 use std::fmt::Debug;
 
@@ -21,36 +22,58 @@ moduli = [288230376173076481, 288230376167047169, 288230376161280001]
 variance = 10
 "#;
 
-/// Generic round-trip test: keygen → encrypt → partial_decrypt × 2 → aggregate_decrypt.
-#[cfg(feature = "mock")]
+/// Generic round-trip test: keygen → encrypt → partial_decrypt × t → aggregate_decrypt.
+///
+/// Uses 1-based party IDs and n=3, t=2 (minimum values satisfying fhe.rs
+/// constraint `t-1 <= (n-1)/2`).
 fn test_round_trip<B: FheBackend>(backend: B) {
     let mut rng = StdRng::seed_from_u64(42);
     let plaintext = b"hello threshold fhe";
+    let n: usize = 3;
+    let t: usize = 2;
 
-    let share0 = must_ok(backend.keygen_share(0, &mut rng), "keygen_share(0) failed");
-    let share1 = must_ok(backend.keygen_share(1, &mut rng), "keygen_share(1) failed");
+    let session_id: [u8; 32] = {
+        let mut id = [0u8; 32];
+        rng.fill_bytes(&mut id);
+        id
+    };
+    let share1 = must_ok(
+        backend.keygen_share_with_session(&session_id, 1, &mut rng),
+        "keygen_share(1) failed",
+    );
+    let share2 = must_ok(
+        backend.keygen_share_with_session(&session_id, 2, &mut rng),
+        "keygen_share(2) failed",
+    );
+    let share3 = must_ok(
+        backend.keygen_share_with_session(&session_id, 3, &mut rng),
+        "keygen_share(3) failed",
+    );
     let pk = must_ok(
-        backend.aggregate_keygen(&[share0, share1]),
+        backend.aggregate_keygen(&[share1, share2, share3]),
         "aggregate_keygen failed",
     );
     let ct = must_ok(backend.encrypt(&pk, plaintext, &mut rng), "encrypt failed");
-    let ds0 = must_ok(
-        backend.partial_decrypt(&ct, 0, &mut rng),
-        "partial_decrypt(0) failed",
+    must_ok(
+        backend.setup_threshold(n, t),
+        "setup_threshold failed",
     );
     let ds1 = must_ok(
         backend.partial_decrypt(&ct, 1, &mut rng),
         "partial_decrypt(1) failed",
     );
+    let ds2 = must_ok(
+        backend.partial_decrypt(&ct, 2, &mut rng),
+        "partial_decrypt(2) failed",
+    );
     let recovered = must_ok(
-        backend.aggregate_decrypt(&ct, &[ds0, ds1], 2),
+        backend.aggregate_decrypt(&ct, &[ds1, ds2], t),
         "aggregate_decrypt failed",
     );
     assert_eq!(recovered, plaintext.as_ref());
 }
 
 /// Verify that party_id is preserved in keygen shares.
-#[cfg(feature = "mock")]
 fn test_keygen_share_party_id<B: FheBackend>(backend: B) {
     let mut rng = StdRng::seed_from_u64(0);
     let share = must_ok(backend.keygen_share(7, &mut rng), "keygen_share failed");
@@ -58,35 +81,88 @@ fn test_keygen_share_party_id<B: FheBackend>(backend: B) {
 }
 
 /// Verify that party_id is preserved in decrypt shares.
-#[cfg(feature = "mock")]
 fn test_decrypt_share_party_id<B: FheBackend>(backend: B) {
     let mut rng = StdRng::seed_from_u64(0);
-    let s0 = must_ok(backend.keygen_share(0, &mut rng), "keygen_share(0)");
-    let s1 = must_ok(backend.keygen_share(1, &mut rng), "keygen_share(1)");
-    let pk = must_ok(backend.aggregate_keygen(&[s0, s1]), "aggregate_keygen");
+    let n: usize = 3;
+    let t: usize = 2;
+    let session_id: [u8; 32] = {
+        let mut id = [0u8; 32];
+        rng.fill_bytes(&mut id);
+        id
+    };
+    let s1 = must_ok(
+        backend.keygen_share_with_session(&session_id, 1, &mut rng),
+        "keygen_share(1)",
+    );
+    let s2 = must_ok(
+        backend.keygen_share_with_session(&session_id, 2, &mut rng),
+        "keygen_share(2)",
+    );
+    let s3 = must_ok(
+        backend.keygen_share_with_session(&session_id, 3, &mut rng),
+        "keygen_share(3)",
+    );
+    let pk = must_ok(backend.aggregate_keygen(&[s1, s2, s3]), "aggregate_keygen");
     let ct = must_ok(backend.encrypt(&pk, b"test", &mut rng), "encrypt");
-    let ds = must_ok(backend.partial_decrypt(&ct, 5, &mut rng), "partial_decrypt");
-    assert_eq!(ds.party_id, 5);
+    must_ok(
+        backend.setup_threshold(n, t),
+        "setup_threshold failed",
+    );
+    let ds = must_ok(backend.partial_decrypt(&ct, 2, &mut rng), "partial_decrypt");
+    assert_eq!(ds.party_id, 2);
 }
 
 /// Verify that insufficient shares returns an error.
-#[cfg(feature = "mock")]
 fn test_insufficient_shares<B: FheBackend>(backend: B) {
     let mut rng = StdRng::seed_from_u64(1);
-    let s0 = backend.keygen_share(0, &mut rng).expect("keygen_share(0)");
-    let s1 = backend.keygen_share(1, &mut rng).expect("keygen_share(1)");
+    let n: usize = 3;
+    let t: usize = 2;
+    let session_id: [u8; 32] = {
+        let mut id = [0u8; 32];
+        rng.fill_bytes(&mut id);
+        id
+    };
+    let s1 = backend
+        .keygen_share_with_session(&session_id, 1, &mut rng)
+        .expect("keygen_share(1)");
+    let s2 = backend
+        .keygen_share_with_session(&session_id, 2, &mut rng)
+        .expect("keygen_share(2)");
+    let s3 = backend
+        .keygen_share_with_session(&session_id, 3, &mut rng)
+        .expect("keygen_share(3)");
     let pk = backend
-        .aggregate_keygen(&[s0, s1])
+        .aggregate_keygen(&[s1, s2, s3])
         .expect("aggregate_keygen");
     let ct = backend.encrypt(&pk, b"test", &mut rng).expect("encrypt");
-    let ds0 = backend
-        .partial_decrypt(&ct, 0, &mut rng)
-        .expect("partial_decrypt(0)");
-    // Only 1 share but threshold=2 — must fail
-    let result = backend.aggregate_decrypt(&ct, &[ds0], 2);
+    must_ok(
+        backend.setup_threshold(n, t),
+        "setup_threshold failed",
+    );
+    let ds1 = backend
+        .partial_decrypt(&ct, 1, &mut rng)
+        .expect("partial_decrypt(1)");
+    let ds2 = backend
+        .partial_decrypt(&ct, 2, &mut rng)
+        .expect("partial_decrypt(2)");
+    let _ds3 = backend
+        .partial_decrypt(&ct, 3, &mut rng)
+        .expect("partial_decrypt(3)");
+    // Only t-1 shares when threshold is t — must fail
+    let result = backend.aggregate_decrypt(&ct, &[ds1.clone()], t);
     assert!(
         matches!(result, Err(FheError::InsufficientShares { .. })),
         "expected InsufficientShares, got {:?}",
+        result
+    );
+    // Also verify that the malformed decrypt share guard fires for party_id=0
+    // (fhe.rs uses 1-based party IDs).
+    let mut bad_share = ds2;
+    bad_share.party_id = 0;
+    let result = backend.aggregate_decrypt(&ct, &[ds1, bad_share], t);
+    assert!(
+        matches!(result, Err(FheError::MalformedDecryptShare { .. })),
+        "expected MalformedDecryptShare for party_id=0, got {:?}",
         result
     );
 }
@@ -229,5 +305,31 @@ mod primary_tests {
     fn primary_insufficient_shares() {
         let backend = must_ok(FhersBackend::load_params(TEST_PARAMS_TOML), "load_params");
         test_primary_backend_surface(backend);
+    }
+
+    // ── Backend-generic conformance (ungated, runs on real backend) ────────
+
+    #[test]
+    fn primary_round_trip_full_conformance() {
+        let backend = must_ok(FhersBackend::load_params(TEST_PARAMS_TOML), "load_params");
+        test_round_trip(backend);
+    }
+
+    #[test]
+    fn primary_keygen_party_id_full_conformance() {
+        let backend = must_ok(FhersBackend::load_params(TEST_PARAMS_TOML), "load_params");
+        test_keygen_share_party_id(backend);
+    }
+
+    #[test]
+    fn primary_decrypt_party_id_full_conformance() {
+        let backend = must_ok(FhersBackend::load_params(TEST_PARAMS_TOML), "load_params");
+        test_decrypt_share_party_id(backend);
+    }
+
+    #[test]
+    fn primary_insufficient_shares_full_conformance() {
+        let backend = must_ok(FhersBackend::load_params(TEST_PARAMS_TOML), "load_params");
+        test_insufficient_shares(backend);
     }
 }

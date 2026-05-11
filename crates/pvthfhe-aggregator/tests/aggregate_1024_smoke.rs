@@ -1,9 +1,10 @@
 //! Smoke test for F9 aggregate_1024 support.
 #![allow(missing_docs)]
 
-use pvthfhe_aggregator::folding::CycloFoldingAdapter;
+use pvthfhe_aggregator::folding::HashChainCycloAdapter;
 use pvthfhe_cyclo::CcsPShareInstance;
 use pvthfhe_cyclo::CycloError;
+use pvthfhe_types::CcsWitnessSecret;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use sha2::{Digest, Sha256};
@@ -26,16 +27,17 @@ fn make_share(participant_id: u16) -> CcsPShareInstance {
 
     CcsPShareInstance {
         participant_id,
-        ajtai_commitment_bytes,
-        public_io_bytes,
-        ccs_witness_bytes,
-        sha256_binding_bytes: sha256_binding_bytes.to_vec(),
+        ajtai_commitment_bytes: ajtai_commitment_bytes.into(),
+        public_io_bytes: public_io_bytes.into(),
+        ccs_witness_bytes: CcsWitnessSecret::new(ccs_witness_bytes),
+        sha256_binding_bytes: sha256_binding_bytes.to_vec().into(),
+        ccs_matrix_bytes: vec![].into(),
     }
 }
 
 fn run_aggregate_smoke(
 ) -> Result<(pvthfhe_aggregator::folding::CycloFoldAllReport, u128), CycloError> {
-    let adapter = CycloFoldingAdapter::new();
+    let adapter = HashChainCycloAdapter::new();
     let shares: Vec<CcsPShareInstance> = (1..=N_SHARES).map(make_share).collect();
     let mut rng = StdRng::from_seed([0xA5; 32]);
 

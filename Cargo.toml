@@ -21,13 +21,15 @@ members = [
     "crates/pvthfhe-keygen",
     "crates/pvthfhe-cli",
     "crates/pvthfhe-bench",
-    "crates/pvthfhe-api",
+    "crates/pvthfhe-rng",
     "crates/pvthfhe-enclave-adapter",
     "crates/pvthfhe-nizk",
+    "crates/pvthfhe-domain-tags",
     "crates/pvthfhe-pvss",
     "crates/pvthfhe-cyclo",
-    "crates/pvthfhe-micronova",
     "crates/pvthfhe-compressor",
+    "crates/pvthfhe-types",
+    "crates/pvthfhe-wire",
 ]
 
 [workspace.lints.rust]
@@ -39,6 +41,26 @@ expect_used = "deny"
 panic = "warn"
 as_conversions = "warn"
 
+# ── arkworks crate patches ───────────────────────────────────────────────
+# Most arkworks crates track the upstream `algebra` / `snark` monorepos and
+# `groth16` / `poly-commit` / `std` standalone repositories. Two forks are
+# needed because the crates.io releases are too old for the workspace Rust
+# version (1.95.0) or for the Sonobe dependency chain:
+#
+# flyingnobita/crypto-primitives (rev f559264)
+#   Upstream `ark-crypto-primitives` v0.4.0 on crates.io depends on
+#   `ark-ff = "0.4"` (re-exported as `ark_ff::prf`). This conflicts with
+#   the workspace-wide `ark-ff` dependency (0.5 from the `algebra` monorepo).
+#   The flyingnobita fork backports the 0.5 API surface so all crates in the
+#   workspace use a single `ark-ff` version. Without this fork:
+#     error[E0277]: the trait bound `ark_bn254::Fr: ark_ff::PrimeField` is not satisfied
+#
+# flyingnobita/r1cs-std_yelhousni (rev b4bab0c)
+#   Upstream `ark-r1cs-std` v0.4.0 also pins `ark-ff = "0.4"` and lacks
+#   the `FieldVar::constant` constructor used by the Sonobe Nova step
+#   circuit (`CycloFoldStepCircuit`). The fork adds the missing constructor
+#   and migrates to the `ark-ff` 0.5 ecosystem.
+# ──────────────────────────────────────────────────────────────────────────
 [patch.crates-io]
 ark-groth16 = { git = "https://github.com/arkworks-rs/groth16", rev = "b3b4a15" }
 ark-ff = { git = "https://github.com/arkworks-rs/algebra" }

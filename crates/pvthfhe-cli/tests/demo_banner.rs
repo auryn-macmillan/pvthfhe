@@ -10,7 +10,7 @@ fn demo_prints_banner_and_backend_ids() {
 
     // Keep the smoke test on the smallest full-pipeline path shared with
     // demo_runs_full_pipeline to avoid expensive larger-N Sonobe runs.
-    cmd.args(["demo", "--n", "3", "--threshold", "2", "--seed", "1"])
+    cmd.args(["demo", "--n", "3", "--threshold", "2", "--seed", "0"])
         .assert()
         .success()
         .stdout(contains("backend_id_p2: cyclo-rlwe-t10-lemma9-heuristic"))

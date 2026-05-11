@@ -174,6 +174,27 @@ pub fn ring_add_poly(a: &RqPoly, b: &RqPoly) -> RqPoly {
     )
 }
 
+/// Scalar multiplication in `R_{q_commit}`: `s · poly` mod q_commit.
+///
+/// Each coefficient `c` is multiplied by `s` modulo [`Q_COMMIT`].
+/// Uses `u128` for the intermediate product to avoid overflow
+/// (s up to Q_COMMIT-1, c up to Q_COMMIT-1, product fits in u128).
+pub fn scalar_mul(poly: &RqPoly, s: u64) -> RqPoly {
+    let s_mod = s % Q_COMMIT;
+    if s_mod == 0 {
+        return RqPoly::zero();
+    }
+    if s_mod == 1 {
+        return poly.clone();
+    }
+    RqPoly(
+        poly.0
+            .iter()
+            .map(|&c| ((c as u128 * s_mod as u128) % Q_COMMIT as u128) as u64)
+            .collect(),
+    )
+}
+
 /// Ternary scalar multiplication: `r * poly` in `R_{q_commit}` for `r ∈ {-1, 0, 1}`.
 ///
 /// - `r = 0`  → zero polynomial

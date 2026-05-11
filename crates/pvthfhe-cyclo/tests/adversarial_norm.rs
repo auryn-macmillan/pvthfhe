@@ -6,20 +6,31 @@ use pvthfhe_cyclo::{
 };
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
+use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
+use ark_bn254::Fr;
+use ark_ff::{AdditiveGroup, BigInteger, PrimeField};
 
 fn per_step_budget() -> u64 {
     PVTHFHE_CYCLO_PARAMS.norm_bound_b / u64::from(PVTHFHE_CYCLO_PARAMS.sequential_t)
 }
 
+fn one_var_witness(fr: Fr) -> Vec<u8> {
+    let mut bytes = vec![0u8, 0, 0, 1];
+    bytes.extend_from_slice(&fr.into_bigint().to_bytes_le());
+    bytes
+}
+
 fn make_honest_instance(id: u16) -> CcsPShareInstance {
     let mut binding = [0u8; 32];
     binding[0] = id as u8;
+    let sha256_binding_bytes: ProtocolBytes = binding.to_vec().into();
     CcsPShareInstance {
         participant_id: id,
-        ajtai_commitment_bytes: vec![id as u8; 32],
-        public_io_bytes: vec![id as u8 ^ 0x5A; 32],
-        ccs_witness_bytes: vec![1u8; 32],
-        sha256_binding_bytes: binding.to_vec(),
+        ajtai_commitment_bytes: vec![id as u8; 32].into(),
+        public_io_bytes: vec![id as u8 ^ 0x5A; 32].into(),
+        ccs_witness_bytes: CcsWitnessSecret::new(one_var_witness(Fr::ZERO)),
+        sha256_binding_bytes,
+        ccs_matrix_bytes: vec![].into(),
     }
 }
 
@@ -32,10 +43,11 @@ fn make_adversarial_instance(id: u16, round: u16, rng: &mut ChaCha20Rng) -> CcsP
     rng.fill_bytes(&mut sha256_binding_bytes);
     CcsPShareInstance {
         participant_id: id.wrapping_add(round),
-        ajtai_commitment_bytes,
-        public_io_bytes,
-        ccs_witness_bytes: vec![0xFF; 32],
-        sha256_binding_bytes,
+        ajtai_commitment_bytes: ajtai_commitment_bytes.into(),
+        public_io_bytes: public_io_bytes.into(),
+        ccs_witness_bytes: CcsWitnessSecret::new(one_var_witness(Fr::from(0xFFu64))),
+        sha256_binding_bytes: sha256_binding_bytes.into(),
+        ccs_matrix_bytes: vec![].into(),
     }
 }
 

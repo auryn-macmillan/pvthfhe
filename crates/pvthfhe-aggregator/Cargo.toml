@@ -10,6 +10,10 @@ workspace = true
 [dependencies]
 pvthfhe-fhe = { path = "../pvthfhe-fhe" }
 pvthfhe-cyclo = { path = "../pvthfhe-cyclo" }
+pvthfhe-domain-tags = { path = "../pvthfhe-domain-tags" }
+pvthfhe-nizk = { path = "../pvthfhe-nizk" }
+pvthfhe-pvss = { path = "../pvthfhe-pvss" }
+pvthfhe-types = { path = "../pvthfhe-types" }
 tokio = { version = "1", features = ["rt", "macros"] }
 sha2 = "0.10"
 hex = "0.4"
@@ -20,14 +24,17 @@ thiserror = "1"
 
 [dev-dependencies]
 pvthfhe-fhe = { path = "../pvthfhe-fhe", features = ["mock"] }
+pvthfhe-domain-tags = { path = "../pvthfhe-domain-tags" }
 tokio = { version = "1", features = ["rt", "macros", "test-util"] }
 rand = "0.8"
 criterion = { version = "0.5", features = ["html_reports"] }
+syn = { version = "2", features = ["full"] }
+walkdir = "2"
 
 [features]
 default = ["real-folding"]
 real-folding = []
-hash-chain-surrogate = []
+legacy-fold = []
 real-verifier = ["real-folding"]
 real-pvss = []
 real-nizk = []

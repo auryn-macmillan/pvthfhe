@@ -13,6 +13,6 @@ fn adversarial_tampered_share_nizk_is_rejected() {
 
     assert!(matches!(
         result,
-        Err(DecryptError::InvalidShare { party_id: 1 })
+        Err(DecryptError::NizkVerify { party_id: 1 })
     ));
 }

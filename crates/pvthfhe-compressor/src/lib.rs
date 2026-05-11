@@ -31,6 +31,9 @@ pub struct StepCircuitDescriptor {
 pub trait StepCircuit {
     /// Returns the frozen state width for this step circuit.
     fn descriptor(&self) -> StepCircuitDescriptor;
+
+    /// Returns the cryptographically-unique hash identifier for this step-circuit shape.
+    fn circuit_hash(&self) -> [u8; 32];
 }
 
 /// Errors returned by compressor implementations.

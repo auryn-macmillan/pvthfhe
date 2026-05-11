@@ -14,6 +14,7 @@ fn sample_statement() -> DecryptNizkStatement {
         ciphertext_v: vec![0xAA; 32],
         decrypted_share_bytes: vec![0x01, 0x02, 0x03, 0x04],
         party_pk: vec![0x55; 48],
+        epoch: 0,
     }
 }
 
@@ -34,6 +35,27 @@ fn honest_decryption_accepted() {
 
     let decoded = DecryptNizkProof::from_bytes(proof.proof_bytes.clone()).expect("decode proof");
     DecryptNizkVerifier::verify(&statement, &decoded).expect("accept honest decrypt-share proof");
+}
+
+#[test]
+fn epoch_roundtrips_through_wire_format() {
+    let mut statement = sample_statement();
+    statement.epoch = 42;
+
+    let witness = sample_witness();
+    let proof = DecryptNizkProver::prove(&statement, &witness)
+        .expect("prove with non-zero epoch");
+
+    let decoded = DecryptNizkProof::from_bytes(proof.proof_bytes)
+        .expect("decode epoch-bearing proof");
+
+    let reopened = decoded.decode().expect("reopen epoch-bearing proof");
+
+    assert_eq!(
+        reopened.statement.epoch, 42,
+        "epoch must survive wire-format round-trip, got {}",
+        reopened.statement.epoch
+    );
 }
 
 #[test]

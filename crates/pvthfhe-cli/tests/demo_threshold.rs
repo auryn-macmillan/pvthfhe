@@ -13,11 +13,11 @@ fn demo_threshold_threads_flag_through_demo() -> Result<(), Box<dyn std::error::
             "--",
             "demo",
             "--n",
-            "4",
+            "5",
             "--threshold",
             "3",
             "--seed",
-            "1",
+            "0",
         ])
         .env_remove("PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK")
         .current_dir(env!("CARGO_MANIFEST_DIR").trim_end_matches("/crates/pvthfhe-cli"))

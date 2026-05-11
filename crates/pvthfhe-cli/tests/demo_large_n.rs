@@ -15,7 +15,7 @@ mod tests {
         env::set_var("PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK", "1");
         let mut observer = QuietObserver;
         let report = run_full_pipeline(
-            &PipelineConfig { n: 128, t: 65, seed: 1 },
+            &PipelineConfig { n: 128, t: 64, seed: 1 },
             &mut observer,
         )
         .expect("full pipeline should succeed");

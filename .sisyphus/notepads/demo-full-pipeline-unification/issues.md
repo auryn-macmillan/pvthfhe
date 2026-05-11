@@ -1,0 +1,5 @@
+- 2026-05-07: cargo build -p pvthfhe-cli --all-features temporarily hit the old dual-feature compile_error after moving compressor glue; resolved by keeping feature-selection behavior in glue imports rather than preserving the bin-local compile_error under --all-features.
+- 2026-05-07: e2e phase/timing tests serialize on Cargo/artifact locks and take several minutes because e2e_phase_timing repeatedly runs the full bench-comparison flow.
+- 2026-05-07: `pvthfhe-cli demo --help` is stable enough for default assertions; it currently shows `[default: 4]` and `[default: 0]`, so the RED default test fails exactly as intended.
+- 2026-05-07: Full-pipeline demo output includes `keygen`, `nizk_prove`, `nizk_verify`, `partial_decrypt`, and `aggregate_decrypt`, but not `pvss_share_encrypt` or the compressor/fold markers yet.
+- 2026-05-07: `demo_threshold` now exercises the real full pipeline and took about 52.83s wall time on the dev VM at `--n 4 --threshold 3 --seed 1`; it passed, but the slowdown remains a CI-risk noted in the plan.

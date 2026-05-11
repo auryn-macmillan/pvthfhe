@@ -46,6 +46,8 @@ pub struct NizkStatement {
     pub session_id: String,
     /// Participant binding inherited from P4.
     pub participant_id: u16,
+    /// On-chain epoch that binds the CRS (Ajtai matrix derivation seed).
+    pub epoch: u64,
 }
 
 /// Frozen prover witness for one per-share lattice NIZK claim.

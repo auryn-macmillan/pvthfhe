@@ -17,7 +17,7 @@ fn demo_rejects_n_above_shamir_cap_before_demo_steps() -> Result<(), Box<dyn std
             "--threshold",
             "129",
             "--seed",
-            "1",
+            "0",
         ])
         .env_remove("PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK")
         .current_dir(env!("CARGO_MANIFEST_DIR").trim_end_matches("/crates/pvthfhe-cli"))

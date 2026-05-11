@@ -1,10 +1,11 @@
 //! Extension sub-protocol (Cyclo §5, T2).
 
 use crate::{
-    ccs_encode::CcsInstance,
-    ring::{bytes_to_rqpoly, ring_add_poly, rqpoly_to_bytes, ternary_mul},
+    ccs_encode::{self, CcsInstance},
+    ring::{bytes_to_rqpoly, ring_add_poly, rqpoly_to_bytes, ternary_mul, Q_COMMIT},
     CycloError,
 };
+use ark_ff::PrimeField;
 use sha2::{Digest, Sha256};
 
 /// An extended CCS instance: the result of the T2 linear combination step.
@@ -65,11 +66,7 @@ pub fn extend(a: &CcsInstance, b: &CcsInstance, r: i8) -> Result<ExtendedInstanc
         v
     };
 
-    let norm_estimate = combined_witness_bytes
-        .iter()
-        .map(|&x| u64::from(x))
-        .max()
-        .unwrap_or(0);
+    let norm_estimate = compute_combined_witness_norm(&a.witness_bytes, &b.witness_bytes, r)?;
 
     Ok(ExtendedInstance {
         participant_id: a.participant_id,
@@ -93,4 +90,42 @@ pub fn check_norm_budget(ext: &ExtendedInstance, bound: u64) -> Result<(), Cyclo
             max: bound,
         })
     }
+}
+
+/// Compute ‖a_wit + r·b_wit‖_∞ from Fr-LE encoded witnesses.
+///
+/// Parses both witness bytes via [`ccs_encode::parse_witness`], combines them
+/// element-wise with the ternary challenge `r ∈ {-1,0,1}`, and returns the
+/// maximum centred coefficient (mod `Q_COMMIT`).
+fn compute_combined_witness_norm(
+    witness_a: &[u8],
+    witness_b: &[u8],
+    r: i8,
+) -> Result<u64, CycloError> {
+    let a_frs = ccs_encode::parse_witness(witness_a)?;
+    let b_frs = ccs_encode::parse_witness(witness_b)?;
+    if a_frs.len() != b_frs.len() {
+        return Err(CycloError::InvalidInstance(
+            "witness lengths differ during T2 extension",
+        ));
+    }
+    let norm = a_frs
+        .iter()
+        .zip(b_frs.iter())
+        .map(|(x, y)| {
+            use ark_ff::AdditiveGroup;
+            let combined = match r {
+                -1 => *x - *y,
+                0 => *x,
+                1 => *x + *y,
+                _ => unreachable!(),
+            };
+            let limbs = combined.into_bigint().as_ref().to_vec();
+            let c = limbs[0] % Q_COMMIT;
+            let neg = Q_COMMIT - c;
+            if neg < c { neg } else { c }
+        })
+        .max()
+        .unwrap_or(0);
+    Ok(norm)
 }

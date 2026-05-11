@@ -2,23 +2,40 @@
 //! Verifies ring-based Ajtai commitment arithmetic (Schwartz-Zippel) rather
 //! than the SHA-256 hash-chain placeholder.
 
+use ark_bn254::Fr;
+use ark_ff::{AdditiveGroup, BigInteger, PrimeField};
 use pvthfhe_cyclo::{
     fold::{fold_one_step, init_accumulator, verify_fold},
     CcsPShareInstance,
 };
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
+use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
 use sha2::{Digest, Sha256};
+
+fn matrix_1x1(e: Fr) -> Vec<u8> {
+    let mut m = vec![0u8, 0, 0, 1, 0, 0, 0, 1]; // rows=1, cols=1
+    m.extend_from_slice(&e.into_bigint().to_bytes_le());
+    m
+}
+
+fn witness_1var(fr: Fr) -> Vec<u8> {
+    let mut bytes = vec![0u8, 0, 0, 1]; // num_vars=1
+    bytes.extend_from_slice(&fr.into_bigint().to_bytes_le());
+    bytes
+}
 
 fn make_instance(id: u16) -> CcsPShareInstance {
     let mut binding = [0u8; 32];
     binding[0] = id as u8;
+    let sha256_binding_bytes: ProtocolBytes = binding.to_vec().into();
     CcsPShareInstance {
         participant_id: id,
-        ajtai_commitment_bytes: vec![id as u8; 32],
-        public_io_bytes: vec![id as u8 ^ 0xAA; 32],
-        ccs_witness_bytes: vec![1u8; 32],
-        sha256_binding_bytes: binding.to_vec(),
+        ajtai_commitment_bytes: vec![id as u8; 32].into(),
+        public_io_bytes: vec![id as u8 ^ 0xAA; 32].into(),
+        ccs_witness_bytes: CcsWitnessSecret::new(witness_1var(Fr::ZERO)),
+        sha256_binding_bytes,
+        ccs_matrix_bytes: matrix_1x1(Fr::from(1u64)).into(),
     }
 }
 
@@ -30,7 +47,7 @@ fn init_does_not_use_sha256_init_placeholder() {
 
     let broken_formula: Vec<u8> = Sha256::new()
         .chain_update(b"init")
-        .chain_update(&instance.ajtai_commitment_bytes)
+        .chain_update(instance.ajtai_commitment_bytes.as_slice())
         .finalize()
         .to_vec();
 
@@ -50,7 +67,7 @@ fn fold_does_not_use_sha256_extension_chain() {
     let init_commitment = acc.acc_commitment_bytes.clone();
 
     let inst_ajtai_hash: [u8; 32] = Sha256::new()
-        .chain_update(&instance.ajtai_commitment_bytes)
+        .chain_update(instance.ajtai_commitment_bytes.as_slice())
         .finalize()
         .into();
     let challenge_h: [u8; 32] = Sha256::new()

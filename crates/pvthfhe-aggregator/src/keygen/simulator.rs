@@ -1,5 +1,7 @@
 use super::types::{DkgTranscript, PartyId, Round1Message, Round2Message, Round3Aggregate};
+use pvthfhe_domain_tags::Tag;
 use pvthfhe_fhe::{FheBackend, PublicKey};
+use pvthfhe_types::ProtocolBytes;
 use rand_core::OsRng;
 use sha2::{Digest, Sha256};
 use std::{
@@ -74,7 +76,7 @@ impl KeygenSimulator {
     fn session_id(&self) -> [u8; 32] {
         let participant_set_hash = self.participant_set_hash();
         let mut data = Vec::with_capacity(72);
-        data.extend_from_slice(b"pvthfhe/keygen-simulator/session/v1");
+        data.extend_from_slice(Tag::KeygenSimulatorSession.as_bytes());
         data.extend_from_slice(&participant_set_hash);
         data.extend_from_slice(&self.threshold.to_be_bytes());
         hash_bytes(&data)
@@ -213,7 +215,7 @@ impl KeygenSimulator {
         for r1 in &valid_r1 {
             shares.push(pvthfhe_fhe::KeygenShare {
                 party_id: r1.party_id,
-                bytes: r1.pk_i.bytes.clone(),
+                bytes: ProtocolBytes(r1.pk_i.bytes.clone()),
             });
         }
 
@@ -262,8 +264,8 @@ impl KeygenSimulator {
         party_id: PartyId,
     ) -> Result<Round1Message, pvthfhe_fhe::FheError> {
         let share = self.keygen_share_with_session(session_id, party_id)?;
-        let pk_i = PublicKey { bytes: share.bytes };
-        let pk_i_hash = hash_bytes(&pk_i.bytes);
+        let pk_i = PublicKey { bytes: share.bytes.0 };
+        let pk_i_hash = hash_bytes(pk_i.bytes.as_slice());
 
         let mut encrypted_shares = HashMap::new();
         for j in 0..self.n_parties {

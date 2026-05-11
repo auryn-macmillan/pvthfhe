@@ -52,6 +52,7 @@ fn sample_statement_and_witness() -> (NizkStatement, NizkWitness) {
             params: (174, 8192, 16),
             session_id,
             participant_id,
+            epoch: 0,
         },
         NizkWitness {
             secret_share,

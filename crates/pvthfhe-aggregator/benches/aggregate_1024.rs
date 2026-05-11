@@ -2,7 +2,7 @@
 #![allow(missing_docs)]
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use pvthfhe_aggregator::folding::CycloFoldingAdapter;
+use pvthfhe_aggregator::folding::HashChainCycloAdapter;
 use pvthfhe_cyclo::CcsPShareInstance;
 use pvthfhe_cyclo::CycloError;
 use rand::rngs::StdRng;
@@ -44,6 +44,7 @@ fn make_share(participant_id: u16) -> CcsPShareInstance {
         public_io_bytes,
         ccs_witness_bytes,
         sha256_binding_bytes: sha256_binding_bytes.to_vec(),
+        ccs_matrix_bytes: vec![].into(),
     }
 }
 
@@ -68,7 +69,7 @@ fn write_result_impl(result: &AggregateBenchResult) -> io::Result<()> {
 }
 
 fn run_aggregate_1024() -> Result<AggregateBenchResult, CycloError> {
-    let adapter = CycloFoldingAdapter::new();
+    let adapter = HashChainCycloAdapter::new();
     let shares: Vec<CcsPShareInstance> = (1..=N_SHARES).map(make_share).collect();
     let mut rng = StdRng::from_seed([0x5A; 32]);
 

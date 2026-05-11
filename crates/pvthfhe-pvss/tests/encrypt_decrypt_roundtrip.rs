@@ -36,6 +36,7 @@ fn encrypt_decrypt_roundtrip_recovers_secret() {
         n: 3,
         t: 2,
         session_id: vec![9; 32],
+        epoch: 0,
     };
 
     let mut rng = ChaCha8Rng::seed_from_u64(7);

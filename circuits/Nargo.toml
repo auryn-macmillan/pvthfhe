@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "share_wf",
+    "protocol_constants",
     "decrypt_share",
     "aggregator_final",
     "sonobe_state_commitment",

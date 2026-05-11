@@ -8,6 +8,7 @@
 > - **do not use for The Interfold or any production deployment**
 >
 > See [SECURITY-ADVISORY-001.md](SECURITY-ADVISORY-001.md) and [SECURITY.md](SECURITY.md) for details.
+> See `SECURITY.md` and `WARNING.md` for the canonical list of surrogates.
 
 PVTHFHE targets **Architecture B** (Lattice PVSS + LatticeFold+ + MicroNova). In the current prototype, Sonobe substitutes MicroNova as the primary proof compressor due to performance considerations (see the N3a NoGo path). This change is contained within a bounded migration surface to preserve the path toward the target architecture.
 

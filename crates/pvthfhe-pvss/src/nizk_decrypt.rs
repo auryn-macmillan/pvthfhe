@@ -1,8 +1,16 @@
 //! Share-decryption NIZK wrapper over the shared Cyclo/Ajtai adapter.
 
 use pvthfhe_nizk::{adapter::CycloNizkAdapter, hash_bridge, NizkAdapter, NizkProof, NizkStatement, NizkWitness};
-use rand_chacha::ChaCha8Rng;
-use rand_core::SeedableRng;
+use pvthfhe_domain_tags::Tag;
+use pvthfhe_rng::OsRng;
+use pvthfhe_types::witness_language::{BfvParameters as SchemaBfvParams, R3Relation};
+use pvthfhe_wire::{WireError, WireFormat};
+
+// R3.0a — schema types wired for R3.2 GREEN migration
+const _: () = {
+    let _: Option<SchemaBfvParams> = None;
+    let _: Option<R3Relation> = None;
+};
 use sha2::{Digest, Sha256};
 
 use crate::PvssError;
@@ -10,7 +18,8 @@ use crate::PvssError;
 /// Locked domain separator for PVSS share-decryption proofs.
 pub const DECRYPT_NIZK_DOMAIN_SEPARATOR: &str = "pvthfhe-pvss-share-decryption-v1";
 
-const PROOF_VERSION: u16 = 1;
+const PROOF_VERSION: u16 = 2;
+const WIRE_VERSION: u8 = 2;
 const MAX_FIELD_LEN: usize = 1 << 20;
 const RLWE_DEGREE: usize = 8192;
 const RLWE_Q_LOG2: u64 = 174;
@@ -31,6 +40,8 @@ pub struct DecryptNizkStatement {
     pub decrypted_share_bytes: Vec<u8>,
     /// Decrypting party public-key bytes.
     pub party_pk: Vec<u8>,
+    /// On-chain epoch that binds the CRS.
+    pub epoch: u64,
 }
 
 /// Secret witness for one share-decryption proof.
@@ -83,7 +94,7 @@ impl DecryptNizkProver {
 
         let participant_id = u16::try_from(stmt.party_index).map_err(|_| PvssError::InvalidShare)?;
         let session_id = hex_encode(&stmt.session_id);
-        let secret_share = derive_secret_share(stmt);
+        let secret_share = derive_party_binding(&stmt.party_pk);
         let inner_stmt = NizkStatement {
             ciphertext_bytes: encode_ciphertext_bytes(stmt)?,
             decrypt_share_bytes: stmt.decrypted_share_bytes.clone(),
@@ -91,6 +102,7 @@ impl DecryptNizkProver {
             params: (RLWE_Q_LOG2, RLWE_DEGREE, RLWE_ERROR_BOUND),
             session_id,
             participant_id,
+            epoch: stmt.epoch,
         };
         let inner_witness = NizkWitness {
             secret_share,
@@ -98,7 +110,7 @@ impl DecryptNizkProver {
             error: derive_error_vector(&witness.decryption_noise),
             randomness: derive_randomness(&witness.secret_key_bytes, &witness.decryption_noise),
         };
-        let mut rng = ChaCha8Rng::from_seed(derive_rng_seed(stmt, witness));
+        let mut rng = OsRng;
         let inner_proof = CycloNizkAdapter
             .prove(&inner_stmt, &inner_witness, &mut rng)
             .map_err(|_| PvssError::InvalidShare)?;
@@ -129,13 +141,15 @@ impl DecryptNizkVerifier {
 
         let participant_id = u16::try_from(stmt.party_index).map_err(|_| PvssError::InvalidShare)?;
         let session_id = hex_encode(&stmt.session_id);
+        let secret_share = derive_party_binding(&stmt.party_pk);
         let inner_stmt = NizkStatement {
             ciphertext_bytes: encode_ciphertext_bytes(stmt)?,
             decrypt_share_bytes: stmt.decrypted_share_bytes.clone(),
-            pvss_commitment: hash_bridge::commit(&session_id, participant_id, derive_secret_share(stmt)),
+            pvss_commitment: hash_bridge::commit(&session_id, participant_id, secret_share),
             params: (RLWE_Q_LOG2, RLWE_DEGREE, RLWE_ERROR_BOUND),
             session_id,
             participant_id,
+            epoch: stmt.epoch,
         };
         let inner_proof = NizkProof {
             backend_id: opened.backend_id,
@@ -212,15 +226,10 @@ fn validate_witness(witness: &DecryptNizkWitness) -> Result<(), PvssError> {
     Ok(())
 }
 
-fn derive_secret_share(stmt: &DecryptNizkStatement) -> u64 {
+fn derive_party_binding(party_pk: &[u8]) -> u64 {
     let mut hasher = Sha256::new();
-    hasher.update(DECRYPT_NIZK_DOMAIN_SEPARATOR.as_bytes());
-    hasher.update(&stmt.session_id);
-    hasher.update(stmt.party_index.to_be_bytes());
-    hasher.update(&stmt.ciphertext_u);
-    hasher.update(&stmt.ciphertext_v);
-    hasher.update(&stmt.decrypted_share_bytes);
-    hasher.update(&stmt.party_pk);
+    hasher.update(b"pvthfhe-decrypt-party-binding-v1");
+    hasher.update(party_pk);
     let digest: [u8; 32] = hasher.finalize().into();
     u64::from_be_bytes(digest[..8].try_into().unwrap_or([0u8; 8]))
 }
@@ -253,20 +262,6 @@ fn derive_randomness(secret_key_bytes: &[u8], decryption_noise: &[u8]) -> Vec<u8
     hasher.finalize().to_vec()
 }
 
-fn derive_rng_seed(stmt: &DecryptNizkStatement, witness: &DecryptNizkWitness) -> [u8; 32] {
-    let mut hasher = Sha256::new();
-    hasher.update(DECRYPT_NIZK_DOMAIN_SEPARATOR.as_bytes());
-    hasher.update(&stmt.session_id);
-    hasher.update(stmt.party_index.to_be_bytes());
-    hasher.update(&stmt.ciphertext_u);
-    hasher.update(&stmt.ciphertext_v);
-    hasher.update(&stmt.decrypted_share_bytes);
-    hasher.update(&stmt.party_pk);
-    hasher.update(&witness.secret_key_bytes);
-    hasher.update(&witness.decryption_noise);
-    hasher.finalize().into()
-}
-
 fn encode_ciphertext_bytes(stmt: &DecryptNizkStatement) -> Result<Vec<u8>, PvssError> {
     let mut out = Vec::new();
     encode_bytes(&mut out, &stmt.ciphertext_u)?;
@@ -276,6 +271,10 @@ fn encode_ciphertext_bytes(stmt: &DecryptNizkStatement) -> Result<Vec<u8>, PvssE
 }
 
 fn encode_opened_proof(opened: &DecryptNizkOpenedProof) -> Result<Vec<u8>, PvssError> {
+    Ok(opened.encode())
+}
+
+fn encode_opened_proof_body(opened: &DecryptNizkOpenedProof) -> Result<Vec<u8>, PvssError> {
     let mut out = Vec::new();
     out.extend_from_slice(&PROOF_VERSION.to_be_bytes());
     encode_bytes(&mut out, opened.domain_separator.as_bytes())?;
@@ -285,12 +284,17 @@ fn encode_opened_proof(opened: &DecryptNizkOpenedProof) -> Result<Vec<u8>, PvssE
     encode_bytes(&mut out, &opened.statement.ciphertext_v)?;
     encode_bytes(&mut out, &opened.statement.decrypted_share_bytes)?;
     encode_bytes(&mut out, &opened.statement.party_pk)?;
+    out.extend_from_slice(&opened.statement.epoch.to_be_bytes());
     encode_bytes(&mut out, opened.backend_id.as_bytes())?;
     encode_bytes(&mut out, &opened.inner_proof_bytes)?;
     Ok(out)
 }
 
 fn decode_opened_proof(bytes: &[u8]) -> Result<DecryptNizkOpenedProof, PvssError> {
+    DecryptNizkOpenedProof::decode(bytes).map_err(|_| PvssError::InvalidShare)
+}
+
+fn decode_opened_proof_body(bytes: &[u8]) -> Result<DecryptNizkOpenedProof, PvssError> {
     let mut cursor = Cursor::new(bytes);
     let version = cursor.read_u16()?;
     if version != PROOF_VERSION {
@@ -304,6 +308,7 @@ fn decode_opened_proof(bytes: &[u8]) -> Result<DecryptNizkOpenedProof, PvssError
     let ciphertext_v = cursor.read_vec()?;
     let decrypted_share_bytes = cursor.read_vec()?;
     let party_pk = cursor.read_vec()?;
+    let epoch = cursor.read_u64()?;
     let backend_id = String::from_utf8(cursor.read_vec()?).map_err(|_| PvssError::InvalidShare)?;
     let inner_proof_bytes = cursor.read_vec()?;
     cursor.finish()?;
@@ -316,11 +321,25 @@ fn decode_opened_proof(bytes: &[u8]) -> Result<DecryptNizkOpenedProof, PvssError
             ciphertext_v,
             decrypted_share_bytes,
             party_pk,
+            epoch,
         },
         backend_id,
         inner_proof_bytes,
         domain_separator,
     })
+}
+
+impl WireFormat for DecryptNizkOpenedProof {
+    const VERSION: u8 = WIRE_VERSION;
+    const TAG: Tag = Tag::WirePvssDecryptOpenedProof;
+
+    fn encode_body(&self) -> Vec<u8> {
+        encode_opened_proof_body(self).expect("validated decrypt NIZK opened proof must encode")
+    }
+
+    fn decode_body(bytes: &[u8]) -> Result<Self, WireError> {
+        decode_opened_proof_body(bytes).map_err(|_| WireError::Other)
+    }
 }
 
 fn encode_bytes(out: &mut Vec<u8>, bytes: &[u8]) -> Result<(), PvssError> {
@@ -378,6 +397,10 @@ impl<'a> Cursor<'a> {
     fn read_usize(&mut self) -> Result<usize, PvssError> {
         let raw = u64::from_be_bytes(self.read_array()?);
         usize::try_from(raw).map_err(|_| PvssError::InvalidShare)
+    }
+
+    fn read_u64(&mut self) -> Result<u64, PvssError> {
+        Ok(u64::from_be_bytes(self.read_array()?))
     }
 
     fn read_vec(&mut self) -> Result<Vec<u8>, PvssError> {

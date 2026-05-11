@@ -1,12 +1,10 @@
 //! Integration tests for real partial decryption in `FhersBackend`.
 
 use fhe::bfv::Ciphertext as BfvCiphertext;
-use fhe::trbfv::ShareManager;
-use fhe_math::rq::{Poly, Representation};
-use fhe_traits::{DeserializeParametrized, Serialize};
+use fhe_math::rq::Poly;
+use fhe_traits::{DeserializeParametrized, DeserializeWithContext, Serialize};
 use pvthfhe_fhe::{fhers::FhersBackend, wire, FheBackend};
 use rand::thread_rng;
-use std::sync::Arc;
 
 const CANONICAL_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
 
@@ -51,22 +49,14 @@ fn fhers_partial_decrypt_returns_real_decryption_share_polynomials() {
     let decoded_share_1 = wire::decode_decrypt_share(&decrypt_share_1.bytes).expect("decode share");
     assert!(!decoded_share_1.d_share_poly.is_empty());
 
-    let party_state = backend.take_party_state(1).expect("party state");
-    let share_manager = ShareManager::new(5, 2, backend.bfv_params().clone());
-    let sk_poly_sum = share_manager
-        .coeffs_to_poly_level0(&party_state.sk_poly_sum)
-        .expect("sk poly sum");
-    let sk_poly_sum: Poly = sk_poly_sum.as_ref().clone();
-    let zero_esi = Poly::zero(
+    // Verify the share deserializes to a valid Poly (smudging noise is now present).
+    let share_poly = Poly::from_bytes(
+        decoded_share_1.d_share_poly.as_slice(),
         backend
             .bfv_params()
             .ctx_at_level(0)
             .expect("level-0 context"),
-        Representation::PowerBasis,
-    );
-    let expected_share_poly = share_manager
-        .decryption_share(Arc::new(ct), sk_poly_sum, zero_esi)
-        .expect("expected decryption share");
-
-    assert_eq!(decoded_share_1.d_share_poly, expected_share_poly.to_bytes());
+    )
+    .expect("deserialize share poly with smudging");
+    assert!(!share_poly.to_bytes().is_empty(), "share poly should be non-empty");
 }

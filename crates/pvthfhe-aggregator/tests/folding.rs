@@ -36,12 +36,13 @@ fn make_statement(
     }
 }
 
-fn make_witness(tag: u8) -> FoldWitness {
+fn make_witness(_tag: u8) -> FoldWitness {
     FoldWitness {
         nizk_proof: NizkProof {
-            proof_bytes: vec![tag; 16],
+            nizk_backend_id: NizkProof::EXPECTED_BACKEND_ID,
+            proof_bytes: vec![0u8; 32],
         },
-        fold_randomness: vec![tag; 32],
+        fold_randomness: vec![0u8; 32],
     }
 }
 

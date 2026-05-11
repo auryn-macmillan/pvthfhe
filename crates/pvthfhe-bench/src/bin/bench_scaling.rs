@@ -1,11 +1,12 @@
 use clap::{Parser, ValueEnum};
 use pvthfhe_aggregator::{
     decrypt::{aggregate_decrypt, partial_decrypt},
-    folding::{CcsPShareInstance, CycloFoldingAdapter},
+    folding::{CcsPShareInstance, HashChainCycloAdapter},
     keygen::simulator::{KeygenResult, KeygenSimulator},
 };
 use pvthfhe_bench::{summarize_samples, BenchEnv, ScalingBenchEnv, ScalingEnvelope};
 use pvthfhe_fhe::{fhers::FhersBackend, mock::MockBackend, FheBackend};
+use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
 use sha2::{Digest, Sha256};
@@ -113,7 +114,7 @@ fn ciphertext_hash(ciphertext_bytes: &[u8]) -> [u8; 32] {
 }
 
 fn fold_instances(allowed: &[u32], ct_hash: [u8; 32], seed: u64) -> Result<usize, String> {
-    let adapter = CycloFoldingAdapter::new();
+    let adapter = HashChainCycloAdapter::new();
     let instances = allowed
         .iter()
         .map(|&party_id| -> Result<CcsPShareInstance, String> {
@@ -126,10 +127,11 @@ fn fold_instances(allowed: &[u32], ct_hash: [u8; 32], seed: u64) -> Result<usize
             let binding: [u8; 32] = binding_hasher.finalize().into();
             Ok(CcsPShareInstance {
                 participant_id,
-                ajtai_commitment_bytes: ct_hash.to_vec(),
-                public_io_bytes: vec![participant_id as u8; 32],
-                ccs_witness_bytes: vec![1u8; 32],
-                sha256_binding_bytes: binding.to_vec(),
+                ajtai_commitment_bytes: ProtocolBytes(ct_hash.to_vec()),
+                public_io_bytes: ProtocolBytes(vec![participant_id as u8; 32]),
+                ccs_witness_bytes: CcsWitnessSecret::new(vec![1u8; 32]),
+                sha256_binding_bytes: ProtocolBytes(binding.to_vec()),
+                ccs_matrix_bytes: ProtocolBytes(vec![]),
             })
         })
         .collect::<Result<Vec<_>, _>>()?;

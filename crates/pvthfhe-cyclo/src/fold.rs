@@ -1,8 +1,9 @@
 use crate::{
     ccs_encode, fiat_shamir,
-    ring::{bytes_to_rqpoly, ring_add_poly, rqpoly_to_bytes, ternary_mul},
+    ring::{bytes_to_rqpoly, ring_add_poly, rqpoly_to_bytes, scalar_mul, Q_COMMIT},
     CcsPShareInstance, CycloAccumulator, CycloError, PVTHFHE_CYCLO_PARAMS,
 };
+use ark_ff::PrimeField;
 use rand_core::RngCore;
 
 /// Maximum instance public-io length (prevents unbounded hash computation).
@@ -13,11 +14,19 @@ fn per_step_norm_budget() -> u64 {
 }
 
 fn witness_norm_estimate(witness_bytes: &[u8]) -> u64 {
-    witness_bytes
-        .iter()
-        .map(|&byte| u64::from(byte))
-        .max()
-        .unwrap_or(0)
+    match ccs_encode::parse_witness(witness_bytes) {
+        Ok(frs) => frs
+            .iter()
+            .map(|fr| {
+                let limbs = fr.into_bigint().as_ref().to_vec();
+                let c = limbs[0] % Q_COMMIT;
+                let neg = Q_COMMIT - c;
+                if neg < c { neg } else { c }
+            })
+            .max()
+            .unwrap_or(0),
+        Err(_) => u64::MAX,
+    }
 }
 
 fn derive_challenge(
@@ -26,7 +35,7 @@ fn derive_challenge(
     acc_commitment: &[u8],
     inst_ajtai_bytes: &[u8],
     inst_public_io_bytes: &[u8],
-) -> i8 {
+) -> u64 {
     let h = fiat_shamir::challenge_v1(
         session_id,
         fold_depth,
@@ -34,22 +43,18 @@ fn derive_challenge(
         inst_ajtai_bytes,
         inst_public_io_bytes,
     );
-    match h[0] % 3 {
-        0 => 0,
-        1 => 1,
-        _ => -1,
-    }
+    u64::from(u16::from_le_bytes([h[0], h[1]]))
 }
 
 pub fn init_accumulator(
     instance: &CcsPShareInstance,
     session_id: &str,
 ) -> Result<CycloAccumulator, CycloError> {
-    let init_poly = bytes_to_rqpoly(&instance.ajtai_commitment_bytes);
+    let init_poly = bytes_to_rqpoly(instance.ajtai_commitment_bytes.as_slice());
     let acc_commitment_bytes =
         fiat_shamir::init_commitment_v1(session_id, &rqpoly_to_bytes(&init_poly)).to_vec();
     let acc_public_io_bytes =
-        fiat_shamir::init_public_io_v1(session_id, &instance.public_io_bytes).to_vec();
+        fiat_shamir::init_public_io_v1(session_id, instance.public_io_bytes.as_slice()).to_vec();
 
     Ok(CycloAccumulator {
         fold_depth: 0,
@@ -86,20 +91,20 @@ fn fold_one_deterministic(
         &acc.session_id,
         acc.fold_depth,
         &acc.acc_commitment_bytes,
-        &instance.ajtai_commitment_bytes,
-        &instance.public_io_bytes,
+        instance.ajtai_commitment_bytes.as_slice(),
+        instance.public_io_bytes.as_slice(),
     );
 
     let acc_poly = bytes_to_rqpoly(&acc.acc_commitment_bytes);
-    let inst_poly = bytes_to_rqpoly(&instance.ajtai_commitment_bytes);
-    let combined_poly = ring_add_poly(&acc_poly, &ternary_mul(&inst_poly, r));
+    let inst_poly = bytes_to_rqpoly(instance.ajtai_commitment_bytes.as_slice());
+    let combined_poly = ring_add_poly(&acc_poly, &scalar_mul(&inst_poly, r));
 
     let new_depth = acc.fold_depth + 1;
     let new_commitment_bytes = fiat_shamir::commitment_v1(
         &acc.session_id,
         new_depth,
         &rqpoly_to_bytes(&combined_poly),
-        &instance.ajtai_commitment_bytes,
+        instance.ajtai_commitment_bytes.as_slice(),
     )
     .to_vec();
 
@@ -107,8 +112,8 @@ fn fold_one_deterministic(
         &acc.session_id,
         new_depth,
         &acc.acc_public_io_bytes,
-        &instance.public_io_bytes,
-        r.to_le_bytes()[0],
+        instance.public_io_bytes.as_slice(),
+        r,
     )
     .to_vec();
 
@@ -176,6 +181,11 @@ pub fn verify_fold(
 
     if instances.is_empty() {
         return Ok(());
+    }
+
+    for inst in instances {
+        let encoded = ccs_encode::encode(inst)?;
+        ccs_encode::check_satisfiability(&encoded)?;
     }
 
     let mut recomputed = init_accumulator(&instances[0], &acc.session_id)?;

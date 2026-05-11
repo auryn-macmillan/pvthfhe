@@ -3,6 +3,7 @@
 //! All types are opaque byte wrappers. No backend-internal types appear here.
 
 use serde::{Deserialize, Serialize};
+use pvthfhe_types::ProtocolBytes;
 
 /// A keygen share produced by one party during distributed key generation.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -10,7 +11,7 @@ pub struct KeygenShare {
     /// The party that produced this share.
     pub party_id: u32,
     /// Opaque serialised share bytes.
-    pub bytes: Vec<u8>,
+    pub bytes: ProtocolBytes,
 }
 
 /// The collective public key assembled from all keygen shares.
@@ -33,7 +34,7 @@ pub struct DecryptShare {
     /// The party that produced this share.
     pub party_id: u32,
     /// Opaque serialised share bytes.
-    pub bytes: Vec<u8>,
+    pub bytes: ProtocolBytes,
 }
 
 /// RLWE parameters loaded from a TOML configuration string.

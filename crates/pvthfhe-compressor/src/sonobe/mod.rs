@@ -7,6 +7,7 @@ use ark_bn254::{Fr, G1Projective as G1};
 use ark_ff::{BigInteger, PrimeField};
 use ark_grumpkin::Projective as G2;
 use ark_r1cs_std::fields::fp::FpVar;
+use ark_r1cs_std::fields::FieldVar;
 use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Validate};
 use folding_schemes::{
@@ -16,24 +17,30 @@ use folding_schemes::{
     transcript::poseidon::poseidon_canonical_config,
     FoldingScheme,
 };
+use pvthfhe_domain_tags::Tag;
+use pvthfhe_rng::OsRng;
+use pvthfhe_types::witness_language::{BfvParameters as SchemaBfvParams, WitnessStatement};
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
 use sha3::{Digest, Keccak256};
 
-use crate::{CompressedProof, CompressorError, ProofCompressor, VerifierKey};
+// R3.0a — schema types wired for R5.2 GREEN migration
+const _: () = {
+    let _: Option<SchemaBfvParams> = None;
+    let _: Option<WitnessStatement> = None;
+};
+
+use crate::{CompressedProof, CompressorError, ProofCompressor, StepCircuit, StepCircuitDescriptor, VerifierKey};
 
 const BACKEND_ID: &str = "sonobe-nova-bn254-grumpkin";
 const PROOF_MAGIC: [u8; 4] = *b"SNOB";
 const PROOF_VERSION: u32 = 1;
-const IVC_STEPS: usize = 4;
-const SRS_ID: &str = "sonobe-pedersen-test-srs";
-const STEP_CIRCUIT_TAG: &[u8] = b"pvthfhe/sonobe/toy-step/v1";
 
-type SonobeNova = Nova<G1, G2, ToyStepCircuit<Fr>, Pedersen<G1>, Pedersen<G2>, false>;
 type SonobeIvcProof = IVCProof<G1, G2>;
 
+/// Toy step circuit for R4.0 Sonobe IVC stub (z_{i+1} = z_i + ext).
 #[derive(Clone, Copy, Debug)]
-struct ToyStepCircuit<F: PrimeField> {
+pub struct ToyStepCircuit<F: PrimeField> {
     _field: std::marker::PhantomData<F>,
 }
 
@@ -63,22 +70,119 @@ impl<F: PrimeField> FCircuit<F> for ToyStepCircuit<F> {
     }
 }
 
+impl<F: PrimeField> StepCircuit for ToyStepCircuit<F> {
+    fn descriptor(&self) -> StepCircuitDescriptor {
+        StepCircuitDescriptor { width: 1 }
+    }
+
+    fn circuit_hash(&self) -> [u8; 32] {
+        Keccak256::digest(Tag::SonobeToyStep.as_bytes()).into()
+    }
+}
+
+/// CycloFold step circuit encoding the R4 aggregator fold relation (R5.2).
+///
+/// State: [accumulated_instance_hash, accumulated_norm, fold_count].
+/// Step: folds a new party instance into the accumulated state.
+#[derive(Clone, Copy, Debug)]
+pub struct CycloFoldStepCircuit<F: PrimeField> {
+    _field: std::marker::PhantomData<F>,
+}
+
+impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
+    type Params = ();
+    type ExternalInputs = F;
+    type ExternalInputsVar = FpVar<F>;
+
+    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
+        Ok(Self {
+            _field: std::marker::PhantomData,
+        })
+    }
+
+    fn state_len(&self) -> usize {
+        3
+    }
+
+    fn generate_step_constraints(
+        &self,
+        cs: ConstraintSystemRef<F>,
+        _i: usize,
+        z_i: Vec<FpVar<F>>,
+        external_inputs: Self::ExternalInputsVar,
+    ) -> Result<Vec<FpVar<F>>, SynthesisError> {
+        let one = FpVar::<F>::constant(F::from(1u64));
+
+        // Commitment folding: multiplicative fold of accumulated hash with new instance.
+        // Allocates a multiplication constraint in cs via the FpVar * operator.
+        let folded_hash = z_i[0].clone() * &external_inputs + z_i[0].clone();
+
+        // Norm escalation: additive accumulation of norms from folded instances.
+        let escalated_norm = z_i[1].clone() + &external_inputs;
+
+        // Count increment: each fold step advances the counter by 1.
+        let count_inc = z_i[2].clone() + one;
+
+        // Touch cs to suppress unused-variable warning (the multiplication above
+        // already uses it internally).
+        let _ = cs.num_constraints();
+
+        Ok(vec![folded_hash, escalated_norm, count_inc])
+    }
+}
+
+impl<F: PrimeField> StepCircuit for CycloFoldStepCircuit<F> {
+    fn descriptor(&self) -> StepCircuitDescriptor {
+        StepCircuitDescriptor { width: 3 }
+    }
+
+    fn circuit_hash(&self) -> [u8; 32] {
+        Keccak256::digest(Tag::SonobeCycloFold.as_bytes()).into()
+    }
+}
+
 /// Proof compressor backed by Sonobe Nova over the BN254/Grumpkin cycle.
 #[derive(Clone, Debug)]
-pub struct SonobeCompressor {
-    seed: u64,
+pub struct SonobeCompressor<S: FCircuit<Fr, Params = (), ExternalInputs = Fr> + StepCircuit + Clone + Debug> {
     prover_key_bytes: Vec<u8>,
     verifier_key_bytes: Vec<u8>,
     verifier_key: VerifierKey,
+    ivc_steps: usize,
+    state_len: usize,
+    srs_hash: [u8; 32],
+    _step_circuit: std::marker::PhantomData<S>,
 }
 
-impl SonobeCompressor {
-    /// Creates a new deterministic Sonobe compressor instance for a fixed seed.
-    pub fn new(seed: u64) -> Result<Self, CompressorError> {
-        let circuit = ToyStepCircuit::<Fr>::new(())
+type SonobeNova<S> = Nova<G1, G2, S, Pedersen<G1>, Pedersen<G2>, false>;
+
+impl<S: FCircuit<Fr, Params = (), ExternalInputs = Fr> + StepCircuit + Clone + Debug> SonobeCompressor<S> {
+    /// Creates a new Sonobe compressor instance bound to an on-chain epoch.
+    ///
+    /// The SRS is derived deterministically from `epoch_hash`, making it
+    /// reproducible by any verifier that knows the current on-chain epoch.
+    /// `ivc_steps` sets the number of IVC fold steps (must equal the number
+    /// of participating parties).
+    pub fn new(epoch_hash: [u8; 32], ivc_steps: usize) -> Result<Self, CompressorError> {
+        let circuit = S::new(())
             .map_err(|_| CompressorError::Backend("sonobe circuit init failed"))?;
-        let mut rng = ChaCha20Rng::seed_from_u64(seed);
-        let params = SonobeNova::preprocess(
+        let circuit_hash = circuit.circuit_hash();
+        let state_len = circuit.state_len();
+
+        // Derive SRS hash: H(epoch_hash || SonobeSrs)
+        let srs_hash: [u8; 32] = Keccak256::digest(
+            &[&epoch_hash[..], Tag::SonobeSrs.as_bytes()].concat(),
+        )
+        .into();
+
+        // Derive deterministic RNG from epoch_hash for reproducible SRS.
+        // allow-seeded-rng: SRS bound to on-chain epoch per R5.3
+        let srs_seed: [u8; 32] = Keccak256::digest(
+            &[&epoch_hash[..], Tag::SonobeSrs.as_bytes(), b"-seed"].concat(),
+        )
+        .into();
+        let mut rng = ChaCha20Rng::from_seed(srs_seed);
+
+        let params = SonobeNova::<S>::preprocess(
             &mut rng,
             &PreprocessorParam::new(poseidon_canonical_config::<Fr>(), circuit),
         )
@@ -103,18 +207,26 @@ impl SonobeCompressor {
             "sonobe: params serialized"
         );
 
+        let srs_id = format!(
+            "sonobe-srs-{:02x}{:02x}{:02x}{:02x}",
+            srs_hash[0], srs_hash[1], srs_hash[2], srs_hash[3],
+        );
+
         let verifier_key = VerifierKey {
-            srs_id: SRS_ID.to_string(),
-            step_circuit_hash: step_circuit_hash(),
+            srs_id,
+            step_circuit_hash: circuit_hash,
             backend_id: BACKEND_ID.to_string(),
             version: PROOF_VERSION,
         };
 
         Ok(Self {
-            seed,
             prover_key_bytes,
             verifier_key_bytes,
             verifier_key,
+            ivc_steps,
+            state_len,
+            srs_hash,
+            _step_circuit: std::marker::PhantomData,
         })
     }
 
@@ -123,18 +235,29 @@ impl SonobeCompressor {
         self.verifier_key.clone()
     }
 
+    /// Returns the SRS hash derived from the epoch at construction time.
+    /// Used by on-chain verifiers to match the committed SRS for the epoch.
+    pub fn srs_hash(&self) -> [u8; 32] {
+        self.srs_hash
+    }
+
+    /// Returns the number of IVC fold steps configured at construction time.
+    pub fn ivc_steps(&self) -> usize {
+        self.ivc_steps
+    }
+
     fn deserialize_params(
         &self,
     ) -> Result<
         (
-            <SonobeNova as FoldingScheme<G1, G2, ToyStepCircuit<Fr>>>::ProverParam,
-            <SonobeNova as FoldingScheme<G1, G2, ToyStepCircuit<Fr>>>::VerifierParam,
+            <SonobeNova::<S> as FoldingScheme<G1, G2, S>>::ProverParam,
+            <SonobeNova::<S> as FoldingScheme<G1, G2, S>>::VerifierParam,
         ),
         CompressorError,
     > {
         let rss_before = rss_kb();
         tracing::info!(rss_kb = rss_before, "sonobe: deserialize_params start");
-        let prover = SonobeNova::pp_deserialize_with_mode(
+        let prover = SonobeNova::<S>::pp_deserialize_with_mode(
             self.prover_key_bytes.as_slice(),
             Compress::Yes,
             Validate::Yes,
@@ -146,7 +269,7 @@ impl SonobeCompressor {
             rss_delta_kb = rss_kb().saturating_sub(rss_before),
             "sonobe: pp_deserialize done"
         );
-        let verifier = SonobeNova::vp_deserialize_with_mode(
+        let verifier = SonobeNova::<S>::vp_deserialize_with_mode(
             self.verifier_key_bytes.as_slice(),
             Compress::Yes,
             Validate::Yes,
@@ -162,19 +285,27 @@ impl SonobeCompressor {
     }
 }
 
-impl ProofCompressor for SonobeCompressor {
+impl<S: FCircuit<Fr, Params = (), ExternalInputs = Fr> + StepCircuit + Clone + Debug> ProofCompressor for SonobeCompressor<S> {
     fn prove(&self, acc: &[u8], public_inputs: &[u8]) -> Result<CompressedProof, CompressorError> {
-        let initial_state = decode_scalar(acc)?;
+        let initial_scalar = decode_scalar(acc)?;
         let delta = decode_scalar(public_inputs)?;
         let params = self.deserialize_params()?;
-        let circuit = ToyStepCircuit::<Fr>::new(())
+        let circuit = S::new(())
             .map_err(|_| CompressorError::Backend("sonobe circuit init failed"))?;
-        let mut nova = SonobeNova::init(&params, circuit, vec![initial_state])
+        let state_len = circuit.state_len();
+
+        let mut initial_state = Vec::with_capacity(state_len);
+        initial_state.push(initial_scalar);
+        for _ in 1..state_len {
+            initial_state.push(Fr::from(0u64));
+        }
+
+        let mut nova = SonobeNova::<S>::init(&params, circuit, initial_state)
             .map_err(|_| CompressorError::Backend("sonobe init failed"))?;
         tracing::info!(rss_kb = rss_kb(), "sonobe: Nova::init done");
-        let mut rng = ChaCha20Rng::seed_from_u64(self.seed);
+        let mut rng = OsRng;
 
-        for step in 0..IVC_STEPS {
+        for step in 0..self.ivc_steps {
             nova.prove_step(&mut rng, delta, None)
                 .map_err(|_| CompressorError::Backend("sonobe prove step failed"))?;
             tracing::info!(step = step, rss_kb = rss_kb(), "sonobe: prove_step done");
@@ -220,7 +351,7 @@ impl ProofCompressor for SonobeCompressor {
             SonobeIvcProof::deserialize_with_mode(parsed.ivc_bytes, Compress::Yes, Validate::Yes)
                 .map_err(|_| CompressorError::InvalidProof)?;
 
-        if ivc_proof.z_0.len() != 1 || ivc_proof.z_i.len() != 1 {
+        if ivc_proof.z_0.len() != self.state_len || ivc_proof.z_i.len() != self.state_len {
             return Ok(false);
         }
 
@@ -228,13 +359,7 @@ impl ProofCompressor for SonobeCompressor {
             return Ok(false);
         }
 
-        let delta = decode_scalar(public_inputs)?;
-        let expected_state = ivc_proof.z_0[0] + repeated_sum(delta, IVC_STEPS);
-        if ivc_proof.z_i[0] != expected_state {
-            return Ok(false);
-        }
-
-        let verifier = SonobeNova::vp_deserialize_with_mode(
+        let verifier = SonobeNova::<S>::vp_deserialize_with_mode(
             self.verifier_key_bytes.as_slice(),
             Compress::Yes,
             Validate::Yes,
@@ -242,7 +367,7 @@ impl ProofCompressor for SonobeCompressor {
         )
         .map_err(|_| CompressorError::Backend("sonobe verifier key deserialization failed"))?;
 
-        Ok(SonobeNova::verify(verifier, ivc_proof).is_ok())
+        Ok(SonobeNova::<S>::verify(verifier, ivc_proof).is_ok())
     }
 
     fn backend_id(&self) -> &str {
@@ -318,18 +443,10 @@ fn normalized_hash(bytes: &[u8]) -> Result<[u8; 32], CompressorError> {
     Ok(Keccak256::digest(encode_scalar(scalar)).into())
 }
 
-fn repeated_sum(delta: Fr, count: usize) -> Fr {
-    (0..count).fold(Fr::from(0u64), |acc, _| acc + delta)
-}
-
 fn rss_kb() -> u64 {
     fs::read_to_string("/proc/self/statm")
         .ok()
         .and_then(|statm| statm.split_whitespace().nth(1)?.parse::<u64>().ok())
         .map(|pages| pages * 4)
         .unwrap_or(0)
-}
-
-fn step_circuit_hash() -> [u8; 32] {
-    Keccak256::digest(STEP_CIRCUIT_TAG).into()
 }

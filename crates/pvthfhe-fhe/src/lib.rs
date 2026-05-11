@@ -109,3 +109,8 @@ pub trait FheBackend: Send + Sync {
         threshold: usize,
     ) -> Result<Vec<u8>, FheError>;
 }
+
+/// Compare recovered plaintext with original, tolerating noise/padding.
+pub fn noise_tolerant_plaintext_compare(recovered: &[u8], original: &[u8]) -> bool {
+    recovered.get(..original.len()) == Some(original)
+}

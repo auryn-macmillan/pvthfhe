@@ -4,6 +4,10 @@
 //! path for P4-era tests and benchmarks. Default demo/e2e wiring must use the
 //! lattice-backed `LatticePvssBfvAdapter` instead.
 //!
+//! **WARNING**: The `hermine` feature gate blocks compilation. Hermine uses
+//! deterministic share derivation (SHA-256 seeding) which is a CRITICAL audit
+//! finding (F60). Do **not** enable the `hermine` feature in any build.
+//!
 //! This module provides `HermineAdapter`, a real publicly-verifiable secret-sharing
 //! scheme following Hermine's PVSS transcript structure. The underlying
 //! cryptography uses integer Shamir secret sharing over a Mersenne prime field
@@ -18,6 +22,9 @@
 //! Note: in a full lattice PVSS the polynomial coefficients would be sampled
 //! short (within norm bound `B_e`). Callers can enforce per-coefficient
 //! shortness using `check_share_shortness`.
+
+#[cfg(feature = "hermine")]
+compile_error!("the hermine adapter uses deterministic share derivation (CRITICAL audit finding F60); use the lattice-backed LatticePvssBfvAdapter instead");
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 
@@ -45,6 +52,10 @@ pub fn check_share_shortness(value: u64) -> bool {
 /// Implements `KeygenAdapter` using integer Shamir secret sharing over `PRIME`
 /// with SHA-256 commitments for public verifiability and an abort-with-blame
 /// path for dishonest dealers.
+#[deprecated(
+    since = "0.1.0",
+    note = "HermineAdapter uses deterministic share derivation (CRITICAL finding F60). Use LatticePvssBfvAdapter instead."
+)]
 #[derive(Debug, Default)]
 pub struct HermineAdapter;
 
@@ -511,6 +522,16 @@ mod hermine_unit_tests {
         assert!(!check_share_shortness(255));
         assert!(check_share_shortness(16));
         assert!(check_share_shortness(0));
+    }
+
+    #[test]
+    fn hermine_feature_must_be_disabled() {
+        // RED: The hermine feature triggers compile_error! in this module.
+        // Verify it is NOT active in the default build.
+        assert!(
+            !cfg!(feature = "hermine"),
+            "hermine feature triggers compile_error — must not be active"
+        );
     }
 
     // RED: sc_audit_commitment_comparison_is_ct

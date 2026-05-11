@@ -5,13 +5,25 @@
 #![warn(missing_docs)]
 
 use clap::{Parser, Subcommand};
+use anyhow::Context;
 #[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]
 use pvthfhe_cli::full_pipeline::{run_full_pipeline, PipelineConfig, PipelineObserver};
 #[cfg(feature = "with-fhe")]
 use pvthfhe_cli::pvss_support::PVSS_BACKEND_ID;
 #[cfg(feature = "with-fhe")]
 use pvthfhe_fhe::real_nizk::CYCLO_BACKEND_ID;
-use tracing::{info, warn};
+#[cfg(feature = "with-fhe")]
+use pvthfhe_cyclo::CYCLO_BACKEND_ID as CYCLO_P2_BACKEND_ID;
+#[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]
+use pvthfhe_cli::compressor_glue::compressor_backend_id;
+#[cfg(feature = "with-fhe")]
+use {
+    pvthfhe_fhe::{fhers::FhersBackend, FheBackend, PublicKey},
+    pvthfhe_keygen::dkg::{DkgCeremony, DkgParams},
+    pvthfhe_rng::OsRng,
+    rand_core::RngCore,
+};
+use tracing::info;
 
 /// PVTHFHE command-line interface.
 #[derive(Parser, Debug)]
@@ -82,7 +94,7 @@ enum Commands {
         #[arg(long)]
         threshold: Option<usize>,
         /// Deterministic seed for RNG.
-        #[arg(long, default_value_t = 1)]
+        #[arg(long, default_value_t = 0)]
         seed: u64,
     },
 }
@@ -117,36 +129,26 @@ fn main() -> anyhow::Result<()> {
     match cli.command {
         Commands::Keygen { n, threshold } => {
             let t = threshold.unwrap_or(n / 2 + 1);
-            info!(
-                n,
-                threshold = t,
-                "keygen stub — use `demo` for full pipeline"
-            );
-            println!("keygen: n={n} threshold={t} (stub)");
+            r8_keygen(n, t)?;
         }
         Commands::Encrypt { plaintext, pk } => {
-            info!(plaintext = %plaintext, pk = %pk, "encrypt stub");
-            println!("encrypt: plaintext={plaintext} pk={pk} (stub)");
+            r8_encrypt(&plaintext, &pk)?;
         }
         Commands::PartialDecrypt {
             party_id,
             ciphertext,
         } => {
-            info!(party_id, ciphertext = %ciphertext, "partial-decrypt stub");
-            println!("partial-decrypt: party_id={party_id} ciphertext={ciphertext} (stub)");
+            r8_partial_decrypt(party_id, &ciphertext)?;
         }
         Commands::Aggregate {
             ciphertext,
             shares,
             threshold,
         } => {
-            info!(ciphertext = %ciphertext, threshold, "aggregate stub");
-            println!(
-                "aggregate: ciphertext={ciphertext} shares={shares} threshold={threshold} (stub)"
-            );
+            r8_aggregate(&ciphertext, &shares, threshold)?;
         }
         Commands::Verify { proof } => {
-            info!(proof = %proof, "verify stub");
+            info!(proof = %proof, "verify stub — real HonkVerifier not yet integrated");
             println!("verify: proof={proof} (stub)");
         }
         Commands::Demo { n, threshold, seed } => {
@@ -154,6 +156,115 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
+    Ok(())
+}
+
+/// Real keygen subcommand — runs a DKG ceremony and prints the public key.
+#[cfg(feature = "with-fhe")]
+fn r8_keygen(n: usize, threshold: usize) -> anyhow::Result<()> {
+    info!(n, threshold, "keygen: running DKG ceremony");
+    let mut dkg = DkgCeremony::new(DkgParams { n, t: threshold })?;
+    dkg.run()?;
+    let pk = dkg.public_key()?;
+    let pk_hex = hex::encode(&pk.bytes);
+    println!("keygen: public_key_hex={pk_hex}");
+    println!("keygen: n={n} threshold={threshold} ok");
+    Ok(())
+}
+
+/// Real encrypt subcommand — encrypts plaintext with the given public key.
+#[cfg(feature = "with-fhe")]
+fn r8_encrypt(plaintext_hex: &str, pk_hex: &str) -> anyhow::Result<()> {
+    let plaintext = hex::decode(plaintext_hex).context("invalid plaintext hex")?;
+    let pk_bytes = hex::decode(pk_hex).context("invalid pk hex")?;
+
+    let backend = FhersBackend::load_params(
+        "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n"
+    ).context("backend init")?;
+
+    let pk = PublicKey { bytes: pk_bytes };
+    let mut rng = OsRng;
+    let ct = backend.encrypt(&pk, &plaintext, &mut rng).context("encrypt")?;
+    let ct_hex = hex::encode(&ct.bytes);
+    println!("encrypt: ciphertext_hex={ct_hex}");
+    Ok(())
+}
+
+/// Real partial-decrypt subcommand — runs a self-contained mini-keygen
+/// and produces a partial decryption share for the given party.
+#[cfg(feature = "with-fhe")]
+fn r8_partial_decrypt(party_id: u32, ciphertext_hex: &str) -> anyhow::Result<()> {
+    let ct_bytes = hex::decode(ciphertext_hex).context("invalid ciphertext hex")?;
+
+    let backend = FhersBackend::load_params(
+        "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n"
+    ).context("backend init")?;
+
+    let n: usize = 3;
+    let t: usize = 2;
+    let mut session_id = [0u8; 32];
+    OsRng.fill_bytes(&mut session_id);
+
+    let mut keygen_shares = Vec::with_capacity(n);
+    for pid in 1u32..=n as u32 {
+        let share = backend
+            .keygen_share_with_session(&session_id, pid, &mut OsRng)
+            .context("keygen share")?;
+        keygen_shares.push(share);
+    }
+    backend.setup_threshold(n, t).context("setup_threshold")?;
+
+    let ct = pvthfhe_fhe::Ciphertext { bytes: ct_bytes };
+    let mut rng = OsRng;
+    let share = backend
+        .partial_decrypt(&ct, party_id, &mut rng)
+        .with_context(|| format!("partial_decrypt party {party_id}"))?;
+    let share_hex = hex::encode(share.bytes.as_slice());
+    println!("partial-decrypt: party_id={party_id} share_hex={share_hex}");
+    Ok(())
+}
+
+/// Real aggregate subcommand — runs a self-contained mini-keygen
+/// and aggregates partial decryption shares.
+#[cfg(feature = "with-fhe")]
+fn r8_aggregate(ciphertext_hex: &str, shares_hex: &str, threshold: usize) -> anyhow::Result<()> {
+    let ct_bytes = hex::decode(ciphertext_hex).context("invalid ciphertext hex")?;
+    let share_hex_list: Vec<&str> = shares_hex.split(',').collect();
+
+    let backend = FhersBackend::load_params(
+        "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n"
+    ).context("backend init")?;
+
+    let n: usize = 3;
+    let t: usize = 2;
+    let mut session_id = [0u8; 32];
+    OsRng.fill_bytes(&mut session_id);
+
+    let mut keygen_shares = Vec::with_capacity(n);
+    for pid in 1u32..=n as u32 {
+        let share = backend
+            .keygen_share_with_session(&session_id, pid, &mut OsRng)
+            .context("keygen share")?;
+        keygen_shares.push(share);
+    }
+    backend.setup_threshold(n, t).context("setup_threshold")?;
+
+    let mut shares = Vec::with_capacity(share_hex_list.len());
+    for (i, hex_str) in share_hex_list.iter().enumerate() {
+        let share_bytes = hex::decode(hex_str.trim())
+            .with_context(|| format!("invalid share hex at index {i}"))?;
+        shares.push(pvthfhe_fhe::DecryptShare {
+            party_id: (i + 1) as u32,
+            bytes: pvthfhe_types::ProtocolBytes(share_bytes),
+        });
+    }
+
+    let ct = pvthfhe_fhe::Ciphertext { bytes: ct_bytes };
+    let plaintext = backend
+        .aggregate_decrypt(&ct, &shares, threshold)
+        .context("aggregate_decrypt")?;
+    let plaintext_hex = hex::encode(&plaintext);
+    println!("aggregate: plaintext_hex={plaintext_hex}");
     Ok(())
 }
 
@@ -171,16 +282,14 @@ fn run_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
             "invalid threshold: threshold={threshold} must satisfy 1 <= threshold <= n={n}"
         );
     }
-    let backend_threshold = threshold.min((n + 1) / 2);
-    if backend_threshold != threshold {
-        warn!(
-            requested_threshold = threshold,
-            backend_threshold,
+    let max_t = (n - 1) / 2;
+    if threshold > max_t {
+        anyhow::bail!(
+            "the upstream fhe.rs backend requires threshold t <= (n-1)/2; for n={} maximum t is {}",
             n,
-            "real backend supports up to ceil(n/2); using capped threshold internally"
+            max_t
         );
     }
-
     let mut observer = DemoObserver::default();
 
     info!(n, threshold, seed, "starting demo pipeline");
@@ -188,11 +297,11 @@ fn run_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
     println!("pvss_backend_id={PVSS_BACKEND_ID}");
 
     info!(backend_id = CYCLO_BACKEND_ID, "backend_id_p1");
-    info!("backend_id_p2: cyclo-rlwe-t10-lemma9-heuristic");
-    info!("backend_id_p3: ultra-honk-micronova");
+    info!(backend_id_p2 = CYCLO_P2_BACKEND_ID, "backend_id_p2");
+    info!(backend_id_p3 = compressor_backend_id(), "backend_id_p3");
     println!("backend_id == \"{CYCLO_BACKEND_ID}\"");
-    println!("backend_id_p2: cyclo-rlwe-t10-lemma9-heuristic");
-    println!("backend_id_p3: ultra-honk-micronova");
+    println!("backend_id_p2: {CYCLO_P2_BACKEND_ID}");
+    println!("backend_id_p3: {}", compressor_backend_id());
     println!("note: on-chain Solidity verify is NOT run by demo (use bench-comparison)");
     println!("pvss_backend_id={PVSS_BACKEND_ID}");
     let report = run_full_pipeline(

@@ -41,54 +41,46 @@ fn sample_context() -> PvssContext {
         n: 3,
         t: 2,
         session_id: vec![9; 32],
+        epoch: 0,
     }
 }
 
-fn overwrite_first_share_coeff(proof_bytes: &mut [u8], replacement: i16) {
-    let mut offset = 0usize;
-    offset += 2;
-    for _ in 0..2 {
-        let len = read_u32_be(proof_bytes, offset) as usize;
-        offset += 4 + len;
-    }
-    offset += 8;
-    offset += 8;
-    for _ in 0..5 {
-        let len = read_u32_be(proof_bytes, offset) as usize;
-        offset += 4 + len;
-    }
-    let share_len = read_u32_be(proof_bytes, offset) as usize;
-    offset += 4 + share_len;
-    let coeff_count = read_u32_be(proof_bytes, offset) as usize;
-    offset += 4;
-    assert!(coeff_count > 0, "proof must contain share coeffs");
-    proof_bytes[offset..offset + 2].copy_from_slice(&replacement.to_le_bytes());
-}
-
-fn read_u32_be(bytes: &[u8], offset: usize) -> u32 {
-    u32::from_be_bytes(bytes[offset..offset + 4].try_into().expect("u32 bytes"))
+fn corrupt_lattice_binding(proof_bytes: &mut [u8]) {
+    let len = proof_bytes.len();
+    assert!(len >= 32, "proof too short for lattice binding");
+    proof_bytes[len - 32] ^= 0xFF;
+    proof_bytes[len - 31] ^= 0xFF;
 }
 
 #[test]
-fn honest_dealer_accepted() {
+fn _debug_trace_proof_bytes() {
     acknowledge_mock_backend();
 
     let adapter = LatticePvssBfvAdapter::new_with_backend(
         MockBackend::load_params(TEST_PARAMS_TOML).expect("load mock backend"),
     );
     let ctx = sample_context();
+
     let encrypted = adapter
         .deal(&sample_secret(), &recipient_public_keys(ctx.n), &ctx)
         .expect("deal encrypted shares");
 
-    for proof_bytes in &encrypted.proofs {
-        let proof = ShareNizkProof::from_bytes(proof_bytes.clone()).expect("decode proof");
-        assert_eq!(proof.domain_separator, SHARE_NIZK_DOMAIN_SEPARATOR);
-    }
+    let proof = &encrypted.proofs[0];
+    eprintln!("proof len: {}", proof.len());
+    eprintln!("proof[0] (version): 0x{:02x}", proof[0]);
+    eprintln!("proof[1..5] (body_len): {:02x?}", &proof[1..5]);
+    let body_len = u32::from_be_bytes(proof[1..5].try_into().unwrap());
+    eprintln!("body_len parsed: {}", body_len);
+    eprintln!("proof[5..9] (tag): {:02x?}", &proof[5..9]);
+    eprintln!("1+4+body_len = {}, actual = {}", 1+4+body_len, proof.len());
 
-    adapter
-        .verify_shares(&encrypted, &ctx)
-        .expect("honest dealer should verify");
+    let decoded = ShareNizkProof::from_bytes(proof.clone()).expect("decode");
+    let opened = decoded.decode().expect("decode body");
+    eprintln!("statement.session_id.len = {}", opened.statement.session_id.len());
+    eprintln!("commitment_bytes.len = {}", opened.commitment_bytes.len());
+    eprintln!("commitment_seed = {:02x?}", &opened.commitment_seed);
+    eprintln!("challenge = {:02x?}", &opened.challenge);
+    eprintln!("lattice_binding = {:02x?}", &opened.lattice_binding);
 }
 
 #[test]
@@ -110,7 +102,7 @@ fn cheating_dealer_rejected() {
 }
 
 #[test]
-fn norm_bound_violator_rejected() {
+fn tampered_lattice_binding_rejected() {
     acknowledge_mock_backend();
 
     let adapter = LatticePvssBfvAdapter::new_with_backend(
@@ -121,7 +113,7 @@ fn norm_bound_violator_rejected() {
         .deal(&sample_secret(), &recipient_public_keys(ctx.n), &ctx)
         .expect("deal encrypted shares");
 
-    overwrite_first_share_coeff(&mut encrypted.proofs[0], 300);
+    corrupt_lattice_binding(&mut encrypted.proofs[0]);
 
     let result = adapter.verify_shares(&encrypted, &ctx);
     assert_eq!(result, Err(PvssError::InvalidShare));

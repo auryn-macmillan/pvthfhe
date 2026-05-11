@@ -21,6 +21,8 @@ pub struct NizkStatement {
     pub session_id: String,
     /// Participant binding inherited from P4.
     pub participant_id: u16,
+    /// On-chain epoch that binds the CRS (Ajtai matrix derivation seed).
+    pub epoch: u64,
 }
 
 /// Frozen prover witness for one lattice NIZK claim.
@@ -113,6 +115,7 @@ fn to_nizk_stmt(stmt: &NizkStatement) -> pvthfhe_nizk::NizkStatement {
         params: (stmt.params.0, pvthfhe_nizk::sigma::RLWE_N, stmt.params.2),
         session_id: stmt.session_id.clone(),
         participant_id: stmt.participant_id,
+        epoch: stmt.epoch,
     }
 }
 

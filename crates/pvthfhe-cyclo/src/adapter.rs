@@ -1,14 +1,14 @@
-//! Real [`CycloAdapter`] implementation wired to the F7 fold driver.
+//! Legacy hash-chain [`CycloAdapter`] implementation; replaced in Phase R2.
 
 use crate::{
     driver, fold, CcsPShareInstance, CycloAccumulator, CycloAdapter, CycloError, CycloParams,
     CYCLO_BACKEND_ID, PVTHFHE_CYCLO_PARAMS,
 };
 
-/// Production implementation of [`CycloAdapter`] backed by the F7 fold driver.
-pub struct StubCycloAdapter;
+/// Legacy hash-chain adapter; replaced in Phase R2.
+pub struct LegacyHashChainAdapter;
 
-impl CycloAdapter for StubCycloAdapter {
+impl CycloAdapter for LegacyHashChainAdapter {
     fn backend_id(&self) -> &'static str {
         CYCLO_BACKEND_ID
     }

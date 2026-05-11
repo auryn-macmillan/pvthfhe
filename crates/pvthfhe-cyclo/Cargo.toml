@@ -6,13 +6,18 @@ license = "MIT"
 
 [dependencies]
 pvthfhe-nizk = { path = "../pvthfhe-nizk" }
+pvthfhe-types = { path = "../pvthfhe-types" }
 thiserror = "1"
 sha2 = "0.10"
 rand_core = "0.6"
 fhe-math = { package = "fhe-math", git = "https://github.com/gnosisguild/fhe.rs", rev = "5f24d0b62a7329b789db07a065b68accd614a47b" }
+ark-ff = "0.5"
+ark-bn254 = "0.5"
 
 [dev-dependencies]
 rand_chacha = "0.3"
+syn = { version = "2", features = ["full"] }
+walkdir = "2"
 
 [lints]
 workspace = true

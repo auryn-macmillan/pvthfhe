@@ -13,7 +13,7 @@
 //!                            (i64 LE per coefficient, centred mod Q_COMMIT)
 //! sha256_binding           : u32 BE session_id_len + session_id bytes
 //!                            + participant_id u16 BE + 32-byte commitment
-//!                            = hash_bridge::commit(session_id, pid, secret_share)
+//!                            = stmt.pvss_commitment (Ajtai D2 hash binding)
 //! sigma_proof_bytes        : u32 BE total_len            [SPEC EXTENSION — §3.4]
 //!   d_rns                  : u32 BE count + count × u64 LE
 //!   t_rns                  : u32 BE count + count × u64 LE
@@ -34,7 +34,6 @@
 //! Phase 2 (F-series): `cyclo_accumulator_bytes` will be populated with real Cyclo fold transcript bytes.
 
 use crate::ajtai::{AjtaiCommitment, AjtaiMatrix, AjtaiParams, Rq, PHI, Q_COMMIT};
-use crate::hash_bridge;
 use crate::sigma::{self, SigmaStatement, SigmaWitness, RLWE_N};
 use crate::{NizkAdapter, NizkError, NizkProof, NizkStatement, NizkWitness, BACKEND_ID};
 
@@ -109,14 +108,11 @@ impl NizkAdapter for CycloNizkAdapter {
             rng,
         )?;
 
-        let hash_commitment =
-            hash_bridge::commit(&stmt.session_id, stmt.participant_id, witness.secret_share);
-
         let proof_bytes = encode_proof(
             &ccs_id,
             &ajtai_commitment,
             stmt,
-            &hash_commitment,
+            &stmt.pvss_commitment,
             &d_rns,
             &sigma_proof,
         )?;

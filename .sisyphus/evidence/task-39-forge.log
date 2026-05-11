@@ -1,24 +1,32 @@
-No files changed, compilation skipped
+Compiling 29 files with Solc 0.8.34
+Solc 0.8.34 finished in 612.52ms
+Compiler run successful with warnings:
+Warning (2072): Unused local variable.
+  --> src/SurrogateNotice.sol:12:9:
+   |
+12 |         bool SURROGATE_ACTIVE_HonkVerifier_micronova_wrap_aggregator_final = false; // SURROGATE ACTIVE: research surrogates — do not deploy
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 
 Ran 3 tests for test/PvtFheVerifier.e2e.t.sol:PvtFheVerifierE2ETest
-[PASS] test_gas_under_5m() (gas: 14658)
-[PASS] test_honest_proof_verifies() (gas: 14445)
-[PASS] test_tampered_proof_reverts() (gas: 14493)
-Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 2.28ms (518.03µs CPU time)
+[PASS] test_gas_under_5m() (gas: 16900)
+[PASS] test_honest_proof_verifies() (gas: 16890)
+[PASS] test_tampered_proof_reverts() (gas: 16722)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 1.04ms (364.63µs CPU time)
 
 ╭------------------------------------------------------+-----------------+------+--------+------+---------╮
 | src/generated/HonkVerifier.sol:HonkVerifier Contract |                 |      |        |      |         |
 +=========================================================================================================+
 | Deployment Cost                                      | Deployment Size |      |        |      |         |
 |------------------------------------------------------+-----------------+------+--------+------+---------|
-|                                               246180 |             924 |      |        |      |         |
+|                                               290339 |            1139 |      |        |      |         |
 |------------------------------------------------------+-----------------+------+--------+------+---------|
 |                                                      |                 |      |        |      |         |
 |------------------------------------------------------+-----------------+------+--------+------+---------|
 | Function Name                                        | Min             | Avg  | Median | Max  | # Calls |
 |------------------------------------------------------+-----------------+------+--------+------+---------|
-| verify                                               |            1278 | 1278 |   1278 | 1278 |       3 |
+| verify                                               |            1975 | 1975 |   1975 | 1975 |       3 |
 ╰------------------------------------------------------+-----------------+------+--------+------+---------╯
 
 
-Ran 1 test suite in 5.34ms (2.28ms CPU time): 3 tests passed, 0 failed, 0 skipped (3 total tests)
+Ran 1 test suite in 2.03ms (1.04ms CPU time): 3 tests passed, 0 failed, 0 skipped (3 total tests)

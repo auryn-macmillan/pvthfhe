@@ -12,6 +12,8 @@ use crate::{
 };
 #[cfg(any(feature = "mock", test))]
 use rand_core::RngCore;
+#[cfg(any(feature = "mock", test))]
+use pvthfhe_types::ProtocolBytes;
 
 fn parse_u64_list(value: &str) -> Option<Vec<u64>> {
     let trimmed = value.trim();
@@ -114,7 +116,10 @@ impl FheBackend for MockBackendInner {
         _rng: &mut dyn RngCore,
     ) -> Result<KeygenShare, FheError> {
         let bytes = party_id.to_le_bytes().to_vec();
-        Ok(KeygenShare { party_id, bytes })
+        Ok(KeygenShare {
+            party_id,
+            bytes: ProtocolBytes(bytes),
+        })
     }
 
     fn aggregate_keygen(&self, shares: &[KeygenShare]) -> Result<PublicKey, FheError> {
@@ -126,7 +131,7 @@ impl FheBackend for MockBackendInner {
                     party_id: s.party_id,
                 });
             }
-            acc = xor_bytes(&acc, &s.bytes);
+            acc = xor_bytes(&acc, s.bytes.as_slice());
         }
         Ok(PublicKey { bytes: acc })
     }
@@ -148,7 +153,10 @@ impl FheBackend for MockBackendInner {
         _rng: &mut dyn RngCore,
     ) -> Result<DecryptShare, FheError> {
         let bytes = party_id.to_le_bytes().to_vec();
-        Ok(DecryptShare { party_id, bytes })
+        Ok(DecryptShare {
+            party_id,
+            bytes: ProtocolBytes(bytes),
+        })
     }
 
     fn aggregate_decrypt(
@@ -175,7 +183,7 @@ impl FheBackend for MockBackendInner {
 
         let mut reconstructed_pk = vec![0u8; 4];
         for s in shares {
-            reconstructed_pk = xor_bytes(&reconstructed_pk, &s.bytes);
+            reconstructed_pk = xor_bytes(&reconstructed_pk, s.bytes.as_slice());
         }
 
         Ok(xor_bytes(&ct.bytes, &reconstructed_pk))
@@ -196,7 +204,7 @@ mod unit_tests {
         };
         let share1 = DecryptShare {
             party_id: 1,
-            bytes: 1u32.to_le_bytes().to_vec(),
+            bytes: ProtocolBytes(1u32.to_le_bytes().to_vec()),
         };
         let shares = vec![share1.clone(), share1.clone()];
         let result = backend.aggregate_decrypt(&ct, &shares, 2);
@@ -211,7 +219,7 @@ mod unit_tests {
         let backend = MockBackendInner::load_params(TOML).unwrap();
         let share1 = KeygenShare {
             party_id: 1,
-            bytes: 1u32.to_le_bytes().to_vec(),
+            bytes: ProtocolBytes(1u32.to_le_bytes().to_vec()),
         };
         let shares = vec![share1.clone(), share1.clone()];
         let result = backend.aggregate_keygen(&shares);

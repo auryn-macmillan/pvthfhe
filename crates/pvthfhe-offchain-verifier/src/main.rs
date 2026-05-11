@@ -4,23 +4,28 @@ use std::{fs, path::PathBuf};
 
 use clap::Parser;
 use pvthfhe_compressor::{
-    sonobe::SonobeCompressor, CompressedProof, ProofCompressor,
+    sonobe::{SonobeCompressor, ToyStepCircuit}, CompressedProof, ProofCompressor,
 };
+use ark_bn254::Fr;
 use serde::Deserialize;
 use sha3::{Digest, Keccak256};
 
-use pvthfhe_offchain_verifier::attestation::AttestationBundle;
-
-const DEFAULT_SEED: u64 = 7;
-const DEFAULT_SIGNER: &str = "0x00000000000000000000000000000000ephemeral";
-const DEFAULT_SIGNATURE: &str = "0x00placeholder";
+use pvthfhe_offchain_verifier::{attestation::AttestationBundle, check_srs_hash};
 
 #[derive(Debug, Deserialize)]
 struct ProofEnvelope {
     proof: String,
     public_inputs: String,
-    #[serde(default = "default_seed")]
-    seed: u64,
+    #[serde(default)]
+    epoch_hash: String,
+    #[serde(default = "default_ivc_steps")]
+    ivc_steps: usize,
+    #[serde(default)]
+    expected_srs_hash: String,
+}
+
+fn default_ivc_steps() -> usize {
+    4
 }
 
 /// Verify a serialized Sonobe proof and emit an attestation bundle.
@@ -45,9 +50,18 @@ fn main() -> Result<(), String> {
     let proof_bytes = decode_hex_field(&envelope.proof)?;
     let public_inputs = decode_hex_field(&envelope.public_inputs)?;
 
-    let proof = CompressedProof(proof_bytes.clone());
-    let compressor = SonobeCompressor::new(envelope.seed)
+    let epoch_hash = decode_epoch_hash(&envelope.epoch_hash)?;
+
+    let expected_srs_hash = decode_epoch_hash(&envelope.expected_srs_hash)
+        .map_err(|error| format!("expected_srs_hash: {error}"))?;
+
+    let compressor = SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch_hash, envelope.ivc_steps)
         .map_err(|error| format!("failed to initialize verifier: {error:?}"))?;
+
+    check_srs_hash(&compressor.srs_hash(), &expected_srs_hash)
+        .map_err(|error| format!("SRS hash mismatch: {error}"))?;
+
+    let proof = CompressedProof(proof_bytes.clone());
     let vk = compressor.verifier_key();
 
     let is_valid = compressor
@@ -61,8 +75,8 @@ fn main() -> Result<(), String> {
         sonobe_final_state_commitment: to_hex(Keccak256::digest(&proof_bytes)),
         cyclo_aggregate_commitment: to_hex(Keccak256::digest([proof_bytes.as_slice(), b"cyclo"].concat())),
         session_id: to_hex(Keccak256::digest([proof_bytes.as_slice(), b"session"].concat())),
-        signer: DEFAULT_SIGNER.to_string(),
-        signature: DEFAULT_SIGNATURE.to_string(),
+        signer: String::new(),
+        signature: String::new(),
     };
 
     let bundle_json = serde_json::to_string_pretty(&bundle)
@@ -89,10 +103,19 @@ fn decode_hex_field(value: &str) -> Result<Vec<u8>, String> {
     hex::decode(normalized).map_err(|error| format!("invalid hex field {value}: {error}"))
 }
 
-fn default_seed() -> u64 {
-    DEFAULT_SEED
-}
-
 fn to_hex(bytes: impl AsRef<[u8]>) -> String {
     format!("0x{}", hex::encode(bytes.as_ref()))
+}
+
+fn decode_epoch_hash(value: &str) -> Result<[u8; 32], String> {
+    let bytes = decode_hex_field(value)?;
+    if bytes.len() != 32 {
+        return Err(format!(
+            "epoch_hash must be 32 bytes, got {} bytes",
+            bytes.len()
+        ));
+    }
+    let mut out = [0u8; 32];
+    out.copy_from_slice(&bytes);
+    Ok(out)
 }

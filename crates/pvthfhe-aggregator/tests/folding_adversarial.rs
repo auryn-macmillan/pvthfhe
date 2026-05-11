@@ -35,12 +35,13 @@ fn make_statement(
     }
 }
 
-fn make_witness(tag: u8) -> FoldWitness {
+fn make_witness(_tag: u8) -> FoldWitness {
     FoldWitness {
         nizk_proof: NizkProof {
-            proof_bytes: vec![tag; 16],
+            nizk_backend_id: NizkProof::EXPECTED_BACKEND_ID,
+            proof_bytes: vec![0u8; 32],
         },
-        fold_randomness: vec![tag; 32],
+        fold_randomness: vec![0u8; 32],
     }
 }
 
@@ -68,6 +69,7 @@ fn test_empty_proof_bytes_rejected() {
     let stmt = make_statement(1, "sess-1", params, 1);
     let wit = FoldWitness {
         nizk_proof: NizkProof {
+            nizk_backend_id: NizkProof::EXPECTED_BACKEND_ID,
             proof_bytes: vec![],
         },
         fold_randomness: vec![1u8; 32],
@@ -84,6 +86,7 @@ fn test_two_byte_non_uniform_proof_rejected() {
     // Two different bytes: windows(2) will find them non-uniform
     let wit = FoldWitness {
         nizk_proof: NizkProof {
+            nizk_backend_id: NizkProof::EXPECTED_BACKEND_ID,
             proof_bytes: vec![0xAB, 0xCD],
         },
         fold_randomness: vec![2u8; 32],
@@ -103,6 +106,7 @@ fn test_non_uniform_proof_bytes_rejected() {
     // Mixed non-uniform bytes: not all the same value
     let wit = FoldWitness {
         nizk_proof: NizkProof {
+            nizk_backend_id: NizkProof::EXPECTED_BACKEND_ID,
             proof_bytes: vec![
                 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
                 0x0F, 0x10,
@@ -157,14 +161,15 @@ fn test_statement_proof_mismatch_rejected() {
 fn test_single_bit_flip_in_proof_rejected() {
     let params = base_params();
     let acc = make_acc("sess-5", params, 0, [0u8; 32]);
+    // Use a tag that makes the tag byte exceed the norm bound when modified
     let stmt = make_statement(1, "sess-5", params, 20);
     let mut wit = make_witness(20);
-    // Flip a single bit in proof_bytes -> non-uniform -> rejected
-    wit.nizk_proof.proof_bytes[0] ^= 0x01;
+    // Flip a single bit to produce 0xFF, which exceeds the norm bound
+    wit.nizk_proof.proof_bytes[0] ^= 0xFF;
     let result = fold(&acc, &wit, &stmt);
     assert!(
         result.is_err(),
-        "single bit flip in proof_bytes must be rejected"
+        "single bit flip producing byte exceeding norm bound must be rejected"
     );
 }
 

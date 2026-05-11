@@ -4,7 +4,9 @@
 
 use std::fs;
 
-use pvthfhe_compressor::{sonobe::SonobeCompressor, ProofCompressor};
+use pvthfhe_compressor::sonobe::{SonobeCompressor, ToyStepCircuit};
+use pvthfhe_compressor::ProofCompressor;
+use ark_bn254::Fr;
 use tracing_subscriber::EnvFilter;
 
 fn rss_kb() -> u64 {
@@ -26,7 +28,9 @@ fn main() {
     let mut peak_rss_kb = rss_kb();
     println!("rss_kb stage=before_new value={peak_rss_kb}");
 
-    let compressor = SonobeCompressor::new(1).expect("construct sonobe compressor");
+    let epoch_hash = [0u8; 32];
+    let compressor =
+        SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch_hash, 4).expect("construct sonobe compressor");
     peak_rss_kb = peak_rss_kb.max(rss_kb());
     println!("rss_kb stage=after_new value={}", peak_rss_kb);
 

@@ -1,16 +1,16 @@
 {
   "schema_version": "1",
   "date": "2026-05-03",
-  "implementation_note": "Surrogate hash-chain implementation of RealFoldingScheme. Uses SHA-256 accumulation as a standin for LatticeFold+ over RLWE. Timings reflect hash-chain cost only, not real lattice prover work.",
+  "implementation_note": "Surrogate hash-chain implementation of HashChainFoldingScheme. Uses SHA-256 accumulation as a standin for LatticeFold+ over RLWE. Timings reflect hash-chain cost only, not real lattice prover work.",
   "n": 128,
   "rows": [
     {
       "n": 128,
       "fold_depth": 1,
       "implementation": "surrogate-hash-chain",
-      "fold_time_us": 36.399,
-      "verify_time_us": 0.22999999999999998,
-      "finalize_time_us": 6.769,
+      "fold_time_us": 43.269000000000005,
+      "verify_time_us": 0.36,
+      "finalize_time_us": 8.63,
       "proof_size_bytes": 32,
       "acc_size_bytes": 98
     },
@@ -18,9 +18,9 @@
       "n": 128,
       "fold_depth": 5,
       "implementation": "surrogate-hash-chain",
-      "fold_time_us": 65.688,
+      "fold_time_us": 108.147,
       "verify_time_us": 0.03,
-      "finalize_time_us": 4.63,
+      "finalize_time_us": 7.789,
       "proof_size_bytes": 32,
       "acc_size_bytes": 98
     },
@@ -28,9 +28,9 @@
       "n": 128,
       "fold_depth": 10,
       "implementation": "surrogate-hash-chain",
-      "fold_time_us": 148.017,
-      "verify_time_us": 0.18,
-      "finalize_time_us": 5.069999999999999,
+      "fold_time_us": 214.523,
+      "verify_time_us": 0.049999999999999996,
+      "finalize_time_us": 7.96,
       "proof_size_bytes": 32,
       "acc_size_bytes": 98
     }

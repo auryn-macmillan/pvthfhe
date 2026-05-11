@@ -5,9 +5,15 @@ edition = "2021"
 description = "P4 keygen adapter crate: bridges pvthfhe-keygen-spec interface to real Hermine-adapted PVSS (real impl deferred to T4)."
 license = "MIT"
 
+[features]
+hermine = []
+
 [dependencies]
 sha2 = "0.10"
 subtle = "2"
+pvthfhe-fhe = { path = "../pvthfhe-fhe" }
+pvthfhe-rng = { path = "../pvthfhe-rng" }
+rand_core = "0.6"
 
 [lints]
 workspace = true

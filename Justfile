@@ -18,14 +18,14 @@ phase2-gate:
 phase3-gate:
     python3 .sisyphus/scripts/phase3-gate.py
 
-demo-e2e n="8" t="5" seed="1":
+demo-e2e n="10" t="4" seed="1":
     @echo "*** PVTHFHE end-to-end demo (research prototype) ***"
     @echo "* Supported range: 1 ≤ t ≤ n ≤ 255 (Shamir over GF(256)) *"
-    @echo "* Real cryptography: keygen, NIZK, RLWE folding, Sonobe Nova compression *"
+    @echo "* Pipeline includes keygen, NIZK, RLWE folding, Sonobe Nova compression (see WARNING.md and SECURITY.md for surrogate disclosures) *"
     @echo "* On-chain Solidity verify is NOT run by this demo (use bench-comparison) *"
     @echo "* DO NOT DEPLOY — research prototype only                                 *"
     mkdir -p .sisyphus/evidence
-    cargo run --release -p pvthfhe-cli --features sonobe-compressor -- \
+    cargo run --release -p pvthfhe-cli --features "sonobe-compressor,demo-seeded-rng" -- \
         demo --n {{n}} --threshold {{t}} --seed {{seed}} \
         2>&1 | tee .sisyphus/evidence/task-40-demo.log
 

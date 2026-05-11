@@ -1,7 +1,8 @@
 #![allow(missing_docs, clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use clap::Parser;
-use pvthfhe_aggregator::folding::{CcsPShareInstance, CycloFoldingAdapter};
+use pvthfhe_aggregator::folding::{CcsPShareInstance, HashChainCycloAdapter};
+use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
 use serde_json::json;
@@ -25,7 +26,7 @@ fn main() {
 
     std::fs::create_dir_all(&args.out).expect("create output directory");
 
-    let adapter = CycloFoldingAdapter::new();
+    let adapter = HashChainCycloAdapter::new();
     let instances = (0..N_PARTIES)
         .map(|party_id| {
             let share_hash = sha2_hash(&[&SEED.to_le_bytes()[..], &party_id.to_le_bytes()[..]]);
@@ -38,10 +39,11 @@ fn main() {
 
             CcsPShareInstance {
                 participant_id: (party_id + 1) as u16,
-                ajtai_commitment_bytes: share_hash.to_vec(),
-                public_io_bytes: nizk_bytes,
-                ccs_witness_bytes: vec![1u8; 32],
-                sha256_binding_bytes: share_hash.to_vec(),
+                ajtai_commitment_bytes: ProtocolBytes(share_hash.to_vec()),
+                public_io_bytes: ProtocolBytes(nizk_bytes),
+                ccs_witness_bytes: CcsWitnessSecret::new(vec![1u8; 32]),
+                sha256_binding_bytes: ProtocolBytes(share_hash.to_vec()),
+                ccs_matrix_bytes: ProtocolBytes(vec![]),
             }
         })
         .collect::<Vec<_>>();

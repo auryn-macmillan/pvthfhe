@@ -1,30 +1,5 @@
-//! Integration tests: folding_tamper.
+//! Integration tests: folding tamper (real-folding path, R4.3).
 #![allow(missing_docs, clippy::unwrap_used, clippy::as_conversions)]
-
-#[cfg(feature = "hash-chain-surrogate")]
-use pvthfhe_aggregator::folding::{FoldingAccumulator, FoldingError, PartyProof};
-
-#[cfg(feature = "hash-chain-surrogate")]
-#[test]
-fn test_folding_tamper() {
-    let mut accumulator = FoldingAccumulator::new();
-
-    for i in 0..64 {
-        let nizk = if i == 42 { vec![] } else { vec![1, 2, 3] };
-        let proof = PartyProof {
-            party_id: i as u32,
-            share_hash: [i as u8; 32],
-            nizk_bytes: nizk,
-        };
-        accumulator.add_proof(proof).unwrap();
-    }
-
-    let result = accumulator.finalize();
-    match result {
-        Err(FoldingError::InvalidLeaf(id)) => assert_eq!(id, 42),
-        _ => unreachable!("Expected InvalidLeaf error"),
-    }
-}
 
 // ── T16 real-folding gap tests ─────────────────────────────────────────────
 
@@ -62,7 +37,8 @@ mod real_folding_gaps {
     fn valid_witness(len: usize) -> FoldWitness {
         FoldWitness {
             nizk_proof: NizkProof {
-                proof_bytes: vec![CTXT_TAG; len],
+                nizk_backend_id: NizkProof::EXPECTED_BACKEND_ID,
+                proof_bytes: vec![0u8; len],
             },
             fold_randomness: vec![0x11, 0x22, 0x33],
         }
@@ -130,6 +106,7 @@ mod real_folding_gaps {
         let s = large_norm_stmt(1);
         let large_norm = FoldWitness {
             nizk_proof: NizkProof {
+                nizk_backend_id: NizkProof::EXPECTED_BACKEND_ID,
                 // Uniform bytes with correct tag (200) but value 200 >> B_e=17.
                 // Tag check passes; only an arithmetic norm check catches this.
                 proof_bytes: vec![200u8; 4],

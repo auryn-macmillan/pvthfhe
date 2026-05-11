@@ -39,8 +39,7 @@ mod enabled {
         rq::{traits::TryConvertFrom, Context, Poly, Representation},
         zq::Modulus,
     };
-    use rand::SeedableRng;
-    use rand_chacha::ChaCha8Rng;
+    use pvthfhe_rng::OsRng;
     use std::sync::{Arc, OnceLock};
 
     fn single_limb_context() -> &'static Arc<Context> {
@@ -126,14 +125,14 @@ mod enabled {
             out.copy_from_slice(&Vec::<u64>::from(&product));
         }
 
-        fn sample_uniform(&self, out: &mut [u64], seed: u64) {
+        fn sample_uniform(&self, out: &mut [u64], _seed: u64) {
             assert!(
                 out.len() == POLY_DEGREE || out.len() == expected_rns_len(),
                 "unsupported output length {}",
                 out.len()
             );
 
-            let mut rng = ChaCha8Rng::seed_from_u64(seed);
+            let mut rng = OsRng;
             if out.len() == POLY_DEGREE {
                 out.copy_from_slice(&four_limb_moduli()[0].random_vec(POLY_DEGREE, &mut rng));
                 return;

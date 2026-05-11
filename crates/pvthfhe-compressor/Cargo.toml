@@ -5,13 +5,28 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
+pvthfhe-domain-tags = { path = "../pvthfhe-domain-tags" }
+pvthfhe-rng = { path = "../pvthfhe-rng" }
+pvthfhe-types = { path = "../pvthfhe-types" }
 ark-bn254 = "0.5"
 ark-ff = "0.5"
 ark-grumpkin = "0.5"
 ark-r1cs-std = "0.5"
 ark-relations = "0.5"
 ark-serialize = "0.5"
-folding-schemes = { git = "https://github.com/privacy-scaling-explorations/sonobe", package = "folding-schemes", rev = "63f2930d363150d4490ce2c4be8e0c25c2e1d92c" }
+# ── Sonobe pin ───────────────────────────────────────────────────────────
+# Pinned at a pre-audit commit (63f2930). The upstream repository
+# (privacy-ethereum/sonobe) is undergoing a major refactor; active
+# development on the `staging` branch targets an external audit of the
+# Nova + CycleFold implementations. Security note: the `main` branch has
+# an open security finding (github issue #239, "Public input concatenation
+# enables memory DoS", opened 2026-01-24) that may affect PVTHFHE if
+# untrusted public inputs are accepted without length bounds.
+#
+# When the Sonobe audit completes and `staging` is merged, update this
+# pin to the first post-audit release commit.
+# ──────────────────────────────────────────────────────────────────────────
+folding-schemes = { git = "https://github.com/privacy-ethereum/sonobe", package = "folding-schemes", rev = "63f2930d363150d4490ce2c4be8e0c25c2e1d92c" }
 rand_chacha = "0.3"
 rand_core = "0.6"
 sha3 = "0.10"

@@ -10,7 +10,9 @@ use std::{
     time::Duration,
 };
 
-use pvthfhe_compressor::{sonobe::SonobeCompressor, ProofCompressor};
+use pvthfhe_compressor::sonobe::{SonobeCompressor, ToyStepCircuit};
+use pvthfhe_compressor::ProofCompressor;
+use ark_bn254::Fr;
 
 fn rss_kb() -> u64 {
     fs::read_to_string("/proc/self/statm")
@@ -59,7 +61,9 @@ fn sonobe_prove_peak_rss_under_12gb() {
         }
     });
 
-    let compressor = SonobeCompressor::new(1).expect("construct sonobe compressor");
+    let epoch_hash = [0u8; 32];
+    let compressor =
+        SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch_hash, 4).expect("construct sonobe compressor");
     let acc = [0u8; 32];
     let public_inputs = [0u8; 32];
     let proof = compressor.prove(&acc, &public_inputs).expect("prove isolated sonobe");

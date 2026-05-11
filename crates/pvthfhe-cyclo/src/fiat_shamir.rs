@@ -43,7 +43,7 @@ pub fn public_io_v1(
     depth: u32,
     acc_io: &[u8],
     inst_io: &[u8],
-    r_byte: u8,
+    r_value: u64,
 ) -> [u8; 32] {
     Sha256::new()
         .chain_update(b"pvthfhe-cyclo-fold-io-v1")
@@ -51,7 +51,7 @@ pub fn public_io_v1(
         .chain_update(depth.to_le_bytes())
         .chain_update(acc_io)
         .chain_update(inst_io)
-        .chain_update([r_byte])
+        .chain_update(r_value.to_le_bytes())
         .finalize()
         .into()
 }

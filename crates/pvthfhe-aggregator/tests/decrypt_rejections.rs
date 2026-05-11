@@ -23,7 +23,7 @@ fn rejects_malformed_share() {
 
     let mut share1 =
         partial_decrypt(&backend, &ct, 1, &dkg_root, &ciphertext_hash, 1, &mut rng).unwrap();
-    share1.nizk.clear();
+    share1.nizk = vec![];
 
     let share2 =
         partial_decrypt(&backend, &ct, 2, &dkg_root, &ciphertext_hash, 1, &mut rng).unwrap();
@@ -44,7 +44,7 @@ fn rejects_malformed_share() {
 
     assert!(matches!(
         result,
-        Err(DecryptError::InvalidShare { party_id: 1 })
+        Err(DecryptError::NizkVerify { party_id: 1 })
     ));
 }
 

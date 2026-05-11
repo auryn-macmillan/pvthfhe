@@ -80,7 +80,9 @@ fn main() -> anyhow::Result<()> {
             rss_mb = rss_mb(),
             "rss"
         );
-        let _compressor = Compressor::new(args.seed)?;
+        let mut epoch_hash = [0u8; 32];
+    epoch_hash[..8].copy_from_slice(&args.seed.to_be_bytes());
+    let _compressor = Compressor::new(epoch_hash, args.n)?;
         info!(
             phase = "rss_checkpoint",
             label = "probe_after_compressor_new",
@@ -111,16 +113,6 @@ fn run_e2e(args: Args) -> anyhow::Result<()> {
         );
     }
 
-    let backend_threshold = args.t.min((args.n + 1) / 2);
-    if backend_threshold != args.t {
-        warn!(
-            requested_threshold = args.t,
-            backend_threshold,
-            n = args.n,
-            "real backend supports up to ceil(n/2); using capped threshold internally"
-        );
-    }
-
     let mut observer = BenchObserver::new(args.n, args.t, args.seed);
     let report = run_full_pipeline(
         &PipelineConfig {
@@ -144,7 +136,7 @@ fn run_dry_run_pvss_probe(args: &Args) -> anyhow::Result<()> {
         );
     }
 
-    let backend_threshold = args.t.min((args.n + 1) / 2);
+    let backend_threshold = args.t;
     let backend = FhersBackend::load_params(DEMO_PARAMS_TOML).context("backend init")?;
     let mut simulator = KeygenSimulator::new(args.n, backend_threshold, backend.clone());
     let transcript = match simulator.run().context("keygen")? {

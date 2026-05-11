@@ -1,4 +1,11 @@
 use pvthfhe_cyclo::{fold::verify_fold, CcsPShareInstance, CycloAccumulator, PVTHFHE_CYCLO_PARAMS};
+use pvthfhe_types::CcsWitnessSecret;
+
+fn trivial_matrix() -> Vec<u8> {
+    let mut m = vec![0u8, 0, 0, 1, 0, 0, 0, 1];
+    m.extend_from_slice(&[0u8; 32]);
+    m
+}
 
 fn make_accumulator_at_depth(depth: u32, session_id: &str) -> CycloAccumulator {
     CycloAccumulator {
@@ -15,10 +22,11 @@ fn make_accumulator_at_depth(depth: u32, session_id: &str) -> CycloAccumulator {
 fn oversized_instance_bytes_rejected() {
     let instance = CcsPShareInstance {
         participant_id: 1,
-        ajtai_commitment_bytes: vec![0u8; 32],
-        public_io_bytes: vec![0u8; 4097],
-        ccs_witness_bytes: vec![0u8; 32],
-        sha256_binding_bytes: vec![0u8; 32],
+        ajtai_commitment_bytes: vec![0u8; 32].into(),
+        public_io_bytes: vec![0u8; 4097].into(),
+        ccs_witness_bytes: CcsWitnessSecret::new(vec![0u8, 0, 0, 0]),
+        sha256_binding_bytes: vec![0u8; 32].into(),
+        ccs_matrix_bytes: trivial_matrix().into(),
     };
     let acc = make_accumulator_at_depth(1, "dos-test");
     let result = verify_fold(&acc, &[instance]);
@@ -32,10 +40,11 @@ fn oversized_instance_bytes_rejected() {
 fn oversized_ajtai_commitment_bytes_rejected() {
     let instance = CcsPShareInstance {
         participant_id: 1,
-        ajtai_commitment_bytes: vec![0u8; 4097],
-        public_io_bytes: vec![0u8; 32],
-        ccs_witness_bytes: vec![0u8; 32],
-        sha256_binding_bytes: vec![0u8; 32],
+        ajtai_commitment_bytes: vec![0u8; 4097].into(),
+        public_io_bytes: vec![0u8; 32].into(),
+        ccs_witness_bytes: CcsWitnessSecret::new(vec![0u8, 0, 0, 0]),
+        sha256_binding_bytes: vec![0u8; 32].into(),
+        ccs_matrix_bytes: trivial_matrix().into(),
     };
     let acc = make_accumulator_at_depth(1, "dos-test");
     let result = verify_fold(&acc, &[instance]);

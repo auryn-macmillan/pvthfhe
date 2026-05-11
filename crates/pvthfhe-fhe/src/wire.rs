@@ -5,6 +5,9 @@
 //! layout without changing those wrapper structs.
 
 use crate::FheError;
+use pvthfhe_domain_tags::Tag;
+use pvthfhe_types::ProtocolBytes;
+use pvthfhe_wire::{WireError, WireFormat};
 
 const WIRE_V1: u8 = 0x01;
 const LENGTH_PREFIX_BYTES: usize = 4;
@@ -13,9 +16,9 @@ const LENGTH_PREFIX_BYTES: usize = 4;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KeygenShareV1 {
     /// Common random polynomial bytes.
-    pub crp: Vec<u8>,
+    pub crp: ProtocolBytes,
     /// Party-zero public key share bytes.
-    pub p0_share: Vec<u8>,
+    pub p0_share: ProtocolBytes,
 }
 
 /// Version-1 collective public key wire payload.
@@ -31,51 +34,106 @@ pub struct PublicKeyV1 {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DecryptShareV1 {
     /// Partial decryption share polynomial bytes.
-    pub d_share_poly: Vec<u8>,
+    pub d_share_poly: ProtocolBytes,
 }
 
 /// Encode a version-1 key generation share.
 pub fn encode_keygen_share(crp: &[u8], p0_share: &[u8]) -> Vec<u8> {
-    encode_fields(&[crp, p0_share])
+    KeygenShareV1 {
+        crp: ProtocolBytes(crp.to_vec()),
+        p0_share: ProtocolBytes(p0_share.to_vec()),
+    }
+    .encode()
 }
 
 /// Decode a version-1 key generation share.
 pub fn decode_keygen_share(bytes: &[u8]) -> Result<KeygenShareV1, FheError> {
-    let mut decoder = Decoder::new(bytes)?;
-    let crp = decoder.read_field()?;
-    let p0_share = decoder.read_field()?;
-    decoder.finish()?;
-
-    Ok(KeygenShareV1 { crp, p0_share })
+    KeygenShareV1::decode(bytes).map_err(wire_error)
 }
 
 /// Encode a version-1 public key.
 pub fn encode_public_key(p0: &[u8], p1: &[u8]) -> Vec<u8> {
-    encode_fields(&[p0, p1])
+    PublicKeyV1 {
+        p0: p0.to_vec(),
+        p1: p1.to_vec(),
+    }
+    .encode()
 }
 
 /// Decode a version-1 public key.
 pub fn decode_public_key(bytes: &[u8]) -> Result<PublicKeyV1, FheError> {
-    let mut decoder = Decoder::new(bytes)?;
-    let p0 = decoder.read_field()?;
-    let p1 = decoder.read_field()?;
-    decoder.finish()?;
-
-    Ok(PublicKeyV1 { p0, p1 })
+    PublicKeyV1::decode(bytes).map_err(wire_error)
 }
 
 /// Encode a version-1 decryption share.
 pub fn encode_decrypt_share(d_share_poly: &[u8]) -> Vec<u8> {
-    encode_fields(&[d_share_poly])
+    DecryptShareV1 {
+        d_share_poly: ProtocolBytes(d_share_poly.to_vec()),
+    }
+    .encode()
 }
 
 /// Decode a version-1 decryption share.
 pub fn decode_decrypt_share(bytes: &[u8]) -> Result<DecryptShareV1, FheError> {
-    let mut decoder = Decoder::new(bytes)?;
-    let d_share_poly = decoder.read_field()?;
-    decoder.finish()?;
+    DecryptShareV1::decode(bytes).map_err(wire_error)
+}
 
-    Ok(DecryptShareV1 { d_share_poly })
+impl WireFormat for KeygenShareV1 {
+    const VERSION: u8 = WIRE_V1;
+    const TAG: Tag = Tag::WireFheKeygenShare;
+
+    fn encode_body(&self) -> Vec<u8> {
+        encode_fields(&[self.crp.as_slice(), self.p0_share.as_slice()])
+    }
+
+    fn decode_body(bytes: &[u8]) -> Result<Self, WireError> {
+        let mut decoder = Decoder::new(bytes);
+        let crp = decoder.read_field()?;
+        let p0_share = decoder.read_field()?;
+        decoder.finish()?;
+
+        Ok(Self {
+            crp: ProtocolBytes(crp),
+            p0_share: ProtocolBytes(p0_share),
+        })
+    }
+}
+
+impl WireFormat for PublicKeyV1 {
+    const VERSION: u8 = WIRE_V1;
+    const TAG: Tag = Tag::WireFhePublicKey;
+
+    fn encode_body(&self) -> Vec<u8> {
+        encode_fields(&[&self.p0, &self.p1])
+    }
+
+    fn decode_body(bytes: &[u8]) -> Result<Self, WireError> {
+        let mut decoder = Decoder::new(bytes);
+        let p0 = decoder.read_field()?;
+        let p1 = decoder.read_field()?;
+        decoder.finish()?;
+
+        Ok(Self { p0, p1 })
+    }
+}
+
+impl WireFormat for DecryptShareV1 {
+    const VERSION: u8 = WIRE_V1;
+    const TAG: Tag = Tag::WireFheDecryptShare;
+
+    fn encode_body(&self) -> Vec<u8> {
+        encode_fields(&[self.d_share_poly.as_slice()])
+    }
+
+    fn decode_body(bytes: &[u8]) -> Result<Self, WireError> {
+        let mut decoder = Decoder::new(bytes);
+        let d_share_poly = decoder.read_field()?;
+        decoder.finish()?;
+
+        Ok(Self {
+            d_share_poly: ProtocolBytes(d_share_poly),
+        })
+    }
 }
 
 fn encode_fields(fields: &[&[u8]]) -> Vec<u8> {
@@ -83,8 +141,7 @@ fn encode_fields(fields: &[&[u8]]) -> Vec<u8> {
         .iter()
         .map(|field| LENGTH_PREFIX_BYTES + field.len())
         .sum();
-    let mut out = Vec::with_capacity(1 + payload_len);
-    out.push(WIRE_V1);
+    let mut out = Vec::with_capacity(payload_len);
 
     for field in fields {
         let len = u32::try_from(field.len()).expect("wire field length exceeds u32");
@@ -101,30 +158,19 @@ struct Decoder<'a> {
 }
 
 impl<'a> Decoder<'a> {
-    fn new(bytes: &'a [u8]) -> Result<Self, FheError> {
-        if bytes.is_empty() {
-            return Err(decode_error("missing version byte"));
-        }
-
-        if bytes[0] != WIRE_V1 {
-            return Err(decode_error(format!(
-                "unsupported wire version: 0x{:02x}",
-                bytes[0]
-            )));
-        }
-
-        Ok(Self { bytes, offset: 1 })
+    fn new(bytes: &'a [u8]) -> Self {
+        Self { bytes, offset: 0 }
     }
 
-    fn read_field(&mut self) -> Result<Vec<u8>, FheError> {
+    fn read_field(&mut self) -> Result<Vec<u8>, WireError> {
         let len_end = self
             .offset
             .checked_add(LENGTH_PREFIX_BYTES)
-            .ok_or_else(|| decode_error("length prefix overflow"))?;
+            .ok_or(WireError::LengthOverflow)?;
         let len_bytes = self
             .bytes
             .get(self.offset..len_end)
-            .ok_or_else(|| decode_error("truncated length prefix"))?;
+            .ok_or(WireError::MissingLengthPrefix)?;
         let len = u32::from_be_bytes(len_bytes.try_into().expect("slice length checked"));
         self.offset = len_end;
 
@@ -132,19 +178,19 @@ impl<'a> Decoder<'a> {
         let field_end = self
             .offset
             .checked_add(field_len)
-            .ok_or_else(|| decode_error("field length overflow"))?;
+            .ok_or(WireError::LengthOverflow)?;
         let field = self
             .bytes
             .get(self.offset..field_end)
-            .ok_or_else(|| decode_error("truncated field bytes"))?;
+            .ok_or(WireError::Other)?;
         self.offset = field_end;
 
         Ok(field.to_vec())
     }
 
-    fn finish(self) -> Result<(), FheError> {
+    fn finish(self) -> Result<(), WireError> {
         if self.offset != self.bytes.len() {
-            return Err(decode_error("trailing bytes after wire payload"));
+            return Err(WireError::TrailingBytes);
         }
 
         Ok(())
@@ -155,4 +201,8 @@ fn decode_error(reason: impl Into<String>) -> FheError {
     FheError::DecodeError {
         reason: reason.into(),
     }
+}
+
+fn wire_error(error: WireError) -> FheError {
+    decode_error(format!("wire format error: {error:?}"))
 }

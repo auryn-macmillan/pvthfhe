@@ -74,6 +74,46 @@ fn fhers_aggregate_decrypt_all_shares() {
 }
 
 #[test]
+fn fhers_aggregate_decrypt_rejects_tampered_share_party_id() {
+    let (backend, pk) = setup_backend();
+    let mut rng = thread_rng();
+    let ciphertext = backend.encrypt(&pk, b"42", &mut rng).expect("encrypt");
+    let mut shares = [1u32, 3, 5]
+        .into_iter()
+        .map(|party_id| backend.partial_decrypt(&ciphertext, party_id, &mut rng))
+        .collect::<Result<Vec<_>, _>>()
+        .expect("partial decrypt shares");
+
+    shares[1].party_id = 0;
+
+    let result = backend.aggregate_decrypt(&ciphertext, &shares, 3);
+    assert!(
+        matches!(result, Err(FheError::MalformedDecryptShare { .. })),
+        "tampered share (party_id=0) must be rejected, got: {result:?}"
+    );
+}
+
+#[test]
+fn fhers_aggregate_decrypt_rejects_tampered_share_out_of_range_party_id() {
+    let (backend, pk) = setup_backend();
+    let mut rng = thread_rng();
+    let ciphertext = backend.encrypt(&pk, b"42", &mut rng).expect("encrypt");
+    let mut shares = [1u32, 3, 5]
+        .into_iter()
+        .map(|party_id| backend.partial_decrypt(&ciphertext, party_id, &mut rng))
+        .collect::<Result<Vec<_>, _>>()
+        .expect("partial decrypt shares");
+
+    shares[1].party_id = 999;
+
+    let result = backend.aggregate_decrypt(&ciphertext, &shares, 3);
+    assert!(
+        matches!(result, Err(FheError::MalformedDecryptShare { .. })),
+        "tampered share (party_id=999 out of range) must be rejected, got: {result:?}"
+    );
+}
+
+#[test]
 fn fhers_aggregate_decrypt_wrong_ciphertext() {
     let (backend, pk) = setup_backend();
     let mut rng = thread_rng();
@@ -93,7 +133,7 @@ fn fhers_aggregate_decrypt_wrong_ciphertext() {
         pvthfhe_fhe::wire::decode_decrypt_share(&share_b_3.bytes).expect("decode share");
     let len = decoded.d_share_poly.len();
     decoded.d_share_poly[len - 1] ^= 0x01;
-    share_b_3.bytes = pvthfhe_fhe::wire::encode_decrypt_share(&decoded.d_share_poly);
+    share_b_3.bytes = pvthfhe_fhe::wire::encode_decrypt_share(decoded.d_share_poly.as_slice()).into();
 
     let recovered = backend
         .aggregate_decrypt(&ct_b, &[share_a_1, share_a_2, share_b_3], 3)

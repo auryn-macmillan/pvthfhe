@@ -31,6 +31,7 @@ mod lattice_nizk_adversarial {
             params: (65_537, 1_024, 17),
             session_id: share.session_id.clone(),
             participant_id,
+            epoch: 0,
         };
         let mut secret_share_poly = vec![0i64; 8192];
         secret_share_poly[0] = 1;

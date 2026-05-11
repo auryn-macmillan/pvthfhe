@@ -9,7 +9,7 @@ contract DeployVerifier is Script {
     function run() external {
         vm.startBroadcast();
         SessionRegistry reg = new SessionRegistry();
-        new PvtFheVerifier(address(reg));
+        new PvtFheVerifier(address(reg), address(0)); // timelock: deploy TimelockController first in production (R6.4)
         vm.stopBroadcast();
     }
 }

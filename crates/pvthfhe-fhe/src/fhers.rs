@@ -13,21 +13,30 @@ use fhe::bfv::{
 use fhe::mbfv::{Aggregate, CommonRandomPoly, PublicKeyShare};
 use fhe::trbfv::ShareManager;
 use fhe_math::rq::{Poly, Representation};
+use fhe_math::rq::traits::TryConvertFrom;
 use fhe_traits::{
     DeserializeParametrized, DeserializeWithContext, FheDecoder, FheEncoder, FheEncrypter,
     Serialize,
 };
 use ndarray::Array2;
-use rand::thread_rng;
+use pvthfhe_rng::OsRng;
+use pvthfhe_types::ProtocolBytes;
 use rand_chacha::ChaCha8Rng;
 use rand_core::{RngCore, SeedableRng};
+use rand_distr::{Distribution, Normal};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
 };
+use zeroize::{Zeroize, ZeroizeOnDrop};
+
+/// Smudging noise standard deviation per coefficient.
+/// σ_smudge = 2^40 · σ_err ≈ 3.506 × 10^12.
+/// See `.sisyphus/design/smudging.md` §4 for derivation.
+const SIGMA_SMUDGE: f64 = 3_506_204_876_800.0;
 
 /// Per-party state retained across protocol rounds.
-#[derive(Clone, Debug)]
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct PartyState {
     /// Sum of Shamir secret-key shares received from all parties for this party.
     pub sk_poly_sum: Vec<i64>,
@@ -39,7 +48,6 @@ pub struct PartyState {
 }
 
 /// Primary backend wrapping gnosisguild/fhe.rs BFV.
-#[derive(Clone, Debug)]
 pub struct FhersBackend {
     _params: Params,
     bfv_params: Arc<BfvParameters>,
@@ -48,14 +56,45 @@ pub struct FhersBackend {
     threshold_t: Arc<Mutex<Option<usize>>>,
 }
 
+impl Clone for FhersBackend {
+    fn clone(&self) -> Self {
+        Self {
+            _params: self._params.clone(),
+            bfv_params: self.bfv_params.clone(),
+            party_states: self.party_states.clone(),
+            threshold_n: self.threshold_n.clone(),
+            threshold_t: self.threshold_t.clone(),
+        }
+    }
+}
+
 impl FhersBackend {
-    fn shamir_threshold(&self, n: usize, t: usize) -> usize {
-        t.saturating_sub(1).min(n.saturating_sub(t))
+    fn shamir_threshold(&self, _n: usize, t: usize) -> usize {
+        // fhe.rs ShareManager stores threshold as the Shamir polynomial degree.
+        // decrypt_from_shares requires threshold + 1 shares.
+        // Our convention: t = number of shares needed for reconstruction.
+        // Convert to fhe.rs convention: polynomial degree = t - 1.
+        if t == 0 {
+            return 0;
+        }
+        t - 1
     }
 
     /// Returns the loaded BFV parameters.
     pub fn bfv_params(&self) -> &Arc<BfvParameters> {
         &self.bfv_params
+    }
+
+    /// Return the serialized secret-key coefficients for `party_id`.
+    ///
+    /// Each coefficient is written as 8 little-endian bytes.
+    pub fn party_secret_key_bytes(&self, party_id: u32) -> Result<Vec<u8>, FheError> {
+        let (sk_poly_sum, _sk_poly_sum_poly, _esi_poly_sum) = self.party_state_data(party_id)?;
+        let mut bytes = Vec::with_capacity(sk_poly_sum.len() * 8);
+        for coeff in &sk_poly_sum {
+            bytes.extend_from_slice(&coeff.to_le_bytes());
+        }
+        Ok(bytes)
     }
 
     /// Remove and return the stored state for `party_id`.
@@ -114,15 +153,23 @@ impl FhersBackend {
         })
     }
 
-    fn party_state(&self, party_id: u32) -> Result<PartyState, FheError> {
+    /// Extract secret-key data for `party_id` without cloning the full [`PartyState`].
+    fn party_state_data(
+        &self,
+        party_id: u32,
+    ) -> Result<(Vec<i64>, Option<Poly>, Vec<Poly>), FheError> {
         let party_states = self.party_states.lock().map_err(|err| FheError::Backend {
             reason: err.to_string(),
         })?;
 
-        party_states
+        let state = party_states
             .get(&party_id)
-            .cloned()
-            .ok_or(FheError::UnknownParty { party_id })
+            .ok_or(FheError::UnknownParty { party_id })?;
+        Ok((
+            state.sk_poly_sum.clone(),
+            state.sk_poly_sum_poly.clone(),
+            state.esi_poly_sum.clone(),
+        ))
     }
 
     fn threshold_params(&self) -> Result<(usize, usize), FheError> {
@@ -159,17 +206,20 @@ impl FhersBackend {
         n: usize,
         t: usize,
     ) -> Result<Poly, FheError> {
-        let party_state = self.party_state(party_id)?;
+        let (sk_poly_sum_coeffs, sk_poly_sum_poly, esi_poly_sum) = self.party_state_data(party_id)?;
         let share_manager =
             ShareManager::new(n, self.shamir_threshold(n, t), self.bfv_params.clone());
-        let sk_poly_sum = share_manager
-            .coeffs_to_poly_level0(&party_state.sk_poly_sum)
-            .map_err(|err| FheError::Backend {
-                reason: err.to_string(),
-            })?
-            .as_ref()
-            .clone();
-        let esi_poly = match party_state.esi_poly_sum.first() {
+        let sk_poly_sum = match sk_poly_sum_poly {
+            Some(poly) => poly,
+            None => share_manager
+                .coeffs_to_poly_level0(&sk_poly_sum_coeffs)
+                .map_err(|err| FheError::Backend {
+                    reason: err.to_string(),
+                })?
+                .as_ref()
+                .clone(),
+        };
+        let esi_poly = match esi_poly_sum.first() {
             Some(poly) => poly.clone(),
             None => self.zero_poly_level0()?,
         };
@@ -188,20 +238,20 @@ impl FhersBackend {
         n: usize,
         t: usize,
     ) -> Result<Poly, FheError> {
-        let party_state = self.party_state(party_id)?;
+        let (sk_poly_sum, sk_poly_sum_poly, esi_poly_sum) = self.party_state_data(party_id)?;
         let share_manager =
             ShareManager::new(n, self.shamir_threshold(n, t), self.bfv_params.clone());
-        let sk_poly_sum = match &party_state.sk_poly_sum_poly {
+        let sk_poly_sum = match &sk_poly_sum_poly {
             Some(poly) => poly.clone(),
             None => share_manager
-                .coeffs_to_poly_level0(&party_state.sk_poly_sum)
+                .coeffs_to_poly_level0(&sk_poly_sum)
                 .map_err(|err| FheError::Backend {
                     reason: err.to_string(),
                 })?
                 .as_ref()
                 .clone(),
         };
-        let esi_poly = match party_state.esi_poly_sum.first() {
+        let esi_poly = match esi_poly_sum.first() {
             Some(poly) => poly.clone(),
             None => self.zero_poly_level0()?,
         };
@@ -253,7 +303,7 @@ impl FhersBackend {
                 .map_err(|err| FheError::Backend {
                     reason: err.to_string(),
                 })?;
-            let mut rng = ChaCha8Rng::seed_from_u64(u64::from(party_id));
+            let mut rng = OsRng;
             let shares = share_manager
                 .generate_secret_shares_from_poly(sk_poly, &mut rng)
                 .map_err(|err| FheError::Backend {
@@ -382,6 +432,7 @@ fn encode_plaintext_slots(plaintext: &[u8], degree: usize) -> Result<Vec<u64>, F
     );
     slots.extend(bytes_to_slots(plaintext, degree.saturating_sub(1)));
     slots.truncate(degree);
+    eprintln!("[FHE-ENCODE] plaintext_len={} first_slot(original_len)={} total_slots_after_trunc={}", plaintext.len(), slots[0], slots.len());
     Ok(slots)
 }
 
@@ -394,6 +445,8 @@ fn decode_plaintext_slots(slots: &[u64]) -> Result<Vec<u8>, FheError> {
     })?;
     let max = payload_slots.len() * 2;
     if original_len > max {
+        eprintln!("[FHE-DECODE] FAIL: decoded plaintext length {original_len} exceeds max {max}");
+        eprintln!("  total_slots={} first_few_slots={:02x?}", slots.len(), &slots[..std::cmp::min(8, slots.len())]);
         return Err(FheError::Backend {
             reason: format!("decoded plaintext length {original_len} exceeds max {max}"),
         });
@@ -456,7 +509,7 @@ impl FheBackend for FhersBackend {
 
         Ok(KeygenShare {
             party_id,
-            bytes: wire::encode_keygen_share(&crp.to_bytes(), &p0_share.to_bytes()),
+            bytes: ProtocolBytes(wire::encode_keygen_share(&crp.to_bytes(), &p0_share.to_bytes())),
         })
     }
 
@@ -487,21 +540,21 @@ impl FheBackend for FhersBackend {
         let mut p0_share_bytes = Vec::with_capacity(shares.len());
 
         for share in shares {
-            let decoded = wire::decode_keygen_share(&share.bytes).map_err(|_| {
+            let decoded = wire::decode_keygen_share(share.bytes.as_slice()).map_err(|_| {
                 FheError::MalformedKeygenShare {
                     party_id: share.party_id,
                 }
             })?;
 
             if let Some(expected_crp) = &crp_bytes {
-                if expected_crp != &decoded.crp {
+                if expected_crp.as_slice() != decoded.crp.as_slice() {
                     return Err(FheError::InconsistentCrp);
                 }
             } else {
-                crp_bytes = Some(decoded.crp.clone());
+                crp_bytes = Some(decoded.crp.0.clone());
             }
 
-            p0_share_bytes.push(decoded.p0_share);
+            p0_share_bytes.push(decoded.p0_share.0);
         }
 
         let crp_bytes = crp_bytes.ok_or_else(|| FheError::Backend {
@@ -550,7 +603,7 @@ impl FheBackend for FhersBackend {
         &self,
         pk: &OpaquePublicKey,
         plaintext: &[u8],
-        _rng: &mut dyn RngCore,
+        rng: &mut dyn RngCore,
     ) -> Result<Ciphertext, FheError> {
         let degree = self.bfv_params.degree();
         let pk = self.decode_public_key(pk)?;
@@ -561,9 +614,11 @@ impl FheBackend for FhersBackend {
                     reason: err.to_string(),
                 }
             })?;
-        let mut rng = thread_rng();
+        let mut encrypt_rng = ChaCha8Rng::from_rng(rng).map_err(|err| FheError::Backend {
+            reason: err.to_string(),
+        })?;
         let ct = pk
-            .try_encrypt(&pt, &mut rng)
+            .try_encrypt(&pt, &mut encrypt_rng)
             .map_err(|err| FheError::Backend {
                 reason: err.to_string(),
             })?;
@@ -577,18 +632,47 @@ impl FheBackend for FhersBackend {
         &self,
         ct: &Ciphertext,
         party_id: u32,
-        _rng: &mut dyn RngCore,
+        rng: &mut dyn RngCore,
     ) -> Result<DecryptShare, FheError> {
         let (n, t) = self.threshold_params()?;
         let ct = BfvCiphertext::from_bytes(&ct.bytes, &self.bfv_params)
             .map_err(|_| FheError::MalformedCiphertext)?;
 
-        let d_share_poly = self.decryption_share_poly_from_coeffs(Arc::new(ct), party_id, n, t)?;
+        let mut d_share_poly =
+            self.decryption_share_poly_from_coeffs(Arc::new(ct.clone()), party_id, n, t)?;
+
+        // Sample smudging noise: 8192 Gaussian coefficients with σ = 3.506e12.
+        let mut noise_rng = ChaCha8Rng::from_rng(rng).map_err(|err| FheError::Backend {
+            reason: err.to_string(),
+        })?;
+        let dist = Normal::new(0.0, SIGMA_SMUDGE).map_err(|err| FheError::Backend {
+            reason: err.to_string(),
+        })?;
+        let degree = self.bfv_params.degree();
+        let noise_coeffs: Vec<i64> = (0..degree)
+            .map(|_| {
+                let sample: f64 = dist.sample(&mut noise_rng);
+                sample.round() as i64
+            })
+            .collect();
+        let ctx = self.bfv_params.ctx_at_level(0).map_err(|err| FheError::Backend {
+            reason: err.to_string(),
+        })?;
+        let noise_poly = Poly::try_convert_from(
+            noise_coeffs.as_slice(),
+            ctx,
+            false,
+            Representation::PowerBasis,
+        )
+        .map_err(|err| FheError::Backend {
+            reason: err.to_string(),
+        })?;
+        d_share_poly += &noise_poly;
         let poly_bytes = d_share_poly.to_bytes();
 
         Ok(DecryptShare {
             party_id,
-            bytes: wire::encode_decrypt_share(&poly_bytes),
+            bytes: ProtocolBytes(wire::encode_decrypt_share(&poly_bytes)),
         })
     }
 
@@ -613,6 +697,14 @@ impl FheBackend for FhersBackend {
             });
         }
 
+        for share in shares {
+            if share.party_id == 0 || share.party_id as usize > n {
+                return Err(FheError::MalformedDecryptShare {
+                    party_id: share.party_id,
+                });
+            }
+        }
+
         let ciphertext = BfvCiphertext::from_bytes(&ct.bytes, &self.bfv_params)
             .map_err(|_| FheError::MalformedCiphertext)?;
         let ciphertext = Arc::new(ciphertext);
@@ -623,34 +715,23 @@ impl FheBackend for FhersBackend {
                 reason: err.to_string(),
             })?;
 
-        let _decoded_shares = shares
-            .iter()
-            .map(|share| {
-                let decoded = wire::decode_decrypt_share(&share.bytes).map_err(|_| {
-                    FheError::MalformedDecryptShare {
-                        party_id: share.party_id,
-                    }
-                })?;
-                let _poly = Poly::from_bytes(&decoded.d_share_poly, &ctx).map_err(|err| {
-                    FheError::Backend {
-                        reason: err.to_string(),
-                    }
-                })?;
-                Ok(())
-            })
-            .collect::<Result<Vec<_>, FheError>>()?;
         let effective_shares = shares
             .iter()
             .map(|share| {
-                self.decryption_share_poly_from_full_state(
-                    ciphertext.clone(),
-                    share.party_id,
-                    n,
-                    configured_threshold,
-                )
-                .map(|poly| (share.party_id as usize, poly))
+                let decoded =
+                    wire::decode_decrypt_share(share.bytes.as_slice()).map_err(|_| {
+                        FheError::MalformedDecryptShare {
+                            party_id: share.party_id,
+                        }
+                    })?;
+                let poly = Poly::from_bytes(decoded.d_share_poly.as_slice(), &ctx).map_err(
+                    |err| FheError::Backend {
+                        reason: err.to_string(),
+                    },
+                )?;
+                Ok((share.party_id as usize, poly))
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, FheError>>()?;
         let (party_ids, share_polys): (Vec<_>, Vec<_>) = effective_shares.into_iter().unzip();
 
         let share_manager = ShareManager::new(
@@ -668,6 +749,9 @@ impl FheBackend for FhersBackend {
                 reason: err.to_string(),
             }
         })?;
+        eprintln!("[FHE-DECRYPT] aggregate_decrypt: slots.len()={} first_8_slots={:02x?}",
+            slots.len(),
+            &slots[..std::cmp::min(8, slots.len())]);
 
         decode_plaintext_slots(&slots)
     }
@@ -676,6 +760,7 @@ impl FheBackend for FhersBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use zeroize::Zeroize;
 
     const TEST_PARAMS_TOML: &str = r#"
 [rlwe]
@@ -685,6 +770,31 @@ t_plain = 65536
 moduli = [288230376173076481, 288230376167047169, 288230376161280001]
 variance = 10
 "#;
+
+    #[test]
+    fn party_state_is_zeroized_on_drop() {
+        // RED: Verify that dropped PartyState has zeroized secret fields.
+        let mut state = PartyState {
+            sk_poly_sum: vec![1i64, 2, 3, 4, 5],
+            sk_poly_sum_poly: None,
+            esi_poly_sum: Vec::new(),
+            sk_shamir_shares: vec![vec![7i64, 8, 9]],
+        };
+        // Simulate drop via Zeroize trait (ZeroizeOnDrop calls this in Drop impl).
+        state.zeroize();
+        assert!(
+            state.sk_poly_sum.is_empty() || state.sk_poly_sum.iter().all(|&x| x == 0),
+            "sk_poly_sum must be zeroized"
+        );
+        assert!(
+            state.sk_shamir_shares.is_empty()
+                || state
+                    .sk_shamir_shares
+                    .iter()
+                    .all(|v| v.is_empty() || v.iter().all(|&x| x == 0)),
+            "sk_shamir_shares must be zeroized"
+        );
+    }
 
     #[test]
     fn crp_for_session_is_deterministic_per_session_id() {

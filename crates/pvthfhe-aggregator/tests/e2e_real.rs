@@ -35,6 +35,7 @@ use pvthfhe_aggregator::folding::{
     NizkStatement,
 };
 use pvthfhe_aggregator::keygen::simulator::{KeygenResult, KeygenSimulator};
+use pvthfhe_domain_tags::Tag;
 use pvthfhe_fhe::{mock::MockBackend, FheBackend};
 use sha2::{Digest, Sha256};
 
@@ -121,7 +122,7 @@ fn hmac_sha256(key: &[u8], data: &[u8]) -> [u8; 32] {
 fn sign_proof(private_key: &[u8], public_inputs: &[u8; 200]) -> [u8; 65] {
     let digest = sha256(public_inputs);
     let r = hmac_sha256(private_key, &digest);
-    let s = hmac_sha256(private_key, b"pvthfhe/proof-tag/v1");
+    let s = hmac_sha256(private_key, Tag::ProofTag.as_bytes());
     let mut proof = [0u8; 65];
     proof[0..32].copy_from_slice(&r);
     proof[32..64].copy_from_slice(&s);
@@ -208,6 +209,7 @@ fn test_e2e_real_pipeline_p4_p1_p2_p3() {
         };
         let wit = FoldWitness {
             nizk_proof: NizkProof {
+                nizk_backend_id: NizkProof::EXPECTED_BACKEND_ID,
                 proof_bytes: vec![tag; 16], // uniform tag — passes validate_witness
             },
             fold_randomness: vec![tag; 32],

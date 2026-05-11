@@ -20,6 +20,8 @@ pub mod fold;
 pub mod range_check;
 pub mod ring;
 
+use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
+
 /// Backend identifier for the Cyclo LatticeFold+ implementation.
 pub const CYCLO_BACKEND_ID: &str = "cyclo-rlwe-t10-lemma9-heuristic";
 
@@ -68,16 +70,19 @@ pub struct CcsPShareInstance {
     /// Participant index (1-based, sorted ascending during fold).
     pub participant_id: u16,
     /// Serialised Ajtai commitment over R_{q_commit}.
-    pub ajtai_commitment_bytes: Vec<u8>,
+    pub ajtai_commitment_bytes: ProtocolBytes,
     /// Serialised public I/O for the CCS relation.
-    pub public_io_bytes: Vec<u8>,
-    /// Serialised CCS witness.
-    pub ccs_witness_bytes: Vec<u8>,
+    pub public_io_bytes: ProtocolBytes,
+    /// Serialised CCS witness in Fr-LE wire format [u32 BE len][Fr LE elements].
+    pub ccs_witness_bytes: CcsWitnessSecret,
     /// SHA-256 binding tag tying this instance to the session transcript.
-    pub sha256_binding_bytes: Vec<u8>,
+    pub sha256_binding_bytes: ProtocolBytes,
+    /// Serialised CCS constraint matrix [rows:u32 BE][cols:u32 BE][data: rows*cols Fr LE].
+    pub ccs_matrix_bytes: ProtocolBytes,
 }
 
 /// Running Cyclo accumulator produced after one or more fold steps.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CycloAccumulator {
     /// Number of fold steps applied so far (0 ≤ fold_depth ≤ T).
     pub fold_depth: u32,
@@ -118,7 +123,7 @@ pub enum CycloError {
 /// Object-safe trait for Cyclo LatticeFold+ adapters.
 ///
 /// Implementors must be object-safe (`dyn CycloAdapter` must be valid).
-/// The sole provided implementation today is [`adapter::StubCycloAdapter`];
+/// The sole provided implementation today is [`adapter::LegacyHashChainAdapter`];
 /// real folding will be wired in tasks F2–F7.
 pub trait CycloAdapter {
     /// Returns the backend identifier string (e.g. [`CYCLO_BACKEND_ID`]).

@@ -6,8 +6,12 @@ use tracing::warn;
 use tracing::info;
 
 #[cfg(feature = "sonobe-compressor")]
-use pvthfhe_compressor::{
-    sonobe::SonobeCompressor, CompressedProof as SonobeProof, ProofCompressor, VerifierKey,
+use {
+    ark_bn254::Fr,
+    pvthfhe_compressor::{
+        sonobe::{SonobeCompressor, ToyStepCircuit},
+        CompressedProof as SonobeProof, ProofCompressor, VerifierKey,
+    },
 };
 
 /// Surrogate compressor backend identifier.
@@ -33,7 +37,7 @@ pub enum Compressor {
     #[cfg(feature = "sonobe-compressor")]
     Sonobe {
         /// Inner Sonobe compressor instance.
-        inner: SonobeCompressor,
+        inner: SonobeCompressor<ToyStepCircuit<Fr>>,
         /// Verifier key derived during compressor initialization.
         verifier_key: VerifierKey,
     },
@@ -44,10 +48,11 @@ pub enum Compressor {
 
 impl Compressor {
     /// Construct a compressor for the active feature set.
-    pub fn new(seed: u64) -> anyhow::Result<Self> {
+    pub fn new(epoch_hash: [u8; 32], ivc_steps: usize) -> anyhow::Result<Self> {
         #[cfg(feature = "sonobe-compressor")]
         {
-            let inner = SonobeCompressor::new(seed).map_err(compressor_error_to_anyhow)?;
+            let inner = SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch_hash, ivc_steps)
+                .map_err(compressor_error_to_anyhow)?;
             let verifier_key = inner.verifier_key();
             return Ok(Self::Sonobe {
                 inner,

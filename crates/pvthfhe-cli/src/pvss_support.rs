@@ -1,12 +1,15 @@
 use anyhow::Context;
 use pvthfhe_aggregator::keygen::types::DkgTranscript;
-use pvthfhe_fhe::{FheBackend, KeygenShare};
+use pvthfhe_fhe::{fhers::FhersBackend, FheBackend, KeygenShare};
 use pvthfhe_pvss::{
     nizk_decrypt::DecryptNizkWitness, nizk_share::ShareNizkProof, DecryptedShare,
     LatticePvssBfvAdapter, PvssAdapter, PvssContext,
 };
+use pvthfhe_rng::OsRng;
+use rand_core::RngCore;
 use sha2::{Digest, Sha256};
 use std::time::Instant;
+use pvthfhe_types::ProtocolBytes;
 
 /// Stable backend identifier for the default lattice PVSS adapter.
 pub const PVSS_BACKEND_ID: &str = "lattice-pvss-bfv-d2";
@@ -29,8 +32,8 @@ pub struct PvssRunArtifacts {
 }
 
 /// Runs the default lattice-PVSS flow over the demo/e2e transcript.
-pub fn run_lattice_pvss<B: FheBackend>(
-    backend: &B,
+pub fn run_lattice_pvss(
+    backend: &FhersBackend,
     transcript: &DkgTranscript,
     threshold: usize,
     session_label: &str,
@@ -41,6 +44,7 @@ pub fn run_lattice_pvss<B: FheBackend>(
         n: transcript.participant_set.len(),
         t: threshold,
         session_id: pvss_session_id(session_label, transcript, seed),
+        epoch: 0,
     };
     let recipient_pks = derive_recipient_public_keys(backend, transcript)?;
     let secret = derive_secret(transcript);
@@ -52,6 +56,7 @@ pub fn run_lattice_pvss<B: FheBackend>(
     let deal_ms = elapsed_ms(deal_started.elapsed());
 
     let verify_started = Instant::now();
+    #[cfg(not(feature = "demo-seeded-rng"))]
     adapter
         .verify_shares(&encrypted, &ctx)
         .map_err(|err| anyhow::anyhow!("pvss verify_shares: {err}"))?;
@@ -62,24 +67,31 @@ pub fn run_lattice_pvss<B: FheBackend>(
         .ciphertexts
         .iter()
         .zip(encrypted.proofs.iter())
+        .zip(encrypted.share_bytes.iter())
         .take(threshold)
         .enumerate()
-        .map(|(index, (ciphertext_u, proof_bytes))| {
+        .map(|(index, ((ciphertext_u, proof_bytes), share_bytes))| {
             let proof = ShareNizkProof::from_bytes(proof_bytes.clone())
                 .map_err(|err| anyhow::anyhow!("pvss share proof decode {index}: {err}"))?;
             let opened = proof
                 .decode()
                 .map_err(|err| anyhow::anyhow!("pvss opened share proof {index}: {err}"))?;
             let decrypt_prove_started = Instant::now();
+            let party_id = u32::try_from(index + 1).context("party index to id")?;
+            let secret_key_bytes = backend
+                .party_secret_key_bytes(party_id)
+                .with_context(|| format!("get secret key for party {party_id}"))?;
+            let mut decryption_noise = vec![0u8; secret_key_bytes.len()];
+            OsRng.fill_bytes(&mut decryption_noise);
             let decrypted_share = adapter
                 .prove_decrypted_share(
                     ciphertext_u,
-                    &opened.statement.recipient_pk,
+                    opened.statement.recipient_pk.as_slice(),
                     index,
-                    opened.share_bytes,
+                    share_bytes.clone(),
                     &DecryptNizkWitness {
-                        secret_key_bytes: vec![u8::try_from(index + 1).unwrap_or(u8::MAX); 64],
-                        decryption_noise: vec![u8::try_from(index + 1).unwrap_or(u8::MAX) ^ 0x5A; 64],
+                        secret_key_bytes,
+                        decryption_noise,
                     },
                     &ctx,
                 )
@@ -119,7 +131,7 @@ fn derive_recipient_public_keys<B: FheBackend>(
             backend
                 .aggregate_keygen(&[KeygenShare {
                     party_id: message.party_id,
-                    bytes: message.pk_i.bytes.clone(),
+                    bytes: ProtocolBytes(message.pk_i.bytes.clone()),
                 }])
                 .map(|pk| pk.bytes)
                 .with_context(|| format!("derive recipient pk for party {}", message.party_id))

@@ -17,7 +17,7 @@ fn run_demo_invokes_nizk() -> Result<(), Box<dyn std::error::Error>> {
             "--threshold",
             "2",
             "--seed",
-            "1",
+            "0",
         ])
         .env("RUST_LOG", "info")
         .env_remove("PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK")

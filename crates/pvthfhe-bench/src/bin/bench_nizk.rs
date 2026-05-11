@@ -77,6 +77,7 @@ fn make_statement_witness(n: usize, rng: &mut ChaCha20Rng) -> (NizkStatement, Ni
         params: (Q, n, ERROR_BOUND),
         session_id,
         participant_id,
+        epoch: 0,
     };
 
     let witness = NizkWitness {

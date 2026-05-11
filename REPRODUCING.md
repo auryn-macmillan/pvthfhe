@@ -2,6 +2,12 @@
 
 This document provides instructions for reproducing the scaling and performance benchmarks reported in this repository.
 
+> ⚠️ **PRELIMINARY NUMBERS**: All pre-R9 benchmarks measure the stub/surrogate pipeline
+> (SHA hash chains, toy-adder IVC, synthetic constants), not the target Architecture B
+> protocol. See audit finding INFO-1 in [`.sisyphus/audit/AUDIT-2026-05-08.md`](.sisyphus/audit/AUDIT-2026-05-08.md).
+> The `bench-comparison-gate` lint validates baseline freshness but does not assert
+> soundness of the measured pipeline.
+
 ## Toolchain Versions (PINNED)
 
 Reproducibility requires the exact toolchain versions used during development:
@@ -39,6 +45,8 @@ just reproduce-bench
 ```
 
 ## Expected Runtimes
+
+> ⚠️ These numbers reflect the stub pipeline (SHA chains, toy circuits) and are **not representative of target Architecture B performance**.
 
 | Number of Parties ($n$) | Aggregator Latency (ms) | Verifier Gas |
 | :--- | :--- | :--- |

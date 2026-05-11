@@ -1,6 +1,7 @@
 //! Trait-object safety smoke test for the frozen PVSS adapter API.
 
 use pvthfhe_pvss::PvssAdapter;
+use pvthfhe_types::{ProtocolBytes, ShareSecret};
 
 struct NoopPvssAdapter;
 
@@ -42,16 +43,18 @@ fn pvss_adapter_is_trait_object_safe() {
         n: 3,
         t: 2,
         session_id: b"session".to_vec(),
+        epoch: 0,
     };
     let shares = pvthfhe_pvss::EncryptedShares {
         ciphertexts: vec![vec![1, 2, 3]],
+        share_bytes: vec![vec![7, 8]],
         proofs: vec![vec![4, 5, 6]],
         backend_id: adapter.backend_id().to_owned(),
     };
     let decrypted_shares = vec![pvthfhe_pvss::DecryptedShare {
         index: 0,
-        share_bytes: vec![7, 8],
-        proof: vec![9],
+        share_bytes: ShareSecret::new(vec![7, 8]),
+        proof: ProtocolBytes(vec![9]),
     }];
 
     assert!(!adapter.backend_id().is_empty());

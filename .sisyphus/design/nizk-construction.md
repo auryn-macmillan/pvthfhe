@@ -1,6 +1,6 @@
 # R3.0 NIZK Construction Selection
 
-Status: **draft — recommended pending oracle review**.
+Status: **draft — R3.1/R3.2 construction selected; R3.4 target relations frozen**.
 
 Scope: select the lattice NIZK construction for PVTHFHE share well-formedness
 (R3.1) and partial decryption (R3.2), superseding the Cyclo-companion Ajtai D2
@@ -439,6 +439,183 @@ Struck with the following rationale:
 7. **Fallback trigger timing.** The decision to switch to MPCitH should be made
    no later than Week 6 of the R3 phase (the R3.1 GREEN midpoint). If Greco
    integration is not demonstrably working by Week 6, activate the fallback.
+
+---
+
+## R3.4 — Interfold-Equivalent Target Relations
+
+These five relations collectively capture the guarantee surface of Interfold's C0-C7 circuit suite (see `.sisyphus/plans/interfold-equivalent-pvss.md` §Current Interfold comparison target) in a batched, folded PVTHFHE architecture. The two-track design treats secret-key material (`sk`) and smudging-noise material (`e_sm`) as parallel, independently committed channels that share BFV ciphertext space and Shamir structure. Each channel follows the same lifecycle: share encryption, share computation, DKG aggregation, threshold decryption, and final aggregation. Because the tracks are structurally identical, a single batched lattice NIZK proves both tracks simultaneously. Folding then compresses batches of these proofs without duplicating the expensive BFV prover work. The canonical End-to-End Public Statement (`.sisyphus/plans/interfold-equivalent-pvss.md` lines 76-85) decomposes into these five relations, each inheriting its security guarantees from the NIZK construction selected at R3.0 (Greco primary, MPCitH fallback). Together these relations implement the full lifecycle from dealer share publication through final plaintext recovery under publicly verifiable anchors.
+
+### R3.4.1 — R-share-encrypt-batched-sk-esm
+
+**What it proves**: One batched proof covers BFV encryption of both `sk_share` and `e_sm_share` from a dealer to a single recipient. The proof establishes that `(ciphertext_u, ciphertext_v)` is a valid BFV encryption of the committed `sk_share` under `recipient_pk_commitment`, that the same ciphertext simultaneously encodes the committed `e_sm_share` via batched plaintext encoding, and that all witness polynomials satisfy their respective norm bounds. The statement binds to session, epoch, dealer index, and recipient index for replay rejection.
+
+**Public inputs**:
+- `session_id: [u8; 32]` — session identifier
+- `dealer_index: u32` — dealer party index
+- `recipient_index: u32` — recipient party index
+- `recipient_pk_commitment: Commitment` — commitment to recipient's individual BFV pk
+- `ciphertext_u: RqPoly` — BFV ciphertext component u
+- `ciphertext_v: RqPoly` — BFV ciphertext component v
+- `sk_share_commitment: Commitment` — commitment to the sk share plaintext
+- `e_sm_share_commitment: Commitment` — commitment to the e_sm share plaintext
+- `epoch: u64` — protocol epoch for replay prevention
+
+**Private witnesses**:
+- `sk_share_bytes: [u8]` — serialized sk share plaintext
+- `e_sm_share_bytes: [u8]` — serialized e_sm share plaintext
+- `u_sk: RqPoly` — BFV encryption randomness (sk track)
+- `u_esm: RqPoly` — BFV encryption randomness (e_sm track)
+- `e0_sk: RqPoly` — BFV error term e0 (sk track)
+- `e0_esm: RqPoly` — BFV error term e0 (e_sm track)
+- `e1_sk: RqPoly` — BFV error term e1 (sk track)
+- `e1_esm: RqPoly` — BFV error term e1 (e_sm track)
+- `quotients: Vec<RqPoly>` — quotient/reduction polynomials
+
+**Commitment bindings**:
+1. `recipient_pk_commitment` opens to the recipient's individual BFV public key, established at DKG registration (Interfold C0-equivalent).
+2. `sk_share_commitment` opens to `sk_share_bytes` interpreted as a bounded ring element.
+3. `e_sm_share_commitment` opens to `e_sm_share_bytes` interpreted as a bounded ring element.
+
+**Domain separator**: `"pvthfhe-R-share-encrypt-batched-sk-esm-v1"`
+
+### R3.4.2 — R-share-computation-batched-sk-esm
+
+**What it proves**: Both `sk` and `e_sm` share vectors are valid Shamir/Reed-Solomon evaluations of degree-`t` polynomials whose secret coefficients open to the dealer's committed contribution. The proof establishes that each `sk_share_commitments[j]` opens to the evaluation at participant `j` of a degree-`t` polynomial `P_sk` where `P_sk(0)` opens to `expected_sk_commitment`, and similarly for the `e_sm` track with `expected_esm_commitment`. All polynomial coefficients satisfy the boundedness constraints required by Shamir secret sharing over the BFV secret domain. This relation corresponds to Interfold C2a (SkShareComputation) and C2b (ESmShareComputation) as a single batched statement.
+
+**Public inputs**:
+- `session_id: [u8; 32]` — session identifier
+- `dealer_index: u32` — dealer party index
+- `degree_t: u32` — Shamir polynomial degree (threshold minus one)
+- `n_parties: u32` — total number of parties
+- `expected_sk_commitment: Commitment` — commitment to the dealer's sk contribution (polynomial constant term)
+- `expected_esm_commitment: Commitment` — commitment to the dealer's e_sm contribution
+- `sk_share_commitments: [Commitment; n_parties]` — per-recipient sk share commitments
+- `esm_share_commitments: [Commitment; n_parties]` — per-recipient e_sm share commitments
+
+**Private witnesses**:
+- `sk_shares: [RqPoly; n_parties]` — sk share evaluations
+- `esm_shares: [RqPoly; n_parties]` — e_sm share evaluations
+- `shamir_polynomial_coeffs_sk: [RqPoly; degree_t + 1]` — sk polynomial coefficients
+- `shamir_polynomial_coeffs_esm: [RqPoly; degree_t + 1]` — e_sm polynomial coefficients
+
+**Commitment bindings**:
+1. `expected_sk_commitment` opens to `shamir_polynomial_coeffs_sk[0]`, the sk secret constant term.
+2. `expected_esm_commitment` opens to `shamir_polynomial_coeffs_esm[0]`, the e_sm secret constant term.
+3. For each `j` in `0..n_parties`: `sk_share_commitments[j]` opens to `sk_shares[j]`, and `sk_shares[j]` equals `P_sk(evaluation_point[j])`.
+4. For each `j` in `0..n_parties`: `esm_share_commitments[j]` opens to `esm_shares[j]`, and `esm_shares[j]` equals `P_esm(evaluation_point[j])`.
+5. All polynomial coefficients satisfy `‖coeff‖_∞ ≤ B_s`.
+
+**Domain separator**: `"pvthfhe-R-share-computation-batched-sk-esm-v1"`
+
+### R3.4.3 — R-dkg-aggregate-sk-esm
+
+**What it proves**: A recipient correctly aggregates decrypted DKG shares received from an accepted dealer set into committed aggregate values for both tracks. The proof establishes that `sk_agg_commitment` opens to the sum of all `decrypted_sk_shares` from dealers in the set identified by `dealer_set_hash`, and that `esm_agg_commitments[slot]` opens to the sum of all `decrypted_esm_shares[slot]` from the same dealer set. The output commitments are anchored in `dkg_root` as the recipient's contribution to the public DKG transcript. This relation corresponds to Interfold C4 (DkgShareDecryption) extended to the two-track batched model.
+
+**Public inputs**:
+- `session_id: [u8; 32]` — session identifier
+- `recipient_index: u32` — recipient party index
+- `dealer_set_hash: [u8; 32]` — hash of the set of dealer indices whose shares were aggregated
+- `sk_agg_commitment: Commitment` — commitment to the recipient's aggregated sk share
+- `esm_agg_commitments: [Commitment; n_slots]` — commitments to aggregated e_sm shares per slot
+- `dkg_root: [u8; 32]` — merkle root of the DKG transcript anchor set
+
+**Private witnesses**:
+- `decrypted_sk_shares: [RqPoly]` — decrypted sk shares from accepted dealers
+- `decrypted_esm_shares: [[RqPoly]; n_slots]` — decrypted e_sm shares per slot from accepted dealers
+
+**Commitment bindings**:
+1. `sk_agg_commitment` opens to `sum(decrypted_sk_shares)` interpreted as a ring element.
+2. For each `slot`: `esm_agg_commitments[slot]` opens to `sum(decrypted_esm_shares[slot])`.
+3. `dealer_set_hash` is the SHA-256 hash of the sorted list of dealer indices whose shares were included in the aggregation.
+4. `dkg_root` commits to a merkle tree whose leaves include `sk_agg_commitment` and `esm_agg_commitments` for `recipient_index`.
+
+**Domain separator**: `"pvthfhe-R-dkg-aggregate-sk-esm-v1"`
+
+### R3.4.4 — R-threshold-decrypt-with-committed-smudge
+
+**What it proves**: A party's partial decryption share is correctly computed using the party's committed aggregated secret-key share and committed smudging-noise share. The proof establishes the RLWE decryption-share relation `d_j = c0 + c1 · sk_agg_poly + esm_agg_poly + quotient_polys` where `sk_agg_poly` opens to `sk_agg_commitment` from the DKG anchor set, `esm_agg_poly` opens to `esm_agg_commitment` for the specified `slot_id`, and all witness polynomials satisfy their norm bounds. The smudge slot is bound to `(session_id, epoch, ciphertext_hash)` so no slot may be reused across decryptions of distinct ciphertexts. This relation replaces the prior placeholder that sampled fresh uncommitted local smudging noise and corresponds to Interfold C6 (ThresholdShareDecryption) with the committed-smudge extension.
+
+**Public inputs**:
+- `session_id: [u8; 32]` — session identifier
+- `party_index: u32` — decrypting party index
+- `dkg_root: [u8; 32]` — merkle root of the DKG transcript (binds sk_agg and esm_agg commitments)
+- `ciphertext_hash: [u8; 32]` — SHA-256 of `(ciphertext_u, ciphertext_v)`
+- `sk_agg_commitment: Commitment` — commitment to the party's aggregated sk share (from DKG)
+- `esm_agg_commitment: Commitment` — commitment to the party's aggregated e_sm share (from DKG)
+- `slot_id: u64` — smudge slot identifier
+- `ciphertext_u: RqPoly` — BFV ciphertext component u (c0)
+- `ciphertext_v: RqPoly` — BFV ciphertext component v (c1)
+- `decrypted_share_bytes: [u8]` — serialized decryption share d_j
+- `epoch: u64` — protocol epoch
+
+**Private witnesses**:
+- `sk_agg_poly: RqPoly` — party's aggregated sk share polynomial
+- `esm_agg_poly: RqPoly` — party's aggregated e_sm share polynomial for `slot_id`
+- `quotient_polys: Vec<RqPoly>` — quotient/reduction polynomials
+- `bound_witness: Vec<RqPoly>` — auxiliary witness material for norm-bound proofs
+
+**Commitment bindings**:
+1. `sk_agg_commitment` opens to `sk_agg_poly` and `‖sk_agg_poly‖_∞ ≤ B_s`.
+2. `esm_agg_commitment` opens to `esm_agg_poly` and `‖esm_agg_poly‖_∞ ≤ B_smudge`.
+3. `dkg_root` commits to a merkle tree that includes both `sk_agg_commitment` and `esm_agg_commitment` for `party_index`.
+4. `ciphertext_hash` matches SHA-256(`ciphertext_u`, `ciphertext_v`).
+5. `decrypted_share_bytes` decodes to a polynomial `d_j` satisfying the RLWE decryption-share relation with the committed witnesses and bounded quotient terms.
+
+**Domain separator**: `"pvthfhe-R-threshold-decrypt-committed-smudge-v1"`
+
+### R3.4.5 — R-decrypt-aggregate-final
+
+**What it proves**: The final plaintext is the correct output of combining at least `threshold_t` valid decryption shares via Lagrange interpolation, CRT reconstruction, and BFV plaintext decoding. The proof establishes that `participant_ids` are all distinct and belong to the accepted participant set (bound via `dkg_root`), that the Lagrange coefficients are correct for the selected indices, that the combined share reconstructs to a valid BFV plaintext under `bfv_params_digest`, and that the decoded message hashes to `expected_plaintext_hash`. This relation corresponds to Interfold C7 (DecryptedSharesAggregation) plus participant-set validity checks.
+
+**Public inputs**:
+- `dkg_root: [u8; 32]` — merkle root of the DKG transcript (binds accepted participant set)
+- `ciphertext_hash: [u8; 32]` — SHA-256 of the ciphertext being decrypted
+- `participant_ids: [u32; threshold_t]` — indices of participants whose shares are included
+- `decrypted_share_commitments: [Commitment; threshold_t]` — per-participant decryption-share commitments
+- `expected_plaintext_hash: [u8; 32]` — SHA-256 of the expected plaintext message
+- `threshold_t: u32` — number of shares required (must be ≥ degree_t + 1)
+- `n_parties: u32` — total number of parties
+- `bfv_params_digest: [u8; 32]` — hash of BFV parameterization (N, q, t_plain)
+
+**Private witnesses**:
+- `lagrange_coefficients: [RqPoly; threshold_t]` — Lagrange basis coefficients at the selected participant indices
+- `decrypted_shares: [RqPoly; threshold_t]` — decrypted share polynomials
+- `crt_quotients: Vec<RqPoly>` — CRT reduction quotients satisfying the RNS-to-plaintext modular equations
+- `plaintext_message: Vec<u8>` — recovered plaintext bytes
+
+**Commitment bindings**:
+1. `participant_ids` are all distinct and each index belongs to the accepted set encoded in `dkg_root`.
+2. For each `i`: `decrypted_share_commitments[i]` opens to `decrypted_shares[i]`.
+3. The Lagrange-combined share `Σ lagrange_coefficients[i] · decrypted_shares[i]` equals the CRT-reconstructed plaintext polynomial under `bfv_params_digest`.
+4. The BFV-decoded message hashes to `expected_plaintext_hash`.
+5. `crt_quotients` satisfy the modular reduction equations for the RNS CRT plaintext space specified by `bfv_params_digest`.
+
+**Domain separator**: `"pvthfhe-R-decrypt-aggregate-final-v1"`
+
+---
+
+## R3.5 — Relation Composition
+
+The five target relations are not independent proofs to be verified in isolation. They compose into an end-to-end transcript by sharing three cross-batch binding anchors: the DKG root, the ciphertext hash, and the smudge slot identifier.
+
+**DKG root** (`dkg_root`). This merkle root is the central binding anchor across all five relations. It is constructed during Batch C (`.sisyphus/plans/interfold-equivalent-pvss.md` §C.3) and commits to the entire public DKG transcript: participant set hash, individual BFV pk commitments, threshold pk contribution commitments, `sk_agg_commits[]`, `esm_agg_commits[]`, smudge-slot policy, and parameter digest. Every relation that references `dkg_root` implicitly checks that the inputs it consumes (commitments, participant sets, aggregated shares) are consistent with this single transcript root.
+
+The composition chain proceeds as follows:
+
+1. **R-share-encrypt-batched-sk-esm** and **R-share-computation-batched-sk-esm** produce per-dealer proofs during the DKG share-publication phase. These proofs reference `session_id` and dealer/recipient indices. Their output commitments (`sk_share_commitment`, `esm_share_commitment`) are independently verifiable at this stage; binding to the transcript root occurs downstream through the aggregation relation.
+
+2. **R-dkg-aggregate-sk-esm** consumes the decrypted share outputs from the share-encryption and share-computation phases. It produces `sk_agg_commitment` and `esm_agg_commitments[]` and anchors them in `dkg_root`. This is the transition point where per-dealer material becomes per-recipient aggregated material bound to the public transcript. After this step, every subsequent relation references `dkg_root` rather than individual dealer commitments.
+
+3. **R-threshold-decrypt-with-committed-smudge** references `dkg_root` to load the party's `sk_agg_commitment` and `esm_agg_commitment`. It also references `ciphertext_hash` to bind the decryption to a specific evaluated ciphertext, and `slot_id` to enforce one-time use of the smudge slot. The verifier checks that the commitments loaded from `dkg_root` match the commitments used in the proof and that the slot has not been consumed previously for the same tuple.
+
+4. **R-decrypt-aggregate-final** references `dkg_root` to validate the accepted participant set and `ciphertext_hash` to ensure all decrypted shares correspond to the same ciphertext. It consumes per-party `decrypted_share_commitments`, each of which binds to an R3.4.4 proof, and verifies the final plaintext recovery against `expected_plaintext_hash`.
+
+**Ciphertext hash** (`ciphertext_hash`). This anchor appears in R3.4.4 and R3.4.5. It is the SHA-256 digest of `(ciphertext_u, ciphertext_v)`. Including it in every per-party decryption proof statement prevents an adversary from presenting valid decryption shares for one ciphertext as if they were shares for another. The aggregator rejects any share whose proof references a different `ciphertext_hash` than the rest of the batch.
+
+**Smudge slot identifier** (`slot_id`). This anchor appears in R3.4.3 and R3.4.4. The DKG transcript pre-allocates a bounded number of smudge slots per recipient, modelled as `esm_agg_commitments[slot]` for `slot` in `0..n_slots`. Each threshold decryption operation consumes exactly one slot. The slot id is bound to `(session_id, epoch, ciphertext_hash, decrypt_round)` so that reusing a slot for a different ciphertext or decrypt round produces a detectably mismatched statement. The aggregator or public verifier enforces slot freshness by maintaining a consumed-slot registry keyed by `(session_id, party_index, slot_id)`.
+
+**End-to-end binding invariant**. An adversary controlling up to `t-1` parties cannot produce a valid end-to-end transcript for a plaintext that differs from the honest decryption result. The DKG root fixes the expected aggregated share commitments for every party. The ciphertext hash fixes the ciphertext being decrypted. The slot id prevents smudge-noise reuse across decryptions. The Lagrange combination in R3.4.5 enforces the threshold requirement. Any deviation in any relation creates a mismatched anchor that the final verifier detects through anchor equality checks.
 
 ---
 

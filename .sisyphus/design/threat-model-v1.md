@@ -1,7 +1,7 @@
 # PVTHFHE Threat Model v1
 
-> **Document version**: 1.0  
-> **Date**: 2026-05-09  
+> **Document version**: 1.1  
+> **Date**: 2026-05-11  
 > **Status**: DRAFT — reflects target Architecture B design intent; current prototype violates most properties (see audit).  
 > **Sources**: [AUDIT-2026-05-08.md](../audit/AUDIT-2026-05-08.md), [assumptions-ledger.md](assumptions-ledger.md), [security-proofs.md](security-proofs.md), [proof-boundary.md](proof-boundary.md), [fold-soundness-budget.md](fold-soundness-budget.md), [noise-budget.md](noise-budget.md), [SECURITY.md](../../SECURITY.md)
 
@@ -54,7 +54,27 @@ This document defines the threat model for the **target Architecture B** of PVTH
 
 - **Permissionless verifier**: Anyone can submit proofs to the on-chain verifier.
 - **Prover may be adversarial**: The aggregator submitting final proofs may collude with corrupted parties.
-- **Gas budget**: On-chain verification must fit within EVM block gas limits.
+  - **Gas budget**: On-chain verification must fit within EVM block gas limits.
+
+### 2.5 Smudging-Noise Specific Threats
+
+The smudging-noise subsystem presents distinct attack surfaces beyond general protocol corruption. These threats arise when a party or aggregator deviates from the committed, shared, and publicly verified smudging-noise material prescribed by the DKG transcript. The following cases are in scope for the Interfold-equivalent PVSS upgrade (plan `interfold-equivalent-pvss`, Batch A.2).
+
+**Case S1: Fresh uncommitted smudging noise.** A decrypting party samples fresh local smudging noise instead of using the committed `e_sm` share produced during DKG. Without the commitment chain, the smudging-noise term is unprovable and the threshold-decryption proof's claim that the partial decryption uses honestly-committed material is falsified. The adversary can trivially supply an unbounded error term to mask a malicious decryption share while claiming honest computation.
+
+*Target accepted behavior:* The decryption-share proof (primary layer D, lattice NIZK) must bind the claimed noise term to a committed `e_sm` share whose commitment is present in the DKG transcript root. Fresh local smudging is rejected at proof-verification time unless run in an explicit legacy/non-equivalent mode. This is enforced by Batch F (committed-smudge decryption relation) of the Interfold-equivalent PVSS plan.
+
+**Case S2: Smudge-slot reuse.** A party reuses the same `e_sm` slot for two distinct ciphertexts or decrypt rounds. Reusing a smudging-noise share creates correlated observations that weaken the LWE-based hiding guarantee, since an adversary sees multiple `(c1, c1·sk_i + e_sm_i)` samples with identical error. Under repeated reuse, the error term can be averaged away, progressively exposing `sk_i`.
+
+*Target accepted behavior:* The session registry (primary layer B, Rust aggregator) must enforce one-time-use semantics for each `(session_id, party_id, slot_id)` tuple. A reused slot causes the decryption share to be rejected before proof generation. This is enforced by Batch C (smudge-slot policy) and Batch F (freshness check) of the Interfold-equivalent PVSS plan.
+
+**Case S3: Cross-session e_sm substitution.** An adversary imports `e_sm` commitments from a different DKG session or attempts to bind an `e_sm` share produced for ciphertext A to a decryption statement for ciphertext B. The commitment appears well-formed in isolation but does not belong to the current session's transcript. The proof verifies locally but resolves to the wrong underlying key material.
+
+*Target accepted behavior:* The decryption proof statement must include or derive the current session's DKG root, and the `e_sm` commitment must be verifiable as a member of that specific DKG transcript. The verifier (primary layer B, Rust aggregator, with public-verifier enforcement at layer C, Solidity) checks DKG root equality between the decryption statement and the stored session anchor. This is enforced by Batch C (transcript root binding) and Batch H (anchor linkage) of the Interfold-equivalent PVSS plan.
+
+**Case S4: DKG anchor cross-session mixing by aggregator.** The aggregator provides a valid-looking decryption proof whose claimed DKG root does not match the session's actual DKG transcript. The proof may be internally consistent (well-formed shares, valid NIZKs, correct aggregation) but is bound to the wrong key material, allowing an aggregator to substitute a weaker or corrupted DKG transcript while presenting a proof that verifies against a different root.
+
+*Target accepted behavior:* The public verifier (primary layer C, Solidity) must reject proofs where the `dkg_root` public input of the decryption proof does not equal the registered DKG root for the claimed session. The aggregator (layer B) also rejects such mismatches during pre-submission checks as secondary defense. This is enforced by Batch H (verifier anchor checks) of the Interfold-equivalent PVSS plan.
 
 ---
 
@@ -85,6 +105,8 @@ Derived from [AUDIT-2026-05-08.md §1.2](../audit/AUDIT-2026-05-08.md).
 | SEC-6 (On-chain O(polylog n)) | **Unverified** | F9, F10, F47–F50 |
 | SEC-7 (Session binding) | **Violated** | F9, F11 |
 | SEC-8 (Liveness) | Demo-only | F38, F41 |
+| SEC-PB-SMUDGE-1 (Committed smudge binding) | **Missing** | Interfold-equivalent PVSS plan Batch F |
+| SEC-PB-SMUDGE-2 (Smudge slot freshness) | **Missing** | Interfold-equivalent PVSS plan Batch C |
 
 ---
 
@@ -231,6 +253,6 @@ From [proof-boundary.md](proof-boundary.md) (frozen Phase 2):
 
 ---
 
-*Document version*: 1.0  
-*Last updated*: 2026-05-09  
+*Document version*: 1.1  
+*Last updated*: 2026-05-11  
 *Next review*: After R2 (Cyclo rebuild) and R3 (NIZK rebuild)

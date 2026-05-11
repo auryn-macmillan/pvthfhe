@@ -1,5 +1,6 @@
 //! Frozen interface types for the P4 Hermine-adapted keygen surface.
 
+use std::collections::HashSet;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// Result alias used by all spec traits.
@@ -139,6 +140,16 @@ impl KeygenSessionSpec for KeygenSession {
     }
 }
 
+impl KeygenSession {
+    /// Current wire version signifying two-track (sk + e_sm) support.
+    pub const CURRENT_WIRE_VERSION: u16 = 2;
+
+    /// Returns true when the session advertises two-track capability.
+    pub fn is_two_track(&self) -> bool {
+        self.wire_version >= Self::CURRENT_WIRE_VERSION
+    }
+}
+
 /// Public commitment to a share or transcript item.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Commitment {
@@ -214,6 +225,104 @@ impl ShareSpec for Share {
     fn from_wire_json(wire_json: &str) -> SpecResult<Self> {
         deserialize_from_json(wire_json)
     }
+}
+
+/// Commitment to a single party's threshold secret-key contribution.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SkContributionCommitment {
+    /// Dealer publishing this contribution.
+    pub dealer_id: u16,
+    /// Session identifier binding this commitment.
+    pub session_id: String,
+    /// Commitment to the dealer's secret-key contribution.
+    pub commitment: Commitment,
+}
+
+/// Commitment to a single party's smudging-noise contribution.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ESmContributionCommitment {
+    /// Dealer publishing this contribution.
+    pub dealer_id: u16,
+    /// Session identifier binding this commitment.
+    pub session_id: String,
+    /// Commitment to the dealer's smudging-noise contribution.
+    pub commitment: Commitment,
+    /// Which smudge slot batch this contribution belongs to.
+    pub slot_index: u16,
+}
+
+/// Commitment to one recipient's sk share from one dealer.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SkShareCommitment {
+    /// Dealer originating this share commitment.
+    pub dealer_id: u16,
+    /// Intended share recipient.
+    pub recipient_id: u16,
+    /// Commitment binding the sk share plaintext.
+    pub commitment: Commitment,
+}
+
+/// Commitment to one recipient's e_sm share from one dealer.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ESmShareCommitment {
+    /// Dealer originating this share commitment.
+    pub dealer_id: u16,
+    /// Intended share recipient.
+    pub recipient_id: u16,
+    /// Commitment binding the e_sm share plaintext.
+    pub commitment: Commitment,
+    /// Which smudge slot batch this share belongs to.
+    pub slot_index: u16,
+}
+
+/// Aggregated secret-key share commitment for one recipient.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AggregatedSkShareCommitment {
+    /// Recipient whose aggregated sk share this commitment binds.
+    pub recipient_id: u16,
+    /// Aggregated commitment for the recipient's sk share.
+    pub commitment: Commitment,
+}
+
+/// Aggregated smudging-noise share commitment for one recipient in one slot.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AggregatedESmShareCommitment {
+    /// Recipient whose aggregated e_sm share this commitment binds.
+    pub recipient_id: u16,
+    /// Which smudge slot batch this commitment is for.
+    pub slot_index: u16,
+    /// Aggregated commitment for the recipient's e_sm share in this slot.
+    pub commitment: Commitment,
+}
+
+/// Identifier for one smudging-noise slot.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SmudgeSlotId {
+    /// Session identifier binding this slot.
+    pub session_id: String,
+    /// Recipient to whom this slot belongs.
+    pub recipient_id: u16,
+    /// Zero-based index within the recipient's slot vector.
+    pub slot_index: u16,
+}
+
+/// Anchor set produced at DKG finalization, binding all commitments.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DkgAnchorSet {
+    /// Session identifier binding this anchor set.
+    pub session_id: String,
+    /// Hash over the ordered participant set.
+    pub participant_set_hash: HexBlob,
+    /// Threshold parameter t.
+    pub threshold: u16,
+    /// Aggregated sk share commitments per recipient.
+    pub sk_agg_commits: Vec<AggregatedSkShareCommitment>,
+    /// Aggregated e_sm share commitments per recipient per slot.
+    pub esm_agg_commits: Vec<AggregatedESmShareCommitment>,
+    /// Commitment to the aggregated threshold public key.
+    pub aggregated_pk_commitment: Commitment,
+    /// Digest over the protocol parameters.
+    pub parameter_digest: HexBlob,
 }
 
 /// Frozen public transcript used for third-party verification.
@@ -463,4 +572,99 @@ impl BfvPublicKeyDerivation for PublicVerificationArtifact {
             },
         })
     }
+}
+
+// ---------------------------------------------------------------------------
+// Smudge-slot policy and registry (Batch C.2)
+// ---------------------------------------------------------------------------
+
+/// Error when a smudge slot has already been consumed.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SmudgeSlotError {
+    /// The requested slot was consumed in a prior operation and is not reusable.
+    SlotAlreadyConsumed {
+        /// Session the slot belongs to.
+        session_id: String,
+        /// Party that owns the slot.
+        party_id: u16,
+        /// Index of the slot within the party's allocation.
+        slot_index: u16,
+    },
+}
+
+impl core::fmt::Display for SmudgeSlotError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::SlotAlreadyConsumed {
+                session_id,
+                party_id,
+                slot_index,
+            } => {
+                write!(
+                    f,
+                    "smudge slot already consumed: session={session_id}, party={party_id}, slot={slot_index}"
+                )
+            }
+        }
+    }
+}
+
+impl std::error::Error for SmudgeSlotError {}
+
+/// Tracks consumed smudge slots to enforce one-time-use.
+///
+/// Keyed by `(session_id, party_id, slot_index)`, stored internally as
+/// `"{session_id}:{party_id}:{slot_index}"`.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct SmudgeSlotRegistry {
+    /// Consumed slots. Each entry: "session_id:party_id:slot_index".
+    consumed: HashSet<String>,
+}
+
+impl SmudgeSlotRegistry {
+    fn slot_key(session_id: &str, party_id: u16, slot_index: u16) -> String {
+        format!("{session_id}:{party_id}:{slot_index}")
+    }
+
+    /// Returns `true` if the slot has NOT been consumed yet.
+    pub fn is_fresh(&self, session_id: &str, party_id: u16, slot_index: u16) -> bool {
+        !self.is_consumed(session_id, party_id, slot_index)
+    }
+
+    /// Returns `true` if the slot has already been consumed.
+    pub fn is_consumed(&self, session_id: &str, party_id: u16, slot_index: u16) -> bool {
+        self.consumed
+            .contains(&Self::slot_key(session_id, party_id, slot_index))
+    }
+
+    /// Mark a slot as consumed. Returns `Err(SmudgeSlotError)` if the slot was
+    /// already consumed.
+    pub fn consume(
+        &mut self,
+        session_id: &str,
+        party_id: u16,
+        slot_index: u16,
+    ) -> Result<(), SmudgeSlotError> {
+        let key = Self::slot_key(session_id, party_id, slot_index);
+        if !self.consumed.insert(key) {
+            return Err(SmudgeSlotError::SlotAlreadyConsumed {
+                session_id: session_id.to_string(),
+                party_id,
+                slot_index,
+            });
+        }
+        Ok(())
+    }
+}
+
+/// Policy governing how many smudge slots each party pre-generates.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SmudgeSlotPolicy {
+    /// Number of smudge slots per party.
+    pub slots_per_party: u16,
+    /// Whether slots are pre-generated during DKG (`true`) or allocated on
+    /// demand (`false`).
+    pub pre_generated: bool,
+    /// Hash of the slot allocation strategy for binding into the DKG root.
+    pub policy_hash: HexBlob,
 }

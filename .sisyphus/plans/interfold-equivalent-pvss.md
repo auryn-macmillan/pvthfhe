@@ -270,9 +270,9 @@ Batch I: Benchmark and security-proof closure
 
 ### C.1 — Extend transcript model with sk/e_sm tracks
 
-- [ ] **Files**: `crates/pvthfhe-keygen-spec/src/lib.rs`, `crates/pvthfhe-types`, wire crates as needed.
-- [ ] **RED**: Serialization roundtrip test for old one-track transcript fails to represent `e_sm` commitments.
-- [ ] **GREEN**: Add two-track structures:
+- [x] **Files**: `crates/pvthfhe-keygen-spec/src/lib.rs`, `crates/pvthfhe-types`, wire crates as needed.
+- [x] **RED**: Serialization roundtrip test for old one-track transcript fails to represent `e_sm` commitments.
+- [x] **GREEN**: Add two-track structures:
   - `SkContributionCommitment`
   - `ESmContributionCommitment`
   - `SkShareCommitment`
@@ -281,17 +281,17 @@ Batch I: Benchmark and security-proof closure
   - `AggregatedESmShareCommitment`
   - `SmudgeSlotId`
   - `DkgAnchorSet`
-- [ ] **GATE**: Wire version bumped or variant-tagged without breaking decode errors.
+- [x] **GATE**: Wire version bumped or variant-tagged without breaking decode errors.
 
 ### C.2 — Add smudge-slot policy
 
-- [ ] **Files**: `crates/pvthfhe-keygen-spec`, `.sisyphus/design/smudging.md`
-- [ ] **Change**: Define one of:
+- [x] **Files**: `crates/pvthfhe-keygen-spec`, `.sisyphus/design/smudging.md`
+- [x] **Change**: Define one of:
   - single-decryption E3 policy: one `e_sm` slot per session/ciphertext;
   - multi-decryption policy: bounded slot vector generated during DKG.
-- [ ] **Recommendation**: Start with bounded slot vector of configurable size, with a strict no-reuse registry.
-- [ ] **RED**: Slot reuse test must fail before implementation.
-- [ ] **GATE**: Slot id is bound to `(session_id, epoch, ciphertext_hash, decrypt_round)` or a documented equivalent.
+- [x] **Recommendation**: Start with bounded slot vector of configurable size, with a strict no-reuse registry.
+- [x] **RED**: Slot reuse test must fail before implementation.
+- [x] **GATE**: Slot id is bound to `(session_id, epoch, ciphertext_hash, decrypt_round)` or a documented equivalent.
 
 ### C.3 — Add transcript root and anchor binding
 

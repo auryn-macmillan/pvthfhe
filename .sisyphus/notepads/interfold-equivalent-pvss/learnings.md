@@ -196,3 +196,68 @@
 - `cargo test -p pvthfhe-fhe --test decrypt_witness_roundtrip`: 2/2 pass
 - `cargo test -p pvthfhe-fhe --lib`: 6/6 pass
 - No regressions in existing tests.
+
+## 2026-05-11 — Batch C.2: Smudge Slot Policy and No-Reuse Registry
+
+### Design decisions
+- `thiserror` is not a dependency of `pvthfhe-keygen-spec` (only `serde` and `serde_json`). Followed MUST NOT rule (no new external deps) and implemented `Display` + `Error` manually for `SmudgeSlotError`, matching the `SpecError` pattern already in the crate.
+- `SmudgeSlotRegistry` uses `std::collections::HashSet<String>` — no external dependency needed. The key format `"{session_id}:{party_id}:{slot_index}"` provides cross-session isolation naturally.
+- `SmudgeSlotPolicy` reuses the existing `HexBlob` type for `policy_hash`, keeping the wire format consistent.
+
+### API design
+- `is_fresh(session_id, party_id, slot_index)` returns `true` if NOT consumed. This is named `is_fresh` (not `is_available`) following the plan spec.
+- `consume()` returns `Result<(), SmudgeSlotError>` — the caller must handle reuse errors explicitly. No silent failures.
+- `smudgeSlotRegistry::Default` produces an empty registry (no consumed slots). Matches the plan spec's `#[derive(Default)]`.
+
+### Pre-existing test conflict
+- `two_track_transcript_roundtrip.rs` (from Batch C.1) references types not yet implemented (`DkgAnchorSet`, `SkContributionCommitment`, etc.). This is a pre-existing RED test from a different batch and is not affected by C.2 changes. C.2 tests are fully self-contained.
+
+### Test borrow fix
+- Used `match &err` (reference match) instead of `match err` to avoid partial move of `session_id` when also calling `err.to_string()`. This is a standard Rust pattern for inspecting error fields while retaining ownership.
+
+### Documentation
+- Added §9 "Slot Policy" to `smudging.md` covering: bounded slot vector model, default config (`slots_per_party=16`), no-reuse registry design, and slot ID binding tuple `(session_id, epoch, ciphertext_hash, decrypt_round)`.
+- The default recommendation of 16 slots per party balances typical use cases with DKG transcript size.
+
+### Verification
+- `cargo build -p pvthfhe-keygen-spec`: clean (zero warnings, previously had 3 missing-docs warnings now fixed with docstrings on variant fields)
+- `cargo test -p pvthfhe-keygen-spec --test smudge_slot_reuse_fails`: 9/9 pass
+- `cargo test -p pvthfhe-keygen-spec --test kat_roundtrip`: 1/1 pass (no regressions)
+- LSP diagnostics: zero errors
+
+### Files modified
+- `crates/pvthfhe-keygen-spec/src/lib.rs`: added `SmudgeSlotError`, `SmudgeSlotRegistry`, `SmudgeSlotPolicy` (~100 lines appended)
+- `.sisyphus/design/smudging.md`: added §9 Slot Policy (~70 lines)
+
+### Files created
+- `crates/pvthfhe-keygen-spec/tests/smudge_slot_reuse_fails.rs`: 9 tests (all GREEN)
+
+## 2026-05-11 — Batch C.1: Two-Track DKG Transcript Model
+
+### RED→GREEN flow
+- RED: `two_track_transcript_roundtrip.rs` failed to compile — 8 unresolved imports for types that didn't exist yet (`SkContributionCommitment`, `ESmContributionCommitment`, `SkShareCommitment`, `ESmShareCommitment`, `AggregatedSkShareCommitment`, `AggregatedESmShareCommitment`, `SmudgeSlotId`, `DkgAnchorSet`).
+- GREEN: All 11 tests pass after adding types and wire version constant.
+
+### Type placement
+- New types inserted between `ShareSpec` impl block (line 217) and `PublicVerificationArtifact` (line 290), as specified in the plan.
+- All types follow the existing derive pattern: `#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]`.
+- All fields have `///` doc comments matching the convention used by every struct in the file (KeygenSession, Commitment, Share, etc.).
+
+### Wire version bump
+- Added `KeygenSession::CURRENT_WIRE_VERSION = 2` const and `is_two_track()` helper method in an `impl KeygenSession` block (after the `KeygenSessionSpec` trait impl).
+- `wire_version` is a caller-set field (no default), so the constant serves as the canonical "two-track" marker.
+- Backward compatibility: deserialization of v1 sessions works unchanged — the `wire_version` field carries through serde naturally.
+
+### Pre-existing C.2 conflict resolved
+- The notepad previously noted a "pre-existing test conflict" where C.2's `smudge_slot_reuse_fails.rs` tests existed alongside C.1 types that hadn't been implemented yet. This is now resolved: all 9 C.2 tests + 11 C.1 tests + 1 KAT test = 21 total, all passing.
+
+### Verification
+- `cargo build -p pvthfhe-keygen-spec`: clean (zero warnings)
+- `cargo test -p pvthfhe-keygen-spec`: 21/21 pass (1 KAT + 9 smudge_slot + 11 two_track)
+- LSP diagnostics: zero errors across all modified files
+
+### Files modified
+- `crates/pvthfhe-keygen-spec/src/lib.rs`: added 8 new structs + `KeygenSession` const/helper (~120 lines added)
+
+### Files created
+- `crates/pvthfhe-keygen-spec/tests/two_track_transcript_roundtrip.rs`: 11 tests (all GREEN)

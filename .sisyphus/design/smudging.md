@@ -426,3 +426,77 @@ At decryption time:
 
 The committed path is the foundation for Batch F (C6-equivalent threshold
 decryption proof) in the Interfold-equivalence plan.
+
+## 9. Slot Policy
+
+### 9.1 Bounded slot vector model
+
+PVTHFHE adopts a bounded slot vector model for smudging-noise management. Each party
+pre-generates a fixed number of `e_sm` noise slots during DKG (or allocates them on
+demand, depending on policy). A slot is consumed when it is used in a threshold
+decryption share. Once consumed, the slot cannot be reused.
+
+The motivation is twofold:
+
+1. **Interfold equivalence**: Interfold circuit C6 (`ThresholdShareDecryption`)
+   commits each party's aggregated `e_sm` share as first-class DKG material. A party
+   that reuses the same smudging noise across multiple ciphertexts breaks the
+   commitment binding and weakens the security guarantee. PVTHFHE enforces one-time
+   use at the registry level.
+
+2. **Defense-in-depth**: Even in the honest-but-curious model, slot reuse creates
+   additional LWE samples with the same noise term, potentially aiding key-recovery
+   attacks. The no-reuse policy eliminates this attack surface.
+
+### 9.2 Default configuration
+
+The recommended starting configuration is `slots_per_party = 16`. This provides
+enough slots for typical threshold use cases (a handful of ciphertexts per session)
+while keeping DKG transcript size manageable. For applications that decrypt many
+ciphertexts per session, the policy can be adjusted upward.
+
+| Policy parameter | Default | Rationale |
+|---|---|---|
+| `slots_per_party` | 16 | Covers typical use cases (up to 16 ciphertexts/session) without bloating DKG size |
+| `pre_generated` | `true` | Pre-generation during DKG matches Interfold's two-track transcript model and enables batch verification of slot commitments |
+| `policy_hash` | Config-dependent | Bound into DKG root so verifiers can confirm the expected slot policy |
+
+On-demand allocation (`pre_generated = false`) is supported as an alternative mode
+but does not provide the same Interfold-equivalent guarantee unless accompanied by a
+distribution/freshness proof for each allocated slot.
+
+### 9.3 No-reuse registry
+
+The `SmudgeSlotRegistry` (in `crates/pvthfhe-keygen-spec/src/lib.rs`) enforces
+one-time slot consumption with a strict no-reuse policy. It tracks consumed slots in
+a `HashSet` keyed by `(session_id, party_id, slot_index)`.
+
+Key properties:
+
+- **Cross-session isolation**: slots from different sessions never collide because
+  the key includes `session_id`.
+- **Idempotent check**: `is_consumed()` and `is_fresh()` return consistent results
+  without side effects.
+- **Hard error on reuse**: `consume()` returns `Err(SmudgeSlotError)` if the slot
+  was already consumed, preventing silent failures.
+
+### 9.4 Slot ID binding
+
+A slot is bound to a specific decryption operation by the tuple:
+
+```text
+(session_id, epoch, ciphertext_hash, decrypt_round)
+```
+
+Where:
+
+- `session_id` identifies the DKG session that generated the slot.
+- `epoch` is the sequence number for replay protection.
+- `ciphertext_hash` is a cryptographic hash of the ciphertext being decrypted.
+- `decrypt_round` is an integer distinguishing multiple decryption rounds within the
+  same session (e.g., round 0 for the first ciphertext, round 1 for the second).
+
+This binding ensures that a slot consumed for one ciphertext cannot be replayed for
+a different ciphertext, even within the same session. The `SmudgeSlotPolicy` type
+carries a `policy_hash` that binds the slot allocation strategy into the DKG
+transcript root, making the policy itself publicly verifiable.

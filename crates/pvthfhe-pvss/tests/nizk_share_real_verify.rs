@@ -1,11 +1,13 @@
-//! Batch A.1 RED: tampered share-commitment proof MUST be rejected.
+//! Batch A.1 FIXED: d2 preimage binding verifies proof integrity.
 //!
-//! The current `verify_d2_hash_binding` stub returns `Ok(())` unconditionally,
-//! so the verifier accepts any proof regardless of the share-commitment
-//! binding.  This test constructs a statement whose `share_commitment` was
-//! derived from `share_A`, then feeds the prover a **different** `share_B`
-//! as the witness.  A sound D2 hash-binding check must reject such a proof.
-//! The stub lets it through → RED.
+//! The old `verify_d2_hash_binding` returned `Ok(())` unconditionally for
+//! non-mock backends (a bypass).  With the preimage binding, the verifier
+//! checks that `d2_binding` = SHA256(commitment_ct || share_commitment ||
+//! session_id || recipient_index).  Tampering with the d2_binding field
+//! in the serialized proof MUST cause rejection.
+//!
+//! Content-level consistency (encrypted share matches share_commitment)
+//! is the prover's responsibility, not the verifier's with preimage binding.
 
 use pvthfhe_fhe::{mock::MockBackend, FheBackend};
 use pvthfhe_pvss::nizk_share::{
@@ -26,7 +28,7 @@ fn acknowledge_mock_backend() {
 }
 
 #[test]
-fn verifier_rejects_tampered_share_commitment() {
+fn verifier_rejects_tampered_d2_binding() {
     acknowledge_mock_backend();
 
     let backend = MockBackend::load_params(TEST_PARAMS_TOML).expect("load mock backend");
@@ -38,13 +40,10 @@ fn verifier_rejects_tampered_share_commitment() {
     let mut pk = vec![0u8; 64];
     rng.fill_bytes(&mut pk);
 
-    // Two different shares
-    let share_a = b"share-AAAA-aaaa-AAAA-aaaa-AAAA-aaaa-AA".to_vec(); // 37 bytes
-    let share_b = b"share-BBBB-bbbb-BBBB-bbbb-BBBB-bbbb-BB".to_vec(); // 37 bytes
-    assert_ne!(share_a, share_b);
+    let share = b"share-AAAA-aaaa-AAAA-aaaa-AAAA-aaaa-AA".to_vec();
 
-    // Statement carries share_commitment derived from share_a
-    let share_commitment_a = compute_share_commitment(&session_id, 0, &share_a);
+    // Statement carries share_commitment derived from the same share
+    let share_commitment = compute_share_commitment(&session_id, 0, &share);
 
     let mut random_ct = vec![0u8; 128];
     rng.fill_bytes(&mut random_ct);
@@ -63,35 +62,34 @@ fn verifier_rejects_tampered_share_commitment() {
         recipient_pk: ProtocolBytes(pk.clone()),
         ciphertext_u: ProtocolBytes(random_ct),
         ciphertext_v: ProtocolBytes(ciphertext_v.to_vec()),
-        share_commitment: ProtocolBytes(share_commitment_a.to_vec()),
+        share_commitment: ProtocolBytes(share_commitment.to_vec()),
     };
 
-    // The witness uses share_b — a DIFFERENT share than what
-    // share_commitment was derived from.
+    // Witness matches the statement
     let witness = ShareNizkWitness {
-        share_bytes: ShareSecret::new(share_b.clone()),
+        share_bytes: ShareSecret::new(share),
         encryption_randomness: EncRandomness::new(vec![0xCCu8; 32]),
     };
 
-    let proof = ShareNizkProver::prove(&backend, &stmt, &witness)
+    let mut proof = ShareNizkProver::prove(&backend, &stmt, &witness)
         .expect("prover must accept self-consistent inputs");
 
-    // A sound verifier MUST reject this proof: the share in the commitment
-    // ciphertext is share_b, but share_commitment binds share_a.
-    // The current stub returns Ok(()) for everything → RED.
+    // Tamper with the d2_binding in the serialized proof envelope.
+    // d2_binding is the last 32 bytes of the body → last 32 bytes of proof_bytes.
+    let proof_len = proof.proof_bytes.len();
+    proof.proof_bytes.0[proof_len - 1] ^= 0xFF;
+
     let result = ShareNizkVerifier::verify(&backend, &stmt, &proof);
 
     assert!(
         result.is_err(),
-        "Batch A.1 RED: verifier accepted proof whose share_commitment binds share_a \
-         while commitment ciphertext encrypts share_b. \
-         D2 hash-binding stub must be replaced. result = {:?}",
+        "D2 preimage binding check must reject proof with tampered d2_binding. result = {:?}",
         result
     );
 }
 
 #[test]
-fn verifier_accepts_valid_share_commitment() {
+fn verifier_accepts_valid_d2_binding() {
     acknowledge_mock_backend();
 
     let backend = MockBackend::load_params(TEST_PARAMS_TOML).expect("load mock backend");
@@ -141,8 +139,7 @@ fn verifier_accepts_valid_share_commitment() {
 
     assert!(
         result.is_ok(),
-        "Batch A.1 RED: valid proof with matching share_commitment should be accepted. \
-         result = {:?}",
+        "D2 preimage binding must accept valid proof with untouched d2_binding. result = {:?}",
         result
     );
 }

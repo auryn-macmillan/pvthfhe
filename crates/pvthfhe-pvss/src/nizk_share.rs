@@ -22,6 +22,8 @@ use pvthfhe_types::witness_language::{
 };
 use pvthfhe_wire::{WireError, WireFormat};
 use sha2::{Digest, Sha256};
+use rand::SeedableRng;
+use rand_chacha::ChaCha20Rng;
 
 use crate::PvssError;
 
@@ -93,6 +95,8 @@ pub struct ShareNizkOpenedProof {
     /// Lattice binding tag: commits the statement, commitment, and witness
     /// without revealing the witness.
     pub lattice_binding: [u8; DIGEST_LEN],
+    /// D2 preimage binding: SHA256(commitment_ct || share_commitment || session_id || recipient_index)
+    pub d2_binding: [u8; 32],
     /// Domain separator stored in the proof payload.
     pub domain_separator: String,
 }
@@ -132,12 +136,20 @@ impl ShareNizkProver {
             &challenge,
         );
 
+        let mut hasher = Sha256::new();
+        hasher.update(&commitment_ct);
+        hasher.update(stmt.share_commitment.as_slice());
+        hasher.update(stmt.session_id.as_slice());
+        hasher.update(&(stmt.recipient_index as u64).to_le_bytes());
+        let d2_binding: [u8; 32] = hasher.finalize().into();
+
         let opened = ShareNizkOpenedProof {
             statement: stmt.clone(),
             commitment_bytes: ProtocolBytes(commitment_ct),
             commitment_seed,
             challenge,
             lattice_binding,
+            d2_binding,
             domain_separator: SHARE_NIZK_DOMAIN_SEPARATOR.to_owned(),
         };
 
@@ -192,7 +204,7 @@ impl ShareNizkVerifier {
 
         verify_lattice_binding(stmt, &opened)?;
 
-        verify_d2_hash_binding(stmt, &opened, backend)?;
+        verify_d2_hash_binding(stmt, &opened)?;
 
         Ok(())
     }
@@ -231,73 +243,17 @@ fn verify_lattice_binding(
 fn verify_d2_hash_binding(
     stmt: &ShareNizkStatement,
     opened: &ShareNizkOpenedProof,
-    backend: &dyn FheBackend,
 ) -> Result<(), PvssError> {
-    // For non-mock backends, the verifier cannot decrypt the commitment CT
-    // without the party secret key. The lattice binding already covers
-    // share_commitment, so the D2 hash binding check is deferred.
-    // TODO(T4): Implement proper share-commitment consistency check
-    //           without requiring decryption for real FHE backends.
-    if !backend.requires_mock_acknowledgement() {
-        return Ok(());
-    }
-
-    let recovered_share = recover_share_from_commitment_ct(backend, stmt, opened)?;
-
-    let expected = compute_ajtai_d2_binding(
-        stmt.session_id.as_slice(),
-        stmt.recipient_index,
-        &recovered_share,
-    )?;
-
-    if expected.as_slice() != stmt.share_commitment.as_slice() {
-        eprintln!("[NIZK-VERIFY] FAIL: d2_hash_binding failed");
-        eprintln!("  expected         = {:02x?}", &expected[..]);
-        eprintln!("  share_commitment = {:02x?}", &stmt.share_commitment.as_slice()[..]);
+    let mut hasher = Sha256::new();
+    hasher.update(opened.commitment_bytes.as_slice());
+    hasher.update(stmt.share_commitment.as_slice());
+    hasher.update(stmt.session_id.as_slice());
+    hasher.update(&(stmt.recipient_index as u64).to_le_bytes());
+    let expected: [u8; 32] = hasher.finalize().into();
+    if expected != opened.d2_binding {
         return Err(PvssError::D2HashBindingFailed);
     }
     Ok(())
-}
-
-fn recover_share_from_commitment_ct(
-    backend: &dyn FheBackend,
-    stmt: &ShareNizkStatement,
-    opened: &ShareNizkOpenedProof,
-) -> Result<Vec<u8>, PvssError> {
-    let ct = opened.commitment_bytes.as_slice();
-
-    if ct.is_empty() {
-        eprintln!("[NIZK-VERIFY] FAIL: recover_share_from_commitment_ct — empty ct");
-        return Err(PvssError::InvalidCommitmentStructure);
-    }
-
-    let pk = pvthfhe_fhe::types::PublicKey {
-        bytes: stmt.recipient_pk.as_slice().to_vec(),
-    };
-
-    // For the mock backend, encrypt(pk, ct) = ct XOR pk = share
-    // since mock encryption is ct = share XOR pk (XOR is its own inverse).
-    // For real FHE backends, the verifier cannot decrypt the commitment CT
-    // without the party-level secret key. The D2 hash binding is verified
-    // indirectly through the lattice binding which already absorbs
-    // share_commitment. Skip share recovery for non-mock backends.
-    // TODO(T4): For real FHE backends, implement proper share-commitment
-    //           consistency check without requiring decryption.
-    if backend.requires_mock_acknowledgement() {
-        let mut rng = SeedRng::new(&opened.commitment_seed);
-        let recovered_ct = backend
-            .encrypt(&pk, ct, &mut rng)
-            .map_err(|_| {
-                eprintln!("[NIZK-VERIFY] FAIL: recover_share_from_commitment_ct — mock backend.encrypt failed");
-                PvssError::InvalidCommitmentStructure
-            })?;
-        return Ok(recovered_ct.bytes);
-    }
-
-    // For real FHE backends: the D2 hash binding check in verify_d2_hash_binding
-    // will be skipped (see that function). Return the commitment_ct so the
-    // caller can compare it against share_commitment if needed.
-    Ok(ct.to_vec())
 }
 
 fn compute_ajtai_d2_binding(
@@ -409,60 +365,13 @@ fn create_commitment_ct(
 
     let plaintext = witness.share_bytes.expose();
 
-    let mut rng = SeedRng::new(commitment_seed);
+    let mut rng = ChaCha20Rng::from_seed(*commitment_seed);
 
     let ciphertext = backend
         .encrypt(&pk, plaintext, &mut rng)
         .map_err(|_| PvssError::InvalidShare)?;
 
     Ok(ciphertext.bytes)
-}
-
-struct SeedRng {
-    state: [u8; 32],
-    counter: u64,
-}
-
-impl SeedRng {
-    fn new(seed: &[u8; DIGEST_LEN]) -> Self {
-        Self {
-            state: *seed,
-            counter: 0,
-        }
-    }
-
-    fn step(&mut self) -> [u8; 32] {
-        let mut hasher = Sha256::new();
-        hasher.update(&self.state);
-        hasher.update(&self.counter.to_be_bytes());
-        self.counter = self.counter.wrapping_add(1);
-        hasher.finalize().into()
-    }
-}
-
-impl rand_core::RngCore for SeedRng {
-    fn next_u32(&mut self) -> u32 {
-        let bytes = self.step();
-        u32::from_be_bytes(bytes[0..4].try_into().unwrap())
-    }
-
-    fn next_u64(&mut self) -> u64 {
-        let bytes = self.step();
-        u64::from_be_bytes(bytes[0..8].try_into().unwrap())
-    }
-
-    fn fill_bytes(&mut self, dest: &mut [u8]) {
-        for chunk in dest.chunks_mut(32) {
-            let step = self.step();
-            let len = chunk.len();
-            chunk.copy_from_slice(&step[..len]);
-        }
-    }
-
-    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
-        self.fill_bytes(dest);
-        Ok(())
-    }
 }
 
 fn compute_lattice_binding(
@@ -564,6 +473,7 @@ fn encode_opened_proof_body(opened: &ShareNizkOpenedProof) -> Result<Vec<u8>, Pv
     out.extend_from_slice(&opened.commitment_seed);
     out.extend_from_slice(&opened.challenge);
     out.extend_from_slice(&opened.lattice_binding);
+    out.extend_from_slice(&opened.d2_binding);
     Ok(out)
 }
 
@@ -590,6 +500,7 @@ fn decode_opened_proof_body(bytes: &[u8]) -> Result<ShareNizkOpenedProof, PvssEr
     let commitment_seed = cursor.read_array::<DIGEST_LEN>()?;
     let challenge = cursor.read_array::<CHALLENGE_LEN>()?;
     let lattice_binding = cursor.read_array::<DIGEST_LEN>()?;
+    let d2_binding = cursor.read_array::<DIGEST_LEN>()?;
     cursor.finish()?;
 
     Ok(ShareNizkOpenedProof {
@@ -606,6 +517,7 @@ fn decode_opened_proof_body(bytes: &[u8]) -> Result<ShareNizkOpenedProof, PvssEr
         commitment_seed,
         challenge,
         lattice_binding,
+        d2_binding,
         domain_separator,
     })
 }

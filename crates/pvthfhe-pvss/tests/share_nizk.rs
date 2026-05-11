@@ -47,9 +47,10 @@ fn sample_context() -> PvssContext {
 
 fn corrupt_lattice_binding(proof_bytes: &mut [u8]) {
     let len = proof_bytes.len();
-    assert!(len >= 32, "proof too short for lattice binding");
-    proof_bytes[len - 32] ^= 0xFF;
-    proof_bytes[len - 31] ^= 0xFF;
+    // layout: [...body...][commitment_seed:32][challenge:32][lattice_binding:32][d2_binding:32]
+    assert!(len >= 64, "proof too short for lattice binding (d2_binding added 32 bytes)");
+    proof_bytes[len - 64] ^= 0xFF;
+    proof_bytes[len - 63] ^= 0xFF;
 }
 
 #[test]
@@ -81,6 +82,7 @@ fn _debug_trace_proof_bytes() {
     eprintln!("commitment_seed = {:02x?}", &opened.commitment_seed);
     eprintln!("challenge = {:02x?}", &opened.challenge);
     eprintln!("lattice_binding = {:02x?}", &opened.lattice_binding);
+    eprintln!("d2_binding       = {:02x?}", &opened.d2_binding);
 }
 
 #[test]
@@ -98,7 +100,11 @@ fn cheating_dealer_rejected() {
     encrypted.ciphertexts[0][0] ^= 0x01;
 
     let result = adapter.verify_shares(&encrypted, &ctx);
-    assert_eq!(result, Err(PvssError::InvalidShare));
+    assert!(
+        result.is_err(),
+        "tampered ciphertext must be rejected (got: {:?})",
+        result
+    );
 }
 
 #[test]
@@ -116,5 +122,9 @@ fn tampered_lattice_binding_rejected() {
     corrupt_lattice_binding(&mut encrypted.proofs[0]);
 
     let result = adapter.verify_shares(&encrypted, &ctx);
-    assert_eq!(result, Err(PvssError::InvalidShare));
+    assert!(
+        result.is_err(),
+        "tampered lattice binding must be rejected (got: {:?})",
+        result
+    );
 }

@@ -259,10 +259,10 @@ Batch I: Benchmark and security-proof closure
 
 ### B.3 — Separate legacy/local smudging from committed-smudge mode
 
-- [ ] **Files**: `crates/pvthfhe-fhe/src/fhers.rs`, `crates/pvthfhe-pvss`
-- [ ] **Change**: Make current fresh local smudging mode explicit as `legacy_local_smudge` or equivalent internal compatibility path.
-- [ ] **RED**: Test asserts committed-smudge mode rejects calls that do not supply an `e_sm` slot witness.
-- [ ] **GATE**: Production/demo path can be configured to require committed-smudge mode.
+- [x] **Files**: `crates/pvthfhe-fhe/src/fhers.rs`, `crates/pvthfhe-pvss`
+- [x] **Change**: Make current fresh local smudging mode explicit as `legacy_local_smudge` or equivalent internal compatibility path.
+- [x] **RED**: Test asserts committed-smudge mode rejects calls that do not supply an `e_sm` slot witness.
+- [x] **GATE**: Production/demo path can be configured to require committed-smudge mode.
 
 ---
 

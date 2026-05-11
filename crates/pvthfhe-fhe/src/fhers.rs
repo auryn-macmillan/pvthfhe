@@ -841,6 +841,138 @@ impl FheBackend for FhersBackend {
         ))
     }
 
+    fn partial_decrypt_committed_smudge(
+        &self,
+        ct: &Ciphertext,
+        party_id: u32,
+        esm_noise_poly_bytes: &[u8],
+        _rng: &mut dyn RngCore,
+    ) -> Result<DecryptShare, FheError> {
+        if esm_noise_poly_bytes.is_empty() {
+            return Err(FheError::Backend {
+                reason: "esm_noise_poly_bytes is empty".into(),
+            });
+        }
+
+        let (n, t) = self.threshold_params()?;
+        let ct_bfv = BfvCiphertext::from_bytes(&ct.bytes, &self.bfv_params)
+            .map_err(|_| FheError::MalformedCiphertext)?;
+
+        let mut d_share_poly =
+            self.decryption_share_poly_from_coeffs(Arc::new(ct_bfv.clone()), party_id, n, t)?;
+
+        // Deserialize the committed smudge poly instead of sampling fresh noise.
+        let ctx = self
+            .bfv_params
+            .ctx_at_level(0)
+            .map_err(|err| FheError::Backend {
+                reason: err.to_string(),
+            })?;
+        let esm_noise_poly =
+            Poly::from_bytes(esm_noise_poly_bytes, &ctx).map_err(|err| FheError::Backend {
+                reason: format!("failed to deserialize esm_noise_poly: {err}"),
+            })?;
+
+        d_share_poly += &esm_noise_poly;
+        let poly_bytes = d_share_poly.to_bytes();
+
+        Ok(DecryptShare {
+            party_id,
+            bytes: ProtocolBytes(wire::encode_decrypt_share(&poly_bytes)),
+        })
+    }
+
+    fn partial_decrypt_committed_smudge_with_witness(
+        &self,
+        ct: &Ciphertext,
+        party_id: u32,
+        esm_noise_poly_bytes: &[u8],
+        _rng: &mut dyn RngCore,
+    ) -> Result<(DecryptShare, DecryptionWitness), FheError> {
+        if esm_noise_poly_bytes.is_empty() {
+            return Err(FheError::Backend {
+                reason: "esm_noise_poly_bytes is empty".into(),
+            });
+        }
+
+        let (n, t) = self.threshold_params()?;
+        let ct_bfv = BfvCiphertext::from_bytes(&ct.bytes, &self.bfv_params)
+            .map_err(|_| FheError::MalformedCiphertext)?;
+
+        // Extract ciphertext component polynomial bytes.
+        let ct0_poly_bytes = ct_bfv.c[0].to_bytes();
+        let ct1_poly_bytes = ct_bfv.c[1].to_bytes();
+
+        // Retrieve the aggregated secret-key share polynomial from party state.
+        let (sk_poly_sum_coeffs, sk_poly_sum_poly, esi_poly_sum) =
+            self.party_state_data(party_id)?;
+        let share_manager =
+            ShareManager::new(n, self.shamir_threshold(n, t), self.bfv_params.clone());
+
+        let sk_poly = match sk_poly_sum_poly {
+            Some(poly) => poly,
+            None => share_manager
+                .coeffs_to_poly_level0(&sk_poly_sum_coeffs)
+                .map_err(|err| FheError::Backend {
+                    reason: err.to_string(),
+                })?
+                .as_ref()
+                .clone(),
+        };
+        let sk_agg_poly_bytes = sk_poly.to_bytes();
+
+        let esi_poly = match esi_poly_sum.first() {
+            Some(poly) => poly.clone(),
+            None => self.zero_poly_level0()?,
+        };
+
+        // Pre-smudge decryption share (before adding committed esm noise).
+        let pre_smudge_d_share = share_manager
+            .decryption_share(Arc::new(ct_bfv.clone()), sk_poly, esi_poly)
+            .map_err(|err| FheError::Backend {
+                reason: err.to_string(),
+            })?;
+
+        // Deserialize the committed smudge poly instead of sampling fresh noise.
+        let ctx = self
+            .bfv_params
+            .ctx_at_level(0)
+            .map_err(|err| FheError::Backend {
+                reason: err.to_string(),
+            })?;
+        let esm_noise_poly =
+            Poly::from_bytes(esm_noise_poly_bytes, &ctx).map_err(|err| FheError::Backend {
+                reason: format!("failed to deserialize esm_noise_poly: {err}"),
+            })?;
+
+        // Record the committed esm bytes (exactly as provided).
+        let esm_noise_poly_bytes_clone = esm_noise_poly_bytes.to_vec();
+
+        let mut d_share_poly = pre_smudge_d_share;
+        d_share_poly += &esm_noise_poly;
+        let d_share_poly_bytes = d_share_poly.to_bytes();
+        let wire_bytes = wire::encode_decrypt_share(&d_share_poly_bytes);
+
+        let witness = DecryptionWitness {
+            ct0_poly_bytes,
+            ct1_poly_bytes,
+            sk_agg_poly_bytes,
+            esm_noise_poly_bytes: esm_noise_poly_bytes_clone,
+            quotient_poly_bytes: Vec::new(),
+            d_share_poly_bytes,
+            decrypted_share_bytes: wire_bytes.clone(),
+            esm_committed: true,
+        };
+
+        Ok((
+            DecryptShare {
+                party_id,
+                bytes: ProtocolBytes(wire_bytes),
+            },
+            witness,
+        ))
+    }
+
     fn aggregate_decrypt(
         &self,
         ct: &Ciphertext,

@@ -147,3 +147,52 @@
 
 ### Files created
 - `crates/pvthfhe-fhe/tests/decrypt_witness_roundtrip.rs`: 2 tests (GREEN)
+
+## 2026-05-11 — Batch B.3: Committed-Smudge Mode
+
+### Implementation approach
+- Added two new trait methods to `FheBackend`:
+  - `partial_decrypt_committed_smudge(ct, party_id, esm_noise_poly_bytes, rng)` — uses committed esm instead of sampling fresh noise
+  - `partial_decrypt_committed_smudge_with_witness(...)` — returns `(DecryptShare, DecryptionWitness)` with `esm_committed: true`
+- Default impl returns `Err(FheError::Backend { reason: "not implemented" })` for both, matching the pattern of `encrypt_with_witness` and `partial_decrypt_with_witness`.
+- Mock backend (`MockBackendInner`) inherits the defaults — no changes needed.
+
+### FhersBackend implementation
+- Key difference from `partial_decrypt`: instead of sampling N=8192 fresh Gaussian coefficients with σ=3.506e12, the committed path deserializes `esm_noise_poly_bytes` into a `Poly` via `Poly::from_bytes(&esm_noise_poly_bytes, &ctx)` and adds it to the decryption share.
+- The `_rng` parameter is accepted but unused (prefixed with `_`) — the committed path does NOT sample fresh noise.
+- Empty `esm_noise_poly_bytes` is rejected with `FheError::Backend { reason: "esm_noise_poly_bytes is empty" }`.
+- Garbage/invalid bytes cause `Poly::from_bytes` to fail, which is propagated as a `Backend` error.
+- Both implementations mirror the internal logic of `partial_decrypt_with_witness`: they replay the `ShareManager::decryption_share` call inline to capture intermediate values.
+
+### Witness faithful recording
+- The committed-smudge witness records `esm_committed: true` and the exact `esm_noise_poly_bytes` provided (cloned from the input).
+- This enables external mismatch detection: if a verifier expects `esm_A` but the witness contains `esm_B`, the mismatch is detectable by byte comparison.
+
+### Existing methods unchanged
+- `partial_decrypt` and `partial_decrypt_with_witness` are completely untouched.
+- The fresh-local smudging path continues to work exactly as before.
+
+### RED→GREEN flow
+- RED phase 1: test failed to compile (no trait methods) — 8 compile errors.
+- RED phase 2: test compiled but 6/7 failed at runtime ("not implemented").
+- RED phase 2.5: `committed_smudge_rejects_garbage_esm_bytes` passed at RED phase 2 because the default impl returns an error regardless. This is acceptable — the test exercises both the "not implemented" error (RED) and the real deserialization error (GREEN).
+- GREEN: all 7 tests pass after implementation in FhersBackend.
+
+### Pre-existing test failure
+- `fhers_aggregate_decrypt_happy_path` in `tests/fhers_aggregate_decrypt.rs` fails with "decoded plaintext length exceeds max" — this is pre-existing and unrelated to B.3 changes.
+
+### Files modified
+- `crates/pvthfhe-fhe/src/lib.rs`: added 2 trait methods with docstrings
+- `crates/pvthfhe-fhe/src/fhers.rs`: added 2 method implementations (~115 lines)
+- `SECURITY.md`: expanded Smudging section with mode comparison table
+- `.sisyphus/design/smudging.md`: added §8 documenting legacy vs committed modes
+
+### Files created
+- `crates/pvthfhe-fhe/tests/committed_smudge_requires_esm.rs`: 7 tests (all GREEN)
+
+### Verification
+- `cargo build -p pvthfhe-fhe`: clean (pre-existing warning only)
+- `cargo test -p pvthfhe-fhe --test committed_smudge_requires_esm`: 7/7 pass
+- `cargo test -p pvthfhe-fhe --test decrypt_witness_roundtrip`: 2/2 pass
+- `cargo test -p pvthfhe-fhe --lib`: 6/6 pass
+- No regressions in existing tests.

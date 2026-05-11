@@ -55,6 +55,34 @@ To prevent leakage from decryption shares, we use a conservative smudging parame
 $\sigma_{\text{smudge}} = 2^{40} \cdot \sigma_{\text{err}}$.
 This provides $> 100$ bits of statistical security against noise-based leakage, assuming the noise budget is sufficient (validated for $N=8192$).
 
+### Smudging Modes
+
+PVTHFHE supports two distinct smudging modes with different security guarantees:
+
+| Mode | API | Noise source | Interfold-equivalent |
+|------|-----|-------------|---------------------|
+| `legacy_local_smudge` | `FheBackend::partial_decrypt` | Fresh Gaussian sampled per-decryption via local RNG | **No** — smudging noise is not committed, shared, or proved. |
+| `committed_smudge_pvss` | `FheBackend::partial_decrypt_committed_smudge` | Committed `e_sm` polynomial from DKG transcript | **Yes** — matches Interfold C6 (`ThresholdShareDecryption`). |
+
+**`legacy_local_smudge`** (default): Each party samples fresh Gaussian smudging noise
+locally during `partial_decrypt`. The noise provides honest-but-curious LWE-based
+hiding (prevents secret-key recovery from observed partial decryption shares), but
+is NOT equivalent to the Interfold's guaranteed surface because the noise is not a
+committed, shared PVSS object. This mode is maintained for backward compatibility
+and testing.
+
+**`committed_smudge_pvss`** (Interfold-equivalent): The smudging noise polynomial
+`e_sm` is a first-class committed, shared, and proved PVSS object produced during
+DKG (batch C in the Interfold-equivalence plan). At decryption time, the backend
+adds the committed `e_sm` polynomial instead of sampling fresh noise. The
+`DecryptionWitness` records `esm_committed: true` and the exact `e_sm` bytes used,
+enabling public verification that the decryption share uses committed DKG material.
+
+The committed-smudge path is the foundation for batch F (C6-equivalent threshold
+decryption with committed smudging). See `.sisyphus/design/smudging.md` for the
+full smudging parameter derivation and `.sisyphus/plans/interfold-equivalent-pvss.md`
+for the equivalence roadmap.
+
 ## Responsible Disclosure
 
 If you find a security vulnerability, please do not open a public issue. Instead, follow the standard research disclosure process by contacting the maintainers at `security@example.com` (placeholder).

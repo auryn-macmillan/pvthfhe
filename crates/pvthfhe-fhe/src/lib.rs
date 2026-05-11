@@ -138,6 +138,55 @@ pub trait FheBackend: Send + Sync {
         })
     }
 
+    /// Produce a partial decryption share using a committed smudging-noise
+    /// polynomial instead of sampling fresh local noise.
+    ///
+    /// The `esm_noise_poly_bytes` must be the exact smudging noise polynomial
+    /// that was committed during DKG. The backend adds this to the decryption
+    /// share instead of sampling fresh Gaussian noise.
+    ///
+    /// The default implementation returns an error; backends that support
+    /// committed-smudge mode must override this.
+    #[allow(unused_variables)]
+    fn partial_decrypt_committed_smudge(
+        &self,
+        ct: &Ciphertext,
+        party_id: u32,
+        esm_noise_poly_bytes: &[u8],
+        rng: &mut dyn RngCore,
+    ) -> Result<DecryptShare, FheError> {
+        Err(FheError::Backend {
+            reason: "partial_decrypt_committed_smudge not implemented".into(),
+        })
+    }
+
+    /// Produce a partial decryption share and a structured [`DecryptionWitness`]
+    /// using a committed smudging-noise polynomial.
+    ///
+    /// Returns the same [`DecryptShare`] that
+    /// [`FheBackend::partial_decrypt_committed_smudge`] would produce, plus a
+    /// [`DecryptionWitness`] with `esm_committed: true` and the actual committed
+    /// `e_sm` poly bytes recorded.
+    ///
+    /// The `rng` parameter is retained for API compatibility but is NOT used to
+    /// sample fresh smudging noise — the committed `esm_noise_poly_bytes` are
+    /// used instead.
+    ///
+    /// The default implementation returns an error; backends that support
+    /// committed-smudge mode must override this.
+    #[allow(unused_variables)]
+    fn partial_decrypt_committed_smudge_with_witness(
+        &self,
+        ct: &Ciphertext,
+        party_id: u32,
+        esm_noise_poly_bytes: &[u8],
+        rng: &mut dyn RngCore,
+    ) -> Result<(DecryptShare, DecryptionWitness), FheError> {
+        Err(FheError::Backend {
+            reason: "partial_decrypt_committed_smudge_with_witness not implemented".into(),
+        })
+    }
+
     /// Aggregate partial decryption shares into the recovered plaintext.
     ///
     /// Returns [`FheError::InsufficientShares`] when `shares.len() < threshold`.

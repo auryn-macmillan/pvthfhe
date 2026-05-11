@@ -386,3 +386,43 @@ per `.sisyphus/design/assumptions-ledger.md` §R0.7.
 
 7. **.sisyphus/design/parameters.md** — Canonical BFV/RLWE parameter set for
    Architecture B.
+
+## 8. Smudging Mode: Legacy vs Committed (Batch B.3)
+
+### 8.1 Two operational modes
+
+PVTHFHE now supports two smudging-noise modes with different security guarantees:
+
+| Mode | Method | Noise source | esm_committed |
+|------|--------|-------------|---------------|
+| `legacy_local_smudge` | `FheBackend::partial_decrypt` | Fresh Gaussian ~ 𝒩(0, σ²_smudge) sampled per-decryption | `false` |
+| `committed_smudge_pvss` | `FheBackend::partial_decrypt_committed_smudge` | Pre-committed `e_sm` poly from DKG transcript | `true` |
+
+### 8.2 Legacy local smudging
+
+The legacy path (`partial_decrypt`) samples fresh Gaussian noise locally for each
+decryption share. This provides honest-but-curious LWE-based hiding (prevents
+secret-key recovery from observed shares) but is **not** Interfold-equivalent
+because the smudging noise is not committed, shared, or publicly verified as
+PKG material.
+
+Fresh local smudging is maintained as a backward-compatible path. It must never
+be the default in production configurations that claim Interfold equivalence.
+
+### 8.3 Committed smudging (Interfold-equivalent)
+
+The committed path (`partial_decrypt_committed_smudge`) uses an `e_sm` noise
+polynomial that was committed during DKG and shared as PVSS material (matching
+Interfold circuit C6 `ThresholdShareDecryption`).
+
+At decryption time:
+1. The backend computes `d_share = c1 · sk_agg_share + esi` as usual.
+2. Instead of sampling fresh Gaussian noise, it deserializes the committed
+   `e_sm` polynomial bytes.
+3. It adds `d_share += e_sm_committed`.
+4. The returned `DecryptionWitness` records `esm_committed: true` and the exact
+   `e_sm` bytes used, enabling public verification that the share binds to the
+   DKG transcript.
+
+The committed path is the foundation for Batch F (C6-equivalent threshold
+decryption proof) in the Interfold-equivalence plan.

@@ -20,6 +20,7 @@ mod mock_impl;
 pub mod mock;
 
 pub use error::FheError;
+pub use pvthfhe_types::{DecryptionWitness, EncryptionWitness};
 pub use types::{Ciphertext, DecryptShare, KeygenShare, Params, PublicKey};
 
 use rand_core::RngCore;
@@ -91,6 +92,23 @@ pub trait FheBackend: Send + Sync {
         rng: &mut dyn RngCore,
     ) -> Result<Ciphertext, FheError>;
 
+    /// Encrypt `plaintext` under `pk` and return the full encryption witness.
+    ///
+    /// In addition to the ciphertext, this method exposes the internal
+    /// encryption randomness and error polynomials needed for well-formedness
+    /// proofs. The default implementation returns an error; backends that
+    /// support witness extraction must override this.
+    fn encrypt_with_witness(
+        &self,
+        _pk: &PublicKey,
+        _plaintext: &[u8],
+        _rng: &mut dyn RngCore,
+    ) -> Result<(Ciphertext, EncryptionWitness), FheError> {
+        Err(FheError::Backend {
+            reason: "encrypt_with_witness not implemented".into(),
+        })
+    }
+
     /// Produce a partial decryption share for `ct` from party `party_id`.
     fn partial_decrypt(
         &self,
@@ -98,6 +116,27 @@ pub trait FheBackend: Send + Sync {
         party_id: u32,
         rng: &mut dyn RngCore,
     ) -> Result<DecryptShare, FheError>;
+
+    /// Produce a partial decryption share and the structured decryption witness.
+    ///
+    /// Returns the same [`DecryptShare`] that [`FheBackend::partial_decrypt`]
+    /// would produce, plus a [`DecryptionWitness`] containing the polynomial
+    /// decompositions needed by the proof layer: ciphertext components,
+    /// aggregated secret-key share, smudging noise, and resulting share.
+    ///
+    /// The default implementation returns an error; backends that support
+    /// witness extraction must override this.
+    #[allow(unused_variables)]
+    fn partial_decrypt_with_witness(
+        &self,
+        ct: &Ciphertext,
+        party_id: u32,
+        rng: &mut dyn RngCore,
+    ) -> Result<(DecryptShare, DecryptionWitness), FheError> {
+        Err(FheError::Backend {
+            reason: "partial_decrypt_with_witness not implemented".into(),
+        })
+    }
 
     /// Aggregate partial decryption shares into the recovered plaintext.
     ///

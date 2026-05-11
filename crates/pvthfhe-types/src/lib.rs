@@ -258,6 +258,101 @@ impl DerefMut for ProtocolBytes {
     }
 }
 
+/// BFV encryption witness material for proof generation.
+///
+/// Contains the full set of polynomials needed to construct a well-formedness
+/// proof for a BFV ciphertext: the plaintext polynomial `m`, encryption
+/// randomness `u`, error polynomials `e0` (ct₀ leg) and `e1` (ct₁ leg),
+/// ciphertext components, and the canonical ciphertext serialization.
+///
+/// This type intentionally does not implement `Debug`, `Serialize`, or
+/// `Deserialize`; callers must make any wire conversion explicit at the boundary.
+#[derive(Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
+pub struct EncryptionWitness {
+    /// Message as polynomial coefficient bytes (plaintext poly m in NTT).
+    pub plaintext_poly_bytes: Vec<u8>,
+    /// Encryption randomness polynomial u (CBD with SK_VARIANCE).
+    pub u_poly_bytes: Vec<u8>,
+    /// Error polynomial for the ct₀ leg (e₁ in fhe.rs nomenclature).
+    pub e0_poly_bytes: Vec<u8>,
+    /// Error polynomial for the ct₁ leg (e₂ in fhe.rs nomenclature).
+    pub e1_poly_bytes: Vec<u8>,
+    /// Ciphertext component 0 polynomial bytes.
+    pub ct0_poly_bytes: Vec<u8>,
+    /// Ciphertext component 1 polynomial bytes.
+    pub ct1_poly_bytes: Vec<u8>,
+    /// Canonical ciphertext serialization (prost-encoded BfvCiphertext).
+    pub ciphertext_bytes: Vec<u8>,
+}
+
+impl EncryptionWitness {
+    /// Returns true if any witness field is empty (useful for sanity checks).
+    pub fn is_complete(&self) -> bool {
+        !self.plaintext_poly_bytes.is_empty()
+            && !self.u_poly_bytes.is_empty()
+            && !self.e0_poly_bytes.is_empty()
+            && !self.e1_poly_bytes.is_empty()
+            && !self.ct0_poly_bytes.is_empty()
+            && !self.ct1_poly_bytes.is_empty()
+            && !self.ciphertext_bytes.is_empty()
+    }
+}
+
+impl core::fmt::Debug for EncryptionWitness {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let complete = self.is_complete();
+        f.debug_struct("EncryptionWitness")
+            .field("complete", &complete)
+            .field("ciphertext_len", &self.ciphertext_bytes.len())
+            .finish()
+    }
+}
+
+/// Threshold-decryption witness material produced alongside a [`DecryptShare`].
+///
+/// Contains the polynomial decompositions needed by the proof layer:
+/// ciphertext components, aggregated secret-key share, smudging noise,
+/// pre- and post-smudge decryption shares, and quotient/reduction terms.
+///
+/// # Security
+///
+/// This type zeroizes on drop and its [`Debug`] implementation redacts
+/// all secret material.
+#[derive(Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
+pub struct DecryptionWitness {
+    /// Ciphertext component 0 polynomial bytes (ct₀).
+    pub ct0_poly_bytes: Vec<u8>,
+    /// Ciphertext component 1 polynomial bytes (ct₁).
+    pub ct1_poly_bytes: Vec<u8>,
+    /// Aggregated secret-key share polynomial bytes.
+    pub sk_agg_poly_bytes: Vec<u8>,
+    /// Smudging-noise polynomial bytes (fresh local or committed e_sm).
+    pub esm_noise_poly_bytes: Vec<u8>,
+    /// Quotient/reduction polynomial bytes per limb.
+    /// Empty when not directly accessible from the backend.
+    pub quotient_poly_bytes: Vec<Vec<u8>>,
+    /// Resulting decryption-share polynomial bytes (post-smudge).
+    pub d_share_poly_bytes: Vec<u8>,
+    /// Canonical decryption share serialization (wire-encoded).
+    pub decrypted_share_bytes: Vec<u8>,
+    /// `true` when using committed e_sm; `false` for fresh local smudging.
+    pub esm_committed: bool,
+}
+
+impl core::fmt::Debug for DecryptionWitness {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let ct0_nonempty = !self.ct0_poly_bytes.is_empty();
+        let ct1_nonempty = !self.ct1_poly_bytes.is_empty();
+        let sk_nonempty = !self.sk_agg_poly_bytes.is_empty();
+        f.debug_struct("DecryptionWitness")
+            .field("ct0_filled", &ct0_nonempty)
+            .field("ct1_filled", &ct1_nonempty)
+            .field("sk_agg_filled", &sk_nonempty)
+            .field("esm_committed", &self.esm_committed)
+            .finish()
+    }
+}
+
 /// Quarantine wrapper for prototype proof bytes that leak witness material.
 ///
 /// WARNING: this is not public protocol data. The V0 PVSS share proof envelope

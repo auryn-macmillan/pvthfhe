@@ -4,7 +4,7 @@ use crate::{
     error::FheError,
     mock_impl,
     types::{Ciphertext, DecryptShare, KeygenShare, Params, PublicKey as OpaquePublicKey},
-    wire, FheBackend,
+    wire, DecryptionWitness, EncryptionWitness, FheBackend,
 };
 use fhe::bfv::{
     BfvParameters, BfvParametersBuilder, Ciphertext as BfvCiphertext, Encoding, Plaintext,
@@ -628,6 +628,71 @@ impl FheBackend for FhersBackend {
         })
     }
 
+    fn encrypt_with_witness(
+        &self,
+        pk: &OpaquePublicKey,
+        plaintext: &[u8],
+        rng: &mut dyn RngCore,
+    ) -> Result<(Ciphertext, EncryptionWitness), FheError> {
+        let degree = self.bfv_params.degree();
+        let pk = self.decode_public_key(pk)?;
+        let slots = encode_plaintext_slots(plaintext, degree)?;
+        let pt =
+            Plaintext::try_encode(&slots, Encoding::poly(), &self.bfv_params).map_err(|err| {
+                FheError::Backend {
+                    reason: err.to_string(),
+                }
+            })?;
+
+        // Capture the plaintext polynomial bytes before encryption consumes `pt`.
+        let plaintext_poly = pt.to_poly();
+        let plaintext_poly_bytes = plaintext_poly.to_bytes();
+
+        let mut encrypt_rng = ChaCha8Rng::from_rng(rng).map_err(|err| FheError::Backend {
+            reason: err.to_string(),
+        })?;
+
+        // try_encrypt_extended returns (ciphertext, u, e1, e2) where:
+        //   u  = encryption randomness (CBD with SK_VARIANCE)
+        //   e1 = error polynomial for ct₀ leg (error_1 variance)
+        //   e2 = error polynomial for ct₁ leg (standard variance)
+        let (ct, u, e1, e2) = pk
+            .try_encrypt_extended(&pt, &mut encrypt_rng)
+            .map_err(|err| FheError::Backend {
+                reason: err.to_string(),
+            })?;
+
+        let ct0_poly = ct
+            .get(0)
+            .ok_or(FheError::Backend {
+                reason: "ciphertext missing c[0]".into(),
+            })?;
+        let ct1_poly = ct
+            .get(1)
+            .ok_or(FheError::Backend {
+                reason: "ciphertext missing c[1]".into(),
+            })?;
+
+        let ciphertext_bytes = ct.to_bytes();
+
+        let witness = EncryptionWitness {
+            plaintext_poly_bytes,
+            u_poly_bytes: u.to_bytes(),
+            e0_poly_bytes: e1.to_bytes(),
+            e1_poly_bytes: e2.to_bytes(),
+            ct0_poly_bytes: ct0_poly.to_bytes(),
+            ct1_poly_bytes: ct1_poly.to_bytes(),
+            ciphertext_bytes: ciphertext_bytes.clone(),
+        };
+
+        Ok((
+            Ciphertext {
+                bytes: ciphertext_bytes,
+            },
+            witness,
+        ))
+    }
+
     fn partial_decrypt(
         &self,
         ct: &Ciphertext,
@@ -674,6 +739,106 @@ impl FheBackend for FhersBackend {
             party_id,
             bytes: ProtocolBytes(wire::encode_decrypt_share(&poly_bytes)),
         })
+    }
+
+    fn partial_decrypt_with_witness(
+        &self,
+        ct: &Ciphertext,
+        party_id: u32,
+        rng: &mut dyn RngCore,
+    ) -> Result<(DecryptShare, DecryptionWitness), FheError> {
+        let (n, t) = self.threshold_params()?;
+        let ct_bfv = BfvCiphertext::from_bytes(&ct.bytes, &self.bfv_params)
+            .map_err(|_| FheError::MalformedCiphertext)?;
+
+        // Extract ciphertext component polynomial bytes.
+        let ct0_poly_bytes = ct_bfv.c[0].to_bytes();
+        let ct1_poly_bytes = ct_bfv.c[1].to_bytes();
+
+        // Retrieve the aggregated secret-key share polynomial from party state.
+        let (sk_poly_sum_coeffs, sk_poly_sum_poly, esi_poly_sum) =
+            self.party_state_data(party_id)?;
+        let share_manager =
+            ShareManager::new(n, self.shamir_threshold(n, t), self.bfv_params.clone());
+
+        let sk_poly = match sk_poly_sum_poly {
+            Some(poly) => poly,
+            None => share_manager
+                .coeffs_to_poly_level0(&sk_poly_sum_coeffs)
+                .map_err(|err| FheError::Backend {
+                    reason: err.to_string(),
+                })?
+                .as_ref()
+                .clone(),
+        };
+        let sk_agg_poly_bytes = sk_poly.to_bytes();
+
+        let esi_poly = match esi_poly_sum.first() {
+            Some(poly) => poly.clone(),
+            None => self.zero_poly_level0()?,
+        };
+
+        // Pre-smudge decryption share (before injecting Gaussian noise).
+        let pre_smudge_d_share = share_manager
+            .decryption_share(Arc::new(ct_bfv.clone()), sk_poly, esi_poly)
+            .map_err(|err| FheError::Backend {
+                reason: err.to_string(),
+            })?;
+
+        // Sample smudging noise: 8192 Gaussian coefficients with σ = 3.506e12.
+        let mut noise_rng = ChaCha8Rng::from_rng(rng).map_err(|err| FheError::Backend {
+            reason: err.to_string(),
+        })?;
+        let dist = Normal::new(0.0, SIGMA_SMUDGE).map_err(|err| FheError::Backend {
+            reason: err.to_string(),
+        })?;
+        let degree = self.bfv_params.degree();
+        let noise_coeffs: Vec<i64> = (0..degree)
+            .map(|_| {
+                let sample: f64 = dist.sample(&mut noise_rng);
+                sample.round() as i64
+            })
+            .collect();
+        let ctx = self.bfv_params.ctx_at_level(0).map_err(|err| FheError::Backend {
+            reason: err.to_string(),
+        })?;
+        let noise_poly = Poly::try_convert_from(
+            noise_coeffs.as_slice(),
+            ctx,
+            false,
+            Representation::PowerBasis,
+        )
+        .map_err(|err| FheError::Backend {
+            reason: err.to_string(),
+        })?;
+        let esm_noise_poly_bytes = noise_poly.to_bytes();
+
+        let mut d_share_poly = pre_smudge_d_share;
+        d_share_poly += &noise_poly;
+        let d_share_poly_bytes = d_share_poly.to_bytes();
+        let wire_bytes = wire::encode_decrypt_share(&d_share_poly_bytes);
+
+        let witness = DecryptionWitness {
+            ct0_poly_bytes,
+            ct1_poly_bytes,
+            sk_agg_poly_bytes,
+            esm_noise_poly_bytes,
+            // Quotient/reduction polynomials are not directly accessible from
+            // ShareManager::decryption_share; left empty until Batch F wires
+            // committed e_sm and quotient tracking.
+            quotient_poly_bytes: Vec::new(),
+            d_share_poly_bytes,
+            decrypted_share_bytes: wire_bytes.clone(),
+            esm_committed: false,
+        };
+
+        Ok((
+            DecryptShare {
+                party_id,
+                bytes: ProtocolBytes(wire_bytes),
+            },
+            witness,
+        ))
     }
 
     fn aggregate_decrypt(

@@ -234,28 +234,28 @@ Batch I: Benchmark and security-proof closure
 
 ### B.1 — Add explicit BFV encryption witness type
 
-- [ ] **Files**: `crates/pvthfhe-fhe`, `crates/pvthfhe-types`
-- [ ] **RED**: Test proves current public encryption API cannot return `u/e0/e1/quotient/message` witnesses needed by the proof layer.
-- [ ] **GREEN**: Add an internal/private API that returns a structured encryption witness:
+- [x] **Files**: `crates/pvthfhe-fhe`, `crates/pvthfhe-types`
+- [x] **RED**: Test proves current public encryption API cannot return `u/e0/e1/quotient/message` witnesses needed by the proof layer.
+- [x] **GREEN**: Add an internal/private API that returns a structured encryption witness:
   - plaintext polynomial/message representation;
   - encryption randomness polynomial `u`;
   - error polynomials `e0`, `e1`;
   - quotient/reduction polynomials needed by the target relation;
   - ciphertext bytes and canonical polynomial decomposition.
-- [ ] **Security**: Witness type must zeroize on drop and must not implement leaking `Debug`.
-- [ ] **GATE**: Existing public encryption API remains unchanged for normal callers.
+- [x] **Security**: Witness type must zeroize on drop and must not implement leaking `Debug`.
+- [x] **GATE**: Existing public encryption API remains unchanged for normal callers.
 
 ### B.2 — Add explicit decryption-share witness type
 
-- [ ] **Files**: `crates/pvthfhe-fhe`, `crates/pvthfhe-types`
-- [ ] **RED**: Test shows current `partial_decrypt` only returns bytes and does not expose quotient terms or committed `e_sm` witness.
-- [ ] **GREEN**: Add internal threshold-decryption witness with:
+- [x] **Files**: `crates/pvthfhe-fhe`, `crates/pvthfhe-types`
+- [x] **RED**: Test shows current `partial_decrypt` only returns bytes and does not expose quotient terms or committed `e_sm` witness.
+- [x] **GREEN**: Add internal threshold-decryption witness with:
   - `ct0`, `ct1` polynomial decomposition;
   - aggregated `sk` share polynomial;
   - aggregated `e_sm` share polynomial/slot;
   - quotient/reduction polynomials;
   - resulting decryption-share polynomial and canonical bytes.
-- [ ] **GATE**: No fresh local smudging noise is used in the proof-producing path once committed `e_sm` is available.
+- [x] **GATE**: No fresh local smudging noise is used in the proof-producing path once committed `e_sm` is available.
 
 ### B.3 — Separate legacy/local smudging from committed-smudge mode
 

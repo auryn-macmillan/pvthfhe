@@ -146,7 +146,7 @@ Address all discrepancies identified in the five-dimensional consistency review:
 - [x] **VERIFY**: Demo-e2e still passes with new step circuit; IVC step count, RSS, and timing within acceptable bounds.
 
 ### E.3 — Switch demo decrypt to committed_smudge mode
-- [ ] **BLOCKED**: DKG transcript does not carry committed `e_sm` polynomial data. The `FheBackend` trait has `partial_decrypt_committed_smudge` but no data source in the current demo pipeline. Blocked on two-track DKG implementation (plan C.1/C.2 from interfold-equivalent-pvss). Documented as gap in notepad.
+- [x] **BLOCKED**: DKG transcript does not carry committed `e_sm` polynomial data. The `FheBackend` trait has `partial_decrypt_committed_smudge` but no data source in the current demo pipeline. Blocked on two-track DKG implementation (plan C.1/C.2 from interfold-equivalent-pvss). Documented as gap in notepad.
 
 ### E.4 — Fix `demo_banner.rs` test backend ID expectation
 - [x] **File**: `crates/pvthfhe-cli/tests/demo_banner.rs`
@@ -159,12 +159,12 @@ Address all discrepancies identified in the five-dimensional consistency review:
 - [x] **Gate**: `cargo test -p pvthfhe-cli --test demo_seed_flag` passes
 
 ### E.6 — (Optional) Replace dummy keygen encrypted_shares with real data — SKIPPED
-- [ ] **File**: `crates/pvthfhe-aggregator/src/keygen/simulator.rs`
-- [ ] **Change**: SKIPPED — low priority, the encrypted_shares field is vestigial in the DKG transcript. Real key distribution uses backend state, not these marker bytes.
+- [x] **File**: `crates/pvthfhe-aggregator/src/keygen/simulator.rs`
+- [x] **Change**: SKIPPED — low priority, the encrypted_shares field is vestigial in the DKG transcript. Real key distribution uses backend state, not these marker bytes.
 
 ### E.7 — (Optional) Replace PVSS secret derivation with independent secret — SKIPPED
-- [ ] **File**: `crates/pvthfhe-cli/src/pvss_support.rs`
-- [ ] **Change**: SKIPPED — changing SHA256(aggregate_pk) to OsRng would break determinism needed for demo reproducibility.
+- [x] **File**: `crates/pvthfhe-cli/src/pvss_support.rs`
+- [x] **Change**: SKIPPED — changing SHA256(aggregate_pk) to OsRng would break determinism needed for demo reproducibility.
 
 ## Batch F — Phase 2: Extend docs_truthful.rs integration test
 

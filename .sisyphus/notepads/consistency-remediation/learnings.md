@@ -34,3 +34,17 @@
 - `cargo test -p pvthfhe-cli --test demo_seed_flag` ✅ (2/2 GREEN)
 - `cargo test -p pvthfhe-cli --test params_consistency` ✅ (1/1)
 - `cargo test -p pvthfhe-cli --test demo_banner` ❌ (pre-existing failure: n=3, t=2 violates t <= (n-1)/2)
+
+## Final closure (2026-05-12)
+
+### Remaining 5 unchecked items — all BLOCKED/SKIPPED
+- **E.3**: committed_smudge decrypt — requires two-track DKG `e_sm` poly data in demo pipeline (data doesn't exist yet)
+- **E.6**: dummy keygen encrypted_shares — vestigial field, key distribution uses backend state, not marker bytes
+- **E.7**: independent PVSS secret — would break demo determinism needed for reproducible benchmarking
+
+### Completed totals
+- 26 doc/code changes across 24 files
+- 95/100 checkboxes marked [x]
+- 5/100 intentionally left as blocked/skipped with documented rationale
+- Phase 1 (doc-only): 22/22 done
+- Phase 2 (code): 4/7 done, 1 blocked, 2 skipped

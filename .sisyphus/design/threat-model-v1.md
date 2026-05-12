@@ -194,9 +194,9 @@ From [proof-boundary.md](proof-boundary.md) (frozen Phase 2):
 
 | ID | Problem | Impact | Mitigation |
 |----|---------|--------|------------|
-| **P1** | Lattice NIZK well-formedness soundness for folded RLWE is not formally proven | SEC-3, SEC-5 broken; PB-01, PB-02 OPEN | Conditional on resolution of open problem |
-| **P2** | LatticeFold+ over RLWE folding argument is not formally proven | SEC-5 broken; PB-04 OPEN | Conditional on resolution of open problem |
-| **P3** | MicroNova-lattice-encoding soundness is an open research conjecture | PB-03, PB-06 conditional | Research conjecture; treat as gap |
+| **P1** | Lattice NIZK well-formedness soundness for folded RLWE is not formally proven | SEC-3, SEC-5 broken; PB-01, PB-02 OPEN | Conditional on resolution of open problem. Sigma masking seeds now fresh per proof (OsRng, non-deterministic; deep-audit Batch A.1 fix). Joint extractor proof (T2) remains a skeleton. D.1 BFV encryption verifier relation still blocked (C3 structural gap — algebraic sigma proves hash-preimage, not BFV encryption structure). |
+| **P2** | LatticeFold+ over RLWE folding argument is not formally proven (Lemma 9 heuristic) | SEC-5 broken; PB-04 OPEN | Conditional on resolution of Lemma 9 invertibility heuristic. Challenge space locked at \|C\|=2^16 with T=10 rounds, giving ε_fold ≤ 2^(-160) exponential bound from |C|^(-T). The linear (conservative) bound is 1.5×10^(-4). Sonobe Nova currently substitutes for lattice-native folding. |
+| **P3** | MicroNova-lattice-encoding soundness is an open research conjecture | PB-03, PB-06 conditional | Research conjecture; treat as gap. Sonobe Nova IVC (CycloFoldStepCircuit) folds 3 hashed field elements (commitment_hash, norm, fold_count) via SHA-256 digest of Cyclo accumulator state — not full Ajtai commitment folding, range-check, or sum-check over raw R_{q_commit} elements. |
 
 ### 7.2 Residual Implementation Assumptions
 
@@ -215,6 +215,16 @@ From [proof-boundary.md](proof-boundary.md) (frozen Phase 2):
 7. **Replay protection off-chain only**: Session binding (SEC-7) is enforced by the Rust aggregator, not by the on-chain verifier in the current ABI (F9/F11). An on-chain replay prevention mechanism requires ABI changes.
 
 8. **Logging hygiene**: FHE encode/decode and aggregate-decrypt slot logging (`eprintln!` statements in `fhers.rs`) is gated behind the Cargo feature `trace-decrypt` (off by default). All plaintext-slot content is restricted to this trace feature, which is intended for debugging only and must never be enabled in production builds or in any environment where plaintext confidentiality is required. See `SECURITY.md` for the full logging hygiene policy.
+
+9. **Memory hygiene (`Secret<T>` + `ZeroizeOnDrop`)**: All secret witness fields in the PVSS crate are wrapped in `Secret<T>` (from the `secrecy` crate via `pvthfhe_types`) or the crate-local `ShareSecret` wrapper, which suppresses `Debug`/`Display` output to prevent accidental leakage of secret key material to logs, panic messages, or serialized trace output. Additionally, `FhersBackend::PartyState` (which holds aggregated Shamir secret-key shares) derives `Zeroize` + `ZeroizeOnDrop` to ensure key material is zeroed from memory on deallocation. Enforcement points:
+   - `nizk_decrypt.rs`: `secret_key_bytes: Secret<Vec<u8>>`, `decryption_noise: Secret<Vec<u8>>`
+   - `nizk_share.rs`, `encrypt.rs`, `lib.rs`: `share_bytes: ShareSecret` (opaque wrapper)
+   - `fhers.rs`: `PartyState` derives `Zeroize, ZeroizeOnDrop`
+   - All `Debug` implementations for witness structs are manually implemented to print `***SECRET***`
+
+10. **Sigma ZK masking seeds fresh per proof**: As of the deep-audit remediation (Batch A.1), both the algebraic sigma proof (`build_algebraic_proof` in `nizk_share.rs`) and the BFV encryption sigma proof (`build_bfv_encryption_proof` in `nizk_share.rs`) use fresh, non-deterministic randomness seeded from `OsRng` (`ChaCha20Rng::from_rng(&mut OsRng)`) for each proof generation call. The previous hardcoded/commented-out fixed seeds have been removed. This is critical for zero-knowledge: reusing masking randomness across proofs breaks the sigma protocol's honest-verifier ZK property (soundness is unaffected). Verification: `nizk_share.rs` lines 413 and 668 — both proof-rng instances use `ChaCha20Rng::from_rng(&mut OsRng)`.
+
+11. **Aggregate key consistency (PB-08 enforcement)**: The DKG transcript's aggregate public key MUST equal the FHE backend's aggregate key used for encryption. After keygen, the aggregator recomputes `pk_agg = Σ pk_i` over the accepted participant set and asserts equality with the FHE backend's stored aggregate key. A mismatch aborts the pipeline before any decryption share is processed. This prevents an adversary from substituting a weaker or corrupted key while presenting a compatible DKG transcript. Enforced in `full_pipeline.rs` via the `aggregate_pk` consistency assertion (deep-audit remediation Batch A.3). Primary enforcement layer: B (Rust aggregator), per `proof-boundary.md` PB-08.
 
 ---
 
@@ -256,6 +266,6 @@ From [proof-boundary.md](proof-boundary.md) (frozen Phase 2):
 
 ---
 
-*Document version*: 1.1  
-*Last updated*: 2026-05-11  
+*Document version*: 1.2  
+*Last updated*: 2026-05-12  
 *Next review*: After R2 (Cyclo rebuild) and R3 (NIZK rebuild)

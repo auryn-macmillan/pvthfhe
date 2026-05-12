@@ -10,13 +10,12 @@
 //! RED: challenge_a == challenge_b (no witness binding)
 //! GREEN: challenge_a != challenge_b (witness bound via commitment_ct)
 
-use pvthfhe_fhe::{mock::MockBackend, FheBackend};
+use pvthfhe_fhe::{mock::MockBackend, types::PublicKey, FheBackend};
 use pvthfhe_pvss::nizk_share::{
-    compute_share_commitment, ShareNizkProver, ShareNizkStatement,
-    ShareNizkVerifier, ShareNizkWitness,
+    canonical_bfv_params_digest, compute_ciphertext_v, compute_share_commitment, ShareNizkProver,
+    ShareNizkStatement, ShareNizkVerifier, ShareNizkWitness,
 };
 use pvthfhe_types::{EncRandomness, ProtocolBytes, ShareSecret};
-use sha2::{Digest, Sha256};
 use rand_chacha::ChaCha8Rng;
 use rand_core::{RngCore, SeedableRng};
 
@@ -41,51 +40,58 @@ fn challenge_changes_when_witness_changes() {
     let mut pk = vec![0u8; 64];
     rng.fill_bytes(&mut pk);
 
-    let mut ciphertext_u = vec![0u8; 128];
-    rng.fill_bytes(&mut ciphertext_u);
-
-    let ciphertext_v = {
-        let mut h = Sha256::new();
-        h.update(b"ciphertext-v1");
-        h.update(&ciphertext_u);
-        h.finalize()
-    };
-
-    // Two different shares
     let share_a = b"share-AAAA-aaaa-AAAA-aaaa-AAAA-aaaa-AA".to_vec();
     let share_b = b"share-BBBB-bbbb-BBBB-bbbb-BBBB-bbbb-BB".to_vec();
-    assert_ne!(share_a, share_b);
+    let mut enc_seed_a = [0xCAu8; 32];
+    let mut enc_seed_b = [0xCBu8; 32];
+    enc_seed_a[0] = 1;
+    enc_seed_b[0] = 2;
+    let mut enc_rng_a = ChaCha8Rng::from_seed(enc_seed_a);
+    let ciphertext_u_a = backend
+        .encrypt(&PublicKey { bytes: pk.clone() }, &share_a, &mut enc_rng_a)
+        .expect("encrypt share A")
+        .bytes;
+    let ciphertext_v_a = compute_ciphertext_v(&ciphertext_u_a);
 
-    // Statement uses share_commitment from share_a
     let share_commitment = compute_share_commitment(&session_id, 0, &share_a);
 
-    let stmt = ShareNizkStatement {
+    let stmt_a = ShareNizkStatement {
         session_id: ProtocolBytes(session_id.clone()),
         dealer_index: 0,
         recipient_index: 0,
         recipient_pk: ProtocolBytes(pk.clone()),
-        ciphertext_u: ProtocolBytes(ciphertext_u.clone()),
-        ciphertext_v: ProtocolBytes(ciphertext_v.to_vec()),
+        bfv_params_digest: ProtocolBytes(canonical_bfv_params_digest().to_vec()),
+        dkg_root: ProtocolBytes(session_id.clone()),
+        ciphertext_u: ProtocolBytes(ciphertext_u_a),
+        ciphertext_v: ProtocolBytes(ciphertext_v_a.to_vec()),
         share_commitment: ProtocolBytes(share_commitment.to_vec()),
     };
+    let mut enc_rng_b = ChaCha8Rng::from_seed(enc_seed_b);
+    let ciphertext_u_b = backend
+        .encrypt(&PublicKey { bytes: pk.clone() }, &share_b, &mut enc_rng_b)
+        .expect("encrypt share B")
+        .bytes;
+    let ciphertext_v_b = compute_ciphertext_v(&ciphertext_u_b);
+    let share_commitment_b = compute_share_commitment(&session_id, 0, &share_b);
+    let stmt_b = ShareNizkStatement {
+        ciphertext_u: ProtocolBytes(ciphertext_u_b),
+        ciphertext_v: ProtocolBytes(ciphertext_v_b.to_vec()),
+        share_commitment: ProtocolBytes(share_commitment_b.to_vec()),
+        ..stmt_a.clone()
+    };
 
-    let randomness = vec![0xCCu8; 32];
-
-    // Witness A
     let witness_a = ShareNizkWitness {
         share_bytes: ShareSecret::new(share_a.clone()),
-        encryption_randomness: EncRandomness::new(randomness.clone()),
+        encryption_randomness: EncRandomness::new(enc_seed_a.to_vec()),
     };
-
-    // Witness B — same statement, different share bytes
     let witness_b = ShareNizkWitness {
-        share_bytes: ShareSecret::new(share_b.clone()),
-        encryption_randomness: EncRandomness::new(randomness),
+        share_bytes: ShareSecret::new(share_b),
+        encryption_randomness: EncRandomness::new(enc_seed_b.to_vec()),
     };
 
-    let proof_a = ShareNizkProver::prove(&backend, &stmt, &witness_a)
+    let proof_a = ShareNizkProver::prove(&backend, &stmt_a, &witness_a)
         .expect("prover must succeed for witness A");
-    let proof_b = ShareNizkProver::prove(&backend, &stmt, &witness_b)
+    let proof_b = ShareNizkProver::prove(&backend, &stmt_b, &witness_b)
         .expect("prover must succeed for witness B");
 
     let opened_a = proof_a.decode().expect("decode proof A");
@@ -97,7 +103,8 @@ fn challenge_changes_when_witness_changes() {
     // RED: challenges are identical because commitment_ct is NOT absorbed
     // GREEN: challenges differ because commitment_ct IS absorbed before challenge derivation
     assert_ne!(
-        challenge_a, challenge_b,
+        challenge_a,
+        challenge_b,
         "Batch A.3 RED→GREEN: Fiat-Shamir challenge must change when witness changes. \
          challenge_a == challenge_b == {:02x?} — commitment_ct not bound to transcript. \
          Fix: absorb commitment_ct before deriving challenge.",
@@ -106,7 +113,7 @@ fn challenge_changes_when_witness_changes() {
 }
 
 #[test]
-fn both_proofs_verify_against_statement() {
+fn valid_v3_proof_fails_closed_until_bfv_relation_exists() {
     acknowledge_mock_backend();
 
     let backend = MockBackend::load_params(TEST_PARAMS_TOML).expect("load mock backend");
@@ -118,24 +125,23 @@ fn both_proofs_verify_against_statement() {
     let mut pk = vec![0u8; 64];
     rng.fill_bytes(&mut pk);
 
-    let mut ciphertext_u = vec![0u8; 128];
-    rng.fill_bytes(&mut ciphertext_u);
-
-    let ciphertext_v = {
-        let mut h = Sha256::new();
-        h.update(b"ciphertext-v1");
-        h.update(&ciphertext_u);
-        h.finalize()
-    };
-
     let share = b"share-CCCC-cccc-CCCC-cccc-CCCC-cccc-CC".to_vec();
+    let enc_seed = [0xDDu8; 32];
+    let mut enc_rng = ChaCha8Rng::from_seed(enc_seed);
+    let ciphertext_u = backend
+        .encrypt(&PublicKey { bytes: pk.clone() }, &share, &mut enc_rng)
+        .expect("encrypt share")
+        .bytes;
+    let ciphertext_v = compute_ciphertext_v(&ciphertext_u);
     let share_commitment = compute_share_commitment(&session_id, 0, &share);
 
     let stmt = ShareNizkStatement {
-        session_id: ProtocolBytes(session_id),
+        session_id: ProtocolBytes(session_id.clone()),
         dealer_index: 0,
         recipient_index: 0,
         recipient_pk: ProtocolBytes(pk),
+        bfv_params_digest: ProtocolBytes(canonical_bfv_params_digest().to_vec()),
+        dkg_root: ProtocolBytes(session_id),
         ciphertext_u: ProtocolBytes(ciphertext_u),
         ciphertext_v: ProtocolBytes(ciphertext_v.to_vec()),
         share_commitment: ProtocolBytes(share_commitment.to_vec()),
@@ -143,18 +149,15 @@ fn both_proofs_verify_against_statement() {
 
     let witness = ShareNizkWitness {
         share_bytes: ShareSecret::new(share.clone()),
-        encryption_randomness: EncRandomness::new(vec![0xDDu8; 32]),
+        encryption_randomness: EncRandomness::new(enc_seed.to_vec()),
     };
 
-    let proof = ShareNizkProver::prove(&backend, &stmt, &witness)
-        .expect("prover must succeed");
+    let proof = ShareNizkProver::prove(&backend, &stmt, &witness).expect("prover must succeed");
 
-    // The proof should still verify (the lattice binding must remain consistent
-    // after reordering the challenge derivation).
     let result = ShareNizkVerifier::verify(&backend, &stmt, &proof);
     assert!(
-        result.is_ok(),
-        "After FS fix, valid proofs must still verify. result = {:?}",
+        result.is_err(),
+        "D.1 remains incomplete: v3 proof lacks a verifier-checkable BFV encryption relation. result = {:?}",
         result
     );
 }

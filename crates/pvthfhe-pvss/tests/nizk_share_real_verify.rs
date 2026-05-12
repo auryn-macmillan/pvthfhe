@@ -11,11 +11,10 @@
 
 use pvthfhe_fhe::{mock::MockBackend, FheBackend};
 use pvthfhe_pvss::nizk_share::{
-    compute_share_commitment, ShareNizkProver, ShareNizkStatement,
-    ShareNizkVerifier, ShareNizkWitness,
+    canonical_bfv_params_digest, compute_ciphertext_v, compute_share_commitment, ShareNizkProver,
+    ShareNizkStatement, ShareNizkVerifier, ShareNizkWitness,
 };
 use pvthfhe_types::{EncRandomness, ProtocolBytes, ShareSecret};
-use sha2::{Digest, Sha256};
 use rand_chacha::ChaCha8Rng;
 use rand_core::{RngCore, SeedableRng};
 
@@ -45,21 +44,25 @@ fn verifier_rejects_tampered_d2_binding() {
     // Statement carries share_commitment derived from the same share
     let share_commitment = compute_share_commitment(&session_id, 0, &share);
 
-    let mut random_ct = vec![0u8; 128];
-    rng.fill_bytes(&mut random_ct);
-
-    let ciphertext_v = {
-        let mut h = Sha256::new();
-        h.update(b"ciphertext-v1");
-        h.update(&random_ct);
-        h.finalize()
-    };
+    let randomness = [0xCCu8; 32];
+    let mut enc_rng = ChaCha8Rng::from_seed(randomness);
+    let random_ct = backend
+        .encrypt(
+            &pvthfhe_fhe::types::PublicKey { bytes: pk.clone() },
+            &share,
+            &mut enc_rng,
+        )
+        .expect("encrypt share")
+        .bytes;
+    let ciphertext_v = compute_ciphertext_v(&random_ct);
 
     let stmt = ShareNizkStatement {
         session_id: ProtocolBytes(session_id.clone()),
         dealer_index: 0,
         recipient_index: 0,
         recipient_pk: ProtocolBytes(pk.clone()),
+        bfv_params_digest: ProtocolBytes(canonical_bfv_params_digest().to_vec()),
+        dkg_root: ProtocolBytes(session_id.clone()),
         ciphertext_u: ProtocolBytes(random_ct),
         ciphertext_v: ProtocolBytes(ciphertext_v.to_vec()),
         share_commitment: ProtocolBytes(share_commitment.to_vec()),
@@ -68,7 +71,7 @@ fn verifier_rejects_tampered_d2_binding() {
     // Witness matches the statement
     let witness = ShareNizkWitness {
         share_bytes: ShareSecret::new(share),
-        encryption_randomness: EncRandomness::new(vec![0xCCu8; 32]),
+        encryption_randomness: EncRandomness::new(randomness.to_vec()),
     };
 
     let mut proof = ShareNizkProver::prove(&backend, &stmt, &witness)
@@ -89,7 +92,7 @@ fn verifier_rejects_tampered_d2_binding() {
 }
 
 #[test]
-fn verifier_accepts_valid_d2_binding() {
+fn verifier_fails_closed_for_valid_d2_binding_without_bfv_relation() {
     acknowledge_mock_backend();
 
     let backend = MockBackend::load_params(TEST_PARAMS_TOML).expect("load mock backend");
@@ -105,21 +108,25 @@ fn verifier_accepts_valid_d2_binding() {
 
     let share_commitment = compute_share_commitment(&session_id, 0, &share);
 
-    let mut random_ct = vec![0u8; 128];
-    rng.fill_bytes(&mut random_ct);
-
-    let ciphertext_v = {
-        let mut h = Sha256::new();
-        h.update(b"ciphertext-v1");
-        h.update(&random_ct);
-        h.finalize()
-    };
+    let randomness = [0xDDu8; 32];
+    let mut enc_rng = ChaCha8Rng::from_seed(randomness);
+    let random_ct = backend
+        .encrypt(
+            &pvthfhe_fhe::types::PublicKey { bytes: pk.clone() },
+            &share,
+            &mut enc_rng,
+        )
+        .expect("encrypt share")
+        .bytes;
+    let ciphertext_v = compute_ciphertext_v(&random_ct);
 
     let stmt = ShareNizkStatement {
-        session_id: ProtocolBytes(session_id),
+        session_id: ProtocolBytes(session_id.clone()),
         dealer_index: 0,
         recipient_index: 0,
         recipient_pk: ProtocolBytes(pk),
+        bfv_params_digest: ProtocolBytes(canonical_bfv_params_digest().to_vec()),
+        dkg_root: ProtocolBytes(session_id),
         ciphertext_u: ProtocolBytes(random_ct),
         ciphertext_v: ProtocolBytes(ciphertext_v.to_vec()),
         share_commitment: ProtocolBytes(share_commitment.to_vec()),
@@ -129,7 +136,7 @@ fn verifier_accepts_valid_d2_binding() {
     // the same share that the prover encrypts.
     let witness = ShareNizkWitness {
         share_bytes: ShareSecret::new(share),
-        encryption_randomness: EncRandomness::new(vec![0xDDu8; 32]),
+        encryption_randomness: EncRandomness::new(randomness.to_vec()),
     };
 
     let proof = ShareNizkProver::prove(&backend, &stmt, &witness)
@@ -138,8 +145,8 @@ fn verifier_accepts_valid_d2_binding() {
     let result = ShareNizkVerifier::verify(&backend, &stmt, &proof);
 
     assert!(
-        result.is_ok(),
-        "D2 preimage binding must accept valid proof with untouched d2_binding. result = {:?}",
+        result.is_err(),
+        "D.1 remains incomplete: valid D2/algebraic v3 proof must fail closed until verifier checks the BFV encryption relation. result = {:?}",
         result
     );
 }

@@ -75,10 +75,14 @@ fn instances_vary_with_witness_data() {
     let ia = &instances_a[0];
     let ib = &instances_b[0];
 
-    assert!(is_derived_from_data(ia, 1, 0xAB),
-        "instance for party 1 seed A should be derived from witness data, not synthetic");
-    assert!(is_derived_from_data(ib, 1, 0xCD),
-        "instance for party 1 seed B should be derived from witness data, not synthetic");
+    assert!(
+        is_derived_from_data(ia, 1, 0xAB),
+        "instance for party 1 seed A should be derived from witness data, not synthetic"
+    );
+    assert!(
+        is_derived_from_data(ib, 1, 0xCD),
+        "instance for party 1 seed B should be derived from witness data, not synthetic"
+    );
 
     assert_ne!(
         ia.ajtai_commitment_bytes.as_slice(),
@@ -106,10 +110,7 @@ fn instances_differ_across_parties() {
     let stmt_p2 = make_statement(2, 0x01);
     let wit_p2 = make_witness(2, 0x01);
 
-    let nizk = vec![
-        (1u32, &stmt_p1, &wit_p1),
-        (2u32, &stmt_p2, &wit_p2),
-    ];
+    let nizk = vec![(1u32, &stmt_p1, &wit_p1), (2u32, &stmt_p2, &wit_p2)];
 
     let instances = build_fold_instances(&nizk, [0u8; 32], 0).expect("build_fold_instances");
 
@@ -120,10 +121,14 @@ fn instances_differ_across_parties() {
     assert_eq!(i1.participant_id, 1);
     assert_eq!(i2.participant_id, 2);
 
-    assert!(is_derived_from_data(i1, 1, 0x01),
-        "fold instance for party 1 must be derived from its witness, not synthetic");
-    assert!(is_derived_from_data(i2, 2, 0x01),
-        "fold instance for party 2 must be derived from its witness, not synthetic");
+    assert!(
+        is_derived_from_data(i1, 1, 0x01),
+        "fold instance for party 1 must be derived from its witness, not synthetic"
+    );
+    assert!(
+        is_derived_from_data(i2, 2, 0x01),
+        "fold instance for party 2 must be derived from its witness, not synthetic"
+    );
 
     assert_ne!(
         i1.ajtai_commitment_bytes.as_slice(),
@@ -162,16 +167,30 @@ fn instances_are_deterministic() {
     let ia = &instances_a[0];
     let ib = &instances_b[0];
 
-    assert_eq!(ia.participant_id, ib.participant_id,
-        "participant_id must be deterministic");
-    assert_eq!(ia.ajtai_commitment_bytes.as_slice(), ib.ajtai_commitment_bytes.as_slice(),
-        "ajtai_commitment_bytes must be deterministic");
-    assert_eq!(ia.public_io_bytes.as_slice(), ib.public_io_bytes.as_slice(),
-        "public_io_bytes must be deterministic");
-    assert_eq!(ia.ccs_witness_bytes.expose(), ib.ccs_witness_bytes.expose(),
-        "ccs_witness_bytes must be deterministic");
-    assert_eq!(ia.sha256_binding_bytes.as_slice(), ib.sha256_binding_bytes.as_slice(),
-        "sha256_binding_bytes must be deterministic");
+    assert_eq!(
+        ia.participant_id, ib.participant_id,
+        "participant_id must be deterministic"
+    );
+    assert_eq!(
+        ia.ajtai_commitment_bytes.as_slice(),
+        ib.ajtai_commitment_bytes.as_slice(),
+        "ajtai_commitment_bytes must be deterministic"
+    );
+    assert_eq!(
+        ia.public_io_bytes.as_slice(),
+        ib.public_io_bytes.as_slice(),
+        "public_io_bytes must be deterministic"
+    );
+    assert_eq!(
+        ia.ccs_witness_bytes.expose(),
+        ib.ccs_witness_bytes.expose(),
+        "ccs_witness_bytes must be deterministic"
+    );
+    assert_eq!(
+        ia.sha256_binding_bytes.as_slice(),
+        ib.sha256_binding_bytes.as_slice(),
+        "sha256_binding_bytes must be deterministic"
+    );
 }
 
 /// Verifies that `ccs_witness_bytes` contains actual polynomial coefficients
@@ -195,7 +214,10 @@ fn witness_bytes_contain_poly_coefficients() {
 
     let witness_bytes = inst.ccs_witness_bytes.expose();
 
-    assert!(!witness_bytes.is_empty(), "ccs_witness_bytes must not be empty");
+    assert!(
+        !witness_bytes.is_empty(),
+        "ccs_witness_bytes must not be empty"
+    );
     assert!(
         witness_bytes.iter().any(|&b| b != 0),
         "ccs_witness_bytes must contain non-zero data (found all zeros)"
@@ -208,12 +230,16 @@ fn witness_bytes_contain_poly_coefficients() {
     );
 
     let coeff0 = u64::from_le_bytes(witness_bytes[0..8].try_into().unwrap());
-    assert_eq!(coeff0, u64::from(seed),
+    assert_eq!(
+        coeff0,
+        u64::from(seed),
         "coefficient 0 in witness bytes should be seed value {seed}"
     );
 
     let coeff1 = u64::from_le_bytes(witness_bytes[8..16].try_into().unwrap());
-    assert_eq!(coeff1, u64::from(party_id),
+    assert_eq!(
+        coeff1,
+        u64::from(party_id),
         "coefficient 1 in witness bytes should be party_id value {party_id}"
     );
 
@@ -221,7 +247,8 @@ fn witness_bytes_contain_poly_coefficients() {
         let start = i * 8;
         let end = start + 8;
         let coeff = u64::from_le_bytes(witness_bytes[start..end].try_into().unwrap());
-        assert_eq!(coeff, 0,
+        assert_eq!(
+            coeff, 0,
             "coefficient {i} in witness bytes should be zero, got {coeff}"
         );
     }
@@ -235,20 +262,20 @@ fn binding_is_function_of_all_fields() {
     let wit = make_witness(1, 0x10);
 
     let nizk_base = vec![(1u32, &stmt, &wit)];
-    let instances_base = build_fold_instances(&nizk_base, [0x00; 32], 0)
-        .expect("build_fold_instances base");
+    let instances_base =
+        build_fold_instances(&nizk_base, [0x00; 32], 0).expect("build_fold_instances base");
     let binding_base = instances_base[0].sha256_binding_bytes.as_slice().to_vec();
 
-    let instances_ct = build_fold_instances(&nizk_base, [0xFF; 32], 0)
-        .expect("build_fold_instances ct");
+    let instances_ct =
+        build_fold_instances(&nizk_base, [0xFF; 32], 0).expect("build_fold_instances ct");
     assert_ne!(
         binding_base,
         instances_ct[0].sha256_binding_bytes.as_slice(),
         "sha256_binding must differ for different ct_hash"
     );
 
-    let instances_seed = build_fold_instances(&nizk_base, [0x00; 32], 1)
-        .expect("build_fold_instances seed");
+    let instances_seed =
+        build_fold_instances(&nizk_base, [0x00; 32], 1).expect("build_fold_instances seed");
     assert_ne!(
         binding_base,
         instances_seed[0].sha256_binding_bytes.as_slice(),
@@ -257,8 +284,8 @@ fn binding_is_function_of_all_fields() {
 
     let wit2 = make_witness(1, 0x20);
     let nizk_wit2 = vec![(1u32, &stmt, &wit2)];
-    let instances_wit = build_fold_instances(&nizk_wit2, [0x00; 32], 0)
-        .expect("build_fold_instances wit2");
+    let instances_wit =
+        build_fold_instances(&nizk_wit2, [0x00; 32], 0).expect("build_fold_instances wit2");
     assert_ne!(
         binding_base,
         instances_wit[0].sha256_binding_bytes.as_slice(),
@@ -267,8 +294,8 @@ fn binding_is_function_of_all_fields() {
 
     let stmt2 = make_statement(1, 0x30);
     let nizk_stmt2 = vec![(1u32, &stmt2, &wit)];
-    let instances_stmt = build_fold_instances(&nizk_stmt2, [0x00; 32], 0)
-        .expect("build_fold_instances stmt2");
+    let instances_stmt =
+        build_fold_instances(&nizk_stmt2, [0x00; 32], 0).expect("build_fold_instances stmt2");
     assert_ne!(
         binding_base,
         instances_stmt[0].sha256_binding_bytes.as_slice(),
@@ -287,9 +314,12 @@ fn source_without_comments(source: &str) -> String {
         .lines()
         .filter(|line| {
             let trimmed = line.trim();
-            !trimmed.starts_with("/// ") && !trimmed.starts_with("///") && !trimmed.starts_with("// ")
+            !trimmed.starts_with("/// ")
+                && !trimmed.starts_with("///")
+                && !trimmed.starts_with("// ")
                 && !trimmed.starts_with("//! ")
-                && !line.starts_with("//") && !line.starts_with("///")
+                && !line.starts_with("//")
+                && !line.starts_with("///")
         })
         .collect::<Vec<_>>()
         .join("\n")

@@ -1,8 +1,8 @@
 //! Integration tests for demo banner output.
 
 use assert_cmd::Command;
-use predicates::str::contains;
 use predicates::prelude::PredicateBooleanExt;
+use predicates::str::contains;
 
 #[test]
 fn demo_prints_banner_and_backend_ids() {

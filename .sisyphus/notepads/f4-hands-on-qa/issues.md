@@ -24,3 +24,14 @@
 3. **pvthfhe-compressor :: sonobe_isolated_mem**
    - "RED phase: keep failing until the memory fix lands"
    - Test explicitly a RED gate test
+
+## F4 QA: D.1 Lattice-Native BFV Encryption Proof — 2026-05-12
+
+### Status: NO BLOCKING ISSUES
+
+All 15 focused nizk_share tests pass. Demo runs end-to-end with real BFV crypto, achieving plaintext_roundtrip: OK and verify: ACCEPT.
+
+### Non-blocking observations
+- `pvthfhe-fhe` mock warning still appears in build output (expected; demo uses fhe.rs directly, not the mock)
+- `verifier_accepts_internally_consistent_but_invalid_proof` test still passes (known limitation: D2-preimage binding covers ciphertext/share commitment only, not full BFV relation; documented in nizk-construction.md §4.4)
+- Previously reported genuine failures (encoding_golden, UltraHonkVerifier) were NOT in scope for this QA run (focused on D.1 lattice BFV NIZK proof only)

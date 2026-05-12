@@ -4,18 +4,14 @@
 
 use anyhow::Context;
 use clap::Parser;
+use pvthfhe_aggregator::keygen::simulator::{KeygenResult, KeygenSimulator};
 use pvthfhe_bench::e2e_timings::E2eTimings;
 use pvthfhe_cli::compressor_glue::{compressor_backend_id, log_compressor_mode, Compressor};
-use pvthfhe_cli::full_pipeline::{run_full_pipeline, PipelineConfig, PipelineObserver, PipelineReport};
+use pvthfhe_cli::full_pipeline::{
+    run_full_pipeline, PipelineConfig, PipelineObserver, PipelineReport,
+};
 use pvthfhe_cli::pvss_support::{run_lattice_pvss, PVSS_BACKEND_ID};
-use pvthfhe_aggregator::{
-    keygen::simulator::{KeygenResult, KeygenSimulator},
-};
-use pvthfhe_fhe::{
-    fhers::FhersBackend,
-    real_nizk::CYCLO_BACKEND_ID,
-    FheBackend,
-};
+use pvthfhe_fhe::{fhers::FhersBackend, real_nizk::CYCLO_BACKEND_ID, FheBackend};
 use std::{path::Path, time::Instant};
 use tracing::{info, warn};
 
@@ -81,8 +77,8 @@ fn main() -> anyhow::Result<()> {
             "rss"
         );
         let mut epoch_hash = [0u8; 32];
-    epoch_hash[..8].copy_from_slice(&args.seed.to_be_bytes());
-    let _compressor = Compressor::new(epoch_hash, args.n)?;
+        epoch_hash[..8].copy_from_slice(&args.seed.to_be_bytes());
+        let _compressor = Compressor::new(epoch_hash, args.n)?;
         info!(
             phase = "rss_checkpoint",
             label = "probe_after_compressor_new",
@@ -145,7 +141,10 @@ fn run_dry_run_pvss_probe(args: &Args) -> anyhow::Result<()> {
     };
 
     let pvss = run_lattice_pvss(&backend, &transcript, args.t, "pvthfhe-e2e/pvss", args.seed)?;
-    println!("share_encryption_proof_ms={}", pvss.share_encryption_proof_ms);
+    println!(
+        "share_encryption_proof_ms={}",
+        pvss.share_encryption_proof_ms
+    );
     Ok(())
 }
 
@@ -204,19 +203,27 @@ impl BenchObserver {
         let noir_sonobe_wrap_started = Instant::now();
         info!(phase = "noir_sonobe_wrap", proof_digest = %report.compressed_proof_digest_hex, "phase start");
         println!("noir_sonobe_wrap");
-        self.timings.phases.noir_sonobe_wrap.total_ms = noir_sonobe_wrap_started.elapsed().as_secs_f64() * 1_000.0;
+        self.timings.phases.noir_sonobe_wrap.total_ms =
+            noir_sonobe_wrap_started.elapsed().as_secs_f64() * 1_000.0;
         self.timings.phases.noir_sonobe_wrap.instances_run = 1;
 
         let onchain_verify_started = Instant::now();
         info!(phase = "onchain_verify", proof_digest = %report.compressed_proof_digest_hex, "phase start");
         println!("onchain_verify");
-        self.timings.phases.onchain_verify.total_ms = onchain_verify_started.elapsed().as_secs_f64() * 1_000.0;
+        self.timings.phases.onchain_verify.total_ms =
+            onchain_verify_started.elapsed().as_secs_f64() * 1_000.0;
         self.timings.phases.onchain_verify.instances_run = 1;
 
         println!("backend_id_p1={CYCLO_BACKEND_ID}");
-        println!("compressor_backend_id={}", self.timings.compressor_backend_id);
+        println!(
+            "compressor_backend_id={}",
+            self.timings.compressor_backend_id
+        );
         println!("pvss_backend_id={PVSS_BACKEND_ID}");
-        println!("share_encryption_proof_ms={}", self.timings.phases.pvss_share_encrypt.total_ms as u128);
+        println!(
+            "share_encryption_proof_ms={}",
+            self.timings.phases.pvss_share_encrypt.total_ms as u128
+        );
 
         write_timings_json(&self.timings)
     }
@@ -277,8 +284,13 @@ fn write_timings_json(timings: &E2eTimings) -> anyhow::Result<()> {
     let temp_path = artifact_path.with_extension("json.tmp");
     let json = serde_json::to_string_pretty(timings).context("serialize e2e timings")?;
     std::fs::write(&temp_path, json).with_context(|| format!("write {}", temp_path.display()))?;
-    std::fs::rename(&temp_path, &artifact_path)
-        .with_context(|| format!("rename {} to {}", temp_path.display(), artifact_path.display()))?;
+    std::fs::rename(&temp_path, &artifact_path).with_context(|| {
+        format!(
+            "rename {} to {}",
+            temp_path.display(),
+            artifact_path.display()
+        )
+    })?;
     Ok(())
 }
 

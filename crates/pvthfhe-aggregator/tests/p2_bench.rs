@@ -49,6 +49,7 @@ fn make_stmt(fold_index: u64, n: usize, tag: u8) -> FoldStatement {
             session_id: session,
             params,
             ciphertext_bytes: vec![tag; n / 8], // scales with n for realistic sizing
+            multi_track_metadata: None,
         },
     }
 }

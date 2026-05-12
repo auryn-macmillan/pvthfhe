@@ -283,6 +283,10 @@ pub struct EncryptionWitness {
     pub ct1_poly_bytes: Vec<u8>,
     /// Canonical ciphertext serialization (prost-encoded BfvCiphertext).
     pub ciphertext_bytes: Vec<u8>,
+    /// Recipient public-key component pk0 polynomial bytes (power-basis).
+    pub recipient_pk0_bytes: Vec<u8>,
+    /// Recipient public-key component pk1 polynomial bytes (power-basis).
+    pub recipient_pk1_bytes: Vec<u8>,
 }
 
 impl EncryptionWitness {
@@ -295,6 +299,8 @@ impl EncryptionWitness {
             && !self.ct0_poly_bytes.is_empty()
             && !self.ct1_poly_bytes.is_empty()
             && !self.ciphertext_bytes.is_empty()
+            && !self.recipient_pk0_bytes.is_empty()
+            && !self.recipient_pk1_bytes.is_empty()
     }
 }
 

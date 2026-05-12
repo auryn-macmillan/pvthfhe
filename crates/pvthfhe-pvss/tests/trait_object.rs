@@ -44,6 +44,7 @@ fn pvss_adapter_is_trait_object_safe() {
         t: 2,
         session_id: b"session".to_vec(),
         epoch: 0,
+        dkg_root: vec![],
     };
     let shares = pvthfhe_pvss::EncryptedShares {
         ciphertexts: vec![vec![1, 2, 3]],

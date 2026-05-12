@@ -61,22 +61,27 @@ PVTHFHE supports two distinct smudging modes with different security guarantees:
 
 | Mode | API | Noise source | Interfold-equivalent |
 |------|-----|-------------|---------------------|
-| `legacy_local_smudge` | `FheBackend::partial_decrypt` | Fresh Gaussian sampled per-decryption via local RNG | **No** — smudging noise is not committed, shared, or proved. |
-| `committed_smudge_pvss` | `FheBackend::partial_decrypt_committed_smudge` | Committed `e_sm` polynomial from DKG transcript | **Yes** — matches Interfold C6 (`ThresholdShareDecryption`). |
+| `legacy_local_smudge` | `FheBackend::partial_decrypt` | Fresh Gaussian sampled per-decryption via local RNG | **No** (Non-equivalent mode) |
+| `committed_smudge_pvss` | `FheBackend::partial_decrypt_committed_smudge` | Committed `e_sm` polynomial from DKG transcript | **Target Committed Mode** |
 
 **`legacy_local_smudge`** (default): Each party samples fresh Gaussian smudging noise
 locally during `partial_decrypt`. The noise provides honest-but-curious LWE-based
 hiding (prevents secret-key recovery from observed partial decryption shares), but
-is NOT equivalent to the Interfold's guaranteed surface because the noise is not a
-committed, shared PVSS object. This mode is maintained for backward compatibility
-and testing.
+is **not** Interfold-equivalent because the noise is not a committed, shared PVSS
+object. This mode is preserved only as an explicit non-equivalent path for legacy
+testing. It lacks a distribution/freshness proof linking the local sample to a
+publicly verifiable commitment.
 
-**`committed_smudge_pvss`** (Interfold-equivalent): The smudging noise polynomial
-`e_sm` is a first-class committed, shared, and proved PVSS object produced during
-DKG (batch C in the Interfold-equivalence plan). At decryption time, the backend
-adds the committed `e_sm` polynomial instead of sampling fresh noise. The
-`DecryptionWitness` records `esm_committed: true` and the exact `e_sm` bytes used,
-enabling public verification that the decryption share uses committed DKG material.
+**`committed_smudge_pvss`** (Interfold-equivalent): This is the target
+Interfold-equivalent mode. The smudging noise polynomial `e_sm` is a first-class
+committed, shared, and proved PVSS object produced during DKG (batch C in the
+Interfold-equivalence plan). At decryption time, the backend adds the committed
+`e_sm` polynomial instead of sampling fresh noise. This mode requires
+DKG-committed `e_sm` slots and public freshness enforcement via the on-chain
+`SessionRegistry` to prevent slot reuse. Verification is performed using
+the on-chain `PvtFheVerifier` which binds the decryption share to the
+DKG commitments and F.1 proof statement; the raw `e_sm` witness material
+remains private to the prover.
 
 The committed-smudge path is the foundation for batch F (C6-equivalent threshold
 decryption with committed smudging). See `.sisyphus/design/smudging.md` for the

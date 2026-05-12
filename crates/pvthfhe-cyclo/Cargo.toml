@@ -10,6 +10,7 @@ pvthfhe-types = { path = "../pvthfhe-types" }
 thiserror = "1"
 sha2 = "0.10"
 rand_core = "0.6"
+rand_chacha = "0.3"
 fhe-math = { package = "fhe-math", git = "https://github.com/gnosisguild/fhe.rs", rev = "5f24d0b62a7329b789db07a065b68accd614a47b" }
 ark-ff = "0.5"
 ark-bn254 = "0.5"

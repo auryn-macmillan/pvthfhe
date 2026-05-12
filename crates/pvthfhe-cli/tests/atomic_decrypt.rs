@@ -22,18 +22,34 @@ fn tampered_partial_rejected_no_plaintext() {
     let backend = MockBackend::load_params(
         "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10"
     ).expect("load mock backend");
-    let ct = Ciphertext { bytes: vec![0xAA; 16] };
+    let ct = Ciphertext {
+        bytes: vec![0xAA; 16],
+    };
     let dkg_root = [3u8; 32];
     let ciphertext_hash = [4u8; 32];
     let epoch = 1;
 
     let share1 = partial_decrypt(
-        &backend, &ct, 1, &dkg_root, &ciphertext_hash, epoch, &mut rng,
-    ).expect("share 1");
+        &backend,
+        &ct,
+        1,
+        &dkg_root,
+        &ciphertext_hash,
+        epoch,
+        &mut rng,
+    )
+    .expect("share 1");
 
     let share2 = partial_decrypt(
-        &backend, &ct, 2, &dkg_root, &ciphertext_hash, epoch, &mut rng,
-    ).expect("share 2");
+        &backend,
+        &ct,
+        2,
+        &dkg_root,
+        &ciphertext_hash,
+        epoch,
+        &mut rng,
+    )
+    .expect("share 2");
 
     // Tamper share2's NIZK proof: keep nizk[0]==1 to pass trivial check
     // but corrupt the rest so it's cryptographically invalid.

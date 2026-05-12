@@ -3,12 +3,14 @@
 use std::fmt::Debug;
 use std::fs;
 
+use std::borrow::Borrow;
+
 use ark_bn254::{Fr, G1Projective as G1};
 use ark_ff::{BigInteger, PrimeField};
 use ark_grumpkin::Projective as G2;
+use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::fields::fp::FpVar;
-use ark_r1cs_std::fields::FieldVar;
-use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
+use ark_relations::gr1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Validate};
 use folding_schemes::{
     commitment::pedersen::Pedersen,
@@ -30,13 +32,42 @@ const _: () = {
     let _: Option<WitnessStatement> = None;
 };
 
-use crate::{CompressedProof, CompressorError, ProofCompressor, StepCircuit, StepCircuitDescriptor, VerifierKey};
+use crate::{
+    CompressedProof, CompressorError, ProofCompressor, StepCircuit, StepCircuitDescriptor,
+    VerifierKey,
+};
 
 const BACKEND_ID: &str = "sonobe-nova-bn254-grumpkin";
 const PROOF_MAGIC: [u8; 4] = *b"SNOB";
 const PROOF_VERSION: u32 = 1;
 
 type SonobeIvcProof = IVCProof<G1, G2>;
+
+/// Triple external inputs: (commitment, norm, count) for each fold step.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ExternalInputs3<F: PrimeField>(pub F, pub F, pub F);
+
+/// R1CS variable wrapper for triple external inputs.
+#[derive(Clone, Debug)]
+pub struct ExternalInputs3Var<F: PrimeField>(pub FpVar<F>, pub FpVar<F>, pub FpVar<F>);
+
+impl<F: PrimeField> AllocVar<ExternalInputs3<F>, F> for ExternalInputs3Var<F> {
+    fn new_variable<T: Borrow<ExternalInputs3<F>>>(
+        cs: impl Into<Namespace<F>>,
+        f: impl FnOnce() -> Result<T, SynthesisError>,
+        mode: AllocationMode,
+    ) -> Result<Self, SynthesisError> {
+        let ns = cs.into();
+        let cs = ns.cs();
+        let v = f()?;
+        let e = v.borrow();
+        Ok(ExternalInputs3Var(
+            FpVar::<F>::new_variable(cs.clone(), || Ok(e.0), mode)?,
+            FpVar::<F>::new_variable(cs.clone(), || Ok(e.1), mode)?,
+            FpVar::<F>::new_variable(cs, || Ok(e.2), mode)?,
+        ))
+    }
+}
 
 /// Toy step circuit for R4.0 Sonobe IVC stub (z_{i+1} = z_i + ext).
 #[derive(Clone, Copy, Debug)]
@@ -46,8 +77,8 @@ pub struct ToyStepCircuit<F: PrimeField> {
 
 impl<F: PrimeField> FCircuit<F> for ToyStepCircuit<F> {
     type Params = ();
-    type ExternalInputs = F;
-    type ExternalInputsVar = FpVar<F>;
+    type ExternalInputs = ExternalInputs3<F>;
+    type ExternalInputsVar = ExternalInputs3Var<F>;
 
     fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
         Ok(Self {
@@ -56,7 +87,7 @@ impl<F: PrimeField> FCircuit<F> for ToyStepCircuit<F> {
     }
 
     fn state_len(&self) -> usize {
-        1
+        3
     }
 
     fn generate_step_constraints(
@@ -66,13 +97,17 @@ impl<F: PrimeField> FCircuit<F> for ToyStepCircuit<F> {
         z_i: Vec<FpVar<F>>,
         external_inputs: Self::ExternalInputsVar,
     ) -> Result<Vec<FpVar<F>>, SynthesisError> {
-        Ok(vec![z_i[0].clone() + external_inputs])
+        Ok(vec![
+            z_i[0].clone() + external_inputs.0,
+            z_i[1].clone() + external_inputs.1,
+            z_i[2].clone() + external_inputs.2,
+        ])
     }
 }
 
 impl<F: PrimeField> StepCircuit for ToyStepCircuit<F> {
     fn descriptor(&self) -> StepCircuitDescriptor {
-        StepCircuitDescriptor { width: 1 }
+        StepCircuitDescriptor { width: 3 }
     }
 
     fn circuit_hash(&self) -> [u8; 32] {
@@ -91,8 +126,8 @@ pub struct CycloFoldStepCircuit<F: PrimeField> {
 
 impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
     type Params = ();
-    type ExternalInputs = F;
-    type ExternalInputsVar = FpVar<F>;
+    type ExternalInputs = ExternalInputs3<F>;
+    type ExternalInputsVar = ExternalInputs3Var<F>;
 
     fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
         Ok(Self {
@@ -111,20 +146,10 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
         z_i: Vec<FpVar<F>>,
         external_inputs: Self::ExternalInputsVar,
     ) -> Result<Vec<FpVar<F>>, SynthesisError> {
-        let one = FpVar::<F>::constant(F::from(1u64));
+        let folded_hash = z_i[0].clone() * &external_inputs.0 + z_i[0].clone();
+        let escalated_norm = z_i[1].clone() + &external_inputs.1;
+        let count_inc = z_i[2].clone() + &external_inputs.2;
 
-        // Commitment folding: multiplicative fold of accumulated hash with new instance.
-        // Allocates a multiplication constraint in cs via the FpVar * operator.
-        let folded_hash = z_i[0].clone() * &external_inputs + z_i[0].clone();
-
-        // Norm escalation: additive accumulation of norms from folded instances.
-        let escalated_norm = z_i[1].clone() + &external_inputs;
-
-        // Count increment: each fold step advances the counter by 1.
-        let count_inc = z_i[2].clone() + one;
-
-        // Touch cs to suppress unused-variable warning (the multiplication above
-        // already uses it internally).
         let _ = cs.num_constraints();
 
         Ok(vec![folded_hash, escalated_norm, count_inc])
@@ -143,7 +168,9 @@ impl<F: PrimeField> StepCircuit for CycloFoldStepCircuit<F> {
 
 /// Proof compressor backed by Sonobe Nova over the BN254/Grumpkin cycle.
 #[derive(Clone, Debug)]
-pub struct SonobeCompressor<S: FCircuit<Fr, Params = (), ExternalInputs = Fr> + StepCircuit + Clone + Debug> {
+pub struct SonobeCompressor<
+    S: FCircuit<Fr, Params = (), ExternalInputs = ExternalInputs3<Fr>> + StepCircuit + Clone + Debug,
+> {
     prover_key_bytes: Vec<u8>,
     verifier_key_bytes: Vec<u8>,
     verifier_key: VerifierKey,
@@ -155,7 +182,13 @@ pub struct SonobeCompressor<S: FCircuit<Fr, Params = (), ExternalInputs = Fr> + 
 
 type SonobeNova<S> = Nova<G1, G2, S, Pedersen<G1>, Pedersen<G2>, false>;
 
-impl<S: FCircuit<Fr, Params = (), ExternalInputs = Fr> + StepCircuit + Clone + Debug> SonobeCompressor<S> {
+impl<
+        S: FCircuit<Fr, Params = (), ExternalInputs = ExternalInputs3<Fr>>
+            + StepCircuit
+            + Clone
+            + Debug,
+    > SonobeCompressor<S>
+{
     /// Creates a new Sonobe compressor instance bound to an on-chain epoch.
     ///
     /// The SRS is derived deterministically from `epoch_hash`, making it
@@ -163,23 +196,20 @@ impl<S: FCircuit<Fr, Params = (), ExternalInputs = Fr> + StepCircuit + Clone + D
     /// `ivc_steps` sets the number of IVC fold steps (must equal the number
     /// of participating parties).
     pub fn new(epoch_hash: [u8; 32], ivc_steps: usize) -> Result<Self, CompressorError> {
-        let circuit = S::new(())
-            .map_err(|_| CompressorError::Backend("sonobe circuit init failed"))?;
+        let circuit =
+            S::new(()).map_err(|_| CompressorError::Backend("sonobe circuit init failed"))?;
         let circuit_hash = circuit.circuit_hash();
         let state_len = circuit.state_len();
 
         // Derive SRS hash: H(epoch_hash || SonobeSrs)
-        let srs_hash: [u8; 32] = Keccak256::digest(
-            &[&epoch_hash[..], Tag::SonobeSrs.as_bytes()].concat(),
-        )
-        .into();
+        let srs_hash: [u8; 32] =
+            Keccak256::digest(&[&epoch_hash[..], Tag::SonobeSrs.as_bytes()].concat()).into();
 
         // Derive deterministic RNG from epoch_hash for reproducible SRS.
         // allow-seeded-rng: SRS bound to on-chain epoch per R5.3
-        let srs_seed: [u8; 32] = Keccak256::digest(
-            &[&epoch_hash[..], Tag::SonobeSrs.as_bytes(), b"-seed"].concat(),
-        )
-        .into();
+        let srs_seed: [u8; 32] =
+            Keccak256::digest(&[&epoch_hash[..], Tag::SonobeSrs.as_bytes(), b"-seed"].concat())
+                .into();
         let mut rng = ChaCha20Rng::from_seed(srs_seed);
 
         let params = SonobeNova::<S>::preprocess(
@@ -250,8 +280,8 @@ impl<S: FCircuit<Fr, Params = (), ExternalInputs = Fr> + StepCircuit + Clone + D
         &self,
     ) -> Result<
         (
-            <SonobeNova::<S> as FoldingScheme<G1, G2, S>>::ProverParam,
-            <SonobeNova::<S> as FoldingScheme<G1, G2, S>>::VerifierParam,
+            <SonobeNova<S> as FoldingScheme<G1, G2, S>>::ProverParam,
+            <SonobeNova<S> as FoldingScheme<G1, G2, S>>::VerifierParam,
         ),
         CompressorError,
     > {
@@ -285,18 +315,26 @@ impl<S: FCircuit<Fr, Params = (), ExternalInputs = Fr> + StepCircuit + Clone + D
     }
 }
 
-impl<S: FCircuit<Fr, Params = (), ExternalInputs = Fr> + StepCircuit + Clone + Debug> ProofCompressor for SonobeCompressor<S> {
+impl<
+        S: FCircuit<Fr, Params = (), ExternalInputs = ExternalInputs3<Fr>>
+            + StepCircuit
+            + Clone
+            + Debug,
+    > ProofCompressor for SonobeCompressor<S>
+{
     fn prove(&self, acc: &[u8], public_inputs: &[u8]) -> Result<CompressedProof, CompressorError> {
-        let initial_scalar = decode_scalar(acc)?;
-        let delta = decode_scalar(public_inputs)?;
+        let initial = decode_triple(acc)?;
+        let delta = decode_triple(public_inputs)?;
         let params = self.deserialize_params()?;
-        let circuit = S::new(())
-            .map_err(|_| CompressorError::Backend("sonobe circuit init failed"))?;
+        let circuit =
+            S::new(()).map_err(|_| CompressorError::Backend("sonobe circuit init failed"))?;
         let state_len = circuit.state_len();
 
         let mut initial_state = Vec::with_capacity(state_len);
-        initial_state.push(initial_scalar);
-        for _ in 1..state_len {
+        initial_state.push(initial.0);
+        initial_state.push(initial.1);
+        initial_state.push(initial.2);
+        for _ in 3..state_len {
             initial_state.push(Fr::from(0u64));
         }
 
@@ -305,8 +343,9 @@ impl<S: FCircuit<Fr, Params = (), ExternalInputs = Fr> + StepCircuit + Clone + D
         tracing::info!(rss_kb = rss_kb(), "sonobe: Nova::init done");
         let mut rng = OsRng;
 
+        let ext_inputs = ExternalInputs3(delta.0, delta.1, delta.2);
         for step in 0..self.ivc_steps {
-            nova.prove_step(&mut rng, delta, None)
+            nova.prove_step(&mut rng, ext_inputs, None)
                 .map_err(|_| CompressorError::Backend("sonobe prove step failed"))?;
             tracing::info!(step = step, rss_kb = rss_kb(), "sonobe: prove_step done");
         }
@@ -355,7 +394,12 @@ impl<S: FCircuit<Fr, Params = (), ExternalInputs = Fr> + StepCircuit + Clone + D
             return Ok(false);
         }
 
-        if normalized_hash(&encode_scalar(ivc_proof.z_0[0]))? != parsed.acc_hash {
+        if normalized_hash(&encode_triple((
+            ivc_proof.z_0[0],
+            ivc_proof.z_0[1],
+            ivc_proof.z_0[2],
+        )))? != parsed.acc_hash
+        {
             return Ok(false);
         }
 
@@ -438,9 +482,33 @@ fn encode_scalar(value: Fr) -> Vec<u8> {
     bytes
 }
 
+/// Decode 96 bytes into a triple of Fr scalars (commitment, norm, count).
+pub fn decode_triple(bytes: &[u8]) -> Result<(Fr, Fr, Fr), CompressorError> {
+    if bytes.len() < 96 {
+        return Err(CompressorError::InvalidInput);
+    }
+    let a = decode_scalar(&bytes[0..32])?;
+    let b = decode_scalar(&bytes[32..64])?;
+    let c = decode_scalar(&bytes[64..96])?;
+    Ok((a, b, c))
+}
+
+/// Encode a triple of Fr scalars (commitment, norm, count) into 96 bytes.
+pub fn encode_triple(value: (Fr, Fr, Fr)) -> [u8; 96] {
+    let mut out = [0u8; 96];
+    let a = encode_scalar(value.0);
+    let b = encode_scalar(value.1);
+    let c = encode_scalar(value.2);
+    out[0..32].copy_from_slice(&a);
+    out[32..64].copy_from_slice(&b);
+    out[64..96].copy_from_slice(&c);
+    out
+}
+
 fn normalized_hash(bytes: &[u8]) -> Result<[u8; 32], CompressorError> {
-    let scalar = decode_scalar(bytes)?;
-    Ok(Keccak256::digest(encode_scalar(scalar)).into())
+    let triple = decode_triple(bytes)?;
+    let canonical = encode_triple(triple);
+    Ok(Keccak256::digest(canonical).into())
 }
 
 fn rss_kb() -> u64 {

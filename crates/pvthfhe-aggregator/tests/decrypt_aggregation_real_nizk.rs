@@ -16,8 +16,8 @@ const DECRYPT_MOD_PATH: &str = "src/decrypt/mod.rs";
 /// After GREEN, the aggregator must call the real NIZK verifier instead.
 #[test]
 fn no_trivial_nizk_byte_check_in_source() {
-    let src = fs::read_to_string(DECRYPT_MOD_PATH)
-        .expect("aggregator decrypt/mod.rs must be readable");
+    let src =
+        fs::read_to_string(DECRYPT_MOD_PATH).expect("aggregator decrypt/mod.rs must be readable");
 
     // Look for the old surrogate check: nizk[...] == 1 or nizk[...] != 1
     let lines_with_old_check: Vec<_> = src
@@ -37,7 +37,10 @@ fn no_trivial_nizk_byte_check_in_source() {
          Must be replaced with real DecryptNizkVerifier::verify call.",
         lines_with_old_check.len(),
         DECRYPT_MOD_PATH,
-        lines_with_old_check.iter().map(|(n, l)| format!("L{}: {}", n + 1, l.trim())).collect::<Vec<_>>()
+        lines_with_old_check
+            .iter()
+            .map(|(n, l)| format!("L{}: {}", n + 1, l.trim()))
+            .collect::<Vec<_>>()
     );
 }
 
@@ -47,8 +50,8 @@ fn no_trivial_nizk_byte_check_in_source() {
 /// After GREEN, `pk_i_hash` must also be a real commitment (not `[0u8; 32]`).
 #[test]
 fn no_hardcoded_nizk_or_zero_pk_hash_in_source() {
-    let src = fs::read_to_string(DECRYPT_MOD_PATH)
-        .expect("aggregator decrypt/mod.rs must be readable");
+    let src =
+        fs::read_to_string(DECRYPT_MOD_PATH).expect("aggregator decrypt/mod.rs must be readable");
 
     // Check for the hardcoded nizk surrogate
     let nizk_surrogate = src.contains("vec![1]");

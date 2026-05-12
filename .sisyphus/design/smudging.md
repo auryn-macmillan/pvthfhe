@@ -393,10 +393,19 @@ per `.sisyphus/design/assumptions-ledger.md` §R0.7.
 
 PVTHFHE now supports two smudging-noise modes with different security guarantees:
 
-| Mode | Method | Noise source | esm_committed |
-|------|--------|-------------|---------------|
-| `legacy_local_smudge` | `FheBackend::partial_decrypt` | Fresh Gaussian ~ 𝒩(0, σ²_smudge) sampled per-decryption | `false` |
-| `committed_smudge_pvss` | `FheBackend::partial_decrypt_committed_smudge` | Pre-committed `e_sm` poly from DKG transcript | `true` |
+| Mode | API | Noise source | `esm_committed` | Status |
+|---|---|---|---|---|
+| `legacy_local_smudge` | `FheBackend::partial_decrypt` | Fresh Gaussian ~ 𝒩(0, σ²_smudge) sampled per-decryption | `false` | **Non-equivalent mode** |
+| `committed_smudge_pvss` | `FheBackend::partial_decrypt_committed_smudge` | Pre-committed `e_sm` poly from DKG transcript | `true` | **Target Committed Mode** |
+
+### 8.1.1 Equivalence conditions
+
+Fresh local smudging (`legacy_local_smudge`) is **not Interfold-equivalent** by default because the noise is sampled at decryption time and lacks a commitment binding the noise distribution to the DKG transcript. It remains a legacy path for honest-but-curious testing. To be considered equivalent, a `legacy_local_smudge` share would require an additional distribution/freshness proof (e.g., a NIZK demonstrating the noise was sampled correctly from the target Gaussian distribution) which is not currently implemented.
+
+The `committed_smudge_pvss` mode is the target Interfold-equivalent mode. It requires:
+1. **DKG-committed e_sm slots**: Noise polynomials must be committed during the DKG phase and shared via PVSS.
+2. **Public freshness enforcement**: The `SessionRegistry` and `PvtFheVerifier` contracts must reject slot reuse to ensure one-time freshness.
+
 
 ### 8.2 Legacy local smudging
 
@@ -420,9 +429,11 @@ At decryption time:
 2. Instead of sampling fresh Gaussian noise, it deserializes the committed
    `e_sm` polynomial bytes.
 3. It adds `d_share += e_sm_committed`.
-4. The returned `DecryptionWitness` records `esm_committed: true` and the exact
-   `e_sm` bytes used, enabling public verification that the share binds to the
-   DKG transcript.
+4. The returned `DecryptionWitness` (prover-side only) records `esm_committed: true`
+   and the exact `e_sm` bytes used. Public verification of the decryption share
+   is performed via the on-chain `SessionRegistry` (enforcing one-time slot use)
+   and the `PvtFheVerifier` (binding the share to the DKG-committed `e_sm`
+   slots/hashes).
 
 The committed path is the foundation for Batch F (C6-equivalent threshold
 decryption proof) in the Interfold-equivalence plan.

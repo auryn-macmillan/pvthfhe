@@ -126,12 +126,11 @@ pub trait FheBackend: Send + Sync {
     ///
     /// The default implementation returns an error; backends that support
     /// witness extraction must override this.
-    #[allow(unused_variables)]
     fn partial_decrypt_with_witness(
         &self,
-        ct: &Ciphertext,
-        party_id: u32,
-        rng: &mut dyn RngCore,
+        _ct: &Ciphertext,
+        _party_id: u32,
+        _rng: &mut dyn RngCore,
     ) -> Result<(DecryptShare, DecryptionWitness), FheError> {
         Err(FheError::Backend {
             reason: "partial_decrypt_with_witness not implemented".into(),
@@ -147,13 +146,12 @@ pub trait FheBackend: Send + Sync {
     ///
     /// The default implementation returns an error; backends that support
     /// committed-smudge mode must override this.
-    #[allow(unused_variables)]
     fn partial_decrypt_committed_smudge(
         &self,
-        ct: &Ciphertext,
-        party_id: u32,
-        esm_noise_poly_bytes: &[u8],
-        rng: &mut dyn RngCore,
+        _ct: &Ciphertext,
+        _party_id: u32,
+        _esm_noise_poly_bytes: &[u8],
+        _rng: &mut dyn RngCore,
     ) -> Result<DecryptShare, FheError> {
         Err(FheError::Backend {
             reason: "partial_decrypt_committed_smudge not implemented".into(),
@@ -174,16 +172,57 @@ pub trait FheBackend: Send + Sync {
     ///
     /// The default implementation returns an error; backends that support
     /// committed-smudge mode must override this.
-    #[allow(unused_variables)]
     fn partial_decrypt_committed_smudge_with_witness(
         &self,
-        ct: &Ciphertext,
-        party_id: u32,
-        esm_noise_poly_bytes: &[u8],
-        rng: &mut dyn RngCore,
+        _ct: &Ciphertext,
+        _party_id: u32,
+        _esm_noise_poly_bytes: &[u8],
+        _rng: &mut dyn RngCore,
     ) -> Result<(DecryptShare, DecryptionWitness), FheError> {
         Err(FheError::Backend {
             reason: "partial_decrypt_committed_smudge_with_witness not implemented".into(),
+        })
+    }
+
+    /// Decode a public key into its constituent polynomial components.
+    ///
+    /// Returns `(pk0_poly_bytes, pk1_poly_bytes)` where each is an
+    /// fhe-math `Poly` serialization in power-basis representation.
+    /// The default implementation returns an error; backends that support
+    /// witness extraction must override this.
+    fn decode_pk_polys(&self, _pk: &PublicKey) -> Result<(Vec<u8>, Vec<u8>), FheError> {
+        Err(FheError::Backend {
+            reason: "decode_pk_polys not implemented".into(),
+        })
+    }
+
+    /// Decode a ciphertext into its constituent polynomial components.
+    ///
+    /// Returns `(ct0_poly_bytes, ct1_poly_bytes)` where each is an
+    /// fhe-math `Poly` serialization in power-basis representation.
+    /// The default implementation returns an error; backends that support
+    /// witness extraction must override this.
+    fn decode_ct_polys(&self, _ct: &Ciphertext) -> Result<(Vec<u8>, Vec<u8>), FheError> {
+        Err(FheError::Backend {
+            reason: "decode_ct_polys not implemented".into(),
+        })
+    }
+
+    /// Return the BFV plaintext modulus (t).
+    ///
+    /// The default implementation returns an error.
+    fn bfv_plaintext_modulus(&self) -> Result<u64, FheError> {
+        Err(FheError::Backend {
+            reason: "bfv_plaintext_modulus not implemented".into(),
+        })
+    }
+
+    /// Return the BFV RNS moduli as a slice.
+    ///
+    /// The default implementation returns an error.
+    fn bfv_moduli(&self) -> Result<Vec<u64>, FheError> {
+        Err(FheError::Backend {
+            reason: "bfv_moduli not implemented".into(),
         })
     }
 

@@ -2,14 +2,11 @@
 
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
-use pvthfhe_compressor::sonobe::{SonobeCompressor, ToyStepCircuit};
+use pvthfhe_compressor::sonobe::{encode_triple, SonobeCompressor, ToyStepCircuit};
 use pvthfhe_compressor::ProofCompressor;
 
-fn encode_scalar(value: u64) -> Vec<u8> {
-    let field = Fr::from(value);
-    let mut bytes = field.into_bigint().to_bytes_le();
-    bytes.resize(32, 0);
-    bytes
+fn encode_triple_scalar(a: u64, b: u64, c: u64) -> Vec<u8> {
+    encode_triple((Fr::from(a), Fr::from(b), Fr::from(c))).to_vec()
 }
 
 fn epoch() -> [u8; 32] {
@@ -18,10 +15,10 @@ fn epoch() -> [u8; 32] {
 
 #[test]
 fn sonobe_roundtrip_toy_ivc_verifies() {
-    let compressor =
-        SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch(), 4).expect("construct sonobe compressor");
-    let acc = encode_scalar(3);
-    let public_inputs = encode_scalar(7);
+    let compressor = SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch(), 4)
+        .expect("construct sonobe compressor");
+    let acc = encode_triple_scalar(3, 0, 0);
+    let public_inputs = encode_triple_scalar(7, 1, 1);
     let proof = compressor
         .prove(&acc, &public_inputs)
         .expect("prove toy ivc");
@@ -35,10 +32,10 @@ fn sonobe_roundtrip_toy_ivc_verifies() {
 
 #[test]
 fn sonobe_srs_is_deterministic_for_same_epoch() {
-    let left =
-        SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch(), 4).expect("construct left sonobe compressor");
-    let right =
-        SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch(), 4).expect("construct right sonobe compressor");
+    let left = SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch(), 4)
+        .expect("construct left sonobe compressor");
+    let right = SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch(), 4)
+        .expect("construct right sonobe compressor");
 
     assert_eq!(left.vk_bytes(), right.vk_bytes());
     assert_eq!(left.srs_hash(), right.srs_hash());
@@ -46,11 +43,11 @@ fn sonobe_srs_is_deterministic_for_same_epoch() {
 
 #[test]
 fn sonobe_rejects_wrong_public_input_or_tampered_acc_binding() {
-    let compressor =
-        SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch(), 4).expect("construct sonobe compressor");
-    let acc = encode_scalar(5);
-    let honest_public_inputs = encode_scalar(9);
-    let wrong_public_inputs = encode_scalar(10);
+    let compressor = SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch(), 4)
+        .expect("construct sonobe compressor");
+    let acc = encode_triple_scalar(5, 0, 0);
+    let honest_public_inputs = encode_triple_scalar(9, 1, 1);
+    let wrong_public_inputs = encode_triple_scalar(10, 1, 1);
     let proof = compressor
         .prove(&acc, &honest_public_inputs)
         .expect("prove honest toy ivc");
@@ -67,10 +64,10 @@ fn sonobe_rejects_wrong_public_input_or_tampered_acc_binding() {
 
 #[test]
 fn sonobe_rejects_truncated_proof_bytes_without_panicking() {
-    let compressor =
-        SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch(), 4).expect("construct sonobe compressor");
-    let acc = encode_scalar(12);
-    let public_inputs = encode_scalar(4);
+    let compressor = SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch(), 4)
+        .expect("construct sonobe compressor");
+    let acc = encode_triple_scalar(12, 0, 0);
+    let public_inputs = encode_triple_scalar(4, 1, 1);
     let proof = compressor
         .prove(&acc, &public_inputs)
         .expect("prove toy ivc");

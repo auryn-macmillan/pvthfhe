@@ -36,7 +36,11 @@ mod tests {
     fn e2e_soundness_full_pipeline_roundtrips() {
         let mut observer = PhaseCountObserver::default();
         let report = run_full_pipeline(
-            &PipelineConfig { n: 3, t: 2, seed: 0 },
+            &PipelineConfig {
+                n: 3,
+                t: 2,
+                seed: 0,
+            },
             &mut observer,
         )
         .expect("full pipeline n=3 t=2 should succeed");
@@ -109,7 +113,11 @@ mod tests {
 
         // With t shares where one is tampered, aggregate fails.
         let mut tampered = valid_shares.clone();
-        let corruption: Vec<u8> = tampered[1].bytes.iter().map(|b| b.wrapping_add(1)).collect();
+        let corruption: Vec<u8> = tampered[1]
+            .bytes
+            .iter()
+            .map(|b| b.wrapping_add(1))
+            .collect();
         tampered[1].bytes = pvthfhe_types::ProtocolBytes(corruption);
         let result = backend.aggregate_decrypt(&ct, &tampered, t);
         assert!(

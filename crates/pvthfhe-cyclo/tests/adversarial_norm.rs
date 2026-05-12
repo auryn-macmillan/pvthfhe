@@ -1,7 +1,7 @@
 //! Adversarial tests for norm-explosion rejection in the fold path.
 
 use pvthfhe_cyclo::{
-    fold::{fold_one_step, init_accumulator},
+    fold::{fold_one_step, init_accumulator, AJTAI_COMMITMENT_BYTES},
     CcsPShareInstance, PVTHFHE_CYCLO_PARAMS,
 };
 use rand_chacha::ChaCha20Rng;
@@ -24,9 +24,11 @@ fn make_honest_instance(id: u16) -> CcsPShareInstance {
     let mut binding = [0u8; 32];
     binding[0] = id as u8;
     let sha256_binding_bytes: ProtocolBytes = binding.to_vec().into();
+    let ajtai_bytes: Vec<u8> =
+        (0..AJTAI_COMMITMENT_BYTES).map(|i| (i as u8).wrapping_add(id as u8)).collect();
     CcsPShareInstance {
         participant_id: id,
-        ajtai_commitment_bytes: vec![id as u8; 32].into(),
+        ajtai_commitment_bytes: ajtai_bytes.into(),
         public_io_bytes: vec![id as u8 ^ 0x5A; 32].into(),
         ccs_witness_bytes: CcsWitnessSecret::new(one_var_witness(Fr::ZERO)),
         sha256_binding_bytes,
@@ -35,7 +37,7 @@ fn make_honest_instance(id: u16) -> CcsPShareInstance {
 }
 
 fn make_adversarial_instance(id: u16, round: u16, rng: &mut ChaCha20Rng) -> CcsPShareInstance {
-    let mut ajtai_commitment_bytes = vec![0u8; 32];
+    let mut ajtai_commitment_bytes = vec![0u8; AJTAI_COMMITMENT_BYTES];
     let mut public_io_bytes = vec![0u8; 32];
     let mut sha256_binding_bytes = vec![0u8; 32];
     rng.fill_bytes(&mut ajtai_commitment_bytes);

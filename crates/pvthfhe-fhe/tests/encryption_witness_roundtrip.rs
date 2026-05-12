@@ -139,6 +139,8 @@ fn witness_debug_redacts_content() {
         ct0_poly_bytes: vec![13, 14, 15],
         ct1_poly_bytes: vec![16, 17, 18],
         ciphertext_bytes: vec![19, 20, 21],
+        recipient_pk0_bytes: vec![22, 23, 24],
+        recipient_pk1_bytes: vec![25, 26, 27],
     };
     let debug_str = format!("{witness:?}");
     assert!(

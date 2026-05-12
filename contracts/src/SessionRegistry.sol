@@ -22,20 +22,36 @@ contract SessionRegistry is AccessControl {
     // -------------------------------------------------------------------------
 
     struct Session {
-        uint32 n;           // participant count
-        uint32 t;           // threshold (must be > n/2)
+        uint32 n; // participant count
+        uint32 t; // threshold (must be > n/2)
         bytes32 rosterHash; // keccak256 of participant set
         bool registered;
-        bool aborted;       // true when session has been explicitly aborted (liveness: allows dkgRoot reuse)
-        uint64 runId;       // increments on each re-registration after abort (R6.9 / F69)
+        bool aborted; // true when session has been explicitly aborted (liveness: allows dkgRoot reuse)
+        uint64 runId; // increments on each re-registration after abort (R6.9 / F69)
     }
 
-    mapping(bytes32 => Session) public sessions;                                     // dkgRoot => Session
+    struct SmudgeSlotBinding {
+        bool consumed;
+        bytes32 ciphertextHash;
+        uint64 decryptRound;
+    }
+
+    mapping(bytes32 => Session) public sessions; // dkgRoot => Session
     mapping(bytes32 => mapping(uint64 => mapping(uint64 => bool))) internal _consumed; // dkgRoot => epoch => runId => consumed (R6.9)
+    mapping(bytes32 => mapping(uint64 => mapping(uint32 => mapping(uint32 => SmudgeSlotBinding)))) internal
+        _smudgeSlots; // dkgRoot => runId => partyId => slot => binding
 
     event SessionRegistered(bytes32 indexed dkgRoot, uint32 n, uint32 t, bytes32 rosterHash, uint64 runId);
     event EpochConsumed(bytes32 indexed dkgRoot, uint64 epoch, uint64 runId);
     event SessionAborted(bytes32 indexed dkgRoot, uint64 runId);
+    event SmudgeSlotConsumed(
+        bytes32 indexed dkgRoot,
+        uint64 indexed runId,
+        uint32 indexed partyId,
+        uint32 slot,
+        bytes32 ciphertextHash,
+        uint64 decryptRound
+    );
 
     error WeakThreshold(uint32 t, uint32 n);
     error AlreadyRegistered(bytes32 dkgRoot);
@@ -43,6 +59,8 @@ contract SessionRegistry is AccessControl {
     error SessionAbortedError(bytes32 dkgRoot);
     error EpochAlreadyConsumed(bytes32 dkgRoot, uint64 epoch);
     error RosterMismatch(bytes32 expected, bytes32 actual);
+    error InvalidSmudgeSlot(bytes32 dkgRoot, uint32 partyId, uint32 slot);
+    error SmudgeSlotAlreadyBound(bytes32 dkgRoot, uint32 partyId, uint32 slot);
 
     // -------------------------------------------------------------------------
     // Constructor
@@ -85,10 +103,7 @@ contract SessionRegistry is AccessControl {
     ///         same committee (same dkgRoot) can restart without deploying a new contract.
     ///         Any epochs already consumed remain consumed to prevent replay across retries.
     ///         Requires SESSION_CREATOR_ROLE.
-    function abortSession(bytes32 dkgRoot)
-        external
-        onlyRole(SESSION_CREATOR_ROLE)
-    {
+    function abortSession(bytes32 dkgRoot) external onlyRole(SESSION_CREATOR_ROLE) {
         Session storage s = sessions[dkgRoot];
         if (!s.registered) revert SessionNotFound(dkgRoot);
         if (s.aborted) revert SessionAbortedError(dkgRoot);
@@ -104,16 +119,46 @@ contract SessionRegistry is AccessControl {
     ///         R6.9: consumption is scoped to the session's current runId,
     ///         so abort+restart does NOT block the new run from reusing epochs.
     ///         Requires VERIFIER_ROLE (typically granted to PvtFheVerifier).
-    function markEpochConsumed(bytes32 dkgRoot, uint64 epoch)
-        external
-        onlyRole(VERIFIER_ROLE)
-    {
+    function markEpochConsumed(bytes32 dkgRoot, uint64 epoch) external onlyRole(VERIFIER_ROLE) {
         Session storage s = sessions[dkgRoot];
         if (!s.registered) revert SessionNotFound(dkgRoot);
         if (s.aborted) revert SessionAbortedError(dkgRoot);
         if (_consumed[dkgRoot][epoch][s.runId]) revert EpochAlreadyConsumed(dkgRoot, epoch);
         _consumed[dkgRoot][epoch][s.runId] = true;
         emit EpochConsumed(dkgRoot, epoch, s.runId);
+    }
+
+    /// @notice Record a committed-smudge slot use for the active session run.
+    ///         Repeating the exact same tuple is idempotent; reusing the same
+    ///         `(dkgRoot, runId, partyId, slot)` for a different ciphertext hash
+    ///         or decrypt round reverts.
+    ///         Requires VERIFIER_ROLE so freshness is a public acceptance check.
+    function recordSmudgeSlotUse(
+        bytes32 dkgRoot,
+        uint32 partyId,
+        uint32 slot,
+        bytes32 ciphertextHash,
+        uint64 decryptRound
+    ) external onlyRole(VERIFIER_ROLE) {
+        Session storage s = sessions[dkgRoot];
+        if (!s.registered) revert SessionNotFound(dkgRoot);
+        if (s.aborted) revert SessionAbortedError(dkgRoot);
+        if (partyId == 0 || partyId > s.n || slot == 0 || ciphertextHash == bytes32(0)) {
+            revert InvalidSmudgeSlot(dkgRoot, partyId, slot);
+        }
+
+        SmudgeSlotBinding storage binding_ = _smudgeSlots[dkgRoot][s.runId][partyId][slot];
+        if (binding_.consumed) {
+            if (binding_.ciphertextHash != ciphertextHash || binding_.decryptRound != decryptRound) {
+                revert SmudgeSlotAlreadyBound(dkgRoot, partyId, slot);
+            }
+            return;
+        }
+
+        binding_.consumed = true;
+        binding_.ciphertextHash = ciphertextHash;
+        binding_.decryptRound = decryptRound;
+        emit SmudgeSlotConsumed(dkgRoot, s.runId, partyId, slot, ciphertextHash, decryptRound);
     }
 
     /// @notice Check whether an epoch is consumed for the session's current runId.
@@ -129,6 +174,28 @@ contract SessionRegistry is AccessControl {
     ///         Used by tests and off-chain indexers to inspect historical consumed state.
     function consumed(bytes32 dkgRoot, uint64 epoch, uint64 runId) external view returns (bool) {
         return _consumed[dkgRoot][epoch][runId];
+    }
+
+    /// @notice Return the active-run binding for one smudge slot.
+    function smudgeSlotUse(bytes32 dkgRoot, uint32 partyId, uint32 slot)
+        external
+        view
+        returns (bool consumed_, bytes32 ciphertextHash, uint64 decryptRound)
+    {
+        Session storage s = sessions[dkgRoot];
+        if (!s.registered) revert SessionNotFound(dkgRoot);
+        SmudgeSlotBinding storage binding_ = _smudgeSlots[dkgRoot][s.runId][partyId][slot];
+        return (binding_.consumed, binding_.ciphertextHash, binding_.decryptRound);
+    }
+
+    /// @notice Low-level historical binding lookup for tests and indexers.
+    function smudgeSlotUseAtRun(bytes32 dkgRoot, uint64 runId, uint32 partyId, uint32 slot)
+        external
+        view
+        returns (bool consumed_, bytes32 ciphertextHash, uint64 decryptRound)
+    {
+        SmudgeSlotBinding storage binding_ = _smudgeSlots[dkgRoot][runId][partyId][slot];
+        return (binding_.consumed, binding_.ciphertextHash, binding_.decryptRound);
     }
 
     /// @notice Returns the current runId for a session. Reverts if not registered.

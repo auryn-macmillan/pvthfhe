@@ -2,23 +2,18 @@ use std::sync::Arc;
 
 use ark_bn254::Fr;
 use ark_ff::PrimeField;
-use pvthfhe_fhe::{
-    error::FheError,
-    fhers::FhersBackend,
-    types::PublicKey,
-    FheBackend,
-};
+use pvthfhe_fhe::{error::FheError, fhers::FhersBackend, types::PublicKey, FheBackend};
 use pvthfhe_rng::OsRng;
 use pvthfhe_types::{EncRandomness, ProtocolBytes, ShareSecret};
-use rand_core::RngCore;
+use rand_core::{RngCore, SeedableRng};
 
-use crate::nizk_share::{
-    compute_ciphertext_v, compute_share_commitment, ShareNizkProof, ShareNizkProver,
-    ShareNizkStatement, ShareNizkVerifier, ShareNizkWitness,
-};
 use crate::nizk_decrypt::{
-    DecryptNizkProof, DecryptNizkProver, DecryptNizkStatement, DecryptNizkVerifier,
-    DecryptNizkWitness,
+    DecryptNizkMode, DecryptNizkProof, DecryptNizkProver, DecryptNizkStatement,
+    DecryptNizkVerifier, DecryptNizkWitness,
+};
+use crate::nizk_share::{
+    canonical_bfv_params_digest, compute_ciphertext_v, compute_share_commitment, ShareNizkProof,
+    ShareNizkProver, ShareNizkStatement, ShareNizkVerifier, ShareNizkWitness,
 };
 use crate::shamir;
 use crate::{DecryptedShare, EncryptedShares, PvssAdapter, PvssContext, PvssError};
@@ -90,6 +85,13 @@ impl LatticePvssBfvAdapter {
         witness: &DecryptNizkWitness,
         ctx: &PvssContext,
     ) -> Result<DecryptedShare, PvssError> {
+        let dkg_root = if ctx.dkg_root.is_empty() {
+            // Fallback: treat session_id as provisional DKG root for backward compat.
+            // Batch H will require the full DkgAnchorSet::root_digest().
+            ctx.session_id.clone()
+        } else {
+            ctx.dkg_root.clone()
+        };
         let statement = DecryptNizkStatement {
             session_id: ctx.session_id.clone(),
             party_index,
@@ -98,6 +100,8 @@ impl LatticePvssBfvAdapter {
             decrypted_share_bytes: decrypted_share_bytes.clone(),
             party_pk: party_pk.to_vec(),
             epoch: ctx.epoch,
+            dkg_root,
+            mode: DecryptNizkMode::LegacyLocalSmudge,
         };
         let proof = DecryptNizkProver::prove(&statement, witness)?;
 
@@ -160,19 +164,21 @@ impl PvssAdapter for LatticePvssBfvAdapter {
 
         let mut ciphertexts = Vec::with_capacity(ctx.n);
         let mut proofs = Vec::with_capacity(ctx.n);
+        let dkg_root = share_proof_dkg_root(ctx);
+        let bfv_params_digest = canonical_bfv_params_digest().to_vec();
 
-        for (index, (share_bytes, recipient_pk_bytes)) in all_share_bytes
-            .iter()
-            .zip(recipient_pks.iter())
-            .enumerate()
+        for (index, (share_bytes, recipient_pk_bytes)) in
+            all_share_bytes.iter().zip(recipient_pks.iter()).enumerate()
         {
             let recipient_pk = PublicKey {
                 bytes: recipient_pk_bytes.clone(),
             };
-            let mut rng = OsRng;
+            let mut randomness = [0u8; 32];
+            OsRng.fill_bytes(&mut randomness);
+            let mut enc_rng = rand_chacha::ChaCha20Rng::from_seed(randomness);
             let ciphertext_u = self
                 .backend
-                .encrypt(&recipient_pk, share_bytes, &mut rng)
+                .encrypt(&recipient_pk, share_bytes, &mut enc_rng)
                 .map(|ciphertext| ciphertext.bytes)
                 .map_err(map_fhe_error)?;
 
@@ -183,12 +189,12 @@ impl PvssAdapter for LatticePvssBfvAdapter {
                 dealer_index: 0,
                 recipient_index: index,
                 recipient_pk: ProtocolBytes(recipient_pk_bytes.clone()),
+                bfv_params_digest: ProtocolBytes(bfv_params_digest.clone()),
+                dkg_root: ProtocolBytes(dkg_root.clone()),
                 ciphertext_u: ProtocolBytes(ciphertext_u.clone()),
                 ciphertext_v: ProtocolBytes(ciphertext_v.to_vec()),
                 share_commitment: ProtocolBytes(share_commitment.to_vec()),
             };
-            let mut randomness = [0u8; 32];
-            OsRng.fill_bytes(&mut randomness);
             let witness = ShareNizkWitness {
                 share_bytes: ShareSecret::new(share_bytes.clone()),
                 encryption_randomness: EncRandomness::new(randomness.to_vec()),
@@ -215,6 +221,8 @@ impl PvssAdapter for LatticePvssBfvAdapter {
         if shares.ciphertexts.len() != ctx.n || shares.proofs.len() != ctx.n {
             return Err(PvssError::InvalidShare);
         }
+        let dkg_root = share_proof_dkg_root(ctx);
+        let bfv_params_digest = canonical_bfv_params_digest().to_vec();
 
         for (index, (ciphertext_u, proof_bytes)) in shares
             .ciphertexts
@@ -229,6 +237,8 @@ impl PvssAdapter for LatticePvssBfvAdapter {
                 dealer_index: opened.statement.dealer_index,
                 recipient_index: index,
                 recipient_pk: opened.statement.recipient_pk.clone(),
+                bfv_params_digest: ProtocolBytes(bfv_params_digest.clone()),
+                dkg_root: ProtocolBytes(dkg_root.clone()),
                 ciphertext_u: ProtocolBytes(ciphertext_u.clone()),
                 ciphertext_v: ProtocolBytes(compute_ciphertext_v(ciphertext_u).to_vec()),
                 share_commitment: opened.statement.share_commitment.clone(),
@@ -305,9 +315,8 @@ impl PvssAdapter for LatticePvssBfvAdapter {
                 })
                 .collect();
 
-            let recovered = shamir::recover(&chunk_shares).map_err(|_| {
-                PvssError::RecoveryFailed
-            })?;
+            let recovered =
+                shamir::recover(&chunk_shares).map_err(|_| PvssError::RecoveryFailed)?;
             recovered_frs.push(recovered);
         }
 
@@ -336,6 +345,14 @@ fn validate_context(ctx: &PvssContext) -> Result<(), PvssError> {
         )));
     }
     Ok(())
+}
+
+fn share_proof_dkg_root(ctx: &PvssContext) -> Vec<u8> {
+    if ctx.dkg_root.is_empty() {
+        ctx.session_id.clone()
+    } else {
+        ctx.dkg_root.clone()
+    }
 }
 
 // ── secret ↔ Fr conversion ─────────────────────────────────────────────
@@ -420,9 +437,7 @@ fn bytes32_to_fr(bytes: &[u8; FR_SERIALIZED_LEN]) -> Option<Fr> {
 /// └──────────────────┴──────────────────┴─────────────┴──────────────────┘
 /// ```
 fn serialize_share_payload(share_frs: &[Fr], original_len: usize) -> Vec<u8> {
-    let mut payload = Vec::with_capacity(
-        LENGTH_PREFIX_LEN + share_frs.len() * FR_SERIALIZED_LEN,
-    );
+    let mut payload = Vec::with_capacity(LENGTH_PREFIX_LEN + share_frs.len() * FR_SERIALIZED_LEN);
     let len_bytes = (original_len as u32).to_be_bytes();
     payload.extend_from_slice(&len_bytes);
     for fr in share_frs {
@@ -469,10 +484,9 @@ fn deserialize_share_payloads(
     for share in selected {
         let payload = share.share_bytes.expose();
         let mut frs = Vec::with_capacity(num_chunks);
-        for chunk_start in
-            (LENGTH_PREFIX_LEN..payload.len()).step_by(FR_SERIALIZED_LEN)
-        {
-            let chunk: &[u8; FR_SERIALIZED_LEN] = payload[chunk_start..chunk_start + FR_SERIALIZED_LEN]
+        for chunk_start in (LENGTH_PREFIX_LEN..payload.len()).step_by(FR_SERIALIZED_LEN) {
+            let chunk: &[u8; FR_SERIALIZED_LEN] = payload
+                [chunk_start..chunk_start + FR_SERIALIZED_LEN]
                 .try_into()
                 .map_err(|_| PvssError::InvalidShare)?;
             let fr = bytes32_to_fr(chunk).ok_or(PvssError::InvalidShare)?;

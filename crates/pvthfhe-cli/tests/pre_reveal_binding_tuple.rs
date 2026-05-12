@@ -21,11 +21,11 @@ const REQUIRED_BINDING_FIELDS: &[&str] = &[
 /// could substitute shares across sessions or epochs.
 #[test]
 fn pre_reveal_binding_commits_full_tuple() {
-    let src = fs::read_to_string(PIPELINE_PATH)
-        .expect("full_pipeline.rs must be readable");
+    let src = fs::read_to_string(PIPELINE_PATH).expect("full_pipeline.rs must be readable");
 
     // Find the binding hasher construction segment (Sha256::new() ... finalize())
-    let hasher_start = src.find("binding_hasher")
+    let hasher_start = src
+        .find("binding_hasher")
         .or_else(|| src.find("Sha256::new"))
         .or_else(|| src.find("pre_reveal"))
         .or_else(|| src.find("binding"));
@@ -64,14 +64,15 @@ fn pre_reveal_binding_commits_full_tuple() {
 /// This test exists to document which fields ARE present now.
 #[test]
 fn binding_currently_missing_fields() {
-    let src = fs::read_to_string(PIPELINE_PATH)
-        .expect("full_pipeline.rs must be readable");
+    let src = fs::read_to_string(PIPELINE_PATH).expect("full_pipeline.rs must be readable");
 
     let present: Vec<_> = REQUIRED_BINDING_FIELDS
         .iter()
-        .filter(|field| src.contains(&format!("binding_hasher.update({field}")) 
-                     || src.contains(&format!("h.update({field}"))
-                     || src.contains(&format!(".update({field}")))
+        .filter(|field| {
+            src.contains(&format!("binding_hasher.update({field}"))
+                || src.contains(&format!("h.update({field}"))
+                || src.contains(&format!(".update({field}"))
+        })
         .copied()
         .collect();
 
@@ -91,12 +92,6 @@ fn binding_currently_missing_fields() {
         present
     );
 
-    eprintln!(
-        "Current binding present fields: {:?}",
-        present
-    );
-    eprintln!(
-        "Current binding MISSING fields: {:?}",
-        missing
-    );
+    eprintln!("Current binding present fields: {:?}", present);
+    eprintln!("Current binding MISSING fields: {:?}", missing);
 }

@@ -38,19 +38,36 @@ fn production_stub_allowed_is_not_default() {
     let crate_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let output = Command::new("cargo")
         .current_dir(&crate_dir)
-        .args(["metadata", "--format-version", "1", "--manifest-path", "Cargo.toml"])
+        .args([
+            "metadata",
+            "--format-version",
+            "1",
+            "--manifest-path",
+            "Cargo.toml",
+        ])
         .output()
         .expect("run cargo metadata");
     assert!(output.status.success(), "cargo metadata failed");
 
-    let metadata: serde_json::Value = serde_json::from_slice(&output.stdout).expect("parse cargo metadata json");
+    let metadata: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("parse cargo metadata json");
     let package = metadata
         .get("packages")
         .and_then(|packages| packages.as_array())
-        .and_then(|packages| packages.iter().find(|pkg| pkg.get("name").and_then(|name| name.as_str()) == Some("pvthfhe-pvss")))
+        .and_then(|packages| {
+            packages
+                .iter()
+                .find(|pkg| pkg.get("name").and_then(|name| name.as_str()) == Some("pvthfhe-pvss"))
+        })
         .expect("find pvthfhe-pvss package");
-    let features = package.get("features").and_then(|features| features.as_object()).expect("features table");
-    assert!(features.contains_key("production-stub-allowed"), "feature missing from metadata");
+    let features = package
+        .get("features")
+        .and_then(|features| features.as_object())
+        .expect("features table");
+    assert!(
+        features.contains_key("production-stub-allowed"),
+        "feature missing from metadata"
+    );
 
     let cargo_toml = fs::read_to_string(crate_dir.join("Cargo.toml")).expect("read Cargo.toml");
     let features_section = cargo_toml
@@ -58,9 +75,12 @@ fn production_stub_allowed_is_not_default() {
         .and_then(|(_, rest)| rest.split_once("[dependencies]"))
         .map(|(features, _)| features)
         .unwrap_or("");
-    let default_has_stub = features_section
-        .lines()
-        .any(|line| line.trim_start().starts_with("default =") && line.contains("production-stub-allowed"));
+    let default_has_stub = features_section.lines().any(|line| {
+        line.trim_start().starts_with("default =") && line.contains("production-stub-allowed")
+    });
 
-    assert!(!default_has_stub, "production-stub-allowed must not be in default features");
+    assert!(
+        !default_has_stub,
+        "production-stub-allowed must not be in default features"
+    );
 }

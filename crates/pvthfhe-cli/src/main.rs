@@ -4,18 +4,19 @@
 
 #![warn(missing_docs)]
 
-use clap::{Parser, Subcommand};
 use anyhow::Context;
+use clap::{Parser, Subcommand};
+#[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]
+use pvthfhe_cli::compressor_glue::compressor_backend_id;
 #[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]
 use pvthfhe_cli::full_pipeline::{run_full_pipeline, PipelineConfig, PipelineObserver};
 #[cfg(feature = "with-fhe")]
 use pvthfhe_cli::pvss_support::PVSS_BACKEND_ID;
 #[cfg(feature = "with-fhe")]
-use pvthfhe_fhe::real_nizk::CYCLO_BACKEND_ID;
-#[cfg(feature = "with-fhe")]
 use pvthfhe_cyclo::CYCLO_BACKEND_ID as CYCLO_P2_BACKEND_ID;
-#[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]
-use pvthfhe_cli::compressor_glue::compressor_backend_id;
+#[cfg(feature = "with-fhe")]
+use pvthfhe_fhe::real_nizk::CYCLO_BACKEND_ID;
+use tracing::info;
 #[cfg(feature = "with-fhe")]
 use {
     pvthfhe_fhe::{fhers::FhersBackend, FheBackend, PublicKey},
@@ -23,7 +24,6 @@ use {
     pvthfhe_rng::OsRng,
     rand_core::RngCore,
 };
-use tracing::info;
 
 /// PVTHFHE command-line interface.
 #[derive(Parser, Debug)]
@@ -184,7 +184,9 @@ fn r8_encrypt(plaintext_hex: &str, pk_hex: &str) -> anyhow::Result<()> {
 
     let pk = PublicKey { bytes: pk_bytes };
     let mut rng = OsRng;
-    let ct = backend.encrypt(&pk, &plaintext, &mut rng).context("encrypt")?;
+    let ct = backend
+        .encrypt(&pk, &plaintext, &mut rng)
+        .context("encrypt")?;
     let ct_hex = hex::encode(&ct.bytes);
     println!("encrypt: ciphertext_hex={ct_hex}");
     Ok(())
@@ -273,9 +275,7 @@ fn r8_aggregate(ciphertext_hex: &str, shares_hex: &str, threshold: usize) -> any
 fn run_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
     const MAX_N: usize = 255;
     if n == 0 || n > MAX_N {
-        anyhow::bail!(
-            "invalid n: n={n} must satisfy 1 <= n <= {MAX_N} (Shamir over GF(256))"
-        );
+        anyhow::bail!("invalid n: n={n} must satisfy 1 <= n <= {MAX_N} (Shamir over GF(256))");
     }
     if threshold == 0 || threshold > n {
         anyhow::bail!(
@@ -379,7 +379,10 @@ impl DemoObserver {
 
     fn print_step(step: usize, name: &str, detail: Option<&str>) {
         match detail {
-            Some(detail) => println!("step {step}/{total}: {name} ({detail})", total = Self::STEP_COUNT),
+            Some(detail) => println!(
+                "step {step}/{total}: {name} ({detail})",
+                total = Self::STEP_COUNT
+            ),
             None => println!("step {step}/{total}: {name}", total = Self::STEP_COUNT),
         }
     }
@@ -433,13 +436,10 @@ impl PipelineObserver for DemoObserver {
         match name {
             "aggregate_keygen" => self.aggregate_keygen_ms = Some(ms),
             "encrypt" => self.encrypt_ms = Some(ms),
-            "keygen"
-            | "pvss_share_encrypt"
-            | "cyclo_fold"
-            | "compressor_prove"
-            | "compressor_verify"
-            | "partial_decrypt"
-            | "aggregate_decrypt" => println!("{name}: complete ({ms:.3} ms)"),
+            "keygen" | "pvss_share_encrypt" | "cyclo_fold" | "compressor_prove"
+            | "compressor_verify" | "partial_decrypt" | "aggregate_decrypt" => {
+                println!("{name}: complete ({ms:.3} ms)")
+            }
             _ => {}
         }
     }

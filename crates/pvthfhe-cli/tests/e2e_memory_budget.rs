@@ -40,9 +40,8 @@ fn e2e_probe_compressor_only_under_500mb() {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.subsec_nanos())
         .unwrap_or(0);
-    let time_out = std::env::temp_dir().join(format!(
-        "pvthfhe_e2e_memory_budget_{pid}_{nanos}.time.txt"
-    ));
+    let time_out =
+        std::env::temp_dir().join(format!("pvthfhe_e2e_memory_budget_{pid}_{nanos}.time.txt"));
     let _ = std::fs::remove_file(&time_out);
 
     let bash_script = format!(

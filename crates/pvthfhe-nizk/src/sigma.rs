@@ -234,7 +234,8 @@ pub fn verify(
     Ok(())
 }
 
-fn int_poly_to_rns(coeffs: &[i64], ctx: &Arc<Context>) -> Result<Vec<u64>, NizkError> {
+/// Convert integer polynomial coefficients to RNS power-basis representation.
+pub fn int_poly_to_rns(coeffs: &[i64], ctx: &Arc<Context>) -> Result<Vec<u64>, NizkError> {
     let n = coeffs.len();
     let l = ctx.q.len();
     let mut out = vec![0u64; n * l];
@@ -250,7 +251,8 @@ fn int_poly_to_rns(coeffs: &[i64], ctx: &Arc<Context>) -> Result<Vec<u64>, NizkE
     Ok(out)
 }
 
-fn poly_mul_rq(a_rns: &[u64], b_rns: &[u64], ctx: &Arc<Context>) -> Result<Vec<u64>, NizkError> {
+/// Multiply two polynomials in RNS power-basis representation over R_Q.
+pub fn poly_mul_rq(a_rns: &[u64], b_rns: &[u64], ctx: &Arc<Context>) -> Result<Vec<u64>, NizkError> {
     let mut pa = Poly::try_convert_from(a_rns.to_vec(), ctx, false, Representation::PowerBasis)
         .map_err(|_| NizkError::InvalidInput("Poly convert failed for a"))?;
     let mut pb = Poly::try_convert_from(b_rns.to_vec(), ctx, false, Representation::PowerBasis)
@@ -262,7 +264,8 @@ fn poly_mul_rq(a_rns: &[u64], b_rns: &[u64], ctx: &Arc<Context>) -> Result<Vec<u
     Ok(Vec::<u64>::from(&product))
 }
 
-fn rns_add(a: &[u64], b: &[u64], ctx: &Arc<Context>) -> Result<Vec<u64>, NizkError> {
+/// Add two polynomials in RNS power-basis representation per-limb mod q_limb.
+pub fn rns_add(a: &[u64], b: &[u64], ctx: &Arc<Context>) -> Result<Vec<u64>, NizkError> {
     let expected = RLWE_N * ctx.q.len();
     if a.len() != expected || b.len() != expected {
         return Err(NizkError::InvalidInput("rns_add: length mismatch"));
@@ -279,7 +282,8 @@ fn rns_add(a: &[u64], b: &[u64], ctx: &Arc<Context>) -> Result<Vec<u64>, NizkErr
     Ok(out)
 }
 
-fn poly_mul_rq_to_int(
+/// Multiply two integer-coefficient polynomials in R_Q, recovering integer coefficients.
+pub fn poly_mul_rq_to_int(
     a_int: &[i64],
     b_int: &[i64],
     ctx: &Arc<Context>,
@@ -332,7 +336,8 @@ fn derive_challenge(
     bits
 }
 
-fn sample_bounded(rng: &mut dyn RngCore, n: usize, bound: i64) -> Result<Vec<i64>, NizkError> {
+/// Sample `n` coefficients uniformly from [-bound, bound] using rejection sampling.
+pub fn sample_bounded(rng: &mut dyn RngCore, n: usize, bound: i64) -> Result<Vec<i64>, NizkError> {
     let range = u64::try_from(2 * bound + 1)
         .map_err(|_| NizkError::InvalidInput("bound too large for u64"))?;
     let max_multiple = (u64::MAX / range) * range;

@@ -49,8 +49,14 @@ fn consume_same_slot_twice_fails() {
 
     // Error message should contain the identifiers.
     let msg = err.to_string();
-    assert!(msg.contains("s1"), "error message should contain session_id");
-    assert!(msg.contains("party=0"), "error message should contain party_id");
+    assert!(
+        msg.contains("s1"),
+        "error message should contain session_id"
+    );
+    assert!(
+        msg.contains("party=0"),
+        "error message should contain party_id"
+    );
     assert!(
         msg.contains("slot=0"),
         "error message should contain slot_index"
@@ -61,8 +67,7 @@ fn consume_same_slot_twice_fails() {
 fn different_party_same_slot_succeeds() {
     let mut reg = SmudgeSlotRegistry::default();
 
-    reg.consume("s1", 0, 0)
-        .expect("party 0 slot 0");
+    reg.consume("s1", 0, 0).expect("party 0 slot 0");
 
     // Same slot index, different party — should be independent.
     let result = reg.consume("s1", 1, 0);
@@ -75,12 +80,14 @@ fn different_party_same_slot_succeeds() {
 fn different_slot_same_party_succeeds() {
     let mut reg = SmudgeSlotRegistry::default();
 
-    reg.consume("s1", 0, 0)
-        .expect("slot 0");
+    reg.consume("s1", 0, 0).expect("slot 0");
 
     // Different slot index, same party — should be independent.
     let result = reg.consume("s1", 0, 1);
-    assert!(result.is_ok(), "different slot index should be a fresh slot");
+    assert!(
+        result.is_ok(),
+        "different slot index should be a fresh slot"
+    );
     assert!(reg.is_consumed("s1", 0, 0));
     assert!(reg.is_consumed("s1", 0, 1));
 }
@@ -90,8 +97,7 @@ fn cross_session_isolation() {
     let mut reg = SmudgeSlotRegistry::default();
 
     // Consume in session A.
-    reg.consume("session_a", 0, 0)
-        .expect("session A slot 0");
+    reg.consume("session_a", 0, 0).expect("session A slot 0");
 
     // Same (party, slot) in session B must be fresh.
     assert!(

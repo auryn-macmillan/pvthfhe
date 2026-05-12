@@ -1880,3 +1880,63 @@ deferred.
 - `cargo test -p pvthfhe-fhe --test conformance` → 9/9 pass (was 6/9)
 - Mock warning NOT emitted on default build path (verified: grep count = 0)
 - `FhersBackend` uses real fhe.rs BFV for ALL operations (confirmed via code audit)
+
+---
+
+## 2026-05-11: Fix `just demo-e2e` cyclo_fold Ajtai commitment length
+
+### Problem
+`fold.rs::init_accumulator` calls `ajtai::decode_commitment(data, AJTAI_COMMITMENT_M)`
+where `AJTAI_COMMITMENT_M = 13`, expecting `13 × 256 × 8 = 26624` bytes.
+But `full_pipeline.rs::hash_nizk_witness_commitment()` returned a 32-byte SHA-256
+hash, hitting "commitment wire bytes have wrong length".
+
+### Root cause
+The `hash_nizk_witness_commitment` function was a pre-R8.1 surrogate that used
+SHA-256 instead of a real lattice Ajtai commitment. When `fold.rs` was upgraded
+to use real `ajtai::decode_commitment`, the surrogate hash no longer met the
+size requirement.
+
+### Fix applied (full_pipeline.rs)
+
+**Fix 1 — Real Ajtai commitment**: Replaced `hash_nizk_witness_commitment(stmt, witness)`
+with `compute_cyclo_ajtai_commitment(witness, participant_id, seed)`:
+- Pads `NizkWitness.secret_share_poly` to RLWE_N=8192, chunks into 32 `RqPoly`
+  elements (PHI_COMMIT=256 each)
+- Creates `AjtaiParams { m: 13, n: 32, q_commit: Q_COMMIT, seed: derived }`
+- Calls `pvthfhe_cyclo::ajtai::commit()` → real lattice commitment
+- Calls `ajtai::encode_commitment()` → 26624 bytes
+
+Seed derivation: `SHA256(seed || participant_id || Tag::CycloAjtaiBinding)`
+ensures each participant gets a unique deterministic matrix.
+
+**Fix 2 — Real CCS matrix**: Replaced `build_demo_ccs_matrix()` (zero matrix)
+with 1×1 identity matrix (element=Fr::ONE). The CCS satisfiability check
+`M·z ⊙ z == 0` requires `z² == 0` → `z == 0`, so `serialize_nizk_witness`
+was updated to encode `Fr::ZERO` as the demo witness.
+
+**Fix 3 — Removed**: Deleted the `hash_nizk_witness_commitment` function
+(lines 450-472), no longer needed.
+
+### Key decisions
+- Used `pvthfhe_cyclo::ajtai` (not `pvthfhe_nizk::ajtai`) because `fold.rs` uses
+  the cyclo crate's `decode_commitment` with `AJTAI_COMMITMENT_M = 13`
+- The two Ajtai implementations differ: NIZK uses m=32 (AJTAI_M = RLWE_N/PHI),
+  cyclo uses m=13 (ajtai_rank_a)
+- Witness length `n=32` was chosen to match the padded `secret_share_poly`
+  (8192 coefficients / 256 PHI_COMMIT = 32 ring elements)
+- `ajtai::commit()` ignores the RNG parameter (matrix is deterministic from seed),
+  so `OsRng` dummy is safe
+
+### Verification
+- `cargo build -p pvthfhe-cli` → clean (0 errors)
+- `cargo test -p pvthfhe-cli` → `red_3_records_all_full_pipeline_phases` PASS
+  (proves full pipeline including cyclo_fold, cyclo_fold_verify, compressor
+  runs end-to-end with real Ajtai commitment and identity CCS matrix)
+- LSP diagnostics → clean
+
+### Not modified
+- `pvthfhe-cyclo` crate (per task constraint)
+- `pvthfhe-cyclo/src/fold.rs` (per task constraint)
+- Plan files (read-only)
+

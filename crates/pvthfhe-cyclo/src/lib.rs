@@ -12,7 +12,9 @@
 //! remains a skeleton — see `SECURITY.md §P1`.
 
 pub mod adapter;
+pub mod ajtai;
 pub mod ccs_encode;
+pub mod ccs_rlwe;
 pub mod driver;
 pub mod extension;
 pub mod fiat_shamir;
@@ -22,8 +24,165 @@ pub mod ring;
 
 use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
 
+/// Public fold track identity for H.2 multi-track folded instances.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FoldTrackKind {
+    /// Secret-key share witness commitment track.
+    Sk,
+    /// Committed smudging error witness commitment track.
+    ESm,
+    /// BFV encryption witness commitment track.
+    EncryptionWitness,
+}
+
+impl FoldTrackKind {
+    /// Domain-separated byte label for canonical fold metadata encoding.
+    pub fn as_domain_bytes(&self) -> &'static [u8] {
+        match self {
+            Self::Sk => b"pvthfhe-fold-track-sk-v1",
+            Self::ESm => b"pvthfhe-fold-track-e-sm-v1",
+            Self::EncryptionWitness => b"pvthfhe-fold-track-encryption-witness-v1",
+        }
+    }
+}
+
+/// Public commitment and bound for one fold track.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FoldTrackCommitment {
+    /// Domain-separated track kind.
+    pub kind: FoldTrackKind,
+    /// Optional smudge/encryption slot index; must be absent for `sk` and present for non-`sk` tracks.
+    pub slot_index: Option<u16>,
+    /// Public commitment/digest for this track. Contains no raw witness material.
+    pub commitment: Vec<u8>,
+    /// Public infinity-norm bound for this track.
+    pub norm_bound: u64,
+}
+
+/// Public multi-track metadata bound into a folded instance.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MultiTrackFoldMetadata {
+    /// Session/transcript identifier for cross-session replay protection.
+    pub session_id: String,
+    /// Participant identifier bound to this instance.
+    pub participant_id: u16,
+    /// Public party binding digest/bytes.
+    pub party_binding: Vec<u8>,
+    /// Number of instances in the enclosing folded batch.
+    pub instance_count: u32,
+    /// Independent public track commitments and bounds.
+    pub tracks: Vec<FoldTrackCommitment>,
+}
+
+impl MultiTrackFoldMetadata {
+    /// Canonical, domain-separated public encoding for Fiat-Shamir/fold binding.
+    pub fn canonical_bytes(&self) -> Vec<u8> {
+        let mut out = Vec::new();
+        out.extend_from_slice(b"pvthfhe-cyclo-multitrack-fold-v1");
+        push_u64_len(&mut out, self.session_id.as_bytes());
+        out.extend_from_slice(&self.participant_id.to_be_bytes());
+        push_u64_len(&mut out, &self.party_binding);
+        out.extend_from_slice(&self.instance_count.to_be_bytes());
+        out.extend_from_slice(&u32::try_from(self.tracks.len()).unwrap_or(u32::MAX).to_be_bytes());
+        for track in &self.tracks {
+            push_u64_len(&mut out, track.kind.as_domain_bytes());
+            match track.slot_index {
+                Some(slot) => {
+                    out.push(1);
+                    out.extend_from_slice(&slot.to_be_bytes());
+                }
+                None => {
+                    out.push(0);
+                    out.extend_from_slice(&0u16.to_be_bytes());
+                }
+            }
+            out.extend_from_slice(&track.norm_bound.to_be_bytes());
+            push_u64_len(&mut out, &track.commitment);
+        }
+        out
+    }
+
+    /// Validate public metadata consistency without inspecting private witnesses.
+    pub fn validate_for_instance(
+        &self,
+        participant_id: u16,
+        session_id: &str,
+        expected_instance_count: usize,
+    ) -> Result<(), CycloError> {
+        if self.session_id != session_id {
+            return Err(CycloError::InvalidInstance("multi-track session mismatch"));
+        }
+        if self.participant_id != participant_id {
+            return Err(CycloError::InvalidInstance("multi-track participant mismatch"));
+        }
+        if self.instance_count as usize != expected_instance_count {
+            return Err(CycloError::InvalidInstance("multi-track instance_count mismatch"));
+        }
+        if self.party_binding.is_empty() {
+            return Err(CycloError::InvalidInstance("multi-track party_binding is empty"));
+        }
+        if self.tracks.is_empty() {
+            return Err(CycloError::InvalidInstance("multi-track tracks are empty"));
+        }
+        let mut saw_sk = false;
+        let mut saw_esm = false;
+        let mut saw_encryption = false;
+        for track in &self.tracks {
+            if track.commitment.is_empty() {
+                return Err(CycloError::InvalidInstance("multi-track commitment is empty"));
+            }
+            if track.norm_bound == 0 {
+                return Err(CycloError::InvalidInstance("multi-track norm_bound is zero"));
+            }
+            if track.norm_bound > PVTHFHE_CYCLO_PARAMS.norm_bound_b {
+                return Err(CycloError::NormBoundExceeded {
+                    got: track.norm_bound,
+                    max: PVTHFHE_CYCLO_PARAMS.norm_bound_b,
+                });
+            }
+            match track.kind {
+                FoldTrackKind::Sk => {
+                    if track.slot_index.is_some() {
+                        return Err(CycloError::InvalidInstance("sk track must not have slot_index"));
+                    }
+                    saw_sk = true;
+                }
+                FoldTrackKind::ESm => {
+                    if track.slot_index.is_none() {
+                        return Err(CycloError::InvalidInstance("e_sm track requires slot_index"));
+                    }
+                    saw_esm = true;
+                }
+                FoldTrackKind::EncryptionWitness => {
+                    if track.slot_index.is_none() {
+                        return Err(CycloError::InvalidInstance("encryption track requires slot_index"));
+                    }
+                    saw_encryption = true;
+                }
+            }
+        }
+        if !saw_sk || !saw_esm || !saw_encryption {
+            return Err(CycloError::InvalidInstance(
+                "multi-track metadata requires sk, e_sm, and encryption tracks",
+            ));
+        }
+        Ok(())
+    }
+}
+
+fn push_u64_len(out: &mut Vec<u8>, value: &[u8]) {
+    out.extend_from_slice(&u64::try_from(value.len()).unwrap_or(u64::MAX).to_be_bytes());
+    out.extend_from_slice(value);
+}
+
 /// Backend identifier for the Cyclo LatticeFold+ implementation.
 pub const CYCLO_BACKEND_ID: &str = "cyclo-rlwe-t10-lemma9-heuristic";
+
+/// CCS wire format version.
+///
+/// - V1: 1-matrix `M·z ⊙ z == 0` with 7-element witness (legacy, backward compat).
+/// - V2: 3-matrix `(M₁·z) ⊙ (M₂·z) == M₃·z` with 5-element witness.
+pub const CCS_WIRE_VERSION: u32 = 2;
 
 /// Locked Cyclo LatticeFold+ parameters for PVTHFHE Phase 2.
 ///
@@ -79,6 +238,45 @@ pub struct CcsPShareInstance {
     pub sha256_binding_bytes: ProtocolBytes,
     /// Serialised CCS constraint matrix [rows:u32 BE][cols:u32 BE][data: rows*cols Fr LE].
     pub ccs_matrix_bytes: ProtocolBytes,
+}
+
+impl CcsPShareInstance {
+    /// Attach public H.2 multi-track commitments/norms to this fold instance.
+    pub fn with_multi_track_metadata(self, metadata: MultiTrackFoldMetadata) -> MultiTrackPShareInstance {
+        MultiTrackPShareInstance {
+            base: self,
+            multi_track_metadata: Some(metadata),
+        }
+    }
+}
+
+/// A backward-compatible CCS instance plus optional public H.2 multi-track metadata.
+pub struct MultiTrackPShareInstance {
+    /// Legacy single-track fold instance.
+    pub base: CcsPShareInstance,
+    /// Optional public H.2 multi-track commitments/norms bound into folding.
+    pub multi_track_metadata: Option<MultiTrackFoldMetadata>,
+}
+
+impl MultiTrackPShareInstance {
+    /// Borrow the legacy base instance.
+    pub fn base(&self) -> &CcsPShareInstance {
+        &self.base
+    }
+
+    /// Borrow the optional multi-track metadata.
+    pub fn multi_track_metadata(&self) -> Option<&MultiTrackFoldMetadata> {
+        self.multi_track_metadata.as_ref()
+    }
+}
+
+impl From<CcsPShareInstance> for MultiTrackPShareInstance {
+    fn from(base: CcsPShareInstance) -> Self {
+        Self {
+            base,
+            multi_track_metadata: None,
+        }
+    }
 }
 
 /// Running Cyclo accumulator produced after one or more fold steps.

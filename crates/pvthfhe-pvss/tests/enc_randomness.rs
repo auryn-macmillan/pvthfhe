@@ -23,8 +23,12 @@ fn recipient_keypair(seed: u64, session_byte: u8) -> (MockBackend, Vec<u8>) {
     let share = backend
         .keygen_share_with_session(&session_id, 1, &mut ChaCha8Rng::seed_from_u64(seed))
         .expect("keygen share");
-    let public_key = backend.aggregate_keygen(&[share]).expect("aggregate keygen");
-    backend.setup_threshold(1, 1).expect("setup single-party threshold");
+    let public_key = backend
+        .aggregate_keygen(&[share])
+        .expect("aggregate keygen");
+    backend
+        .setup_threshold(1, 1)
+        .expect("setup single-party threshold");
     (backend, public_key.bytes)
 }
 
@@ -39,6 +43,7 @@ fn enc_randomness_ciphertexts_differ_across_runs() {
         t: 2,
         session_id: vec![9; 32],
         epoch: 0,
+        dkg_root: vec![],
     };
 
     let secret = b"test-secret";
@@ -84,7 +89,9 @@ fn derive_share_randomness_is_absent_from_source() {
     // RED: Confirm the deterministic derive_share_randomness function has been
     // removed from encrypt.rs. Grep the source for the function name.
     let src = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src").join("encrypt.rs"),
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("encrypt.rs"),
     )
     .expect("read encrypt.rs");
     assert!(

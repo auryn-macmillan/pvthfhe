@@ -36,6 +36,7 @@ fn make_stmt(tag: u8, fold_index: u64) -> FoldStatement {
             session_id: SESSION.to_string(),
             params: base_params(),
             ciphertext_bytes: vec![tag; 8],
+            multi_track_metadata: None,
         },
     }
 }
@@ -61,11 +62,12 @@ fn test_real_cyclo_witness_passes_fold() {
     // Bytes represent valid Fr-serialized small integers.
     let real_witness = FoldWitness {
         nizk_proof: NizkProof {
-    nizk_backend_id: NizkProof::EXPECTED_BACKEND_ID,
+            nizk_backend_id: NizkProof::EXPECTED_BACKEND_ID,
             // Non-uniform bytes — will be REJECTED by the stub's uniformity check
             // but ACCEPTED by Cyclo's CCS satisfiability check (zero witness, norm=0).
             proof_bytes: vec![
-                0x42, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // first coefficient = 0x42 (66)
+                0x42, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, // first coefficient = 0x42 (66)
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // second = 0
             ],
         },
@@ -105,7 +107,7 @@ fn test_tampered_cyclo_witness_fails_fold() {
     // After GREEN, Cyclo verification should reject it.
     let stub_valid_witness = FoldWitness {
         nizk_proof: NizkProof {
-    nizk_backend_id: NizkProof::EXPECTED_BACKEND_ID,
+            nizk_backend_id: NizkProof::EXPECTED_BACKEND_ID,
             proof_bytes: vec![tag; 16],
         },
         fold_randomness: vec![tag; 8],
@@ -131,7 +133,7 @@ fn test_junk_witness_rejected() {
 
     let junk_witness = FoldWitness {
         nizk_proof: NizkProof {
-    nizk_backend_id: NizkProof::EXPECTED_BACKEND_ID,
+            nizk_backend_id: NizkProof::EXPECTED_BACKEND_ID,
             // Random non-uniform bytes — stub rejects via uniformity check,
             // Cyclo would also reject via CCS satisfiability.
             proof_bytes: vec![0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA, 0xBE],
@@ -140,10 +142,7 @@ fn test_junk_witness_rejected() {
     };
 
     let result = fold(&acc, &junk_witness, &stmt);
-    assert!(
-        result.is_err(),
-        "junk witness must be rejected by fold"
-    );
+    assert!(result.is_err(), "junk witness must be rejected by fold");
 }
 
 /// R4.1-T7: A valid uniform witness (which the stub accepts) must still be
@@ -156,7 +155,7 @@ fn test_valid_uniform_witness_still_passes() {
 
     let uniform_witness = FoldWitness {
         nizk_proof: NizkProof {
-    nizk_backend_id: NizkProof::EXPECTED_BACKEND_ID,
+            nizk_backend_id: NizkProof::EXPECTED_BACKEND_ID,
             proof_bytes: vec![0u8; 32],
         },
         fold_randomness: vec![0u8; 32],

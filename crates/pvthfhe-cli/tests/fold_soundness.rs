@@ -91,10 +91,7 @@ fn fold_two(
     fold::fold_one_step(acc, inst2, &mut rng).expect("fold step 2")
 }
 
-fn fold_one(
-    inst: &CcsPShareInstance,
-    session_id: &str,
-) -> pvthfhe_cyclo::CycloAccumulator {
+fn fold_one(inst: &CcsPShareInstance, session_id: &str) -> pvthfhe_cyclo::CycloAccumulator {
     let mut rng = OsRng;
     let acc = fold::init_accumulator(inst, session_id).expect("init_accumulator");
     fold::fold_one_step(acc, inst, &mut rng).expect("fold step")
@@ -108,8 +105,7 @@ fn verify_fold_rejects_tampered_witness() {
     let (inst1, inst2) = make_two_valid_instances(&matrix, &valid_witness);
     let acc = fold_two(&inst1, &inst2, "soundness-test");
 
-    fold::verify_fold(&acc, &[inst1, inst2])
-        .expect("verify_fold must accept honest instances");
+    fold::verify_fold(&acc, &[inst1, inst2]).expect("verify_fold must accept honest instances");
 
     let tampered_witness = build_witness_with_one(1);
     let (inst1b, _) = make_two_valid_instances(&matrix, &valid_witness);
@@ -144,8 +140,7 @@ fn verify_fold_rejects_tampered_commitment() {
     );
     let acc = fold_one(&inst1, "soundness-test-2");
 
-    fold::verify_fold(&acc, &[inst1])
-        .expect("verify_fold must accept honest single-instance fold");
+    fold::verify_fold(&acc, &[inst1]).expect("verify_fold must accept honest single-instance fold");
 
     let tampered = make_instance(
         1,
@@ -178,8 +173,7 @@ fn verify_fold_rejects_tampered_public_io() {
     );
     let acc = fold_one(&inst1, "soundness-test-3");
 
-    fold::verify_fold(&acc, &[inst1])
-        .expect("verify_fold must accept honest single-instance fold");
+    fold::verify_fold(&acc, &[inst1]).expect("verify_fold must accept honest single-instance fold");
 
     let tampered = make_instance(
         1,

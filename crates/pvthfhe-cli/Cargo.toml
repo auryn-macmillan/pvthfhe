@@ -45,6 +45,7 @@ hex = "0.4"
 anyhow = "1"
 serde_json = "1"
 ark-bn254 = "0.5"
+ark-ff = "0.5"
 
 [features]
 default = ["with-fhe", "sonobe-compressor"]

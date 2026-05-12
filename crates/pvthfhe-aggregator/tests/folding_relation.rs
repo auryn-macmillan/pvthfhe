@@ -41,13 +41,7 @@ fn test_fold_commits_to_cyclo_relation() {
     let tag: u8 = 0x42;
 
     // Build Fold*/Fold* types and fold via HashChainFoldingScheme.
-    let acc = FoldAccumulator::new(
-        vec![0u8; 4],
-        0,
-        SESSION.to_string(),
-        params,
-        [0u8; 32],
-    );
+    let acc = FoldAccumulator::new(vec![0u8; 4], 0, SESSION.to_string(), params, [0u8; 32]);
     let stmt = FoldStatement {
         fold_index: 1,
         session_id: SESSION.to_string(),
@@ -56,6 +50,7 @@ fn test_fold_commits_to_cyclo_relation() {
             session_id: SESSION.to_string(),
             params,
             ciphertext_bytes: vec![tag; 32],
+            multi_track_metadata: None,
         },
     };
     let wit = FoldWitness {
@@ -66,14 +61,28 @@ fn test_fold_commits_to_cyclo_relation() {
         fold_randomness: vec![0u8; 8],
     };
 
-    let result = ok(fold(&acc, &wit, &stmt), "HashChainFoldingScheme fold should succeed");
+    let result = ok(
+        fold(&acc, &wit, &stmt),
+        "HashChainFoldingScheme fold should succeed",
+    );
 
     // After GREEN: the accumulated result must carry a Cyclo accumulator
     // that passes structural verification.
-    let cyclo_acc = result.cyclo_acc().expect("accumulator must carry Cyclo data after fold");
-    assert_eq!(cyclo_acc.fold_depth, 1, "Cyclo fold depth must be 1 after one fold step");
-    assert!(!cyclo_acc.acc_commitment_bytes.is_empty(), "Cyclo commitment must not be empty");
-    assert!(!cyclo_acc.acc_public_io_bytes.is_empty(), "Cyclo public IO must not be empty");
+    let cyclo_acc = result
+        .cyclo_acc()
+        .expect("accumulator must carry Cyclo data after fold");
+    assert_eq!(
+        cyclo_acc.fold_depth, 1,
+        "Cyclo fold depth must be 1 after one fold step"
+    );
+    assert!(
+        !cyclo_acc.acc_commitment_bytes.is_empty(),
+        "Cyclo commitment must not be empty"
+    );
+    assert!(
+        !cyclo_acc.acc_public_io_bytes.is_empty(),
+        "Cyclo public IO must not be empty"
+    );
     assert_eq!(cyclo_acc.session_id, SESSION, "Cyclo session must match");
 }
 
@@ -120,13 +129,7 @@ fn test_verify_checks_relation_not_sha_chain() {
 fn test_fold_then_verify_succeeds() {
     let params = base_params();
     let tag: u8 = 0x07;
-    let acc = FoldAccumulator::new(
-        vec![0u8; 4],
-        0,
-        SESSION.to_string(),
-        params,
-        [0u8; 32],
-    );
+    let acc = FoldAccumulator::new(vec![0u8; 4], 0, SESSION.to_string(), params, [0u8; 32]);
     let stmt = FoldStatement {
         fold_index: 1,
         session_id: SESSION.to_string(),
@@ -135,6 +138,7 @@ fn test_fold_then_verify_succeeds() {
             session_id: SESSION.to_string(),
             params,
             ciphertext_bytes: vec![tag; 8],
+            multi_track_metadata: None,
         },
     };
     let wit = FoldWitness {

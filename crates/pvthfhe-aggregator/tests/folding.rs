@@ -32,6 +32,7 @@ fn make_statement(
             session_id: session_id.to_string(),
             params,
             ciphertext_bytes: vec![tag; 8],
+            multi_track_metadata: None,
         },
     }
 }

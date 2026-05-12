@@ -32,3 +32,18 @@ The old verify_d2_hash_binding checked content consistency (decrypt CT → recom
 ## Dependencies added
 - `rand::SeedableRng` (already in Cargo.toml via `rand = "0.8"`)
 - `rand_chacha::ChaCha20Rng` (already in Cargo.toml via `rand_chacha = "0.3"`)
+
+## 2026-05-12 BFV sigma proof wiring
+- `nizk_share.rs` v4 BFV proof verification must bind the sigma transcript to session/dealer/recipient/params/dkg/ciphertext/share-commitment data, not only the share commitment.
+- The proof envelope carries RNS pk/ct statement material, but verifier now re-derives pk polys from `recipient_pk` and ct polys from `ciphertext_u` before accepting that material.
+- fhe.rs `Plaintext::to_poly()` is already delta-scaled; the BFV sigma witness message must use the raw poly-encoding slots (length slot followed by 2-byte little-endian payload slots).
+
+## 2026-05-12 nizk_share_soundness Ajtai alignment
+- `compute_share_commitment()` now uses Ajtai D2 binding, so test helpers that forge only the algebraic sigma proof should not require sigma `d_rns` digest equality to `stmt.share_commitment`.
+- For mock-backed BFV mismatch paths, rejection may occur at proof construction (`BfvEncryptionProofFailed`) before verifier entry because no BFV witness proof can be built; tests should assert the combined prover/verifier path rejects.
+
+## 2026-05-12 demo-e2e BFV proof diagnosis
+- Temporary BFV proof tracing localized the original `pvss deal: invalid PVSS share` to `bfv_sigma::prove`, specifically `scale_plaintext_to_rns` returning `scaled plaintext coefficient overflow`. The cause was multiplying ~2^42 BFV delta limbs by ~2^30 masking plaintext coefficients in `i64`.
+- Fixed `scale_plaintext_to_rns` to do modular scaling through `u128`, preserving signed coefficients by scaling the magnitude and negating modulo q.
+- After that, share proof decode failed because v4 BFV sigma proof envelopes exceed the previous 1 MiB field cap; raised share NIZK `MAX_FIELD_LEN` to 16 MiB for proof-bearing fields.
+- Verified demo command reaches `verify: ACCEPT` after removing temporary BFV-PROOF-DBG traces.

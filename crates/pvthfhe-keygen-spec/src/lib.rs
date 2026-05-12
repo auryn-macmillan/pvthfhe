@@ -1,7 +1,8 @@
 //! Frozen interface types for the P4 Hermine-adapted keygen surface.
 
-use std::collections::HashSet;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::collections::HashSet;
 
 /// Result alias used by all spec traits.
 pub type SpecResult<T> = Result<T, SpecError>;
@@ -311,18 +312,124 @@ pub struct SmudgeSlotId {
 pub struct DkgAnchorSet {
     /// Session identifier binding this anchor set.
     pub session_id: String,
-    /// Hash over the ordered participant set.
+    /// Exact accepted participant/dealer set used by DKG aggregation.
+    ///
+    /// The public verifier uses this canonical set to determine which C5/DKG
+    /// aggregate outputs and later decryption shares are bound to the anchor.
+    /// Values must be one-based, unique, and sorted in ascending order.
+    pub accepted_participant_ids: Vec<u16>,
+    /// Hash over the canonical accepted participant set.
     pub participant_set_hash: HexBlob,
     /// Threshold parameter t.
     pub threshold: u16,
+    /// Commitments to each party's individual BFV public key.
+    pub individual_bfv_pk_commitments: Vec<Commitment>,
+    /// Commitments to each party's threshold pk contribution.
+    pub threshold_pk_contribution_commitments: Vec<Commitment>,
     /// Aggregated sk share commitments per recipient.
     pub sk_agg_commits: Vec<AggregatedSkShareCommitment>,
     /// Aggregated e_sm share commitments per recipient per slot.
     pub esm_agg_commits: Vec<AggregatedESmShareCommitment>,
+    /// Smudge slot policy governing the DKG session.
+    pub smudge_slot_policy: SmudgeSlotPolicy,
     /// Commitment to the aggregated threshold public key.
     pub aggregated_pk_commitment: Commitment,
     /// Digest over the protocol parameters.
     pub parameter_digest: HexBlob,
+}
+
+impl DkgAnchorSet {
+    /// Compute the deterministic DKG transcript root.
+    ///
+    /// The root is `SHA-256(canonical_json(self))` returned as lowercase hex.
+    /// Canonical JSON uses `serde_json::to_string` (compact, no pretty-printing)
+    /// and is the current-spec canonical form. Future batches may migrate to a
+    /// canonical binary encoding without changing the digest semantics.
+    pub fn root_digest(&self) -> SpecResult<HexBlob> {
+        self.validate_accepted_participant_set_binding()?;
+        let canonical = serde_json::to_string(self).map_err(|e| {
+            SpecError::new(format!("DKG anchor canonical serialization failed: {e}"))
+        })?;
+        let hash: [u8; 32] = Sha256::digest(canonical.as_bytes()).into();
+        Ok(HexBlob(hex_encode(&hash)))
+    }
+
+    /// Validate that `participant_set_hash` matches the explicit accepted set.
+    pub fn validate_accepted_participant_set_binding(&self) -> SpecResult<()> {
+        validate_strictly_sorted_participant_ids(&self.accepted_participant_ids)?;
+        let expected = compute_accepted_participant_set_hash(&self.accepted_participant_ids)?;
+        if expected != self.participant_set_hash {
+            return Err(SpecError::new(
+                "accepted participant set hash does not match accepted_participant_ids",
+            ));
+        }
+        Ok(())
+    }
+}
+
+fn validate_strictly_sorted_participant_ids(participant_ids: &[u16]) -> SpecResult<()> {
+    if participant_ids.is_empty() {
+        return Err(SpecError::new("accepted participant set must be non-empty"));
+    }
+    if participant_ids[0] == 0 {
+        return Err(SpecError::new("accepted participant ids must be one-based"));
+    }
+    for window in participant_ids.windows(2) {
+        if window[1] == 0 {
+            return Err(SpecError::new("accepted participant ids must be one-based"));
+        }
+        if window[0] >= window[1] {
+            return Err(SpecError::new(
+                "accepted participant ids must be unique and sorted",
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Compute the canonical accepted participant/dealer-set digest.
+///
+/// The input is canonicalized by sorting a copy before hashing. Duplicate ids
+/// and the reserved zero id are rejected so callers cannot hide ambiguity in the
+/// public accepted set. The digest uses the same SHA-256/lowercase-hex style as
+/// [`DkgAnchorSet::root_digest`].
+pub fn compute_accepted_participant_set_hash(participant_ids: &[u16]) -> SpecResult<HexBlob> {
+    if participant_ids.is_empty() {
+        return Err(SpecError::new("accepted participant set must be non-empty"));
+    }
+
+    let mut ids = participant_ids.to_vec();
+    ids.sort_unstable();
+    for id in &ids {
+        if *id == 0 {
+            return Err(SpecError::new("accepted participant ids must be one-based"));
+        }
+    }
+    for window in ids.windows(2) {
+        if window[0] == window[1] {
+            return Err(SpecError::new("duplicate accepted participant id"));
+        }
+    }
+
+    let mut hasher = Sha256::new();
+    hasher.update(b"pvthfhe-dkg-accepted-participant-set-v1");
+    hasher.update((ids.len() as u64).to_be_bytes());
+    for id in ids {
+        hasher.update(id.to_be_bytes());
+    }
+    let hash: [u8; 32] = hasher.finalize().into();
+    Ok(HexBlob(hex_encode(&hash)))
+}
+
+/// Lowercase hex encoding helper (no external crate needed).
+fn hex_encode(bytes: &[u8]) -> String {
+    const LUT: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        out.push(char::from(LUT[(byte >> 4) as usize]));
+        out.push(char::from(LUT[(byte & 0x0f) as usize]));
+    }
+    out
 }
 
 /// Frozen public transcript used for third-party verification.

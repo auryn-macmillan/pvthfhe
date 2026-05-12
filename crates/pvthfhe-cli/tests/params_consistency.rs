@@ -8,7 +8,9 @@ const RLWE_N: usize = pvthfhe_nizk::sigma::RLWE_N;
 fn cli_demo_nizk_statement_uses_canonical_params() {
     let message = Round1Message {
         party_id: 7,
-        pk_i: PublicKey { bytes: vec![1, 2, 3, 4] },
+        pk_i: PublicKey {
+            bytes: vec![1, 2, 3, 4],
+        },
         pk_i_hash: [9; 32],
         commitment: [8; 32],
         poly_commit: [7; 32],

@@ -38,7 +38,10 @@ fn single_fold_path_exists() {
 
     for entry in WalkDir::new(&src_root).into_iter().filter_map(Result::ok) {
         let path = entry.path();
-        if entry.file_type().is_dir() || should_skip(path) || path.extension().and_then(|s| s.to_str()) != Some("rs") {
+        if entry.file_type().is_dir()
+            || should_skip(path)
+            || path.extension().and_then(|s| s.to_str()) != Some("rs")
+        {
             continue;
         }
 
@@ -51,7 +54,9 @@ fn single_fold_path_exists() {
 
         for item in file.items {
             if let Item::Struct(ItemStruct { ident, vis, .. }) = item {
-                if matches!(vis, syn::Visibility::Public(_)) && is_fold_path_struct(&ident.to_string()) {
+                if matches!(vis, syn::Visibility::Public(_))
+                    && is_fold_path_struct(&ident.to_string())
+                {
                     pub_fold_types.push(ident.to_string());
                 }
             }

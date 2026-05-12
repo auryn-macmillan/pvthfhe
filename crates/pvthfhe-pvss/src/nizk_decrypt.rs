@@ -1,11 +1,14 @@
 //! Share-decryption NIZK wrapper over the shared Cyclo/Ajtai adapter.
 
-use pvthfhe_nizk::{adapter::CycloNizkAdapter, hash_bridge, NizkAdapter, NizkProof, NizkStatement, NizkWitness};
 use pvthfhe_domain_tags::Tag;
+use pvthfhe_nizk::{
+    adapter::CycloNizkAdapter, hash_bridge, NizkAdapter, NizkProof, NizkStatement, NizkWitness,
+};
 use pvthfhe_rng::OsRng;
 use pvthfhe_types::witness_language::{BfvParameters as SchemaBfvParams, R3Relation};
 use pvthfhe_wire::{WireError, WireFormat};
 
+use ark_bn254::Fr;
 // R3.0a — schema types wired for R3.2 GREEN migration
 const _: () = {
     let _: Option<SchemaBfvParams> = None;
@@ -13,17 +16,41 @@ const _: () = {
 };
 use sha2::{Digest, Sha256};
 
+use crate::dkg_aggregation::{compute_esm_aggregate_commitment, compute_sk_aggregate_commitment};
 use crate::PvssError;
 
 /// Locked domain separator for PVSS share-decryption proofs.
 pub const DECRYPT_NIZK_DOMAIN_SEPARATOR: &str = "pvthfhe-pvss-share-decryption-v1";
 
-const PROOF_VERSION: u16 = 2;
-const WIRE_VERSION: u8 = 2;
+const PROOF_VERSION: u16 = 3;
+const WIRE_VERSION: u8 = 3;
 const MAX_FIELD_LEN: usize = 1 << 20;
 const RLWE_DEGREE: usize = 8192;
 const RLWE_Q_LOG2: u64 = 174;
 const RLWE_ERROR_BOUND: u64 = 16;
+const DIGEST_LEN: usize = 32;
+
+/// Decryption-proof smudging mode.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DecryptNizkMode {
+    /// Legacy threshold decryption using fresh local smudging noise.
+    LegacyLocalSmudge,
+    /// Threshold decryption using a DKG-committed smudging slot.
+    CommittedSmudge {
+        /// One-based committed smudging slot identifier.
+        slot_id: u16,
+        /// Decryption round bound to this committed slot use.
+        decrypt_round: u64,
+        /// Public hash of `(ciphertext_u, ciphertext_v)` bound to the statement.
+        ciphertext_hash: [u8; DIGEST_LEN],
+        /// Accepted DKG participant set used for aggregate commitment checks.
+        accepted_participant_ids: Vec<u16>,
+        /// Public aggregate secret-key share commitment `DKG.sk_agg_commits[j]`.
+        sk_agg_commit: [u8; DIGEST_LEN],
+        /// Public aggregate smudging share commitment `DKG.esm_agg_commits[j][slot]`.
+        esm_agg_commit: [u8; DIGEST_LEN],
+    },
+}
 
 /// Public statement for one share-decryption proof.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -42,6 +69,10 @@ pub struct DecryptNizkStatement {
     pub party_pk: Vec<u8>,
     /// On-chain epoch that binds the CRS.
     pub epoch: u64,
+    /// DKG transcript root binding this decryption to the exact anchor set.
+    pub dkg_root: Vec<u8>,
+    /// Explicit smudging mode for this decryption relation.
+    pub mode: DecryptNizkMode,
 }
 
 /// Secret witness for one share-decryption proof.
@@ -51,6 +82,12 @@ pub struct DecryptNizkWitness {
     pub secret_key_bytes: Vec<u8>,
     /// Canonicalized decryption-noise bytes.
     pub decryption_noise: Vec<u8>,
+    /// Aggregate secret-key share scalar for committed-smudge commitment checks.
+    pub sk_agg_share: Option<u64>,
+    /// Aggregate committed smudging share scalar for the selected slot.
+    pub esm_agg_share: Option<u64>,
+    /// Explicit committed `e_sm` polynomial bytes used instead of fresh local noise.
+    pub esm_noise_poly_bytes: Option<Vec<u8>>,
 }
 
 /// Serialized proof envelope.
@@ -90,15 +127,16 @@ impl DecryptNizkProver {
         witness: &DecryptNizkWitness,
     ) -> Result<DecryptNizkProof, PvssError> {
         validate_statement(stmt)?;
-        validate_witness(witness)?;
+        validate_witness(stmt, witness)?;
 
-        let participant_id = u16::try_from(stmt.party_index).map_err(|_| PvssError::InvalidShare)?;
+        let participant_id =
+            u16::try_from(stmt.party_index).map_err(|_| PvssError::InvalidShare)?;
         let session_id = hex_encode(&stmt.session_id);
-        let secret_share = derive_party_binding(&stmt.party_pk);
+        let secret_share = proof_secret_share(stmt, witness)?;
         let inner_stmt = NizkStatement {
             ciphertext_bytes: encode_ciphertext_bytes(stmt)?,
             decrypt_share_bytes: stmt.decrypted_share_bytes.clone(),
-            pvss_commitment: hash_bridge::commit(&session_id, participant_id, secret_share),
+            pvss_commitment: proof_commitment(stmt, &session_id, participant_id, secret_share),
             params: (RLWE_Q_LOG2, RLWE_DEGREE, RLWE_ERROR_BOUND),
             session_id,
             participant_id,
@@ -107,8 +145,11 @@ impl DecryptNizkProver {
         let inner_witness = NizkWitness {
             secret_share,
             secret_share_poly: derive_secret_share_poly(&witness.secret_key_bytes),
-            error: derive_error_vector(&witness.decryption_noise),
-            randomness: derive_randomness(&witness.secret_key_bytes, &witness.decryption_noise),
+            error: derive_error_vector(proof_noise_bytes(stmt, witness)?),
+            randomness: derive_randomness(
+                &witness.secret_key_bytes,
+                proof_noise_bytes(stmt, witness)?,
+            ),
         };
         let mut rng = OsRng;
         let inner_proof = CycloNizkAdapter
@@ -139,13 +180,19 @@ impl DecryptNizkVerifier {
             return Err(PvssError::InvalidShare);
         }
 
-        let participant_id = u16::try_from(stmt.party_index).map_err(|_| PvssError::InvalidShare)?;
+        let participant_id =
+            u16::try_from(stmt.party_index).map_err(|_| PvssError::InvalidShare)?;
         let session_id = hex_encode(&stmt.session_id);
-        let secret_share = derive_party_binding(&stmt.party_pk);
+        let legacy_secret_share = derive_party_binding(&stmt.party_pk);
         let inner_stmt = NizkStatement {
             ciphertext_bytes: encode_ciphertext_bytes(stmt)?,
             decrypt_share_bytes: stmt.decrypted_share_bytes.clone(),
-            pvss_commitment: hash_bridge::commit(&session_id, participant_id, secret_share),
+            pvss_commitment: verify_commitment(
+                stmt,
+                &session_id,
+                participant_id,
+                legacy_secret_share,
+            ),
             params: (RLWE_Q_LOG2, RLWE_DEGREE, RLWE_ERROR_BOUND),
             session_id,
             participant_id,
@@ -200,6 +247,7 @@ fn validate_statement(stmt: &DecryptNizkStatement) -> Result<(), PvssError> {
         || stmt.ciphertext_v.is_empty()
         || stmt.decrypted_share_bytes.is_empty()
         || stmt.party_pk.is_empty()
+        || stmt.dkg_root.is_empty()
     {
         return Err(PvssError::InvalidShare);
     }
@@ -208,14 +256,53 @@ fn validate_statement(stmt: &DecryptNizkStatement) -> Result<(), PvssError> {
         || stmt.ciphertext_v.len() > MAX_FIELD_LEN
         || stmt.decrypted_share_bytes.len() > MAX_FIELD_LEN
         || stmt.party_pk.len() > MAX_FIELD_LEN
+        || stmt.dkg_root.len() > MAX_FIELD_LEN
         || stmt.party_index > usize::from(u16::MAX)
     {
         return Err(PvssError::InvalidShare);
     }
+    validate_mode(stmt)?;
     Ok(())
 }
 
-fn validate_witness(witness: &DecryptNizkWitness) -> Result<(), PvssError> {
+fn validate_mode(stmt: &DecryptNizkStatement) -> Result<(), PvssError> {
+    match &stmt.mode {
+        DecryptNizkMode::LegacyLocalSmudge => Ok(()),
+        DecryptNizkMode::CommittedSmudge {
+            slot_id,
+            ciphertext_hash,
+            accepted_participant_ids,
+            sk_agg_commit,
+            esm_agg_commit,
+            ..
+        } => {
+            if *slot_id == 0
+                || accepted_participant_ids.is_empty()
+                || accepted_participant_ids.len() > usize::from(u16::MAX)
+                || sk_agg_commit.iter().all(|byte| *byte == 0)
+                || esm_agg_commit.iter().all(|byte| *byte == 0)
+            {
+                return Err(PvssError::InvalidShare);
+            }
+            if *ciphertext_hash
+                != compute_decrypt_ciphertext_hash(&stmt.ciphertext_u, &stmt.ciphertext_v)
+            {
+                return Err(PvssError::InvalidShare);
+            }
+            for window in accepted_participant_ids.windows(2) {
+                if window[0] >= window[1] {
+                    return Err(PvssError::InvalidShare);
+                }
+            }
+            Ok(())
+        }
+    }
+}
+
+fn validate_witness(
+    stmt: &DecryptNizkStatement,
+    witness: &DecryptNizkWitness,
+) -> Result<(), PvssError> {
     if witness.secret_key_bytes.is_empty()
         || witness.decryption_noise.is_empty()
         || witness.secret_key_bytes.len() > MAX_FIELD_LEN
@@ -223,7 +310,117 @@ fn validate_witness(witness: &DecryptNizkWitness) -> Result<(), PvssError> {
     {
         return Err(PvssError::InvalidShare);
     }
-    Ok(())
+    match &stmt.mode {
+        DecryptNizkMode::LegacyLocalSmudge => Ok(()),
+        DecryptNizkMode::CommittedSmudge {
+            slot_id,
+            accepted_participant_ids,
+            sk_agg_commit,
+            esm_agg_commit,
+            ..
+        } => {
+            let sk_agg_share = witness.sk_agg_share.ok_or(PvssError::InvalidShare)?;
+            let esm_agg_share = witness.esm_agg_share.ok_or(PvssError::InvalidShare)?;
+            let esm_noise_poly_bytes = witness
+                .esm_noise_poly_bytes
+                .as_ref()
+                .ok_or(PvssError::InvalidShare)?;
+            if esm_noise_poly_bytes.is_empty() || esm_noise_poly_bytes.len() > MAX_FIELD_LEN {
+                return Err(PvssError::InvalidShare);
+            }
+            let recipient_id =
+                u16::try_from(stmt.party_index).map_err(|_| PvssError::InvalidShare)?;
+            let expected_sk = compute_sk_aggregate_commitment(
+                &stmt.session_id,
+                &stmt.dkg_root,
+                recipient_id,
+                accepted_participant_ids,
+                Fr::from(sk_agg_share),
+            );
+            if expected_sk != *sk_agg_commit {
+                return Err(PvssError::InvalidShare);
+            }
+            let expected_esm = compute_esm_aggregate_commitment(
+                &stmt.session_id,
+                &stmt.dkg_root,
+                recipient_id,
+                accepted_participant_ids,
+                *slot_id,
+                Fr::from(esm_agg_share),
+            );
+            if expected_esm != *esm_agg_commit {
+                return Err(PvssError::InvalidShare);
+            }
+            Ok(())
+        }
+    }
+}
+
+fn proof_secret_share(
+    stmt: &DecryptNizkStatement,
+    witness: &DecryptNizkWitness,
+) -> Result<u64, PvssError> {
+    match stmt.mode {
+        DecryptNizkMode::LegacyLocalSmudge => Ok(derive_party_binding(&stmt.party_pk)),
+        DecryptNizkMode::CommittedSmudge { .. } => {
+            witness.sk_agg_share.ok_or(PvssError::InvalidShare)
+        }
+    }
+}
+
+fn proof_noise_bytes<'a>(
+    stmt: &DecryptNizkStatement,
+    witness: &'a DecryptNizkWitness,
+) -> Result<&'a [u8], PvssError> {
+    match &stmt.mode {
+        DecryptNizkMode::LegacyLocalSmudge => Ok(&witness.decryption_noise),
+        DecryptNizkMode::CommittedSmudge { .. } => witness
+            .esm_noise_poly_bytes
+            .as_deref()
+            .ok_or(PvssError::InvalidShare),
+    }
+}
+
+fn proof_commitment(
+    stmt: &DecryptNizkStatement,
+    session_id: &str,
+    participant_id: u16,
+    secret_share: u64,
+) -> [u8; DIGEST_LEN] {
+    match &stmt.mode {
+        DecryptNizkMode::LegacyLocalSmudge => {
+            hash_bridge::commit(session_id, participant_id, secret_share)
+        }
+        DecryptNizkMode::CommittedSmudge { sk_agg_commit, .. } => *sk_agg_commit,
+    }
+}
+
+fn verify_commitment(
+    stmt: &DecryptNizkStatement,
+    session_id: &str,
+    participant_id: u16,
+    legacy_secret_share: u64,
+) -> [u8; DIGEST_LEN] {
+    match &stmt.mode {
+        DecryptNizkMode::LegacyLocalSmudge => {
+            hash_bridge::commit(session_id, participant_id, legacy_secret_share)
+        }
+        DecryptNizkMode::CommittedSmudge { sk_agg_commit, .. } => *sk_agg_commit,
+    }
+}
+
+/// Compute the public ciphertext hash used by committed-smudge decrypt statements.
+pub fn compute_decrypt_ciphertext_hash(
+    ciphertext_u: &[u8],
+    ciphertext_v: &[u8],
+) -> [u8; DIGEST_LEN] {
+    let mut hasher = Sha256::new();
+    hasher.update(b"pvthfhe-decrypt-ciphertext-hash-v1");
+    hasher.update((ciphertext_u.len() as u64).to_be_bytes());
+    hasher.update(ciphertext_u);
+    hasher.update((ciphertext_v.len() as u64).to_be_bytes());
+    hasher.update(ciphertext_v);
+    hasher.finalize().into()
 }
 
 fn derive_party_binding(party_pk: &[u8]) -> u64 {
@@ -267,6 +464,8 @@ fn encode_ciphertext_bytes(stmt: &DecryptNizkStatement) -> Result<Vec<u8>, PvssE
     encode_bytes(&mut out, &stmt.ciphertext_u)?;
     encode_bytes(&mut out, &stmt.ciphertext_v)?;
     encode_bytes(&mut out, &stmt.party_pk)?;
+    encode_bytes(&mut out, &stmt.dkg_root)?;
+    encode_mode(&mut out, &stmt.mode)?;
     Ok(out)
 }
 
@@ -285,6 +484,8 @@ fn encode_opened_proof_body(opened: &DecryptNizkOpenedProof) -> Result<Vec<u8>, 
     encode_bytes(&mut out, &opened.statement.decrypted_share_bytes)?;
     encode_bytes(&mut out, &opened.statement.party_pk)?;
     out.extend_from_slice(&opened.statement.epoch.to_be_bytes());
+    encode_bytes(&mut out, &opened.statement.dkg_root)?;
+    encode_mode(&mut out, &opened.statement.mode)?;
     encode_bytes(&mut out, opened.backend_id.as_bytes())?;
     encode_bytes(&mut out, &opened.inner_proof_bytes)?;
     Ok(out)
@@ -301,7 +502,8 @@ fn decode_opened_proof_body(bytes: &[u8]) -> Result<DecryptNizkOpenedProof, Pvss
         return Err(PvssError::InvalidShare);
     }
 
-    let domain_separator = String::from_utf8(cursor.read_vec()?).map_err(|_| PvssError::InvalidShare)?;
+    let domain_separator =
+        String::from_utf8(cursor.read_vec()?).map_err(|_| PvssError::InvalidShare)?;
     let session_id = cursor.read_vec()?;
     let party_index = cursor.read_usize()?;
     let ciphertext_u = cursor.read_vec()?;
@@ -309,6 +511,8 @@ fn decode_opened_proof_body(bytes: &[u8]) -> Result<DecryptNizkOpenedProof, Pvss
     let decrypted_share_bytes = cursor.read_vec()?;
     let party_pk = cursor.read_vec()?;
     let epoch = cursor.read_u64()?;
+    let dkg_root = cursor.read_vec()?;
+    let mode = cursor.read_mode()?;
     let backend_id = String::from_utf8(cursor.read_vec()?).map_err(|_| PvssError::InvalidShare)?;
     let inner_proof_bytes = cursor.read_vec()?;
     cursor.finish()?;
@@ -322,6 +526,8 @@ fn decode_opened_proof_body(bytes: &[u8]) -> Result<DecryptNizkOpenedProof, Pvss
             decrypted_share_bytes,
             party_pk,
             epoch,
+            dkg_root,
+            mode,
         },
         backend_id,
         inner_proof_bytes,
@@ -355,6 +561,34 @@ fn encode_usize(out: &mut Vec<u8>, value: usize) -> Result<(), PvssError> {
     Ok(())
 }
 
+fn encode_mode(out: &mut Vec<u8>, mode: &DecryptNizkMode) -> Result<(), PvssError> {
+    match mode {
+        DecryptNizkMode::LegacyLocalSmudge => out.push(0),
+        DecryptNizkMode::CommittedSmudge {
+            slot_id,
+            decrypt_round,
+            ciphertext_hash,
+            accepted_participant_ids,
+            sk_agg_commit,
+            esm_agg_commit,
+        } => {
+            out.push(1);
+            out.extend_from_slice(&slot_id.to_be_bytes());
+            out.extend_from_slice(&decrypt_round.to_be_bytes());
+            out.extend_from_slice(ciphertext_hash);
+            let len = u32::try_from(accepted_participant_ids.len())
+                .map_err(|_| PvssError::InvalidShare)?;
+            out.extend_from_slice(&len.to_be_bytes());
+            for participant_id in accepted_participant_ids {
+                out.extend_from_slice(&participant_id.to_be_bytes());
+            }
+            out.extend_from_slice(sk_agg_commit);
+            out.extend_from_slice(esm_agg_commit);
+        }
+    }
+    Ok(())
+}
+
 fn hex_encode(bytes: &[u8]) -> String {
     const LUT: &[u8; 16] = b"0123456789abcdef";
     let mut out = String::with_capacity(bytes.len() * 2);
@@ -376,14 +610,22 @@ impl<'a> Cursor<'a> {
     }
 
     fn read_exact(&mut self, len: usize) -> Result<&'a [u8], PvssError> {
-        let end = self.offset.checked_add(len).ok_or(PvssError::InvalidShare)?;
-        let slice = self.bytes.get(self.offset..end).ok_or(PvssError::InvalidShare)?;
+        let end = self
+            .offset
+            .checked_add(len)
+            .ok_or(PvssError::InvalidShare)?;
+        let slice = self
+            .bytes
+            .get(self.offset..end)
+            .ok_or(PvssError::InvalidShare)?;
         self.offset = end;
         Ok(slice)
     }
 
     fn read_array<const N: usize>(&mut self) -> Result<[u8; N], PvssError> {
-        self.read_exact(N)?.try_into().map_err(|_| PvssError::InvalidShare)
+        self.read_exact(N)?
+            .try_into()
+            .map_err(|_| PvssError::InvalidShare)
     }
 
     fn read_u16(&mut self) -> Result<u16, PvssError> {
@@ -401,6 +643,38 @@ impl<'a> Cursor<'a> {
 
     fn read_u64(&mut self) -> Result<u64, PvssError> {
         Ok(u64::from_be_bytes(self.read_array()?))
+    }
+
+    fn read_mode(&mut self) -> Result<DecryptNizkMode, PvssError> {
+        let tag = *self.read_exact(1)?.first().ok_or(PvssError::InvalidShare)?;
+        match tag {
+            0 => Ok(DecryptNizkMode::LegacyLocalSmudge),
+            1 => {
+                let slot_id = u16::from_be_bytes(self.read_array()?);
+                let decrypt_round = self.read_u64()?;
+                let ciphertext_hash = self.read_array()?;
+                let participant_count =
+                    usize::try_from(self.read_u32()?).map_err(|_| PvssError::InvalidShare)?;
+                if participant_count == 0 || participant_count > usize::from(u16::MAX) {
+                    return Err(PvssError::InvalidShare);
+                }
+                let mut accepted_participant_ids = Vec::with_capacity(participant_count);
+                for _ in 0..participant_count {
+                    accepted_participant_ids.push(u16::from_be_bytes(self.read_array()?));
+                }
+                let sk_agg_commit = self.read_array()?;
+                let esm_agg_commit = self.read_array()?;
+                Ok(DecryptNizkMode::CommittedSmudge {
+                    slot_id,
+                    decrypt_round,
+                    ciphertext_hash,
+                    accepted_participant_ids,
+                    sk_agg_commit,
+                    esm_agg_commit,
+                })
+            }
+            _ => Err(PvssError::InvalidShare),
+        }
     }
 
     fn read_vec(&mut self) -> Result<Vec<u8>, PvssError> {

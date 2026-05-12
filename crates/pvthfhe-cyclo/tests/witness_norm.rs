@@ -10,7 +10,7 @@
 use ark_bn254::Fr;
 use ark_ff::{AdditiveGroup, BigInteger, PrimeField};
 use pvthfhe_cyclo::{
-    fold::{fold_one_step, init_accumulator},
+    fold::{fold_one_step, init_accumulator, AJTAI_COMMITMENT_BYTES},
     CcsPShareInstance, CycloError,
 };
 use pvthfhe_types::CcsWitnessSecret;
@@ -24,9 +24,11 @@ fn one_var_witness(fr: Fr) -> Vec<u8> {
 }
 
 fn make_instance_with_witness(id: u16, witness_bytes: Vec<u8>) -> CcsPShareInstance {
+    let ajtai_bytes: Vec<u8> =
+        (0..AJTAI_COMMITMENT_BYTES).map(|i| (i as u8).wrapping_add(id as u8)).collect();
     CcsPShareInstance {
         participant_id: id,
-        ajtai_commitment_bytes: vec![id as u8; 32].into(),
+        ajtai_commitment_bytes: ajtai_bytes.into(),
         public_io_bytes: vec![id as u8 ^ 0xAA; 32].into(),
         ccs_witness_bytes: CcsWitnessSecret::new(witness_bytes),
         sha256_binding_bytes: vec![0u8; 32].into(),

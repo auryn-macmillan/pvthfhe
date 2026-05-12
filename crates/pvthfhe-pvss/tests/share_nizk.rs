@@ -1,8 +1,8 @@
 //! Integration tests for PVSS share-encryption NIZKs.
 
 use pvthfhe_fhe::{mock::MockBackend, FheBackend};
-use pvthfhe_pvss::nizk_share::{ShareNizkProof, SHARE_NIZK_DOMAIN_SEPARATOR};
-use pvthfhe_pvss::{LatticePvssBfvAdapter, PvssAdapter, PvssContext, PvssError};
+use pvthfhe_pvss::nizk_share::ShareNizkProof;
+use pvthfhe_pvss::{LatticePvssBfvAdapter, PvssAdapter, PvssContext};
 use rand_chacha::ChaCha8Rng;
 use rand_core::{RngCore, SeedableRng};
 
@@ -24,7 +24,10 @@ fn recipient_public_keys(n: usize) -> Vec<Vec<u8>> {
                 .keygen_share_with_session(&session_id, 1, &mut rng)
                 .expect("keygen share");
             backend.setup_threshold(1, 1).expect("setup threshold");
-            backend.aggregate_keygen(&[share]).expect("aggregate keygen").bytes
+            backend
+                .aggregate_keygen(&[share])
+                .expect("aggregate keygen")
+                .bytes
         })
         .collect()
 }
@@ -42,13 +45,17 @@ fn sample_context() -> PvssContext {
         t: 2,
         session_id: vec![9; 32],
         epoch: 0,
+        dkg_root: vec![],
     }
 }
 
 fn corrupt_lattice_binding(proof_bytes: &mut [u8]) {
     let len = proof_bytes.len();
-    // layout: [...body...][commitment_seed:32][challenge:32][lattice_binding:32][d2_binding:32]
-    assert!(len >= 64, "proof too short for lattice binding (d2_binding added 32 bytes)");
+    // layout: [...body...][commitment_binding:32][challenge:32][lattice_binding:32][relation_binding:32][d2_binding:32]
+    assert!(
+        len >= 64,
+        "proof too short for lattice binding (d2_binding added 32 bytes)"
+    );
     proof_bytes[len - 64] ^= 0xFF;
     proof_bytes[len - 63] ^= 0xFF;
 }
@@ -73,13 +80,20 @@ fn _debug_trace_proof_bytes() {
     let body_len = u32::from_be_bytes(proof[1..5].try_into().unwrap());
     eprintln!("body_len parsed: {}", body_len);
     eprintln!("proof[5..9] (tag): {:02x?}", &proof[5..9]);
-    eprintln!("1+4+body_len = {}, actual = {}", 1+4+body_len, proof.len());
+    eprintln!(
+        "1+4+body_len = {}, actual = {}",
+        1 + 4 + body_len,
+        proof.len()
+    );
 
     let decoded = ShareNizkProof::from_bytes(proof.clone()).expect("decode");
     let opened = decoded.decode().expect("decode body");
-    eprintln!("statement.session_id.len = {}", opened.statement.session_id.len());
+    eprintln!(
+        "statement.session_id.len = {}",
+        opened.statement.session_id.len()
+    );
     eprintln!("commitment_bytes.len = {}", opened.commitment_bytes.len());
-    eprintln!("commitment_seed = {:02x?}", &opened.commitment_seed);
+    eprintln!("commitment_binding = {:02x?}", &opened.commitment_binding);
     eprintln!("challenge = {:02x?}", &opened.challenge);
     eprintln!("lattice_binding = {:02x?}", &opened.lattice_binding);
     eprintln!("d2_binding       = {:02x?}", &opened.d2_binding);

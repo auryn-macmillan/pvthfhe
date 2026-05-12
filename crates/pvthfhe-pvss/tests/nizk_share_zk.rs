@@ -1,15 +1,14 @@
-//! R3.1 GREEN: ZK property — witness removed from proof envelope.
+//! D.1 share relation proof envelope privacy checks.
 //!
-//! The `ShareNizkOpenedProof` no longer serializes `share_bytes` or
-//! `encryption_randomness`. Verifier cannot recover the witness from the proof.
+//! The public proof may carry only non-opening relation bindings. It must not
+//! expose plaintext shares or deterministic encryption randomness.
 
-use pvthfhe_fhe::{mock::MockBackend, FheBackend};
+use pvthfhe_fhe::{mock::MockBackend, types::PublicKey, FheBackend};
 use pvthfhe_pvss::nizk_share::{
-    ShareNizkProver, ShareNizkStatement,
-    ShareNizkWitness, SHARE_NIZK_DOMAIN_SEPARATOR,
+    canonical_bfv_params_digest, compute_ciphertext_v, compute_share_commitment, ShareNizkProver,
+    ShareNizkStatement, ShareNizkVerifier, ShareNizkWitness, SHARE_NIZK_DOMAIN_SEPARATOR,
 };
 use pvthfhe_types::{EncRandomness, ProtocolBytes, ShareSecret};
-use sha2::{Digest, Sha256};
 use rand_chacha::ChaCha8Rng;
 use rand_core::{RngCore, SeedableRng};
 
@@ -21,34 +20,31 @@ fn acknowledge_mock_backend() {
     }
 }
 
-fn make_statement() -> ShareNizkStatement {
+fn make_statement(
+    backend: &MockBackend,
+    share: &[u8],
+    randomness: &[u8; 32],
+) -> ShareNizkStatement {
     let mut rng = ChaCha8Rng::seed_from_u64(42);
     let mut pk = vec![0u8; 64];
     rng.fill_bytes(&mut pk);
-    let mut ct = vec![0u8; 128];
-    rng.fill_bytes(&mut ct);
     let mut sid = vec![0u8; 32];
     rng.fill_bytes(&mut sid);
-
-    let cv = {
-        let mut h = Sha256::new();
-        h.update(b"ciphertext-v1");
-        h.update(&ct);
-        h.finalize()
-    };
-    let sc = {
-        let mut h = Sha256::new();
-        h.update(&sid);
-        h.update(0usize.to_le_bytes());
-        h.update(&[1u8; 32]);
-        h.finalize()
-    };
+    let mut enc_rng = ChaCha8Rng::from_seed(*randomness);
+    let ct = backend
+        .encrypt(&PublicKey { bytes: pk.clone() }, share, &mut enc_rng)
+        .expect("encrypt share")
+        .bytes;
+    let cv = compute_ciphertext_v(&ct);
+    let sc = compute_share_commitment(&sid, 0, share);
 
     ShareNizkStatement {
-        session_id: ProtocolBytes(sid),
+        session_id: ProtocolBytes(sid.clone()),
         dealer_index: 0,
         recipient_index: 0,
         recipient_pk: ProtocolBytes(pk),
+        bfv_params_digest: ProtocolBytes(canonical_bfv_params_digest().to_vec()),
+        dkg_root: ProtocolBytes(sid),
         ciphertext_u: ProtocolBytes(ct),
         ciphertext_v: ProtocolBytes(cv.to_vec()),
         share_commitment: ProtocolBytes(sc.to_vec()),
@@ -56,53 +52,81 @@ fn make_statement() -> ShareNizkStatement {
 }
 
 #[test]
-fn proof_does_not_leak_witness_bytes() {
+fn proof_keeps_replay_relation_witness_private() {
     acknowledge_mock_backend();
 
     let backend = MockBackend::load_params(TEST_PARAMS_TOML).expect("load mock backend");
-    let stmt = make_statement();
     let share = vec![42u8; 32];
-    let randomness = vec![7u8; 32];
+    let randomness = [7u8; 32];
+    let stmt = make_statement(&backend, &share, &randomness);
 
     let witness = ShareNizkWitness {
-        share_bytes: ShareSecret::new(share),
-        encryption_randomness: EncRandomness::new(randomness),
+        share_bytes: ShareSecret::new(share.clone()),
+        encryption_randomness: EncRandomness::new(randomness.to_vec()),
     };
 
-    let proof = ShareNizkProver::prove(&backend, &stmt, &witness)
-        .expect("prover must succeed");
+    let proof = ShareNizkProver::prove(&backend, &stmt, &witness).expect("prover must succeed");
 
     let opened = proof.decode().expect("proof must decode");
     assert_eq!(opened.domain_separator, SHARE_NIZK_DOMAIN_SEPARATOR);
     assert_eq!(opened.statement, stmt);
 
     assert!(!opened.commitment_bytes.is_empty());
+    assert_ne!(opened.relation_binding, [0u8; 32]);
+    assert!(!opened.algebraic_proof.is_empty());
+    assert!(
+        ShareNizkVerifier::verify(&backend, &stmt, &proof).is_err(),
+        "D.1 remains incomplete: v3 proofs must fail closed because they lack a verifier-checkable BFV encryption relation"
+    );
 }
 
 #[test]
-fn proofs_with_different_witness_are_not_trivially_distinguishable() {
+fn proofs_for_different_relation_witnesses_have_different_commitments() {
     acknowledge_mock_backend();
 
     let backend = MockBackend::load_params(TEST_PARAMS_TOML).expect("load mock backend");
-    let stmt = make_statement();
+    let share = vec![1u8; 32];
+    let share2 = vec![99u8; 32];
+    let randomness1 = [2u8; 32];
+    let randomness2 = [88u8; 32];
+    let stmt = make_statement(&backend, &share, &randomness1);
+    let mut stmt2 = make_statement(&backend, &share2, &randomness2);
+    stmt2.session_id = stmt.session_id.clone();
+    stmt2.recipient_pk = stmt.recipient_pk.clone();
+    stmt2.dkg_root = stmt.dkg_root.clone();
+    let mut enc_rng = ChaCha8Rng::from_seed(randomness2);
+    let ct2 = backend
+        .encrypt(
+            &PublicKey {
+                bytes: stmt.recipient_pk.0.clone(),
+            },
+            &share2,
+            &mut enc_rng,
+        )
+        .expect("encrypt share with second randomness")
+        .bytes;
+    stmt2.ciphertext_u = ProtocolBytes(ct2.clone());
+    stmt2.ciphertext_v = ProtocolBytes(compute_ciphertext_v(&ct2).to_vec());
+    stmt2.share_commitment =
+        ProtocolBytes(compute_share_commitment(stmt.session_id.as_slice(), 0, &share2).to_vec());
 
     let witness1 = ShareNizkWitness {
-        share_bytes: ShareSecret::new(vec![1u8; 32]),
-        encryption_randomness: EncRandomness::new(vec![2u8; 32]),
+        share_bytes: ShareSecret::new(share.clone()),
+        encryption_randomness: EncRandomness::new(randomness1.to_vec()),
     };
     let proof1 = ShareNizkProver::prove(&backend, &stmt, &witness1).expect("prove");
 
     let witness2 = ShareNizkWitness {
-        share_bytes: ShareSecret::new(vec![99u8; 32]),
-        encryption_randomness: EncRandomness::new(vec![88u8; 32]),
+        share_bytes: ShareSecret::new(share2),
+        encryption_randomness: EncRandomness::new(randomness2.to_vec()),
     };
-    let proof2 = ShareNizkProver::prove(&backend, &stmt, &witness2).expect("prove");
+    let proof2 = ShareNizkProver::prove(&backend, &stmt2, &witness2).expect("prove");
 
     let opened1 = proof1.decode().expect("decode real");
     let opened2 = proof2.decode().expect("decode sim");
 
     assert_eq!(opened1.statement, stmt);
-    assert_eq!(opened2.statement, stmt);
+    assert_eq!(opened2.statement, stmt2);
     assert_eq!(opened1.domain_separator, SHARE_NIZK_DOMAIN_SEPARATOR);
     assert_eq!(opened2.domain_separator, SHARE_NIZK_DOMAIN_SEPARATOR);
 

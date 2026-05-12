@@ -205,6 +205,7 @@ fn test_e2e_real_pipeline_p4_p1_p2_p3() {
                 session_id: "e2e-real-session-v1".to_string(),
                 params,
                 ciphertext_bytes: vec![tag; 8],
+                multi_track_metadata: None,
             },
         };
         let wit = FoldWitness {

@@ -18,6 +18,7 @@ fn deal_at_n_65536_returns_error_naming_max() {
         t: 32768,
         session_id: vec![0u8; 16],
         epoch: 0,
+        dkg_root: vec![],
     };
     // validate_context fires before the recipient_pks length check,
     // so we do not need to allocate 65536 dummy public keys.
@@ -47,6 +48,7 @@ fn deal_at_n_65535_does_not_fail_on_cap_check() {
         t: 32768,
         session_id: vec![0u8; 16],
         epoch: 0,
+        dkg_root: vec![],
     };
     // We only need to prove the cap does not reject n=65535;
     // a key-count mismatch error is acceptable.

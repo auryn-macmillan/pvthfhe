@@ -54,16 +54,7 @@ contract PvtFheVerifierTest is BaseVerifierTest {
 
     /// @notice Calls verify() with all-zero inputs; asserts it returns false.
     function test_abi_signature() public view {
-        bool valid = verifier.verify(
-            ZERO_HASH,
-            ZERO_HASH,
-            ZERO_HASH,
-            ZERO_HASH,
-            0,
-            ZERO_HASH,
-            ZERO_HASH,
-            new bytes(0)
-        );
+        bool valid = verifier.verify(ZERO_HASH, ZERO_HASH, ZERO_HASH, ZERO_HASH, 0, ZERO_HASH, ZERO_HASH, new bytes(0));
         assertFalse(valid, "zeroed surrogate inputs must not verify");
     }
 
@@ -74,13 +65,22 @@ contract PvtFheVerifierTest is BaseVerifierTest {
     /// @notice Measures gas consumed by verify() and asserts < 5M.
     function test_gas_budget() public {
         uint256 gasBefore = gasleft();
-        (bool ok, bytes memory data) = address(verifier).call(
-            abi.encodeCall(
-                verifier.verify,
-                (SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH,
-                 SAMPLE_EPOCH, SAMPLE_HASH, SAMPLE_HASH, sampleProof)
-            )
-        );
+        (bool ok, bytes memory data) = address(verifier)
+            .call(
+                abi.encodeCall(
+                    verifier.verify,
+                    (
+                        SAMPLE_HASH,
+                        SAMPLE_HASH,
+                        SAMPLE_HASH,
+                        SAMPLE_HASH,
+                        SAMPLE_EPOCH,
+                        SAMPLE_HASH,
+                        SAMPLE_HASH,
+                        sampleProof
+                    )
+                )
+            );
         uint256 gasUsed = gasBefore - gasleft();
         assertTrue(ok, "call must not revert");
         assertFalse(abi.decode(data, (bool)), "placeholder proof should not verify");
@@ -100,8 +100,7 @@ contract PvtFheVerifierTest is BaseVerifierTest {
         }
 
         bool valid = verifier.verify(
-            SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH,
-            SAMPLE_EPOCH, SAMPLE_HASH, SAMPLE_HASH, tampered
+            SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH, SAMPLE_EPOCH, SAMPLE_HASH, SAMPLE_HASH, tampered
         );
         assertFalse(valid, "tampered proof must not verify");
     }
@@ -141,10 +140,7 @@ contract PvtFheVerifierTest is BaseVerifierTest {
     ///         and that verify() remains callable through the interface.
     function test_interface_compliance() public view {
         IPvthfheVerifier iface = IPvthfheVerifier(address(verifier));
-        bool valid = iface.verify(
-            ZERO_HASH, ZERO_HASH, ZERO_HASH, ZERO_HASH,
-            0, ZERO_HASH, ZERO_HASH, new bytes(0)
-        );
+        bool valid = iface.verify(ZERO_HASH, ZERO_HASH, ZERO_HASH, ZERO_HASH, 0, ZERO_HASH, ZERO_HASH, new bytes(0));
         assertFalse(valid, "interface call must preserve verify ABI");
     }
 
@@ -161,14 +157,12 @@ contract PvtFheVerifierTest is BaseVerifierTest {
     // Helper: builds a valid AttestationBundle with an ECDSA signature
     // -------------------------------------------------------------------------
 
-    function _buildSignedAttestation(
-        bytes32 sonobeCommitment,
-        bytes32 cycloCommitment,
-        bytes32 sessionId
-    ) internal view returns (AttestationBundle memory) {
-        bytes32 hash = keccak256(
-            abi.encode(sonobeCommitment, cycloCommitment, sessionId, TEST_ATTESTOR)
-        );
+    function _buildSignedAttestation(bytes32 sonobeCommitment, bytes32 cycloCommitment, bytes32 sessionId)
+        internal
+        view
+        returns (AttestationBundle memory)
+    {
+        bytes32 hash = keccak256(abi.encode(sonobeCommitment, cycloCommitment, sessionId, TEST_ATTESTOR));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(ATTESTOR_SK, hash);
         return AttestationBundle({
             sonobeStateCommitment: sonobeCommitment,
@@ -190,11 +184,8 @@ contract PvtFheVerifierTest is BaseVerifierTest {
         publicInputs[4] = sonobeCommitment;
         publicInputs[5] = cycloCommitment;
 
-        AttestationBundle memory attestation = _buildSignedAttestation(
-            sonobeCommitment,
-            cycloCommitment,
-            bytes32(uint256(6))
-        );
+        AttestationBundle memory attestation =
+            _buildSignedAttestation(sonobeCommitment, cycloCommitment, bytes32(uint256(6)));
 
         bool valid = verifier.verifyWithAttestation(sampleProof, publicInputs, attestation);
         assertTrue(valid, "matching attestation and proof must verify");
@@ -209,11 +200,7 @@ contract PvtFheVerifierTest is BaseVerifierTest {
         publicInputs[5] = cycloCommitment;
 
         // Build a validly-signed attestation but swap the signer to an unauthorized address.
-        AttestationBundle memory base = _buildSignedAttestation(
-            sonobeCommitment,
-            cycloCommitment,
-            bytes32(uint256(6))
-        );
+        AttestationBundle memory base = _buildSignedAttestation(sonobeCommitment, cycloCommitment, bytes32(uint256(6)));
         AttestationBundle memory attestation = AttestationBundle({
             sonobeStateCommitment: base.sonobeStateCommitment,
             cycloAggregateCommitment: base.cycloAggregateCommitment,
@@ -236,7 +223,7 @@ contract PvtFheVerifierTest is BaseVerifierTest {
 
         // Build attestation with a different sonobeStateCommitment
         AttestationBundle memory attestation = _buildSignedAttestation(
-            bytes32(uint256(44)),   // MISMATCH
+            bytes32(uint256(44)), // MISMATCH
             cycloCommitment,
             bytes32(uint256(6))
         );
@@ -256,13 +243,95 @@ contract PvtFheVerifierTest is BaseVerifierTest {
         publicInputs[5] = cycloCommitment;
 
         // Valid signature — the test ensures proof failure, not signature failure.
-        AttestationBundle memory attestation = _buildSignedAttestation(
-            sonobeCommitment,
-            cycloCommitment,
-            bytes32(uint256(6))
-        );
+        AttestationBundle memory attestation =
+            _buildSignedAttestation(sonobeCommitment, cycloCommitment, bytes32(uint256(6)));
 
         vm.expectRevert(bytes("InvalidProof"));
         verifier.verifyWithAttestation(sampleProof, publicInputs, attestation);
+    }
+
+    function test_verifyAndConsumeWithSmudgeSlots_recordsFreshnessBeforeAccepting() public {
+        bytes memory proof = new bytes(32);
+        for (uint256 i = 0; i < proof.length; i++) {
+            proof[i] = bytes1(uint8(0xA0 + i));
+        }
+        bytes32 ciphertextHash = keccak256(proof);
+        uint32[] memory partyIds = new uint32[](2);
+        partyIds[0] = 1;
+        partyIds[1] = 2;
+        uint32[] memory slots = new uint32[](2);
+        slots[0] = 7;
+        slots[1] = 7;
+
+        bool valid = verifier.verifyAndConsumeWithSmudgeSlots(
+            ciphertextHash,
+            SAMPLE_HASH,
+            SAMPLE_HASH,
+            SAMPLE_HASH,
+            41,
+            SAMPLE_HASH,
+            SAMPLE_HASH,
+            proof,
+            partyIds,
+            slots,
+            99
+        );
+
+        assertTrue(valid, "valid proof must be accepted");
+
+        SessionRegistry reg = SessionRegistry(address(verifier.registry()));
+        (bool consumed, bytes32 storedCiphertextHash, uint64 storedDecryptRound) = reg.smudgeSlotUse(SAMPLE_HASH, 1, 7);
+        assertTrue(consumed, "party 1 slot must be publicly recorded");
+        assertEq(storedCiphertextHash, ciphertextHash, "ciphertext hash must be bound");
+        assertEq(storedDecryptRound, 99, "decrypt round must be bound");
+        assertTrue(reg.isEpochConsumed(SAMPLE_HASH, 41), "epoch must be consumed after freshness records");
+    }
+
+    function test_verifyAndConsumeWithSmudgeSlots_rejectsReusedSlotAndLeavesEpochFresh() public {
+        bytes memory proofA = new bytes(32);
+        bytes memory proofB = new bytes(32);
+        for (uint256 i = 0; i < proofA.length; i++) {
+            proofA[i] = bytes1(uint8(0x10 + i));
+            proofB[i] = bytes1(uint8(0x40 + i));
+        }
+        uint32[] memory partyIds = new uint32[](1);
+        partyIds[0] = 1;
+        uint32[] memory slots = new uint32[](1);
+        slots[0] = 7;
+
+        bool first = verifier.verifyAndConsumeWithSmudgeSlots(
+            keccak256(proofA),
+            SAMPLE_HASH,
+            SAMPLE_HASH,
+            SAMPLE_HASH,
+            51,
+            SAMPLE_HASH,
+            SAMPLE_HASH,
+            proofA,
+            partyIds,
+            slots,
+            99
+        );
+        assertTrue(first, "first slot use must verify");
+
+        vm.expectRevert(
+            abi.encodeWithSelector(SessionRegistry.SmudgeSlotAlreadyBound.selector, SAMPLE_HASH, uint32(1), uint32(7))
+        );
+        verifier.verifyAndConsumeWithSmudgeSlots(
+            keccak256(proofB),
+            SAMPLE_HASH,
+            SAMPLE_HASH,
+            SAMPLE_HASH,
+            52,
+            SAMPLE_HASH,
+            SAMPLE_HASH,
+            proofB,
+            partyIds,
+            slots,
+            99
+        );
+
+        SessionRegistry reg = SessionRegistry(address(verifier.registry()));
+        assertFalse(reg.isEpochConsumed(SAMPLE_HASH, 52), "rejected slot reuse must not consume epoch");
     }
 }

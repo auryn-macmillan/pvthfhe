@@ -3,8 +3,8 @@
 use std::{
     collections::BTreeMap,
     env, fs,
-    time::Instant,
     path::{Path, PathBuf},
+    time::Instant,
 };
 
 use pvthfhe_nizk::{
@@ -26,7 +26,10 @@ fn extract_front_matter(contents: &str) -> Option<&str> {
 fn front_matter_map(front_matter: &str) -> BTreeMap<&str, &str> {
     front_matter
         .lines()
-        .filter_map(|line| line.split_once(':').map(|(key, value)| (key.trim(), value.trim())))
+        .filter_map(|line| {
+            line.split_once(':')
+                .map(|(key, value)| (key.trim(), value.trim()))
+        })
         .collect()
 }
 
@@ -64,12 +67,16 @@ fn sample_statement_and_witness() -> (NizkStatement, NizkWitness) {
 }
 
 #[test]
-fn lattice_pvss_feasibility_doc_exists_with_verdict_field() -> Result<(), Box<dyn std::error::Error>> {
+fn lattice_pvss_feasibility_doc_exists_with_verdict_field() -> Result<(), Box<dyn std::error::Error>>
+{
     let doc_path = repo_root().join(".sisyphus/research/lattice-pvss-feasibility.md");
     let contents = fs::read_to_string(&doc_path)?;
     let front_matter = extract_front_matter(&contents).ok_or("missing YAML front matter")?;
     let front_matter = front_matter_map(front_matter);
-    let verdict = front_matter.get("verdict").copied().ok_or("missing verdict field")?;
+    let verdict = front_matter
+        .get("verdict")
+        .copied()
+        .ok_or("missing verdict field")?;
 
     assert!(
         matches!(verdict, "Go" | "GoWithCaveat" | "NoGo"),

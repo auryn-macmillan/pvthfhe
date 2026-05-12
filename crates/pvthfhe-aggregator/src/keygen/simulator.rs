@@ -264,7 +264,9 @@ impl KeygenSimulator {
         party_id: PartyId,
     ) -> Result<Round1Message, pvthfhe_fhe::FheError> {
         let share = self.keygen_share_with_session(session_id, party_id)?;
-        let pk_i = PublicKey { bytes: share.bytes.0 };
+        let pk_i = PublicKey {
+            bytes: share.bytes.0,
+        };
         let pk_i_hash = hash_bytes(pk_i.bytes.as_slice());
 
         let mut encrypted_shares = HashMap::new();

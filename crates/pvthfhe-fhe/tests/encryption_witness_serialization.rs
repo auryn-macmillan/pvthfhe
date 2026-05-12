@@ -40,6 +40,8 @@ fn encryption_witness_field_roundtrip() {
         ct0_poly_bytes: witness.ct0_poly_bytes.clone(),
         ct1_poly_bytes: witness.ct1_poly_bytes.clone(),
         ciphertext_bytes: witness.ciphertext_bytes.clone(),
+        recipient_pk0_bytes: witness.recipient_pk0_bytes.clone(),
+        recipient_pk1_bytes: witness.recipient_pk1_bytes.clone(),
     };
 
     assert_eq!(witness, reconstructed, "witness must roundtrip through field reconstruction");

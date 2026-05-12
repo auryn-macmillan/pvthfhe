@@ -20,6 +20,56 @@ pub struct VerifierKey {
     pub version: u32,
 }
 
+/// DKG public anchor values surfaced at the compressed-proof boundary.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CompressedDkgPublicAnchors {
+    /// DKG transcript root shared by DKG and decryption proofs.
+    pub dkg_root: [u8; 32],
+    /// Commitment to the aggregated public key.
+    pub aggregated_pk_commit: [u8; 32],
+    /// Hash of the accepted participant set.
+    pub participant_set_hash: [u8; 32],
+    /// Root of aggregated secret-key share commitments.
+    pub sk_agg_commits_root: [u8; 32],
+    /// Root of aggregated committed-smudge commitments.
+    pub esm_agg_commits_root: [u8; 32],
+    /// Hash of the smudge-slot allocation policy.
+    pub smudge_slot_policy_hash: [u8; 32],
+}
+
+/// Decryption public anchor values surfaced at the compressed-proof boundary.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CompressedDecryptionPublicAnchors {
+    /// DKG transcript root claimed by the decryption proof.
+    pub dkg_root: [u8; 32],
+    /// Hash of the ciphertext being decrypted.
+    pub ciphertext_hash: [u8; 32],
+    /// Expected DKG aggregate secret-key commitment root.
+    pub expected_sk_commits_root: [u8; 32],
+    /// Expected DKG aggregate committed-smudge commitment root.
+    pub expected_esm_commits_root: [u8; 32],
+    /// Public committed-smudge slot identifier.
+    pub slot_id: u64,
+    /// Public decryption round identifier.
+    pub decrypt_round: u64,
+    /// Hash of the decoded plaintext.
+    pub plaintext_hash: [u8; 32],
+}
+
+/// Checks public DKG/decryption anchors before accepting compressed proof inputs.
+pub fn verify_compressed_public_anchors(
+    dkg: &CompressedDkgPublicAnchors,
+    decrypt: &CompressedDecryptionPublicAnchors,
+) -> Result<(), CompressorError> {
+    if dkg.dkg_root != decrypt.dkg_root
+        || dkg.sk_agg_commits_root != decrypt.expected_sk_commits_root
+        || dkg.esm_agg_commits_root != decrypt.expected_esm_commits_root
+    {
+        return Err(CompressorError::InvalidProof);
+    }
+    Ok(())
+}
+
 /// Minimal step-circuit descriptor shared across compressor backends.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct StepCircuitDescriptor {

@@ -76,7 +76,11 @@ fn no_gf256_u8_shamir_code_paths_exist() {
              After GREEN phase, these should all be replaced with ark_ff::PrimeField-based \
              polynomial evaluation over BN254 scalar field.",
             count = violations.len(),
-            violations = violations.iter().map(|v| format!("  {v}")).collect::<Vec<_>>().join("\n"),
+            violations = violations
+                .iter()
+                .map(|v| format!("  {v}"))
+                .collect::<Vec<_>>()
+                .join("\n"),
         );
     }
 

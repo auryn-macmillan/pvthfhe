@@ -31,11 +31,7 @@ fn base_params() -> (u64, usize, u64) {
 }
 
 /// Creates a fresh [`FoldAccumulator`] at the given depth.
-fn make_acc(
-    session_id: &str,
-    params: (u64, usize, u64),
-    depth: u64,
-) -> FoldAccumulator {
+fn make_acc(session_id: &str, params: (u64, usize, u64), depth: u64) -> FoldAccumulator {
     let low_byte = u8::try_from(depth % 256).unwrap_or(0);
     FoldAccumulator::new(
         vec![low_byte; 4],
@@ -61,6 +57,7 @@ fn make_statement(
             session_id: session_id.to_string(),
             params,
             ciphertext_bytes: vec![tag; 8],
+            multi_track_metadata: None,
         },
     }
 }
@@ -94,11 +91,7 @@ fn forge_witness(tag: u8) -> FoldWitness {
 ///
 /// Returns `true` if the adversary successfully produces a verified
 /// accumulator that passes `verify_acc`.
-fn adversary_game(
-    session_id: &str,
-    params: (u64, usize, u64),
-    seed: u64,
-) -> bool {
+fn adversary_game(session_id: &str, params: (u64, usize, u64), seed: u64) -> bool {
     let acc = make_acc(session_id, params, 0);
 
     // Fold two "honest" (corrupted party) instances
@@ -211,6 +204,7 @@ fn test_adversary_cannot_forge_with_mismatched_ciphertext() {
                 session_id: session_id.to_string(),
                 params,
                 ciphertext_bytes: vec![0x01; 8],
+                multi_track_metadata: None,
             },
         };
         // Witness proof uses tag 0x02 (mismatch with statement)
@@ -254,8 +248,7 @@ fn test_cyclo_backend_is_active_for_soundness_tests() {
         },
         fold_randomness: vec![0u8; 32],
     };
-    let acc1 = fold(&acc, &wit, &stmt)
-        .expect("fold of standard instance must succeed");
+    let acc1 = fold(&acc, &wit, &stmt).expect("fold of standard instance must succeed");
     assert_eq!(acc1.fold_depth(), 1);
     assert!(
         acc1.cyclo_acc().is_some(),

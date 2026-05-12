@@ -34,7 +34,7 @@ contract SessionRegistryTest is Test {
     /// @notice After registration, isRegistered returns true.
     function test_registerSession_setsRegistered() public {
         reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
-        (, , , bool registered, , ) = reg.sessions(DKG_ROOT_A);
+        (,,, bool registered,,) = reg.sessions(DKG_ROOT_A);
         assertTrue(registered);
     }
 
@@ -224,7 +224,7 @@ contract SessionRegistryTest is Test {
         // Same committee (same dkgRoot) registers again — must succeed
         reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
         // New attempt is active
-        (, , , bool registered, bool aborted, ) = reg.sessions(DKG_ROOT_A);
+        (,,, bool registered, bool aborted,) = reg.sessions(DKG_ROOT_A);
         assertTrue(registered, "session must be registered");
         assertFalse(aborted, "re-registered session must not be aborted");
     }
@@ -250,5 +250,56 @@ contract SessionRegistryTest is Test {
         // New run can consume epoch 99 fresh
         reg.markEpochConsumed(DKG_ROOT_A, 99);
         assertTrue(reg.isEpochConsumed(DKG_ROOT_A, 99), "epoch 99 consumed under runId=1");
+    }
+
+    // -------------------------------------------------------------------------
+    // F.2 smudge-slot freshness
+    // -------------------------------------------------------------------------
+
+    function test_smudgeSlot_rejectsReuseForDifferentCiphertext() public {
+        reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
+        bytes32 firstCiphertext = keccak256("ciphertext-a");
+        bytes32 secondCiphertext = keccak256("ciphertext-b");
+
+        reg.recordSmudgeSlotUse(DKG_ROOT_A, 3, 7, firstCiphertext, 11);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(SessionRegistry.SmudgeSlotAlreadyBound.selector, DKG_ROOT_A, uint32(3), uint32(7))
+        );
+        reg.recordSmudgeSlotUse(DKG_ROOT_A, 3, 7, secondCiphertext, 11);
+    }
+
+    function test_smudgeSlot_rejectsReuseForDifferentDecryptRound() public {
+        reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
+        bytes32 ciphertextHash = keccak256("ciphertext-a");
+
+        reg.recordSmudgeSlotUse(DKG_ROOT_A, 3, 7, ciphertextHash, 11);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(SessionRegistry.SmudgeSlotAlreadyBound.selector, DKG_ROOT_A, uint32(3), uint32(7))
+        );
+        reg.recordSmudgeSlotUse(DKG_ROOT_A, 3, 7, ciphertextHash, 12);
+    }
+
+    function test_smudgeSlot_allowsIdempotentSameTuple() public {
+        reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
+        bytes32 ciphertextHash = keccak256("ciphertext-a");
+
+        reg.recordSmudgeSlotUse(DKG_ROOT_A, 3, 7, ciphertextHash, 11);
+        reg.recordSmudgeSlotUse(DKG_ROOT_A, 3, 7, ciphertextHash, 11);
+
+        (bool consumed, bytes32 storedCiphertextHash, uint64 storedDecryptRound) = reg.smudgeSlotUse(DKG_ROOT_A, 3, 7);
+        assertTrue(consumed, "slot must be recorded");
+        assertEq(storedCiphertextHash, ciphertextHash, "ciphertext hash must be stable");
+        assertEq(storedDecryptRound, 11, "decrypt round must be stable");
+    }
+
+    function test_smudgeSlot_recordRequiresVerifierRole() public {
+        reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
+        address outsider = address(0xBEEF);
+
+        vm.prank(outsider);
+        vm.expectRevert();
+        reg.recordSmudgeSlotUse(DKG_ROOT_A, 3, 7, keccak256("ciphertext-a"), 11);
     }
 }

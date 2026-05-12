@@ -4,9 +4,9 @@
 
 use std::fs;
 
-use pvthfhe_compressor::sonobe::{SonobeCompressor, ToyStepCircuit};
-use pvthfhe_compressor::ProofCompressor;
 use ark_bn254::Fr;
+use pvthfhe_compressor::sonobe::{encode_triple, SonobeCompressor, ToyStepCircuit};
+use pvthfhe_compressor::ProofCompressor;
 use tracing_subscriber::EnvFilter;
 
 fn rss_kb() -> u64 {
@@ -29,14 +29,16 @@ fn main() {
     println!("rss_kb stage=before_new value={peak_rss_kb}");
 
     let epoch_hash = [0u8; 32];
-    let compressor =
-        SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch_hash, 4).expect("construct sonobe compressor");
+    let compressor = SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch_hash, 4)
+        .expect("construct sonobe compressor");
     peak_rss_kb = peak_rss_kb.max(rss_kb());
     println!("rss_kb stage=after_new value={}", peak_rss_kb);
 
-    let acc = [0u8; 32];
-    let public_inputs = [0u8; 32];
-    let proof = compressor.prove(&acc, &public_inputs).expect("prove isolated sonobe");
+    let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
+    let public_inputs = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
+    let proof = compressor
+        .prove(&acc, &public_inputs)
+        .expect("prove isolated sonobe");
     peak_rss_kb = peak_rss_kb.max(rss_kb());
     println!("rss_kb stage=after_prove value={}", peak_rss_kb);
 

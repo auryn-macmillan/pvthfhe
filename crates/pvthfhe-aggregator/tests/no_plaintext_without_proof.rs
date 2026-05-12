@@ -18,17 +18,17 @@ fn no_plaintext_without_valid_nizk_proof() {
     let backend = MockBackend::load_params(
         "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10"
     ).expect("load mock backend");
-    let ct = Ciphertext { bytes: vec![1, 2, 3] };
+    let ct = Ciphertext {
+        bytes: vec![1, 2, 3],
+    };
     let dkg_root = [1u8; 32];
     let ciphertext_hash = [2u8; 32];
 
-    let mut share1 = partial_decrypt(
-        &backend, &ct, 1, &dkg_root, &ciphertext_hash, 42, &mut rng,
-    ).expect("partial decrypt share 1");
+    let mut share1 = partial_decrypt(&backend, &ct, 1, &dkg_root, &ciphertext_hash, 42, &mut rng)
+        .expect("partial decrypt share 1");
 
-    let mut share2 = partial_decrypt(
-        &backend, &ct, 2, &dkg_root, &ciphertext_hash, 42, &mut rng,
-    ).expect("partial decrypt share 2");
+    let mut share2 = partial_decrypt(&backend, &ct, 2, &dkg_root, &ciphertext_hash, 42, &mut rng)
+        .expect("partial decrypt share 2");
 
     // Tamper share1's NIZK: pass the trivial nizk[0]==1 check by keeping
     // byte 0 as 1, but set remaining bytes to something invalid (0xDE).

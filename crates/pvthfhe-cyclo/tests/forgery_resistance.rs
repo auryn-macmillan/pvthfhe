@@ -163,7 +163,9 @@ fn forgery_resistance_100k_attempts() {
     let ccs_matrix = serialize_matrix(3, 3, &matrix);
 
     // Fixed (honest) ajtai / public-io material.
-    let ajtai_bytes: Vec<u8> = (0..32).map(|i| i as u8).collect();
+    let ajtai_bytes: Vec<u8> = (0..pvthfhe_cyclo::fold::AJTAI_COMMITMENT_BYTES)
+        .map(|i| i as u8)
+        .collect();
     let public_io_bytes: Vec<u8> = (0..32).map(|i| (i as u8).wrapping_add(1)).collect();
 
     // ── 2.  Forged witness budget ────────────────────────────────────────────

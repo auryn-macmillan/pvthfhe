@@ -34,6 +34,16 @@ pub enum Tag {
     WirePvssDecryptOpenedProof,
     /// `pvthfhe/cyclo-ajtai-binding/v1` — Cyclo Ajtai commitment binding domain tag.
     CycloAjtaiBinding,
+    /// `pvthfhe/pvss/batched-dkg-share-encryption/v1` — batched DKG share-encryption transcript.
+    PvssBatchedDkgShareEncryption,
+    /// `pvthfhe/pvss/batched-dkg-share-encryption/sk-track/v1` — threshold secret-key track.
+    PvssBatchedDkgShareEncryptionSkTrack,
+    /// `pvthfhe/pvss/batched-dkg-share-encryption/e-sm-track/v1` — committed smudge-noise track.
+    PvssBatchedDkgShareEncryptionESmTrack,
+    /// `pvthfhe/pvss/smudge-slot-batch/v1` — smudge slot/batch identity binding.
+    PvssSmudgeSlotBatch,
+    /// `pvthfhe/pvss/transcript-root-binding/v1` — transcript-root replay binding.
+    PvssTranscriptRootBinding,
 }
 
 impl Tag {
@@ -52,11 +62,16 @@ impl Tag {
             Tag::WirePvssShareOpenedProof => b"pvthfhe/wire/pvss-share-opened-proof/v1",
             Tag::WirePvssDecryptOpenedProof => b"pvthfhe/wire/pvss-decrypt-opened-proof/v1",
             Tag::CycloAjtaiBinding => b"pvthfhe/cyclo-ajtai-binding/v1",
+            Tag::PvssBatchedDkgShareEncryption => b"pvthfhe/pvss/batched-dkg-share-encryption/v1",
+            Tag::PvssBatchedDkgShareEncryptionSkTrack => b"pvthfhe/pvss/batched-dkg-share-encryption/sk-track/v1",
+            Tag::PvssBatchedDkgShareEncryptionESmTrack => b"pvthfhe/pvss/batched-dkg-share-encryption/e-sm-track/v1",
+            Tag::PvssSmudgeSlotBatch => b"pvthfhe/pvss/smudge-slot-batch/v1",
+            Tag::PvssTranscriptRootBinding => b"pvthfhe/pvss/transcript-root-binding/v1",
         }
     }
 
     pub const fn all_literals() -> &'static [&'static [u8]] {
-        const ALL: [&[u8]; 13] = [
+        const ALL: [&[u8]; 18] = [
             Tag::Finalize.as_bytes(),
             Tag::KeygenSimulatorSession.as_bytes(),
             Tag::ProofTag.as_bytes(),
@@ -70,6 +85,11 @@ impl Tag {
             Tag::WirePvssShareOpenedProof.as_bytes(),
             Tag::WirePvssDecryptOpenedProof.as_bytes(),
             Tag::CycloAjtaiBinding.as_bytes(),
+            Tag::PvssBatchedDkgShareEncryption.as_bytes(),
+            Tag::PvssBatchedDkgShareEncryptionSkTrack.as_bytes(),
+            Tag::PvssBatchedDkgShareEncryptionESmTrack.as_bytes(),
+            Tag::PvssSmudgeSlotBatch.as_bytes(),
+            Tag::PvssTranscriptRootBinding.as_bytes(),
         ];
         &ALL
     }

@@ -9,7 +9,7 @@ fn e2e_uses_lattice_pvss_by_default() -> Result<(), Box<dyn std::error::Error>> 
     let bin = std::env::var("CARGO_BIN_EXE_pvthfhe-e2e")?;
 
     let e2e_output = Command::new(bin)
-        .args(["--n", "3", "--t", "2", "--seed", "1"])
+        .args(["--n", "5", "--t", "2", "--seed", "1"])
         .env("RUST_LOG", "info")
         .env_remove("PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK")
         .output()?;
@@ -56,7 +56,7 @@ fn e2e_uses_lattice_pvss_by_default() -> Result<(), Box<dyn std::error::Error>> 
             "bench_comparison",
             "--",
             "--n",
-            "3",
+            "5",
             "--t",
             "2",
             "--seed",

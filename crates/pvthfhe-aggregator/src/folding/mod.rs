@@ -12,22 +12,29 @@
 //! extractor (T2) remains a skeleton. See `SECURITY.md §P1`.
 
 #[cfg(feature = "legacy-fold")]
-compile_error!("The `legacy-fold` feature has been removed in R4.3. Use `real-folding` (enabled by default).");
+compile_error!(
+    "The `legacy-fold` feature has been removed in R4.3. Use `real-folding` (enabled by default)."
+);
 
 use pvthfhe_cyclo::adapter::LegacyHashChainAdapter;
-pub use pvthfhe_cyclo::CcsPShareInstance;
-use pvthfhe_cyclo::{CycloAccumulator, CycloAdapter as _, CycloError, CYCLO_BACKEND_ID};
 #[cfg(feature = "real-folding")]
 use pvthfhe_cyclo::fold as cyclo_fold;
+#[cfg(feature = "real-folding")]
+use pvthfhe_cyclo::fold::AJTAI_COMMITMENT_BYTES;
+pub use pvthfhe_cyclo::CcsPShareInstance;
+pub use pvthfhe_cyclo::{FoldTrackCommitment, FoldTrackKind, MultiTrackFoldMetadata};
+use pvthfhe_cyclo::{CycloAccumulator, CycloAdapter as _, CycloError, CYCLO_BACKEND_ID};
+#[cfg(feature = "real-folding")]
+use pvthfhe_cyclo::MultiTrackPShareInstance;
 #[cfg(feature = "real-folding")]
 use pvthfhe_domain_tags::Tag;
 #[cfg(feature = "real-folding")]
 use pvthfhe_nizk::BACKEND_ID as NIZK_BACKEND_ID;
-#[cfg(feature = "real-folding")]
-use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
 use pvthfhe_types::witness_language::{
     BfvParameters as SchemaBfvParams, WitnessCommitment, WitnessStatement,
 };
+#[cfg(feature = "real-folding")]
+use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
 use rand_core::OsRng;
 use sha2::{Digest, Sha256};
 use thiserror::Error;
@@ -84,6 +91,7 @@ pub struct NizkStatement {
     pub session_id: String,
     pub params: (u64, usize, u64),
     pub ciphertext_bytes: Vec<u8>,
+    pub multi_track_metadata: Option<MultiTrackFoldMetadata>,
 }
 
 #[cfg(feature = "real-folding")]
@@ -133,15 +141,13 @@ impl FoldingScheme for HashChainFoldingScheme {
 
         // Get or initialise the Cyclo accumulator
         let prev_cyclo_acc = acc.cyclo_acc.clone().unwrap_or_else(|| {
-            cyclo_fold::init_accumulator(&ccs_instance, &acc.session_id)
+            cyclo_fold::init_accumulator_multitrack(&ccs_instance, &acc.session_id)
                 .expect("init_accumulator must succeed for valid instance")
         });
 
-        // Fold via the Cyclo LatticeFold+ backend
-        let adapter = LegacyHashChainAdapter;
+        // Fold via the Cyclo LatticeFold+ backend, including H.2 metadata.
         let mut rng = OsRng;
-        let new_cyclo_acc = adapter
-            .fold_one(prev_cyclo_acc, &ccs_instance, &mut rng)
+        let new_cyclo_acc = cyclo_fold::fold_one_step_multitrack(prev_cyclo_acc, &ccs_instance, &mut rng)
             .map_err(|e| FoldError(format!("Cyclo fold failed: {e}")))?;
 
         // Maintain backward-compatible hash-chain fields
@@ -187,7 +193,8 @@ impl FoldingScheme for HashChainFoldingScheme {
 
     fn finalize(acc: &FoldAccumulator) -> Result<FinalProof, FoldError> {
         validate_accumulator(acc)?;
-        let proof_bytes = hash_parts(&[Tag::Finalize.as_bytes(), encode_accumulator(acc).as_slice()]);
+        let proof_bytes =
+            hash_parts(&[Tag::Finalize.as_bytes(), encode_accumulator(acc).as_slice()]);
         Ok(FinalProof { proof_bytes })
     }
 }
@@ -333,9 +340,9 @@ fn validate_nizk_structure(witness: &FoldWitness, _stmt: &FoldStatement) -> Resu
 #[cfg(feature = "real-folding")]
 fn fold_stmt_witness_to_cyclo_instance(
     stmt: &FoldStatement,
-    witness: &FoldWitness,
+    _witness: &FoldWitness,
     _acc: &FoldAccumulator,
-) -> CcsPShareInstance {
+) -> MultiTrackPShareInstance {
     let participant_id = u16::try_from(stmt.fold_index).unwrap_or(u16::MAX);
     let mut hasher = Sha256::new();
     hasher.update(&participant_id.to_be_bytes());
@@ -344,20 +351,48 @@ fn fold_stmt_witness_to_cyclo_instance(
     hasher.update(&stmt.params.1.to_be_bytes());
     hasher.update(&stmt.params.2.to_be_bytes());
     hasher.update(stmt.nizk_statement.ciphertext_bytes.as_slice());
+    if let Some(metadata) = &stmt.nizk_statement.multi_track_metadata {
+        hasher.update(metadata.canonical_bytes());
+    }
     let binding_bytes: [u8; 32] = hasher.finalize().into();
 
-    CcsPShareInstance {
+    let base = CcsPShareInstance {
         participant_id,
-        ajtai_commitment_bytes: ProtocolBytes::from(
-            witness.nizk_proof.proof_bytes.clone(),
-        ),
-        public_io_bytes: ProtocolBytes::from(
-            stmt.nizk_statement.ciphertext_bytes.clone(),
-        ),
-        ccs_witness_bytes: CcsWitnessSecret::new(witness.nizk_proof.proof_bytes.clone()),
+        ajtai_commitment_bytes: ProtocolBytes::from(demo_zero_ajtai_commitment_bytes()),
+        public_io_bytes: ProtocolBytes::from(stmt.nizk_statement.ciphertext_bytes.clone()),
+        ccs_witness_bytes: CcsWitnessSecret::new(demo_zero_witness_bytes()),
         sha256_binding_bytes: ProtocolBytes::from(binding_bytes.to_vec()),
-        ccs_matrix_bytes: ProtocolBytes::from(vec![]),
+        ccs_matrix_bytes: ProtocolBytes::from(demo_one_by_one_matrix_bytes()),
+    };
+    MultiTrackPShareInstance {
+        base,
+        multi_track_metadata: stmt.nizk_statement.multi_track_metadata.clone(),
     }
+}
+
+#[cfg(feature = "real-folding")]
+fn demo_zero_ajtai_commitment_bytes() -> Vec<u8> {
+    vec![0u8; AJTAI_COMMITMENT_BYTES]
+}
+
+#[cfg(feature = "real-folding")]
+fn demo_zero_witness_bytes() -> Vec<u8> {
+    let mut out = Vec::with_capacity(36);
+    out.extend_from_slice(&1u32.to_be_bytes());
+    out.extend_from_slice(&[0u8; 32]);
+    out
+}
+
+#[cfg(feature = "real-folding")]
+fn demo_one_by_one_matrix_bytes() -> Vec<u8> {
+    let mut out = Vec::with_capacity(40);
+    out.extend_from_slice(&1u32.to_be_bytes());
+    out.extend_from_slice(&1u32.to_be_bytes());
+    out.extend_from_slice(&1u64.to_le_bytes());
+    out.extend_from_slice(&0u64.to_le_bytes());
+    out.extend_from_slice(&0u64.to_le_bytes());
+    out.extend_from_slice(&0u64.to_le_bytes());
+    out
 }
 
 /// Verify that a Cyclo accumulator satisfies structural invariants.
@@ -367,17 +402,22 @@ fn verify_cyclo_accumulator_structure(cyclo_acc: &CycloAccumulator) -> Result<()
     if cyclo_acc.fold_depth > PVTHFHE_CYCLO_PARAMS.sequential_t {
         return Err(FoldError(format!(
             "Cyclo fold depth {} exceeds T={}",
-            cyclo_acc.fold_depth,
-            PVTHFHE_CYCLO_PARAMS.sequential_t,
+            cyclo_acc.fold_depth, PVTHFHE_CYCLO_PARAMS.sequential_t,
         )));
     }
     if cyclo_acc.norm_bound_current > PVTHFHE_CYCLO_PARAMS.beta_at_t {
-        return Err(FoldError("Cyclo accumulator norm bound exceeded beta_at_t".to_string()));
+        return Err(FoldError(
+            "Cyclo accumulator norm bound exceeded beta_at_t".to_string(),
+        ));
     }
     if cyclo_acc.acc_commitment_bytes.len() != 32 {
-        return Err(FoldError(
-            "Cyclo acc_commitment_bytes must be 32 bytes".to_string(),
-        ));
+        if cyclo_acc.acc_commitment_bytes.len() != AJTAI_COMMITMENT_BYTES {
+            return Err(FoldError(format!(
+                "Cyclo acc_commitment_bytes must be 32 bytes or Ajtai commitment bytes ({}), got {}",
+                AJTAI_COMMITMENT_BYTES,
+                cyclo_acc.acc_commitment_bytes.len()
+            )));
+        }
     }
     if cyclo_acc.acc_public_io_bytes.len() != 32 {
         return Err(FoldError(
@@ -404,11 +444,22 @@ fn serialize_fold_statement(stmt: &FoldStatement) -> Vec<u8> {
         stmt.session_id.len()
             + stmt.nizk_statement.session_id.len()
             + stmt.nizk_statement.ciphertext_bytes.len()
+            + stmt
+                .nizk_statement
+                .multi_track_metadata
+                .as_ref()
+                .map(|metadata| metadata.canonical_bytes().len())
+                .unwrap_or(0)
             + 64,
     );
     push_string(&mut bytes, &stmt.nizk_statement.session_id);
     push_params(&mut bytes, stmt.nizk_statement.params);
     push_vec(&mut bytes, &stmt.nizk_statement.ciphertext_bytes);
+    if let Some(metadata) = &stmt.nizk_statement.multi_track_metadata {
+        push_vec(&mut bytes, &metadata.canonical_bytes());
+    } else {
+        push_vec(&mut bytes, &[]);
+    }
     bytes.extend_from_slice(&stmt.fold_index.to_be_bytes());
     push_string(&mut bytes, &stmt.session_id);
     push_params(&mut bytes, stmt.params);
@@ -485,11 +536,7 @@ pub struct CycloFoldAllReport {
 
 impl CycloFoldAllReport {
     /// Construct a new report from pre-computed accumulators.
-    pub fn new(
-        accumulators: Vec<CycloAccumulator>,
-        share_count: usize,
-        batch_size: usize,
-    ) -> Self {
+    pub fn new(accumulators: Vec<CycloAccumulator>, share_count: usize, batch_size: usize) -> Self {
         Self {
             accumulators,
             share_count,

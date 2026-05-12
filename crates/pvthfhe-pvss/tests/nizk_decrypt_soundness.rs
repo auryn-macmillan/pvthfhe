@@ -4,7 +4,8 @@
 //! only on public statement fields.
 
 use pvthfhe_pvss::nizk_decrypt::{
-    DecryptNizkProver, DecryptNizkStatement, DecryptNizkVerifier, DecryptNizkWitness,
+    DecryptNizkMode, DecryptNizkProver, DecryptNizkStatement, DecryptNizkVerifier,
+    DecryptNizkWitness,
 };
 
 fn sample_statement() -> DecryptNizkStatement {
@@ -16,6 +17,8 @@ fn sample_statement() -> DecryptNizkStatement {
         decrypted_share_bytes: vec![0x10, 0x20, 0x30, 0x40],
         party_pk: vec![0xCC; 48],
         epoch: 0,
+        dkg_root: vec![0xDD; 32],
+        mode: DecryptNizkMode::LegacyLocalSmudge,
     }
 }
 
@@ -37,6 +40,9 @@ fn adversary_without_ski_cannot_produce_valid_proof() {
     let wrong_witness = DecryptNizkWitness {
         secret_key_bytes: vec![0x00; 64],
         decryption_noise: vec![0x00; 64],
+        sk_agg_share: None,
+        esm_agg_share: None,
+        esm_noise_poly_bytes: None,
     };
 
     // The adversary (who does not know the real sk_i) produces a proof
@@ -68,16 +74,20 @@ fn two_different_witnesses_both_verify() {
     let witness_a = DecryptNizkWitness {
         secret_key_bytes: vec![0x11; 64],
         decryption_noise: vec![0x22; 64],
+        sk_agg_share: None,
+        esm_agg_share: None,
+        esm_noise_poly_bytes: None,
     };
     let witness_b = DecryptNizkWitness {
         secret_key_bytes: vec![0xAA; 64],
         decryption_noise: vec![0xBB; 64],
+        sk_agg_share: None,
+        esm_agg_share: None,
+        esm_noise_poly_bytes: None,
     };
 
-    let proof_a = DecryptNizkProver::prove(&stmt, &witness_a)
-        .expect("prove with witness a");
-    let proof_b = DecryptNizkProver::prove(&stmt, &witness_b)
-        .expect("prove with witness b");
+    let proof_a = DecryptNizkProver::prove(&stmt, &witness_a).expect("prove with witness a");
+    let proof_b = DecryptNizkProver::prove(&stmt, &witness_b).expect("prove with witness b");
 
     let result_a = DecryptNizkVerifier::verify(&stmt, &proof_a);
     let result_b = DecryptNizkVerifier::verify(&stmt, &proof_b);

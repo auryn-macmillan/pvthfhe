@@ -41,7 +41,11 @@ fn threshold_not_silently_lowered_n8_t5() {
     // PASS only after the GREEN hard-error guard is in place.
     let mut observer = DetectObserver::default();
     let result = run_full_pipeline(
-        &PipelineConfig { n: 8, t: 5, seed: 0 },
+        &PipelineConfig {
+            n: 8,
+            t: 5,
+            seed: 0,
+        },
         &mut observer,
     );
 

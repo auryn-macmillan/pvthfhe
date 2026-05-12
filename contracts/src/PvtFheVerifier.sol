@@ -16,10 +16,20 @@ struct AttestationBundle {
 /// @title ISessionRegistry
 /// @notice Interface used by PvtFheVerifier for session lookup and epoch consumption.
 interface ISessionRegistry {
-    function sessions(bytes32 dkgRoot) external view returns (uint32 n, uint32 t, bytes32 rosterHash, bool registered, bool aborted, uint64 runId);
+    function sessions(bytes32 dkgRoot)
+        external
+        view
+        returns (uint32 n, uint32 t, bytes32 rosterHash, bool registered, bool aborted, uint64 runId);
     function isEpochConsumed(bytes32 dkgRoot, uint64 epoch) external view returns (bool);
     function getRunId(bytes32 dkgRoot) external view returns (uint64);
     function markEpochConsumed(bytes32 dkgRoot, uint64 epoch) external;
+    function recordSmudgeSlotUse(
+        bytes32 dkgRoot,
+        uint32 partyId,
+        uint32 slot,
+        bytes32 ciphertextHash,
+        uint64 decryptRound
+    ) external;
 }
 
 /// @title IPvthfheVerifier
@@ -45,7 +55,7 @@ interface IPvthfheVerifier {
         bytes32 plaintextHash,
         bytes32 aggregatePkHash,
         bytes32 dkgRoot,
-        uint64  epoch,
+        uint64 epoch,
         bytes32 participantSetHash,
         bytes32 dCommitment,
         bytes calldata proof
@@ -69,10 +79,26 @@ interface IPvthfheVerifier {
         bytes32 plaintextHash,
         bytes32 aggregatePkHash,
         bytes32 dkgRoot,
-        uint64  epoch,
+        uint64 epoch,
         bytes32 participantSetHash,
         bytes32 dCommitment,
         bytes calldata proof
+    ) external returns (bool valid);
+
+    /// @notice Atomically verify a committed-smudge threshold decryption result,
+    /// record all smudge-slot uses, and consume the epoch.
+    function verifyAndConsumeWithSmudgeSlots(
+        bytes32 ciphertextHash,
+        bytes32 plaintextHash,
+        bytes32 aggregatePkHash,
+        bytes32 dkgRoot,
+        uint64 epoch,
+        bytes32 participantSetHash,
+        bytes32 dCommitment,
+        bytes calldata proof,
+        uint32[] calldata partyIds,
+        uint32[] calldata slots,
+        uint64 decryptRound
     ) external returns (bool valid);
 
     /// @notice Returns the RLWE degree N for the current parameter set.
@@ -110,6 +136,27 @@ contract PvtFheVerifier is IPvthfheVerifier {
 
     uint32 private constant _RLWE_DEGREE = 8192;
 
+    error AnchorMismatch();
+
+    struct DkgPublicAnchors {
+        bytes32 dkgRoot;
+        bytes32 aggregatedPkCommit;
+        bytes32 participantSetHash;
+        bytes32 skAggCommitsRoot;
+        bytes32 esmAggCommitsRoot;
+        bytes32 smudgeSlotPolicyHash;
+    }
+
+    struct DecryptionPublicAnchors {
+        bytes32 dkgRoot;
+        bytes32 ciphertextHash;
+        bytes32 expectedSkCommitsRoot;
+        bytes32 expectedEsmCommitsRoot;
+        uint64 slotId;
+        uint64 decryptRound;
+        bytes32 plaintextHash;
+    }
+
     HonkVerifier private immutable _honkVerifier;
     ISessionRegistry public immutable registry;
 
@@ -118,6 +165,9 @@ contract PvtFheVerifier is IPvthfheVerifier {
 
     /// @notice Designated attestors for the NoGo branch off-chain verification.
     mapping(address => bool) public attestors;
+
+    mapping(bytes32 => DkgPublicAnchors) private _dkgPublicAnchors;
+    mapping(bytes32 => bool) private _dkgPublicAnchorsStored;
 
     /// @param registry_ SessionRegistry address
     /// @param timelock_ TimelockController address for attestor governance (multisig + 48h delay)
@@ -196,6 +246,88 @@ contract PvtFheVerifier is IPvthfheVerifier {
         return true;
     }
 
+    /// @notice Atomically verify proof and stored public anchors before consuming the epoch.
+    function verifyAndConsumeWithPublicAnchors(
+        bytes32 ciphertextHash,
+        bytes32 plaintextHash,
+        bytes32 aggregatePkHash,
+        bytes32 dkgRoot,
+        uint64 epoch,
+        bytes32 participantSetHash,
+        bytes32 dCommitment,
+        bytes calldata proof,
+        DecryptionPublicAnchors memory decryptAnchors
+    ) external returns (bool) {
+        _requireSessionValid(dkgRoot, epoch);
+        if (
+            decryptAnchors.dkgRoot != dkgRoot || decryptAnchors.ciphertextHash != ciphertextHash
+                || decryptAnchors.plaintextHash != plaintextHash
+        ) {
+            revert AnchorMismatch();
+        }
+
+        bytes32[] memory publicInputs = new bytes32[](7);
+        publicInputs[0] = ciphertextHash;
+        publicInputs[1] = plaintextHash;
+        publicInputs[2] = aggregatePkHash;
+        publicInputs[3] = dkgRoot;
+        publicInputs[4] = bytes32(uint256(epoch));
+        publicInputs[5] = participantSetHash;
+        publicInputs[6] = dCommitment;
+
+        bool proofValid = _honkVerifier.verify(proof, publicInputs);
+        if (!proofValid) {
+            return false;
+        }
+
+        verifyStoredPublicAnchors(decryptAnchors);
+        registry.markEpochConsumed(dkgRoot, epoch);
+        return true;
+    }
+
+    /// @inheritdoc IPvthfheVerifier
+    /// @dev Committed-smudge acceptance path: proof verification happens before
+    ///      state changes; freshness records are written before epoch consumption
+    ///      so a reused slot aborts the acceptance transaction.
+    function verifyAndConsumeWithSmudgeSlots(
+        bytes32 ciphertextHash,
+        bytes32 plaintextHash,
+        bytes32 aggregatePkHash,
+        bytes32 dkgRoot,
+        uint64 epoch,
+        bytes32 participantSetHash,
+        bytes32 dCommitment,
+        bytes calldata proof,
+        uint32[] calldata partyIds,
+        uint32[] calldata slots,
+        uint64 decryptRound
+    ) external override returns (bool) {
+        if (partyIds.length == 0 || partyIds.length != slots.length) {
+            revert("PVTHFHE: malformed smudge slots");
+        }
+        _requireSessionValid(dkgRoot, epoch);
+
+        bytes32[] memory publicInputs = new bytes32[](7);
+        publicInputs[0] = ciphertextHash;
+        publicInputs[1] = plaintextHash;
+        publicInputs[2] = aggregatePkHash;
+        publicInputs[3] = dkgRoot;
+        publicInputs[4] = bytes32(uint256(epoch));
+        publicInputs[5] = participantSetHash;
+        publicInputs[6] = dCommitment;
+
+        bool proofValid = _honkVerifier.verify(proof, publicInputs);
+        if (!proofValid) {
+            return false;
+        }
+
+        for (uint256 i = 0; i < partyIds.length; i++) {
+            registry.recordSmudgeSlotUse(dkgRoot, partyIds[i], slots[i], ciphertextHash, decryptRound);
+        }
+        registry.markEpochConsumed(dkgRoot, epoch);
+        return true;
+    }
+
     /// @inheritdoc IPvthfheVerifier
     /// @dev NoGo branch: proof is for the sonobe_state_commitment circuit (6 public inputs).
     ///      B.2: attestation signature is verified via ecrecover over keccak256 of the
@@ -249,13 +381,62 @@ contract PvtFheVerifier is IPvthfheVerifier {
     /// @notice Returns the threshold t for a registered session.
     /// @param dkgRoot The DKG transcript root identifying the session.
     function registeredThreshold(bytes32 dkgRoot) external view returns (uint32) {
-        (, uint32 t, , , , ) = registry.sessions(dkgRoot);
+        (, uint32 t,,,,) = registry.sessions(dkgRoot);
         return t;
     }
 
     /// @inheritdoc IPvthfheVerifier
     function rlweDegree() external pure override returns (uint32) {
         return _RLWE_DEGREE;
+    }
+
+    function verifyPublicAnchors(DkgPublicAnchors memory dkg, DecryptionPublicAnchors memory decrypt)
+        public
+        pure
+        returns (bool)
+    {
+        if (
+            dkg.dkgRoot != decrypt.dkgRoot || dkg.skAggCommitsRoot != decrypt.expectedSkCommitsRoot
+                || dkg.esmAggCommitsRoot != decrypt.expectedEsmCommitsRoot
+        ) {
+            revert AnchorMismatch();
+        }
+        return true;
+    }
+
+    /// @notice Store compact public DKG anchors for later decryption-anchor checks.
+    function storeDkgPublicAnchors(DkgPublicAnchors memory dkg) external {
+        if (_dkgPublicAnchorsStored[dkg.dkgRoot]) {
+            DkgPublicAnchors memory stored = _dkgPublicAnchors[dkg.dkgRoot];
+            if (
+                stored.aggregatedPkCommit != dkg.aggregatedPkCommit
+                    || stored.participantSetHash != dkg.participantSetHash
+                    || stored.skAggCommitsRoot != dkg.skAggCommitsRoot
+                    || stored.esmAggCommitsRoot != dkg.esmAggCommitsRoot
+                    || stored.smudgeSlotPolicyHash != dkg.smudgeSlotPolicyHash
+            ) {
+                revert AnchorMismatch();
+            }
+            return;
+        }
+        _dkgPublicAnchors[dkg.dkgRoot] = dkg;
+        _dkgPublicAnchorsStored[dkg.dkgRoot] = true;
+    }
+
+    /// @notice Load stored compact public DKG anchors by DKG root.
+    function loadDkgPublicAnchors(bytes32 dkgRoot) external view returns (DkgPublicAnchors memory) {
+        if (!_dkgPublicAnchorsStored[dkgRoot]) {
+            revert AnchorMismatch();
+        }
+        return _dkgPublicAnchors[dkgRoot];
+    }
+
+    /// @notice Check decryption anchors against stored DKG anchors before acceptance.
+    function verifyStoredPublicAnchors(DecryptionPublicAnchors memory decrypt) public view returns (bool) {
+        if (!_dkgPublicAnchorsStored[decrypt.dkgRoot]) {
+            revert AnchorMismatch();
+        }
+        return verifyPublicAnchors(_dkgPublicAnchors[decrypt.dkgRoot], decrypt);
     }
 
     /// @notice Adds an attestor for NoGo-branch attestations.
@@ -280,7 +461,7 @@ contract PvtFheVerifier is IPvthfheVerifier {
     ///      Reverts with standardized messages for off-chain parsing.
     ///      R6.9: uses isEpochConsumed (scoped to current runId for abort/restart liveness).
     function _requireSessionValid(bytes32 dkgRoot, uint64 epoch) internal view {
-        (, , , bool registered, bool aborted, ) = registry.sessions(dkgRoot);
+        (,,, bool registered, bool aborted,) = registry.sessions(dkgRoot);
         if (!registered || aborted) {
             revert("PVTHFHE: unknown dkg root");
         }
@@ -292,11 +473,7 @@ contract PvtFheVerifier is IPvthfheVerifier {
     /// @dev B.2: Verifies an ECDSA attestation signature via ecrecover.
     ///      The signature is 65 bytes: r (32) || s (32) || v (1).
     ///      Reverts with "InvalidAttestationSignature" if recovery fails or yields wrong signer.
-    function _verifyAttestationSignature(
-        bytes32 hash,
-        bytes calldata signature,
-        address expectedSigner
-    ) internal pure {
+    function _verifyAttestationSignature(bytes32 hash, bytes calldata signature, address expectedSigner) internal pure {
         require(signature.length == 65, "InvalidAttestationSignature");
 
         bytes32 r;
@@ -330,20 +507,15 @@ contract PvtFheVerifier is IPvthfheVerifier {
         bytes32 plaintextHash,
         bytes32 aggregatePkHash,
         bytes32 dkgRoot,
-        uint64  epoch,
+        uint64 epoch,
         bytes32 participantSetHash,
         bytes32 dCommitment,
         bytes calldata proof
     ) internal pure {
         // XOR all fixed inputs together and check proof length is accessible.
         // This forces the compiler to read every parameter.
-        bytes32 sink = ciphertextHash
-            ^ plaintextHash
-            ^ aggregatePkHash
-            ^ dkgRoot
-            ^ bytes32(uint256(epoch))
-            ^ participantSetHash
-            ^ dCommitment;
+        bytes32 sink = ciphertextHash ^ plaintextHash ^ aggregatePkHash ^ dkgRoot ^ bytes32(uint256(epoch))
+            ^ participantSetHash ^ dCommitment;
         // Touch proof length (dynamic calldata).
         uint256 proofLen = proof.length;
         // Suppress unused-variable warnings via assembly no-op.

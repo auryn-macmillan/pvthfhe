@@ -1,0 +1,13 @@
+- Extracted next steps for BFV encryption relation:
+  - Add `bfv_encryption_proof` field to `ShareNizkOpenedProof`.
+  - Update `PROOF_VERSION` to 4.
+  - Implement `build_bfv_encryption_proof` and `verify_bfv_encryption_proof`.
+
+- **Completed**:
+  - `PROOF_VERSION` bumped to 4.
+  - Added `bfv_encryption_proof` to `ShareNizkOpenedProof`.
+  - Added `bfv_params_digest` and `dkg_root` to `ShareNizkStatement`.
+  - Implemented `build_bfv_encryption_proof` (re-encrypts to get witness, creates sigma statement/witness, calls `bfv_sigma::prove`, and encodes).
+  - Implemented `verify_bfv_encryption_proof` (decodes self-contained sigma proof, verifies with `bfv_sigma::verify`).
+  - Added `verify_non_leaking_relation_boundary` to route v4 proofs to the new verifier and v3 to fail-closed.
+  - All tests in `crates/pvthfhe-pvss` pass successfully!

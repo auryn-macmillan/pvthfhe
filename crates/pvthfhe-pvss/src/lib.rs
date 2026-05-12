@@ -8,6 +8,8 @@ pub mod encrypt;
 pub mod nizk_share;
 /// Share-decryption NIZK helpers and proof types.
 pub mod nizk_decrypt;
+pub mod dkg_aggregation;
+pub mod share_computation;
 
 use pvthfhe_types::{ProtocolBytes, ShareSecret};
 
@@ -24,6 +26,8 @@ pub struct PvssContext {
     pub session_id: Vec<u8>,
     /// On-chain epoch that binds the CRS.
     pub epoch: u64,
+    /// DKG anchoring root digest for session binding.
+    pub dkg_root: Vec<u8>,
 }
 
 /// Encrypted-share bundle emitted by a PVSS dealer.
@@ -79,6 +83,8 @@ pub enum PvssError {
     LatticeBindingVerificationFailed,
     /// D2 hash binding verification failed (Ajtaï share-commitment check).
     D2HashBindingFailed,
+    /// BFV encryption relation proof verification failed.
+    BfvEncryptionProofFailed,
 }
 
 impl core::fmt::Debug for PvssContext {
@@ -124,6 +130,7 @@ impl core::fmt::Debug for PvssError {
             Self::InvalidCommitmentStructure => f.write_str("InvalidCommitmentStructure"),
             Self::LatticeBindingVerificationFailed => f.write_str("LatticeBindingVerificationFailed"),
             Self::D2HashBindingFailed => f.write_str("D2HashBindingFailed"),
+            Self::BfvEncryptionProofFailed => f.write_str("BfvEncryptionProofFailed"),
         }
     }
 }
@@ -141,6 +148,7 @@ impl core::fmt::Display for PvssError {
             Self::InvalidCommitmentStructure => f.write_str("PVSS commitment structure invalid"),
             Self::LatticeBindingVerificationFailed => f.write_str("PVSS lattice binding verification failed"),
             Self::D2HashBindingFailed => f.write_str("PVSS D2 hash binding verification failed"),
+            Self::BfvEncryptionProofFailed => f.write_str("PVSS BFV encryption proof verification failed"),
         }
     }
 }

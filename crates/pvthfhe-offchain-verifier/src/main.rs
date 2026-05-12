@@ -2,11 +2,12 @@
 
 use std::{fs, path::PathBuf};
 
+use ark_bn254::Fr;
 use clap::Parser;
 use pvthfhe_compressor::{
-    sonobe::{SonobeCompressor, ToyStepCircuit}, CompressedProof, ProofCompressor,
+    sonobe::{SonobeCompressor, ToyStepCircuit},
+    CompressedProof, ProofCompressor,
 };
-use ark_bn254::Fr;
 use serde::Deserialize;
 use sha3::{Digest, Keccak256};
 
@@ -73,8 +74,12 @@ fn main() -> Result<(), String> {
 
     let bundle = AttestationBundle {
         sonobe_final_state_commitment: to_hex(Keccak256::digest(&proof_bytes)),
-        cyclo_aggregate_commitment: to_hex(Keccak256::digest([proof_bytes.as_slice(), b"cyclo"].concat())),
-        session_id: to_hex(Keccak256::digest([proof_bytes.as_slice(), b"session"].concat())),
+        cyclo_aggregate_commitment: to_hex(Keccak256::digest(
+            [proof_bytes.as_slice(), b"cyclo"].concat(),
+        )),
+        session_id: to_hex(Keccak256::digest(
+            [proof_bytes.as_slice(), b"session"].concat(),
+        )),
         signer: String::new(),
         signature: String::new(),
     };

@@ -15,10 +15,17 @@ use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
 use std::collections::HashSet;
 
+fn make_ajtai_bytes(seed: u8) -> Vec<u8> {
+    use pvthfhe_cyclo::fold::AJTAI_COMMITMENT_BYTES;
+    (0..AJTAI_COMMITMENT_BYTES)
+        .map(|i| (i as u8).wrapping_add(seed))
+        .collect()
+}
+
 fn make_instance(id: u16, seed: u8) -> CcsPShareInstance {
     CcsPShareInstance {
         participant_id: id,
-        ajtai_commitment_bytes: vec![seed; 32].into(),
+        ajtai_commitment_bytes: make_ajtai_bytes(seed).into(),
         public_io_bytes: vec![seed.wrapping_add(1); 32].into(),
         ccs_witness_bytes: CcsWitnessSecret::new(vec![0u8, 0, 0, 0]),
         sha256_binding_bytes: vec![0u8; 32].into(),

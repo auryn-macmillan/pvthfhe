@@ -1,8 +1,8 @@
 //! Integration tests for PVSS decrypt-share NIZKs.
 
 use pvthfhe_pvss::nizk_decrypt::{
-    DecryptNizkProof, DecryptNizkProver, DecryptNizkStatement, DecryptNizkVerifier,
-    DecryptNizkWitness, DECRYPT_NIZK_DOMAIN_SEPARATOR,
+    DecryptNizkMode, DecryptNizkProof, DecryptNizkProver, DecryptNizkStatement,
+    DecryptNizkVerifier, DecryptNizkWitness, DECRYPT_NIZK_DOMAIN_SEPARATOR,
 };
 use pvthfhe_pvss::PvssError;
 
@@ -15,6 +15,8 @@ fn sample_statement() -> DecryptNizkStatement {
         decrypted_share_bytes: vec![0x01, 0x02, 0x03, 0x04],
         party_pk: vec![0x55; 48],
         epoch: 0,
+        dkg_root: vec![0xAB; 32],
+        mode: DecryptNizkMode::LegacyLocalSmudge,
     }
 }
 
@@ -22,6 +24,9 @@ fn sample_witness() -> DecryptNizkWitness {
     DecryptNizkWitness {
         secret_key_bytes: vec![0x11; 64],
         decryption_noise: vec![0x22; 64],
+        sk_agg_share: None,
+        esm_agg_share: None,
+        esm_noise_poly_bytes: None,
     }
 }
 
@@ -43,11 +48,10 @@ fn epoch_roundtrips_through_wire_format() {
     statement.epoch = 42;
 
     let witness = sample_witness();
-    let proof = DecryptNizkProver::prove(&statement, &witness)
-        .expect("prove with non-zero epoch");
+    let proof = DecryptNizkProver::prove(&statement, &witness).expect("prove with non-zero epoch");
 
-    let decoded = DecryptNizkProof::from_bytes(proof.proof_bytes)
-        .expect("decode epoch-bearing proof");
+    let decoded =
+        DecryptNizkProof::from_bytes(proof.proof_bytes).expect("decode epoch-bearing proof");
 
     let reopened = decoded.decode().expect("reopen epoch-bearing proof");
 

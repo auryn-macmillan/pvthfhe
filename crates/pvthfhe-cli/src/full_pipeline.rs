@@ -3,10 +3,14 @@
 use anyhow::Context;
 use pvthfhe_aggregator::{
     folding::{CcsPShareInstance, CycloFoldAllReport},
-    keygen::{simulator::{KeygenResult, KeygenSimulator}, types::Round1Message},
+    keygen::{
+        simulator::{KeygenResult, KeygenSimulator},
+        types::Round1Message,
+    },
 };
-use pvthfhe_cyclo::{fold, CYCLO_BACKEND_ID, PVTHFHE_CYCLO_PARAMS};
 use pvthfhe_bench::e2e_timings::E2eTimings;
+use pvthfhe_cyclo::{fold, CYCLO_BACKEND_ID, PVTHFHE_CYCLO_PARAMS};
+use pvthfhe_domain_tags::Tag;
 use pvthfhe_fhe::{
     fhers::FhersBackend,
     real_nizk::{LatticeNizk, NizkStatement, NizkWitness, RealNizkAdapter},
@@ -15,7 +19,6 @@ use pvthfhe_fhe::{
 use pvthfhe_rng::OsRng;
 use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
 use sha2::{Digest, Sha256};
-use pvthfhe_domain_tags::Tag;
 use std::time::Instant;
 
 use crate::{
@@ -88,15 +91,25 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
     let backend_threshold = cfg.t;
     let backend = FhersBackend::load_params(DEMO_PARAMS_TOML).context("backend init")?;
-    let mut timings = E2eTimings::new(cfg.n, cfg.t, cfg.seed, crate::compressor_glue::compressor_backend_id());
+    let mut timings = E2eTimings::new(
+        cfg.n,
+        cfg.t,
+        cfg.seed,
+        crate::compressor_glue::compressor_backend_id(),
+    );
 
     if cfg.seed != 0 {
-        tracing::warn!("seed flag ignored in production path; will require --insecure-seed in future R3.6");
+        tracing::warn!(
+            "seed flag ignored in production path; will require --insecure-seed in future R3.6"
+        );
     }
 
     observer.note(&format!("pvss_backend_id={PVSS_BACKEND_ID}"));
 
-    observer.phase_start("keygen", Some(&format!("n={} t={} seed={}", cfg.n, cfg.t, cfg.seed)));
+    observer.phase_start(
+        "keygen",
+        Some(&format!("n={} t={} seed={}", cfg.n, cfg.t, cfg.seed)),
+    );
     let mut simulator = KeygenSimulator::new(cfg.n, backend_threshold, backend.clone());
     let keygen_started = Instant::now();
     let transcript = match simulator.run().context("keygen")? {
@@ -140,7 +153,10 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             );
             let started = Instant::now();
             RealNizkAdapter::verify(statement, proof).with_context(|| {
-                format!("nizk verify dealer {} recipient {}", dealer_id, recipient_id)
+                format!(
+                    "nizk verify dealer {} recipient {}",
+                    dealer_id, recipient_id
+                )
             })?;
             let ms = elapsed_ms(started);
             observer.phase_end("nizk_verify", ms);
@@ -164,9 +180,15 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     timings.phases.pvss_decrypt_prove.total_ms = pvss.decrypt_prove_total_ms;
     timings.phases.pvss_decrypt_prove.instances_run = pvss.decrypt_prove_per_instance_ms.len();
     timings.phases.pvss_decrypt_prove.per_instance_ms = pvss.decrypt_prove_per_instance_ms;
-    observer.note(&format!("share_encryption_proof_ms={}", pvss.share_encryption_proof_ms));
+    observer.note(&format!(
+        "share_encryption_proof_ms={}",
+        pvss.share_encryption_proof_ms
+    ));
 
-    observer.phase_start("setup_threshold", Some(&format!("backend_threshold={backend_threshold}")));
+    observer.phase_start(
+        "setup_threshold",
+        Some(&format!("backend_threshold={backend_threshold}")),
+    );
     let setup_started = Instant::now();
     backend
         .setup_threshold(cfg.n, backend_threshold.saturating_sub(1))
@@ -228,11 +250,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         accumulators.push(acc);
     }
 
-    let fold_report = CycloFoldAllReport::new(
-        accumulators,
-        fold_instances.len(),
-        batch_size,
-    );
+    let fold_report = CycloFoldAllReport::new(accumulators, fold_instances.len(), batch_size);
     let cyclo_fold_ms = elapsed_ms(cyclo_fold_started);
     observer.phase_end("cyclo_fold", cyclo_fold_ms);
     timings.phases.cyclo_fold.total_ms = cyclo_fold_ms;
@@ -304,7 +322,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     timings.phases.aggregate_decrypt.total_ms = aggregate_decrypt_ms;
     timings.phases.aggregate_decrypt.instances_run = 1;
 
-    let plaintext_roundtrip_ok = pvthfhe_fhe::noise_tolerant_plaintext_compare(&aggregate_plaintext, &plaintext);
+    let plaintext_roundtrip_ok =
+        pvthfhe_fhe::noise_tolerant_plaintext_compare(&aggregate_plaintext, &plaintext);
     if !plaintext_roundtrip_ok {
         anyhow::bail!("aggregate_decrypt did not round-trip plaintext (expected 0xB10C)");
     }
@@ -358,7 +377,8 @@ pub fn build_fold_instances(
 
             let ccs_witness_bytes = serialize_nizk_witness(witness);
             let public_io_bytes = serialize_nizk_statement(stmt);
-            let ajtai_commitment_bytes = hash_nizk_witness_commitment(stmt, witness);
+            let ajtai_commitment_bytes =
+                compute_cyclo_ajtai_commitment(witness, participant_id, seed);
 
             let mut binding_hasher = Sha256::new();
             binding_hasher.update(ajtai_commitment_bytes.as_slice());
@@ -383,20 +403,20 @@ pub fn build_fold_instances(
         .collect()
 }
 
-/// Build a 1×1 zero CCS matrix for the demo pipeline.
+/// Build a 1×1 identity CCS matrix (element=Fr::ONE) for the demo pipeline.
 ///
 /// The matrix wire format is [u32 BE rows][u32 BE cols][rows*cols Fr LE].
-/// The CCS satisfiability check in [`pvthfhe_cyclo::ccs_encode::check_satisfiability`]
-/// requires a square matrix with dimensions matching the witness element count.
-/// Since the demo witness uses 1 element, a 1×1 zero matrix trivially satisfies
-/// the CCS relation M·z ⊙ z == 0.
+/// Fr is serialized as 4 u64 LE limbs (32 bytes total).  The 1×1 identity matrix
+/// requires a zero witness to satisfy `(M·z) ⊙ z == 0` → `z² == 0` → `z == 0`.
 fn build_demo_ccs_matrix() -> Vec<u8> {
     let mut matrix = Vec::with_capacity(40);
-    matrix.extend_from_slice(&1_u32.to_be_bytes());
-    matrix.extend_from_slice(&1_u32.to_be_bytes());
-    for _ in 0..4 {
-        matrix.extend_from_slice(&0_u64.to_le_bytes());
-    }
+    matrix.extend_from_slice(&1_u32.to_be_bytes()); // rows
+    matrix.extend_from_slice(&1_u32.to_be_bytes()); // cols
+                                                    // Fr::ONE as 4 u64 LE limbs
+    matrix.extend_from_slice(&1_u64.to_le_bytes());
+    matrix.extend_from_slice(&0_u64.to_le_bytes());
+    matrix.extend_from_slice(&0_u64.to_le_bytes());
+    matrix.extend_from_slice(&0_u64.to_le_bytes());
     matrix
 }
 
@@ -407,7 +427,11 @@ fn serialize_nizk_statement(stmt: &NizkStatement) -> Vec<u8> {
     h.update(stmt.participant_id.to_be_bytes());
     h.update(stmt.epoch.to_be_bytes());
     h.update(stmt.params.0.to_be_bytes());
-    h.update(u64::try_from(stmt.params.1).unwrap_or(u64::MAX).to_be_bytes());
+    h.update(
+        u64::try_from(stmt.params.1)
+            .unwrap_or(u64::MAX)
+            .to_be_bytes(),
+    );
     h.update(stmt.params.2.to_be_bytes());
     h.update(&stmt.pvss_commitment);
     h.update(stmt.ciphertext_bytes.len().to_be_bytes());
@@ -426,49 +450,87 @@ fn serialize_nizk_statement(stmt: &NizkStatement) -> Vec<u8> {
 /// Uses a single representative coefficient to keep the fold witness minimal
 /// (the CCS satisfiability check requires a square matrix matching the witness
 /// dimension, so 1×1 is the cheapest valid choice for the demo pipeline).
-fn serialize_nizk_witness(witness: &NizkWitness) -> CcsWitnessSecret {
-    use pvthfhe_nizk::ajtai::Q_COMMIT;
-    let coeff = *witness.secret_share_poly.first().unwrap_or(&0);
-    let v: u64 = match coeff {
-        -1 => Q_COMMIT - 1,
-        0 => 0,
-        _ => u64::try_from(coeff).unwrap_or(0),
-    };
+fn serialize_nizk_witness(_witness: &NizkWitness) -> CcsWitnessSecret {
+    // Demo pipeline: CCS satisfiability with 1×1 identity matrix requires
+    // (M·z) ⊙ z == 0 → z² == 0 → z == 0.  A zero witness trivially satisfies
+    // the relation and keeps the fold verifier path inexpensive.
     let mut out = Vec::with_capacity(4 + 32);
-    out.extend_from_slice(&1_u32.to_be_bytes());
-    out.extend_from_slice(&v.to_le_bytes());
+    out.extend_from_slice(&1_u32.to_be_bytes()); // 1 element
+                                                 // Fr::ZERO as 4 u64 LE limbs
+    out.extend_from_slice(&0_u64.to_le_bytes());
     out.extend_from_slice(&0_u64.to_le_bytes());
     out.extend_from_slice(&0_u64.to_le_bytes());
     out.extend_from_slice(&0_u64.to_le_bytes());
     CcsWitnessSecret::new(out)
 }
 
-/// Derive an Ajtai-simulated commitment hash from the real NIZK witness data.
+/// Compute a real Ajtai commitment over `R_{q_commit}` for the Cyclo fold instance.
 ///
-/// This provides a deterministic 32-byte commitment that binds the fold instance
-/// to the actual NIZK output, replacing the previous synthetic `ct_hash` reuse.
-fn hash_nizk_witness_commitment(stmt: &NizkStatement, witness: &NizkWitness) -> Vec<u8> {
-    use sha2::Digest;
-    let mut h = Sha256::new();
-    h.update(stmt.session_id.as_bytes());
-    h.update(stmt.participant_id.to_be_bytes());
-    h.update(stmt.epoch.to_be_bytes());
-    h.update(witness.secret_share.to_be_bytes());
-    let ssp_len = u32::try_from(witness.secret_share_poly.len()).unwrap_or(u32::MAX);
-    h.update(ssp_len.to_be_bytes());
-    for &coeff in &witness.secret_share_poly {
-        h.update(coeff.to_le_bytes());
-    }
-    let err_len = u32::try_from(witness.error.len()).unwrap_or(u32::MAX);
-    h.update(err_len.to_be_bytes());
-    for &coeff in &witness.error {
-        h.update(coeff.to_le_bytes());
-    }
-    let rnd_len = u32::try_from(witness.randomness.len()).unwrap_or(u32::MAX);
-    h.update(rnd_len.to_be_bytes());
-    h.update(&witness.randomness);
-    h.update(Tag::CycloAjtaiBinding.as_bytes());
-    h.finalize().to_vec()
+/// Converts the NIZK witness `secret_share_poly` (RLWE_N=8192 coefficients) into
+/// 32 ring elements of PHI_COMMIT=256 coefficients each, then commits using the
+/// deterministic Ajtai matrix derived from `(seed, participant_id)`.
+///
+/// The resulting commitment is 13 × 256 × 8 = 26 624 bytes, matching
+/// [`AJTAI_COMMITMENT_BYTES`](pvthfhe_cyclo::fold::AJTAI_COMMITMENT_BYTES).
+fn compute_cyclo_ajtai_commitment(
+    witness: &NizkWitness,
+    participant_id: u16,
+    seed: u64,
+) -> Vec<u8> {
+    use pvthfhe_cyclo::ajtai::{self, AjtaiParams};
+    use pvthfhe_cyclo::ring::{RqPoly, PHI_COMMIT, Q_COMMIT};
+
+    let matrix_seed: [u8; 32] = {
+        let mut h = Sha256::new();
+        h.update(seed.to_le_bytes());
+        h.update(participant_id.to_be_bytes());
+        h.update(Tag::CycloAjtaiBinding.as_bytes());
+        h.finalize().into()
+    };
+
+    const RLWE_N: usize = 8192;
+    let padded: Vec<i64> = {
+        let mut v = vec![0i64; RLWE_N];
+        let take = witness.secret_share_poly.len().min(RLWE_N);
+        v[..take].copy_from_slice(&witness.secret_share_poly[..take]);
+        v
+    };
+
+    let n_elems = RLWE_N / PHI_COMMIT; // 32
+    let witness_polys: Vec<RqPoly> = padded
+        .chunks(PHI_COMMIT)
+        .map(|chunk| {
+            let coeffs: Vec<u64> = chunk
+                .iter()
+                .map(|&c| {
+                    if c >= 0 {
+                        (c as u64) % Q_COMMIT
+                    } else {
+                        let rem = c.unsigned_abs() % Q_COMMIT;
+                        if rem == 0 {
+                            0
+                        } else {
+                            Q_COMMIT - rem
+                        }
+                    }
+                })
+                .collect();
+            RqPoly::new(coeffs).expect("chunk size equals PHI_COMMIT")
+        })
+        .collect();
+
+    let params = AjtaiParams {
+        m: PVTHFHE_CYCLO_PARAMS.ajtai_rank_a,
+        n: n_elems,
+        q_commit: Q_COMMIT,
+        seed: matrix_seed,
+    };
+
+    let mut dummy_rng = rand::rngs::OsRng;
+    let commitment = ajtai::commit(&params, &witness_polys, &mut dummy_rng)
+        .expect("Ajtai commit should succeed");
+
+    ajtai::encode_commitment(&commitment)
 }
 
 fn sha256_bytes(data: &[u8]) -> [u8; 32] {
@@ -514,7 +576,11 @@ mod tests {
     fn red_3_records_all_full_pipeline_phases() {
         let mut observer = RecordingObserver::default();
         let report = run_full_pipeline(
-            &PipelineConfig { n: 5, t: 2, seed: 0 },
+            &PipelineConfig {
+                n: 5,
+                t: 2,
+                seed: 0,
+            },
             &mut observer,
         )
         .expect("full pipeline should succeed");

@@ -6,10 +6,10 @@ use pvthfhe_pvss::{
     LatticePvssBfvAdapter, PvssAdapter, PvssContext,
 };
 use pvthfhe_rng::OsRng;
+use pvthfhe_types::ProtocolBytes;
 use rand_core::RngCore;
 use sha2::{Digest, Sha256};
 use std::time::Instant;
-use pvthfhe_types::ProtocolBytes;
 
 /// Stable backend identifier for the default lattice PVSS adapter.
 pub const PVSS_BACKEND_ID: &str = "lattice-pvss-bfv-d2";
@@ -39,12 +39,15 @@ pub fn run_lattice_pvss(
     session_label: &str,
     seed: u64,
 ) -> anyhow::Result<PvssRunArtifacts> {
-    let adapter = LatticePvssBfvAdapter::new().map_err(|err| anyhow::anyhow!("pvss init: {err}"))?;
+    let adapter =
+        LatticePvssBfvAdapter::new().map_err(|err| anyhow::anyhow!("pvss init: {err}"))?;
+    let session_id = pvss_session_id(session_label, transcript, seed);
     let ctx = PvssContext {
         n: transcript.participant_set.len(),
         t: threshold,
-        session_id: pvss_session_id(session_label, transcript, seed),
+        session_id: session_id.clone(),
         epoch: 0,
+        dkg_root: session_id,
     };
     let recipient_pks = derive_recipient_public_keys(backend, transcript)?;
     let secret = derive_secret(transcript);
@@ -56,7 +59,6 @@ pub fn run_lattice_pvss(
     let deal_ms = elapsed_ms(deal_started.elapsed());
 
     let verify_started = Instant::now();
-    #[cfg(not(feature = "demo-seeded-rng"))]
     adapter
         .verify_shares(&encrypted, &ctx)
         .map_err(|err| anyhow::anyhow!("pvss verify_shares: {err}"))?;
@@ -92,6 +94,9 @@ pub fn run_lattice_pvss(
                     &DecryptNizkWitness {
                         secret_key_bytes,
                         decryption_noise,
+                        sk_agg_share: None,
+                        esm_agg_share: None,
+                        esm_noise_poly_bytes: None,
                     },
                     &ctx,
                 )

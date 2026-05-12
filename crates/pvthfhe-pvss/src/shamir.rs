@@ -35,8 +35,8 @@
 //! assert_eq!(recovered, secret);
 //! ```
 
-use ark_ff::{AdditiveGroup, Field, UniformRand, Zero};
 use ark_bn254::Fr;
+use ark_ff::{AdditiveGroup, Field, UniformRand, Zero};
 use rand_core::RngCore;
 use std::fmt;
 
@@ -79,12 +79,7 @@ impl fmt::Display for ShamirError {
 /// # Panics
 ///
 /// Panics if `t == 0` or `n < t`.
-pub fn split(
-    secret: &Fr,
-    n: usize,
-    t: usize,
-    rng: &mut impl RngCore,
-) -> Vec<(usize, Fr)> {
+pub fn split(secret: &Fr, n: usize, t: usize, rng: &mut impl RngCore) -> Vec<(usize, Fr)> {
     assert!(t > 0, "threshold t must be positive");
     assert!(n >= t, "n must be at least t");
 
@@ -137,10 +132,7 @@ pub fn recover(shares: &[(usize, Fr)]) -> Result<Fr, ShamirError> {
         return Err(ShamirError::DuplicateX);
     }
 
-    let x_frs: Vec<Fr> = shares
-        .iter()
-        .map(|(x, _)| Fr::from(*x as u64))
-        .collect();
+    let x_frs: Vec<Fr> = shares.iter().map(|(x, _)| Fr::from(*x as u64)).collect();
 
     // Lagrange interpolation at x = 0:
     //
@@ -150,8 +142,7 @@ pub fn recover(shares: &[(usize, Fr)]) -> Result<Fr, ShamirError> {
     //                 = Π_{j≠i} (-x_j) / (x_i - x_j)
     let mut recovered = Fr::ZERO;
     for (i, (_, y_i)) in shares.iter().enumerate() {
-        let lambda = lagrange_coefficient_at_zero(i, &x_frs)
-            .ok_or(ShamirError::RecoveryFailed)?;
+        let lambda = lagrange_coefficient_at_zero(i, &x_frs).ok_or(ShamirError::RecoveryFailed)?;
         recovered += *y_i * lambda;
     }
 
@@ -277,8 +268,8 @@ mod tests {
         // Fix x-coordinates to be distinct even though values are the same.
         // Actually, the duplicate is on x-coordinates:
         dup[1].0 = dup[0].0; // Same x, different y would fail in Lagrange.
-        // But we need actually duplicate x. The first two entries now have the
-        // same x, but different y values. That's what we want to test.
+                             // But we need actually duplicate x. The first two entries now have the
+                             // same x, but different y values. That's what we want to test.
         let result = recover(&dup);
         assert_eq!(result, Err(ShamirError::DuplicateX));
     }
@@ -295,7 +286,10 @@ mod tests {
         shares[0].1 += Fr::ONE;
 
         let recovered = recover(&shares[..t]).expect("recovery should still compute");
-        assert_ne!(recovered, secret, "tampered share should change recovered secret");
+        assert_ne!(
+            recovered, secret,
+            "tampered share should change recovered secret"
+        );
     }
 
     #[test]

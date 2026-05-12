@@ -30,6 +30,7 @@ mod real_folding_gaps {
                 session_id: SESSION.to_owned(),
                 params: PARAMS,
                 ciphertext_bytes: vec![CTXT_TAG; 4],
+                multi_track_metadata: None,
             },
         }
     }
@@ -53,6 +54,7 @@ mod real_folding_gaps {
                 session_id: SESSION.to_owned(),
                 params: PARAMS,
                 ciphertext_bytes: vec![200u8; 4],
+                multi_track_metadata: None,
             },
         }
     }

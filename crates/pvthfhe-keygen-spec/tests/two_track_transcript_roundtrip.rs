@@ -1,9 +1,10 @@
 #![allow(missing_docs, clippy::unwrap_used, clippy::expect_used)]
 
 use pvthfhe_keygen_spec::{
-    AggregatedESmShareCommitment, AggregatedSkShareCommitment, Commitment, DkgAnchorSet,
-    ESmContributionCommitment, ESmShareCommitment, HexBlob, KeygenPhase, KeygenSession,
-    SkContributionCommitment, SkShareCommitment, SmudgeSlotId,
+    compute_accepted_participant_set_hash, AggregatedESmShareCommitment,
+    AggregatedSkShareCommitment, Commitment, DkgAnchorSet, ESmContributionCommitment,
+    ESmShareCommitment, HexBlob, KeygenPhase, KeygenSession, SkContributionCommitment,
+    SkShareCommitment, SmudgeSlotId, SmudgeSlotPolicy,
 };
 
 fn rt<T>(value: &T) -> T
@@ -140,16 +141,26 @@ fn smudge_slot_id_roundtrip() {
 fn dkg_anchor_set_roundtrip_empty() {
     let v = DkgAnchorSet {
         session_id: "s1".into(),
-        participant_set_hash: HexBlob("h-abc".into()),
+        accepted_participant_ids: vec![1, 2, 3, 4],
+        participant_set_hash: compute_accepted_participant_set_hash(&[1, 2, 3, 4])
+            .expect("accepted set hash"),
         threshold: 4,
+        individual_bfv_pk_commitments: vec![],
+        threshold_pk_contribution_commitments: vec![],
         sk_agg_commits: vec![],
         esm_agg_commits: vec![],
+        smudge_slot_policy: SmudgeSlotPolicy {
+            slots_per_party: 16,
+            pre_generated: true,
+            policy_hash: HexBlob("policy-empty".into()),
+        },
         aggregated_pk_commitment: c("pk-agg"),
         parameter_digest: HexBlob("pd-01".into()),
     };
     let b = rt(&v);
     assert_eq!(b.session_id, "s1");
     assert_eq!(b.threshold, 4);
+    assert_eq!(b.accepted_participant_ids, vec![1, 2, 3, 4]);
     assert!(b.sk_agg_commits.is_empty());
     assert!(b.esm_agg_commits.is_empty());
     assert_eq!(b.aggregated_pk_commitment.digest.0, "pk-agg");
@@ -187,10 +198,19 @@ fn dkg_anchor_set_roundtrip_full() {
 
     let v = DkgAnchorSet {
         session_id: "s-full".into(),
-        participant_set_hash: HexBlob("full-h".into()),
+        accepted_participant_ids: vec![3, 4],
+        participant_set_hash: compute_accepted_participant_set_hash(&[3, 4])
+            .expect("accepted set hash"),
         threshold: 2,
+        individual_bfv_pk_commitments: vec![c("ibfvpk-f1")],
+        threshold_pk_contribution_commitments: vec![c("tpk-f1")],
         sk_agg_commits: sk,
         esm_agg_commits: esm,
+        smudge_slot_policy: SmudgeSlotPolicy {
+            slots_per_party: 16,
+            pre_generated: true,
+            policy_hash: HexBlob("policy-full".into()),
+        },
         aggregated_pk_commitment: c("pk-agg-full"),
         parameter_digest: HexBlob("pf".into()),
     };

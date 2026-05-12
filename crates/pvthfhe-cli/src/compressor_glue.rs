@@ -1,15 +1,16 @@
 //! Shared compressor glue for CLI binaries.
 
 use sha2::{Digest, Sha256};
+use tracing::info;
 #[cfg(all(feature = "surrogate-compressor", not(feature = "sonobe-compressor")))]
 use tracing::warn;
-use tracing::info;
 
 #[cfg(feature = "sonobe-compressor")]
 use {
     ark_bn254::Fr,
+    ark_ff::PrimeField,
     pvthfhe_compressor::{
-        sonobe::{SonobeCompressor, ToyStepCircuit},
+        sonobe::{encode_triple, SonobeCompressor, ToyStepCircuit},
         CompressedProof as SonobeProof, ProofCompressor, VerifierKey,
     },
 };
@@ -153,20 +154,38 @@ impl Compressor {
 }
 
 /// Return the digest inputs expected by the real compressor backend.
+///
+/// Produces 96-byte encodings: [commitment(32B) || norm(32B) || count(32B)].
 #[cfg(feature = "sonobe-compressor")]
 pub fn compressor_inputs(
     report: &pvthfhe_aggregator::folding::CycloFoldAllReport,
 ) -> (Vec<u8>, Vec<u8>) {
     let mut acc_hasher = Sha256::new();
     let mut public_hasher = Sha256::new();
+    let mut total_fold_depth: u64 = 0;
+    let mut total_norm: u64 = 0;
     for accumulator in report.accumulators() {
         acc_hasher.update(&accumulator.acc_commitment_bytes);
         public_hasher.update(&accumulator.acc_public_io_bytes);
-        public_hasher.update(accumulator.fold_depth.to_le_bytes());
+        total_fold_depth = total_fold_depth.saturating_add(accumulator.fold_depth as u64);
+        total_norm = total_norm.saturating_add(accumulator.norm_bound_current);
     }
-    let acc: [u8; 32] = acc_hasher.finalize().into();
-    let public_inputs: [u8; 32] = public_hasher.finalize().into();
-    (acc.to_vec(), public_inputs.to_vec())
+    let acc_commitment_hash: [u8; 32] = acc_hasher.finalize().into();
+    let public_io_hash: [u8; 32] = public_hasher.finalize().into();
+
+    let acc = encode_triple((
+        Fr::from_le_bytes_mod_order(&acc_commitment_hash),
+        Fr::from(total_norm),
+        Fr::from(total_fold_depth),
+    ))
+    .to_vec();
+    let public_inputs = encode_triple((
+        Fr::from_le_bytes_mod_order(&public_io_hash),
+        Fr::from(total_norm),
+        Fr::from(1u64),
+    ))
+    .to_vec();
+    (acc, public_inputs)
 }
 
 /// Convert compressor backend errors into anyhow errors.

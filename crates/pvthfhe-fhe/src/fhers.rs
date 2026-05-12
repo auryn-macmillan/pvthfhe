@@ -606,7 +606,7 @@ impl FheBackend for FhersBackend {
         rng: &mut dyn RngCore,
     ) -> Result<Ciphertext, FheError> {
         let degree = self.bfv_params.degree();
-        let pk = self.decode_public_key(pk)?;
+        let bfv_pk = self.decode_public_key(pk)?;
         let slots = encode_plaintext_slots(plaintext, degree)?;
         let pt =
             Plaintext::try_encode(&slots, Encoding::poly(), &self.bfv_params).map_err(|err| {
@@ -617,7 +617,7 @@ impl FheBackend for FhersBackend {
         let mut encrypt_rng = ChaCha8Rng::from_rng(rng).map_err(|err| FheError::Backend {
             reason: err.to_string(),
         })?;
-        let ct = pk
+        let ct = bfv_pk
             .try_encrypt(&pt, &mut encrypt_rng)
             .map_err(|err| FheError::Backend {
                 reason: err.to_string(),
@@ -635,7 +635,7 @@ impl FheBackend for FhersBackend {
         rng: &mut dyn RngCore,
     ) -> Result<(Ciphertext, EncryptionWitness), FheError> {
         let degree = self.bfv_params.degree();
-        let pk = self.decode_public_key(pk)?;
+        let bfv_pk = self.decode_public_key(pk)?;
         let slots = encode_plaintext_slots(plaintext, degree)?;
         let pt =
             Plaintext::try_encode(&slots, Encoding::poly(), &self.bfv_params).map_err(|err| {
@@ -656,7 +656,7 @@ impl FheBackend for FhersBackend {
         //   u  = encryption randomness (CBD with SK_VARIANCE)
         //   e1 = error polynomial for ct₀ leg (error_1 variance)
         //   e2 = error polynomial for ct₁ leg (standard variance)
-        let (ct, u, e1, e2) = pk
+        let (ct, u, e1, e2) = bfv_pk
             .try_encrypt_extended(&pt, &mut encrypt_rng)
             .map_err(|err| FheError::Backend {
                 reason: err.to_string(),
@@ -675,6 +675,9 @@ impl FheBackend for FhersBackend {
 
         let ciphertext_bytes = ct.to_bytes();
 
+        let pk0_bytes = bfv_pk.c.get(0).ok_or(FheError::MalformedPublicKey)?.to_bytes();
+        let pk1_bytes = bfv_pk.c.get(1).ok_or(FheError::MalformedPublicKey)?.to_bytes();
+
         let witness = EncryptionWitness {
             plaintext_poly_bytes,
             u_poly_bytes: u.to_bytes(),
@@ -683,6 +686,8 @@ impl FheBackend for FhersBackend {
             ct0_poly_bytes: ct0_poly.to_bytes(),
             ct1_poly_bytes: ct1_poly.to_bytes(),
             ciphertext_bytes: ciphertext_bytes.clone(),
+            recipient_pk0_bytes: pk0_bytes,
+            recipient_pk1_bytes: pk1_bytes,
         };
 
         Ok((
@@ -971,6 +976,59 @@ impl FheBackend for FhersBackend {
             },
             witness,
         ))
+    }
+
+    fn decode_pk_polys(&self, pk: &OpaquePublicKey) -> Result<(Vec<u8>, Vec<u8>), FheError> {
+        let bfv_pk = self.decode_public_key(pk)?;
+        let p0 = bfv_pk
+                    .c
+                    .get(0)
+                    .ok_or(FheError::MalformedPublicKey)?;
+        let p1 = bfv_pk
+            .c
+            .get(1)
+            .ok_or(FheError::MalformedPublicKey)?;
+        let p1 = bfv_pk
+                    .c
+                    .get(1)
+                    .ok_or(FheError::MalformedPublicKey)?;
+        let mut p0 = p0.clone();
+        p0.change_representation(Representation::PowerBasis);
+        let mut p1 = p1.clone();
+        p1.change_representation(Representation::PowerBasis);
+        Ok((p0.to_bytes(), p1.to_bytes()))
+    }
+
+    fn decode_ct_polys(&self, ct: &Ciphertext) -> Result<(Vec<u8>, Vec<u8>), FheError> {
+        let ct = BfvCiphertext::from_bytes(&ct.bytes, &self.bfv_params)
+            .map_err(|_| FheError::MalformedCiphertext)?;
+        let c0 = ct
+            .c
+            .get(0)
+            .ok_or(FheError::MalformedCiphertext)?;
+        let c1 = ct
+            .c
+            .get(1)
+            .ok_or(FheError::MalformedCiphertext)?;
+        let mut c0 = c0.clone();
+        c0.change_representation(Representation::PowerBasis);
+        let mut c1 = c1.clone();
+        c1.change_representation(Representation::PowerBasis);
+        Ok((c0.to_bytes(), c1.to_bytes()))
+    }
+
+    fn bfv_plaintext_modulus(&self) -> Result<u64, FheError> {
+        Ok(self.bfv_params.plaintext())
+    }
+
+    fn bfv_moduli(&self) -> Result<Vec<u64>, FheError> {
+        let ctx = self
+            .bfv_params
+            .ctx_at_level(0)
+            .map_err(|err| FheError::Backend {
+                reason: err.to_string(),
+            })?;
+        Ok(ctx.q.iter().map(|m| m.modulus()).collect())
     }
 
     fn aggregate_decrypt(

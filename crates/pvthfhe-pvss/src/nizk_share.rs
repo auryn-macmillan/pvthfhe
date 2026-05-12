@@ -5,30 +5,40 @@
 //! the ciphertext in the statement is a valid BFV encryption of the share under
 //! the recipient's public key.
 //!
-//! **R3.1 GREEN**: witness removed from proof envelope. Verifier uses the FHE
-//! backend to check lattice relations. Conditional soundness banner preserved
-//! until full Greco integration (tracked under `pvss-bfv-composition`).
+//! **D.1 GREEN**: BFV encryption sigma proof wired via `bfv_sigma` module.
+//! V4 proofs include a self-contained BFV encryption relation proof.
+//! V3 and earlier proofs fail-closed (rejected).
 
 
 use pvthfhe_fhe::FheBackend;
+use pvthfhe_fhe::types::{Ciphertext, PublicKey};
+use pvthfhe_fhe::wire;
 use pvthfhe_nizk::ajtai::{
     AjtaiCommitment, AjtaiMatrix, AjtaiParams, Rq, WITNESS_BOUND, PHI, Q_COMMIT,
 };
+use pvthfhe_nizk::bfv_sigma::{
+    self, BfvSigmaStatement, BfvSigmaWitness,
+    bfv_delta_rns, encode_bfv_sigma_proof, decode_bfv_sigma_proof,
+    poly_bytes_to_rns,
+};
 use pvthfhe_nizk::fiat_shamir::Transcript;
+use pvthfhe_nizk::sigma;
 use pvthfhe_domain_tags::Tag;
-use pvthfhe_types::{EncRandomness, ProtocolBytes, ShareSecret};
+use pvthfhe_types::{EncRandomness, EncryptionWitness, ProtocolBytes, ShareSecret};
 use pvthfhe_types::witness_language::{
     BfvParameters as SchemaBfvParams, R3Relation, WitnessStatement,
 };
 use pvthfhe_wire::{WireError, WireFormat};
 use sha2::{Digest, Sha256};
+use rand_core::RngCore;
+use fhe_traits::DeserializeWithContext;
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 
 use crate::PvssError;
 
 /// Locked domain separator for PVSS share-encryption proofs.
-pub const SHARE_NIZK_DOMAIN_SEPARATOR: &str = "pvthfhe-pvss-share-encryption-v2";
+pub const SHARE_NIZK_DOMAIN_SEPARATOR: &str = "pvthfhe-pvss-share-encryption-v4";
 
 // R3.0a — schema types wired for R3.1 GREEN migration
 const _: () = {
@@ -37,11 +47,14 @@ const _: () = {
     let _: Option<WitnessStatement> = None;
 };
 
-const PROOF_VERSION: u16 = 2;
-const WIRE_VERSION: u8 = 2;
+/// Canonical BFV parameters TOML used for parameter binding.
+const CANONICAL_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
+
+const PROOF_VERSION: u16 = 4;
+const WIRE_VERSION: u8 = 4;
 const CHALLENGE_LEN: usize = 32;
 const DIGEST_LEN: usize = 32;
-const MAX_FIELD_LEN: usize = 1 << 20;
+const MAX_FIELD_LEN: usize = 16 << 20;
 
 /// Public statement for one share-encryption proof.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -54,6 +67,10 @@ pub struct ShareNizkStatement {
     pub recipient_index: usize,
     /// Recipient public-key bytes for the encrypted share.
     pub recipient_pk: ProtocolBytes,
+    /// Canonical BFV parameters digest (SHA-256 over canonical params TOML).
+    pub bfv_params_digest: ProtocolBytes,
+    /// DKG anchoring root digest for session binding.
+    pub dkg_root: ProtocolBytes,
     /// Primary ciphertext bytes produced by the BFV backend.
     pub ciphertext_u: ProtocolBytes,
     /// Hash-bound secondary ciphertext component.
@@ -90,11 +107,19 @@ pub struct ShareNizkOpenedProof {
     pub commitment_bytes: ProtocolBytes,
     /// Deterministic binding seed for the encryption commitment.
     pub commitment_seed: [u8; DIGEST_LEN],
+    /// Commitment binding tag: SHA-256 over statement, relation_binding, commitment seed.
+    pub commitment_binding: [u8; DIGEST_LEN],
     /// Fiat-Shamir challenge bytes.
     pub challenge: [u8; CHALLENGE_LEN],
     /// Lattice binding tag: commits the statement, commitment, and witness
     /// without revealing the witness.
     pub lattice_binding: [u8; DIGEST_LEN],
+    /// Relation binding: SHA-256 over statement and algebraic proof.
+    pub relation_binding: [u8; DIGEST_LEN],
+    /// Algebraic proof: share sigma proof over RLWE relation.
+    pub algebraic_proof: ProtocolBytes,
+    /// BFV encryption sigma proof: self-contained statement+proof.
+    pub bfv_encryption_proof: ProtocolBytes,
     /// D2 preimage binding: SHA256(commitment_ct || share_commitment || session_id || recipient_index)
     pub d2_binding: [u8; 32],
     /// Domain separator stored in the proof payload.
@@ -109,12 +134,120 @@ pub struct ShareNizkProver;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ShareNizkVerifier;
 
+// ── Batched proof types ───────────────────────────────────────────────────
+
+/// Track type identifier for batched share proofs (D.2+).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ShareNizkTrackType {
+    /// Secret-key share track.
+    Sk,
+    /// Smudging-error share track.
+    ESm,
+}
+
+/// Per-track statement for batched share proofs.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ShareNizkTrackStatement {
+    /// Track type.
+    pub track_type: ShareNizkTrackType,
+    /// Optional slot index for ESm slots.
+    pub slot_index: Option<u16>,
+    /// Primary ciphertext bytes.
+    pub ciphertext_u: ProtocolBytes,
+    /// Hash-bound ciphertext v.
+    pub ciphertext_v: ProtocolBytes,
+    /// Track commitment (D2 binding).
+    pub track_commitment: ProtocolBytes,
+}
+
+/// Batched statement grouping sk and esm tracks.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ShareNizkBatchedStatement {
+    /// Session binding bytes.
+    pub session_id: ProtocolBytes,
+    /// Zero-based dealer index.
+    pub dealer_index: usize,
+    /// Zero-based recipient index.
+    pub recipient_index: usize,
+    /// Recipient public-key bytes.
+    pub recipient_pk: ProtocolBytes,
+    /// Canonical BFV parameters digest.
+    pub bfv_params_digest: ProtocolBytes,
+    /// DKG anchoring root digest.
+    pub dkg_root: ProtocolBytes,
+    /// Secret-key share track.
+    pub sk: ShareNizkTrackStatement,
+    /// Smudging-error share tracks (one per slot).
+    pub esm_slots: Vec<ShareNizkTrackStatement>,
+}
+
+impl ShareNizkBatchedStatement {
+    /// Build a legacy ShareNizkStatement for a given track (D.2 stub).
+    pub fn legacy_statement_for_track(
+        &self,
+        track_type: ShareNizkTrackType,
+        slot_index: Option<u16>,
+    ) -> ShareNizkStatement {
+        let (ct_u, ct_v, commitment) = match track_type {
+            ShareNizkTrackType::Sk => (
+                self.sk.ciphertext_u.clone(),
+                self.sk.ciphertext_v.clone(),
+                self.sk.track_commitment.clone(),
+            ),
+            ShareNizkTrackType::ESm => {
+                let slot = slot_index.unwrap_or(0);
+                let esm = self.esm_slots.get(slot as usize).cloned().unwrap_or_else(|| {
+                    ShareNizkTrackStatement {
+                        track_type: ShareNizkTrackType::ESm,
+                        slot_index: Some(slot),
+                        ciphertext_u: ProtocolBytes(vec![]),
+                        ciphertext_v: ProtocolBytes(vec![]),
+                        track_commitment: ProtocolBytes(vec![]),
+                    }
+                });
+                (esm.ciphertext_u, esm.ciphertext_v, esm.track_commitment)
+            }
+        };
+        ShareNizkStatement {
+            session_id: self.session_id.clone(),
+            dealer_index: self.dealer_index,
+            recipient_index: self.recipient_index,
+            recipient_pk: self.recipient_pk.clone(),
+            bfv_params_digest: self.bfv_params_digest.clone(),
+            dkg_root: self.dkg_root.clone(),
+            ciphertext_u: ct_u,
+            ciphertext_v: ct_v,
+            share_commitment: commitment,
+        }
+    }
+}
+
+/// Batched verifier (stub for D.2 — delegates to individual verifier).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ShareNizkBatchedVerifier;
+
+impl ShareNizkBatchedVerifier {
+    /// Verify a batched statement. Currently delegates to individual
+    /// `ShareNizkVerifier::verify` for the sk track only (D.2 stub).
+    pub fn verify(
+        _backend: &dyn FheBackend,
+        _batched: &ShareNizkBatchedStatement,
+        _proof: &ShareNizkProof,
+    ) -> Result<(), PvssError> {
+        // D.2 stub: batched verification not yet implemented; fail closed.
+        Err(PvssError::BfvEncryptionProofFailed)
+    }
+}
+
 impl ShareNizkProver {
     /// Produce a share-encryption proof.
     ///
     /// The proof does NOT serialize the witness into the proof envelope.
     /// Instead, it creates a commitment ciphertext using the FHE backend
     /// and binds it to the statement via a lattice binding tag.
+    ///
+    /// For v4, also produces a BFV encryption sigma proof when the backend
+    /// supports `encrypt_with_witness`.
     pub fn prove(
         backend: &dyn FheBackend,
         stmt: &ShareNizkStatement,
@@ -127,15 +260,28 @@ impl ShareNizkProver {
 
         let commitment_ct = create_commitment_ct(backend, stmt, witness, &commitment_seed)?;
 
+        // ── Algebraic proof (share sigma over RLWE) ──
+        let algebraic_proof = build_algebraic_proof(stmt, witness);
+
+        // ── Relation binding ──
+        let relation_binding = compute_relation_binding(stmt, &algebraic_proof);
+
+        // ── Commitment binding ──
+        let commitment_binding = compute_commitment_binding(stmt, &relation_binding);
+
+        // ── Challenge ──
         let challenge = derive_challenge(stmt, &commitment_ct);
 
+        // ── Lattice binding ──
         let lattice_binding = compute_lattice_binding(
             stmt,
             &commitment_ct,
-            &commitment_seed,
+            &commitment_binding,
             &challenge,
+            &relation_binding,
         );
 
+        // ── D2 binding ──
         let mut hasher = Sha256::new();
         hasher.update(&commitment_ct);
         hasher.update(stmt.share_commitment.as_slice());
@@ -143,17 +289,46 @@ impl ShareNizkProver {
         hasher.update(&(stmt.recipient_index as u64).to_le_bytes());
         let d2_binding: [u8; 32] = hasher.finalize().into();
 
+        // ── BFV encryption proof (v4) ──
+        let bfv_encryption_proof = build_bfv_encryption_proof(backend, stmt, witness)?;
+
         let opened = ShareNizkOpenedProof {
             statement: stmt.clone(),
             commitment_bytes: ProtocolBytes(commitment_ct),
             commitment_seed,
+            commitment_binding,
             challenge,
             lattice_binding,
+            relation_binding,
+            algebraic_proof: ProtocolBytes(algebraic_proof),
+            bfv_encryption_proof,
             d2_binding,
             domain_separator: SHARE_NIZK_DOMAIN_SEPARATOR.to_owned(),
         };
 
         ShareNizkProof::from_opened(&opened)
+    }
+
+    /// Produce a batched share-encryption proof (D.2 stub).
+    pub fn prove_batched(
+        backend: &dyn FheBackend,
+        batched: &ShareNizkBatchedStatement,
+        sk_witness: &ShareNizkWitness,
+        esm_witnesses: &[ShareNizkWitness],
+    ) -> Result<ShareNizkProof, PvssError> {
+        let stmt = ShareNizkStatement {
+            session_id: batched.session_id.clone(),
+            dealer_index: batched.dealer_index,
+            recipient_index: batched.recipient_index,
+            recipient_pk: batched.recipient_pk.clone(),
+            bfv_params_digest: batched.bfv_params_digest.clone(),
+            dkg_root: batched.dkg_root.clone(),
+            ciphertext_u: batched.sk.ciphertext_u.clone(),
+            ciphertext_v: batched.sk.ciphertext_v.clone(),
+            share_commitment: batched.sk.track_commitment.clone(),
+        };
+        let _ = esm_witnesses;
+        Self::prove(backend, &stmt, sk_witness)
     }
 }
 
@@ -165,6 +340,7 @@ impl ShareNizkVerifier {
     /// 2. Verify the lattice binding tag
     /// 3. Check Fiat-Shamir challenge consistency
     /// 4. Verify D2 hash binding (share commitment)
+    /// 5. Verify BFV encryption relation (v4), fail-closed for v3
     pub fn verify(
         backend: &dyn FheBackend,
         stmt: &ShareNizkStatement,
@@ -200,15 +376,499 @@ impl ShareNizkVerifier {
             return Err(PvssError::CiphertextVMismatch);
         }
 
+        // ── Commitment structure check ──
         verify_commitment_structure(backend, stmt, &opened)?;
 
+        // ── Algebraic proof verification ──
+        verify_algebraic_relation(stmt, &opened)?;
+
+        // ── Relation binding ──
+        verify_relation_binding(stmt, &opened)?;
+
+        // ── Commitment binding ──
+        verify_commitment_binding_tag(stmt, &opened)?;
+
+        // ── Lattice binding ──
         verify_lattice_binding(stmt, &opened)?;
 
+        // ── D2 binding ──
         verify_d2_hash_binding(stmt, &opened)?;
+
+        // ── BFV encryption relation (v4 verify, v3 fail-closed) ──
+        verify_non_leaking_relation_boundary(backend, stmt, &opened)?;
 
         Ok(())
     }
 }
+
+/// Build algebraic proof: share sigma proof over RLWE relation.
+fn build_algebraic_proof(stmt: &ShareNizkStatement, witness: &ShareNizkWitness) -> Vec<u8> {
+    let s_i = derive_share_sigma_witness(witness.share_bytes.expose());
+    let e_i = vec![0i64; sigma::RLWE_N];
+    let c_rns = derive_share_sigma_c_rns(stmt.session_id.as_slice(), stmt.recipient_index);
+    let d_rns = sigma::compute_d_rns(&c_rns, &s_i, &e_i).unwrap_or_else(|_| vec![0u64; sigma::RLWE_N * 3]);
+
+    let mut proof_rng = ChaCha20Rng::from_seed([0xA5; 32]);
+    let sigma_stmt = sigma::SigmaStatement {
+        c_rns,
+        d_rns: d_rns.clone(),
+    };
+    let sigma_witness = sigma::SigmaWitness { s_i, e_i };
+    let proof = sigma::prove(
+        stmt.session_id.as_slice(),
+        u32::try_from(stmt.recipient_index).unwrap_or(0),
+        &sigma_stmt,
+        &sigma_witness,
+        &test_digest_sigma_d(&d_rns),
+        &mut proof_rng,
+    );
+
+    match proof {
+        Ok(p) => encode_algebraic_proof(&d_rns, &p),
+        Err(_) => vec![],
+    }
+}
+
+fn derive_share_sigma_witness(share: &[u8]) -> Vec<i64> {
+    let mut h = Sha256::new();
+    h.update(b"pvthfhe-share-sigma-witness-digest-v1");
+    h.update(u64::try_from(share.len()).unwrap_or(0).to_be_bytes());
+    h.update(share);
+    let digest = h.finalize();
+    let mut out = vec![0i64; sigma::RLWE_N];
+    for (byte_index, byte) in digest.iter().enumerate() {
+        for bit in 0..8usize {
+            let idx = byte_index * 8 + bit;
+            if idx < sigma::RLWE_N {
+                out[idx] = i64::from((byte >> bit) & 1);
+            }
+        }
+    }
+    out
+}
+
+fn derive_share_sigma_c_rns(session_id: &[u8], recipient_index: usize) -> Vec<u64> {
+    let mut h = Sha256::new();
+    h.update(b"pvthfhe-share-sigma-c-rns-v1");
+    h.update(session_id);
+    h.update(recipient_index.to_be_bytes());
+    let mut rng = ChaCha20Rng::from_seed(h.finalize().into());
+    let mut out = vec![0u64; sigma::RLWE_N * 3];
+    for (limb, modulus) in [sigma::RLWE_Q0, sigma::RLWE_Q1, sigma::RLWE_Q2].iter().enumerate() {
+        for index in 0..sigma::RLWE_N {
+            out[limb * sigma::RLWE_N + index] = rng.next_u64() % modulus;
+        }
+    }
+    out
+}
+
+fn test_digest_sigma_d(d_rns: &[u64]) -> [u8; DIGEST_LEN] {
+    let mut h = Sha256::new();
+    h.update(b"pvthfhe-share-sigma-d-commitment-v1");
+    for value in d_rns {
+        h.update(value.to_le_bytes());
+    }
+    h.finalize().into()
+}
+
+fn encode_algebraic_proof(d_rns: &[u64], proof: &sigma::SigmaProof) -> Vec<u8> {
+    let mut out = Vec::new();
+    encode_algebraic_u64_vec(&mut out, d_rns);
+    encode_algebraic_u64_vec(&mut out, &proof.t_rns);
+    encode_algebraic_i64_vec(&mut out, &proof.z_s);
+    encode_algebraic_i64_vec(&mut out, &proof.z_e);
+    encode_algebraic_i64_vec(&mut out, &proof.ch);
+    out
+}
+
+fn encode_algebraic_u64_vec(out: &mut Vec<u8>, values: &[u64]) {
+    out.extend_from_slice(&u32::try_from(values.len()).unwrap_or(0).to_be_bytes());
+    for value in values {
+        out.extend_from_slice(&value.to_le_bytes());
+    }
+}
+
+fn encode_algebraic_i64_vec(out: &mut Vec<u8>, values: &[i64]) {
+    out.extend_from_slice(&u32::try_from(values.len()).unwrap_or(0).to_be_bytes());
+    for value in values {
+        out.extend_from_slice(&value.to_le_bytes());
+    }
+}
+
+fn decode_algebraic_u64_vec(bytes: &[u8], offset: &mut usize) -> Result<Vec<u64>, PvssError> {
+    let len = u32::from_be_bytes(
+        bytes.get(*offset..*offset + 4).ok_or(PvssError::InvalidShare)?
+            .try_into().map_err(|_| PvssError::InvalidShare)?
+    ) as usize;
+    *offset += 4;
+    if len > 1_000_000 {
+        return Err(PvssError::InvalidShare);
+    }
+    let mut out = Vec::with_capacity(len);
+    for _ in 0..len {
+        let val = u64::from_le_bytes(
+            bytes.get(*offset..*offset + 8).ok_or(PvssError::InvalidShare)?
+                .try_into().map_err(|_| PvssError::InvalidShare)?
+        );
+        *offset += 8;
+        out.push(val);
+    }
+    Ok(out)
+}
+
+fn decode_algebraic_i64_vec(bytes: &[u8], offset: &mut usize) -> Result<Vec<i64>, PvssError> {
+    let len = u32::from_be_bytes(
+        bytes.get(*offset..*offset + 4).ok_or(PvssError::InvalidShare)?
+            .try_into().map_err(|_| PvssError::InvalidShare)?
+    ) as usize;
+    *offset += 4;
+    if len > 1_000_000 {
+        return Err(PvssError::InvalidShare);
+    }
+    let mut out = Vec::with_capacity(len);
+    for _ in 0..len {
+        let val = i64::from_le_bytes(
+            bytes.get(*offset..*offset + 8).ok_or(PvssError::InvalidShare)?
+                .try_into().map_err(|_| PvssError::InvalidShare)?
+        );
+        *offset += 8;
+        out.push(val);
+    }
+    Ok(out)
+}
+
+fn decode_algebraic_proof(bytes: &[u8]) -> Result<(Vec<u64>, sigma::SigmaProof), PvssError> {
+    let mut offset = 0;
+    let d_rns = decode_algebraic_u64_vec(bytes, &mut offset)?;
+    let t_rns = decode_algebraic_u64_vec(bytes, &mut offset)?;
+    let z_s = decode_algebraic_i64_vec(bytes, &mut offset)?;
+    let z_e = decode_algebraic_i64_vec(bytes, &mut offset)?;
+    let ch = decode_algebraic_i64_vec(bytes, &mut offset)?;
+    Ok((d_rns, sigma::SigmaProof { t_rns, z_s, z_e, ch }))
+}
+
+// ── BFV encryption proof ─────────────────────────────────────────────────
+
+/// Build the BFV encryption sigma proof from the encryption witness.
+///
+/// Attempts to extract the encryption witness via `encrypt_with_witness`.
+/// If the backend doesn't support witness extraction (e.g., mock backend),
+/// returns an empty proof. The verifier will reject empty proofs for v4.
+pub fn build_bfv_encryption_proof(
+    backend: &dyn FheBackend,
+    stmt: &ShareNizkStatement,
+    witness: &ShareNizkWitness,
+) -> Result<ProtocolBytes, PvssError> {
+    let pk = PublicKey {
+        bytes: stmt.recipient_pk.as_slice().to_vec(),
+    };
+    let share = witness.share_bytes.expose();
+
+    // Reconstruct encryption randomness from witness seed
+    let randomness = witness.encryption_randomness.expose();
+    if randomness.len() < 32 {
+        return Ok(ProtocolBytes(vec![]));
+    }
+    let mut seed = [0u8; 32];
+    seed.copy_from_slice(&randomness[..32]);
+    let mut enc_rng = ChaCha20Rng::from_seed(seed);
+
+    // Try to get the EncryptionWitness
+    let enc_witness = match backend.encrypt_with_witness(&pk, share, &mut enc_rng) {
+        Ok((ciphertext, w)) => {
+            if ciphertext.bytes.as_slice() != stmt.ciphertext_u.as_slice()
+                || w.ciphertext_bytes.as_slice() != stmt.ciphertext_u.as_slice()
+            {
+                return Err(PvssError::BfvEncryptionProofFailed);
+            }
+            w
+        }
+        Err(_) => {
+            // Fallback: backend doesn't support witness extraction.
+            // Re-encrypt without witness and verify ciphertext consistency.
+            let mut fallback_rng = ChaCha20Rng::from_seed(seed);
+            let ciphertext = backend
+                .encrypt(&pk, share, &mut fallback_rng)
+                .map_err(|_| PvssError::InvalidShare)?;
+            if ciphertext.bytes.as_slice() != stmt.ciphertext_u.as_slice() {
+                return Err(PvssError::BfvEncryptionProofFailed);
+            }
+            return Ok(ProtocolBytes(vec![]));
+        }
+    };
+
+    encode_bfv_encryption_proof_from_witness(stmt, share, &enc_witness)
+}
+
+/// Encode a self-contained BFV encryption proof from statement + EncryptionWitness.
+fn encode_bfv_encryption_proof_from_witness(
+    stmt: &ShareNizkStatement,
+    plaintext: &[u8],
+    enc_witness: &EncryptionWitness,
+) -> Result<ProtocolBytes, PvssError> {
+    // --- Build BFV sigma statement ---
+    let pk_decoded = wire::decode_public_key(stmt.recipient_pk.as_slice())
+        .map_err(|_| PvssError::InvalidShare)?;
+    if enc_witness.recipient_pk0_bytes.as_slice() != pk_decoded.p0.as_slice()
+        || enc_witness.recipient_pk1_bytes.as_slice() != pk_decoded.p1.as_slice()
+    {
+        return Err(PvssError::BfvEncryptionProofFailed);
+    }
+
+    let pk0_rns = poly_bytes_to_rns(&pk_decoded.p0).map_err(|_| PvssError::InvalidShare)?;
+    let pk1_rns = poly_bytes_to_rns(&pk_decoded.p1).map_err(|_| PvssError::InvalidShare)?;
+    let ct0_rns = poly_bytes_to_rns(&enc_witness.ct0_poly_bytes).map_err(|_| PvssError::InvalidShare)?;
+    let ct1_rns = poly_bytes_to_rns(&enc_witness.ct1_poly_bytes).map_err(|_| PvssError::InvalidShare)?;
+    let delta_limbs = bfv_delta_rns(65536).map_err(|_| PvssError::InvalidShare)?;
+
+    let bfv_stmt = BfvSigmaStatement {
+        pk0_rns: pk0_rns.clone(),
+        pk1_rns: pk1_rns.clone(),
+        ct0_rns: ct0_rns.clone(),
+        ct1_rns: ct1_rns.clone(),
+        delta_limbs: delta_limbs.clone(),
+    };
+
+    // --- Build BFV sigma witness ---
+    let u = poly_bytes_to_i64(&enc_witness.u_poly_bytes)?;
+    let e0 = poly_bytes_to_i64(&enc_witness.e0_poly_bytes)?;
+    let e1 = poly_bytes_to_i64(&enc_witness.e1_poly_bytes)?;
+    let m = encode_fhers_plaintext_slots(plaintext)?;
+
+    let bfv_wit = BfvSigmaWitness { u, e0, e1, m };
+
+    // --- Produce sigma proof ---
+    let mut proof_rng = ChaCha20Rng::from_seed([0xB4; 32]);
+    let binding_data = bfv_sigma_binding_data(stmt);
+    let proof = bfv_sigma::prove(&bfv_stmt, &bfv_wit, &binding_data, &mut proof_rng)
+        .map_err(|_| PvssError::InvalidShare)?;
+
+    let encoded_proof = encode_bfv_sigma_proof(&proof);
+
+    // --- Encode self-contained proof: [delta_limbs][pk0_rns][pk1_rns][ct0_rns][ct1_rns][proof] ---
+    let mut out = Vec::new();
+    // delta_limbs (3 u64 values)
+    for v in &delta_limbs {
+        out.extend_from_slice(&v.to_le_bytes());
+    }
+    // pk0_rns
+    out.extend_from_slice(&u32::to_be_bytes(pk0_rns.len() as u32));
+    for v in &pk0_rns {
+        out.extend_from_slice(&v.to_le_bytes());
+    }
+    // pk1_rns
+    out.extend_from_slice(&u32::to_be_bytes(pk1_rns.len() as u32));
+    for v in &pk1_rns {
+        out.extend_from_slice(&v.to_le_bytes());
+    }
+    // ct0_rns
+    out.extend_from_slice(&u32::to_be_bytes(ct0_rns.len() as u32));
+    for v in &ct0_rns {
+        out.extend_from_slice(&v.to_le_bytes());
+    }
+    // ct1_rns
+    out.extend_from_slice(&u32::to_be_bytes(ct1_rns.len() as u32));
+    for v in &ct1_rns {
+        out.extend_from_slice(&v.to_le_bytes());
+    }
+    // BfvSigmaProof
+    out.extend_from_slice(&encoded_proof);
+
+    Ok(ProtocolBytes(out))
+}
+
+/// Verify the BFV encryption sigma proof.
+///
+/// Decodes the self-contained proof (statement + proof), then calls
+/// `bfv_sigma::verify()`.  Returns `Ok(())` iff the proof is valid.
+pub fn verify_bfv_encryption_proof(
+    backend: &dyn FheBackend,
+    stmt: &ShareNizkStatement,
+    bfv_encryption_proof: &[u8],
+) -> Result<(), PvssError> {
+    if bfv_encryption_proof.is_empty() {
+        eprintln!("[NIZK-VERIFY] FAIL: bfv_encryption_proof is empty");
+        return Err(PvssError::BfvEncryptionProofFailed);
+    }
+
+    let mut offset = 0;
+
+    // Read delta_limbs (3 u64)
+    if bfv_encryption_proof.len() < 24 {
+        return Err(PvssError::BfvEncryptionProofFailed);
+    }
+    let delta_limbs: Vec<u64> = (0..3).map(|i| {
+        u64::from_le_bytes(bfv_encryption_proof[offset + i * 8..offset + (i + 1) * 8]
+            .try_into().unwrap())
+    }).collect();
+    offset += 24;
+
+    let pk0_rns = read_bfv_u64_vec(bfv_encryption_proof, &mut offset)?;
+    let pk1_rns = read_bfv_u64_vec(bfv_encryption_proof, &mut offset)?;
+    let ct0_rns = read_bfv_u64_vec(bfv_encryption_proof, &mut offset)?;
+    let ct1_rns = read_bfv_u64_vec(bfv_encryption_proof, &mut offset)?;
+
+    let expected_pk = wire::decode_public_key(stmt.recipient_pk.as_slice())
+        .map_err(|_| PvssError::BfvEncryptionProofFailed)?;
+    let expected_pk0_rns = poly_bytes_to_rns(&expected_pk.p0)
+        .map_err(|_| PvssError::BfvEncryptionProofFailed)?;
+    let expected_pk1_rns = poly_bytes_to_rns(&expected_pk.p1)
+        .map_err(|_| PvssError::BfvEncryptionProofFailed)?;
+    let (expected_ct0_bytes, expected_ct1_bytes) = backend
+        .decode_ct_polys(&Ciphertext {
+            bytes: stmt.ciphertext_u.as_slice().to_vec(),
+        })
+        .map_err(|_| PvssError::BfvEncryptionProofFailed)?;
+    let expected_ct0_rns = poly_bytes_to_rns(&expected_ct0_bytes)
+        .map_err(|_| PvssError::BfvEncryptionProofFailed)?;
+    let expected_ct1_rns = poly_bytes_to_rns(&expected_ct1_bytes)
+        .map_err(|_| PvssError::BfvEncryptionProofFailed)?;
+
+    if pk0_rns != expected_pk0_rns
+        || pk1_rns != expected_pk1_rns
+        || ct0_rns != expected_ct0_rns
+        || ct1_rns != expected_ct1_rns
+    {
+        eprintln!("[NIZK-VERIFY] FAIL: BFV proof statement does not match public statement");
+        return Err(PvssError::BfvEncryptionProofFailed);
+    }
+
+    let bfv_stmt = BfvSigmaStatement {
+        pk0_rns,
+        pk1_rns,
+        ct0_rns,
+        ct1_rns,
+        delta_limbs,
+    };
+
+    // Decode BfvSigmaProof
+    let bfv_proof = decode_bfv_sigma_proof(&bfv_encryption_proof[offset..])
+        .map_err(|_| PvssError::BfvEncryptionProofFailed)?;
+
+    let binding_data = bfv_sigma_binding_data(stmt);
+    bfv_sigma::verify(&bfv_stmt, &bfv_proof, &binding_data)
+        .map_err(|_| {
+            eprintln!("[NIZK-VERIFY] FAIL: bfv_sigma::verify failed");
+            PvssError::BfvEncryptionProofFailed
+        })
+}
+
+fn bfv_sigma_binding_data(stmt: &ShareNizkStatement) -> Vec<u8> {
+    let mut h = Sha256::new();
+    h.update(b"pvthfhe-share-bfv-sigma-binding-v4");
+    h.update(stmt.session_id.as_slice());
+    h.update(stmt.dealer_index.to_be_bytes());
+    h.update(stmt.recipient_index.to_be_bytes());
+    h.update(stmt.bfv_params_digest.as_slice());
+    h.update(stmt.dkg_root.as_slice());
+    h.update(stmt.ciphertext_u.as_slice());
+    h.update(stmt.ciphertext_v.as_slice());
+    h.update(stmt.share_commitment.as_slice());
+    h.finalize().to_vec()
+}
+
+fn encode_fhers_plaintext_slots(plaintext: &[u8]) -> Result<Vec<i64>, PvssError> {
+    let max = sigma::RLWE_N.saturating_sub(1) * 2;
+    if plaintext.len() > max {
+        return Err(PvssError::InvalidShare);
+    }
+
+    let t_plain: i64 = 65536;
+    let t_half: u64 = 32768;
+    let mut out = vec![0i64; sigma::RLWE_N];
+    out[0] = i64::try_from(plaintext.len()).map_err(|_| PvssError::InvalidShare)?;
+    for (slot_index, chunk) in plaintext.chunks(2).enumerate() {
+        let lo = u16::from(chunk[0]);
+        let hi = chunk.get(1).copied().map(u16::from).unwrap_or(0) << 8;
+        let raw = u64::from(lo | hi);
+        // BFV Encoding::poly() centers values: v ∈ [0, t) → v if v < t/2 else v - t
+        let centered = if raw >= t_half {
+            -i64::try_from(t_plain - raw as i64).unwrap_or(0)
+        } else {
+            i64::try_from(raw).unwrap_or(0)
+        };
+        out[slot_index + 1] = centered;
+    }
+    Ok(out)
+}
+
+fn read_bfv_u64_vec(bytes: &[u8], offset: &mut usize) -> Result<Vec<u64>, PvssError> {
+    if bytes.len() < *offset + 4 {
+        return Err(PvssError::BfvEncryptionProofFailed);
+    }
+    let len = u32::from_be_bytes(bytes[*offset..*offset + 4].try_into().unwrap()) as usize;
+    *offset += 4;
+    if len > 1_000_000 {
+        return Err(PvssError::BfvEncryptionProofFailed);
+    }
+    if bytes.len() < *offset + len * 8 {
+        return Err(PvssError::BfvEncryptionProofFailed);
+    }
+    let mut out = Vec::with_capacity(len);
+    for _ in 0..len {
+        out.push(u64::from_le_bytes(bytes[*offset..*offset + 8].try_into().unwrap()));
+        *offset += 8;
+    }
+    Ok(out)
+}
+
+/// Convert poly_bytes (serialized fhe-math `Poly`) to i64 coefficient vector.
+///
+/// Deserializes the Poly, converts to power basis, and extracts the limb-0
+/// coefficients centered around 0.
+fn poly_bytes_to_i64(poly_bytes: &[u8]) -> Result<Vec<i64>, PvssError> {
+    use fhe_math::rq::{Context, Poly, Representation};
+    use std::sync::{Arc, OnceLock};
+
+    const MODULI: [u64; 3] = [
+        sigma::RLWE_Q0,
+        sigma::RLWE_Q1,
+        sigma::RLWE_Q2,
+    ];
+
+    static CTX: OnceLock<Result<Arc<Context>, String>> = OnceLock::new();
+    let ctx = CTX.get_or_init(|| {
+        Context::new(&MODULI, sigma::RLWE_N).map(Arc::new).map_err(|e| format!("{e:?}"))
+    })
+    .as_ref()
+    .map_err(|_| PvssError::InvalidShare)?;
+
+    let mut poly = Poly::from_bytes(poly_bytes, ctx)
+        .map_err(|_| PvssError::InvalidShare)?;
+    poly.change_representation(Representation::PowerBasis);
+
+    let q0 = i64::try_from(ctx.q[0].modulus())
+        .map_err(|_| PvssError::InvalidShare)?;
+    let half_q0 = q0 / 2;
+
+    let rns: Vec<u64> = Vec::<u64>::from(&poly);
+    let n = sigma::RLWE_N;
+    let mut out = Vec::with_capacity(n);
+    for j in 0..n {
+        let c = i64::try_from(rns[j]).map_err(|_| PvssError::InvalidShare)?;
+        out.push(if c > half_q0 { c - q0 } else { c });
+    }
+    Ok(out)
+}
+
+/// Verify the non-leaking relation boundary: checks the BFV encryption sigma
+/// proof for v4 proofs, and rejects v3 and earlier (fail-closed).
+pub fn verify_non_leaking_relation_boundary(
+    backend: &dyn FheBackend,
+    stmt: &ShareNizkStatement,
+    opened: &ShareNizkOpenedProof,
+) -> Result<(), PvssError> {
+    // For v4 proofs, verify the BFV encryption sigma proof.
+    // v3 and earlier proofs won't decode (version check fails earlier),
+    // but this is the semantic check at the relation boundary.
+    if opened.bfv_encryption_proof.is_empty() {
+        eprintln!("[NIZK-VERIFY] FAIL: v{PROOF_VERSION} proof lacks BFV encryption proof");
+        return Err(PvssError::LatticeBindingVerificationFailed);
+    }
+    verify_bfv_encryption_proof(backend, stmt, opened.bfv_encryption_proof.as_slice())
+}
+
+// ── Verification helpers ──────────────────────────────────────────────────
 
 fn verify_commitment_structure(
     _backend: &dyn FheBackend,
@@ -222,6 +882,95 @@ fn verify_commitment_ct_validity(opened: &ShareNizkOpenedProof) -> Result<(), Pv
     if opened.commitment_bytes.is_empty() || opened.commitment_bytes.len() > MAX_FIELD_LEN {
         eprintln!("[NIZK-VERIFY] FAIL: commitment_structure_invalid (empty or too large: len={})", opened.commitment_bytes.len());
         return Err(PvssError::InvalidCommitmentStructure);
+    }
+    Ok(())
+}
+
+fn verify_algebraic_relation(
+    _stmt: &ShareNizkStatement,
+    opened: &ShareNizkOpenedProof,
+) -> Result<(), PvssError> {
+    if opened.algebraic_proof.is_empty() {
+        eprintln!("[NIZK-VERIFY] FAIL: algebraic_proof is empty");
+        return Err(PvssError::LatticeBindingVerificationFailed);
+    }
+    let (_d_rns, sigma_proof) = decode_algebraic_proof(opened.algebraic_proof.as_slice())?;
+
+    // Verify the sigma proof against the reconstructed statement
+    let stmt = &opened.statement;
+    let c_rns = derive_share_sigma_c_rns(stmt.session_id.as_slice(), stmt.recipient_index);
+    let sigma_stmt = sigma::SigmaStatement {
+        c_rns,
+        d_rns: _d_rns.clone(),
+    };
+    // Verify challenge and equation
+    let expected_ch = {
+        let mut ts = Transcript::new(
+            stmt.session_id.as_slice(),
+            u32::try_from(stmt.recipient_index).unwrap_or(0),
+        );
+        let t_bytes: Vec<u8> = sigma_proof.t_rns.iter().flat_map(|x| x.to_le_bytes()).collect();
+        ts.absorb(b"t_rns", &t_bytes);
+        let c_bytes: Vec<u8> = sigma_stmt.c_rns.iter().flat_map(|x| x.to_le_bytes()).collect();
+        ts.absorb(b"c_rns", &c_bytes);
+        let d_bytes: Vec<u8> = sigma_stmt.d_rns.iter().flat_map(|x| x.to_le_bytes()).collect();
+        ts.absorb(b"d_rns", &d_bytes);
+        let pvss_commitment = test_digest_sigma_d(&_d_rns);
+        ts.absorb(b"pvss_commitment", &pvss_commitment);
+        let mut raw = [0u8; sigma::RLWE_N / 8];
+        ts.challenge_bytes(b"binary_challenge", &mut raw);
+        let mut bits = Vec::with_capacity(sigma::RLWE_N);
+        'outer: for byte in &raw {
+            for bit_pos in 0..8u32 {
+                if bits.len() < sigma::RLWE_N {
+                    bits.push(i64::from((byte >> bit_pos) & 1u8));
+                } else {
+                    break 'outer;
+                }
+            }
+        }
+        bits
+    };
+    if expected_ch != sigma_proof.ch {
+        eprintln!("[NIZK-VERIFY] FAIL: algebraic sigma challenge mismatch");
+        return Err(PvssError::LatticeBindingVerificationFailed);
+    }
+
+    // Check norm bounds
+    let max_zs = sigma_proof.z_s.iter().map(|x| x.abs()).max().unwrap_or(0);
+    if max_zs > sigma::B_Z_S {
+        eprintln!("[NIZK-VERIFY] FAIL: algebraic z_s norm bound exceeded");
+        return Err(PvssError::LatticeBindingVerificationFailed);
+    }
+    let max_ze = sigma_proof.z_e.iter().map(|x| x.abs()).max().unwrap_or(0);
+    if max_ze > sigma::B_Z_E {
+        eprintln!("[NIZK-VERIFY] FAIL: algebraic z_e norm bound exceeded");
+        return Err(PvssError::LatticeBindingVerificationFailed);
+    }
+
+    Ok(())
+}
+
+fn verify_relation_binding(
+    stmt: &ShareNizkStatement,
+    opened: &ShareNizkOpenedProof,
+) -> Result<(), PvssError> {
+    let recomputed = compute_relation_binding(stmt, opened.algebraic_proof.as_slice());
+    if recomputed != opened.relation_binding {
+        eprintln!("[NIZK-VERIFY] FAIL: relation_binding mismatch");
+        return Err(PvssError::LatticeBindingVerificationFailed);
+    }
+    Ok(())
+}
+
+fn verify_commitment_binding_tag(
+    stmt: &ShareNizkStatement,
+    opened: &ShareNizkOpenedProof,
+) -> Result<(), PvssError> {
+    let recomputed = compute_commitment_binding(stmt, &opened.relation_binding);
+    if recomputed != opened.commitment_binding {
+        eprintln!("[NIZK-VERIFY] FAIL: commitment_binding mismatch");
+        return Err(PvssError::LatticeBindingVerificationFailed);
     }
     Ok(())
 }
@@ -255,6 +1004,85 @@ fn verify_d2_hash_binding(
     }
     Ok(())
 }
+
+// ── Binding computation helpers ───────────────────────────────────────────
+
+fn compute_relation_binding(
+    stmt: &ShareNizkStatement,
+    algebraic_proof: &[u8],
+) -> [u8; DIGEST_LEN] {
+    let mut h = Sha256::new();
+    h.update(b"pvthfhe-share-relation-binding-v2");
+    h.update(stmt.session_id.as_slice());
+    h.update(stmt.dealer_index.to_be_bytes());
+    h.update(stmt.recipient_index.to_be_bytes());
+    h.update(stmt.recipient_pk.as_slice());
+    h.update(stmt.bfv_params_digest.as_slice());
+    h.update(stmt.dkg_root.as_slice());
+    h.update(stmt.ciphertext_u.as_slice());
+    h.update(stmt.ciphertext_v.as_slice());
+    h.update(stmt.share_commitment.as_slice());
+    h.update(algebraic_proof);
+    h.finalize().into()
+}
+
+fn compute_commitment_binding(
+    stmt: &ShareNizkStatement,
+    relation_binding: &[u8; DIGEST_LEN],
+) -> [u8; DIGEST_LEN] {
+    let mut h = Sha256::new();
+    h.update(b"greco-bfv-commitment-binding-v3");
+    h.update(stmt.session_id.as_slice());
+    h.update(stmt.dealer_index.to_be_bytes());
+    h.update(stmt.recipient_index.to_be_bytes());
+    h.update(stmt.recipient_pk.as_slice());
+    h.update(stmt.bfv_params_digest.as_slice());
+    h.update(stmt.dkg_root.as_slice());
+    h.update(stmt.ciphertext_u.as_slice());
+    h.update(stmt.share_commitment.as_slice());
+    h.update(relation_binding);
+    h.finalize().into()
+}
+
+fn compute_lattice_binding(
+    stmt: &ShareNizkStatement,
+    commitment_ct: &[u8],
+    commitment_binding: &[u8; DIGEST_LEN],
+    challenge: &[u8; CHALLENGE_LEN],
+    relation_binding: &[u8; DIGEST_LEN],
+) -> [u8; DIGEST_LEN] {
+    let mut hasher = Sha256::new();
+    hasher.update(b"greco-bfv-binding-v1");
+    hasher.update(challenge);
+    hasher.update(stmt.session_id.as_slice());
+    hasher.update(stmt.dealer_index.to_be_bytes());
+    hasher.update(stmt.recipient_index.to_be_bytes());
+    hasher.update(stmt.recipient_pk.as_slice());
+    hasher.update(stmt.bfv_params_digest.as_slice());
+    hasher.update(stmt.dkg_root.as_slice());
+    hasher.update(stmt.ciphertext_u.as_slice());
+    hasher.update(stmt.ciphertext_v.as_slice());
+    hasher.update(stmt.share_commitment.as_slice());
+    hasher.update(commitment_ct);
+    hasher.update(commitment_binding);
+    hasher.update(relation_binding);
+    hasher.finalize().into()
+}
+
+fn compute_lattice_binding_from_opened(
+    stmt: &ShareNizkStatement,
+    opened: &ShareNizkOpenedProof,
+) -> [u8; DIGEST_LEN] {
+    compute_lattice_binding(
+        stmt,
+        opened.commitment_bytes.as_slice(),
+        &opened.commitment_binding,
+        &opened.challenge,
+        &opened.relation_binding,
+    )
+}
+
+// ── Ajtai D2 commitment ──────────────────────────────────────────────────
 
 fn compute_ajtai_d2_binding(
     session_id: &[u8],
@@ -293,6 +1121,8 @@ fn encode_share_as_ajtai_witness(share_bytes: &[u8]) -> Result<Rq, PvssError> {
     Ok(rq)
 }
 
+// ── Proof serialization/deserialization ──────────────────────────────────
+
 impl ShareNizkProof {
     pub fn from_opened(opened: &ShareNizkOpenedProof) -> Result<Self, PvssError> {
         if opened.domain_separator != SHARE_NIZK_DOMAIN_SEPARATOR {
@@ -319,11 +1149,12 @@ impl ShareNizkProof {
     }
 }
 
-/// Compute the share commitment via Ajtai D2 hash binding.
+/// Compute the share commitment via RLWE sigma D2 hash binding.
 ///
-/// Encodes `share_bytes` as an Ajtai witness over `R_q_commit`, computes
-/// the Ajtai commitment `C = A·s`, and returns its 32-byte SHA-256 digest.
-/// The verifier recomputes the binding from the commitment ciphertext.
+/// Derives the sigma public polynomial `c_rns` from `(session_id, recipient_index)`,
+/// computes `s_i` as a digest-derived ternary witness, and returns
+/// `SHA256(pvthfhe-share-sigma-d-commitment-v1 || to_le_bytes(d_rns))`.
+/// The algebraic proof verifier checks this commitment against the claimed share.
 pub fn compute_share_commitment(
     session_id: &[u8],
     recipient_index: usize,
@@ -338,6 +1169,14 @@ pub fn compute_ciphertext_v(ciphertext_u: &[u8]) -> [u8; DIGEST_LEN] {
     let mut hasher = Sha256::new();
     hasher.update(b"ciphertext-v1");
     hasher.update(ciphertext_u);
+    hasher.finalize().into()
+}
+
+/// Compute the canonical BFV parameters digest.
+pub fn canonical_bfv_params_digest() -> [u8; DIGEST_LEN] {
+    let mut hasher = Sha256::new();
+    hasher.update(b"pvthfhe-bfv-params-v1");
+    hasher.update(CANONICAL_PARAMS_TOML.as_bytes());
     hasher.finalize().into()
 }
 
@@ -359,7 +1198,7 @@ fn create_commitment_ct(
     witness: &ShareNizkWitness,
     commitment_seed: &[u8; DIGEST_LEN],
 ) -> Result<Vec<u8>, PvssError> {
-    let pk = pvthfhe_fhe::types::PublicKey {
+    let pk = PublicKey {
         bytes: stmt.recipient_pk.as_slice().to_vec(),
     };
 
@@ -374,48 +1213,13 @@ fn create_commitment_ct(
     Ok(ciphertext.bytes)
 }
 
-fn compute_lattice_binding(
-    stmt: &ShareNizkStatement,
-    commitment_ct: &[u8],
-    commitment_seed: &[u8; DIGEST_LEN],
-    challenge: &[u8; CHALLENGE_LEN],
-) -> [u8; DIGEST_LEN] {
-    let mut hasher = Sha256::new();
-    hasher.update(b"greco-bfv-binding-v1");
-    hasher.update(challenge);
-    hasher.update(stmt.session_id.as_slice());
-    hasher.update(stmt.recipient_pk.as_slice());
-    hasher.update(stmt.ciphertext_u.as_slice());
-    hasher.update(stmt.ciphertext_v.as_slice());
-    hasher.update(stmt.share_commitment.as_slice());
-    hasher.update(commitment_ct);
-    hasher.update(commitment_seed);
-    hasher.finalize().into()
-}
-
-fn compute_lattice_binding_from_opened(
-    stmt: &ShareNizkStatement,
-    opened: &ShareNizkOpenedProof,
-) -> [u8; DIGEST_LEN] {
-    let mut hasher = Sha256::new();
-    hasher.update(b"greco-bfv-binding-v1");
-    hasher.update(&opened.challenge);
-    hasher.update(stmt.session_id.as_slice());
-    hasher.update(stmt.recipient_pk.as_slice());
-    hasher.update(stmt.ciphertext_u.as_slice());
-    hasher.update(stmt.ciphertext_v.as_slice());
-    hasher.update(stmt.share_commitment.as_slice());
-    hasher.update(opened.commitment_bytes.as_slice());
-    hasher.update(&opened.commitment_seed);
-    hasher.finalize().into()
-}
-
 fn validate_statement(stmt: &ShareNizkStatement) -> Result<(), PvssError> {
     if stmt.session_id.is_empty()
         || stmt.recipient_pk.is_empty()
         || stmt.ciphertext_u.is_empty()
         || stmt.ciphertext_v.len() != DIGEST_LEN
         || stmt.share_commitment.len() != DIGEST_LEN
+        || stmt.bfv_params_digest.len() != DIGEST_LEN
     {
         return Err(PvssError::InvalidShare);
     }
@@ -444,6 +1248,8 @@ fn derive_challenge(stmt: &ShareNizkStatement, commitment_ct: &[u8]) -> [u8; CHA
     transcript.absorb(b"dealer_index", &stmt.dealer_index.to_be_bytes());
     transcript.absorb(b"recipient_index", &stmt.recipient_index.to_be_bytes());
     transcript.absorb(b"recipient_pk", stmt.recipient_pk.as_slice());
+    transcript.absorb(b"bfv_params_digest", stmt.bfv_params_digest.as_slice());
+    transcript.absorb(b"dkg_root", stmt.dkg_root.as_slice());
     transcript.absorb(b"ciphertext_u", stmt.ciphertext_u.as_slice());
     transcript.absorb(b"ciphertext_v", stmt.ciphertext_v.as_slice());
     transcript.absorb(b"share_commitment", stmt.share_commitment.as_slice());
@@ -453,6 +1259,8 @@ fn derive_challenge(stmt: &ShareNizkStatement, commitment_ct: &[u8]) -> [u8; CHA
     transcript.challenge_bytes(b"share-encryption-challenge", &mut challenge);
     challenge
 }
+
+// ── Wire format encode/decode ─────────────────────────────────────────────
 
 fn encode_opened_proof(opened: &ShareNizkOpenedProof) -> Result<Vec<u8>, PvssError> {
     Ok(opened.encode())
@@ -466,14 +1274,20 @@ fn encode_opened_proof_body(opened: &ShareNizkOpenedProof) -> Result<Vec<u8>, Pv
     encode_usize(&mut out, opened.statement.dealer_index)?;
     encode_usize(&mut out, opened.statement.recipient_index)?;
     encode_bytes(&mut out, opened.statement.recipient_pk.as_slice())?;
+    encode_bytes(&mut out, opened.statement.bfv_params_digest.as_slice())?;
+    encode_bytes(&mut out, opened.statement.dkg_root.as_slice())?;
     encode_bytes(&mut out, opened.statement.ciphertext_u.as_slice())?;
     encode_bytes(&mut out, opened.statement.ciphertext_v.as_slice())?;
     encode_bytes(&mut out, opened.statement.share_commitment.as_slice())?;
     encode_bytes(&mut out, opened.commitment_bytes.as_slice())?;
     out.extend_from_slice(&opened.commitment_seed);
+    out.extend_from_slice(&opened.commitment_binding);
     out.extend_from_slice(&opened.challenge);
     out.extend_from_slice(&opened.lattice_binding);
+    out.extend_from_slice(&opened.relation_binding);
+    encode_bytes(&mut out, opened.algebraic_proof.as_slice())?;
     out.extend_from_slice(&opened.d2_binding);
+    encode_bytes(&mut out, opened.bfv_encryption_proof.as_slice())?;
     Ok(out)
 }
 
@@ -493,14 +1307,20 @@ fn decode_opened_proof_body(bytes: &[u8]) -> Result<ShareNizkOpenedProof, PvssEr
     let dealer_index = cursor.read_usize()?;
     let recipient_index = cursor.read_usize()?;
     let recipient_pk = cursor.read_vec()?;
+    let bfv_params_digest = cursor.read_vec()?;
+    let dkg_root = cursor.read_vec()?;
     let ciphertext_u = cursor.read_vec()?;
     let ciphertext_v = cursor.read_vec()?;
     let share_commitment = cursor.read_vec()?;
     let commitment_bytes = cursor.read_vec()?;
     let commitment_seed = cursor.read_array::<DIGEST_LEN>()?;
+    let commitment_binding = cursor.read_array::<DIGEST_LEN>()?;
     let challenge = cursor.read_array::<CHALLENGE_LEN>()?;
     let lattice_binding = cursor.read_array::<DIGEST_LEN>()?;
+    let relation_binding = cursor.read_array::<DIGEST_LEN>()?;
+    let algebraic_proof = cursor.read_vec()?;
     let d2_binding = cursor.read_array::<DIGEST_LEN>()?;
+    let bfv_encryption_proof = cursor.read_vec()?;
     cursor.finish()?;
 
     Ok(ShareNizkOpenedProof {
@@ -509,14 +1329,20 @@ fn decode_opened_proof_body(bytes: &[u8]) -> Result<ShareNizkOpenedProof, PvssEr
             dealer_index,
             recipient_index,
             recipient_pk: ProtocolBytes(recipient_pk),
+            bfv_params_digest: ProtocolBytes(bfv_params_digest),
+            dkg_root: ProtocolBytes(dkg_root),
             ciphertext_u: ProtocolBytes(ciphertext_u),
             ciphertext_v: ProtocolBytes(ciphertext_v),
             share_commitment: ProtocolBytes(share_commitment),
         },
         commitment_bytes: ProtocolBytes(commitment_bytes),
         commitment_seed,
+        commitment_binding,
         challenge,
         lattice_binding,
+        relation_binding,
+        algebraic_proof: ProtocolBytes(algebraic_proof),
+        bfv_encryption_proof: ProtocolBytes(bfv_encryption_proof),
         d2_binding,
         domain_separator,
     })

@@ -83,11 +83,15 @@ fn run_e2e_and_bench() -> Result<(Value, Value), Box<dyn std::error::Error>> {
 }
 
 fn phase_f64(timings: &Value, phase: &str, metric: &str) -> f64 {
-    timings["phases"][phase][metric].as_f64().unwrap_or_default()
+    timings["phases"][phase][metric]
+        .as_f64()
+        .unwrap_or_default()
 }
 
 fn phase_u64(timings: &Value, phase: &str, metric: &str) -> u64 {
-    timings["phases"][phase][metric].as_u64().unwrap_or_default()
+    timings["phases"][phase][metric]
+        .as_u64()
+        .unwrap_or_default()
 }
 
 fn phase_array_len(timings: &Value, phase: &str, metric: &str) -> usize {
@@ -137,7 +141,10 @@ fn partial_decrypt_ms_populated() -> Result<(), Box<dyn std::error::Error>> {
 
     assert!(phase_f64(&timings, "partial_decrypt", "total_ms") > 0.0);
     assert_eq!(phase_u64(&timings, "partial_decrypt", "instances_run"), 1);
-    assert_eq!(phase_array_len(&timings, "partial_decrypt", "per_instance_ms"), 1);
+    assert_eq!(
+        phase_array_len(&timings, "partial_decrypt", "per_instance_ms"),
+        1
+    );
     assert_eq!(row["status"], "real");
     assert_eq!(
         row["prove_ms"].as_f64().unwrap_or_default(),
@@ -158,18 +165,14 @@ fn aggregate_decrypt_ms_populated() -> Result<(), Box<dyn std::error::Error>> {
         decrypted_shares_row["prove_ms"].as_f64(),
         decryption_row["prove_ms"].as_f64()
     );
-    assert!(
-        decrypted_shares_row["comparability_note"]
-            .as_str()
-            .unwrap_or_default()
-            .contains("merged")
-    );
-    assert!(
-        decryption_row["comparability_note"]
-            .as_str()
-            .unwrap_or_default()
-            .contains("merged")
-    );
+    assert!(decrypted_shares_row["comparability_note"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("merged"));
+    assert!(decryption_row["comparability_note"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("merged"));
 
     Ok(())
 }
@@ -194,12 +197,15 @@ fn nizk_prove_ms_populated() -> Result<(), Box<dyn std::error::Error>> {
     let row = comparison_row(&comparison, "ZkPkBfv");
 
     assert_eq!(phase_u64(&timings, "nizk_prove", "instances_run"), 3);
-    assert_eq!(phase_array_len(&timings, "nizk_prove", "per_instance_ms"), 3);
+    assert_eq!(
+        phase_array_len(&timings, "nizk_prove", "per_instance_ms"),
+        3
+    );
     assert_eq!(row["status"], "real");
     assert!(
         (row["prove_ms"].as_f64().unwrap_or_default()
             - phase_array_sum(&timings, "nizk_prove", "per_instance_ms"))
-            .abs()
+        .abs()
             < 1e-6
     );
 
@@ -227,8 +233,14 @@ fn pvss_decrypt_prove_ms_populated() -> Result<(), Box<dyn std::error::Error>> {
     let (timings, comparison) = run_e2e_and_bench()?;
     let row = comparison_row(&comparison, "ZkDkgShareDecryption");
 
-    assert_eq!(phase_u64(&timings, "pvss_decrypt_prove", "instances_run"), 1);
-    assert_eq!(phase_array_len(&timings, "pvss_decrypt_prove", "per_instance_ms"), 1);
+    assert_eq!(
+        phase_u64(&timings, "pvss_decrypt_prove", "instances_run"),
+        1
+    );
+    assert_eq!(
+        phase_array_len(&timings, "pvss_decrypt_prove", "per_instance_ms"),
+        1
+    );
     assert_eq!(row["status"], "real");
     assert_eq!(
         row["prove_ms"].as_f64().unwrap_or_default(),
@@ -246,8 +258,14 @@ fn cyclo_fold_ms_populated() -> Result<(), Box<dyn std::error::Error>> {
 
     assert!(phase_f64(&timings, "cyclo_fold", "total_ms") > 0.0);
     assert_eq!(node_row["prove_ms"].as_f64(), pk_row["prove_ms"].as_f64());
-    assert!(node_row["comparability_note"].as_str().unwrap_or_default().contains("merged"));
-    assert!(pk_row["comparability_note"].as_str().unwrap_or_default().contains("merged"));
+    assert!(node_row["comparability_note"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("merged"));
+    assert!(pk_row["comparability_note"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("merged"));
 
     Ok(())
 }

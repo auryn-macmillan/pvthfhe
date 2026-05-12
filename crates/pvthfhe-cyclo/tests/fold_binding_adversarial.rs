@@ -25,13 +25,20 @@ fn witness_1var(fr: Fr) -> Vec<u8> {
     bytes
 }
 
+fn make_ajtai_bytes(id: u8) -> Vec<u8> {
+    use pvthfhe_cyclo::fold::AJTAI_COMMITMENT_BYTES;
+    (0..AJTAI_COMMITMENT_BYTES)
+        .map(|i| (i as u8).wrapping_add(id))
+        .collect()
+}
+
 fn make_instance(id: u16) -> CcsPShareInstance {
     let mut binding = [0u8; 32];
     binding[0] = id as u8;
     let sha256_binding_bytes: ProtocolBytes = binding.to_vec().into();
     CcsPShareInstance {
         participant_id: id,
-        ajtai_commitment_bytes: vec![id as u8; 32].into(),
+        ajtai_commitment_bytes: make_ajtai_bytes(id as u8).into(),
         public_io_bytes: vec![id as u8 ^ 0xAA; 32].into(),
         ccs_witness_bytes: CcsWitnessSecret::new(witness_1var(Fr::ZERO)),
         sha256_binding_bytes,

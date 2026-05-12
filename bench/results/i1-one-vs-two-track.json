@@ -1,0 +1,203 @@
+{
+  "schema_version": "i1.one_vs_two_track.v1",
+  "produced_at": "2026-05-11T22:53:38Z",
+  "git_sha": "ae40650",
+  "benchmark_mode": "fallback-dryrun",
+  "representative_parameters": {
+    "n": 5,
+    "t": 2,
+    "seed": 1
+  },
+  "hardware": {
+    "cpu": "AMD RYZEN AI MAX+ 395 w/ Radeon 8060S",
+    "cpu_cores": 8,
+    "mem_total_kb": 65847068,
+    "kernel": "Linux version 6.8.0-111-generic"
+  },
+  "commands": {
+    "full_current_one_track_probe": {
+      "argv": [
+        "cargo",
+        "run",
+        "-p",
+        "pvthfhe-cli",
+        "--bin",
+        "pvthfhe-e2e",
+        "--",
+        "--n",
+        "5",
+        "--t",
+        "2",
+        "--seed",
+        "1",
+        "--dry-run"
+      ],
+      "returncode": 1,
+      "timed_out": false,
+      "wall_ms": 3812.4812330001987,
+      "max_rss_kb": 78324,
+      "stdout_tail": "\u001b[2m2026-05-11T22:53:26.637788Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mpvthfhe_cli::compressor_glue\u001b[0m\u001b[2m:\u001b[0m sonobe-compressor active \u001b[3mcompressor_backend_id\u001b[0m\u001b[2m=\u001b[0m\"sonobe-nova-bn254-grumpkin\"\nbackend_id_p1=cyclo-ajtai-d2-conditional\ncompressor_backend_id=sonobe-nova-bn254-grumpkin\npvss_backend_id=lattice-pvss-bfv-d2\n",
+      "stderr_tail": "old;\n   | ^^^^^^^^^^^^\n\nwarning: missing documentation for a function\n --> crates/pvthfhe-cyclo/src/fiat_shamir.rs:3:1\n  |\n3 | pub fn params_digest_v1(label: &[u8]) -> [u8; 32] {\n  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: missing documentation for a function\n  --> crates/pvthfhe-cyclo/src/fiat_shamir.rs:7:1\n   |\n 7 | / pub fn challenge_v1(\n 8 | |     session_id: &str,\n 9 | |     fold_depth: u32,\n10 | |     acc_commitment: &[u8],\n11 | |     inst_ajtai_bytes: &[u8],\n12 | |     inst_public_io_bytes: &[u8],\n13 | | ) -> [u8; 32] {\n   | |_____________^\n\nwarning: missing documentation for a function\n  --> crates/pvthfhe-cyclo/src/fiat_shamir.rs:25:1\n   |\n25 | / pub fn commitment_v1(\n26 | |     session_id: &str,\n27 | |     depth: u32,\n28 | |     poly_bytes: &[u8],\n29 | |     inst_bytes: &[u8],\n30 | | ) -> [u8; 32] {\n   | |_____________^\n\nwarning: missing documentation for a function\n  --> crates/pvthfhe-cyclo/src/fiat_shamir.rs:41:1\n   |\n41 | / pub fn public_io_v1(\n42 | |     session_id: &str,\n43 | |     depth: u32,\n44 | |     acc_io: &[u8],\n45 | |     inst_io: &[u8],\n46 | |     r_value: u64,\n47 | | ) -> [u8; 32] {\n   | |_____________^\n\nwarning: missing documentation for a function\n  --> crates/pvthfhe-cyclo/src/fiat_shamir.rs:59:1\n   |\n59 | pub fn init_commitment_v1(session_id: &str, poly_bytes: &[u8]) -> [u8; 32] {\n   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: missing documentation for a function\n  --> crates/pvthfhe-cyclo/src/fiat_shamir.rs:68:1\n   |\n68 | pub fn init_public_io_v1(session_id: &str, io_bytes: &[u8]) -> [u8; 32] {\n   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: missing documentation for a function\n  --> crates/pvthfhe-cyclo/src/fold.rs:60:1\n   |\n60 | / pub fn init_accumulator(\n61 | |     instance: &CcsPShareInstance,\n62 | |     session_id: &str,\n63 | | ) -> Result<CycloAccumulator, CycloError> {\n   | |_________________________________________^\n\nwarning: missing documentation for a function\n   --> crates/pvthfhe-cyclo/src/fold.rs:228:1\n    |\n228 | / pub fn fold_one_step(\n229 | |     acc: CycloAccumulator,\n230 | |     instance: &CcsPShareInstance,\n231 | |     rng: &mut dyn RngCore,\n232 | | ) -> Result<CycloAccumulator, CycloError> {\n    | |_________________________________________^\n\nwarning: missing documentation for a function\n   --> crates/pvthfhe-cyclo/src/fold.rs:237:1\n    |\n237 | / pub fn verify_fold(\n238 | |     acc: &CycloAccumulator,\n239 | |     instances: &[CcsPShareInstance],\n240 | | ) -> Result<(), CycloError> {\n    | |___________________________^\n\nwarning: pvthfhe-aggregator@0.1.0: SURROGATE ACTIVE: HonkVerifier, micronova_wrap, aggregator_final are research surrogates \u2014 do not deploy\nwarning: `pvthfhe-cyclo` (lib) generated 13 warnings (run `cargo fix --lib -p pvthfhe-cyclo` to apply 1 suggestion)\nwarning: use of deprecated struct `hermine::HermineAdapter`: HermineAdapter uses deterministic share derivation (CRITICAL finding F60). Use LatticePvssBfvAdapter instead.\n  --> crates/pvthfhe-keygen/src/hermine.rs:62:6\n   |\n62 | impl HermineAdapter {\n   |      ^^^^^^^^^^^^^^\n   |\n   = note: `#[warn(deprecated)]` on by default\n\nwarning: use of deprecated struct `hermine::HermineAdapter`: HermineAdapter uses deterministic share derivation (CRITICAL finding F60). Use LatticePvssBfvAdapter instead.\n   --> crates/pvthfhe-keygen/src/hermine.rs:267:24\n    |\n267 | impl KeygenAdapter for HermineAdapter {\n    |                        ^^^^^^^^^^^^^^\n\nwarning: `pvthfhe-keygen` (lib) generated 2 warnings\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.10s\n     Running `target/debug/pvthfhe-e2e --n 5 --t 2 --seed 1 --dry-run`\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[NIZK-VERIFY] FAIL: v3 proof lacks verifier-checkable BFV encryption relation\nError: pvss verify_shares: PVSS lattice binding verification failed\nCommand exited with non-zero status 1\n\tCommand being timed: \"cargo run -p pvthfhe-cli --bin pvthfhe-e2e -- --n 5 --t 2 --seed 1 --dry-run\"\n\tUser time (seconds): 3.73\n\tSystem time (seconds): 0.07\n\tPercent of CPU this job got: 99%\n\tElapsed (wall clock) time (h:mm:ss or m:ss): 0:03.81\n\tAverage shared text size (kbytes): 0\n\tAverage unshared data size (kbytes): 0\n\tAverage stack size (kbytes): 0\n\tAverage total size (kbytes): 0\n\tMaximum resident set size (kbytes): 78324\n\tAverage resident set size (kbytes): 0\n\tMajor (requiring I/O) page faults: 0\n\tMinor (reclaiming a frame) page faults: 40306\n\tVoluntary context switches: 57\n\tInvoluntary context switches: 13\n\tSwaps: 0\n\tFile system inputs: 0\n\tFile system outputs: 168\n\tSocket messages sent: 0\n\tSocket messages received: 0\n\tSignals delivered: 0\n\tPage size (bytes): 4096\n\tExit status: 1\n"
+    },
+    "one_track_proof_producer_demo_seeded_fallback": {
+      "argv": [
+        "cargo",
+        "run",
+        "-p",
+        "pvthfhe-cli",
+        "--features",
+        "demo-seeded-rng",
+        "--bin",
+        "pvthfhe-e2e",
+        "--",
+        "--n",
+        "5",
+        "--t",
+        "2",
+        "--seed",
+        "1",
+        "--dry-run"
+      ],
+      "returncode": 0,
+      "timed_out": false,
+      "wall_ms": 4543.369822999921,
+      "max_rss_kb": 78040,
+      "stdout_tail": "\u001b[2m2026-05-11T22:53:30.433692Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[2mpvthfhe_cli::compressor_glue\u001b[0m\u001b[2m:\u001b[0m sonobe-compressor active \u001b[3mcompressor_backend_id\u001b[0m\u001b[2m=\u001b[0m\"sonobe-nova-bn254-grumpkin\"\nbackend_id_p1=cyclo-ajtai-d2-conditional\ncompressor_backend_id=sonobe-nova-bn254-grumpkin\npvss_backend_id=lattice-pvss-bfv-d2\nshare_encryption_proof_ms=2537\nkeygen\nnizk_prove\nnizk_verify\npvss_share_encrypt\ncyclo_fold\ncompressor_prove\ncompressor_verify\nnoir_decrypt_share\nnoir_aggregator_final\nnoir_sonobe_wrap\nonchain_verify\n",
+      "stderr_tail": "ted on the command line with `-W missing-docs`\n\nwarning: missing documentation for a module\n  --> crates/pvthfhe-cyclo/src/lib.rs:20:1\n   |\n20 | pub mod fiat_shamir;\n   | ^^^^^^^^^^^^^^^^^^^\n\nwarning: missing documentation for a module\n  --> crates/pvthfhe-cyclo/src/lib.rs:21:1\n   |\n21 | pub mod fold;\n   | ^^^^^^^^^^^^\n\nwarning: missing documentation for a function\n --> crates/pvthfhe-cyclo/src/fiat_shamir.rs:3:1\n  |\n3 | pub fn params_digest_v1(label: &[u8]) -> [u8; 32] {\n  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: missing documentation for a function\n  --> crates/pvthfhe-cyclo/src/fiat_shamir.rs:7:1\n   |\n 7 | / pub fn challenge_v1(\n 8 | |     session_id: &str,\n 9 | |     fold_depth: u32,\n10 | |     acc_commitment: &[u8],\n11 | |     inst_ajtai_bytes: &[u8],\n12 | |     inst_public_io_bytes: &[u8],\n13 | | ) -> [u8; 32] {\n   | |_____________^\n\nwarning: missing documentation for a function\n  --> crates/pvthfhe-cyclo/src/fiat_shamir.rs:25:1\n   |\n25 | / pub fn commitment_v1(\n26 | |     session_id: &str,\n27 | |     depth: u32,\n28 | |     poly_bytes: &[u8],\n29 | |     inst_bytes: &[u8],\n30 | | ) -> [u8; 32] {\n   | |_____________^\n\nwarning: missing documentation for a function\n  --> crates/pvthfhe-cyclo/src/fiat_shamir.rs:41:1\n   |\n41 | / pub fn public_io_v1(\n42 | |     session_id: &str,\n43 | |     depth: u32,\n44 | |     acc_io: &[u8],\n45 | |     inst_io: &[u8],\n46 | |     r_value: u64,\n47 | | ) -> [u8; 32] {\n   | |_____________^\n\nwarning: missing documentation for a function\n  --> crates/pvthfhe-cyclo/src/fiat_shamir.rs:59:1\n   |\n59 | pub fn init_commitment_v1(session_id: &str, poly_bytes: &[u8]) -> [u8; 32] {\n   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: missing documentation for a function\n  --> crates/pvthfhe-cyclo/src/fiat_shamir.rs:68:1\n   |\n68 | pub fn init_public_io_v1(session_id: &str, io_bytes: &[u8]) -> [u8; 32] {\n   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: missing documentation for a function\n  --> crates/pvthfhe-cyclo/src/fold.rs:60:1\n   |\n60 | / pub fn init_accumulator(\n61 | |     instance: &CcsPShareInstance,\n62 | |     session_id: &str,\n63 | | ) -> Result<CycloAccumulator, CycloError> {\n   | |_________________________________________^\n\nwarning: missing documentation for a function\n   --> crates/pvthfhe-cyclo/src/fold.rs:228:1\n    |\n228 | / pub fn fold_one_step(\n229 | |     acc: CycloAccumulator,\n230 | |     instance: &CcsPShareInstance,\n231 | |     rng: &mut dyn RngCore,\n232 | | ) -> Result<CycloAccumulator, CycloError> {\n    | |_________________________________________^\n\nwarning: missing documentation for a function\n   --> crates/pvthfhe-cyclo/src/fold.rs:237:1\n    |\n237 | / pub fn verify_fold(\n238 | |     acc: &CycloAccumulator,\n239 | |     instances: &[CcsPShareInstance],\n240 | | ) -> Result<(), CycloError> {\n    | |___________________________^\n\nwarning: `pvthfhe-cyclo` (lib) generated 13 warnings (run `cargo fix --lib -p pvthfhe-cyclo` to apply 1 suggestion)\nwarning: use of deprecated struct `hermine::HermineAdapter`: HermineAdapter uses deterministic share derivation (CRITICAL finding F60). Use LatticePvssBfvAdapter instead.\n  --> crates/pvthfhe-keygen/src/hermine.rs:62:6\n   |\n62 | impl HermineAdapter {\n   |      ^^^^^^^^^^^^^^\n   |\n   = note: `#[warn(deprecated)]` on by default\n\nwarning: use of deprecated struct `hermine::HermineAdapter`: HermineAdapter uses deterministic share derivation (CRITICAL finding F60). Use LatticePvssBfvAdapter instead.\n   --> crates/pvthfhe-keygen/src/hermine.rs:267:24\n    |\n267 | impl KeygenAdapter for HermineAdapter {\n    |                        ^^^^^^^^^^^^^^\n\nwarning: `pvthfhe-keygen` (lib) generated 2 warnings\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.09s\n     Running `target/debug/pvthfhe-e2e --n 5 --t 2 --seed 1 --dry-run`\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n[FHE-ENCODE] plaintext_len=68 first_slot(original_len)=68 total_slots_after_trunc=8192\n\tCommand being timed: \"cargo run -p pvthfhe-cli --features demo-seeded-rng --bin pvthfhe-e2e -- --n 5 --t 2 --seed 1 --dry-run\"\n\tUser time (seconds): 4.47\n\tSystem time (seconds): 0.06\n\tPercent of CPU this job got: 100%\n\tElapsed (wall clock) time (h:mm:ss or m:ss): 0:04.54\n\tAverage shared text size (kbytes): 0\n\tAverage unshared data size (kbytes): 0\n\tAverage stack size (kbytes): 0\n\tAverage total size (kbytes): 0\n\tMaximum resident set size (kbytes): 78040\n\tAverage resident set size (kbytes): 0\n\tMajor (requiring I/O) page faults: 0\n\tMinor (reclaiming a frame) page faults: 41349\n\tVoluntary context switches: 54\n\tInvoluntary context switches: 21\n\tSwaps: 0\n\tFile system inputs: 0\n\tFile system outputs: 8\n\tSocket messages sent: 0\n\tSocket messages received: 0\n\tSignals delivered: 0\n\tPage size (bytes): 4096\n\tExit status: 0\n"
+    },
+    "two_track_batched_share_proof_focused_probe": {
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "pvthfhe-pvss",
+        "--test",
+        "nizk_share_batched_tracks",
+        "--",
+        "batched_valid_tracks_fail_closed_until_d1_bfv_relation_exists",
+        "--exact",
+        "--nocapture"
+      ],
+      "returncode": 0,
+      "timed_out": false,
+      "wall_ms": 618.7090720000015,
+      "max_rss_kb": 68500,
+      "stdout_tail": "\nrunning 1 test\ntest batched_valid_tracks_fail_closed_until_d1_bfv_relation_exists ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.50s\n\n",
+      "stderr_tail": "warning: pvthfhe-fhe@0.1.0: MOCK BACKEND ACTIVE \u2014 XOR/SHA256 ONLY. Set PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK=1 to use.\nwarning: method `decryption_share_poly_from_full_state` is never used\n   --> crates/pvthfhe-fhe/src/fhers.rs:234:8\n    |\n 71 | impl FhersBackend {\n    | ----------------- method in this implementation\n...\n234 |     fn decryption_share_poly_from_full_state(\n    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    |\n    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default\n\nwarning: `pvthfhe-fhe` (lib) generated 1 warning\nwarning: missing documentation for an associated function\n   --> crates/pvthfhe-pvss/src/nizk_share.rs:529:5\n    |\n529 |     pub fn from_opened(opened: &ShareNizkOpenedProof) -> Result<Self, PvssError> {\n    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    |\n    = note: requested on the command line with `-W missing-docs`\n\nwarning: missing documentation for an associated function\n   --> crates/pvthfhe-pvss/src/nizk_share.rs:541:5\n    |\n541 |     pub fn from_bytes(proof_bytes: Vec<u8>) -> Result<Self, PvssError> {\n    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: missing documentation for a method\n   --> crates/pvthfhe-pvss/src/nizk_share.rs:549:5\n    |\n549 |     pub fn decode(&self) -> Result<ShareNizkOpenedProof, PvssError> {\n    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\nwarning: `pvthfhe-pvss` (lib) generated 3 warnings\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s\n     Running tests/nizk_share_batched_tracks.rs (target/debug/deps/nizk_share_batched_tracks-75e16779cd3607a6)\n[NIZK-VERIFY] FAIL: v3 proof lacks verifier-checkable BFV encryption relation\n\tCommand being timed: \"cargo test -p pvthfhe-pvss --test nizk_share_batched_tracks -- batched_valid_tracks_fail_closed_until_d1_bfv_relation_exists --exact --nocapture\"\n\tUser time (seconds): 0.56\n\tSystem time (seconds): 0.04\n\tPercent of CPU this job got: 98%\n\tElapsed (wall clock) time (h:mm:ss or m:ss): 0:00.61\n\tAverage shared text size (kbytes): 0\n\tAverage unshared data size (kbytes): 0\n\tAverage stack size (kbytes): 0\n\tAverage total size (kbytes): 0\n\tMaximum resident set size (kbytes): 68500\n\tAverage resident set size (kbytes): 0\n\tMajor (requiring I/O) page faults: 0\n\tMinor (reclaiming a frame) page faults: 21375\n\tVoluntary context switches: 61\n\tInvoluntary context switches: 2\n\tSwaps: 0\n\tFile system inputs: 0\n\tFile system outputs: 64\n\tSocket messages sent: 0\n\tSocket messages received: 0\n\tSignals delivered: 0\n\tPage size (bytes): 4096\n\tExit status: 0\n"
+    },
+    "committed_smudge_decrypt_focused_probe": {
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "pvthfhe-fhe",
+        "--test",
+        "committed_smudge_requires_esm",
+        "--",
+        "committed_smudge_with_valid_esm_succeeds",
+        "--exact",
+        "--nocapture"
+      ],
+      "returncode": 0,
+      "timed_out": false,
+      "wall_ms": 2713.5363070001404,
+      "max_rss_kb": 210732,
+      "stdout_tail": "\nrunning 1 test\ntest committed_smudge_with_valid_esm_succeeds ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 2.16s\n\n",
+      "stderr_tail": "warning: pvthfhe-fhe@0.1.0: FOLDING ACCUMULATOR IS A SURROGATE \u2014 FHE crypto is real (honest-but-curious); folding/on-chain remain surrogate. See SECURITY.md.\n   Compiling pvthfhe-fhe v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-fhe)\nwarning: method `decryption_share_poly_from_full_state` is never used\n   --> crates/pvthfhe-fhe/src/fhers.rs:234:8\n    |\n 71 | impl FhersBackend {\n    | ----------------- method in this implementation\n...\n234 |     fn decryption_share_poly_from_full_state(\n    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    |\n    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default\n\n   Compiling pvthfhe-keygen v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-keygen)\nwarning: use of deprecated struct `hermine::HermineAdapter`: HermineAdapter uses deterministic share derivation (CRITICAL finding F60). Use LatticePvssBfvAdapter instead.\n  --> crates/pvthfhe-keygen/src/hermine.rs:62:6\n   |\n62 | impl HermineAdapter {\n   |      ^^^^^^^^^^^^^^\n   |\n   = note: `#[warn(deprecated)]` on by default\n\nwarning: use of deprecated struct `hermine::HermineAdapter`: HermineAdapter uses deterministic share derivation (CRITICAL finding F60). Use LatticePvssBfvAdapter instead.\n   --> crates/pvthfhe-keygen/src/hermine.rs:267:24\n    |\n267 | impl KeygenAdapter for HermineAdapter {\n    |                        ^^^^^^^^^^^^^^\n\nwarning: `pvthfhe-fhe` (lib) generated 1 warning\nwarning: `pvthfhe-keygen` (lib) generated 2 warnings\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.51s\n     Running tests/committed_smudge_requires_esm.rs (target/debug/deps/committed_smudge_requires_esm-796786318f5e54e3)\n[FHE-ENCODE] plaintext_len=21 first_slot(original_len)=21 total_slots_after_trunc=8192\n\tCommand being timed: \"cargo test -p pvthfhe-fhe --test committed_smudge_requires_esm -- committed_smudge_with_valid_esm_succeeds --exact --nocapture\"\n\tUser time (seconds): 11.59\n\tSystem time (seconds): 0.95\n\tPercent of CPU this job got: 462%\n\tElapsed (wall clock) time (h:mm:ss or m:ss): 0:02.71\n\tAverage shared text size (kbytes): 0\n\tAverage unshared data size (kbytes): 0\n\tAverage stack size (kbytes): 0\n\tAverage total size (kbytes): 0\n\tMaximum resident set size (kbytes): 210732\n\tAverage resident set size (kbytes): 0\n\tMajor (requiring I/O) page faults: 306\n\tMinor (reclaiming a frame) page faults: 104166\n\tVoluntary context switches: 16019\n\tInvoluntary context switches: 24180\n\tSwaps: 0\n\tFile system inputs: 59816\n\tFile system outputs: 139880\n\tSocket messages sent: 0\n\tSocket messages received: 0\n\tSignals delivered: 0\n\tPage size (bytes): 4096\n\tExit status: 0\n"
+    }
+  },
+  "metrics": {
+    "one_track_current": {
+      "status": "blocked",
+      "blocker": "D.1 fail-closed v3 BFV share-encryption verifier",
+      "dkg_prover_time_per_party_ms": {
+        "value": 507.4,
+        "unit": "ms/party",
+        "status": "measured",
+        "note": "Fallback dry-run with demo-seeded-rng skips fail-closed verify_shares; total divided by n."
+      },
+      "dkg_prover_time_per_wire_share_ms": {
+        "value": 126.85,
+        "unit": "ms/share",
+        "status": "measured",
+        "note": "Fallback dry-run total divided by n*(n-1) PVSS recipient-share instances."
+      },
+      "decryption_proof_time_per_party_ms": {
+        "value": null,
+        "status": "unavailable",
+        "reason": "non-dry-run e2e path is blocked before decrypt proof metrics; dry-run does not emit pvss_decrypt_prove JSON"
+      },
+      "fold_compression_time_ms": {
+        "value": null,
+        "status": "unavailable",
+        "reason": "dry-run returns before cyclo_fold/compressor phases"
+      },
+      "verifier_time_ms": {
+        "value": null,
+        "status": "unavailable",
+        "reason": "full verifier path fails closed at D.1 before stable comparison timing"
+      },
+      "proof_wire_size_bytes": {
+        "value": null,
+        "status": "unavailable",
+        "reason": "PVSS adapter does not expose aggregate proof/wire size in dry-run output"
+      },
+      "peak_memory_kb": {
+        "value": 78040,
+        "unit": "kB",
+        "status": "measured"
+      }
+    },
+    "two_track_committed_smudge_current": {
+      "status": "focused-probes-only",
+      "dkg_prover_time_per_party_ms": {
+        "value": null,
+        "status": "unavailable",
+        "reason": "two-track sk+e_sm DKG proof-producing path is not wired into pvthfhe-e2e/bench runner; focused batched proof test uses MockBackend and is not comparable to real one-track BFV PVSS"
+      },
+      "decryption_proof_time_per_party_ms": {
+        "value": 2713.5363070001404,
+        "unit": "ms/test-command",
+        "status": "measured",
+        "note": "Focused real FhersBackend committed-smudge API test wall time; includes setup/keygen/encrypt and is not a per-party proof-only timing."
+      },
+      "fold_compression_time_ms": {
+        "value": null,
+        "status": "unavailable",
+        "reason": "two-track committed-smudge fold/compression is not exposed by a benchmark runner"
+      },
+      "verifier_time_ms": {
+        "value": null,
+        "status": "unavailable",
+        "reason": "batched two-track verification intentionally delegates to D.1 v3 verifier and fails closed"
+      },
+      "proof_wire_size_bytes": {
+        "value": null,
+        "status": "unavailable",
+        "reason": "focused tests do not emit proof/wire byte counts"
+      },
+      "peak_memory_kb": {
+        "value": 210732,
+        "unit": "kB",
+        "status": "measured"
+      }
+    }
+  },
+  "overhead_ratios": {
+    "dkg_proof_producing_path_two_track_over_one_track": {
+      "value": null,
+      "status": "unavailable",
+      "target": "<= 1.5x",
+      "reason": "No fair apples-to-apples two-track committed-smudge DKG benchmark runner exists on this branch, and full one-track verification remains D.1 fail-closed."
+    }
+  },
+  "gate": {
+    "target": "Two-track overhead <= 1.5x one-track PVTHFHE for DKG proof-producing path",
+    "status": "not_fairly_measurable_current_branch",
+    "explanation": "The current branch can produce one-track dry-run timing only with demo-seeded-rng verification bypass; the normal path fails closed at D.1. Two-track sk/e_sm proof surfaces and committed-smudge decrypt APIs have focused tests, but no integrated real-BFV e2e benchmark runner emits comparable DKG proof-producing timings or wire sizes. The target is therefore neither met nor failed by this fallback artifact."
+  },
+  "performance_advantage": {
+    "status": "not_fairly_measurable_current_branch",
+    "statement": "The intended PVTHFHE performance advantage is not demonstrated by this artifact. Current data quantify only fallback/dry-run one-track costs and focused non-comparable two-track probes; fair real-BFV two-track DKG overhead remains blocked by D.1 and missing integrated benchmark output."
+  }
+}

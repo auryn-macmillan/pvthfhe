@@ -21,8 +21,12 @@ fn recipient_keypair(seed: u64, session_byte: u8) -> (MockBackend, Vec<u8>) {
     let share = backend
         .keygen_share_with_session(&session_id, 1, &mut rng)
         .expect("keygen share");
-    let public_key = backend.aggregate_keygen(&[share]).expect("aggregate keygen");
-    backend.setup_threshold(1, 1).expect("setup single-party threshold");
+    let public_key = backend
+        .aggregate_keygen(&[share])
+        .expect("aggregate keygen");
+    backend
+        .setup_threshold(1, 1)
+        .expect("setup single-party threshold");
     (backend, public_key.bytes)
 }
 
@@ -37,6 +41,7 @@ fn encrypt_decrypt_roundtrip_recovers_secret() {
         t: 2,
         session_id: vec![9; 32],
         epoch: 0,
+        dkg_root: vec![],
     };
 
     let mut rng = ChaCha8Rng::seed_from_u64(7);
@@ -56,9 +61,10 @@ fn encrypt_decrypt_roundtrip_recovers_secret() {
     let encrypted = adapter
         .deal(&secret, &recipient_pks, &ctx)
         .expect("deal encrypted shares");
-    adapter
-        .verify_shares(&encrypted, &ctx)
-        .expect("verify encrypted shares");
+    assert!(
+        adapter.verify_shares(&encrypted, &ctx).is_err(),
+        "D.1 remains incomplete: encrypted-share verification must fail closed until share proofs include a verifier-checkable BFV relation"
+    );
 
     let decrypted_shares = encrypted
         .ciphertexts
@@ -85,6 +91,9 @@ fn encrypt_decrypt_roundtrip_recovers_secret() {
                     &DecryptNizkWitness {
                         secret_key_bytes: vec![index as u8 + 1; 64],
                         decryption_noise: vec![index as u8 + 2; 64],
+                        sk_agg_share: None,
+                        esm_agg_share: None,
+                        esm_noise_poly_bytes: None,
                     },
                     &ctx,
                 )

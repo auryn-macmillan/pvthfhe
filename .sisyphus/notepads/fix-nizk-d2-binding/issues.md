@@ -11,3 +11,7 @@ The `corrupt_lattice_binding` helper in `share_nizk.rs` was corrupting the last 
 
 ## Semantic limitation
 The preimage binding does not verify content consistency between `commitment_ct` and `share_commitment`. A malicious prover could encrypt `share_b` but supply `share_commitment(share_a)`. The verifier would accept this because the d2_binding would be internally consistent. This is a known limitation of the preimage binding approach — the prover is trusted to compute share_commitment from the actual share.
+
+## 2026-05-12 BFV sigma proof wiring
+- Mock backend cannot produce BFV encryption witnesses, so v4 proofs from mock paths remain fail-closed with empty `bfv_encryption_proof`; this preserves tests that assert rejection but prevents mock-backed positive verification.
+- Existing `nizk_share_soundness::verifier_rejects_ciphertext_share_commitment_mismatch` still expects prover-side rejection on mock backend; because mock witness extraction is unavailable, the prover emits an empty BFV proof instead and verifier rejects later.

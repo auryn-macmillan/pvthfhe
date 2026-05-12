@@ -2055,6 +2055,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "ark-bn254",
+ "ark-ff",
  "assert_cmd",
  "clap",
  "hex",
@@ -2188,6 +2189,7 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]
@@ -2195,6 +2197,7 @@ name = "pvthfhe-nizk"
 version = "0.1.0"
 dependencies = [
  "fhe-math",
+ "fhe-traits",
  "hex",
  "num-bigint",
  "pvthfhe-rng",
@@ -2227,9 +2230,11 @@ dependencies = [
  "ark-bn254",
  "ark-ff",
  "fhe-math",
+ "fhe-traits",
  "proptest",
  "pvthfhe-domain-tags",
  "pvthfhe-fhe",
+ "pvthfhe-keygen-spec",
  "pvthfhe-nizk",
  "pvthfhe-rng",
  "pvthfhe-types",

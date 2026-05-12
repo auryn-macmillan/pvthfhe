@@ -10,9 +10,9 @@ use std::{
     time::Duration,
 };
 
-use pvthfhe_compressor::sonobe::{SonobeCompressor, ToyStepCircuit};
-use pvthfhe_compressor::ProofCompressor;
 use ark_bn254::Fr;
+use pvthfhe_compressor::sonobe::{encode_triple, SonobeCompressor, ToyStepCircuit};
+use pvthfhe_compressor::ProofCompressor;
 
 fn rss_kb() -> u64 {
     fs::read_to_string("/proc/self/statm")
@@ -62,18 +62,18 @@ fn sonobe_prove_peak_rss_under_12gb() {
     });
 
     let epoch_hash = [0u8; 32];
-    let compressor =
-        SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch_hash, 4).expect("construct sonobe compressor");
-    let acc = [0u8; 32];
-    let public_inputs = [0u8; 32];
-    let proof = compressor.prove(&acc, &public_inputs).expect("prove isolated sonobe");
+    let compressor = SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch_hash, 4)
+        .expect("construct sonobe compressor");
+    let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
+    let public_inputs = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
+    let proof = compressor
+        .prove(&acc, &public_inputs)
+        .expect("prove isolated sonobe");
     let vk = compressor.verifier_key();
 
-    assert!(
-        compressor
-            .verify(&vk, &proof, &public_inputs)
-            .expect("verify isolated sonobe")
-    );
+    assert!(compressor
+        .verify(&vk, &proof, &public_inputs)
+        .expect("verify isolated sonobe"));
 
     stop.store(true, Ordering::Relaxed);
     sampler.join().expect("join RSS sampler");

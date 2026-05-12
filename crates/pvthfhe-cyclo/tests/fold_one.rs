@@ -32,12 +32,19 @@ fn good_witness() -> Vec<u8> {
     witness_1var(Fr::ZERO)
 }
 
+fn make_ajtai_bytes(id: u8) -> Vec<u8> {
+    use pvthfhe_cyclo::fold::AJTAI_COMMITMENT_BYTES;
+    (0..AJTAI_COMMITMENT_BYTES)
+        .map(|i| (i as u8).wrapping_add(id))
+        .collect()
+}
+
 fn make_instance(id: u16) -> CcsPShareInstance {
     let mut binding = [0u8; 32];
     binding[0] = id as u8;
     CcsPShareInstance {
         participant_id: id,
-        ajtai_commitment_bytes: vec![id as u8; 32].into(),
+        ajtai_commitment_bytes: make_ajtai_bytes(id as u8).into(),
         public_io_bytes: vec![id as u8 ^ 0xAA; 32].into(),
         ccs_witness_bytes: CcsWitnessSecret::new(good_witness()),
         sha256_binding_bytes: binding.to_vec().into(),
@@ -60,12 +67,13 @@ fn fold_produces_incremented_depth() {
 }
 
 #[test]
-fn fold_commitment_is_32_bytes() {
+fn fold_commitment_is_ajtai_encoded() {
+    use pvthfhe_cyclo::fold::AJTAI_COMMITMENT_BYTES;
     let instance = make_instance(1);
     let mut rng = make_rng();
     let acc = init_accumulator(&instance, "test-session").expect("init_accumulator failed");
     let new_acc = fold_one_step(acc, &instance, &mut rng).expect("fold_one_step failed");
-    assert_eq!(new_acc.acc_commitment_bytes.len(), 32);
+    assert_eq!(new_acc.acc_commitment_bytes.len(), AJTAI_COMMITMENT_BYTES);
 }
 
 #[test]

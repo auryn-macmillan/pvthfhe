@@ -3,10 +3,10 @@
 //! This test must FAIL (compile error) against current main because
 //! `SonobeCompressor::new` takes `_seed: u64`, not `epoch_hash: [u8; 32]`.
 
+use ark_bn254::Fr;
 use pvthfhe_compressor::sonobe::SonobeCompressor;
 use pvthfhe_compressor::sonobe::ToyStepCircuit;
 use pvthfhe_compressor::ProofCompressor;
-use ark_bn254::Fr;
 
 #[test]
 fn srs_is_derived_from_epoch_hash_not_seed() {
@@ -21,7 +21,8 @@ fn srs_is_derived_from_epoch_hash_not_seed() {
 
     // Different epochs must produce different verifier keys (SRS is epoch-bound).
     assert_ne!(
-        comp_a.vk_bytes(), comp_b.vk_bytes(),
+        comp_a.vk_bytes(),
+        comp_b.vk_bytes(),
         "Different epochs must produce different SRS"
     );
 
@@ -29,7 +30,8 @@ fn srs_is_derived_from_epoch_hash_not_seed() {
     let comp_a2 = SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch_a, 4)
         .expect("construct second compressor with epoch_a");
     assert_eq!(
-        comp_a.vk_bytes(), comp_a2.vk_bytes(),
+        comp_a.vk_bytes(),
+        comp_a2.vk_bytes(),
         "Same epoch must produce identical SRS"
     );
 }

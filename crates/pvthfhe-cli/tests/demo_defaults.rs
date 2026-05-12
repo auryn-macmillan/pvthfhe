@@ -10,11 +10,21 @@ fn demo_defaults_match_locked_values() -> Result<(), Box<dyn std::error::Error>>
         .args(["demo", "--help"])
         .output()?;
 
-    assert!(output.status.success(), "help failed: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "help failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("[default: 8]"), "missing n default in: {stdout}");
-    assert!(stdout.contains("[default: 0]"), "missing seed default in: {stdout}");
+    assert!(
+        stdout.contains("[default: 8]"),
+        "missing n default in: {stdout}"
+    );
+    assert!(
+        stdout.contains("[default: 0]"),
+        "missing seed default in: {stdout}"
+    );
 
     Ok(())
 }

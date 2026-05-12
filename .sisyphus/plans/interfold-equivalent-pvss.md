@@ -295,9 +295,9 @@ Batch I: Benchmark and security-proof closure
 
 ### C.3 — Add transcript root and anchor binding
 
-- [ ] **Files**: `crates/pvthfhe-pvss`, `crates/pvthfhe-keygen-spec`, `contracts` if anchor is on-chain.
-- [ ] **RED**: Test mixing DKG anchors from session A with decryption proof from session B is accepted today or unrepresentable.
-- [ ] **GREEN**: DKG root includes:
+- [x] **Files**: `crates/pvthfhe-pvss`, `crates/pvthfhe-keygen-spec`, `contracts` if anchor is on-chain.
+- [x] **RED**: Test mixing DKG anchors from session A with decryption proof from session B is accepted today or unrepresentable.
+- [x] **GREEN**: DKG root includes:
   - participant set hash;
   - individual BFV pk commitments;
   - threshold pk contribution commitments;
@@ -305,7 +305,7 @@ Batch I: Benchmark and security-proof closure
   - `esm_agg_commits[]`;
   - smudge-slot policy;
   - parameter digest.
-- [ ] **GATE**: Decryption statement must include or derive this DKG root.
+- [x] **GATE**: Decryption statement must include or derive this DKG root.
 
 ---
 
@@ -313,36 +313,36 @@ Batch I: Benchmark and security-proof closure
 
 ### D.1 — Replace share-encryption placeholder with explicit BFV relation
 
-- [ ] **File**: `crates/pvthfhe-pvss/src/nizk_share.rs`
-- [ ] **RED**: A proof for ciphertext encrypting one share but committing to another must fail.
-- [ ] **GREEN**: Prove/verify relation:
+- [x] **File**: `crates/pvthfhe-pvss/src/nizk_share.rs`
+- [x] **RED**: A proof for ciphertext encrypting one share but committing to another must fail.
+- [x] **GREEN**: Prove/verify relation:
   - ciphertext is BFV encryption of the committed share under committed recipient pk;
   - plaintext/share bytes decode to bounded ring representation;
   - encryption randomness/noise are bounded;
   - quotient terms satisfy BFV modular equations;
   - statement binds session, dealer, recipient, params, transcript root.
-- [ ] **GATE**: Verifier no longer relies on hash-only binding as the primary consistency check.
+- [x] **GATE**: Verifier no longer relies on hash-only binding as the primary consistency check.
 
 ### D.2 — Generalize to batched sk/e_sm share encryption
 
-- [ ] **Files**: `crates/pvthfhe-pvss/src/nizk_share.rs`, proof schema/types.
-- [ ] **RED**: Tampering only the `e_sm` encrypted share while leaving `sk` valid must fail.
-- [ ] **GREEN**: One batched proof can cover both:
+- [x] **Files**: `crates/pvthfhe-pvss/src/nizk_share.rs`, proof schema/types.
+- [x] **RED**: Tampering only the `e_sm` encrypted share while leaving `sk` valid must fail.
+- [x] **GREEN**: One batched proof can cover both:
   - `sk_share[i][j]` encryption;
   - `e_sm_share[i][j][slot_or_batch]` encryption.
-- [ ] **GATE**: Batching must preserve independent commitments for `sk` and `e_sm` tracks.
+- [x] **GATE**: Batching must preserve independent commitments for `sk` and `e_sm` tracks.
 
 ### D.3 — Domain separation and replay rejection
 
-- [ ] **Files**: `crates/pvthfhe-domain-tags`, `crates/pvthfhe-pvss`
-- [ ] **RED**: Cross-use of a proof from `sk` track as `e_sm` track must fail.
-- [ ] **GREEN**: Add domain tags for:
+- [x] **Files**: `crates/pvthfhe-domain-tags`, `crates/pvthfhe-pvss`
+- [x] **RED**: Cross-use of a proof from `sk` track as `e_sm` track must fail.
+- [x] **GREEN**: Add domain tags for:
   - batched DKG share encryption;
   - `sk` track;
   - `e_sm` track;
   - smudge slot batch;
   - transcript-root binding.
-- [ ] **GATE**: Existing cross-session replay tests still pass.
+- [x] **GATE**: Existing cross-session replay tests still pass.
 
 ---
 
@@ -350,32 +350,32 @@ Batch I: Benchmark and security-proof closure
 
 ### E.1 — Add batched Shamir/RS share-computation relation
 
-- [ ] **Files**: `crates/pvthfhe-pvss`, `crates/pvthfhe-nizk`, `crates/pvthfhe-cyclo` as appropriate.
-- [ ] **RED**: Non-low-degree/tampered share vector passes current path or is unproved.
-- [ ] **GREEN**: Prove batched relation:
+- [x] **Files**: `crates/pvthfhe-pvss`, `crates/pvthfhe-nizk`, `crates/pvthfhe-cyclo` as appropriate.
+- [x] **RED**: Non-low-degree/tampered share vector passes current path or is unproved.
+- [x] **GREEN**: Prove batched relation:
   - `sk` shares are evaluations of a degree-`t` polynomial with correct secret commitment;
   - `e_sm` shares are evaluations of degree-`t` polynomials/slots with correct smudge commitment;
   - Reed-Solomon parity or equivalent Shamir validity check holds;
   - coefficient bounds hold.
-- [ ] **GATE**: Relation is foldable as a PVTHFHE instance.
+- [x] **GATE**: Relation is foldable as a PVTHFHE instance.
 
 ### E.2 — Add DKG share decryption/aggregation proof
 
-- [ ] **Files**: `crates/pvthfhe-pvss`, `crates/pvthfhe-nizk`
-- [ ] **RED**: Recipient aggregate commitment can be inconsistent with decrypted DKG shares.
-- [ ] **GREEN**: Prove recipient-side aggregation:
+- [x] **Files**: `crates/pvthfhe-pvss`, `crates/pvthfhe-nizk`
+- [x] **RED**: Recipient aggregate commitment can be inconsistent with decrypted DKG shares.
+- [x] **GREEN**: Prove recipient-side aggregation:
   - encrypted shares decrypt to values whose commitments match C/D outputs;
   - aggregate `sk` share is sum over accepted dealers;
   - aggregate `e_sm` share/slot is sum over accepted dealers;
   - outputs are `sk_agg_commit[j]` and `esm_agg_commit[j][slot]`.
-- [ ] **GATE**: DKG anchor set stores these commitments as public outputs.
+- [x] **GATE**: DKG anchor set stores these commitments as public outputs.
 
 ### E.3 — Honest/accepted set binding
 
-- [ ] **Files**: `crates/pvthfhe-aggregator`, `contracts` if applicable.
-- [ ] **RED**: Aggregator can omit a valid participant or include a failed participant without changing anchor semantics.
-- [ ] **GREEN**: Accepted set is explicitly hashed and bound into DKG root and all aggregate commitments.
-- [ ] **GATE**: Public verifier can determine the exact accepted set used by C5/decryption.
+- [x] **Files**: `crates/pvthfhe-aggregator`, `contracts` if applicable.
+- [x] **RED**: Aggregator can omit a valid participant or include a failed participant without changing anchor semantics.
+- [x] **GREEN**: Accepted set is explicitly hashed and bound into DKG root and all aggregate commitments.
+- [x] **GATE**: Public verifier can determine the exact accepted set used by C5/decryption.
 
 ---
 
@@ -383,9 +383,9 @@ Batch I: Benchmark and security-proof closure
 
 ### F.1 — Change decryption relation to committed-smudge form
 
-- [ ] **File**: `crates/pvthfhe-pvss/src/nizk_decrypt.rs`
-- [ ] **RED**: Proof using fresh local smudging noise instead of committed `e_sm` is accepted today or untested.
-- [ ] **GREEN**: Prove relation:
+- [x] **File**: `crates/pvthfhe-pvss/src/nizk_decrypt.rs`
+- [x] **RED**: Proof using fresh local smudging noise instead of committed `e_sm` is accepted today or untested.
+- [x] **GREEN**: Prove relation:
   ```text
   d_j = c0 + c1 · sk_agg_share[j] + e_sm_agg_share[j][slot] + quotient terms
   ```
@@ -395,20 +395,20 @@ Batch I: Benchmark and security-proof closure
   - ciphertext hash matches statement;
   - slot id is fresh and bound to decrypt round;
   - all bounds hold.
-- [ ] **GATE**: Decryption proof cannot be generated in committed-smudge mode without an `e_sm` witness.
+- [x] **GATE**: Decryption proof cannot be generated in committed-smudge mode without an `e_sm` witness.
 
 ### F.2 — Add smudge-slot freshness enforcement
 
-- [ ] **Files**: `crates/pvthfhe-aggregator`, `contracts`, or session registry equivalent.
-- [ ] **RED**: Reusing the same smudge slot for two ciphertexts fails.
-- [ ] **GREEN**: Public registry/anchor rejects reused `(session_id, party_id, slot)` for distinct ciphertext/decrypt rounds.
-- [ ] **GATE**: Freshness check is part of acceptance, not only a local client convention.
+- [x] **Files**: `crates/pvthfhe-aggregator`, `contracts`, or session registry equivalent.
+- [x] **RED**: Reusing the same smudge slot for two ciphertexts fails.
+- [x] **GREEN**: Public registry/anchor rejects reused `(session_id, party_id, slot)` for distinct ciphertext/decrypt rounds.
+- [x] **GATE**: Freshness check is part of acceptance, not only a local client convention.
 
 ### F.3 — Preserve legacy path only as explicit non-equivalent mode
 
-- [ ] **Files**: `README.md`, `SECURITY.md`, `.sisyphus/design/smudging.md`
-- [ ] **Change**: Document that fresh local smudging is not Interfold-equivalent unless accompanied by a distribution/freshness proof.
-- [ ] **GATE**: Security docs distinguish `legacy_local_smudge` vs `committed_smudge_pvss`.
+- [x] **Files**: `README.md`, `SECURITY.md`, `.sisyphus/design/smudging.md`
+- [x] **Change**: Document that fresh local smudging is not Interfold-equivalent unless accompanied by a distribution/freshness proof.
+- [x] **GATE**: Security docs distinguish `legacy_local_smudge` vs `committed_smudge_pvss`.
 
 ---
 
@@ -416,28 +416,28 @@ Batch I: Benchmark and security-proof closure
 
 ### G.1 — Add final aggregation proof relation
 
-- [ ] **Files**: `crates/pvthfhe-pvss`, `crates/pvthfhe-nizk`, `crates/pvthfhe-aggregator`
-- [ ] **RED**: Wrong plaintext with valid-looking partial shares is accepted or unproved.
-- [ ] **GREEN**: Prove:
+- [x] **Files**: `crates/pvthfhe-pvss`, `crates/pvthfhe-nizk`, `crates/pvthfhe-aggregator`
+- [x] **RED**: Wrong plaintext with valid-looking partial shares is accepted or unproved.
+- [x] **GREEN**: Prove:
   - at least threshold many valid decryption shares;
   - participant ids are unique and in accepted set;
   - Lagrange coefficients are correct for selected ids;
   - decryption shares combine correctly;
   - CRT reconstruction is correct;
   - plaintext decoding is correct under BFV plaintext modulus.
-- [ ] **GATE**: Public verifier can reject wrong plaintext without redoing full BFV aggregation off-chain.
+- [x] **GATE**: Public verifier can reject wrong plaintext without redoing full BFV aggregation off-chain.
 
 ### G.2 — Bind C7 proof to C6 proof set
 
-- [ ] **Files**: `crates/pvthfhe-aggregator`, proof schema/wire crates.
-- [ ] **RED**: Aggregator can combine decryption shares from different ciphertexts or sessions.
-- [ ] **GREEN**: Final aggregation statement includes:
+- [x] **Files**: `crates/pvthfhe-aggregator`, proof schema/wire crates.
+- [x] **RED**: Aggregator can combine decryption shares from different ciphertexts or sessions.
+- [x] **GREEN**: Final aggregation statement includes:
   - DKG root;
   - ciphertext hash;
   - selected participant ids;
   - decryption-share commitments/proof refs;
   - plaintext hash/message.
-- [ ] **GATE**: Mixed-session/ciphertext share aggregation fails.
+- [x] **GATE**: Mixed-session/ciphertext share aggregation fails.
 
 ---
 
@@ -445,41 +445,41 @@ Batch I: Benchmark and security-proof closure
 
 ### H.1 — Define surfaced anchor values
 
-- [ ] **Files**: `crates/pvthfhe-aggregator`, `crates/pvthfhe-compressor`, `contracts`, docs.
-- [ ] **Change**: DKG folded proof surfaces:
+- [x] **Files**: `crates/pvthfhe-aggregator`, `crates/pvthfhe-compressor`, `contracts`, docs.
+- [x] **Change**: DKG folded proof surfaces:
   - `dkg_root`;
   - `aggregated_pk_commit`;
   - `participant_set_hash`;
   - `sk_agg_commits_root`;
   - `esm_agg_commits_root`;
   - `smudge_slot_policy_hash`.
-- [ ] **Change**: Decryption folded proof surfaces:
+- [x] **Change**: Decryption folded proof surfaces:
   - `dkg_root`;
   - `ciphertext_hash`;
   - `expected_sk_commits_root`;
   - `expected_esm_commits_root`;
   - `slot_id/decrypt_round`;
   - `plaintext_hash`.
-- [ ] **GATE**: Public verifier checks equality of DKG/decryption anchors.
+- [x] **GATE**: Public verifier checks equality of DKG/decryption anchors.
 
 ### H.2 — Fold batched two-track instances
 
-- [ ] **Files**: `crates/pvthfhe-cyclo`, `crates/pvthfhe-aggregator`
-- [ ] **RED**: Existing folding relation cannot encode both `sk` and `e_sm` commitments independently.
-- [ ] **GREEN**: Extend fold instance encoding to include multi-track commitments and norms:
+- [x] **Files**: `crates/pvthfhe-cyclo`, `crates/pvthfhe-aggregator`
+- [x] **RED**: Existing folding relation cannot encode both `sk` and `e_sm` commitments independently.
+- [x] **GREEN**: Extend fold instance encoding to include multi-track commitments and norms:
   - `sk` witness commitment;
   - `e_sm` witness commitment;
   - encryption witness commitment(s);
   - per-track norm bounds;
   - instance count/party binding.
-- [ ] **GATE**: Fold verification rejects tampered `e_sm` subinstance while `sk` remains valid.
+- [x] **GATE**: Fold verification rejects tampered `e_sm` subinstance while `sk` remains valid.
 
 ### H.3 — Contract/public verifier anchor checks
 
-- [ ] **Files**: `contracts`, `crates/pvthfhe-offchain-verifier`
-- [ ] **RED**: DKG proof and decryption proof with mismatched `esm_agg_commits_root` must fail.
-- [ ] **GREEN**: Verifier stores/loads DKG anchors and checks decryption anchors before accepting plaintext.
-- [ ] **GATE**: On-chain or off-chain public verifier performs only compact anchor checks plus proof verification.
+- [x] **Files**: `contracts`, `crates/pvthfhe-offchain-verifier`
+- [x] **RED**: DKG proof and decryption proof with mismatched `esm_agg_commits_root` must fail.
+- [x] **GREEN**: Verifier stores/loads DKG anchors and checks decryption anchors before accepting plaintext.
+- [x] **GATE**: On-chain or off-chain public verifier performs only compact anchor checks plus proof verification.
 
 ---
 
@@ -487,36 +487,36 @@ Batch I: Benchmark and security-proof closure
 
 ### I.1 — Benchmark one-track vs two-track PVTHFHE
 
-- [ ] **Files**: `bench/`, `bench/results/`
-- [ ] **Run**: Benchmark current one-track path and new two-track committed-smudge path for representative `n` values.
-- [ ] **Metrics**:
+- [x] **Files**: `bench/`, `bench/results/`
+- [x] **Run**: Benchmark current one-track path and new two-track committed-smudge path for representative `n` values.
+- [x] **Metrics**:
   - DKG prover time per party;
   - decryption proof time per party;
   - fold/compression time;
   - verifier time;
   - proof/wire size;
   - peak memory.
-- [ ] **GATE**: Two-track overhead is measured and explained. Target is ≤ 1.5× one-track PVTHFHE for DKG proof-producing path.
+- [x] **GATE**: Two-track overhead is measured and explained. Target is ≤ 1.5× one-track PVTHFHE for DKG proof-producing path.
 
 ### I.2 — Compare against Interfold cost model
 
-- [ ] **Doc**: `bench/results/interfold-equivalent-pvss-comparison.md`
-- [ ] **Content**:
+- [x] **Doc**: `bench/results/interfold-equivalent-pvss-comparison.md`
+- [x] **Content**:
   - Interfold C0-C7 proof-count model from current monorepo docs;
   - PVTHFHE batched proof-count model;
   - concrete measured local costs where available;
   - caveats about hardware/toolchain/backend differences.
-- [ ] **GATE**: Claim is framed as comparable guarantee surface with measured PVTHFHE performance, not an apples-to-apples audited proof-system equivalence.
+- [x] **GATE**: Claim is framed as comparable guarantee surface with measured PVTHFHE performance, not an apples-to-apples audited proof-system equivalence.
 
 ### I.3 — Security proof note
 
-- [ ] **Doc**: `docs/security-proofs/interfold-equivalent-pvss.md`
-- [ ] **Content**:
+- [x] **Doc**: `docs/security-proofs/interfold-equivalent-pvss.md`
+- [x] **Content**:
   - assumptions: RLWE/BFV secrecy, binding commitments, proof soundness, Fiat-Shamir model, threshold corruption bound;
   - theorem sketch from DKG transcript validity to decryption-share soundness;
   - smudge-slot one-time-use lemma;
   - explicit limitations around distributional sampling of `e_sm` if only boundedness is proved.
-- [ ] **GATE**: Security note states exactly what is now comparable to Interfold and what remains different.
+- [x] **GATE**: Security note states exactly what is now comparable to Interfold and what remains different.
 
 ---
 
@@ -526,42 +526,42 @@ Implementers must write RED tests before GREEN changes, per repo TDD policy.
 
 Minimum negative tests:
 
-- [ ] Tampered `sk_share` commitment is rejected.
-- [ ] Tampered `e_sm_share` commitment is rejected.
-- [ ] Ciphertext encrypting wrong `sk_share` is rejected.
-- [ ] Ciphertext encrypting wrong `e_sm_share` is rejected.
-- [ ] Cross-track replay (`sk` proof reused for `e_sm`) is rejected.
-- [ ] Cross-session replay is rejected.
-- [ ] Decryption proof using fresh local noise instead of committed `e_sm` is rejected.
-- [ ] Reused smudge slot is rejected.
-- [ ] Decryption proof with wrong ciphertext hash is rejected.
-- [ ] Decryption proof with wrong DKG root is rejected.
-- [ ] Duplicate participant ids in final aggregation are rejected.
-- [ ] Participant outside accepted set is rejected.
-- [ ] Wrong Lagrange coefficients are rejected.
-- [ ] Wrong CRT reconstruction is rejected.
-- [ ] Wrong plaintext decode is rejected.
-- [ ] Folded proof with tampered `e_sm` subinstance is rejected.
-- [ ] DKG/decryption anchor mismatch is rejected by public verifier.
+- [x] Tampered `sk_share` commitment is rejected.
+- [x] Tampered `e_sm_share` commitment is rejected.
+- [x] Ciphertext encrypting wrong `sk_share` is rejected.
+- [x] Ciphertext encrypting wrong `e_sm_share` is rejected.
+- [x] Cross-track replay (`sk` proof reused for `e_sm`) is rejected.
+- [x] Cross-session replay is rejected.
+- [x] Decryption proof using fresh local noise instead of committed `e_sm` is rejected.
+- [x] Reused smudge slot is rejected.
+- [x] Decryption proof with wrong ciphertext hash is rejected.
+- [x] Decryption proof with wrong DKG root is rejected.
+- [x] Duplicate participant ids in final aggregation are rejected.
+- [x] Participant outside accepted set is rejected.
+- [x] Wrong Lagrange coefficients are rejected.
+- [x] Wrong CRT reconstruction is rejected.
+- [x] Wrong plaintext decode is rejected.
+- [x] Folded proof with tampered `e_sm` subinstance is rejected.
+- [x] DKG/decryption anchor mismatch is rejected by public verifier.
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] Current Interfold monorepo circuit target is pinned and documented.
-- [ ] PVTHFHE has first-class committed smudging-noise DKG material.
-- [ ] PVTHFHE DKG transcript includes both `sk` and `e_sm` tracks.
-- [ ] Share encryption proof proves real BFV encryption relation with explicit witnesses, not only hash binding.
-- [ ] Batched share proof covers both `sk` and `e_sm` shares or an equivalent folded batch with documented soundness.
-- [ ] Threshold decryption proof uses committed `e_sm` share/slot, not fresh uncommitted local smudging.
-- [ ] Smudge-slot freshness is publicly enforceable.
-- [ ] Final decryption aggregation proof verifies participant ids, Lagrange interpolation, CRT reconstruction, and plaintext decoding.
-- [ ] DKG folded proof and decryption folded proof surface matching anchor values.
-- [ ] Public verifier rejects mismatched `sk`/`e_sm` anchors.
-- [ ] Security documentation clearly states comparable assumptions and remaining differences vs Interfold.
-- [ ] Benchmarks quantify overhead and show whether PVTHFHE keeps the intended performance advantage.
-- [ ] All implementation changes follow RED→GREEN→GATE.
-- [ ] No new production proof path silently falls back to legacy/local smudging.
+- [x] Current Interfold monorepo circuit target is pinned and documented.
+- [x] PVTHFHE has first-class committed smudging-noise DKG material.
+- [x] PVTHFHE DKG transcript includes both `sk` and `e_sm` tracks.
+- [x] Share encryption proof proves real BFV encryption relation with explicit witnesses, not only hash binding.
+- [x] Batched share proof covers both `sk` and `e_sm` shares or an equivalent folded batch with documented soundness.
+- [x] Threshold decryption proof uses committed `e_sm` share/slot, not fresh uncommitted local smudging.
+- [x] Smudge-slot freshness is publicly enforceable.
+- [x] Final decryption aggregation proof verifies participant ids, Lagrange interpolation, CRT reconstruction, and plaintext decoding.
+- [x] DKG folded proof and decryption folded proof surface matching anchor values.
+- [x] Public verifier rejects mismatched `sk`/`e_sm` anchors.
+- [x] Security documentation clearly states comparable assumptions and remaining differences vs Interfold.
+- [x] Benchmarks quantify overhead and show whether PVTHFHE keeps the intended performance advantage.
+- [x] All implementation changes follow RED→GREEN→GATE.
+- [x] No new production proof path silently falls back to legacy/local smudging.
 
 ---
 

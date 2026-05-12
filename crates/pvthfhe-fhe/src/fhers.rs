@@ -24,6 +24,7 @@ use pvthfhe_types::ProtocolBytes;
 use rand_chacha::ChaCha8Rng;
 use rand_core::{RngCore, SeedableRng};
 use rand_distr::{Distribution, Normal};
+use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -108,11 +109,56 @@ impl FhersBackend {
     }
 
     /// Look up committed smudging-noise polynomial bytes for `party_id` (B.2).
-    fn esm_noise_poly_for(&self, party_id: u32) -> Option<Vec<u8>> {
+    pub fn esm_noise_poly_for(&self, party_id: u32) -> Option<Vec<u8>> {
         self.esm_noise_poly_map
             .lock()
             .ok()
             .and_then(|map| map.get(&party_id).cloned())
+    }
+
+    /// Generate deterministic committed smudging-noise polynomial bytes for a party
+    /// and store them in the backend (B.2). Returns the serialized polynomial bytes.
+    pub fn generate_deterministic_esm_noise_for_party(
+        &self,
+        party_id: u32,
+        seed: u64,
+    ) -> Result<Vec<u8>, FheError> {
+        let degree = self.bfv_params.degree();
+        let ctx = self
+            .bfv_params
+            .ctx_at_level(0)
+            .map_err(|err| FheError::Backend {
+                reason: err.to_string(),
+            })?;
+
+        let mut hasher = Sha256::new();
+        hasher.update(b"pvthfhe-esm-noise-v1");
+        hasher.update(party_id.to_be_bytes());
+        hasher.update(seed.to_be_bytes());
+        let seed_bytes: [u8; 32] = hasher.finalize().into();
+        let mut noise_rng = ChaCha8Rng::from_seed(seed_bytes);
+
+        let dist = Normal::new(0.0, SIGMA_SMUDGE).map_err(|err| FheError::Backend {
+            reason: err.to_string(),
+        })?;
+        let noise_coeffs: Vec<i64> = (0..degree)
+            .map(|_| {
+                let sample: f64 = dist.sample(&mut noise_rng);
+                sample.round() as i64
+            })
+            .collect();
+        let noise_poly = Poly::try_convert_from(
+            noise_coeffs.as_slice(),
+            &ctx,
+            false,
+            Representation::PowerBasis,
+        )
+        .map_err(|err| FheError::Backend {
+            reason: err.to_string(),
+        })?;
+        let bytes = noise_poly.to_bytes();
+        self.store_esm_noise_poly_bytes(party_id, bytes.clone());
+        Ok(bytes)
     }
 
     /// Remove and return the stored state for `party_id`.

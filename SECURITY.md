@@ -53,6 +53,7 @@ This is a research prototype and contains components where formal soundness proo
 - **C3 (Share Encryption Gap)**: **Algebraic sigma proves hash-preimage, not Shamir/BFV structure**. The verifier checks hash bindings but cannot independently confirm that the ciphertext encrypts the committed share under the recipient's BFV public key. The D.1 containment fails closed. See `interfold-equivalence.md` §C3.
 - **C2 (Encryption Correctness Gap)**: **Encryption is trusted; no verifiable proof of correct encryption exists**. `backend.encrypt()` produces a ciphertext without a proof that it matches the plaintext under the aggregate key. A malicious encryptor can produce a semantically incorrect ciphertext. Mitigation: the semantic roundtrip check detects errors at the aggregate level only. See `threat-model-v1.md` §7.2 item 12.
 - **C7 (Final Aggregation Gap)**: **No verifiable Lagrange+CRT+decode proof**. The Noir toy circuit (N=8, direct Lagrange) does not verify Cyclo accumulators, MicroNova proofs, or perform full BFV reconstruction. `recover` runs locally in Rust without producing a proof. See `interfold-equivalence.md` §C7.
+- **Bench stub phases**: `onchain_verify`, `noir_decrypt_share`, `noir_aggregator_final`, `noir_sonobe_wrap` phases in the bench binary (`pvthfhe_e2e.rs`) are timing-only markers. No Solidity verifier or Noir circuit is executed during these phases. See `.sisyphus/design/spec-real-p2p3.md` §6 for the production verification plan.
 
 ## Logging Hygiene
 

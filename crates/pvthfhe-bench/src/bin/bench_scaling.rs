@@ -179,7 +179,12 @@ fn run_pipeline_with_backend<B: FheBackend + Clone + 'static>(
     let shares = allowed
         .iter()
         .map(|&pid| {
-            partial_decrypt(backend, &ct, pid, &dkg_root, &ct_hash, 1, &mut rng)
+            let party_pk = transcript
+                .round1_messages
+                .get((pid - 1) as usize)
+                .map(|msg| msg.pk_i.bytes.clone())
+                .unwrap_or_default();
+            partial_decrypt(backend, &ct, pid, &dkg_root, &ct_hash, 1, &party_pk, None, &mut rng)
                 .map_err(|err| format!("partial_decrypt party {pid}: {err}"))
         })
         .collect::<Result<Vec<_>, _>>()?;

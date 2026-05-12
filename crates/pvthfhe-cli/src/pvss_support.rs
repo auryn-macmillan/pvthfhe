@@ -2,13 +2,15 @@ use anyhow::Context;
 use pvthfhe_aggregator::keygen::types::DkgTranscript;
 use pvthfhe_fhe::{fhers::FhersBackend, FheBackend, KeygenShare};
 use pvthfhe_pvss::{
-    nizk_decrypt::DecryptNizkWitness, nizk_share::ShareNizkProof, DecryptedShare,
-    LatticePvssBfvAdapter, PvssAdapter, PvssContext,
+    nizk_decrypt::{derive_party_binding, DecryptNizkWitness},
+    nizk_share::ShareNizkProof,
+    DecryptedShare, LatticePvssBfvAdapter, PvssAdapter, PvssContext,
 };
 use pvthfhe_rng::OsRng;
 use pvthfhe_types::{ProtocolBytes, Secret};
 use rand_core::RngCore;
 use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 use std::time::Instant;
 
 /// Stable backend identifier for the default lattice PVSS adapter.
@@ -47,7 +49,7 @@ pub fn run_lattice_pvss(
         t: threshold,
         session_id: session_id.clone(),
         epoch: 0,
-        dkg_root: session_id,
+        dkg_root: transcript.dkg_root.to_vec(),
     };
     let recipient_pks = derive_recipient_public_keys(backend, transcript)?;
     let secret = derive_secret(transcript);
@@ -63,6 +65,19 @@ pub fn run_lattice_pvss(
         .verify_shares(&encrypted, &ctx)
         .map_err(|err| anyhow::anyhow!("pvss verify_shares: {err}"))?;
     let verify_ms = elapsed_ms(verify_started.elapsed());
+
+    // Generate esm noise per party for CommittedSmudge mode (A.2)
+    let mut per_party_esm: HashMap<u32, (Vec<u8>, u64, u64)> = HashMap::new();
+    for i in 0..ctx.n {
+        let party_id = u32::try_from(i + 1).context("party index to id")?;
+        let esm_bytes = backend
+            .generate_deterministic_esm_noise_for_party(party_id, seed)
+            .context("generate esm noise for pvss")?;
+        let party_pk = &recipient_pks[i];
+        let sk_agg_share = derive_party_binding(party_pk);
+        let esm_agg_share = derive_party_binding(&esm_bytes);
+        per_party_esm.insert(party_id, (esm_bytes, sk_agg_share, esm_agg_share));
+    }
 
     let mut decrypt_prove_per_instance_ms = Vec::with_capacity(threshold);
     let decrypted_shares = encrypted
@@ -85,6 +100,10 @@ pub fn run_lattice_pvss(
                 .with_context(|| format!("get secret key for party {party_id}"))?;
             let mut decryption_noise = vec![0u8; secret_key_bytes.len()];
             OsRng.fill_bytes(&mut decryption_noise);
+            let (committed_esm, sk_agg_share, esm_agg_share) = per_party_esm
+                .get(&party_id)
+                .map(|(eb, sk, esm)| (Some(eb.clone()), Some(*sk), Some(*esm)))
+                .unwrap_or((None, None, None));
             let decrypted_share = adapter
                 .prove_decrypted_share(
                     ciphertext_u,
@@ -94,13 +113,13 @@ pub fn run_lattice_pvss(
                     &DecryptNizkWitness {
                         secret_key_bytes: Secret::new(secret_key_bytes),
                         decryption_noise: Secret::new(decryption_noise),
-                        sk_agg_share: None,
-                        esm_agg_share: None,
-                        esm_noise_poly_bytes: None,
+                        sk_agg_share,
+                        esm_agg_share,
+                        esm_noise_poly_bytes: committed_esm.clone(),
                     },
                     &ctx,
-                    None, // committed_esm_noise_bytes: not yet wired from DKG
-                    None, // sk_agg_share: not yet wired from DKG
+                    committed_esm,
+                    sk_agg_share,
                 )
                 .map_err(|err| anyhow::anyhow!("pvss prove_decrypted_share {index}: {err}"))?;
             decrypt_prove_per_instance_ms

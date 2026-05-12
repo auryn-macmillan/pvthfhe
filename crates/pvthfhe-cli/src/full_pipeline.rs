@@ -1,6 +1,7 @@
 //! Shared full-pipeline driver for bench and demo entrypoints.
 
 use anyhow::Context;
+use ark_bn254::Fr;
 use pvthfhe_aggregator::{
     folding::{CcsPShareInstance, CycloFoldAllReport},
     keygen::{
@@ -16,13 +17,18 @@ use pvthfhe_fhe::{
     real_nizk::{LatticeNizk, NizkStatement, NizkWitness, RealNizkAdapter},
     FheBackend, KeygenShare, PublicKey,
 };
+use pvthfhe_pvss::dkg_aggregation::{
+    compute_esm_aggregate_commitment, compute_sk_aggregate_commitment,
+};
 use pvthfhe_pvss::nizk_decrypt::{
-    DecryptNizkMode, DecryptNizkProof, DecryptNizkStatement, DecryptNizkVerifier,
+    compute_decrypt_ciphertext_hash, derive_party_binding, DecryptNizkMode, DecryptNizkProof,
+    DecryptNizkProver, DecryptNizkStatement, DecryptNizkVerifier, DecryptNizkWitness,
 };
 use pvthfhe_pvss::nizk_share::compute_ciphertext_v;
 use pvthfhe_rng::OsRng;
-use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
+use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes, Secret};
 use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 use std::time::Instant;
 
 use crate::{
@@ -199,6 +205,30 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         .context("setup_threshold")?;
     observer.phase_end("setup_threshold", elapsed_ms(setup_started));
 
+    // Generate committed smudging noise per party for CommittedSmudge mode (A.1/A.2).
+    observer.phase_start("esm_noise_gen", None);
+    let esm_noise_started = Instant::now();
+    let mut per_party_esm: HashMap<u32, (Vec<u8>, u64, u64)> = HashMap::new();
+    for party_index in 0..cfg.n {
+        let party_id = u32::try_from(party_index + 1).context("party id conversion")?;
+        let esm_bytes = backend
+            .generate_deterministic_esm_noise_for_party(party_id, cfg.seed)
+            .context("generate esm noise")?;
+        let message = &transcript.round1_messages[party_index];
+        let party_pk = backend
+            .aggregate_keygen(&[KeygenShare {
+                party_id,
+                bytes: ProtocolBytes(message.pk_i.bytes.clone()),
+            }])
+            .context("derive party pk for esm")?
+            .bytes;
+        let sk_agg_share = derive_party_binding(&party_pk);
+        let esm_agg_share = derive_party_binding(&esm_bytes);
+        per_party_esm.insert(party_id, (esm_bytes, sk_agg_share, esm_agg_share));
+    }
+    observer.note(&format!("committed_esm_parties={}", per_party_esm.len()));
+    observer.phase_end("esm_noise_gen", elapsed_ms(esm_noise_started));
+
     let aggregate_pk = transcript.round3_aggregate.aggregate_pk.clone();
     observer.phase_start("aggregate_keygen", None);
     let aggregate_keygen_started = Instant::now();
@@ -323,41 +353,102 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let mut partial_decrypt_ms = Vec::with_capacity(cfg.t);
     for party_index in 1..=cfg.t {
         let party_id = u32::try_from(party_index).context("party id conversion")?;
+        let zero_based = party_index - 1;
         let mut rng = OsRng;
         observer.phase_start("partial_decrypt", Some(&format!("party_id={party_id}")));
         let started = Instant::now();
-        let share = backend
+        let mut share = backend
             .partial_decrypt(&ciphertext, party_id, &mut rng)
             .with_context(|| format!("partial_decrypt party {party_id}"))?;
         let ms = elapsed_ms(started);
         observer.phase_end("partial_decrypt", ms);
         partial_decrypt_ms.push(ms);
 
-        // B.1: Per-share NIZK verification (graceful degradation when no proof)
-        let nizk_proof_bytes = share.nizk_proof_bytes.clone();
-        let share_bytes = share.bytes.clone();
+        let message = &transcript.round1_messages[zero_based];
+        let party_pk = backend
+            .aggregate_keygen(&[KeygenShare {
+                party_id,
+                bytes: ProtocolBytes(message.pk_i.bytes.clone()),
+            }])
+            .with_context(|| format!("derive party pk for party {party_id}"))?
+            .bytes;
+        let ciphertext_v = compute_ciphertext_v(&ciphertext.bytes).to_vec();
+        let dkg_root = transcript.dkg_root.to_vec();
+
+        // Build decrypt NIZK statement and proof (CommittedSmudge when esm data available).
+        let (statement, proof_bytes_opt) =
+            if let Some((esm_bytes, sk_agg_share, esm_agg_share)) = per_party_esm.get(&party_id) {
+                let ciphertext_hash =
+                    compute_decrypt_ciphertext_hash(&ciphertext.bytes, &ciphertext_v);
+                let recipient_id = u16::try_from(zero_based).unwrap_or(0);
+                let accepted_participant_ids: Vec<u16> =
+                    (1..=u16::try_from(cfg.n).unwrap_or(u16::MAX)).collect();
+                let sk_agg_commit = compute_sk_aggregate_commitment(
+                    session_id.as_bytes(),
+                    &dkg_root,
+                    recipient_id,
+                    &accepted_participant_ids,
+                    Fr::from(*sk_agg_share),
+                );
+                let esm_agg_commit = compute_esm_aggregate_commitment(
+                    session_id.as_bytes(),
+                    &dkg_root,
+                    recipient_id,
+                    &accepted_participant_ids,
+                    1,
+                    Fr::from(*esm_agg_share),
+                );
+                let statement = DecryptNizkStatement {
+                    session_id: session_id.as_bytes().to_vec(),
+                    party_index: zero_based,
+                    ciphertext_u: ciphertext.bytes.clone(),
+                    ciphertext_v: ciphertext_v.clone(),
+                    decrypted_share_bytes: share.bytes.0.clone(),
+                    party_pk: party_pk.clone(),
+                    epoch: 0,
+                    dkg_root,
+                    mode: DecryptNizkMode::CommittedSmudge {
+                        slot_id: 1,
+                        decrypt_round: 0,
+                        ciphertext_hash,
+                        accepted_participant_ids,
+                        sk_agg_commit,
+                        esm_agg_commit,
+                    },
+                };
+                let secret_key_bytes = backend
+                    .party_secret_key_bytes(party_id)
+                    .with_context(|| format!("get secret key for party {party_id}"))?;
+                let witness = DecryptNizkWitness {
+                    secret_key_bytes: Secret::new(secret_key_bytes),
+                    decryption_noise: Secret::new(esm_bytes.clone()),
+                    sk_agg_share: Some(*sk_agg_share),
+                    esm_agg_share: Some(*esm_agg_share),
+                    esm_noise_poly_bytes: Some(esm_bytes.clone()),
+                };
+                let proof = DecryptNizkProver::prove(&statement, &witness)
+                    .with_context(|| format!("NIZK prove failed for party {party_id}"))?;
+                share.nizk_proof_bytes = Some(proof.proof_bytes.clone());
+                (statement, Some(proof.proof_bytes))
+            } else {
+                let statement = DecryptNizkStatement {
+                    session_id: session_id.as_bytes().to_vec(),
+                    party_index: zero_based,
+                    ciphertext_u: ciphertext.bytes.clone(),
+                    ciphertext_v,
+                    decrypted_share_bytes: share.bytes.0.clone(),
+                    party_pk,
+                    epoch: 0,
+                    dkg_root,
+                    mode: DecryptNizkMode::LegacyLocalSmudge,
+                };
+                let proof_bytes = share.nizk_proof_bytes.clone();
+                (statement, proof_bytes)
+            };
+
         shares.push(share);
 
-        if let Some(ref proof_bytes) = nizk_proof_bytes {
-            let message = &transcript.round1_messages[party_index - 1];
-            let party_pk = backend
-                .aggregate_keygen(&[KeygenShare {
-                    party_id,
-                    bytes: ProtocolBytes(message.pk_i.bytes.clone()),
-                }])
-                .with_context(|| format!("derive party pk for party {party_id}"))?
-                .bytes;
-            let statement = DecryptNizkStatement {
-                session_id: session_id.as_bytes().to_vec(),
-                party_index: party_index - 1,
-                ciphertext_u: ciphertext.bytes.clone(),
-                ciphertext_v: compute_ciphertext_v(&ciphertext.bytes).to_vec(),
-                decrypted_share_bytes: share_bytes.0,
-                party_pk,
-                epoch: 0,
-                dkg_root: session_id.as_bytes().to_vec(),
-                mode: DecryptNizkMode::LegacyLocalSmudge,
-            };
+        if let Some(ref proof_bytes) = proof_bytes_opt {
             let proof = DecryptNizkProof::from_bytes(proof_bytes.clone())
                 .with_context(|| format!("decode NIZK proof for party {party_id}"))?;
             DecryptNizkVerifier::verify(&statement, &proof)

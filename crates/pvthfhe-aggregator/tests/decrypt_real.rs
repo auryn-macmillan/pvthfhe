@@ -55,6 +55,12 @@ fn decrypt_real_smoke_test() {
     let shares = [1u32, 2, 3, 4, 5]
         .into_iter()
         .map(|party_id| {
+            let party_pk = transcript
+                .round1_messages
+                .get((party_id - 1) as usize)
+                .map(|msg| msg.pk_i.bytes.clone())
+                .unwrap_or_default();
+            let sk_bytes = backend.party_secret_key_bytes(party_id).ok();
             partial_decrypt(
                 &backend,
                 &ciphertext,
@@ -62,6 +68,8 @@ fn decrypt_real_smoke_test() {
                 &transcript.dkg_root,
                 &ciphertext_hash,
                 1,
+                &party_pk,
+                sk_bytes.as_deref(),
                 &mut rng,
             )
         })

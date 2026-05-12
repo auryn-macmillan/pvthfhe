@@ -206,6 +206,7 @@ mod unit_tests {
         let share1 = DecryptShare {
             party_id: 1,
             bytes: ProtocolBytes(1u32.to_le_bytes().to_vec()),
+            nizk_proof_bytes: None,
         };
         let shares = vec![share1.clone(), share1.clone()];
         let result = backend.aggregate_decrypt(&ct, &shares, 2);

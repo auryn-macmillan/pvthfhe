@@ -428,7 +428,8 @@ pub fn compute_decrypt_ciphertext_hash(
     hasher.finalize().into()
 }
 
-fn derive_party_binding(party_pk: &[u8]) -> u64 {
+/// Derive a scalar binding from a party's public key for sk_agg_share fallback.
+pub fn derive_party_binding(party_pk: &[u8]) -> u64 {
     let mut hasher = Sha256::new();
     hasher.update(b"pvthfhe-decrypt-party-binding-v1");
     hasher.update(party_pk);

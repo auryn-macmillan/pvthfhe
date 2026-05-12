@@ -62,6 +62,7 @@ fn decrypt_fixture(seed: u64) -> DecryptFixture {
     let dkg_root = hash_bytes(&seed.to_be_bytes());
     let ciphertext_hash = hash_bytes(&ct.bytes);
     let epoch = seed;
+    let party_pk = vec![0u8; 32];
     let shares = allowed_parties
         .iter()
         .map(|&party_id| {
@@ -73,6 +74,8 @@ fn decrypt_fixture(seed: u64) -> DecryptFixture {
                 &dkg_root,
                 &ciphertext_hash,
                 epoch,
+                &party_pk,
+                None,
                 &mut share_rng,
             )
             .unwrap()

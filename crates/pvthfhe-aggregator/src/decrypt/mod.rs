@@ -2,7 +2,14 @@ use pvthfhe_fhe::{
     types::{Ciphertext, DecryptShare},
     FheBackend, FheError,
 };
-use pvthfhe_types::ProtocolBytes;
+use pvthfhe_pvss::{
+    nizk_decrypt::{
+        DecryptNizkMode, DecryptNizkProof, DecryptNizkProver,
+        DecryptNizkStatement, DecryptNizkVerifier, DecryptNizkWitness,
+    },
+    nizk_share::compute_ciphertext_v,
+};
+use pvthfhe_types::{ProtocolBytes, Secret};
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -22,6 +29,8 @@ pub enum DecryptError {
     DuplicateParty(u32),
     #[error("unknown party id {0}")]
     UnknownParty(u32),
+    #[error("NIZK verification failed for party {party_id}")]
+    NizkVerify { party_id: u32 },
     #[error("backend error: {0}")]
     Backend(#[from] FheError),
 }
@@ -125,18 +134,80 @@ pub fn partial_decrypt(
     dkg_root: &[u8; 32],
     ciphertext_hash: &[u8; 32],
     epoch: u64,
+    party_pk_bytes: &[u8],
+    secret_key_bytes: Option<&[u8]>,
     rng: &mut dyn RngCore,
 ) -> Result<DecryptSharePayload, DecryptError> {
-    let share = backend.partial_decrypt(ct, party_id, rng)?;
+    let (share, witness) = match backend.partial_decrypt_with_witness(ct, party_id, rng) {
+        Ok(result) => result,
+        Err(FheError::Backend { .. }) => {
+            let share = backend.partial_decrypt(ct, party_id, rng)?;
+            return Ok(DecryptSharePayload {
+                party_id,
+                pk_i_hash: sha256_bytes(party_pk_bytes),
+                dkg_root: *dkg_root,
+                ciphertext_hash: *ciphertext_hash,
+                epoch,
+                share,
+                nizk: ProtocolBytes(vec![]),
+                version: 1,
+            });
+        }
+        Err(e) => return Err(DecryptError::Backend(e)),
+    };
+
+    let pk_i_hash = sha256_bytes(party_pk_bytes);
+
+    // Generate real NIZK proof when secret key is available
+    let nizk_proof_bytes = if let Some(sk_bytes) = secret_key_bytes {
+        if sk_bytes.is_empty() || party_pk_bytes.is_empty() {
+            ProtocolBytes(vec![])
+        } else {
+            let party_index = (party_id.saturating_sub(1)) as usize;
+            let session_id = dkg_root.to_vec();
+            let ciphertext_u = ct.bytes.clone();
+            let ciphertext_v = compute_ciphertext_v(&ciphertext_u).to_vec();
+            let decrypted_share_bytes = witness.decrypted_share_bytes.clone();
+
+            let decryption_noise_bytes = witness.esm_noise_poly_bytes.clone();
+
+            let stmt = DecryptNizkStatement {
+                session_id,
+                party_index,
+                ciphertext_u,
+                ciphertext_v,
+                decrypted_share_bytes,
+                party_pk: party_pk_bytes.to_vec(),
+                epoch,
+                dkg_root: dkg_root.to_vec(),
+                mode: DecryptNizkMode::LegacyLocalSmudge,
+            };
+
+            let witness = DecryptNizkWitness {
+                secret_key_bytes: Secret::new(sk_bytes.to_vec()),
+                decryption_noise: Secret::new(decryption_noise_bytes),
+                sk_agg_share: None,
+                esm_agg_share: None,
+                esm_noise_poly_bytes: None,
+            };
+
+            match DecryptNizkProver::prove(&stmt, &witness) {
+                Ok(proof) => ProtocolBytes(proof.proof_bytes),
+                Err(_) => ProtocolBytes(vec![]),
+            }
+        }
+    } else {
+        ProtocolBytes(vec![])
+    };
 
     Ok(DecryptSharePayload {
         party_id,
-        pk_i_hash: [0u8; 32],
+        pk_i_hash,
         dkg_root: *dkg_root,
         ciphertext_hash: *ciphertext_hash,
         epoch,
         share,
-        nizk: ProtocolBytes(vec![1]),
+        nizk: nizk_proof_bytes,
         version: 1,
     })
 }
@@ -193,7 +264,7 @@ pub fn aggregate_decrypt(
     shares: &[DecryptSharePayload],
     threshold: usize,
     allowed_parties: &[u32],
-    _dkg_root: &[u8; 32],
+    dkg_root: &[u8; 32],
     ciphertext_hash: &[u8; 32],
     _epoch: u64,
 ) -> Result<Vec<u8>, DecryptError> {
@@ -209,17 +280,43 @@ pub fn aggregate_decrypt(
             return Err(DecryptError::DuplicateParty(payload.party_id));
         }
 
-        if payload.nizk.is_empty() || payload.nizk[0] != 1 {
-            return Err(DecryptError::InvalidShare {
-                party_id: payload.party_id,
-            });
-        }
-
         if payload.ciphertext_hash != *ciphertext_hash {
             return Err(DecryptError::InvalidShare {
                 party_id: payload.party_id,
             });
         }
+
+        if payload.nizk.is_empty() {
+            return Err(DecryptError::NizkVerify {
+                party_id: payload.party_id,
+            });
+        }
+
+        let proof = DecryptNizkProof::from_bytes(payload.nizk.0.clone())
+            .map_err(|_| DecryptError::NizkVerify {
+                party_id: payload.party_id,
+            })?;
+        let opened = proof.decode().map_err(|_| DecryptError::NizkVerify {
+            party_id: payload.party_id,
+        })?;
+
+        let party_index = (payload.party_id.saturating_sub(1)) as usize;
+        if opened.statement.party_index != party_index
+            || opened.statement.dkg_root != dkg_root.to_vec()
+            || sha256_bytes(&opened.statement.ciphertext_u) != *ciphertext_hash
+            || opened.statement.ciphertext_v
+                != compute_ciphertext_v(&opened.statement.ciphertext_u).to_vec()
+        {
+            return Err(DecryptError::NizkVerify {
+                party_id: payload.party_id,
+            });
+        }
+
+        DecryptNizkVerifier::verify(&opened.statement, &proof).map_err(|_| {
+            DecryptError::NizkVerify {
+                party_id: payload.party_id,
+            }
+        })?;
 
         valid_shares.push(payload.share.clone());
     }
@@ -501,4 +598,10 @@ fn mod_inverse(value: u64, modulus: u64) -> Option<u64> {
     }
     let modulus = i128::from(modulus);
     Some(((old_s % modulus + modulus) % modulus) as u64)
+}
+
+fn sha256_bytes(data: &[u8]) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    hasher.finalize().into()
 }

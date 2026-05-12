@@ -725,14 +725,35 @@ impl BfvPublicKeyDerivation for PublicVerificationArtifact {
         let params_hash_raw: [u8; 32] = Sha256::digest(CANONICAL_PARAMS_TOML.as_bytes()).into();
         let params_id = format!("bfv-{}", hex_encode(&params_hash_raw[..8]));
 
+        let public_component_a = {
+            let mut hasher = Sha256::new();
+            hasher.update(b"pvthfhe-bfv-crp-v1");
+            hasher.update(self.transcript_root.0.as_bytes());
+            let digest: [u8; 32] = hasher.finalize().into();
+            HexBlob(hex_encode(&digest))
+        };
+
+        let public_component_b = {
+            let mut hasher = Sha256::new();
+            hasher.update(b"pvthfhe-bfv-b-poly-v1");
+            hasher.update(self.proof_bytes.0.as_bytes());
+            let mut sorted: Vec<&Share> = shares.iter().collect();
+            sorted.sort_by_key(|s| s.recipient_id);
+            for share in &sorted {
+                hasher.update(share.encrypted_share.0.as_bytes());
+            }
+            let digest: [u8; 32] = hasher.finalize().into();
+            HexBlob(hex_encode(&digest))
+        };
+
         Ok(BFVPublicKey {
             wire_version: 1,
             session_id: session.session_id.clone(),
             params_id,
             rlwe_dimension: degree,
             modulus_chain: moduli,
-            public_component_a: HexBlob(format!("{}01", self.transcript_root.0)),
-            public_component_b: HexBlob(format!("{}02", self.proof_bytes.0)),
+            public_component_a,
+            public_component_b,
             provenance: BfvKeyProvenance {
                 reconstructed_from_share_ids: ids,
                 transcript_root: self.transcript_root.clone(),

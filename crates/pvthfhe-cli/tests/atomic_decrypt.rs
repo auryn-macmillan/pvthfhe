@@ -30,6 +30,7 @@ fn tampered_partial_rejected_no_plaintext() {
     let ciphertext_hash = [4u8; 32];
     let epoch = 1;
 
+    let party_pk = vec![0u8; 32];
     let share1 = partial_decrypt(
         &backend,
         &ct,
@@ -37,6 +38,8 @@ fn tampered_partial_rejected_no_plaintext() {
         &dkg_root,
         &ciphertext_hash,
         epoch,
+        &party_pk,
+        None,
         &mut rng,
     )
     .expect("share 1");
@@ -48,6 +51,8 @@ fn tampered_partial_rejected_no_plaintext() {
         &dkg_root,
         &ciphertext_hash,
         epoch,
+        &party_pk,
+        None,
         &mut rng,
     )
     .expect("share 2");

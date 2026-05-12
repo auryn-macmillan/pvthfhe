@@ -45,9 +45,34 @@ For a full list of formal assumptions, see [.sisyphus/design/security-proofs.md]
 
 This is a research prototype and contains components where formal soundness proofs are still being developed:
 
-- **P1 (CRITICAL)**: **Lattice NIZK Soundness**. P1 (CRITICAL): Per-share RLWE NIZK knowledge soundness is conditional on (a) Module-SIS hardness over R_{q_commit}, (b) Cyclo Theorem 3 soundness (ePrint 2026/359), and (c) collision resistance of SHA-256 for the P4 commitment domain. Formal joint-extractor proof (T2) is deferred. Any relying party must treat per-share proofs as computationally binding under these assumptions only.
+- **P1 (CRITICAL)**: **Lattice NIZK Soundness**. P1 (CRITICAL): Per-share RLWE NIZK knowledge soundness is conditional on (a) Module-SIS hardness over R_{q_commit}, (b) Cyclo Theorem 3 soundness (ePrint 2026/359), and (c) collision resistance of SHA-256 for the P4 commitment domain. Formal joint-extractor proof (T2) is deferred. Any relying party must treat per-share proofs as computationally binding under these assumptions only. Sigma masking seeds: fresh per proof (OsRng, non-deterministic).
 - **P2 (HIGH)**: **LatticeFold+ Linearity**. Real — Cyclo LatticeFold+ over RLWE, T=10, Lemma 9 heuristic (conditional soundness). The active backend is `cyclo-rlwe-t10-lemma9-heuristic`; soundness remains conditional on M-SIS hardness over R_{q_commit}, Cyclo Theorem 3 (ePrint 2026/359), and the Lemma 9 invertibility heuristic, while the joint extractor (T2) remains a skeleton.
 - **P3 (MEDIUM)**: **MicroNova-lattice Encoding**. Substitituted by off-chain Sonobe + on-chain commitment topology. The aggregator submits an UltraHonk proof of the Sonobe state commitment, which is checked on-chain alongside an off-chain attestation.
+- **C5 (PK Aggregation Gap)**: **No verifiable PK aggregation proof**. The DKG ceremony aggregates public keys internally via `ShareManager` without producing a public transcript or verifiable proof that `pk_agg = Σ pk_i` for the accepted participant set. Neither the DKG ceremony nor the aggregator folding produces a C5-equivalent proof. See `interfold-equivalence.md` §C5.
+- **C3 (Share Encryption Gap)**: **Algebraic sigma proves hash-preimage, not Shamir/BFV structure**. The verifier checks hash bindings but cannot independently confirm that the ciphertext encrypts the committed share under the recipient's BFV public key. The D.1 containment fails closed. See `interfold-equivalence.md` §C3.
+- **C7 (Final Aggregation Gap)**: **No verifiable Lagrange+CRT+decode proof**. The Noir toy circuit (N=8, direct Lagrange) does not verify Cyclo accumulators, MicroNova proofs, or perform full BFV reconstruction. `recover` runs locally in Rust without producing a proof. See `interfold-equivalence.md` §C7.
+
+## Logging Hygiene
+
+All FHE plaintext-slot logging in `crates/pvthfhe-fhe/src/fhers.rs` is gated behind the
+Cargo feature `trace-decrypt`, which is **disabled by default**. This includes:
+
+- `[FHE-ENCODE]` slot content in `encode_plaintext_slots`
+- `[FHE-DECODE]` failure diagnostics in `decode_plaintext_slots`
+- `[FHE-DECRYPT]` aggregate-decrypt slot content
+
+The `trace-decrypt` feature exists **solely for debugging and development**. It must
+**never** be enabled in:
+
+1. Any production build or deployment
+2. Any environment where plaintext confidentiality is required
+3. Any benchmark or measurement that interacts with real plaintext data
+
+To enable for local debugging only:
+
+```bash
+cargo build -p pvthfhe-fhe --features trace-decrypt
+```
 
 ## Smudging
 

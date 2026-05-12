@@ -7,6 +7,7 @@ use pvthfhe_pvss::nizk_decrypt::{
     DecryptNizkMode, DecryptNizkProver, DecryptNizkStatement, DecryptNizkVerifier,
     DecryptNizkWitness,
 };
+use pvthfhe_types::Secret;
 
 fn sample_statement() -> DecryptNizkStatement {
     DecryptNizkStatement {
@@ -38,8 +39,8 @@ fn adversary_without_ski_cannot_produce_valid_proof() {
     // verification after GREEN because the NIZK must prove knowledge of
     // the REAL sk_i matching party_pk.
     let wrong_witness = DecryptNizkWitness {
-        secret_key_bytes: vec![0x00; 64],
-        decryption_noise: vec![0x00; 64],
+        secret_key_bytes: Secret::new(vec![0x00; 64]),
+        decryption_noise: Secret::new(vec![0x00; 64]),
         sk_agg_share: None,
         esm_agg_share: None,
         esm_noise_poly_bytes: None,
@@ -72,15 +73,15 @@ fn two_different_witnesses_both_verify() {
     let stmt = sample_statement();
 
     let witness_a = DecryptNizkWitness {
-        secret_key_bytes: vec![0x11; 64],
-        decryption_noise: vec![0x22; 64],
+        secret_key_bytes: Secret::new(vec![0x11; 64]),
+        decryption_noise: Secret::new(vec![0x22; 64]),
         sk_agg_share: None,
         esm_agg_share: None,
         esm_noise_poly_bytes: None,
     };
     let witness_b = DecryptNizkWitness {
-        secret_key_bytes: vec![0xAA; 64],
-        decryption_noise: vec![0xBB; 64],
+        secret_key_bytes: Secret::new(vec![0xAA; 64]),
+        decryption_noise: Secret::new(vec![0xBB; 64]),
         sk_agg_share: None,
         esm_agg_share: None,
         esm_noise_poly_bytes: None,

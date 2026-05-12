@@ -1,8 +1,8 @@
 # I.1 — One-track vs two-track PVTHFHE benchmark/dryrun
 
-- Produced: `2026-05-11T22:53:38Z`
-- Git SHA: `ae40650`
-- Parameters: `n=5`, `t=2`, `seed=1`
+- Produced: `2026-05-12T19:57:47Z`
+- Git SHA: `1f37adc`
+- Parameters: `n=10`, `t=4`, `seed=1`
 - Mode: `fallback-dryrun`
 
 ## Gate status
@@ -17,13 +17,13 @@ Performance-advantage status: **not_fairly_measurable_current_branch** — The i
 
 | Metric | One-track current | Two-track committed-smudge current |
 |---|---:|---:|
-| DKG prover time per party | 507.400 ms/party | unavailable — two-track sk+e_sm DKG proof-producing path is not wired into pvthfhe-e2e/bench runner; focused batched proof test uses MockBackend and is not comparable to real one-track BFV PVSS |
-| DKG prover time per wire share | 126.850 ms/share | n/a |
-| Decryption proof time per party | unavailable — non-dry-run e2e path is blocked before decrypt proof metrics; dry-run does not emit pvss_decrypt_prove JSON | 2713.536 ms/test-command |
+| DKG prover time per party | 627.100 ms/party | unavailable — two-track sk+e_sm DKG proof-producing path is not wired into pvthfhe-e2e/bench runner; focused batched proof test uses MockBackend and is not comparable to real one-track BFV PVSS |
+| DKG prover time per wire share | 69.678 ms/share | n/a |
+| Decryption proof time per party | unavailable — non-dry-run e2e path is blocked before decrypt proof metrics; dry-run does not emit pvss_decrypt_prove JSON | 3041.769 ms/test-command |
 | Fold/compression time | unavailable — dry-run returns before cyclo_fold/compressor phases | unavailable — two-track committed-smudge fold/compression is not exposed by a benchmark runner |
 | Verifier time | unavailable — full verifier path fails closed at D.1 before stable comparison timing | unavailable — batched two-track verification intentionally delegates to D.1 v3 verifier and fails closed |
 | Proof/wire size | unavailable — PVSS adapter does not expose aggregate proof/wire size in dry-run output | unavailable — focused tests do not emit proof/wire byte counts |
-| Peak memory | 78040.000 kB | 210732.000 kB |
+| Peak memory | 870080.000 kB | 299824.000 kB |
 
 ## Commands
 

@@ -9,6 +9,7 @@ default = ["real-nizk"]
 mock = []
 real-nizk = []
 surrogate-decrypt-share = []
+trace-decrypt = []
 
 [dependencies]
 pvthfhe-rng = { path = "../pvthfhe-rng" }

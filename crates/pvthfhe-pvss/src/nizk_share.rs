@@ -28,6 +28,7 @@ use pvthfhe_types::witness_language::{
 };
 use pvthfhe_types::{EncRandomness, EncryptionWitness, ProtocolBytes, ShareSecret};
 use pvthfhe_wire::{WireError, WireFormat};
+use rand::rngs::OsRng;
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use rand_core::RngCore;
@@ -409,7 +410,7 @@ fn build_algebraic_proof(stmt: &ShareNizkStatement, witness: &ShareNizkWitness) 
     let d_rns =
         sigma::compute_d_rns(&c_rns, &s_i, &e_i).unwrap_or_else(|_| vec![0u64; sigma::RLWE_N * 3]);
 
-    let mut proof_rng = ChaCha20Rng::from_seed([0xA5; 32]); // allow-seeded-rng: deterministic sigma proof generation in PVSS
+    let mut proof_rng = ChaCha20Rng::from_rng(&mut OsRng).expect("OsRng available"); // allow-seeded-rng: (removed — now uses OsRng)
     let sigma_stmt = sigma::SigmaStatement {
         c_rns,
         d_rns: d_rns.clone(),
@@ -664,7 +665,7 @@ fn encode_bfv_encryption_proof_from_witness(
     let bfv_wit = BfvSigmaWitness { u, e0, e1, m };
 
     // --- Produce sigma proof ---
-    let mut proof_rng = ChaCha20Rng::from_seed([0xB4; 32]); // allow-seeded-rng: deterministic BFV sigma proof generation
+    let mut proof_rng = ChaCha20Rng::from_rng(&mut OsRng).expect("OsRng available"); // allow-seeded-rng: (removed — now uses OsRng)
     let binding_data = bfv_sigma_binding_data(stmt);
     let proof = bfv_sigma::prove(&bfv_stmt, &bfv_wit, &binding_data, &mut proof_rng)
         .map_err(|_| PvssError::InvalidShare)?;

@@ -1,9 +1,4 @@
 //! Shared byte-classification newtypes for PVTHFHE protocol boundaries.
-//!
-//! [`WitnessLeakingProofBytesV0`] is a quarantine wrapper for prototype proof
-//! envelopes that still carry witness material. It is intentionally loud and
-//! must be replaced by the R3 NIZK construction rather than normalized as public
-//! protocol data.
 
 pub mod witness_language;
 
@@ -359,48 +354,4 @@ impl core::fmt::Debug for DecryptionWitness {
     }
 }
 
-/// Quarantine wrapper for prototype proof bytes that leak witness material.
-///
-/// WARNING: this is not public protocol data. The V0 PVSS share proof envelope
-/// serializes witness material by design in the research prototype. R3 must
-/// replace this type with a real zero-knowledge proof payload.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct WitnessLeakingProofBytesV0(pub Vec<u8>);
 
-impl WitnessLeakingProofBytesV0 {
-    /// Borrow the leaking prototype proof bytes.
-    pub fn as_slice(&self) -> &[u8] {
-        self.0.as_slice()
-    }
-
-    /// Return the length of the leaking prototype proof bytes.
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    /// Returns true if the leaking prototype proof bytes are empty.
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-}
-
-impl From<Vec<u8>> for WitnessLeakingProofBytesV0 {
-    fn from(bytes: Vec<u8>) -> Self {
-        Self(bytes)
-    }
-}
-
-impl Deref for WitnessLeakingProofBytesV0 {
-    type Target = [u8];
-
-    fn deref(&self) -> &Self::Target {
-        self.0.as_slice()
-    }
-}
-
-impl DerefMut for WitnessLeakingProofBytesV0 {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.0.as_mut_slice()
-    }
-}

@@ -5,6 +5,7 @@ use pvthfhe_nizk::{
     adapter::CycloNizkAdapter, hash_bridge, NizkAdapter, NizkProof, NizkStatement, NizkWitness,
 };
 use pvthfhe_rng::OsRng;
+use pvthfhe_types::Secret;
 use pvthfhe_types::witness_language::{BfvParameters as SchemaBfvParams, R3Relation};
 use pvthfhe_wire::{WireError, WireFormat};
 
@@ -79,9 +80,9 @@ pub struct DecryptNizkStatement {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DecryptNizkWitness {
     /// Party secret-key bytes.
-    pub secret_key_bytes: Vec<u8>,
+    pub secret_key_bytes: Secret<Vec<u8>>,
     /// Canonicalized decryption-noise bytes.
-    pub decryption_noise: Vec<u8>,
+    pub decryption_noise: Secret<Vec<u8>>,
     /// Aggregate secret-key share scalar for committed-smudge commitment checks.
     pub sk_agg_share: Option<u64>,
     /// Aggregate committed smudging share scalar for the selected slot.
@@ -144,10 +145,10 @@ impl DecryptNizkProver {
         };
         let inner_witness = NizkWitness {
             secret_share,
-            secret_share_poly: derive_secret_share_poly(&witness.secret_key_bytes),
+            secret_share_poly: derive_secret_share_poly(witness.secret_key_bytes.expose_secret()),
             error: derive_error_vector(proof_noise_bytes(stmt, witness)?),
             randomness: derive_randomness(
-                &witness.secret_key_bytes,
+                witness.secret_key_bytes.expose_secret(),
                 proof_noise_bytes(stmt, witness)?,
             ),
         };
@@ -303,10 +304,10 @@ fn validate_witness(
     stmt: &DecryptNizkStatement,
     witness: &DecryptNizkWitness,
 ) -> Result<(), PvssError> {
-    if witness.secret_key_bytes.is_empty()
-        || witness.decryption_noise.is_empty()
-        || witness.secret_key_bytes.len() > MAX_FIELD_LEN
-        || witness.decryption_noise.len() > MAX_FIELD_LEN
+    if witness.secret_key_bytes.expose_secret().is_empty()
+        || witness.decryption_noise.expose_secret().is_empty()
+        || witness.secret_key_bytes.expose_secret().len() > MAX_FIELD_LEN
+        || witness.decryption_noise.expose_secret().len() > MAX_FIELD_LEN
     {
         return Err(PvssError::InvalidShare);
     }
@@ -373,7 +374,7 @@ fn proof_noise_bytes<'a>(
     witness: &'a DecryptNizkWitness,
 ) -> Result<&'a [u8], PvssError> {
     match &stmt.mode {
-        DecryptNizkMode::LegacyLocalSmudge => Ok(&witness.decryption_noise),
+        DecryptNizkMode::LegacyLocalSmudge => Ok(witness.decryption_noise.expose_secret()),
         DecryptNizkMode::CommittedSmudge { .. } => witness
             .esm_noise_poly_bytes
             .as_deref()

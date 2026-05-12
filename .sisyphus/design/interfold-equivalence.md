@@ -33,8 +33,8 @@ Each Interfold circuit (C0-C7) is mapped to the PVTHFHE module(s) that currently
 |---|---|---|---|---|---|---|
 | **C0** | `circuits/bin/dkg/pk` | `PkBfv` | Commit to each party's individual BFV public key. | `crates/pvthfhe-keygen-spec` (`Commitment`, `KeygenSession`), `crates/pvthfhe-keygen/src/dkg.rs` | **partial** | `keygen-spec` defines `Commitment` (scheme + digest) and `KeygenSession` types. The DKG ceremony (`dkg.rs`) generates per-party keygen shares and aggregates a collective public key, but there is no circuit-style proof that each individual BFV pk was committed to during DKG. The `Commitment` type is generic (no BFV-specific binding), and individual pk commitments are not surfaced as public verification outputs. |
 | **C1** | `circuits/bin/threshold/pk_generation` | `PkGeneration` | Prove threshold public-key contribution and commit to threshold secret material and smudging material. | `crates/pvthfhe-keygen-spec` (`PublicVerificationArtifact`, `BfvPublicKey`), `crates/pvthfhe-pvss/src/encrypt.rs` (`deal`) | **partial** | `PublicVerificationArtifact` carries `share_commitments`, `transcript_root`, and `proof_bytes` — the skeleton of a public pk-contribution verification. However, the type only tracks the dealer's share commitments, not a threshold-wide pk contribution with committed `sk` and `e_sm` secret material as C1 requires. No `e_sm` commitment exists in any current type; the `bfv_derivation_label` in `BFVPublicKey` is a stub (format strings appended to hex). |
-| **C2a** | `circuits/bin/dkg/sk_share_computation` | `SkShareComputation` | Prove Shamir / Reed-Solomon structure for secret-key shares. | `crates/pvthfhe-pvss/src/shamir.rs` | **partial** | `shamir.rs` implements BN254-scalar Shamir `split` and `recover` with Lagrange interpolation. This covers the functional behaviour of C2a (the computation itself works) but there is **no proof** that the shares lie on a degree-`(t-1)` polynomial (no batched RS parity proof, no low-degree check). The existing code computes Shamir shares correctly; it does not generate a verifiable proof of that computation. |
-| **C2b** | `circuits/bin/dkg/e_sm_share_computation` | `ESmShareComputation` | Prove Shamir / Reed-Solomon structure for smudging-noise shares. | `crates/pvthfhe-cyclo/src/lib.rs` (`FoldTrackKind::ESm`, `MultiTrackFoldMetadata`), `crates/pvthfhe-fhe/src/fhers.rs` (`partial_decrypt_committed_smudge`) | **partial** | Two-track infrastructure exists in `pvthfhe-cyclo`: `FoldTrackKind::ESm` variant, `MultiTrackFoldMetadata` with per-track commitments and norm bounds, and `validate_for_instance()` cross-track replay rejection. The `FhersBackend` has `partial_decrypt_committed_smudge()` which accepts a committed `e_sm` polynomial. However: no Shamir-split or Shamir-validity proof for `e_sm` shares exists yet; the smudge slots are not yet DKG-committed via a public transcript. The plumbing is ready; the proof circuit is not. |
+| **C2a** | `circuits/bin/dkg/sk_share_computation` | `SkShareComputation` | Prove Shamir / Reed-Solomon structure for secret-key shares. | `crates/pvthfhe-pvss/src/shamir.rs`, `crates/pvthfhe-pvss/src/share_computation.rs` | **implemented** | `shamir.rs` implements BN254-scalar Shamir `split` and `recover` with Lagrange interpolation. The E.1 batched Shamir/RS share-computation relation (`share_computation.rs`) provides a public transcript-validity checker that verifies low-degree/RS validity (interpolates `max_degree + 1` BN254 points, checks every published share against the resulting polynomial, rejects non-low-degree tampering, and enforces coefficient bounds). The foldable public instance commitment binds session, DKG root, dealer, track identity, and smudge-slot index. |
+| **C2b** | `circuits/bin/dkg/e_sm_share_computation` | `ESmShareComputation` | Prove Shamir / Reed-Solomon structure for smudging-noise shares. | `crates/pvthfhe-cyclo/src/lib.rs` (`FoldTrackKind::ESm`, `MultiTrackFoldMetadata`), `crates/pvthfhe-fhe/src/fhers.rs` (`partial_decrypt_committed_smudge`), `crates/pvthfhe-pvss/src/share_computation.rs` | **implemented** | Two-track infrastructure exists in `pvthfhe-cyclo`: `FoldTrackKind::ESm` variant, `MultiTrackFoldMetadata` with per-track commitments and norm bounds, and `validate_for_instance()` cross-track replay rejection. The `FhersBackend` has `partial_decrypt_committed_smudge()` which accepts a committed `e_sm` polynomial. The E.1 batched Shamir/RS share-computation relation covers both `sk` and `e_sm` tracks: it validates published `e_sm` shares against a degree-`t` polynomial with committed coefficient bounds, detects non-low-degree tampering on individual `e_sm` slots while leaving `sk` validity intact, and binds slot identity into the foldable public instance commitment. DKG-committed `e_sm` slots are wired via `DkgAnchorSet` with per-slot `ESmShareCommitment` and smudge-slot policy. |
 | **C3** | `circuits/bin/dkg/share_encryption` | `ShareEncryption` | Prove BFV encryption of DKG shares under recipient individual BFV keys. | `crates/pvthfhe-pvss/src/nizk_share.rs`, `crates/pvthfhe-pvss/src/encrypt.rs` (`deal`) | **partial** | `nizk_share.rs` implements a Fiat-Shamir NIZK for share well-formedness with a real Ajtai commitment and lattice-binding tag. However, the proof relies on a **hash-based commitment verification** (`compute_share_commitment` uses SHA-256, not a lattice relation check) and the verifier confirms the BFV encryption via the FHE backend rather than via a Greco/BFV-specific relation. The binding is D2-preimage (SHA-256 of share + session), which is real but not BFV-native — a Greco-equivalent BFV encryption relation is not yet wired. The `deal` method in `encrypt.rs` wires the full flow (Shamir split → encrypt → prove), so the pipeline exists; the proof is just not a full Greco BFV well-formedness proof. The concrete adapter `LatticePvssBfvAdapter` (defined in `crates/pvthfhe-pvss/src/encrypt.rs` at line 43, `BACKEND_ID = "lattice-pvss-bfv-d2"`) implements `PvssAdapter` and wires the full flow: Shamir split (`shamir::split`) → BFV encrypt via `FhersBackend` → NIZK prove via `ShareNizkProver` → return `EncryptedShares`. The adapter uses `ChaCha20Rng` seeded from `OsRng` for encryption randomness and the BFV sigma protocol (v4) for share-encryption NIZK proofs. |
 | **C4** | `circuits/bin/dkg/share_decryption` | `DkgShareDecryption` | Prove decryption, opening, and aggregation of received DKG shares and commitments forwarded to P4. | `crates/pvthfhe-pvss/src/encrypt.rs` (`recover`, `verify_decrypted_share`, `verify_shares`) | **partial** | `recover` in `encrypt.rs` uses Lagrange interpolation to combine at least `t` decrypted shares back into the original secret, with per-share NIZK verification (`verify_decrypted_share` calls the Cyclo NIZK adapter) and duplicate-index detection. `verify_shares` checks all per-recipient NIZKs match their ciphertexts. The aggregation logic works end-to-end. However, the commitments forwarded to "P4" (Interfold's internal phase notation) are not produced — there is no `DkgAnchorSet` or aggregate share commitment output. The recovery step is functional but not wrapped in a provable circuit. |
 | **C5** | `circuits/bin/threshold/pk_aggregation` | `PkAggregation` | Prove aggregation of honest public-key shares into the threshold pk. | `crates/pvthfhe-keygen/src/dkg.rs` (`aggregate_keygen`), `crates/pvthfhe-aggregator/src/folding/mod.rs` | **partial** | The DKG ceremony (`dkg.rs:108`) calls `backend.aggregate_keygen` to produce a collective public key from per-party shares. The aggregator crate (`folding/mod.rs`) has real Cyclo CCS-based folding with NormTracker, `fold`, and `fold_all`. But neither path produces a C5-style proof that the aggregated pk is the sum of honest individual contributions: the DKG ceremony aggregates keys internally without a public transcript; the aggregator folding targets decryption-share instances, not pk-contribution aggregation. The `PublicVerificationArtifact` type has `share_commitments` but does not encode pk-contribution aggregation. |
@@ -90,12 +90,61 @@ The architectural differences are summarised:
 
 | Status | Count | Circuits |
 |---|---|---|
-| `implemented` | 0 | (none currently reach full implementation) |
-| `partial` | 8 | C0, C1, C2a, **C2b**, C3, C4, C5, C6 |
+| `implemented` | 2 | **C2a**, **C2b** |
+| `partial` | 6 | C0, C1, C3, C4, C5, C6 |
 | `missing` | 1 | C7 |
 | `deferred-with-rationale` | 0 | (none) |
 
-The two-track infrastructure for C2b (`FoldTrackKind::ESm`, `MultiTrackFoldMetadata`, `partial_decrypt_committed_smudge`) has moved it from `missing` to `partial`. C7 (final decryption aggregation) remains the largest gap between PVTHFHE's current state and the Interfold guarantee surface. The `partial` entries are further along: types exist, Shamir implementation works, encryption/decryption flows are wired, and the NIZK layer has real lattice proofs (though not yet the full Greco BFV well-formedness relation). Closing C2b and C7 is the primary architectural work of Batches C through G in the plan.
+C2a and C2b are now `implemented`: the E.1 batched Shamir/RS share-computation relation (`share_computation.rs`) covers both sk and e_sm tracks with low-degree/RS validity checks, coefficient bounds, and foldable public instance commitments. C7 (final decryption aggregation) remains the largest gap between PVTHFHE's current state and the Interfold guarantee surface. The remaining `partial` entries (C0, C1, C3, C4, C5, C6) have types, working flows, and NIZK infrastructure, though C3 and C5 carry structural gaps (see §C3 and §C5 below). Closing C7 is the primary architectural work of Batch G in the plan.
+
+---
+
+## §C3 — Structural Proof Gap: Share Encryption
+
+**Status**: `partial` (D.1 blocker).
+
+**What exists today**: `nizk_share.rs` implements a Fiat-Shamir NIZK for share well-formedness with a real Ajtai commitment and lattice-binding tag. The `LatticePvssBfvAdapter` wires the full flow: Shamir split → BFV encrypt → NIZK prove. The prover validates the BFV relation (secret key share encryption) using its private witness.
+
+**The structural gap**: The algebraic sigma proof proves a hash-preimage statement (SHA-256 of the share + session), not the full Shamir / BFV structure. The verifier checks the algebraic committed-share proof and hash bindings, but these are adversary-recomputable around arbitrary ciphertext bytes. The verifier cannot independently confirm that the ciphertext `u` actually encrypts the committed share under the recipient's BFV public key.
+
+This means: the verifier can check that `H(share, session) = commitment`, but cannot check that the ciphertext is a valid BFV encryption of `share` under `recipient_pk`. The current D.1 containment fails closed after the algebraic proof verifies.
+
+**What's needed**: A non-leaking verifier-checkable BFV encryption relation: a proof that `ct0 = pk0·u + e0 + Δm` and `ct1 = pk1·u + e1` without revealing the witness polynomials. This requires either public quotient/reduction terms from the FHE backend or a Noir circuit that emulates the BFV ring arithmetic in a SNARK-friendly field.
+
+**Dependency**: Requires D.1 resolution (verifier-side BFV relation) per the `interfold-equivalent-pvss` plan.
+
+---
+
+## §C5 — Structural Proof Gap: PK Aggregation
+
+**Status**: `partial`.
+
+**What exists today**: The DKG ceremony (`dkg.rs`) calls `backend.aggregate_keygen` to produce a collective public key from per-party shares. The aggregator crate (`folding/mod.rs`) has real Cyclo CCS-based folding with NormTracker, `fold`, and `fold_all`.
+
+**The structural gap**: Aggregate decrypt uses the internal `ShareManager` (from `fhe.rs`) to combine partial decryption shares into a plaintext. There is no verifiable proof that the aggregated public key is the honest sum of individual contributions, nor that the aggregate decryption combines the correct set of shares. Neither the DKG ceremony nor the aggregator folding produces a C5-style proof that `pk_agg = Σ pk_i` for the accepted participant set. The `PublicVerificationArtifact` type has `share_commitments` but does not encode pk-contribution aggregation.
+
+**What's needed**: A public proof (or folded instance) that the aggregate public key equals the sum of individual BFV public keys from the accepted participant set, bound to the DKG root.
+
+**Dependency**: Requires E.2 DKG share aggregation relation wiring (committed aggregate outputs) plus a pk-aggregation-specific proof instance.
+
+---
+
+## §C7 — Structural Proof Gap: Final Decryption Aggregation
+
+**Status**: `missing`.
+
+**Current state (stub)**: The Noir toy circuit at `circuits/aggregator_final/src/main.nr` performs **direct Lagrange recombination** over polynomial shares at ring degree N=8 (research-prototype dimension, not production N=8192). It binds via Poseidon hashes but contains **no** Cyclo accumulator verifier, **no** MicroNova proof verification, **no** Ajtai commitment check, **no** norm-bound range checks, **no** sum-check transcript verification, and **no** BN254 pairing gadgets. The `recover` method in `encrypt.rs` performs Lagrange interpolation and byte reconstruction in plain Rust — locally, not in a circuit — producing no proof.
+
+**What's needed**: A Noir circuit (planned under Batch G, `.sisyphus/plans/interfold-equivalent-pvss.md` §Batch G) that proves:
+1. Participant selection correctness — at least `t` valid decryption shares, participant IDs are unique and in the accepted set.
+2. Lagrange coefficient correctness — coefficients are correctly derived for the selected participant indices.
+3. CRT reconstruction correctness — partial decryption shares combine correctly via CRT over the RNS modulus.
+4. BFV plaintext decoding correctness — the recovered polynomial decodes to the claimed plaintext under the BFV plaintext modulus.
+5. Binding to the C6 proof set — the C7 statement includes DKG root, ciphertext hash, selected participant IDs, decryption-share proof refs, and plaintext hash.
+
+**Production target**: A full MicroNova-wrapped-in-UltraHonk circuit per §6.2/§6.4 of `spec-real-p2p3.md` — verifying the Cyclo accumulator (Ajtai check, norm bounds, range proof), MicroNova compression proof, and the Lagrange+CRT+decode chain, exposing 7 frozen public inputs.
+
+**Dependency**: Depends on Batch G (final aggregation proof relation), and transitively on C6 (threshold decryption with committed smudge) and the Cyclo → MicroNova → UltraHonk compression chain.
 
 ---
 

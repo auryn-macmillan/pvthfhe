@@ -6,7 +6,7 @@
 //!
 //! # Relation
 //! Statement: (c, d_i) in R_Q^2.
-//! Witness:   (s_i, e_i) with norm_inf(s_i) <= 1 (ternary), norm_inf(e_i) <= B_E = 16.
+//! Witness:   (s_i, e_i) with norm_inf(s_i) <= 1 (ternary), norm_inf(e_i) <= SIGMA_B_E = 16.
 //! Relation:  d_i = c * s_i + e_i  (mod Q).
 //!
 //! # Challenge Space
@@ -16,7 +16,7 @@
 //! # Response Bounds
 //! Masking bound B_Y = 2^30.
 //! z_s = y_s + ch * s_i  (integer poly); bound B_Z_S = B_Y + N.
-//! z_e = y_e + ch * e_i  (integer poly); bound B_Z_E = B_Y + N * B_E.
+//! z_e = y_e + ch * e_i  (integer poly); bound B_Z_E = B_Y + N * SIGMA_B_E.
 //! Both fit in i64 since B_Z_E < 2^31 << 2^63.
 
 use fhe_math::rq::{traits::TryConvertFrom, Context, Poly, Representation};
@@ -35,14 +35,14 @@ pub const RLWE_Q0: u64 = 288_230_376_173_076_481;
 pub const RLWE_Q1: u64 = 288_230_376_167_047_169;
 /// Third RNS prime q_2 (58-bit, q ≡ 1 mod 2N).
 pub const RLWE_Q2: u64 = 288_230_376_161_280_001;
-/// Error bound B_e: norm_inf(e_i) <= B_E.
-pub const B_E: i64 = 16;
+/// Error bound B_e: norm_inf(e_i) <= SIGMA_B_E.
+pub const SIGMA_B_E: i64 = 16;
 /// Masking bound B_Y for y_s and y_e per-coefficient.
 pub const B_Y: i64 = 1_073_741_824; // 2^30
 /// N as i64, used in bound expressions.
 const N_I64: i64 = 8192_i64;
-/// Verifier norm bound for z_e: B_Y + N * B_E.
-pub const B_Z_E: i64 = B_Y + N_I64 * B_E;
+/// Verifier norm bound for z_e: B_Y + N * SIGMA_B_E.
+pub const B_Z_E: i64 = B_Y + N_I64 * SIGMA_B_E;
 /// Verifier norm bound for z_s: B_Y + N.
 pub const B_Z_S: i64 = B_Y + N_I64;
 
@@ -77,7 +77,7 @@ pub struct SigmaStatement {
 pub struct SigmaWitness {
     /// Secret key share s_i in {-1, 0, 1}^N (ternary, length N).
     pub s_i: Vec<i64>,
-    /// Error term e_i with norm_inf(e_i) <= B_E = 16 (length N).
+    /// Error term e_i with norm_inf(e_i) <= SIGMA_B_E = 16 (length N).
     pub e_i: Vec<i64>,
 }
 

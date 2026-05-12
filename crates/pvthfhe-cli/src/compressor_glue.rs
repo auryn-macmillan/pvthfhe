@@ -217,6 +217,35 @@ pub fn compressor_backend_id() -> &'static str {
     SURROGATE_COMPRESSOR_ID
 }
 
+/// Run an independent external verification of the compressed proof.
+///
+/// Uses a separate deserialization path (SonobeCompressor::verify_external) that
+/// re-parses proof bytes and builds a fresh verifier from key bytes, providing a
+/// second verification that does not share state with the primary `verify` call.
+#[cfg(feature = "sonobe-compressor")]
+pub fn external_verify_compressed_proof(
+    compressor: &Compressor,
+    proof: &E2eCompressedProof,
+    report: &pvthfhe_aggregator::folding::CycloFoldAllReport,
+) -> anyhow::Result<()> {
+    match compressor {
+        Compressor::Sonobe { inner, .. } => {
+            let (_, public_inputs) = compressor_inputs(report);
+            let Some(sonobe_proof) = proof.sonobe_proof.as_ref() else {
+                anyhow::bail!("missing sonobe compressed proof bytes for external verification");
+            };
+            let proof_bytes = inner.compressed_proof_bytes(sonobe_proof);
+            let verified = inner
+                .verify_external(proof_bytes, &public_inputs)
+                .map_err(compressor_error_to_anyhow)?;
+            if !verified {
+                anyhow::bail!("external sonobe compressed proof verification failed");
+            }
+            Ok(())
+        }
+    }
+}
+
 /// Return the active compressor backend identifier.
 #[cfg(feature = "sonobe-compressor")]
 pub fn compressor_backend_id() -> &'static str {

@@ -22,10 +22,13 @@ verifier cost. The current prototype uses:
 |-------|---------------|--------|
 | DKG | Pedersen-DKG over BFV/RLWE secret domain (`.sisyphus/design/dkg-construction.md`) | ✅ Real (BN254 Shamir, OsRng, smudging) |
 | NIZK | Cyclo-companion Ajtai D2 sigma + BFV sigma (conditional, P1 OPEN) | ⚠️ Real with conditional soundness |
-| Folding (P2) | Sonobe Nova with Cyclo CCS witness representation (`.sisyphus/design/fold-construction.md`) | ✅ Real (CCS satisfiability, ∞-norm) |
-| Compression (P3) | Sonobe Nova IVC with CycloFoldStepCircuit | ✅ Real (commitment folding, norm escalation) |
+| Folding (P2) | Sonobe Nova with Cyclo CCS witness representation (`.sisyphus/design/fold-construction.md`) | ⚠️ Real (CCS satisfiability, ∞-norm; P2 OPEN — Sonobe substitute) |
+| Compression (P3) | Sonobe Nova IVC with CycloFoldStepCircuit (hash-accumulate, not Ajtai fold) | ⚠️ Real (hash-state folding; P3 OPEN — see `spec-real-p2p3.md` §5.1) |
 | On-chain verifier | OpenZeppelin AccessControl + TimelockController | ✅ Real (AccessControl, multisig, runId) |
 | Decrypt (smudge) | `legacy_local_smudge` (non-equivalent) vs `committed_smudge_pvss` (target committed mode) | ✅ Doc split (F.3) |
+| Shamir/RS validity (C2) | BN254-scalar Shamir + batched sk/e_sm share-computation relation | ✅ Implemented (`share_computation.rs`) |
+| Share encryption (C3) | BFV sigma + Ajtai commitment; verifier lacks BFV encryption relation | ⚠️ Partial (D.1 blocker — see §C3 in interfold-equivalence.md) |
+| Final aggregation (C7) | Noir toy circuit (N=8, direct Lagrange, no Cyclo/MicroNova verification) | ❌ Missing (stub — depends on Batch G) |
 
 ## Audit Status
 
@@ -113,6 +116,8 @@ known limitations.
 ## Key Commands
 
 - `just demo-e2e`: End-to-end demo (n=10, t=4; all 9 steps with real crypto).
+  - Threshold `t` is the number of shares required for reconstruction (1 ≤ t ≤ ⌊(n-1)/2⌋).
+  - FHE and PVSS layers use the same threshold: `t` shares suffices for decryption.
 - `just test-all`: Full test suite across Rust, Noir, and Solidity.
 - `just bench-scaling`: Scaling benchmarks (n=128 to 1024).
 

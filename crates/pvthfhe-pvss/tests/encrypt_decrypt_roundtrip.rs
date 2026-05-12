@@ -3,6 +3,7 @@
 use pvthfhe_fhe::{mock::MockBackend, types::Ciphertext, FheBackend};
 use pvthfhe_pvss::nizk_decrypt::DecryptNizkWitness;
 use pvthfhe_pvss::{LatticePvssBfvAdapter, PvssAdapter, PvssContext};
+use pvthfhe_types::Secret;
 use rand_chacha::ChaCha8Rng;
 use rand_core::{RngCore, SeedableRng};
 
@@ -89,8 +90,8 @@ fn encrypt_decrypt_roundtrip_recovers_secret() {
                     index,
                     share_bytes,
                     &DecryptNizkWitness {
-                        secret_key_bytes: vec![index as u8 + 1; 64],
-                        decryption_noise: vec![index as u8 + 2; 64],
+                        secret_key_bytes: Secret::new(vec![index as u8 + 1; 64]),
+                        decryption_noise: Secret::new(vec![index as u8 + 2; 64]),
                         sk_agg_share: None,
                         esm_agg_share: None,
                         esm_noise_poly_bytes: None,

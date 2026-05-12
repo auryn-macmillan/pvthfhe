@@ -71,3 +71,7 @@ Summary updated: partial 7→8, missing 2→1.
 - When using Python replace(), exact string matching is fragile — whitespace/newline
   variations cause silent failures. Line-index replacement is more robust.
 - Always verify with read() after edits; grep may have stale caches.
+
+- 2026-05-12 B.3/B.4: Changed `shamir::split` return type from `Vec<(usize, Fr)>` to `Result<Vec<(usize, Fr)>, ShamirError>` and converted `assert!(t > 0)` and `assert!(n >= t)` to proper error returns with `InvalidParameters(String)`. This required updating all 11 call sites across shamir.rs tests, shamir_secrecy.rs, and encrypt.rs.
+- 2026-05-12 B.3/B.4: Added `threshold: usize` parameter to `shamir::recover()` and replaced `shares.is_empty()` check with `shares.len() < threshold`. Updated 16 call sites across shamir.rs tests, shamir_secrecy.rs, and encrypt.rs. Dual guard exists: PVSS-layer `recover` checks `decrypted_shares.len() < ctx.t` at line 258, and Shamir-layer `recover` now also enforces `shares.len() < threshold`. The Shamir-layer check is the authoritative cryptographic enforcement.
+- 2026-05-12 B.3/B.4: Followed strict TDD: wrote RED test (`insufficient_shares_fails` asserting `Err(InsufficientShares)` for t-1 shares) which failed because old `recover` attempted Lagrange interpolation and returned `Ok(wrong_value)`. Implemented the fix (threshold param + guard check), then the test passed GREEN.

@@ -6,7 +6,7 @@ use pvthfhe_pvss::{
     LatticePvssBfvAdapter, PvssAdapter, PvssContext,
 };
 use pvthfhe_rng::OsRng;
-use pvthfhe_types::ProtocolBytes;
+use pvthfhe_types::{ProtocolBytes, Secret};
 use rand_core::RngCore;
 use sha2::{Digest, Sha256};
 use std::time::Instant;
@@ -92,8 +92,8 @@ pub fn run_lattice_pvss(
                     index,
                     share_bytes.clone(),
                     &DecryptNizkWitness {
-                        secret_key_bytes,
-                        decryption_noise,
+                        secret_key_bytes: Secret::new(secret_key_bytes),
+                        decryption_noise: Secret::new(decryption_noise),
                         sk_agg_share: None,
                         esm_agg_share: None,
                         esm_noise_poly_bytes: None,

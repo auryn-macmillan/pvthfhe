@@ -46,8 +46,8 @@ Based on benchmarks from `bench/results/i1-one-vs-two-track.json`.
 |---|---|---|---|
 | **C0** | BFV PK Commitment | `R3.4.1` (encryption binding) | Partial |
 | **C1** | PK Generation / Secret Commitment | `R3.4.1` (sk/esm batched) | Partial |
-| **C2a** | SK Share Computation | `R3.4.2` (batched) | Partial |
-| **C2b** | ESM Share Computation | `R3.4.2` (batched) | Partial |
+| **C2a** | SK Share Computation | `R3.4.2` (batched) | Implemented |
+| **C2b** | ESM Share Computation | `R3.4.2` (batched) | Implemented |
 | **C3** | Share Encryption | `R3.4.1` (batched) | Partial (D.1 blocker) |
 | **C4** | DKG Share Decryption / Aggregation | `R3.4.3` (aggregate) | Partial |
 | **C5** | Threshold PK Aggregation | `R-pk-aggregation` (planned) | Partial |

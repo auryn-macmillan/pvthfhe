@@ -23,15 +23,15 @@ proptest! {
         let n = 10usize;
         let t = 5usize;
 
-        let shares = shamir::split(&secret, n, t, &mut rng);
+        let shares = shamir::split(&secret, n, t, &mut rng).expect("split succeeds");
         assert_eq!(shares.len(), n);
 
         // Recover with exactly t shares.
-        let recovered = shamir::recover(&shares[..t]).expect("recovery with t shares must succeed");
+        let recovered = shamir::recover(&shares[..t], t).expect("recovery with t shares must succeed");
         assert_eq!(recovered, secret);
 
         // Recover with all n shares (also works).
-        let recovered_all = shamir::recover(&shares).expect("recovery with all shares must succeed");
+        let recovered_all = shamir::recover(&shares, t).expect("recovery with all shares must succeed");
         assert_eq!(recovered_all, secret);
     }
 
@@ -43,7 +43,7 @@ proptest! {
         let n = 10usize;
         let t = 5usize;
 
-        let shares = shamir::split(&secret, n, t, &mut rng);
+        let shares = shamir::split(&secret, n, t, &mut rng).expect("split succeeds");
 
         // Take t-1 = 4 shares and verify they do not uniquely determine the
         // secret: any candidate secret value is equally plausible.

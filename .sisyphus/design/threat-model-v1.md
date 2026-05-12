@@ -43,6 +43,7 @@ This document defines the threat model for the **target Architecture B** of PVTH
 - **Static corruption**: Adversary selects corrupted parties before protocol execution.
 - **Threshold**: Up to `t-1` of `n` parties may be corrupted, where `t = ⌊n/2⌋ + 1`.
 - **Honest majority**: At least `t` parties remain honest throughout.
+- **Threshold convention**: FHE threshold = PVSS threshold = number of shares required for reconstruction. The parameter `t` is used consistently across all layers: PVSS shamir split requires `t` shares to reconstruct, FHE `setup_threshold(n, t)` stores `t` as the configured threshold, and `aggregate_decrypt` expects exactly `t` shares.
 
 ### 2.3 Network Model
 
@@ -212,6 +213,8 @@ From [proof-boundary.md](proof-boundary.md) (frozen Phase 2):
 6. **No production smudging in current pipeline**: Partial-decryption paths in the current prototype do not add σ_smudge (F21). The noise-budget analysis assumes this will be added in the rebuilt pipeline.
 
 7. **Replay protection off-chain only**: Session binding (SEC-7) is enforced by the Rust aggregator, not by the on-chain verifier in the current ABI (F9/F11). An on-chain replay prevention mechanism requires ABI changes.
+
+8. **Logging hygiene**: FHE encode/decode and aggregate-decrypt slot logging (`eprintln!` statements in `fhers.rs`) is gated behind the Cargo feature `trace-decrypt` (off by default). All plaintext-slot content is restricted to this trace feature, which is intended for debugging only and must never be enabled in production builds or in any environment where plaintext confidentiality is required. See `SECURITY.md` for the full logging hygiene policy.
 
 ---
 

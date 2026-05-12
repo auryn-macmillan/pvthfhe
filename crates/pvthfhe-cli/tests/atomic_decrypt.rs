@@ -1,5 +1,6 @@
-use pvthfhe_aggregator::decrypt::{aggregate_decrypt, partial_decrypt, DecryptError};
+use pvthfhe_aggregator::decrypt::{aggregate_decrypt, partial_decrypt};
 use pvthfhe_fhe::{mock::MockBackend, types::Ciphertext, FheBackend};
+use pvthfhe_types::ProtocolBytes;
 use rand::thread_rng;
 
 fn acknowledge_mock() {
@@ -54,7 +55,7 @@ fn tampered_partial_rejected_no_plaintext() {
     // Tamper share2's NIZK proof: keep nizk[0]==1 to pass trivial check
     // but corrupt the rest so it's cryptographically invalid.
     let mut tampered_share2 = share2.clone();
-    tampered_share2.nizk = vec![1, 0xFF, 0xFF, 0xFF, 0xFF];
+    tampered_share2.nizk = ProtocolBytes(vec![1, 0xFF, 0xFF, 0xFF, 0xFF]);
 
     let result = aggregate_decrypt(
         &backend,

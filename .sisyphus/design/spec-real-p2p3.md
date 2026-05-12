@@ -564,6 +564,23 @@ single-track fold paths.
 > path (Option B infrastructure) but the proof it verifies is produced by
 > Sonobe Nova, not MicroNova. This distinction is cosmetic at the ABI level
 > because both backends expose the same `ProofCompressor` trait surface.
+>
+> **P2/P3 structural gap — CycloFoldStepCircuit**: The current `CycloFoldStepCircuit`
+> (Sonobe Nova step circuit in `crates/pvthfhe-compressor/src/sonobe/mod.rs`) folds
+> 3 hashed field elements — `(commitment_hash, norm, fold_count)` — derived from
+> SHA-256 of the Cyclo accumulator commitments. It does **not** perform full Ajtai
+> commitment folding over `R_{q_commit}` within the IVC step. The design intentionally
+> hashes the accumulator down before entering the IVC because lattice-native Ajtai
+> folding is infeasible inside a Sonobe Nova step circuit (P2 OPEN). This means:
+> - The compressed proof verifies hash-state consistency, not the full Cyclo
+>   accumulator relation (Ajtai commitment check, norm-bound range checks, sum-check
+>   transcript verification).
+> - The Cyclo accumulator verification is performed off-chain (via `fold::verify_fold`)
+>   and its state digest enters the IVC as pre-hashed public inputs.
+> - Full Ajtai folding remains an open problem (P2) tracked in the
+>   `interfold-equivalent-pvss` plan §Batch H.
+> - This is a documented limitation; the same gap exists in the P2→P3 interface
+>   regardless of whether Sonobe or MicroNova is the backend.
 
 **Chosen target**: R1CS over the BN254 scalar field `F_p` (p ≈ 2^254), consumed
 by MicroNova as an IVC step function.

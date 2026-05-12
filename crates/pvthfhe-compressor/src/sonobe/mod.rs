@@ -426,6 +426,57 @@ impl<
     }
 }
 
+impl<
+        S: FCircuit<Fr, Params = (), ExternalInputs = ExternalInputs3<Fr>>
+            + StepCircuit
+            + Clone
+            + Debug,
+    > SonobeCompressor<S>
+{
+    /// Independent external verification: deserializes the proof from raw bytes
+    /// and builds a fresh verifier from key bytes, providing a second verification
+    /// path that does not share state with the primary `verify` call.
+    pub fn verify_external(
+        &self,
+        proof_bytes: &[u8],
+        public_inputs: &[u8],
+    ) -> Result<bool, CompressorError> {
+        let parsed = parse_proof(proof_bytes)?;
+        if parsed.public_inputs_hash != normalized_hash(public_inputs)? {
+            return Ok(false);
+        }
+
+        let ivc_proof =
+            SonobeIvcProof::deserialize_with_mode(parsed.ivc_bytes, Compress::Yes, Validate::Yes)
+                .map_err(|_| CompressorError::InvalidProof)?;
+
+        if ivc_proof.z_0.len() != self.state_len || ivc_proof.z_i.len() != self.state_len {
+            return Ok(false);
+        }
+
+        if normalized_hash(&encode_triple((
+            ivc_proof.z_0[0],
+            ivc_proof.z_0[1],
+            ivc_proof.z_0[2],
+        )))? != parsed.acc_hash
+        {
+            return Ok(false);
+        }
+
+        let verifier = SonobeNova::<S>::vp_deserialize_with_mode(
+            self.verifier_key_bytes.as_slice(),
+            Compress::Yes,
+            Validate::Yes,
+            (),
+        )
+        .map_err(|_| CompressorError::Backend(
+            "sonobe external verifier key deserialization failed",
+        ))?;
+
+        Ok(SonobeNova::<S>::verify(verifier, ivc_proof).is_ok())
+    }
+}
+
 struct ParsedProof<'a> {
     acc_hash: [u8; 32],
     public_inputs_hash: [u8; 32],

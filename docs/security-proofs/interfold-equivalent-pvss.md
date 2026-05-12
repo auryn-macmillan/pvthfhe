@@ -36,10 +36,22 @@ The security of the PVSS construction relies on the following cryptographic assu
 
 ## 4. Limitations and Open Problems
 
-### 4.1 BFV Share-Encryption Relation (D.1 Blocker)
+### 4.1 BFV Share-Encryption Relation (D.1 Blocker) — C3 Structural Gap
+
 The current `v3` share encryption proofs (Batch D.1) lack a verifier-checkable BFV encryption relation. While the prover validates the relation (secret key share encryption) using its private witness, the verifier only checks an algebraic Sigma proof over the committed-share representation.
+
+**Structural gap (C3)**: The algebraic sigma proof proves a hash-preimage statement — that the prover knows a preimage of the SHA-256 share commitment — rather than the full Shamir / BFV encryption structure. Specifically:
+
+- The verifier checks $H(\text{share}, \text{session}) = \text{commitment}$ (D2-preimage binding).
+- The verifier does **not** check that the ciphertext $u$ is a valid BFV encryption of $\text{share}$ under $\text{recipient\_pk}$.
+- The algebraic committed-share proof and hash bindings are adversary-recomputable around arbitrary ciphertext bytes.
+- The current D.1 containment fails closed after the algebraic proof verifies, returning `LatticeBindingVerificationFailed`.
+
+**What's needed**: A non-leaking verifier-checkable BFV encryption relation proving $\text{ct}_0 = \text{pk}_0 \cdot u + e_0 + \Delta m$ and $\text{ct}_1 = \text{pk}_1 \cdot u + e_1$ without revealing witness polynomials. This requires either public quotient/reduction terms from the FHE backend or a Noir circuit emulating BFV ring arithmetic in a SNARK-friendly field.
+
 - **Impact**: The verifier cannot independently confirm that the ciphertext $u$ actually encrypts the committed share.
 - **Status**: The verifier currently fails closed for these proofs to prevent forgery.
+- **Cross-reference**: See `.sisyphus/design/interfold-equivalence.md` §C3 for the full gap analysis.
 
 ### 4.2 Distributional Sampling of $e_{sm}$
 If only the boundedness (norm) of the smudging noise $e_{sm}$ is proved, rather than its exact distribution (e.g., discrete Gaussian), the statistical hiding guarantee is weakened.
@@ -48,6 +60,22 @@ If only the boundedness (norm) of the smudging noise $e_{sm}$ is proved, rather 
 ### 4.3 Prototype and Audit Status
 - **Audit Findings**: Two audits (2026-05-08/09) identified numerous findings. While automatable remediations are complete, three open cryptographic problems (P1, P2, P3) remain.
 - **Non-Audited**: This documentation does not constitute a formal audit or a claim of production-ready security.
+
+### 4.5 P2/P3 Structural Gap — CycloFoldStepCircuit Proves Hash-Accumulate, Not Ajtai Fold
+
+The Sonobe Nova IVC compressor uses `CycloFoldStepCircuit` (`crates/pvthfhe-compressor/src/sonobe/mod.rs`) which folds 3 hashed field elements — `(commitment_hash, norm, fold_count)` — derived from SHA-256 of Cyclo accumulator commitments. It does **not** perform full Ajtai commitment folding over `R_{q_commit}` within the IVC step.
+
+- **P2 gap**: Full Ajtai folding inside a lattice-native folding scheme (LatticeFold+/Cyclo Lemma 9) remains OPEN. Sonobe Nova substitutes for lattice-native folding, but the substitution folds hashed accumulator state, not the raw Cyclo accumulator witness.
+- **P3 gap**: The compressed proof (Sonobe Nova IVC) verifies hash-state consistency — that the hashed accumulator state transitions correctly — but does not verify the full Cyclo accumulator relation (Ajtai commitment check over `a=13` ring elements, norm-bound range checks for `β_T=1344`, sum-check transcript verification of ~60 KB of `F_{q^e}` elements).
+- **Current flow**: Cyclo accumulator verification runs off-chain via `fold::verify_fold`. Only the state digest (SHA-256 of commitment bytes) enters the IVC as a pre-hashed public input. The on-chain verifier ultimately checks an UltraHonk proof of the Sonobe IVC state, not the raw Cyclo proof.
+- **Impact**: A malicious prover who can compute a valid SHA-256 preimage of the accumulator commitment (but not a valid Cyclo accumulator) could produce a compressing proof that passes the current pipeline. This is mitigated by the assumption that SHA-256 is collision-resistant and the Cyclo `verify_fold` check is performed before compression.
+- **Resolution**: Requires closing P2 (lattice-native folding) and implementing the full Cyclo accumulator verifier inside the P3 compression circuit (Cyclo → MicroNova → UltraHonk per `spec-real-p2p3.md` §6.2/§6.4).
+
+Cross-reference: `.sisyphus/design/spec-real-p2p3.md` §5.1 P2/P3 gap note, `.sisyphus/design/interfold-equivalence.md` §C7.
+
+## 4.6 Sigma Masking Seeds: Fresh Per Proof
+
+As of 2026-05-12, the sigma masking seeds used in proof generation (both the algebraic sigma proof in `build_algebraic_proof` and the BFV encryption sigma proof in `build_bfv_encryption_proof`) are no longer deterministic. They are now seeded with `OsRng` (`ChaCha20Rng::from_rng(&mut OsRng)`) to provide fresh, non-deterministic randomness per proof.
 
 ## 5. Interfold Equivalence Summary
 

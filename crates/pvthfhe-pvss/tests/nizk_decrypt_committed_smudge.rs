@@ -6,6 +6,7 @@ use pvthfhe_pvss::nizk_decrypt::{
     DecryptNizkWitness,
 };
 use pvthfhe_pvss::PvssError;
+use pvthfhe_types::Secret;
 
 const SLOT_ID: u16 = 3;
 const DECRYPT_ROUND: u64 = 9;
@@ -55,8 +56,8 @@ fn committed_statement() -> DecryptNizkStatement {
 
 fn committed_witness() -> DecryptNizkWitness {
     DecryptNizkWitness {
-        secret_key_bytes: vec![0x11; 64],
-        decryption_noise: vec![0x22; 64],
+        secret_key_bytes: Secret::new(vec![0x11; 64]),
+        decryption_noise: Secret::new(vec![0x22; 64]),
         sk_agg_share: Some(0x11_u64),
         esm_agg_share: Some(0x22_u64),
         esm_noise_poly_bytes: Some(vec![0xEE; 64]),
@@ -82,8 +83,8 @@ fn committed_smudge_rejects_local_smudge_proof() {
     legacy.mode = DecryptNizkMode::LegacyLocalSmudge;
 
     let legacy_witness = DecryptNizkWitness {
-        secret_key_bytes: vec![0x11; 64],
-        decryption_noise: vec![0x99; 64],
+        secret_key_bytes: Secret::new(vec![0x11; 64]),
+        decryption_noise: Secret::new(vec![0x99; 64]),
         sk_agg_share: None,
         esm_agg_share: None,
         esm_noise_poly_bytes: None,

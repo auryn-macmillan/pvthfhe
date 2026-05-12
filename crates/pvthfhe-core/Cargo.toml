@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT"
 
+[features]
+trace-test-vectors = []
+
 [dependencies]
 pvthfhe-compressor = { path = "../pvthfhe-compressor" }
 
@@ -14,6 +17,7 @@ proptest = "1"
 serde_json = "1"
 hex = "0.4"
 pvthfhe-fhe = { path = "../pvthfhe-fhe", features = ["mock"] }
+pvthfhe-types = { path = "../pvthfhe-types" }
 serde = { version = "1", features = ["derive"] }
 
 [lints]

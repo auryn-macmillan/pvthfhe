@@ -191,7 +191,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     );
     let setup_started = Instant::now();
     backend
-        .setup_threshold(cfg.n, backend_threshold.saturating_sub(1))
+        .setup_threshold(cfg.n, backend_threshold)
         .context("setup_threshold")?;
     observer.phase_end("setup_threshold", elapsed_ms(setup_started));
 
@@ -206,9 +206,14 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             bytes: ProtocolBytes(message.pk_i.bytes.clone()),
         })
         .collect::<Vec<_>>();
-    let _aggregate_key = backend
+    let aggregate_key = backend
         .aggregate_keygen(&aggregate_keygen_shares)
         .context("aggregate_keygen")?;
+    assert_eq!(
+        aggregate_pk.bytes,
+        aggregate_key.bytes,
+        "DKG aggregate key mismatch"
+    );
     observer.phase_end("aggregate_keygen", elapsed_ms(aggregate_keygen_started));
 
     let plaintext = 0xB10C_u64.to_le_bytes().to_vec();
@@ -293,6 +298,23 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     timings.phases.compressor_verify.total_ms = compressor_verify_ms;
     timings.phases.compressor_verify.instances_run = 1;
 
+    #[cfg(feature = "sonobe-compressor")]
+    {
+        observer.phase_start("compressor_verify_external", Some(compressor.backend_id()));
+        let external_verify_started = Instant::now();
+        crate::compressor_glue::external_verify_compressed_proof(
+            &compressor,
+            &compressed,
+            &fold_report,
+        )
+        .context("compressor_verify_external")?;
+        let external_verify_ms = elapsed_ms(external_verify_started);
+        observer.phase_end("compressor_verify_external", external_verify_ms);
+        observer.note(&format!(
+            "external_compressor_verify_ms={external_verify_ms:.2}"
+        ));
+    }
+
     let mut shares = Vec::with_capacity(cfg.t);
     let mut partial_decrypt_ms = Vec::with_capacity(cfg.t);
     for party_index in 1..=cfg.t {
@@ -315,7 +337,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     observer.phase_start("aggregate_decrypt", None);
     let aggregate_decrypt_started = Instant::now();
     let aggregate_plaintext = backend
-        .aggregate_decrypt(&ciphertext, &shares, backend_threshold.saturating_sub(1))
+        .aggregate_decrypt(&ciphertext, &shares, backend_threshold)
         .context("aggregate_decrypt")?;
     let aggregate_decrypt_ms = elapsed_ms(aggregate_decrypt_started);
     observer.phase_end("aggregate_decrypt", aggregate_decrypt_ms);
@@ -323,7 +345,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     timings.phases.aggregate_decrypt.instances_run = 1;
 
     let plaintext_roundtrip_ok =
-        pvthfhe_fhe::noise_tolerant_plaintext_compare(&aggregate_plaintext, &plaintext);
+        pvthfhe_fhe::plaintext_compare_exact(&aggregate_plaintext, &plaintext);
     if !plaintext_roundtrip_ok {
         anyhow::bail!("aggregate_decrypt did not round-trip plaintext (expected 0xB10C)");
     }
@@ -603,6 +625,8 @@ mod tests {
         assert_eq!(counts.get("compressor_new").copied(), Some(1));
         assert_eq!(counts.get("compressor_prove").copied(), Some(1));
         assert_eq!(counts.get("compressor_verify").copied(), Some(1));
+        #[cfg(feature = "sonobe-compressor")]
+        assert_eq!(counts.get("compressor_verify_external").copied(), Some(1));
         assert_eq!(counts.get("partial_decrypt").copied(), Some(2));
         assert_eq!(counts.get("aggregate_decrypt").copied(), Some(1));
         assert!(report.plaintext_roundtrip_ok);

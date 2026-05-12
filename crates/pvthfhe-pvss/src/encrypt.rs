@@ -148,7 +148,8 @@ impl PvssAdapter for LatticePvssBfvAdapter {
         let mut party_shares: Vec<Vec<Fr>> = vec![Vec::with_capacity(num_chunks); ctx.n];
 
         for secret_fr in &secret_frs {
-            let chunk_shares = shamir::split(secret_fr, ctx.n, ctx.t, &mut rng);
+            let chunk_shares = shamir::split(secret_fr, ctx.n, ctx.t, &mut rng)
+                .map_err(|e| PvssError::BackendError(format!("shamir split: {e}")))?;
             for (x, share_value) in chunk_shares {
                 // x is 1-based index; convert to 0-based for the per-party vectors.
                 party_shares[x - 1].push(share_value);
@@ -316,7 +317,7 @@ impl PvssAdapter for LatticePvssBfvAdapter {
                 .collect();
 
             let recovered =
-                shamir::recover(&chunk_shares).map_err(|_| PvssError::RecoveryFailed)?;
+                shamir::recover(&chunk_shares, ctx.t).map_err(|_| PvssError::RecoveryFailed)?;
             recovered_frs.push(recovered);
         }
 

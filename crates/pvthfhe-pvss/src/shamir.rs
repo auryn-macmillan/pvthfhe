@@ -30,8 +30,8 @@
 //! let n = 10;
 //! let t = 5;
 //!
-//! let shares = shamir::split(&secret, n, t, &mut rng);
-//! let recovered = shamir::recover(&shares[..t]).expect("recovery succeeds");
+//! let shares = shamir::split(&secret, n, t, &mut rng).expect("split succeeds");
+//! let recovered = shamir::recover(&shares[..t], t).expect("recovery succeeds");
 //! assert_eq!(recovered, secret);
 //! ```
 
@@ -49,6 +49,8 @@ pub enum ShamirError {
     DuplicateX,
     /// Recovery failed (e.g., degenerate x-coordinates, zero denominator).
     RecoveryFailed,
+    /// Invalid parameters were passed to a function (e.g., t == 0 or n < t).
+    InvalidParameters(String),
 }
 
 impl fmt::Display for ShamirError {
@@ -57,6 +59,7 @@ impl fmt::Display for ShamirError {
             Self::InsufficientShares => f.write_str("not enough shares to satisfy threshold"),
             Self::DuplicateX => f.write_str("duplicate x-coordinates in share set"),
             Self::RecoveryFailed => f.write_str("Shamir recovery failed"),
+            Self::InvalidParameters(msg) => write!(f, "invalid Shamir parameters: {msg}"),
         }
     }
 }
@@ -76,12 +79,25 @@ impl fmt::Display for ShamirError {
 /// A vector of `n` shares, each a pair `(x, y)` where `x` is the share index
 /// (1-based: `1..=n`) and `y = P(x)` is the polynomial evaluation.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if `t == 0` or `n < t`.
-pub fn split(secret: &Fr, n: usize, t: usize, rng: &mut impl RngCore) -> Vec<(usize, Fr)> {
-    assert!(t > 0, "threshold t must be positive");
-    assert!(n >= t, "n must be at least t");
+/// Returns `ShamirError::InvalidParameters` if `t == 0` or `n < t`.
+pub fn split(
+    secret: &Fr,
+    n: usize,
+    t: usize,
+    rng: &mut impl RngCore,
+) -> Result<Vec<(usize, Fr)>, ShamirError> {
+    if t == 0 {
+        return Err(ShamirError::InvalidParameters(
+            "threshold t must be positive".to_owned(),
+        ));
+    }
+    if n < t {
+        return Err(ShamirError::InvalidParameters(format!(
+            "n ({n}) must be at least t ({t})"
+        )));
+    }
 
     // Sample a random polynomial f(X) = a_0 + a_1·X + … + a_{t-1}·X^{t-1}
     // where a_0 = secret, and a_1..a_{t-1} are uniformly random nonzero field elements.
@@ -107,21 +123,22 @@ pub fn split(secret: &Fr, n: usize, t: usize, rng: &mut impl RngCore) -> Vec<(us
         shares.push((i, y));
     }
 
-    shares
+    Ok(shares)
 }
 
 /// Recover the secret from a set of shares using Lagrange interpolation.
 ///
 /// # Arguments
 ///
-/// * `shares` - A slice of at least `t` shares, each `(x, y)`.
+/// * `shares` - A slice of share tuples `(x, y)`.
+/// * `threshold` - The minimum number of shares required for recovery.
 ///
 /// # Returns
 ///
 /// The recovered secret (the constant term `f(0)` of the shared polynomial),
 /// or a `ShamirError` if the shares are insufficient or malformed.
-pub fn recover(shares: &[(usize, Fr)]) -> Result<Fr, ShamirError> {
-    if shares.is_empty() {
+pub fn recover(shares: &[(usize, Fr)], threshold: usize) -> Result<Fr, ShamirError> {
+    if shares.len() < threshold {
         return Err(ShamirError::InsufficientShares);
     }
 
@@ -216,20 +233,20 @@ mod tests {
         let n = 10;
         let t = 5;
 
-        let shares = split(&secret, n, t, &mut rng);
+        let shares = split(&secret, n, t, &mut rng).expect("split succeeds");
         assert_eq!(shares.len(), n);
 
         // Recover with exactly t shares.
-        let recovered = recover(&shares[..t]).expect("recovery with t shares");
+        let recovered = recover(&shares[..t], t).expect("recovery with t shares");
         assert_eq!(recovered, secret);
 
         // Recover with all n shares.
-        let recovered_all = recover(&shares).expect("recovery with all shares");
+        let recovered_all = recover(&shares, t).expect("recovery with all shares");
         assert_eq!(recovered_all, secret);
 
         // Recover with different subset of t shares.
         let subset: Vec<_> = shares[1..=t].to_vec();
-        let recovered_subset = recover(&subset).expect("recovery with shifted subset");
+        let recovered_subset = recover(&subset, t).expect("recovery with shifted subset");
         assert_eq!(recovered_subset, secret);
     }
 
@@ -240,19 +257,20 @@ mod tests {
         let n = 5;
         let t = 3;
 
-        let shares = split(&secret, n, t, &mut rng);
-        let _result = recover(&shares[..t - 1]);
-        // Not enough shares — but the function will still attempt interpolation
-        // and either fail or produce a wrong result. We don't require the
-        // function to detect insufficient shares (that's the caller's job),
-        // but we verify that t shares do recover correctly.
-        let recovered = recover(&shares[..t]).expect("recovery with t shares");
+        let shares = split(&secret, n, t, &mut rng).expect("split succeeds");
+
+        // RED: fewer than t shares should return InsufficientShares.
+        let result = recover(&shares[..t - 1], t);
+        assert_eq!(result, Err(ShamirError::InsufficientShares));
+
+        // Recovery with exactly t shares should still succeed.
+        let recovered = recover(&shares[..t], t).expect("recovery with t shares");
         assert_eq!(recovered, secret);
     }
 
     #[test]
     fn empty_shares_fails() {
-        let result = recover(&[]);
+        let result = recover(&[], 1);
         assert_eq!(result, Err(ShamirError::InsufficientShares));
     }
 
@@ -263,14 +281,14 @@ mod tests {
         let n = 5;
         let t = 3;
 
-        let shares = split(&secret, n, t, &mut rng);
+        let shares = split(&secret, n, t, &mut rng).expect("split succeeds");
         let mut dup = vec![shares[0].clone(), shares[0].clone(), shares[1].clone()];
         // Fix x-coordinates to be distinct even though values are the same.
         // Actually, the duplicate is on x-coordinates:
         dup[1].0 = dup[0].0; // Same x, different y would fail in Lagrange.
                              // But we need actually duplicate x. The first two entries now have the
                              // same x, but different y values. That's what we want to test.
-        let result = recover(&dup);
+        let result = recover(&dup, 3);
         assert_eq!(result, Err(ShamirError::DuplicateX));
     }
 
@@ -281,11 +299,11 @@ mod tests {
         let n = 5;
         let t = 3;
 
-        let mut shares = split(&secret, n, t, &mut rng);
+        let mut shares = split(&secret, n, t, &mut rng).expect("split succeeds");
         // Tamper with one share: add 1 to its y-value.
         shares[0].1 += Fr::ONE;
 
-        let recovered = recover(&shares[..t]).expect("recovery should still compute");
+        let recovered = recover(&shares[..t], t).expect("recovery should still compute");
         assert_ne!(
             recovered, secret,
             "tampered share should change recovered secret"
@@ -299,13 +317,13 @@ mod tests {
         let n = 3;
         let t = 2;
 
-        let shares = split(&secret, n, t, &mut rng);
-        let recovered = recover(&shares[..t]).expect("recover zero secret");
+        let shares = split(&secret, n, t, &mut rng).expect("split succeeds");
+        let recovered = recover(&shares[..t], t).expect("recover zero secret");
         assert_eq!(recovered, Fr::ZERO);
 
         let secret = Fr::ONE;
-        let shares = split(&secret, n, t, &mut rng);
-        let recovered = recover(&shares[..t]).expect("recover one secret");
+        let shares = split(&secret, n, t, &mut rng).expect("split succeeds");
+        let recovered = recover(&shares[..t], t).expect("recover one secret");
         assert_eq!(recovered, Fr::ONE);
     }
 
@@ -321,8 +339,8 @@ mod tests {
         let n = 3;
         let t = 2;
 
-        let shares1 = split(&secret, n, t, &mut rng);
-        let shares2 = split(&secret, n, t, &mut rng);
+        let shares1 = split(&secret, n, t, &mut rng).expect("split succeeds");
+        let shares2 = split(&secret, n, t, &mut rng).expect("split succeeds");
 
         // With overwhelming probability, random polynomials are different.
         let same = shares1

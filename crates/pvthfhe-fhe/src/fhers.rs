@@ -265,6 +265,11 @@ impl FhersBackend {
     }
 
     fn compute_party_sk_sums(&self, n: usize, t: usize) -> Result<(), FheError> {
+        if n == 0 {
+            return Err(FheError::Backend {
+                reason: "n must be > 0".into(),
+            });
+        }
         let mut party_states = self.party_states.lock().map_err(|err| FheError::Backend {
             reason: err.to_string(),
         })?;
@@ -433,6 +438,7 @@ fn encode_plaintext_slots(plaintext: &[u8], degree: usize) -> Result<Vec<u64>, F
     );
     slots.extend(bytes_to_slots(plaintext, degree.saturating_sub(1)));
     slots.truncate(degree);
+    #[cfg(feature = "trace-decrypt")]
     eprintln!(
         "[FHE-ENCODE] plaintext_len={} first_slot(original_len)={} total_slots_after_trunc={}",
         plaintext.len(),
@@ -451,7 +457,9 @@ fn decode_plaintext_slots(slots: &[u64]) -> Result<Vec<u8>, FheError> {
     })?;
     let max = payload_slots.len() * 2;
     if original_len > max {
+        #[cfg(feature = "trace-decrypt")]
         eprintln!("[FHE-DECODE] FAIL: decoded plaintext length {original_len} exceeds max {max}");
+        #[cfg(feature = "trace-decrypt")]
         eprintln!(
             "  total_slots={} first_few_slots={:02x?}",
             slots.len(),
@@ -1113,6 +1121,7 @@ impl FheBackend for FhersBackend {
                 reason: err.to_string(),
             }
         })?;
+        #[cfg(feature = "trace-decrypt")]
         eprintln!(
             "[FHE-DECRYPT] aggregate_decrypt: slots.len()={} first_8_slots={:02x?}",
             slots.len(),

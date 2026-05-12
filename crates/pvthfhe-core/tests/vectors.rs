@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use pvthfhe_fhe::mock::MockBackend;
 use pvthfhe_fhe::types::{DecryptShare, KeygenShare, PublicKey};
 use pvthfhe_fhe::FheBackend;
+use pvthfhe_types::ProtocolBytes;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use serde::Deserialize;
@@ -109,7 +110,7 @@ fn all_golden_vectors() {
             .iter()
             .map(|s| KeygenShare {
                 party_id: s.party_id,
-                bytes: hex::decode(&s.share_bytes).expect("bad hex in keygen_share"),
+                bytes: ProtocolBytes(hex::decode(&s.share_bytes).expect("bad hex in keygen_share")),
             })
             .collect();
 
@@ -118,6 +119,7 @@ fn all_golden_vectors() {
             .expect("aggregate_keygen failed");
         let expected_pk = hex::decode(&v.aggregate_pk).expect("bad hex in aggregate_pk");
         if computed_pk.bytes != expected_pk {
+            #[cfg(feature = "trace-test-vectors")]
             eprintln!(
                 "FAIL {:?} [{}]: aggregate_pk mismatch\n  expected: {}\n  got:      {}",
                 path,
@@ -136,6 +138,7 @@ fn all_golden_vectors() {
             .expect("encrypt failed");
         let expected_ct = hex::decode(&v.ciphertext).expect("bad hex in ciphertext");
         if computed_ct.bytes != expected_ct {
+            #[cfg(feature = "trace-test-vectors")]
             eprintln!(
                 "FAIL {:?} [{}]: ciphertext mismatch\n  expected: {}\n  got:      {}",
                 path,
@@ -152,7 +155,7 @@ fn all_golden_vectors() {
             .iter()
             .map(|s| DecryptShare {
                 party_id: s.party_id,
-                bytes: hex::decode(&s.share_bytes).expect("bad hex in decrypt_share"),
+                bytes: ProtocolBytes(hex::decode(&s.share_bytes).expect("bad hex in decrypt_share")),
             })
             .collect();
 
@@ -164,6 +167,7 @@ fn all_golden_vectors() {
             hex::decode(&v.recovered_plaintext).expect("bad hex in recovered_plaintext");
 
         if recovered != expected_recovered {
+            #[cfg(feature = "trace-test-vectors")]
             eprintln!(
                 "FAIL {:?} [{}]: recovered_plaintext mismatch\n  expected: {}\n  got:      {}",
                 path,
@@ -176,6 +180,7 @@ fn all_golden_vectors() {
         }
 
         if recovered != plaintext_bytes {
+            #[cfg(feature = "trace-test-vectors")]
             eprintln!(
                 "FAIL {:?} [{}]: round-trip broken: recovered != plaintext\n  plaintext: {}\n  recovered: {}",
                 path,

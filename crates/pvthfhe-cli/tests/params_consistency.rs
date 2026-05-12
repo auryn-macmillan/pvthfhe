@@ -23,5 +23,5 @@ fn cli_demo_nizk_statement_uses_canonical_params() {
         build_demo_nizk_inputs("session-1", &message, None, &secret_key_bytes).unwrap();
 
     assert_eq!(statement.params.1, pvthfhe_nizk::sigma::RLWE_N);
-    assert_eq!(statement.params.2, pvthfhe_nizk::sigma::B_E as u64);
+    assert_eq!(statement.params.2, pvthfhe_nizk::sigma::SIGMA_B_E as u64);
 }

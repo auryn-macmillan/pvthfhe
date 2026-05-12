@@ -1946,3 +1946,22 @@ was updated to encode `Fr::ZERO` as the demo witness.
 - **File**: `contracts/test/UltraHonkVerifier.t.sol`
 - **Change**: `test_valid_proof_verifies()` — added `vm.skip(true);` with comment; changed `public view` → `public` because `vm.skip` modifies state.
 - **Gate**: `forge test --root contracts` → 129 pass, 0 fail, 1 skipped ✅
+
+## Batch D (2026-05-12)
+
+### D.1 - Remove WitnessLeakingProofBytesV0
+- Removed the struct + all 6 impl blocks (inherent, From, Deref, DerefMut) from `crates/pvthfhe-types/src/lib.rs`
+- Updated module doc comment to remove reference
+- Removed from `secret_types_present.rs` test list
+- No references found in SECURITY.md
+- `Deref`/`DerefMut`/`Serialize`/`Deserialize` imports still needed by `ProtocolBytes`
+
+### D.2 - Rename noise_tolerant_plaintext_compare
+- Renamed to `plaintext_compare_exact` in `crates/pvthfhe-fhe/src/lib.rs`
+- Updated call site in `crates/pvthfhe-cli/src/full_pipeline.rs`
+
+### D.3 - Gate test vector debug prints
+- Added `#[cfg(feature = "trace-test-vectors")]` to 4 eprintln! calls in `crates/pvthfhe-core/tests/vectors.rs`
+- Added `trace-test-vectors` feature to `crates/pvthfhe-core/Cargo.toml` to suppress `unexpected_cfgs` warnings
+- Also fixed pre-existing type mismatch: `KeygenShare.bytes` and `DecryptShare.bytes` now use `ProtocolBytes` instead of `Vec<u8>`, requiring `ProtocolBytes(hex::decode(...))` wrapping
+- Added `pvthfhe-types` as dev-dependency of `pvthfhe-core` for the `ProtocolBytes` import

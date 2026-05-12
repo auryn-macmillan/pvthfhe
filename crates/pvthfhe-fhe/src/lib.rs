@@ -237,7 +237,7 @@ pub trait FheBackend: Send + Sync {
     ) -> Result<Vec<u8>, FheError>;
 }
 
-/// Compare recovered plaintext with original, tolerating noise/padding.
-pub fn noise_tolerant_plaintext_compare(recovered: &[u8], original: &[u8]) -> bool {
+/// Exact byte-for-byte comparison of recovered plaintext with original.
+pub fn plaintext_compare_exact(recovered: &[u8], original: &[u8]) -> bool {
     recovered.get(..original.len()) == Some(original)
 }

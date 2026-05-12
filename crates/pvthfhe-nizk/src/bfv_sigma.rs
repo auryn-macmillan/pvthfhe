@@ -9,8 +9,8 @@
 //!
 //! Witness bounds:
 //!   |u_i|  ≤ B_U   (CBD with variance ~10)
-//!   |e0_i| ≤ B_E   (discrete Gaussian error)
-//!   |e1_i| ≤ B_E   (discrete Gaussian error)
+//!   |e0_i| ≤ BFV_SIGMA_B_E   (discrete Gaussian error)
+//!   |e1_i| ≤ BFV_SIGMA_B_E   (discrete Gaussian error)
 //!   |m_i|  ≤ B_M   (raw plaintext polynomial, ≤ 65536 for BFV t=2^16)
 //!
 //! # Challenge Space
@@ -20,8 +20,8 @@
 //! # Response Bounds
 //! Masking bound B_Y = 2^30.
 //! z_u = y_u + ch * u   (bound B_Z_U = B_Y + N * B_U)
-//! z_e0 = y_e0 + ch * e0 (bound B_Z_E = B_Y + N * B_E)
-//! z_e1 = y_e1 + ch * e1 (bound B_Z_E = B_Y + N * B_E)
+//! z_e0 = y_e0 + ch * e0 (bound B_Z_E = B_Y + N * BFV_SIGMA_B_E)
+//! z_e1 = y_e1 + ch * e1 (bound B_Z_E = B_Y + N * BFV_SIGMA_B_E)
 //! z_m = y_m + ch * m   (bound B_Z_M = B_Y + N * B_M)
 //! All fit in i64 since largest bound < 2^31 << 2^63.
 
@@ -47,7 +47,7 @@ pub const B_Y: i64 = 1_073_741_824;
 /// Bound on encryption randomness coefficients (CBD with variance 10).
 pub const B_U: i64 = 10_000;
 /// Bound on BFV error polynomial coefficients.
-pub const B_E: i64 = 10_000;
+pub const BFV_SIGMA_B_E: i64 = 10_000;
 /// Plaintext modulus bound (t = 2^16 = 65536).
 pub const B_M: i64 = 65_536;
 
@@ -55,8 +55,8 @@ const N_I64: i64 = 8192_i64;
 
 /// Verifier norm bound for z_u: B_Y + N * B_U.
 pub const B_Z_U: i64 = B_Y + N_I64 * B_U;
-/// Verifier norm bound for z_e0 / z_e1: B_Y + N * B_E.
-pub const B_Z_E: i64 = B_Y + N_I64 * B_E;
+/// Verifier norm bound for z_e0 / z_e1: B_Y + N * BFV_SIGMA_B_E.
+pub const B_Z_E: i64 = B_Y + N_I64 * BFV_SIGMA_B_E;
 /// Verifier norm bound for z_m: B_Y + N * B_M.
 pub const B_Z_M: i64 = B_Y + N_I64 * B_M;
 
@@ -155,10 +155,11 @@ pub fn poly_bytes_to_rns(poly_bytes: &[u8]) -> Result<Vec<u64>, NizkError> {
     Ok(Vec::<u64>::from(&poly))
 }
 
-/// Convert a plaintext polynomial (integer coefficients) to its RNS
-/// representation scaled by the BFV delta per limb.
+/// Scale an integer polynomial `m_int` by the BFV delta per RNS limb.
 ///
-/// Returns the Δ[ℓ] * m polynomial in RNS power-basis form.
+/// Returns the Δ[ℓ] · p polynomial in RNS power-basis form.
+/// Callers are responsible for coefficient domain bounds (e.g. B_M for
+/// plaintexts, B_Y for masking polynomials).
 pub fn scale_plaintext_to_rns(m_int: &[i64], delta: &[u64]) -> Result<Vec<u64>, NizkError> {
     let ctx = rlwe_context()?;
     let num_limbs = ctx.q.len();

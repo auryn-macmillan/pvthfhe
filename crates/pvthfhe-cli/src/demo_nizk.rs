@@ -74,7 +74,7 @@ pub fn build_demo_nizk_inputs(
             params: (
                 65_537_u64,
                 pvthfhe_nizk::sigma::RLWE_N,
-                pvthfhe_nizk::sigma::B_E as u64,
+                pvthfhe_nizk::sigma::SIGMA_B_E as u64,
             ),
             session_id: session_id.to_owned(),
             participant_id,
@@ -89,11 +89,11 @@ pub fn build_demo_nizk_inputs(
     ))
 }
 
-/// Derive a deterministic small-norm error polynomial from secret key bytes.
+/// Generates small-norm demo polynomial for NIZK testing, not actual BFV encryption error.
 ///
 /// Uses SHA-256 over a domain-separated hash of the secret key bytes to seed
 /// a deterministic RNG, then rejection-samples RLWE_N coefficients each bounded
-/// by `[-B_E, B_E]`. This produces a realistic NIZK error witness matching the
+/// by `[-SIGMA_B_E, SIGMA_B_E]`. This produces a realistic NIZK error witness matching the
 /// sigma protocol relation `d_i = c*s_i + e_i` without relying on a hardcoded
 /// 4-element placeholder.
 ///
@@ -102,8 +102,8 @@ pub fn build_demo_nizk_inputs(
 fn derive_demo_error_poly(secret_key_bytes: &[u8]) -> Vec<i64> {
     use rand::SeedableRng;
     let n = pvthfhe_nizk::sigma::RLWE_N;
-    let b = pvthfhe_nizk::sigma::B_E; // 16
-    let range = u64::try_from(2 * b + 1).expect("2*B_E+1 fits u64"); // 33
+    let b = pvthfhe_nizk::sigma::SIGMA_B_E; // 16
+    let range = u64::try_from(2 * b + 1).expect("2*SIGMA_B_E+1 fits u64"); // 33
 
     let mut hasher = Sha256::new();
     hasher.update(b"pvthfhe-cli/nizk-error-demo/v1");
@@ -123,6 +123,7 @@ fn derive_demo_error_poly(secret_key_bytes: &[u8]) -> Vec<i64> {
 }
 
 fn bytes_to_i64_poly(bytes: &[u8]) -> Vec<i64> {
+    assert!(bytes.len() % 8 == 0, "input length must be multiple of 8");
     let num_coeffs = bytes.len() / 8;
     let mut poly = Vec::with_capacity(num_coeffs);
     for chunk in bytes.chunks_exact(8) {

@@ -752,3 +752,14 @@ full v4 NIZK (sigma + Ajtai commitment + D2 hash binding) is covered in §3.5.
 
 11. Parameters: `.sisyphus/design/parameters.md` lines 13–36 and
     `.sisyphus/design/parameters.toml`.
+
+---
+
+## §Shamir API Contract (added 2026-05-12)
+
+The BN254 Shamir module (`crates/pvthfhe-pvss/src/shamir.rs`) enforces the following contract:
+
+- `split(secret, n, t, rng) -> Result<Vec<(usize, Fr)>, ShamirError>`: Returns `InvalidParameters` if `t == 0` or `n < t` (no panics).
+- `recover(shares, threshold) -> Result<Fr, ShamirError>`: Returns `InsufficientShares` if `shares.len() < threshold`. The threshold must be passed explicitly by callers — it is not inferred from the share count. This prevents silent recovery of a wrong secret when an insufficient subset is accidentally provided.
+
+Callers in `LatticePvssBfvAdapter::recover` pass `ctx.t` as the threshold to `shamir::recover`, creating a dual guard (PVSS-layer check at line 258 + Shamir-layer check at the guard clause in `recover`). The Shamir-layer guard is the authoritative cryptographic enforcement.

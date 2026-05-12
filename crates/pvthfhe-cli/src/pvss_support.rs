@@ -99,6 +99,8 @@ pub fn run_lattice_pvss(
                         esm_noise_poly_bytes: None,
                     },
                     &ctx,
+                    None, // committed_esm_noise_bytes: not yet wired from DKG
+                    None, // sk_agg_share: not yet wired from DKG
                 )
                 .map_err(|err| anyhow::anyhow!("pvss prove_decrypted_share {index}: {err}"))?;
             decrypt_prove_per_instance_ms

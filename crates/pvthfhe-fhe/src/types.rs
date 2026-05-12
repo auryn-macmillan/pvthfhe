@@ -35,6 +35,9 @@ pub struct DecryptShare {
     pub party_id: u32,
     /// Opaque serialised share bytes.
     pub bytes: ProtocolBytes,
+    /// Optional per-share NIZK proof bytes (B.1 — wired, but not yet generated
+    /// by `partial_decrypt`; graceful degradation when `None`).
+    pub nizk_proof_bytes: Option<Vec<u8>>,
 }
 
 /// RLWE parameters loaded from a TOML configuration string.

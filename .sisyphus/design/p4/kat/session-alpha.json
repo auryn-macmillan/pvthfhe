@@ -106,11 +106,12 @@
   "derived_public_key": {
     "wire_version": 1,
     "session_id": "p4-session-alpha",
-    "params_id": "bfv-params/toy-v1",
-    "rlwe_dimension": 4096,
+    "params_id": "bfv-9acac230a49659c7",
+    "rlwe_dimension": 8192,
     "modulus_chain": [
-      4294962689,
-      4294951937
+      288230376173076481,
+      288230376167047169,
+      288230376161280001
     ],
     "public_component_a": "feedcafe01",
     "public_component_b": "bead0102",

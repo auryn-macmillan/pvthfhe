@@ -261,6 +261,7 @@ fn r8_aggregate(ciphertext_hex: &str, shares_hex: &str, threshold: usize) -> any
         shares.push(pvthfhe_fhe::DecryptShare {
             party_id: (i + 1) as u32,
             bytes: pvthfhe_types::ProtocolBytes(share_bytes),
+            nizk_proof_bytes: None,
         });
     }
 

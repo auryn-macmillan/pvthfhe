@@ -638,6 +638,61 @@ pub trait BfvPublicKeyDerivation {
     ) -> SpecResult<BFVPublicKey>;
 }
 
+/// Canonical BFV parameters TOML (mirrored from `pvthfhe-pvss/src/nizk_share.rs`
+/// and `pvthfhe-fhe/src/mock_impl.rs`). Used for parameter binding in
+/// `derive_bfv_public_key`.
+const CANONICAL_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
+
+/// Parse a simple `key = value` TOML-like section to extract RLWE parameters.
+/// Returns `(degree, moduli, t_plain)` from the `[rlwe]` section, or an error.
+fn parse_bfv_params_from_toml(toml: &str) -> SpecResult<(u32, Vec<u64>, u32)> {
+    let mut n: Option<u32> = None;
+    let mut moduli: Option<Vec<u64>> = None;
+    let mut t_plain: Option<u32> = None;
+    let mut in_rlwe = false;
+
+    for line in toml.lines() {
+        let trimmed = line.trim();
+        if trimmed == "[rlwe]" {
+            in_rlwe = true;
+            continue;
+        }
+        if trimmed.starts_with('[') {
+            in_rlwe = false;
+        }
+        if !in_rlwe {
+            continue;
+        }
+        if let Some(val) = trimmed.strip_prefix("n =") {
+            n = val.trim().parse().ok();
+        } else if let Some(val) = trimmed.strip_prefix("t_plain =") {
+            t_plain = val.trim().parse().ok();
+        } else if let Some(val) = trimmed.strip_prefix("moduli =") {
+            let inner = val
+                .trim()
+                .strip_prefix('[')
+                .and_then(|s| s.strip_suffix(']'))
+                .map(|s| s.trim())
+                .unwrap_or("");
+            if inner.is_empty() {
+                moduli = Some(Vec::new());
+            } else {
+                moduli = Some(
+                    inner
+                        .split(',')
+                        .filter_map(|item| item.trim().parse::<u64>().ok())
+                        .collect(),
+                );
+            }
+        }
+    }
+
+    match (n, moduli, t_plain) {
+        (Some(n), Some(moduli), Some(t_plain)) => Ok((n, moduli, t_plain)),
+        _ => Err(SpecError::new("failed to parse BFV params from TOML")),
+    }
+}
+
 impl BfvPublicKeyDerivation for PublicVerificationArtifact {
     fn derive_bfv_public_key(
         &self,
@@ -665,12 +720,17 @@ impl BfvPublicKeyDerivation for PublicVerificationArtifact {
         ids.sort_unstable();
         ids.dedup();
 
+        let (degree, moduli, _t_plain) = parse_bfv_params_from_toml(CANONICAL_PARAMS_TOML)?;
+
+        let params_hash_raw: [u8; 32] = Sha256::digest(CANONICAL_PARAMS_TOML.as_bytes()).into();
+        let params_id = format!("bfv-{}", hex_encode(&params_hash_raw[..8]));
+
         Ok(BFVPublicKey {
             wire_version: 1,
             session_id: session.session_id.clone(),
-            params_id: self.bfv_derivation_label.clone(),
-            rlwe_dimension: 4096,
-            modulus_chain: vec![0xffff_ee01, 0xffff_c401],
+            params_id,
+            rlwe_dimension: degree,
+            modulus_chain: moduli,
             public_component_a: HexBlob(format!("{}01", self.transcript_root.0)),
             public_component_b: HexBlob(format!("{}02", self.proof_bytes.0)),
             provenance: BfvKeyProvenance {

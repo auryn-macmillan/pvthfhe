@@ -164,6 +164,7 @@ pub fn scale_plaintext_to_rns(m_int: &[i64], delta: &[u64]) -> Result<Vec<u64>, 
     let ctx = rlwe_context()?;
     let num_limbs = ctx.q.len();
     let n = RLWE_N;
+    debug_assert_eq!(m_int.len(), n, "scale_plaintext_to_rns: input length must equal RLWE_N");
     let mut out = vec![0u64; n * num_limbs];
     for (limb, &d) in delta.iter().enumerate() {
         let modulus = u128::from(ctx.q[limb].modulus());

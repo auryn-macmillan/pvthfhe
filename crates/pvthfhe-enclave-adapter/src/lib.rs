@@ -104,6 +104,7 @@ impl<B: FheBackend> EnclaveAggregator for PvthfheEnclaveAggregator<B> {
             .map(|(i, s)| pvthfhe_fhe::DecryptShare {
                 party_id: u32::try_from(i).unwrap_or(u32::MAX),
                 bytes: ProtocolBytes(s.0.clone()),
+                nizk_proof_bytes: None,
             })
             .collect();
         self.backend

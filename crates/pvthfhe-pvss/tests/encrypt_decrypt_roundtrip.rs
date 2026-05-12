@@ -97,6 +97,8 @@ fn encrypt_decrypt_roundtrip_recovers_secret() {
                         esm_noise_poly_bytes: None,
                     },
                     &ctx,
+                    None, // committed_esm_noise_bytes
+                    None, // sk_agg_share
                 )
                 .expect("attach decrypt proof")
         })

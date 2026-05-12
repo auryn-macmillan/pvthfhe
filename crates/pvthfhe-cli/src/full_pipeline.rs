@@ -14,8 +14,12 @@ use pvthfhe_domain_tags::Tag;
 use pvthfhe_fhe::{
     fhers::FhersBackend,
     real_nizk::{LatticeNizk, NizkStatement, NizkWitness, RealNizkAdapter},
-    FheBackend, PublicKey,
+    FheBackend, KeygenShare, PublicKey,
 };
+use pvthfhe_pvss::nizk_decrypt::{
+    DecryptNizkMode, DecryptNizkProof, DecryptNizkStatement, DecryptNizkVerifier,
+};
+use pvthfhe_pvss::nizk_share::compute_ciphertext_v;
 use pvthfhe_rng::OsRng;
 use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
 use sha2::{Digest, Sha256};
@@ -328,7 +332,37 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         let ms = elapsed_ms(started);
         observer.phase_end("partial_decrypt", ms);
         partial_decrypt_ms.push(ms);
+
+        // B.1: Per-share NIZK verification (graceful degradation when no proof)
+        let nizk_proof_bytes = share.nizk_proof_bytes.clone();
+        let share_bytes = share.bytes.clone();
         shares.push(share);
+
+        if let Some(ref proof_bytes) = nizk_proof_bytes {
+            let message = &transcript.round1_messages[party_index - 1];
+            let party_pk = backend
+                .aggregate_keygen(&[KeygenShare {
+                    party_id,
+                    bytes: ProtocolBytes(message.pk_i.bytes.clone()),
+                }])
+                .with_context(|| format!("derive party pk for party {party_id}"))?
+                .bytes;
+            let statement = DecryptNizkStatement {
+                session_id: session_id.as_bytes().to_vec(),
+                party_index: party_index - 1,
+                ciphertext_u: ciphertext.bytes.clone(),
+                ciphertext_v: compute_ciphertext_v(&ciphertext.bytes).to_vec(),
+                decrypted_share_bytes: share_bytes.0,
+                party_pk,
+                epoch: 0,
+                dkg_root: session_id.as_bytes().to_vec(),
+                mode: DecryptNizkMode::LegacyLocalSmudge,
+            };
+            let proof = DecryptNizkProof::from_bytes(proof_bytes.clone())
+                .with_context(|| format!("decode NIZK proof for party {party_id}"))?;
+            DecryptNizkVerifier::verify(&statement, &proof)
+                .with_context(|| format!("NIZK verify failed for party {party_id}"))?;
+        }
     }
     timings.phases.partial_decrypt.total_ms = partial_decrypt_ms.iter().sum();
     timings.phases.partial_decrypt.instances_run = partial_decrypt_ms.len();

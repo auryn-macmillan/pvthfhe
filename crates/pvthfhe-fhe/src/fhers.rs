@@ -54,6 +54,8 @@ pub struct FhersBackend {
     party_states: Arc<Mutex<HashMap<u32, PartyState>>>,
     threshold_n: Arc<Mutex<Option<usize>>>,
     threshold_t: Arc<Mutex<Option<usize>>>,
+    /// Per-party committed smudging-noise polynomial bytes from DKG transcript (B.2).
+    esm_noise_poly_map: Arc<Mutex<HashMap<u32, Vec<u8>>>>,
 }
 
 impl Clone for FhersBackend {
@@ -64,6 +66,7 @@ impl Clone for FhersBackend {
             party_states: self.party_states.clone(),
             threshold_n: self.threshold_n.clone(),
             threshold_t: self.threshold_t.clone(),
+            esm_noise_poly_map: self.esm_noise_poly_map.clone(),
         }
     }
 }
@@ -95,6 +98,21 @@ impl FhersBackend {
             bytes.extend_from_slice(&coeff.to_le_bytes());
         }
         Ok(bytes)
+    }
+
+    /// Store committed smudging-noise polynomial bytes for `party_id` (B.2).
+    pub fn store_esm_noise_poly_bytes(&self, party_id: u32, bytes: Vec<u8>) {
+        if let Ok(mut map) = self.esm_noise_poly_map.lock() {
+            map.insert(party_id, bytes);
+        }
+    }
+
+    /// Look up committed smudging-noise polynomial bytes for `party_id` (B.2).
+    fn esm_noise_poly_for(&self, party_id: u32) -> Option<Vec<u8>> {
+        self.esm_noise_poly_map
+            .lock()
+            .ok()
+            .and_then(|map| map.get(&party_id).cloned())
     }
 
     /// Remove and return the stored state for `party_id`.
@@ -492,6 +510,7 @@ impl FheBackend for FhersBackend {
             party_states: Arc::new(Mutex::new(HashMap::new())),
             threshold_n: Arc::new(Mutex::new(None)),
             threshold_t: Arc::new(Mutex::new(None)),
+            esm_noise_poly_map: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
@@ -730,6 +749,11 @@ impl FheBackend for FhersBackend {
         party_id: u32,
         rng: &mut dyn RngCore,
     ) -> Result<DecryptShare, FheError> {
+        // B.2: delegate to committed-smudge path when DKG esm data is available
+        if let Some(esm_bytes) = self.esm_noise_poly_for(party_id) {
+            return self.partial_decrypt_committed_smudge(ct, party_id, &esm_bytes, rng);
+        }
+
         let (n, t) = self.threshold_params()?;
         let ct = BfvCiphertext::from_bytes(&ct.bytes, &self.bfv_params)
             .map_err(|_| FheError::MalformedCiphertext)?;
@@ -772,6 +796,7 @@ impl FheBackend for FhersBackend {
         Ok(DecryptShare {
             party_id,
             bytes: ProtocolBytes(wire::encode_decrypt_share(&poly_bytes)),
+            nizk_proof_bytes: None,
         })
     }
 
@@ -873,6 +898,7 @@ impl FheBackend for FhersBackend {
             DecryptShare {
                 party_id,
                 bytes: ProtocolBytes(wire_bytes),
+                nizk_proof_bytes: None,
             },
             witness,
         ))
@@ -916,6 +942,7 @@ impl FheBackend for FhersBackend {
         Ok(DecryptShare {
             party_id,
             bytes: ProtocolBytes(wire::encode_decrypt_share(&poly_bytes)),
+            nizk_proof_bytes: None,
         })
     }
 
@@ -1005,6 +1032,7 @@ impl FheBackend for FhersBackend {
             DecryptShare {
                 party_id,
                 bytes: ProtocolBytes(wire_bytes),
+                nizk_proof_bytes: None,
             },
             witness,
         ))

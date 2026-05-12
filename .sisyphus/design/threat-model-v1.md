@@ -1,6 +1,6 @@
 # PVTHFHE Threat Model v1
 
-> **Document version**: 1.1  
+> **Document version**: 1.2  
 > **Date**: 2026-05-11  
 > **Status**: DRAFT — reflects target Architecture B design intent; current prototype violates most properties (see audit).  
 > **Sources**: [AUDIT-2026-05-08.md](../audit/AUDIT-2026-05-08.md), [assumptions-ledger.md](assumptions-ledger.md), [security-proofs.md](security-proofs.md), [proof-boundary.md](proof-boundary.md), [fold-soundness-budget.md](fold-soundness-budget.md), [noise-budget.md](noise-budget.md), [SECURITY.md](../../SECURITY.md)
@@ -225,6 +225,8 @@ From [proof-boundary.md](proof-boundary.md) (frozen Phase 2):
 10. **Sigma ZK masking seeds fresh per proof**: As of the deep-audit remediation (Batch A.1), both the algebraic sigma proof (`build_algebraic_proof` in `nizk_share.rs`) and the BFV encryption sigma proof (`build_bfv_encryption_proof` in `nizk_share.rs`) use fresh, non-deterministic randomness seeded from `OsRng` (`ChaCha20Rng::from_rng(&mut OsRng)`) for each proof generation call. The previous hardcoded/commented-out fixed seeds have been removed. This is critical for zero-knowledge: reusing masking randomness across proofs breaks the sigma protocol's honest-verifier ZK property (soundness is unaffected). Verification: `nizk_share.rs` lines 413 and 668 — both proof-rng instances use `ChaCha20Rng::from_rng(&mut OsRng)`.
 
 11. **Aggregate key consistency (PB-08 enforcement)**: The DKG transcript's aggregate public key MUST equal the FHE backend's aggregate key used for encryption. After keygen, the aggregator recomputes `pk_agg = Σ pk_i` over the accepted participant set and asserts equality with the FHE backend's stored aggregate key. A mismatch aborts the pipeline before any decryption share is processed. This prevents an adversary from substituting a weaker or corrupted key while presenting a compatible DKG transcript. Enforced in `full_pipeline.rs` via the `aggregate_pk` consistency assertion (deep-audit remediation Batch A.3). Primary enforcement layer: B (Rust aggregator), per `proof-boundary.md` PB-08.
+
+12. **Encryption correctness is trusted (C2 gap)**: `backend.encrypt()` at pipeline step 3 produces a ciphertext, but there is no verifiable proof that the ciphertext faithfully encrypts the claimed plaintext under the aggregate public key. The encryption step is trusted; a malicious encryptor can produce a well-formed but semantically incorrect ciphertext. Mitigation: the semantic roundtrip check (step 9, `verify_plaintext_roundtrip`) detects plaintext mismatches at the aggregate level, but cannot identify which party or which step introduced the corruption. A fully verifiable encryption step would require a NIZK proving `ct = Enc(pk_agg, pt)` without revealing the plaintext, which is an open design problem. See `interfold-equivalence.md` §C2 and `SECURITY.md` §Known Limitations for tracking.
 
 ---
 

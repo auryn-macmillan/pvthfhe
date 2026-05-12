@@ -3,8 +3,8 @@
 //! Deterministic via `ChaCha20Rng::seed_from_u64(0x4e_34)`.
 
 use pvthfhe_nizk::sigma::{
-    compute_d_rns, prove, verify, SigmaStatement, SigmaWitness, B_E, RLWE_N, RLWE_Q0, RLWE_Q1,
-    RLWE_Q2,
+    compute_d_rns, prove, verify, SigmaStatement, SigmaWitness, SIGMA_B_E, RLWE_N, RLWE_Q0,
+    RLWE_Q1, RLWE_Q2,
 };
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
@@ -43,14 +43,14 @@ fn sample_ternary(rng: &mut ChaCha20Rng) -> Vec<i64> {
 }
 
 fn sample_error(rng: &mut ChaCha20Rng) -> Result<Vec<i64>, String> {
-    const RANGE: u64 = 33; // 2 * B_E + 1 = 33
+    const RANGE: u64 = 33; // 2 * SIGMA_B_E + 1 = 33
     const THRESHOLD: u64 = u64::MAX - (u64::MAX % RANGE);
     let mut e = vec![0i64; RLWE_N];
     for x in e.iter_mut() {
         loop {
             let v = rng.next_u64();
             if v < THRESHOLD {
-                *x = i64::try_from(v % RANGE).map_err(|err| err.to_string())? - B_E;
+                *x = i64::try_from(v % RANGE).map_err(|err| err.to_string())? - SIGMA_B_E;
                 break;
             }
         }
@@ -113,7 +113,7 @@ fn cheating_instances_all_reject() -> Result<(), String> {
             let mut e_i = sample_error(&mut rng)?;
             let d_rns = compute_d_rns(&c_rns, &s_i, &e_i)
                 .map_err(|err| format!("change-err trial {trial}: {err}"))?;
-            e_i[0] = B_E + 17;
+            e_i[0] = SIGMA_B_E + 17;
             let stmt = SigmaStatement { c_rns, d_rns };
             let wit = SigmaWitness { s_i, e_i };
             let proof = prove(b"test-session-n4", 0, &stmt, &wit, &[0u8; 32], &mut rng)

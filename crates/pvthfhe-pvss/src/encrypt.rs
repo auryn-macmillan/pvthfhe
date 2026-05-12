@@ -8,14 +8,15 @@ use pvthfhe_types::{EncRandomness, ProtocolBytes, ShareSecret};
 use rand_core::{RngCore, SeedableRng};
 
 use crate::nizk_decrypt::{
-    DecryptNizkMode, DecryptNizkProof, DecryptNizkProver, DecryptNizkStatement,
-    DecryptNizkVerifier, DecryptNizkWitness,
+    compute_decrypt_ciphertext_hash, DecryptNizkMode, DecryptNizkProof, DecryptNizkProver,
+    DecryptNizkStatement, DecryptNizkVerifier, DecryptNizkWitness,
 };
 use crate::nizk_share::{
     canonical_bfv_params_digest, compute_ciphertext_v, compute_share_commitment, ShareNizkProof,
     ShareNizkProver, ShareNizkStatement, ShareNizkVerifier, ShareNizkWitness,
 };
 use crate::shamir;
+use crate::dkg_aggregation::{compute_esm_aggregate_commitment, compute_sk_aggregate_commitment};
 use crate::{DecryptedShare, EncryptedShares, PvssAdapter, PvssContext, PvssError};
 
 const BACKEND_ID: &str = "lattice-pvss-bfv-d2";
@@ -76,6 +77,11 @@ impl LatticePvssBfvAdapter {
     }
 
     /// Wrap a decrypted share with a deterministic decrypt-side proof.
+    ///
+    /// When `committed_esm_noise_bytes` is `Some`, `sk_agg_share` is `Some`,
+    /// and `esm_agg_share` is available in the witness, the proof uses
+    /// `CommittedSmudge` mode.  Otherwise the legacy local-smudge path
+    /// is used (B.2 / B.3).
     pub fn prove_decrypted_share(
         &self,
         ciphertext_u: &[u8],
@@ -84,6 +90,8 @@ impl LatticePvssBfvAdapter {
         decrypted_share_bytes: Vec<u8>,
         witness: &DecryptNizkWitness,
         ctx: &PvssContext,
+        committed_esm_noise_bytes: Option<Vec<u8>>,
+        sk_agg_share: Option<u64>,
     ) -> Result<DecryptedShare, PvssError> {
         let dkg_root = if ctx.dkg_root.is_empty() {
             // Fallback: treat session_id as provisional DKG root for backward compat.
@@ -92,16 +100,55 @@ impl LatticePvssBfvAdapter {
         } else {
             ctx.dkg_root.clone()
         };
+
+        let ciphertext_v = compute_ciphertext_v(ciphertext_u).to_vec();
+        let effective_sk_share = sk_agg_share.or(witness.sk_agg_share);
+        let effective_esm_share = witness.esm_agg_share;
+        let mode = match committed_esm_noise_bytes {
+            Some(_) if effective_sk_share.is_some() && effective_esm_share.is_some() => {
+                let ciphertext_hash =
+                    compute_decrypt_ciphertext_hash(ciphertext_u, &ciphertext_v);
+                let recipient_id =
+                    u16::try_from(party_index).map_err(|_| PvssError::InvalidShare)?;
+                let accepted_participant_ids: Vec<u16> =
+                    (1..=u16::try_from(ctx.n).unwrap_or(u16::MAX)).collect();
+                let sk_agg_commit = compute_sk_aggregate_commitment(
+                    &ctx.session_id,
+                    &dkg_root,
+                    recipient_id,
+                    &accepted_participant_ids,
+                    ark_bn254::Fr::from(effective_sk_share.unwrap_or(0)),
+                );
+                let esm_agg_commit = compute_esm_aggregate_commitment(
+                    &ctx.session_id,
+                    &dkg_root,
+                    recipient_id,
+                    &accepted_participant_ids,
+                    1, // slot_id = 1
+                    ark_bn254::Fr::from(effective_esm_share.unwrap_or(0)),
+                );
+                DecryptNizkMode::CommittedSmudge {
+                    slot_id: 1,
+                    decrypt_round: 0,
+                    ciphertext_hash,
+                    accepted_participant_ids,
+                    sk_agg_commit,
+                    esm_agg_commit,
+                }
+            }
+            _ => DecryptNizkMode::LegacyLocalSmudge,
+        };
+
         let statement = DecryptNizkStatement {
             session_id: ctx.session_id.clone(),
             party_index,
             ciphertext_u: ciphertext_u.to_vec(),
-            ciphertext_v: compute_ciphertext_v(ciphertext_u).to_vec(),
+            ciphertext_v,
             decrypted_share_bytes: decrypted_share_bytes.clone(),
             party_pk: party_pk.to_vec(),
             epoch: ctx.epoch,
             dkg_root,
-            mode: DecryptNizkMode::LegacyLocalSmudge,
+            mode,
         };
         let proof = DecryptNizkProver::prove(&statement, witness)?;
 

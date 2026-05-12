@@ -156,6 +156,7 @@ impl FheBackend for MockBackendInner {
         Ok(DecryptShare {
             party_id,
             bytes: ProtocolBytes(bytes),
+            nizk_proof_bytes: None,
         })
     }
 

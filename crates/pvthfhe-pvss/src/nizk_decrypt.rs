@@ -362,7 +362,11 @@ fn proof_secret_share(
     witness: &DecryptNizkWitness,
 ) -> Result<u64, PvssError> {
     match stmt.mode {
-        DecryptNizkMode::LegacyLocalSmudge => Ok(derive_party_binding(&stmt.party_pk)),
+        DecryptNizkMode::LegacyLocalSmudge => {
+            // B.3: prefer DKG-committed sk_agg_share when available;
+            // fall back to pk-derived binding when DKG commitment is unavailable.
+            Ok(witness.sk_agg_share.unwrap_or_else(|| derive_party_binding(&stmt.party_pk)))
+        }
         DecryptNizkMode::CommittedSmudge { .. } => {
             witness.sk_agg_share.ok_or(PvssError::InvalidShare)
         }

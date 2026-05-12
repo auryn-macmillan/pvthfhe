@@ -87,7 +87,7 @@ enum Commands {
     },
     /// Run the full n-party demo pipeline in-process.
     Demo {
-        /// Number of parties (maximum 255).
+        /// Number of parties (tested up to 230, soft cap for noise budget).
         #[arg(long, default_value_t = 8)]
         n: usize,
         /// Threshold (default: n/2+1).
@@ -96,6 +96,9 @@ enum Commands {
         /// Deterministic seed for RNG.
         #[arg(long, default_value_t = 0)]
         seed: u64,
+        /// Bypass the n ≤ 230 soft cap (large parties may exceed noise budget).
+        #[arg(long, default_value_t = false)]
+        force_large_n: bool,
     },
 }
 
@@ -151,8 +154,8 @@ fn main() -> anyhow::Result<()> {
             info!(proof = %proof, "verify stub — real HonkVerifier not yet integrated");
             println!("verify: proof={proof} (stub)");
         }
-        Commands::Demo { n, threshold, seed } => {
-            run_demo(n, threshold.unwrap_or(n / 2 + 1), seed)?;
+        Commands::Demo { n, threshold, seed, force_large_n } => {
+            run_demo(n, threshold.unwrap_or(n / 2 + 1), seed, force_large_n)?;
         }
     }
 
@@ -272,10 +275,16 @@ fn r8_aggregate(ciphertext_hex: &str, shares_hex: &str, threshold: usize) -> any
 
 /// Run the full demo pipeline with `n` parties and deterministic `seed`.
 #[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]
-fn run_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
+fn run_demo(n: usize, threshold: usize, seed: u64, force_large_n: bool) -> anyhow::Result<()> {
     const MAX_N: usize = 255;
+    const SOFT_CAP_N: usize = 230;
     if n == 0 || n > MAX_N {
         anyhow::bail!("invalid n: n={n} must satisfy 1 <= n <= {MAX_N} (Shamir over GF(256))");
+    }
+    if n > SOFT_CAP_N && !force_large_n {
+        anyhow::bail!(
+            "soft cap: n={n} > {SOFT_CAP_N} — untested, may exceed BFV noise budget for decryption. Re-run with --force-large-n to proceed at your own risk."
+        );
     }
     if threshold == 0 || threshold > n {
         anyhow::bail!(
@@ -350,7 +359,7 @@ fn run_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
 }
 
 #[cfg(not(all(feature = "with-fhe", feature = "sonobe-compressor")))]
-fn run_demo(_n: usize, _threshold: usize, _seed: u64) -> anyhow::Result<()> {
+fn run_demo(_n: usize, _threshold: usize, _seed: u64, _force_large_n: bool) -> anyhow::Result<()> {
     anyhow::bail!("demo requires the `with-fhe` and `sonobe-compressor` features")
 }
 

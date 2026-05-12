@@ -287,7 +287,7 @@ fn compute_ccs_instance_id(stmt: &NizkStatement) -> Result<[u8; 32], NizkError> 
 /// sampling per limb to avoid modular bias.
 fn expand_c_rns(seed: &[u8; 32]) -> Result<Vec<u64>, NizkError> {
     use crate::sigma::{RLWE_Q0, RLWE_Q1, RLWE_Q2};
-    let mut rng = ChaCha20Rng::from_seed(*seed);
+    let mut rng = ChaCha20Rng::from_seed(*seed); // allow-seeded-rng: deterministic NIZK test vector generation
     const MODULI: [u64; 3] = [RLWE_Q0, RLWE_Q1, RLWE_Q2];
     let mut c_rns = vec![0u64; RLWE_N * 3];
     for (limb, &q) in MODULI.iter().enumerate() {
@@ -332,7 +332,7 @@ fn serialize_ajtai_commitment(ajtai: &AjtaiCommitment) -> Vec<u8> {
 
 fn compute_ajtai_commitment(ccs_id: &[u8; 32], s_i: &[i64]) -> Result<AjtaiCommitment, NizkError> {
     let params = AjtaiParams::default();
-    let matrix = AjtaiMatrix::from_seed(*ccs_id, &params, AJTAI_M)?;
+    let matrix = AjtaiMatrix::from_seed(*ccs_id, &params, AJTAI_M)?; // allow-seeded-rng: CCS matrix seeded from canonical instance id
     let witness_rq: Vec<Rq> = s_i
         .chunks(PHI)
         .map(|chunk| {

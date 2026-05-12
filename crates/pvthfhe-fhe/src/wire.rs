@@ -144,6 +144,7 @@ fn encode_fields(fields: &[&[u8]]) -> Vec<u8> {
     let mut out = Vec::with_capacity(payload_len);
 
     for field in fields {
+        #[allow(clippy::expect_used)]
         let len = u32::try_from(field.len()).expect("wire field length exceeds u32");
         out.extend_from_slice(&len.to_be_bytes());
         out.extend_from_slice(field);
@@ -171,10 +172,10 @@ impl<'a> Decoder<'a> {
             .bytes
             .get(self.offset..len_end)
             .ok_or(WireError::MissingLengthPrefix)?;
-        let len = u32::from_be_bytes(len_bytes.try_into().expect("slice length checked"));
+        let len = u32::from_be_bytes(len_bytes.try_into().map_err(|_| WireError::Other)?);
         self.offset = len_end;
 
-        let field_len = usize::try_from(len).expect("u32 always fits into usize");
+        let field_len = usize::try_from(len).map_err(|_| WireError::Other)?;
         let field_end = self
             .offset
             .checked_add(field_len)

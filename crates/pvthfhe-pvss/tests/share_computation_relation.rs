@@ -1,5 +1,6 @@
 //! Focused E.1 tests for batched two-track Shamir/RS share computation.
 
+use pvthfhe_types::ProtocolBytes;
 use ark_bn254::Fr;
 use ark_ff::AdditiveGroup;
 use pvthfhe_pvss::share_computation::{
@@ -33,8 +34,8 @@ fn valid_statement() -> BatchedShareComputationStatement {
     let esm1_coeffs = vec![Fr::from(19u64), Fr::from(6u64), Fr::from(7u64)];
 
     BatchedShareComputationStatement {
-        session_id: session_id.clone(),
-        dkg_root: dkg_root.clone(),
+        session_id: ProtocolBytes(session_id.clone()),
+        dkg_root: ProtocolBytes(dkg_root.clone()),
         dealer_id,
         max_degree: 2,
         coefficient_bound: 32,
@@ -106,7 +107,7 @@ fn rejects_non_low_degree_sk_share_vector() {
 #[test]
 fn rejects_secret_commitment_replay_across_sessions() {
     let mut statement = valid_statement();
-    statement.session_id = b"different-session".to_vec();
+    statement.session_id = ProtocolBytes(b"different-session".to_vec());
 
     let err = verify_batched_share_computation(&statement).expect_err("session replay rejected");
 
@@ -125,7 +126,7 @@ fn foldable_public_instance_commitment_is_deterministic_and_session_bound() {
     assert_eq!(first, second);
 
     let mut changed = statement;
-    changed.dkg_root = b"other-root".to_vec();
+    changed.dkg_root = ProtocolBytes(b"other-root".to_vec());
     let err = verify_batched_share_computation(&changed).expect_err("root replay rejected");
     assert!(err.to_string().contains("secret commitment"));
 }

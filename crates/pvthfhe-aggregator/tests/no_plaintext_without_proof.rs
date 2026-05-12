@@ -1,3 +1,4 @@
+use pvthfhe_types::ProtocolBytes;
 use pvthfhe_aggregator::decrypt::{aggregate_decrypt, partial_decrypt, DecryptError};
 use pvthfhe_fhe::{mock::MockBackend, types::Ciphertext, FheBackend};
 use rand::thread_rng;
@@ -34,7 +35,7 @@ fn no_plaintext_without_valid_nizk_proof() {
     // byte 0 as 1, but set remaining bytes to something invalid (0xDE).
     // Current code only checks nizk[0] — this tampered proof passes
     // validation and `aggregate_decrypt` returns Ok(plaintext).
-    share1.nizk = vec![1, 0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA, 0xBE];
+    share1.nizk = ProtocolBytes(vec![1, 0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA, 0xBE]);
 
     let result = aggregate_decrypt(
         &backend,

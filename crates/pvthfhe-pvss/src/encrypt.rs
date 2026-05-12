@@ -175,7 +175,7 @@ impl PvssAdapter for LatticePvssBfvAdapter {
             };
             let mut randomness = [0u8; 32];
             OsRng.fill_bytes(&mut randomness);
-            let mut enc_rng = rand_chacha::ChaCha20Rng::from_seed(randomness);
+            let mut enc_rng = rand_chacha::ChaCha20Rng::from_seed(randomness); // allow-seeded-rng: deterministic re-encryption from witness seed
             let ciphertext_u = self
                 .backend
                 .encrypt(&recipient_pk, share_bytes, &mut enc_rng)

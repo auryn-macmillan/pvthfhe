@@ -2,6 +2,7 @@ use pvthfhe_fhe::{
     types::{Ciphertext, DecryptShare},
     FheBackend, FheError,
 };
+use pvthfhe_types::ProtocolBytes;
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -54,7 +55,7 @@ pub struct DecryptSharePayload {
     pub ciphertext_hash: [u8; 32],
     pub epoch: u64,
     pub share: DecryptShare,
-    pub nizk: Vec<u8>,
+    pub nizk: ProtocolBytes,
     pub version: u8,
 }
 
@@ -135,7 +136,7 @@ pub fn partial_decrypt(
         ciphertext_hash: *ciphertext_hash,
         epoch,
         share,
-        nizk: vec![1],
+        nizk: ProtocolBytes(vec![1]),
         version: 1,
     })
 }

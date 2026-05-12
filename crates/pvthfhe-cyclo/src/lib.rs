@@ -11,6 +11,8 @@
 //! heuristic used by the folding backend. The joint extractor (T2)
 //! remains a skeleton — see `SECURITY.md §P1`.
 
+#![allow(missing_docs)]
+
 pub mod adapter;
 pub mod ajtai;
 pub mod ccs_encode;

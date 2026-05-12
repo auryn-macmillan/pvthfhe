@@ -107,7 +107,7 @@ impl CycloTernaryTranscript {
     /// state with the full hash output for domain separation of the next call.
     pub fn sample_challenge(&mut self) -> i8 {
         let hash: [u8; 32] = self.state.clone().finalize().into();
-        self.state.update(&hash);
+        self.state.update(hash);
         match hash[0] % 3 {
             0 => -1,
             1 => 0,

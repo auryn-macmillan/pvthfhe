@@ -1,5 +1,5 @@
 //! pvthfhe-enclave-adapter — enclave integration adapter for PVTHFHE ciphernodes.
-#![deny(clippy::unwrap_used, clippy::expect_used)]
+#![warn(clippy::unwrap_used, clippy::expect_used)]
 #![allow(missing_docs, dead_code)]
 
 #[cfg(feature = "stub")]

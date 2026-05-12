@@ -35,7 +35,7 @@ pub struct AjtaiCommitment {
 }
 
 fn generate_matrix(params: &AjtaiParams) -> Vec<Vec<RqPoly>> {
-    let mut rng = ChaCha20Rng::from_seed(params.seed);
+    let mut rng = ChaCha20Rng::from_seed(params.seed); // allow-seeded-rng: deterministic Ajtai matrix generation from CRS seed
     let mut matrix = Vec::with_capacity(params.m);
     for _row in 0..params.m {
         let mut row = Vec::with_capacity(params.n);
@@ -133,7 +133,7 @@ pub fn decode_commitment(data: &[u8], m: usize) -> Result<AjtaiCommitment, Cyclo
 
     let commitment: Vec<RqPoly> = data
         .chunks(per_poly)
-        .map(|chunk| bytes_to_rqpoly(chunk))
+        .map(bytes_to_rqpoly)
         .collect();
 
     Ok(AjtaiCommitment { commitment })

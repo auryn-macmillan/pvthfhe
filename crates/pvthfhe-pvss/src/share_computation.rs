@@ -8,6 +8,7 @@
 
 use ark_bn254::Fr;
 use ark_ff::{AdditiveGroup, BigInteger, Field, PrimeField, Zero};
+use pvthfhe_types::ProtocolBytes;
 use sha2::{Digest, Sha256};
 
 const DIGEST_LEN: usize = 32;
@@ -45,9 +46,9 @@ pub struct ESmShareComputationSlot {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BatchedShareComputationStatement {
     /// Session binding bytes.
-    pub session_id: Vec<u8>,
+    pub session_id: ProtocolBytes,
     /// DKG transcript/anchor root binding this relation to one DKG session.
-    pub dkg_root: Vec<u8>,
+    pub dkg_root: ProtocolBytes,
     /// Dealer whose polynomial evaluations are checked.
     pub dealer_id: u16,
     /// Maximum allowed polynomial degree.
@@ -355,8 +356,8 @@ fn compute_public_instance_commitment(
 ) -> [u8; DIGEST_LEN] {
     let mut h = Sha256::new();
     h.update(b"pvthfhe-share-computation-public-instance-v1");
-    h.update(&statement.session_id);
-    h.update(&statement.dkg_root);
+    h.update(statement.session_id.as_slice());
+    h.update(statement.dkg_root.as_slice());
     h.update(statement.dealer_id.to_be_bytes());
     h.update((statement.max_degree as u64).to_be_bytes());
     h.update(statement.coefficient_bound.to_be_bytes());

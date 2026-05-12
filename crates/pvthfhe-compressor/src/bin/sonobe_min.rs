@@ -29,6 +29,7 @@ fn main() {
     println!("rss_kb stage=before_new value={peak_rss_kb}");
 
     let epoch_hash = [0u8; 32];
+    #[allow(clippy::expect_used)]
     let compressor = SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch_hash, 4)
         .expect("construct sonobe compressor");
     peak_rss_kb = peak_rss_kb.max(rss_kb());

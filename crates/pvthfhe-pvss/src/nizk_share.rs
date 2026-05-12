@@ -409,7 +409,7 @@ fn build_algebraic_proof(stmt: &ShareNizkStatement, witness: &ShareNizkWitness) 
     let d_rns =
         sigma::compute_d_rns(&c_rns, &s_i, &e_i).unwrap_or_else(|_| vec![0u64; sigma::RLWE_N * 3]);
 
-    let mut proof_rng = ChaCha20Rng::from_seed([0xA5; 32]);
+    let mut proof_rng = ChaCha20Rng::from_seed([0xA5; 32]); // allow-seeded-rng: deterministic sigma proof generation in PVSS
     let sigma_stmt = sigma::SigmaStatement {
         c_rns,
         d_rns: d_rns.clone(),
@@ -453,7 +453,7 @@ fn derive_share_sigma_c_rns(session_id: &[u8], recipient_index: usize) -> Vec<u6
     h.update(b"pvthfhe-share-sigma-c-rns-v1");
     h.update(session_id);
     h.update(recipient_index.to_be_bytes());
-    let mut rng = ChaCha20Rng::from_seed(h.finalize().into());
+    let mut rng = ChaCha20Rng::from_seed(h.finalize().into()); // allow-seeded-rng: deterministic share sigma c_rns derivation
     let mut out = vec![0u64; sigma::RLWE_N * 3];
     for (limb, modulus) in [sigma::RLWE_Q0, sigma::RLWE_Q1, sigma::RLWE_Q2]
         .iter()
@@ -595,7 +595,7 @@ pub fn build_bfv_encryption_proof(
     }
     let mut seed = [0u8; 32];
     seed.copy_from_slice(&randomness[..32]);
-    let mut enc_rng = ChaCha20Rng::from_seed(seed);
+    let mut enc_rng = ChaCha20Rng::from_seed(seed); // allow-seeded-rng: deterministic re-encryption for BFV proof witness
 
     // Try to get the EncryptionWitness
     let enc_witness = match backend.encrypt_with_witness(&pk, share, &mut enc_rng) {
@@ -610,7 +610,7 @@ pub fn build_bfv_encryption_proof(
         Err(_) => {
             // Fallback: backend doesn't support witness extraction.
             // Re-encrypt without witness and verify ciphertext consistency.
-            let mut fallback_rng = ChaCha20Rng::from_seed(seed);
+            let mut fallback_rng = ChaCha20Rng::from_seed(seed); // allow-seeded-rng: deterministic fallback re-encryption check
             let ciphertext = backend
                 .encrypt(&pk, share, &mut fallback_rng)
                 .map_err(|_| PvssError::InvalidShare)?;
@@ -664,7 +664,7 @@ fn encode_bfv_encryption_proof_from_witness(
     let bfv_wit = BfvSigmaWitness { u, e0, e1, m };
 
     // --- Produce sigma proof ---
-    let mut proof_rng = ChaCha20Rng::from_seed([0xB4; 32]);
+    let mut proof_rng = ChaCha20Rng::from_seed([0xB4; 32]); // allow-seeded-rng: deterministic BFV sigma proof generation
     let binding_data = bfv_sigma_binding_data(stmt);
     let proof = bfv_sigma::prove(&bfv_stmt, &bfv_wit, &binding_data, &mut proof_rng)
         .map_err(|_| PvssError::InvalidShare)?;
@@ -1137,7 +1137,7 @@ fn compute_ajtai_d2_binding(
     let matrix_seed: [u8; DIGEST_LEN] = hasher.finalize().into();
 
     let params = AjtaiParams::default();
-    let matrix = AjtaiMatrix::from_seed(matrix_seed, &params, 1)
+    let matrix = AjtaiMatrix::from_seed(matrix_seed, &params, 1) // allow-seeded-rng: deterministic Ajtai CRS for PVSS proof
         .map_err(|_| PvssError::D2HashBindingFailed)?;
 
     let witness = encode_share_as_ajtai_witness(share_bytes)?;
@@ -1244,7 +1244,7 @@ fn create_commitment_ct(
 
     let plaintext = witness.share_bytes.expose();
 
-    let mut rng = ChaCha20Rng::from_seed(*commitment_seed);
+    let mut rng = ChaCha20Rng::from_seed(*commitment_seed); // allow-seeded-rng: deterministic Ajtai commitment binding in PVSS proof
 
     let ciphertext = backend
         .encrypt(&pk, plaintext, &mut rng)

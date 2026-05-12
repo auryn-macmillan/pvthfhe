@@ -6,7 +6,7 @@ pub enum WitnessSchemaVersion {
 }
 
 impl WitnessSchemaVersion {
-    fn to_u16(&self) -> u16 {
+    fn to_u16(self) -> u16 {
         match self {
             Self::V1 => 0x0001,
         }
@@ -27,8 +27,11 @@ pub enum R3Relation {
 }
 
 impl R3Relation {
-    fn to_u32(&self) -> u32 {
-        *self as u32
+    fn to_u32(self) -> u32 {
+        match self {
+            Self::ShareWellFormedness => 0,
+            Self::PartialDecryption => 1,
+        }
     }
 
     fn from_u32(v: u32) -> Result<Self, SchemaError> {

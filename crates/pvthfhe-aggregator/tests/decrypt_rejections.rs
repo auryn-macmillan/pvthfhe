@@ -1,6 +1,7 @@
 //! Integration tests: decrypt_rejections.
 #![allow(clippy::unwrap_used)]
 
+use pvthfhe_types::ProtocolBytes;
 use pvthfhe_aggregator::decrypt::{aggregate_decrypt, partial_decrypt, DecryptError};
 use pvthfhe_fhe::{mock::MockBackend, types::Ciphertext, FheBackend};
 
@@ -23,7 +24,7 @@ fn rejects_malformed_share() {
 
     let mut share1 =
         partial_decrypt(&backend, &ct, 1, &dkg_root, &ciphertext_hash, 1, &mut rng).unwrap();
-    share1.nizk = vec![];
+    share1.nizk = ProtocolBytes(vec![]);
 
     let share2 =
         partial_decrypt(&backend, &ct, 2, &dkg_root, &ciphertext_hash, 1, &mut rng).unwrap();

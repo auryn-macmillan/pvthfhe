@@ -1,3 +1,5 @@
+//! Test binary for arkworks field element display.
+#![allow(missing_docs)]
 use ark_bn254::{Fq, Fr};
 use ark_ff::PrimeField;
 fn main() {

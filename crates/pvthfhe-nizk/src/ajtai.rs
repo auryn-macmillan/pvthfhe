@@ -146,7 +146,7 @@ impl Rq {
 }
 
 /// Locked parameters for the Ajtai commitment.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AjtaiParams {
     /// Ring degree (φ = 256).
     pub phi: usize,
@@ -170,6 +170,7 @@ impl Default for AjtaiParams {
 }
 
 /// An `a × m` matrix of `Rq` elements sampled deterministically from a seed.
+#[derive(PartialEq, Eq)]
 pub struct AjtaiMatrix {
     pub(crate) rows: Vec<Vec<Rq>>,
     pub(crate) params: AjtaiParams,
@@ -179,8 +180,7 @@ pub struct AjtaiMatrix {
 impl AjtaiMatrix {
     /// Constructs the matrix by sampling each entry uniformly from `R_q`
     /// using a seeded `ChaCha20Rng`.
-    pub fn from_seed(seed: [u8; 32], params: &AjtaiParams, m: usize) -> Result<Self, NizkError> {
-        // allow-seeded-rng: API surface; binding enforced at callsite
+    pub fn from_seed(seed: [u8; 32], params: &AjtaiParams, m: usize) -> Result<Self, NizkError> { // allow-seeded-rng: API surface; binding enforced at callsite
         use rand_chacha::ChaCha20Rng;
         use rand_core::SeedableRng;
         let mut rng = ChaCha20Rng::from_seed(seed); // allow-seeded-rng: matrix sampler internal to from_seed
@@ -197,24 +197,6 @@ impl AjtaiMatrix {
             params: params.clone(),
             m,
         })
-    }
-
-    /// Returns true when every element of `self` and `other` is equal.
-    pub fn eq(&self, other: &Self) -> bool {
-        if self.rows.len() != other.rows.len() {
-            return false;
-        }
-        for (row_self, row_other) in self.rows.iter().zip(other.rows.iter()) {
-            if row_self.len() != row_other.len() {
-                return false;
-            }
-            for (a, b) in row_self.iter().zip(row_other.iter()) {
-                if a != b {
-                    return false;
-                }
-            }
-        }
-        true
     }
 }
 

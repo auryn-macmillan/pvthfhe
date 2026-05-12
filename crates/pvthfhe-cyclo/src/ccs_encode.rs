@@ -179,7 +179,7 @@ fn fr_from_bytes_le(bytes: &[u8]) -> Result<Fr, CycloError> {
         *limb = u64::from_le_bytes(arr);
     }
     let bigint = ark_ff::BigInt::new(limbs);
-    Fr::from_bigint(bigint).ok_or_else(|| CycloError::InvalidInstance("Fr deserialization failure"))
+    Fr::from_bigint(bigint).ok_or(CycloError::InvalidInstance("Fr deserialization failure"))
 }
 
 /// Compute `m · z` (matrix-vector multiply, field arithmetic).
@@ -252,7 +252,7 @@ fn parse_rq_matrix(bytes: &[u8]) -> Result<(u32, u32, Vec<RqPoly>), CycloError> 
     for chunk in bytes[data_start..].chunks_exact(RQ_POLY_BYTES) {
         let mut coeffs = Vec::with_capacity(PHI_COMMIT);
         for u64_chunk in chunk.chunks_exact(8) {
-            let arr: [u8; 8] = u64_chunk.try_into().unwrap();
+            let arr: [u8; 8] = u64_chunk.try_into().map_err(|_| CycloError::InvalidInstance("u64 deserialization failure"))?;
             coeffs.push(u64::from_le_bytes(arr));
         }
         let poly = RqPoly::new(coeffs)?;
@@ -537,7 +537,7 @@ pub fn decode_rq_instance(bytes: &[u8]) -> Result<CcsRqInstance, CycloError> {
         let poly_bytes = &bytes[pos..pos + RQ_POLY_BYTES];
         let mut coeffs = Vec::with_capacity(PHI_COMMIT);
         for u64_chunk in poly_bytes.chunks_exact(8) {
-            let arr: [u8; 8] = u64_chunk.try_into().unwrap();
+            let arr: [u8; 8] = u64_chunk.try_into().map_err(|_| CycloError::InvalidInstance("u64 deserialization failure"))?;
             coeffs.push(u64::from_le_bytes(arr));
         }
         witness.push(RqPoly::new(coeffs)?);
@@ -570,6 +570,7 @@ pub fn decode_rq_instance(bytes: &[u8]) -> Result<CcsRqInstance, CycloError> {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use super::*;
 

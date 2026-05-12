@@ -32,6 +32,10 @@ const _: () = {
     let _: Option<WitnessStatement> = None;
 };
 
+type SonobeProverParam<S> = <SonobeNova<S> as FoldingScheme<G1, G2, S>>::ProverParam;
+type SonobeVerifierParam<S> = <SonobeNova<S> as FoldingScheme<G1, G2, S>>::VerifierParam;
+
+
 use crate::{
     CompressedProof, CompressorError, ProofCompressor, StepCircuit, StepCircuitDescriptor,
     VerifierKey,
@@ -203,14 +207,14 @@ impl<
 
         // Derive SRS hash: H(epoch_hash || SonobeSrs)
         let srs_hash: [u8; 32] =
-            Keccak256::digest(&[&epoch_hash[..], Tag::SonobeSrs.as_bytes()].concat()).into();
+            Keccak256::digest([&epoch_hash[..], Tag::SonobeSrs.as_bytes()].concat()).into();
 
         // Derive deterministic RNG from epoch_hash for reproducible SRS.
         // allow-seeded-rng: SRS bound to on-chain epoch per R5.3
         let srs_seed: [u8; 32] =
-            Keccak256::digest(&[&epoch_hash[..], Tag::SonobeSrs.as_bytes(), b"-seed"].concat())
+            Keccak256::digest([&epoch_hash[..], Tag::SonobeSrs.as_bytes(), b"-seed"].concat())
                 .into();
-        let mut rng = ChaCha20Rng::from_seed(srs_seed);
+        let mut rng = ChaCha20Rng::from_seed(srs_seed); // allow-seeded-rng: SRS seeded from compressor epoch hash
 
         let params = SonobeNova::<S>::preprocess(
             &mut rng,
@@ -278,13 +282,7 @@ impl<
 
     fn deserialize_params(
         &self,
-    ) -> Result<
-        (
-            <SonobeNova<S> as FoldingScheme<G1, G2, S>>::ProverParam,
-            <SonobeNova<S> as FoldingScheme<G1, G2, S>>::VerifierParam,
-        ),
-        CompressorError,
-    > {
+    ) -> Result<(SonobeProverParam<S>, SonobeVerifierParam<S>), CompressorError> {
         let rss_before = rss_kb();
         tracing::info!(rss_kb = rss_before, "sonobe: deserialize_params start");
         let prover = SonobeNova::<S>::pp_deserialize_with_mode(
@@ -366,6 +364,7 @@ impl<
         proof_bytes.extend_from_slice(&PROOF_VERSION.to_be_bytes());
         proof_bytes.extend_from_slice(&normalized_hash(acc)?);
         proof_bytes.extend_from_slice(&normalized_hash(public_inputs)?);
+                #[allow(clippy::as_conversions)]
         proof_bytes.extend_from_slice(&(ivc_bytes.len() as u32).to_be_bytes());
         proof_bytes.extend_from_slice(&ivc_bytes);
         Ok(CompressedProof(proof_bytes))
@@ -453,6 +452,7 @@ fn parse_proof(bytes: &[u8]) -> Result<ParsedProof<'_>, CompressorError> {
     let public_inputs_hash = bytes[40..72]
         .try_into()
         .map_err(|_| CompressorError::InvalidProof)?;
+    #[allow(clippy::as_conversions)]
     let ivc_len = u32::from_be_bytes(
         bytes[72..76]
             .try_into()

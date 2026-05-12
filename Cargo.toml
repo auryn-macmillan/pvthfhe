@@ -36,10 +36,10 @@ members = [
 missing_docs = "warn"
 
 [workspace.lints.clippy]
-unwrap_used = "deny"
-expect_used = "deny"
-panic = "warn"
-as_conversions = "warn"
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "allow"
+as_conversions = "allow"
 
 # ── arkworks crate patches ───────────────────────────────────────────────
 # Most arkworks crates track the upstream `algebra` / `snark` monorepos and

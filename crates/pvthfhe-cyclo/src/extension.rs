@@ -43,7 +43,7 @@ pub fn extend(a: &CcsInstance, b: &CcsInstance, r: i8) -> Result<ExtendedInstanc
     let combined_poly = ring_add_poly(&a_poly, &ternary_mul(&b_poly, r));
     let combined_ajtai_hash: [u8; 32] = Sha256::new()
         .chain_update(b"pvthfhe-cyclo-ext-ajtai-v1")
-        .chain_update(&rqpoly_to_bytes(&combined_poly))
+        .chain_update(rqpoly_to_bytes(&combined_poly))
         .finalize()
         .into();
 
@@ -113,7 +113,6 @@ fn compute_combined_witness_norm(
         .iter()
         .zip(b_frs.iter())
         .map(|(x, y)| {
-            use ark_ff::AdditiveGroup;
             let combined = match r {
                 -1 => *x - *y,
                 0 => *x,

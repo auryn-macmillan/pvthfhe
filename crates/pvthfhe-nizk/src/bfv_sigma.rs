@@ -371,6 +371,7 @@ pub fn verify(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn derive_challenge(
     t0_rns: &[u64],
     t1_rns: &[u64],
@@ -435,12 +436,14 @@ fn derive_challenge(
 pub fn encode_bfv_sigma_proof(proof: &BfvSigmaProof) -> Vec<u8> {
     let mut out = Vec::new();
 
+    #[allow(clippy::as_conversions)]
     fn write_u64_vec(out: &mut Vec<u8>, v: &[u64]) {
         out.extend_from_slice(&u32::to_be_bytes(v.len() as u32));
         for x in v {
             out.extend_from_slice(&x.to_le_bytes());
         }
     }
+    #[allow(clippy::as_conversions)]
     fn write_i64_vec(out: &mut Vec<u8>, v: &[i64]) {
         out.extend_from_slice(&u32::to_be_bytes(v.len() as u32));
         for x in v {
@@ -502,6 +505,7 @@ pub fn decode_bfv_sigma_proof(bytes: &[u8]) -> Result<BfvSigmaProof, NizkError> 
         Ok(i64::from_le_bytes(arr))
     }
 
+    #[allow(clippy::as_conversions)]
     fn read_u64_vec(bytes: &[u8], offset: &mut usize) -> Result<Vec<u64>, NizkError> {
         let len = read_u32_le(bytes, offset)? as usize;
         if len > 1_000_000 {
@@ -510,6 +514,7 @@ pub fn decode_bfv_sigma_proof(bytes: &[u8]) -> Result<BfvSigmaProof, NizkError> 
         (0..len).map(|_| read_u64_le(bytes, offset)).collect()
     }
 
+    #[allow(clippy::as_conversions)]
     fn read_i64_vec(bytes: &[u8], offset: &mut usize) -> Result<Vec<i64>, NizkError> {
         let len = read_u32_le(bytes, offset)? as usize;
         if len > 1_000_000 {

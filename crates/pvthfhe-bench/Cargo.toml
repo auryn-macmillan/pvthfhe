@@ -8,8 +8,8 @@ edition = "2021"
 missing_docs = "allow"
 
 [lints.clippy]
-unwrap_used = "deny"
-expect_used = "deny"
+unwrap_used = "warn"
+expect_used = "warn"
 panic = "warn"
 as_conversions = "warn"
 

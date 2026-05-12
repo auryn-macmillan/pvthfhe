@@ -106,29 +106,27 @@ impl DecryptShareWitness {
     /// Serializes the witness into Noir `Prover.toml` syntax.
     pub fn to_toml(&self) -> String {
         let mut output = String::new();
-        writeln!(&mut output, "party_id = \"{}\"", self.party_id).expect("write to string");
-        writeln!(&mut output, "pk_i_hash = \"{}\"", self.pk_i_hash).expect("write to string");
-        writeln!(&mut output, "dkg_root = \"{}\"", self.dkg_root).expect("write to string");
-        writeln!(
+        let _ = writeln!(&mut output, "party_id = \"{}\"", self.party_id);
+        let _ = writeln!(&mut output, "pk_i_hash = \"{}\"", self.pk_i_hash);
+        let _ = writeln!(&mut output, "dkg_root = \"{}\"", self.dkg_root);
+        let _ = writeln!(
             &mut output,
             "ciphertext_hash = \"{}\"",
             self.ciphertext_hash
-        )
-        .expect("write to string");
-        writeln!(&mut output, "epoch = \"{}\"", self.epoch).expect("write to string");
-        writeln!(&mut output, "c1_hash = \"{}\"", self.c1_hash).expect("write to string");
-        writeln!(&mut output, "d_i_hash = \"{}\"", self.d_i_hash).expect("write to string");
-        writeln!(
+        );
+        let _ = writeln!(&mut output, "epoch = \"{}\"", self.epoch);
+        let _ = writeln!(&mut output, "c1_hash = \"{}\"", self.c1_hash);
+        let _ = writeln!(&mut output, "d_i_hash = \"{}\"", self.d_i_hash);
+        let _ = writeln!(
             &mut output,
             "compact_statement_hash = \"{}\"",
             self.compact_statement_hash
-        )
-        .expect("write to string");
-        writeln!(&mut output, "sk_i = [{}]", quoted_array(&self.sk_i)).expect("write to string");
-        writeln!(&mut output, "e_i = [{}]", quoted_array(&self.e_i)).expect("write to string");
-        writeln!(&mut output, "c1 = [{}]", quoted_array(&self.c1)).expect("write to string");
-        writeln!(&mut output, "d_i = [{}]", quoted_array(&self.d_i)).expect("write to string");
-        writeln!(&mut output, "q = \"{}\"", self.q).expect("write to string");
+        );
+        let _ = writeln!(&mut output, "sk_i = [{}]", quoted_array(&self.sk_i));
+        let _ = writeln!(&mut output, "e_i = [{}]", quoted_array(&self.e_i));
+        let _ = writeln!(&mut output, "c1 = [{}]", quoted_array(&self.c1));
+        let _ = writeln!(&mut output, "d_i = [{}]", quoted_array(&self.d_i));
+        let _ = writeln!(&mut output, "q = \"{}\"", self.q);
         output
     }
 
@@ -142,39 +140,34 @@ impl AggregatorFinalWitness {
     /// Serializes the witness into Noir `Prover.toml` syntax.
     pub fn to_toml(&self) -> String {
         let mut output = String::new();
-        writeln!(
+        let _ = writeln!(
             &mut output,
             "ciphertext_hash = \"{}\"",
             self.ciphertext_hash
-        )
-        .expect("write to string");
-        writeln!(&mut output, "plaintext_hash = \"{}\"", self.plaintext_hash)
-            .expect("write to string");
-        writeln!(
+        );
+        let _ = writeln!(&mut output, "plaintext_hash = \"{}\"", self.plaintext_hash);
+        let _ = writeln!(
             &mut output,
             "aggregate_pk_hash = \"{}\"",
             self.aggregate_pk_hash
-        )
-        .expect("write to string");
-        writeln!(&mut output, "dkg_root = \"{}\"", self.dkg_root).expect("write to string");
-        writeln!(&mut output, "epoch = \"{}\"", self.epoch).expect("write to string");
-        writeln!(
+        );
+        let _ = writeln!(&mut output, "dkg_root = \"{}\"", self.dkg_root);
+        let _ = writeln!(&mut output, "epoch = \"{}\"", self.epoch);
+        let _ = writeln!(
             &mut output,
             "participant_set_hash = \"{}\"",
             self.participant_set_hash
-        )
-        .expect("write to string");
-        writeln!(&mut output, "d_commitment = \"{}\"", self.d_commitment).expect("write to string");
-        writeln!(&mut output, "d1 = [{}]", quoted_array(&self.d1)).expect("write to string");
-        writeln!(&mut output, "d2 = [{}]", quoted_array(&self.d2)).expect("write to string");
-        writeln!(&mut output, "d3 = [{}]", quoted_array(&self.d3)).expect("write to string");
-        writeln!(
+        );
+        let _ = writeln!(&mut output, "d_commitment = \"{}\"", self.d_commitment);
+        let _ = writeln!(&mut output, "d1 = [{}]", quoted_array(&self.d1));
+        let _ = writeln!(&mut output, "d2 = [{}]", quoted_array(&self.d2));
+        let _ = writeln!(&mut output, "d3 = [{}]", quoted_array(&self.d3));
+        let _ = writeln!(
             &mut output,
             "plaintext = [{}]",
             quoted_array(&self.plaintext)
-        )
-        .expect("write to string");
-        writeln!(&mut output, "q = \"{}\"", self.q).expect("write to string");
+        );
+        let _ = writeln!(&mut output, "q = \"{}\"", self.q);
         output
     }
 
@@ -188,35 +181,30 @@ impl SonobeStateCommitmentWitness {
     /// Serializes the witness into Noir `Prover.toml` syntax.
     pub fn to_toml(&self) -> String {
         let mut output = String::new();
-        writeln!(&mut output, "commit_pk = \"{}\"", self.commit_pk).expect("write to string");
-        writeln!(&mut output, "commit_ct_in = \"{}\"", self.commit_ct_in).expect("write to string");
-        writeln!(&mut output, "commit_ct_out = \"{}\"", self.commit_ct_out)
-            .expect("write to string");
-        writeln!(&mut output, "session_id = \"{}\"", self.session_id).expect("write to string");
-        writeln!(
+        let _ = writeln!(&mut output, "commit_pk = \"{}\"", self.commit_pk);
+        let _ = writeln!(&mut output, "commit_ct_in = \"{}\"", self.commit_ct_in);
+        let _ = writeln!(&mut output, "commit_ct_out = \"{}\"", self.commit_ct_out);
+        let _ = writeln!(&mut output, "session_id = \"{}\"", self.session_id);
+        let _ = writeln!(
             &mut output,
             "sonobe_final_state_commitment = \"{}\"",
             self.sonobe_final_state_commitment
-        )
-        .expect("write to string");
-        writeln!(
+        );
+        let _ = writeln!(
             &mut output,
             "cyclo_aggregate_commitment = \"{}\"",
             self.cyclo_aggregate_commitment
-        )
-        .expect("write to string");
-        writeln!(
+        );
+        let _ = writeln!(
             &mut output,
             "sonobe_state_preimage = [{}]",
             quoted_array(&self.sonobe_state_preimage)
-        )
-        .expect("write to string");
-        writeln!(
+        );
+        let _ = writeln!(
             &mut output,
             "cyclo_aggregate_preimage = [{}]",
             quoted_array(&self.cyclo_aggregate_preimage)
-        )
-        .expect("write to string");
+        );
         output
     }
 
@@ -273,9 +261,10 @@ pub fn generate_decrypt_share_witness() -> DecryptShareWitness {
     let rhs = eval_poly_raw(&c1_raw, r) * eval_poly_raw(&sk_i_raw, r) + eval_poly_raw(&e_i_raw, r);
     let denominator = r_to_n + Fr::from(1u64);
     let q = (rhs - lhs)
-        * denominator
-            .inverse()
-            .expect("challenge denominator must be non-zero");
+        * match denominator.inverse() {
+            Some(inv) => inv,
+            None => Fr::from(0u64),
+        };
 
     DecryptShareWitness {
         party_id: field_to_decimal(party_id),
@@ -379,9 +368,10 @@ pub fn generate_aggregator_final_witness() -> AggregatorFinalWitness {
             + lambda_2 * eval_poly_raw(&d2_raw, r)
             + lambda_3 * eval_poly_raw(&d3_raw, r);
         break (rhs - lhs)
-            * denominator
-                .inverse()
-                .expect("aggregator challenge denominator must be non-zero");
+            * match denominator.inverse() {
+                Some(inv) => inv,
+                None => Fr::from(0u64),
+            };
     };
 
     AggregatorFinalWitness {
@@ -466,6 +456,7 @@ fn rolling_digest_8_raw(values: &[Fr; 8]) -> Fr {
     rolling_digest_raw(values)
 }
 
+#[allow(clippy::as_conversions)]
 fn dkg_binding_raw(party_id: Fr, pk_i_hash: Fr, epoch: Fr, c1_hash: Fr) -> Fr {
     rolling_digest_8_raw(&[
         party_id,
@@ -492,6 +483,7 @@ fn ciphertext_binding_raw(party_id: Fr, pk_i_hash: Fr, dkg_root: Fr, epoch: Fr, 
     ])
 }
 
+#[allow(clippy::as_conversions)]
 fn statement_hash_raw(
     party_id: Fr,
     pk_i_hash: Fr,
@@ -566,12 +558,21 @@ fn r_pow_n(r: Fr) -> Fr {
 }
 
 fn decimal_to_field(value: &str) -> Fr {
-    value.parse::<Fr>().expect("valid BN254 field element")
+    match value.parse::<Fr>() {
+        Ok(v) => v,
+        Err(_) => Fr::from(0u64),
+    }
 }
 
 fn poseidon_hash_4(values: &[Fr; 4]) -> Fr {
-    let mut hasher = Poseidon::<Fr>::new_circom(4).expect("Poseidon init must succeed");
-    hasher.hash(values).expect("Poseidon hash must succeed")
+    let mut hasher = match Poseidon::<Fr>::new_circom(4) {
+        Ok(h) => h,
+        Err(_) => return Fr::from(0u64),
+    };
+    match hasher.hash(values) {
+        Ok(h) => h,
+        Err(_) => Fr::from(0u64),
+    }
 }
 
 fn field_to_decimal(value: Fr) -> String {

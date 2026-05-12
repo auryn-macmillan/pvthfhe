@@ -1,26 +1,20 @@
 {
-  "active_plan": "/home/dev/pvthfhe/.sisyphus/plans/interfold-equivalent-pvss.md",
-  "started_at": "2026-05-11T17:33:19.591Z",
+  "active_plan": "/home/dev/pvthfhe/.sisyphus/plans/consistency-remediation.md",
+  "started_at": "2026-05-12T11:24:22.076Z",
   "session_ids": [
     "ses_1e864f9f1ffecXRmG0OjbjoCa3",
-    "ses_1e7d3f45affeflZmja46XMUKXo",
-    "ses_1e7d3bf89ffeMW4n6ahE0bR2sO",
-    "ses_1e67287f5ffeCBNrfaiJVfAGEs",
-    "ses_1e661aa29ffeKS2jr4Jgs5mB6H",
-    "ses_1e5c08d5affeZXCRbaAD1ufkBF",
-    "ses_1e5c02916ffeqFaTnwJdOcAe9b",
-    "ses_1e5bfdceaffehMwdJC2HL4ULjV"
+    "ses_1e4106da5ffe0SJqJSuPnYGwko",
+    "ses_1e4101ac2ffeh9LhuwR6UZ9zXA",
+    "ses_1e40fd3dfffeIcjEb5l8bCBerG",
+    "ses_1e40fb789ffeNKuFFhcFSnRpjV"
   ],
-  "plan_name": "interfold-equivalent-pvss",
+  "plan_name": "consistency-remediation",
   "session_origins": {
     "ses_1e864f9f1ffecXRmG0OjbjoCa3": "direct",
-    "ses_1e7d3f45affeflZmja46XMUKXo": "appended",
-    "ses_1e7d3bf89ffeMW4n6ahE0bR2sO": "appended",
-    "ses_1e67287f5ffeCBNrfaiJVfAGEs": "appended",
-    "ses_1e661aa29ffeKS2jr4Jgs5mB6H": "appended",
-    "ses_1e5c08d5affeZXCRbaAD1ufkBF": "appended",
-    "ses_1e5c02916ffeqFaTnwJdOcAe9b": "appended",
-    "ses_1e5bfdceaffehMwdJC2HL4ULjV": "appended"
+    "ses_1e4106da5ffe0SJqJSuPnYGwko": "appended",
+    "ses_1e4101ac2ffeh9LhuwR6UZ9zXA": "appended",
+    "ses_1e40fd3dfffeIcjEb5l8bCBerG": "appended",
+    "ses_1e40fb789ffeNKuFFhcFSnRpjV": "appended"
   },
   "task_sessions": {}
 }

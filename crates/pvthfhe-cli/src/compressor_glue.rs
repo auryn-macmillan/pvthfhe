@@ -10,7 +10,7 @@ use {
     ark_bn254::Fr,
     ark_ff::PrimeField,
     pvthfhe_compressor::{
-        sonobe::{encode_triple, SonobeCompressor, ToyStepCircuit},
+        sonobe::{encode_triple, SonobeCompressor, CycloFoldStepCircuit},
         CompressedProof as SonobeProof, ProofCompressor, VerifierKey,
     },
 };
@@ -38,7 +38,7 @@ pub enum Compressor {
     #[cfg(feature = "sonobe-compressor")]
     Sonobe {
         /// Inner Sonobe compressor instance.
-        inner: SonobeCompressor<ToyStepCircuit<Fr>>,
+        inner: SonobeCompressor<CycloFoldStepCircuit<Fr>>,
         /// Verifier key derived during compressor initialization.
         verifier_key: VerifierKey,
     },
@@ -52,7 +52,13 @@ impl Compressor {
     pub fn new(epoch_hash: [u8; 32], ivc_steps: usize) -> anyhow::Result<Self> {
         #[cfg(feature = "sonobe-compressor")]
         {
-            let inner = SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch_hash, ivc_steps)
+            // The CycloFoldStepCircuit performs field arithmetic on hashed accumulator
+            // state (3 Fr elements: commitment_hash, norm, fold_count).  It does NOT perform
+            // full Ajtai commitment folding — the design intentionally hashes the
+            // accumulator down to 3 field elements before entering the IVC because
+            // lattice-native folding is infeasible inside a Sonobe Nova step circuit.
+            // Full Ajtai folding remains an open problem (P2).
+            let inner = SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, ivc_steps)
                 .map_err(compressor_error_to_anyhow)?;
             let verifier_key = inner.verifier_key();
             return Ok(Self::Sonobe {

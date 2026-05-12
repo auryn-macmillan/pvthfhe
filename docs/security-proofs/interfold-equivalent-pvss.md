@@ -8,7 +8,7 @@ The security of the PVSS construction relies on the following cryptographic assu
 
 1.  **RLWE/BFV Secrecy**: The Learning With Errors over Rings (RLWE) problem and the security of the BFV homomorphic encryption scheme (specifically, the hardness of recovering the secret key or distinguishing ciphertexts from random).
 2.  **Binding Commitments**: All cryptographic commitments (Ajtai-style lattice commitments and polynomial commitments) are computationally binding.
-3.  **Proof Soundness**: The NIZK proofs (Greco/MPCitH and Sigma protocols) satisfy computational soundness in the Random Oracle Model (ROM).
+3.  **Proof Soundness**: The NIZK proofs (Cyclo-companion Ajtai D2 sigma protocol and lattice-native BFV sigma protocol) satisfy computational soundness in the Random Oracle Model (ROM).
 4.  **Fiat-Shamir Model**: The Fiat-Shamir heuristic is used to transform interactive protocols into non-interactive proofs, assuming a random oracle.
 5.  **Threshold Corruption Bound**: At most $t-1$ out of $n$ parties are corrupted by a Probabilistic Polynomial Time (PPT) adversary.
 6.  **Binding of Public Anchors**: The `DkgAnchorSet` root digest and session-bound identifiers (session ID, epoch, participant set hash) are correctly enforced by verifiers to prevent replay and mix-and-match attacks.

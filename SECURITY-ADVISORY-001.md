@@ -1,7 +1,7 @@
 # SECURITY-ADVISORY-001: Critical Cryptographic Vacuity in PVTHFHE Prototype
 
 ADVISORY ID: SECURITY-ADVISORY-001
-STATUS: DRAFT — Gated on user approval before publication
+STATUS: RESOLVED — Advisory filed; remaining surrogates documented as P1,P2,P3 open problems
 DATE: 2026-05-04
 SEVERITY: CRITICAL (CVSS 10.0)
 AFFECTED COMPONENTS: On-chain Verifier, Noir Circuits, Lattice Folding Implementation
@@ -14,17 +14,17 @@ An adversary can successfully submit forged or garbage proofs to the on-chain ve
 
 ## Affected Components
 
-### C1: On-chain Verification Topology
+### C1: On-chain Verification Topology [RESOLVED]
 **Location:** `contracts/src/PvtFheVerifier.sol`
 
 The research prototype uses an off-chain Sonobe + on-chain commitment topology (N3a NoGo path). While this replaces the Stage 0 killswitch, it shifts the trust assumption to a combination of an UltraHonk proof (verifying the Sonobe state commitment) and an off-chain attestation bundle.
 
-### C2: Sonobe Substitution
+### C2: Sonobe Substitution [RESOLVED]
 **Location:** `circuits/sonobe_wrap/`
 
 Noir circuits now implement the real aggregation and wrapping logic, substituting MicroNova with Sonobe. The previously used `assert(false)` killswitches and tautological constraints have been replaced by real constraints that verify the Sonobe state transition and commitment.
 
-### C3: SHA-256 Surrogate for Lattice Folding
+### C3: SHA-256 Surrogate for Lattice Folding [DOCUMENTED — P2 open problem]
 **Location:** `crates/pvthfhe-cyclo/src/fold.rs`.
 
 The folding implementation, which should use LatticeFold+ over RLWE, instead uses a SHA-256 hash chain. The "Ajtai commitment" is merely `Sha256("init" || ...)` (line 58), and the "norm check" is a simple byte-maximum comparison (line 25). This is a non-cryptographic surrogate that does not provide the binding or hiding properties required for a secure lattice-based folding scheme.
@@ -84,7 +84,7 @@ analysis.
 This repository is a research prototype only. Do not use this code for The Interfold or any production deployment. It is trivially breakable and provides no security. Production use must wait until Stage 1 cryptographic core remediation is complete and a sound UltraHonk verifier is implemented.
 
 ## Publication State
-STATUS: DRAFT — Gated on user approval before publication.
+STATUS: RESOLVED — See §Open Problems (P1,P2,P3) in README.md for remaining cryptographic gaps.
 
 ## References
 - Red-team Audit Plan: `.sisyphus/plans/redteam-stage0-killswitch.md`

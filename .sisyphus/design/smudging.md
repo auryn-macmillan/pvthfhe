@@ -249,15 +249,27 @@ by modular reduction.
 
 ## 5. Implementation Sketch
 
-### 5.1 Where the change goes
+### 5.1 Where the change goes (IMPLEMENTED)
 
 File: `crates/pvthfhe-fhe/src/fhers.rs`
 
-The `partial_decrypt` method (line 578) currently calls `decryption_share_poly_from_coeffs`,
-which passes a zero `esi_poly`. The GREEN change must:
+The `partial_decrypt` method (line ~701) samples a fresh 8192-coefficient
+Gaussian smudging noise polynomial with `σ_smudge ≈ 3.506 × 10^12` using
+`ChaCha8Rng` derived from the caller-supplied `OsRng`. The noise is added
+to the decryption share polynomial before serialisation:
 
-1. Sample a fresh smudging noise polynomial `esi_poly` using the party's RNG.
-2. Pass the sampled `esi_poly` to `ShareManager::decryption_share()`.
+```rust
+// line ~714: Sample smudging noise
+let dist = Normal::new(0.0, SIGMA_SMUDGE).map_err(...)?;
+let noise_coeffs: Vec<i64> = (0..degree)
+    .map(|_| { let sample: f64 = dist.sample(&mut noise_rng); sample.round() as i64 })
+    .collect();
+let noise_poly = Poly::try_convert_from(noise_coeffs.as_slice(), ctx, ...)?;
+d_share_poly += &noise_poly;
+```
+
+This is **already implemented** (not a future GREEN change). The
+`SIGMA_SMUDGE` constant is locked at `3_506_204_876_800.0` (≈ 3.19 × 2^40).
 
 ### 5.2 Sampling the smudging polynomial
 
@@ -418,22 +430,30 @@ PKG material.
 Fresh local smudging is maintained as a backward-compatible path. It must never
 be the default in production configurations that claim Interfold equivalence.
 
-### 8.3 Committed smudging (Interfold-equivalent)
+### 8.3 Committed smudging (IMPLEMENTED in `FhersBackend`)
 
-The committed path (`partial_decrypt_committed_smudge`) uses an `e_sm` noise
-polynomial that was committed during DKG and shared as PVSS material (matching
-Interfold circuit C6 `ThresholdShareDecryption`).
+The committed path (`partial_decrypt_committed_smudge` and
+`partial_decrypt_committed_smudge_with_witness`) is **already implemented**
+in `crates/pvthfhe-fhe/src/fhers.rs` (lines ~849 and ~890). These methods
+accept `esm_noise_poly_bytes: &[u8]`—the serialised committed `e_sm` noise
+polynomial—and use it in place of fresh Gaussian sampling.
 
 At decryption time:
 1. The backend computes `d_share = c1 · sk_agg_share + esi` as usual.
 2. Instead of sampling fresh Gaussian noise, it deserializes the committed
-   `e_sm` polynomial bytes.
-3. It adds `d_share += e_sm_committed`.
+   `e_sm` polynomial bytes via `Poly::from_bytes()`.
+3. It adds `d_share += e_sm_noise_poly`.
 4. The returned `DecryptionWitness` (prover-side only) records `esm_committed: true`
-   and the exact `e_sm` bytes used. Public verification of the decryption share
-   is performed via the on-chain `SessionRegistry` (enforcing one-time slot use)
-   and the `PvtFheVerifier` (binding the share to the DKG-committed `e_sm`
-   slots/hashes).
+   and the exact `e_sm` bytes used. If `esm_noise_poly_bytes` is empty,
+   the method returns an error (`"esm_noise_poly_bytes is empty"`).
+
+Both variants exist:
+- `partial_decrypt_committed_smudge()` — returns only `DecryptShare`.
+- `partial_decrypt_committed_smudge_with_witness()` — returns `(DecryptShare, DecryptionWitness)` with the full witness structure for NIZK proof generation.
+
+Public verification of the decryption share is performed via the on-chain
+`SessionRegistry` (enforcing one-time slot use) and the `PvtFheVerifier`
+(binding the share to the DKG-committed `e_sm` slots/hashes).
 
 The committed path is the foundation for Batch F (C6-equivalent threshold
 decryption proof) in the Interfold-equivalence plan.

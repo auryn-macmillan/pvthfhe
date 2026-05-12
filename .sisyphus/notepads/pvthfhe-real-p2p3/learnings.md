@@ -25,3 +25,49 @@
 - 2026-05-11 P2A.2: Updating all existing tests to 26624-byte commitments required touching fold_one.rs, fold_binding_adversarial.rs, verify_fold_satisfiability.rs, challenge_entropy.rs, fold_driver_t10.rs, forgery_resistance.rs, dos_bounds.rs, witness_norm.rs, and adversarial_norm.rs. Each test's `make_instance` helper now produces properly-sized commitment bytes. `forgery_resistance.rs` is a 100K-attempt stress test that takes too long — skipped with `--skip forgery`.
 - 2026-05-11 P2A.3: Added `CycloTernaryTranscript` struct to `fiat_shamir.rs` with domain separator `"pvthfhe-cyclo-fs-v2"` (distinct from Sonobe's `"pvthfhe-cyclo-fs-v1"`). `sample_challenge(&mut self) -> i8` returns -1, 0, or 1 with probability 1/3 each. Internally clones the current SHA-256 state, finalizes, maps `hash[0] % 3` to {-1, 0, 1}, and advances state with the hash for domain separation of subsequent calls. All existing Sonobe v1 functions (`challenge_v1`, `commitment_v1`, etc.) remain unchanged.
 - 2026-05-11 P2A.3: The ternary challenge is additive — the existing `fold.rs` still uses the u16-based `derive_challenge` with `scalar_mul`. The `CycloTernaryTranscript` is available for future fold wiring. The `ring.rs` module already has `ternary_mul(poly, r: i8)` for efficient {−1, 0, 1} scalar multiplication.
+
+- 2026-05-12 D.1: Updated spec-real-p2p3.md §6.5 to reflect the actual Noir circuit behavior: direct Lagrange recombination over N=8 with Poseidon hash checks for commitment binding, no MicroNova proof verification. Added TOY CIRCUIT warning banner and explicit Diff-from-spec section. The old pseudo-Noir code (verify_micronova / assert_cyclo_accumulator_binding) was removed. The actual circuit at circuits/aggregator_final/src/main.nr matches: it validates R3 relation (rhs - lhs ≡ 0 mod Q) using polynomial evaluation at Poseidon-derived challenge r, with Lagrange coefficient summing enforced to 1.
+
+## Batch C (Phase 1.3) — Doc Sync (2026-05-12)
+
+### C.1 — bfv_sigma.rs documented in nizk-construction.md
+Added §R3.6 documenting the lattice-native BFV sigma protocol. Key insights:
+- Proves ct0 = pk0*u + e0 + Δ*m and ct1 = pk1*u + e1 per CRT limb
+- Operates over full BFV ciphertext modulus Q (3 RNS limbs), not R_{q_commit}
+- Wired as v4 (PROOF_VERSION=4) in nizk_share.rs; v3 proofs fail-closed
+- Challenge is binary polynomial ch∈{0,1}^N via Fiat-Shamir
+
+### C.2 — CycloAdapter trait docs synced to code
+Replaced spec draft (init/fold/verify_final/serialise_for_p3/FoldingError) with
+actual trait (backend_id/params/fold_one/verify_accumulator/fold_all/CycloError).
+Added a migration table mapping old→new method names.
+
+### C.3 — Two-track DKG infrastructure documented
+Added §4.8 documenting FoldTrackKind enum (Sk/ESm/EncryptionWitness),
+MultiTrackFoldMetadata, validate_for_instance(), and cross-track replay rejection logic.
+
+### C.4 — Field names synced
+Updated CcsPShareInstance ({ajtai_commitment→ajtai_commitment_bytes, added ccs_matrix_bytes})
+and CycloAccumulator ({acc_commitment→acc_commitment_bytes, acc_public_io→acc_public_io_bytes}).
+
+### C.5 — MicroNovaAdapter/p3-encoder marked DEFERRED
+Added DEFERRED banner in §5.1 and commented-out trait in §7.1, noting current impl
+uses Sonobe Nova via ProofCompressor with migration tracked in sonobe-migration.md.
+
+### C.6 — LatticePvssBfvAdapter documented in interfold-equivalence.md
+Updated C3 row with concrete adapter details and added Component Mapping table
+mapping PVTHFHE modules to Interfold C0-C7 circuits.
+
+### C.7 — C2b status: missing→partial; C7: missing with Noir note
+C2b moved to partial (two-track infra: FoldTrackKind::ESm, MultiTrackFoldMetadata,
+partial_decrypt_committed_smudge). C7 kept missing with Noir circuit plan reference.
+Summary updated: partial 7→8, missing 2→1.
+
+### C.8 — smudging.md §5.1 and §8.3 fixed
+§5.1: Changed from "must implement" to "already implemented" with actual code snippet.
+§8.3: Added IMPLEMENTED banner, documented both committed_smudge variants and their signatures.
+
+### Pattern
+- When using Python replace(), exact string matching is fragile — whitespace/newline
+  variations cause silent failures. Line-index replacement is more robust.
+- Always verify with read() after edits; grep may have stale caches.

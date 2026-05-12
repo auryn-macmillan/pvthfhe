@@ -619,6 +619,90 @@ The composition chain proceeds as follows:
 
 ---
 
+
+## R3.6 — Lattice-Native BFV Sigma Protocol (`bfv_sigma.rs`)
+
+The `bfv_sigma.rs` module (533 lines, `crates/pvthfhe-nizk/src/bfv_sigma.rs`)
+provides a lattice-native sigma protocol for BFV encryption well-formedness. It
+is wired as the **v4 proof** layer in `nizk_share.rs` (D.1 GREEN), replacing the
+prior witness-in-envelope placeholder with a real lattice relation check.
+
+### Statement and Witness
+
+The protocol proves, for a single per-share encryption:
+
+```
+Statement: (pk0, pk1, ct0, ct1) in R_Q^4, plus public delta values Δ[ℓ]
+Witness:   (u, e0, e1, m) with bounded coefficients
+Relation:
+  ct0[ℓ] = pk0[ℓ] * u + e0[ℓ] + Δ[ℓ] * m   mod q_ℓ   (per CRT limb ℓ)
+  ct1[ℓ] = pk1[ℓ] * u + e1[ℓ]               mod q_ℓ   (per CRT limb ℓ)
+```
+
+The relation is expressed over the full BFV ciphertext modulus Q (3 RNS limbs,
+each a 58-bit NTT-friendly prime), not over the reduced Cyclo commitment ring
+R_{q_commit}. This means the proof works directly with the fhe.rs BFV key
+material with no ring-downcast.
+
+### Witness Bounds
+
+| Witness | Bound | Notes |
+|---------|-------|-------|
+| u (encryption randomness) | B_U = 10,000 | CBD-like distribution |
+| e0, e1 (BFV error) | B_E = 10,000 | Discrete Gaussian |
+| m (plaintext) | B_M = 65,536 | t_plain = 2^16 |
+
+Masking bound: B_Y = 2^30. Response bounds:
+- B_Z_U = B_Y + N·B_U (≈ 2^30 + 82M < 2^31)
+- B_Z_E = B_Y + N·B_E (≈ 2^30 + 82M < 2^31)
+- B_Z_M = B_Y + N·B_M (≈ 2^30 + 537M < 2^31)
+
+All response elements fit in i64.
+
+### Challenge Space
+
+Binary polynomial ch ∈ {0,1}^N derived via Fiat-Shamir (SHA-256 over serialised
+commitment t0/t1 and all public statement fields, plus a binding-data domain
+separator `"pvthfhe-share-bfv-sigma-binding-v4"`).
+
+### Wired Integration (v4)
+
+`nizk_share.rs` wires the BFV sigma protocol as follows:
+
+1. **Prover** (`nizk_share.rs` line ~642): constructs `BfvSigmaStatement` and
+   `BfvSigmaWitness` from the BFV encryption witness (u, e0, e1, m decoded from
+   `EncryptionWitness`), sets `binding_data` to a SHA-256 domain separator over
+   the share statement, and calls `bfv_sigma::prove()`.
+2. **Proof encoding**: the sigma proof (t0_rns, t1_rns, u_resp, e0_resp, e1_resp,
+   m_resp, ch) is serialised by `encode_bfv_sigma_proof()` and embedded in the
+   outer proof envelope as `bfv_encryption_proof` bytes.
+3. **Verifier** (`nizk_share.rs` line ~745): decodes the sigma proof via
+   `decode_bfv_sigma_proof()`, re-constructs the statement from the public
+   inputs, and calls `bfv_sigma::verify()`. V3 and earlier proofs **fail-closed**
+   (rejected) because they lack the BFV sigma component.
+
+The proof version tag is `PROOF_VERSION = 4`; the domain separator is
+`"pvthfhe-pvss-share-encryption-v4"`.
+
+### RNS Arithmetic
+
+The module operates on RNS power-basis representations:
+- Each polynomial in R_Q is stored as a flat `[u64; 3*N]` array (N coefficients
+  per limb, 3 limbs).
+- `poly_bytes_to_rns()` deserialises an fhe-math `Poly` into the RNS format.
+- `scale_plaintext_to_rns()` computes Δ[ℓ]·m in RNS per limb using modular
+  arithmetic over each CRT prime.
+
+### Soundness
+
+The sigma protocol provides honest-verifier zero-knowledge with knowledge soundness
+reducing to the Module-SIS assumption over the BFV ring R_Q. The challenge is
+binary (coefficient-wise in {0,1}) derived via Fiat-Shamir, giving a soundness
+error of 2^{-N} = 2^{-8192} per execution. The composed soundness chain for the
+full v4 NIZK (sigma + Ajtai commitment + D2 hash binding) is covered in §3.5.
+
+---
+
 ## References
 
 1. Greco: Greco lattice NIZK, `gnosisguild/fhe.rs` ecosystem. (Full citation:

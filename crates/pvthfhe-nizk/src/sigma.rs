@@ -11,7 +11,7 @@
 //!
 //! # Challenge Space
 //! Binary polynomial ch in {0,1}^N derived via Fiat-Shamir (SHA-256 over serialized
-//! commitment t). Binary challenges give negligible soundness error (2^{-N}).
+//! Binary challenges give negligible special-soundness error (2^{-N}) for the sigma layer. The composed NIZK soundness is conditional — see crate-level docs.
 //!
 //! # Response Bounds
 //! Masking bound B_Y = 2^30.

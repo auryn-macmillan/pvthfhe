@@ -1,6 +1,7 @@
 //! Shared demo NIZK input construction for pvthfhe-cli binaries and tests.
 
 use anyhow::Context;
+use sha2::{Digest, Sha256};
 use pvthfhe_aggregator::keygen::types::Round1Message;
 use pvthfhe_fhe::real_nizk::{NizkStatement, NizkWitness};
 use pvthfhe_rng::OsRng;
@@ -38,12 +39,12 @@ pub fn build_demo_nizk_inputs(
             #[cfg(not(feature = "demo-seeded-rng"))]
             {
                 let _ = s;
-                tracing::warn!(
-                    "demo_nizk: seed={} ignored (demo-seeded-rng feature not enabled); \
-                     falling back to OsRng for secure randomness",
+                anyhow::bail!(
+                     "demo_nizk: seed={} requires --features demo-seeded-rng (insecure flag). \
+                     Without this feature, the seed flag is a tripwire; use seed=0 or \
+                     compile with --features demo-seeded-rng for deterministic demos.",
                     s
                 );
-                Box::new(OsRng)
             }
             #[cfg(feature = "demo-seeded-rng")]
             {
@@ -82,10 +83,44 @@ pub fn build_demo_nizk_inputs(
         NizkWitness {
             secret_share,
             secret_share_poly,
-            error: vec![1, -1, 0, 2],
+            error: derive_demo_error_poly(secret_key_bytes),
             randomness,
         },
     ))
+}
+
+
+/// Derive a deterministic small-norm error polynomial from secret key bytes.
+///
+/// Uses SHA-256 over a domain-separated hash of the secret key bytes to seed
+/// a deterministic RNG, then rejection-samples RLWE_N coefficients each bounded
+/// by `[-B_E, B_E]`. This produces a realistic NIZK error witness matching the
+/// sigma protocol relation `d_i = c*s_i + e_i` without relying on a hardcoded
+/// 4-element placeholder.
+///
+/// In a production setting, this would be replaced by the actual BFV encryption
+/// error extracted from the backend's [`EncryptionWitness`].
+fn derive_demo_error_poly(secret_key_bytes: &[u8]) -> Vec<i64> {
+    use rand::SeedableRng;
+    let n = pvthfhe_nizk::sigma::RLWE_N;
+    let b = pvthfhe_nizk::sigma::B_E; // 16
+    let range = u64::try_from(2 * b + 1).expect("2*B_E+1 fits u64"); // 33
+
+    let mut hasher = Sha256::new();
+    hasher.update(b"pvthfhe-cli/nizk-error-demo/v1");
+    hasher.update(secret_key_bytes);
+    let seed: [u8; 32] = hasher.finalize().into();
+
+    let mut rng = rand::rngs::StdRng::from_seed(seed);
+    let max_multiple = (u64::MAX / range) * range;
+    let mut out = Vec::with_capacity(n);
+    while out.len() < n {
+        let r = rng.next_u64();
+        if r < max_multiple {
+            out.push((r % range) as i64 - b);
+        }
+    }
+    out
 }
 
 fn bytes_to_i64_poly(bytes: &[u8]) -> Vec<i64> {

@@ -3,9 +3,9 @@
 > ⚠️  **DO NOT DEPLOY — RESEARCH PROTOTYPE ONLY**
 >
 > This repository contains **critical cryptographic surrogates** that provide no real security:
-> - **no on-chain cryptographic verification — verifier accepts any proof bytes**
-> - **Noir circuits are tautological surrogates** (assert(x == x) — no real constraints)
-> - **do not use for The Interfold or any production deployment**
+- **on-chain cryptographic verification: real UltraHonk verifier (committing to Sonobe state) + off-chain attestation**
+- **Noir circuits: real aggregation and wrapping logic** (not tautological surrogates)
+- **do not use for The Interfold or any production deployment**
 >
 > See [SECURITY-ADVISORY-001.md](SECURITY-ADVISORY-001.md) and [SECURITY.md](SECURITY.md) for details.
 > See `SECURITY.md` and `WARNING.md` for the canonical list of surrogates.
@@ -79,7 +79,7 @@ The `e2e_timings.json` artifact contract is stable for this phase: it carries sc
 ### Security Properties (Target Design Goals)
 
 1.  **IND-CPA-PV**: Ciphertext indistinguishability under chosen-plaintext attack with public verifiability (target goal).
-2.  **Decryption-Soundness**: Cryptographically verified decryption soundness is an implementation task; current prototype combines UltraHonk proofs with off-chain attestation.
+2.  **Decryption-Soundness**: Full decryption soundness is a design goal; the current prototype uses conditional NIZK soundness (see SECURITY.md §P1).
 3.  **Public-Verifiability**: The prototype targets public verifiability; current on-chain verification is restricted to the attestor set.
 4.  **Robustness**: The protocol is designed to succeed as long as $t = \lfloor n/2 \rfloor + 1$ parties are honest (current simulation validates this for P4).
 

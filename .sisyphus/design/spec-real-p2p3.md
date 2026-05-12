@@ -368,81 +368,112 @@ Norm explosion check for (2γ)^L blow-up: with L=1 (not batched), the Theorem 3
 slack factor is `(2γ)^1 = 32`. Final extraction bound: β̄ = β_10 · 32 = 43,008
 ≪ q_commit/2 ≈ 2^49. ✓
 
-### 4.5 Trait Surface: `CycloAdapter` (Rust pseudo-code)
+### 4.5 Trait Surface: `CycloAdapter` (Rust, sync'd to actual code)
 
 This replaces the `SurrogateAdapter` / `FoldingScheme` + `RealFoldingScheme`
-in `crates/pvthfhe-aggregator/src/folding/mod.rs`.
+in `crates/pvthfhe-aggregator/src/folding/mod.rs`. The implementation lives
+in `crates/pvthfhe-cyclo/src/lib.rs` and `crates/pvthfhe-cyclo/src/adapter.rs`.
 
 ```rust
-// pseudo-Rust — crates/pvthfhe-aggregator/src/folding/mod.rs
+// Actual trait surface — crates/pvthfhe-cyclo/src/lib.rs
 
-/// Locked Cyclo parameters for this PVTHFHE instantiation.
+/// Locked Cyclo LatticeFold+ parameters for PVTHFHE Phase 2.
 pub struct CycloParams {
     pub phi_commit: usize,       // 256
     pub log2_q_commit: u32,      // 50
+    pub q_commit: u64,           // 562_949_953_438_721
     pub ajtai_rank_a: usize,     // 13
     pub norm_bound_b: u64,       // 1024
     pub base_b: u32,             // 2
-    pub challenge_p: f64,        // 1/3 (biased ternary)
     pub sequential_t: u32,       // 10
     pub l_per_round: u32,        // 1
+    pub beta_at_t: u64,          // 1344
 }
 
 /// Per-share CCS instance produced by CycloNizkAdapter::prove.
 pub struct CcsPShareInstance {
     pub participant_id: u16,
-    pub ajtai_commitment: Vec<u8>,   // a=13 R_{q_commit} elements
-    pub public_io: Vec<u8>,          // (d_i, ciphertext snippet) encoded
-    pub ccs_witness: Vec<u8>,        // w_i in R_{q_commit}^m, m≈53248
-    pub sha256_binding: Vec<u8>,     // D2 hash assertion bytes
+    pub ajtai_commitment_bytes: ProtocolBytes,   // a=13 R_{q_commit} elements
+    pub public_io_bytes: ProtocolBytes,           // (d_i, ciphertext snippet) encoded
+    pub ccs_witness_bytes: CcsWitnessSecret,      // w_i in Fr-LE wire format
+    pub sha256_binding_bytes: ProtocolBytes,      // D2 hash assertion bytes
+    pub ccs_matrix_bytes: ProtocolBytes,          // CCS constraint matrix [rows:u32 BE][cols:u32 BE][data]
 }
 
 /// Running Cyclo accumulator after k folds (0 ≤ k ≤ T=10).
 pub struct CycloAccumulator {
-    pub fold_depth: u32,             // number of completed folds
-    pub acc_commitment: Vec<u8>,     // c_acc = A · w_acc in R_{q_commit}^a
-    pub acc_public_io: Vec<u8>,      // aggregated public IO
-    pub norm_bound_current: u64,     // β_k = 1024 + k*32; must equal 1024 + fold_depth*32
+    pub fold_depth: u32,
+    pub acc_commitment_bytes: Vec<u8>,       // serialised accumulated commitment
+    pub acc_public_io_bytes: Vec<u8>,        // serialised accumulated public I/O
+    pub norm_bound_current: u64,
     pub session_id: String,
-    pub params_digest: [u8; 32],     // SHA256(CycloParams canonical encoding)
+    pub params_digest: [u8; 32],
 }
 
+/// Object-safe trait for Cyclo LatticeFold+ adapters.
 pub trait CycloAdapter {
-    /// Initialise a fresh accumulator for a new session.
-    fn init(params: &CycloParams, session_id: &str) -> CycloAccumulator;
+    /// Returns the backend identifier string.
+    fn backend_id(&self) -> &'static str;
 
-    /// Fold one per-share CCS instance into the accumulator.
-    /// Must be called in ascending participant_id order.
-    /// Returns the updated accumulator after this fold step.
-    fn fold(
+    /// Returns a reference to the locked CycloParams.
+    fn params(&self) -> &CycloParams;
+
+    /// Fold a single CcsPShareInstance into `acc`, producing a new accumulator.
+    fn fold_one(
+        &self,
+        acc: CycloAccumulator,
+        instance: &CcsPShareInstance,
+        rng: &mut dyn RngCore,
+    ) -> Result<CycloAccumulator, CycloError>;
+
+    /// Verify that `acc` is a valid accumulator for the given instances.
+    fn verify_accumulator(
+        &self,
         acc: &CycloAccumulator,
-        share: &CcsPShareInstance,
-        params: &CycloParams,
-        rng: &mut impl RngCore,
-    ) -> Result<CycloAccumulator, FoldingError>;
+        instances: &[CcsPShareInstance],
+    ) -> Result<(), CycloError>;
 
-    /// Check that the accumulator is well-formed after T=10 folds.
-    /// Verifies: fold_depth == T, norm_bound_current == β_T, params_digest matches.
-    fn verify_final(
-        acc: &CycloAccumulator,
-        expected_fold_depth: u32,
-        params: &CycloParams,
-    ) -> Result<(), FoldingError>;
-
-    /// Serialise the final accumulator for hand-off to the P3 encoding step.
-    fn serialise_for_p3(acc: &CycloAccumulator) -> Vec<u8>;
+    /// Fold all instances sequentially, returning the final accumulator.
+    /// Instances must be sorted by ascending participant_id.
+    fn fold_all(
+        &self,
+        instances: &[CcsPShareInstance],
+        session_id: &str,
+        rng: &mut dyn RngCore,
+    ) -> Result<CycloAccumulator, CycloError>;
 }
 ```
 
+**Key changes from spec draft to actual code**:
+
+| Spec draft | Actual code |
+|---|---|
+| `fn init(params, session_id) -> CycloAccumulator` | Removed; caller constructs `CycloAccumulator` directly |
+| `fn fold(acc, share, params, rng)` | `fn fold_one(self, acc, instance, rng)` |
+| `fn verify_final(acc, depth, params)` | `fn verify_accumulator(self, acc, instances)` |
+| `fn serialise_for_p3(acc) -> Vec<u8>` | Removed; `acc_commitment_bytes` + `acc_public_io_bytes` serve as serialisation |
+| `FoldingError` | `CycloError` (with variants `InvalidInstance`, `NormBoundExceeded`, `FoldDepthExhausted`, `AccumulatorVerificationFailed`) |
+| `ajtai_commitment: Vec<u8>` | `ajtai_commitment_bytes: ProtocolBytes` |
+| `acc_commitment: Vec<u8>` | `acc_commitment_bytes: Vec<u8>` |
+| `acc_public_io: Vec<u8>` | `acc_public_io_bytes: Vec<u8>` |
+| (absent) | `backend_id()` + `params()` accessors |
+| (absent) | `ccs_matrix_bytes: ProtocolBytes` field |
+
+
 ### 4.6 Output: Cyclo Accumulator for P3
 
-After T=10 folds the serialised accumulator (`CycloAdapter::serialise_for_p3`)
-is a byte blob containing:
-- `acc_commitment` (a=13 R_{q_commit} elements, each 256 coefficients × 8 bytes)
+After T=10 folds the accumulator (`CycloAccumulator`) contains serialised
+fields ready for hand-off to P3:
+
+- `acc_commitment_bytes` (a=13 R_{q_commit} elements, each 256 coefficients × 8 bytes)
   = 13 × 256 × 8 = **26,624 bytes**
-- `acc_public_io` (aggregated d = Σ dᵢ, ciphertext hash binding)
+- `acc_public_io_bytes` (aggregated d = Σ dᵢ, ciphertext hash binding)
   ≈ 8,192 × 8 = **65,536 bytes** (uncompressed)
-- fold metadata (fold_depth, norm_bound, session_id, params_digest) ≈ 100 bytes
+- fold metadata (`fold_depth`, `norm_bound_current`, `session_id`, `params_digest`) ≈ 100 bytes
+
+Note: the spec draft's `serialise_for_p3()` method was removed from the actual
+`CycloAdapter` trait. Callers extract `acc_commitment_bytes` and
+`acc_public_io_bytes` directly.
 
 Total serialised accumulator: ≈ **50–60 KB** (as estimated in cyclo-digest.md §6.5).
 
@@ -459,9 +490,80 @@ This blob is consumed by the P2→P3 encoding step (§5).
 
 ---
 
+### 4.8 Multi-Track Fold Infrastructure (H.2)
+
+The Cyclo folding crate supports batched two-track (sk + e_sm) instances via
+the following types defined in `crates/pvthfhe-cyclo/src/lib.rs`:
+
+#### `FoldTrackKind` enum
+
+```rust
+pub enum FoldTrackKind {
+    Sk,                // Secret-key share witness commitment track
+    ESm,               // Committed smudging error witness commitment track
+    EncryptionWitness, // BFV encryption witness commitment track
+}
+```
+
+Each variant has a domain-separated byte label for canonical fold metadata
+encoding (e.g. `b"pvthfhe-fold-track-sk-v1"`).
+
+#### `MultiTrackFoldMetadata`
+
+```rust
+pub struct MultiTrackFoldMetadata {
+    pub session_id: String,
+    pub participant_id: u16,
+    pub party_binding: Vec<u8>,
+    pub instance_count: u32,
+    pub tracks: Vec<FoldTrackCommitment>,
+}
+```
+
+Field-level validation is provided by `validate_for_instance()` which enforces:
+- Session and participant ID match the enclosing fold instance
+- All three track kinds (`Sk`, `ESm`, `EncryptionWitness`) are present
+- `Sk` track must not have a slot_index; `ESm` and `EncryptionWitness` must
+- All commitment bytes are non-empty and norm bounds are non-zero
+- No norm bound exceeds the global `PVTHFHE_CYCLO_PARAMS.norm_bound_b`
+
+#### Cross-track replay rejection
+
+`validate_for_instance()` returns `CycloError::InvalidInstance` with a
+descriptive error message if:
+- The session_id or participant_id mismatches the instance (cross-session replay)
+- Any track kind is missing (partial cross-track replay)
+- A track's slot_index is present on `Sk` or absent on `ESm`/`EncryptionWitness`
+  (cross-track proof substitution)
+- Any track's commitment is empty or norm_bound is zero (null-track attack)
+
+#### Backward compatibility
+
+`CcsPShareInstance` has a `with_multi_track_metadata()` method that wraps the
+legacy single-track instance in a `MultiTrackPShareInstance`. Callers that do
+not supply metadata produce a `MultiTrackPShareInstance` with
+`multi_track_metadata: None`, preserving backward compatibility with
+single-track fold paths.
+
+---
+
 ## 5. P2 → P3 Encoding Interface (the gap)
 
 ### 5.1 Encoding Target
+
+> **DEFERRED (2026-05-12)**: The `MicroNovaAdapter` trait described in §7.1
+> (`crates/pvthfhe-p3-encoder/`) is **not yet implemented**. The current
+> codebase uses **Sonobe Nova IVC** directly via the `ProofCompressor` trait
+> (`crates/pvthfhe-compressor/src/lib.rs`). Sonobe Nova serves as a
+> substitute for MicroNova in the P2→P3 compression layer. The migration
+> plan from Sonobe/Nova to MicroNova is tracked in
+> `.sisyphus/design/sonobe-migration.md`. The 5 migration invariants in
+> §4.2 remain the frozen boundary contract.
+>
+> The P3 on-chain verifier (§6) currently uses the BB `HonkVerifier.sol`
+> path (Option B infrastructure) but the proof it verifies is produced by
+> Sonobe Nova, not MicroNova. This distinction is cosmetic at the ABI level
+> because both backends expose the same `ProofCompressor` trait surface.
 
 **Chosen target**: R1CS over the BN254 scalar field `F_p` (p ≈ 2^254), consumed
 by MicroNova as an IVC step function.
@@ -617,18 +719,23 @@ circuit exceeds 2^21 PLONKish gates (see §9 escape hatch iv).
 PQ guarantees of P1/P2. This is a **known and accepted** trade-off per
 `SECURITY.md` §Assumptions Ledger and micronova-digest.md §6.3.
 
-### 6.5 Public-Input Binding in the Chosen Circuit
+### 6.5 Public-Input Binding in the Actual Circuit
 
-The Noir circuit for Option B exposes exactly 7 public inputs, ordered as in §2.
+> ⚠️ **TOY CIRCUIT — NOT PRODUCTION C7-EQUIVALENT.**
+> The current Noir circuit (`circuits/aggregator_final/src/main.nr`) uses N=8
+> (research-prototype ring dimension), performs **direct Lagrange recombination**
+> over polynomial shares with **Poseidon hash commitment binding**, and does
+> **not** verify a MicroNova proof. This is intentional for the research
+> prototype. A production circuit would implement the Cyclo→MicroNova→UltraHonk
+> compression chain described in §6.2/§6.4.
+
+The Noir circuit exposes exactly 7 public inputs, ordered as in §2.
 They are bound as follows:
 
 ```noir
-// pseudo-Noir — circuits/aggregator_final/src/main.nr (replacement)
+// — circuits/aggregator_final/src/main.nr (toy circuit, N=8)
 fn main(
-    // Private witness
-    micronova_proof: MicroNovaProof,       // O(log N) BN254 group elements
-    cyclo_accumulator: CycloAccumulatorWitness,
-    // Public inputs (7 frozen — must match IPvthfheVerifier.sol parameter order)
+    // Public inputs (7 frozen; order matches IPvthfheVerifier.sol §7.2)
     ciphertext_hash:       pub Field,      // Keccak256 of ciphertext
     plaintext_hash:        pub Field,      // Keccak256 of plaintext
     aggregate_pk_hash:     pub Field,      // Keccak256 of aggregate PK
@@ -636,16 +743,74 @@ fn main(
     epoch:                 pub Field,      // Decryption epoch (u64 promoted to Field)
     participant_set_hash:  pub Field,      // Keccak256 of participant set
     d_commitment:          pub Field,      // Keccak256(D)
+    // Private inputs (Lagrange recombination witnesses)
+    n_participants:        pub Field,
+    threshold:             pub Field,
+    lagrange_coeffs:       [Field; MAX_PARTICIPANTS],
+    participant_shares:    [[Field; N]; MAX_PARTICIPANTS],
+    plaintext:             [Field; N],
+    z_q:                   Field,
 ) {
-    // 1. Verify MicroNova compressed proof against the 7 public inputs.
-    verify_micronova(micronova_proof, [
+    // 1. Sanity checks: epoch > 0, hash distinctness, bounds.
+    assert(epoch as u64 > 0);
+    assert(ciphertext_hash != plaintext_hash);
+    assert(participant_set_hash != 0);
+    assert(n_participants as u32 <= MAX_PARTICIPANTS);
+    assert(threshold as u32 > 0);
+    assert(threshold as u32 <= n_participants as u32);
+
+    // 2. Poseidon CRH commitment binding (domain-separated):
+    //    Hash each participant share → combine → check plaintext_hash,
+    //    then compute d_commitment and assert equality with public input.
+    let mut share_hashes = [0; MAX_PARTICIPANTS];
+    for i in 0..MAX_PARTICIPANTS {
+        if (i as u32) < (n_participants as u32) {
+            share_hashes[i] = vector_hash(participant_shares[i], DOMAIN_VECTOR_MERKLE);
+        }
+    }
+    let combined_share_hash = combine_hashes(share_hashes, n_participants);
+    assert(vector_hash(plaintext, DOMAIN_VECTOR_MERKLE) == plaintext_hash);
+    let d_commitment_computed = bind_8_with_domain([
+        combined_share_hash, dkg_root, participant_set_hash,
+        epoch, n_participants, threshold, 0, 0,
+    ], DOMAIN_AGGREGATOR_D_COMMIT);
+    assert(d_commitment_computed == d_commitment);
+
+    // 3. Derive evaluation challenge r = Poseidon(7 public inputs ∥ 0).
+    let r = bind_8_with_domain([
         ciphertext_hash, plaintext_hash, aggregate_pk_hash,
-        dkg_root, epoch, participant_set_hash, d_commitment,
-    ]);
-    // 2. Assert MicroNova proof encodes the expected Cyclo accumulator state.
-    assert_cyclo_accumulator_binding(micronova_proof, cyclo_accumulator);
+        dkg_root, epoch, participant_set_hash, d_commitment, 0,
+    ], DOMAIN_CHALLENGE_DERIVE);
+
+    // 4. Direct Lagrange recombination over N=8 (NOT production N=8192):
+    let lhs = eval_poly(plaintext, r);
+    let mut rhs = 0;
+    let mut lagrange_sum = 0;
+    for i in 0..MAX_PARTICIPANTS {
+        if (i as u32) < (n_participants as u32) {
+            rhs = rhs + lagrange_coeffs[i] * eval_poly(participant_shares[i], r);
+            lagrange_sum = lagrange_sum + lagrange_coeffs[i];
+        }
+    }
+    assert(lagrange_sum == 1);
+
+    // 5. R3 relation: rhs − lhs ≡ 0 (mod Q), Q from protocol_constants.
+    //    No MicroNova proof verification is performed.
+    assert(r_pow_n(r) + 1 != 0);
+    assert(rhs - lhs == protocol_constants::Q * z_q);
+
+    assert(aggregate_pk_hash != 0);
 }
 ```
+
+**Diff from spec Option B (§6.2/§6.4)**: The spec requires MicroNova proof
+verification in-circuit. This toy circuit instead performs **direct Lagrange
+recombination** over polynomial-degree N=8 shares and validates binding via
+Poseidon hashes. It contains **no** MicroNova proof verification, **no** Cyclo
+accumulator verifier (Ajtai commitment check, norm bound range checks,
+sum-check transcript verification), and **no** BN254 pairing gadgets. This is
+intentional for the research prototype; a full C7-equivalent production circuit
+is scheduled for a future phase.
 
 The `epoch` field is encoded as a `u64` value promoted to a BN254 `Field`
 element (zero-padded to 32 bytes) and packed identically to the `uint64 epoch`
@@ -661,7 +826,7 @@ calldata slot  bytes  ABI type   Noir public input index
 4               8     uint64     4: epoch (ABI-padded to 32 bytes in calldata)
 5              32     bytes32    5: participant_set_hash
 6              32     bytes32    6: d_commitment
-7+             var    bytes      proof bytes (UltraHonk ~14 KB)
+7+             var    bytes      proof bytes (UltraHonk wrapping Lagrange recombination circuit)
 ```
 
 ### 6.6 Removal of `ecrecover` / TRUSTED_SIGNER
@@ -685,7 +850,7 @@ ABI changes are needed.
 
 ## 7. Interface Contracts (frozen)
 
-### 7.1 Rust Traits (pseudo-Rust)
+### 7.1 Rust Traits (sync'd to actual code)
 
 ```rust
 // --- P1 NIZK (crates/pvthfhe-fhe/src/real_nizk.rs) ---
@@ -697,29 +862,32 @@ pub trait LatticeNizk {  // UNCHANGED external boundary
 }
 // Implementation: CycloNizkAdapter (replaces RealNizkAdapter)
 
-// --- P2 Folding (crates/pvthfhe-aggregator/src/folding/mod.rs) ---
+// --- P2 Folding (crates/pvthfhe-cyclo/src/lib.rs) ---
 pub trait CycloAdapter {  // REPLACES SurrogateAdapter / FoldingScheme
-    fn init(params: &CycloParams, session_id: &str) -> CycloAccumulator;
-    fn fold(acc: &CycloAccumulator, share: &CcsPShareInstance, params: &CycloParams,
-            rng: &mut impl RngCore) -> Result<CycloAccumulator, FoldingError>;
-    fn verify_final(acc: &CycloAccumulator, expected_fold_depth: u32,
-                    params: &CycloParams) -> Result<(), FoldingError>;
-    fn serialise_for_p3(acc: &CycloAccumulator) -> Vec<u8>;
+    fn backend_id(&self) -> &'static str;
+    fn params(&self) -> &CycloParams;
+    fn fold_one(&self, acc: CycloAccumulator, instance: &CcsPShareInstance,
+                rng: &mut dyn RngCore) -> Result<CycloAccumulator, CycloError>;
+    fn verify_accumulator(&self, acc: &CycloAccumulator,
+                          instances: &[CcsPShareInstance]) -> Result<(), CycloError>;
+    fn fold_all(&self, instances: &[CcsPShareInstance], session_id: &str,
+                rng: &mut dyn RngCore) -> Result<CycloAccumulator, CycloError>;
 }
 
-// --- P2→P3 Encoding (new crate: crates/pvthfhe-p3-encoder/src/lib.rs) ---
-pub trait MicroNovaAdapter {
-    /// Encode the final Cyclo accumulator as a single MicroNova IVC step R1CS.
-    fn encode_accumulator(acc_bytes: &[u8], public_inputs: &[u8; 7 * 32])
-        -> Result<MicroNovaR1cs, EncodingError>;
-
-    /// Run the MicroNova prover to compress the single-step IVC proof.
-    fn prove_compressed(r1cs: &MicroNovaR1cs, rng: &mut impl RngCore)
-        -> Result<MicroNovaProof, EncodingError>;
-
-    /// Serialise the MicroNova compressed proof for consumption by the Noir circuit.
-    fn serialise_for_noir(proof: &MicroNovaProof) -> Vec<u8>;
-}
+// --- P2→P3 Encoding (DEFERRED — c.f. §5.1 note) ---
+//
+// The `MicroNovaAdapter` trait and `crates/pvthfhe-p3-encoder/` crate are
+// DEFERRED. Current implementation uses Sonobe Nova IVC directly via the
+// `ProofCompressor` trait in `crates/pvthfhe-compressor/src/lib.rs`.
+// See `.sisyphus/design/sonobe-migration.md` for migration plan.
+//
+// pub trait MicroNovaAdapter {
+//     fn encode_accumulator(acc_bytes: &[u8], public_inputs: &[u8; 7 * 32])
+//         -> Result<MicroNovaR1cs, EncodingError>;
+//     fn prove_compressed(r1cs: &MicroNovaR1cs, rng: &mut impl RngCore)
+//         -> Result<MicroNovaProof, EncodingError>;
+//     fn serialise_for_noir(proof: &MicroNovaProof) -> Vec<u8>;
+// }
 ```
 
 ### 7.2 Solidity ABI: `IPvthfheVerifier` — Unchanged

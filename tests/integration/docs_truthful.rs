@@ -25,6 +25,8 @@ fn test_docs_truthful() {
     let architecture = fs::read_to_string("ARCHITECTURE.md").expect("Failed to read ARCHITECTURE.md");
     let security = fs::read_to_string("SECURITY.md").expect("Failed to read SECURITY.md");
 
+    let warning = fs::read_to_string("WARNING.md").expect("Failed to read WARNING.md");
+    let status = fs::read_to_string("STATUS.md").expect("Failed to read STATUS.md");
     // README should NOT contain "tautological surrogates" or "reverts on all inputs"
     assert!(!readme.contains("Noir circuits are tautological surrogates"), "README still claims Noir circuits are tautological surrogates");
     assert!(!readme.contains("on-chain verifier is a Stage 0 killswitch and reverts on all inputs"), "README still claims verifier reverts on all inputs");
@@ -89,4 +91,10 @@ fn test_docs_truthful() {
     // SECURITY should reflect current truth
     assert!(!security.contains("verifier accepts any proof bytes"), "SECURITY.md still claims verifier accepts any proof bytes");
     assert!(!security.contains("verifier is a Stage 0 killswitch"), "SECURITY.md still claims verifier is a Stage 0 killswitch");
+
+    // WARNING and STATUS should not contain stale claims about tautological surrogates or bypass-verifier
+    assert!(!warning.contains("verifier accepts any proof bytes"), "WARNING.md still claims verifier accepts any proof bytes");
+    assert!(!warning.contains("Noir circuits are tautological surrogates"), "WARNING.md still claims Noir circuits are tautological surrogates");
+    assert!(!status.contains("verifier accepts any proof bytes"), "STATUS.md still claims verifier accepts any proof bytes");
+    assert!(!status.contains("Noir circuits are tautological surrogates"), "STATUS.md still claims Noir circuits are tautological surrogates");
 }

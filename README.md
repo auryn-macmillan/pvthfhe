@@ -21,7 +21,7 @@ verifier cost. The current prototype uses:
 | Layer | Implementation | Status |
 |-------|---------------|--------|
 | DKG | Pedersen-DKG over BFV/RLWE secret domain (`.sisyphus/design/dkg-construction.md`) | ✅ Real (BN254 Shamir, OsRng, smudging) |
-| NIZK | Greco primary / MPCitH fallback, D2-preimage binding (`.sisyphus/design/nizk-construction.md`) | ✅ Real (witness-free proofs, Ajtai CRS) |
+| NIZK | Cyclo-companion Ajtai D2 sigma + BFV sigma (conditional, P1 OPEN) | ⚠️ Real with conditional soundness |
 | Folding (P2) | Sonobe Nova with Cyclo CCS witness representation (`.sisyphus/design/fold-construction.md`) | ✅ Real (CCS satisfiability, ∞-norm) |
 | Compression (P3) | Sonobe Nova IVC with CycloFoldStepCircuit | ✅ Real (commitment folding, norm escalation) |
 | On-chain verifier | OpenZeppelin AccessControl + TimelockController | ✅ Real (AccessControl, multisig, runId) |
@@ -33,7 +33,7 @@ verifier cost. The current prototype uses:
 
 | Layer | Post-Remediation Status |
 |-------|--------------------------|
-| FHE backend (BFV via fhe.rs) | ✅ Real lattice crypto; `Secrecy<T>` + `Zeroize` on keys |
+| FHE backend (BFV via fhe.rs) | ✅ Real lattice crypto; `Secrecy<T>` + `Zeroize` on keys † |
 | DKG / Shamir resharing | ✅ Pedersen-DKG over BFV; BN254 Shamir; OsRng reshare |
 | PVSS encryption | ✅ BN254 scalar Shamir; OsRng encryption randomness |
 | Lattice NIZK well-formedness | ✅ Witness-free proofs; D2-preimage binding; CRS-bound Ajtai |
@@ -43,6 +43,8 @@ verifier cost. The current prototype uses:
 | On-chain verifier (Solidity) | ✅ AccessControl (3 roles); multisig (≥2/3 + 48h); runId liveness |
 | End-to-end pipeline | ✅ Fold binding; atomic plaintext; semantic roundtrip verified |
 
+† FHE backend assumes honest-but-curious threshold parties (see SECURITY.md §Threat Model).
+
 **Remediation plans**: `.sisyphus/plans/pvthfhe-remediation.md` (179/179 ✅) and
 `.sisyphus/plans/audit-2026-05-09-remediation.md` (55/55 ✅). All gate-level checkboxes
 are closed under `.sisyphus/plans/pvthfhe-gate-resolution.md`.
@@ -51,9 +53,9 @@ are closed under `.sisyphus/plans/pvthfhe-gate-resolution.md`.
 
 | Parameter | Value | Source |
 |-----------|-------|--------|
-| Folding soundness (ε_fold) | 2⁻¹⁶⁰ (exponential bound, 10 rounds, 2¹⁶ challenges) | `.sisyphus/design/fold-soundness-budget.md` |
+| Folding soundness (ε_fold) | 2⁻¹⁶⁰ (exponential bound, 10 rounds, 2¹⁶ challenges) (aspirational — depends on P1, P2, P3 resolution) | `.sisyphus/design/fold-soundness-budget.md` |
 | DKG secrecy | ≤ 2⁻¹²⁸ (t−1 shares indistinguishable from uniform) | `pvthfhe-keygen/tests/dkg_secrecy.rs` |
-| Composed soundness | R1.5 ⊕ R2.4 ⊕ R3.1+R3.2 ⊕ R4.4 ⊕ R5.2 ⊕ R6.1 ⊕ R8.5 ≥ 2⁻¹²⁸ | Plan gate-level verification |
+| Composed soundness | R1.5 ⊕ R2.4 ⊕ R3.1+R3.2 ⊕ R4.4 ⊕ R5.2 ⊕ R6.1 ⊕ R8.5 ≥ 2⁻¹²⁸ (aspirational — depends on P1, P2, P3 resolution) | Plan gate-level verification |
 | BFV parameters | n=8192, log₂q=174, σ_smudge=2⁴⁰·σ_err | `.sisyphus/design/smudging.md` |
 
 ### Open Problems

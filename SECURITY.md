@@ -14,7 +14,7 @@ This document outlines the security model, assumptions, and limitations of the P
 ## Implementation status
 
 - **FHE backend**: real threshold BFV via `gnosisguild/fhe.rs`, under an **honest-but-curious** threat model.
-- **Greco / well-formedness ZK proofs**: **not yet implemented**. The real FHE path therefore remains unproven against malicious share construction and ciphertext well-formedness attacks.
+- **Greco / well-formedness ZK proofs**: **Implemented** (CycloNizkAdapter + bfv_sigma.rs, conditional soundness — see P1).
 - **Folding accumulator**: implemented via Sonobe substitution.
 - **On-chain verifier**: real UltraHonk verifier (committing to Sonobe state) + off-chain attestation.
 

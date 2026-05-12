@@ -1,6 +1,7 @@
 use clap::Parser;
 use pvthfhe_bench::render_comparison::{
-    render_comparison_markdown_with_template, report_output_path, BaselineEnvelope, ComparisonEnvelope,
+    render_comparison_markdown_with_template, report_output_path, BaselineEnvelope,
+    ComparisonEnvelope,
 };
 use std::{fs, path::PathBuf, process::ExitCode};
 

@@ -83,7 +83,11 @@ impl MultiTrackFoldMetadata {
         out.extend_from_slice(&self.participant_id.to_be_bytes());
         push_u64_len(&mut out, &self.party_binding);
         out.extend_from_slice(&self.instance_count.to_be_bytes());
-        out.extend_from_slice(&u32::try_from(self.tracks.len()).unwrap_or(u32::MAX).to_be_bytes());
+        out.extend_from_slice(
+            &u32::try_from(self.tracks.len())
+                .unwrap_or(u32::MAX)
+                .to_be_bytes(),
+        );
         for track in &self.tracks {
             push_u64_len(&mut out, track.kind.as_domain_bytes());
             match track.slot_index {
@@ -113,13 +117,19 @@ impl MultiTrackFoldMetadata {
             return Err(CycloError::InvalidInstance("multi-track session mismatch"));
         }
         if self.participant_id != participant_id {
-            return Err(CycloError::InvalidInstance("multi-track participant mismatch"));
+            return Err(CycloError::InvalidInstance(
+                "multi-track participant mismatch",
+            ));
         }
         if self.instance_count as usize != expected_instance_count {
-            return Err(CycloError::InvalidInstance("multi-track instance_count mismatch"));
+            return Err(CycloError::InvalidInstance(
+                "multi-track instance_count mismatch",
+            ));
         }
         if self.party_binding.is_empty() {
-            return Err(CycloError::InvalidInstance("multi-track party_binding is empty"));
+            return Err(CycloError::InvalidInstance(
+                "multi-track party_binding is empty",
+            ));
         }
         if self.tracks.is_empty() {
             return Err(CycloError::InvalidInstance("multi-track tracks are empty"));
@@ -129,10 +139,14 @@ impl MultiTrackFoldMetadata {
         let mut saw_encryption = false;
         for track in &self.tracks {
             if track.commitment.is_empty() {
-                return Err(CycloError::InvalidInstance("multi-track commitment is empty"));
+                return Err(CycloError::InvalidInstance(
+                    "multi-track commitment is empty",
+                ));
             }
             if track.norm_bound == 0 {
-                return Err(CycloError::InvalidInstance("multi-track norm_bound is zero"));
+                return Err(CycloError::InvalidInstance(
+                    "multi-track norm_bound is zero",
+                ));
             }
             if track.norm_bound > PVTHFHE_CYCLO_PARAMS.norm_bound_b {
                 return Err(CycloError::NormBoundExceeded {
@@ -143,19 +157,25 @@ impl MultiTrackFoldMetadata {
             match track.kind {
                 FoldTrackKind::Sk => {
                     if track.slot_index.is_some() {
-                        return Err(CycloError::InvalidInstance("sk track must not have slot_index"));
+                        return Err(CycloError::InvalidInstance(
+                            "sk track must not have slot_index",
+                        ));
                     }
                     saw_sk = true;
                 }
                 FoldTrackKind::ESm => {
                     if track.slot_index.is_none() {
-                        return Err(CycloError::InvalidInstance("e_sm track requires slot_index"));
+                        return Err(CycloError::InvalidInstance(
+                            "e_sm track requires slot_index",
+                        ));
                     }
                     saw_esm = true;
                 }
                 FoldTrackKind::EncryptionWitness => {
                     if track.slot_index.is_none() {
-                        return Err(CycloError::InvalidInstance("encryption track requires slot_index"));
+                        return Err(CycloError::InvalidInstance(
+                            "encryption track requires slot_index",
+                        ));
                     }
                     saw_encryption = true;
                 }
@@ -242,7 +262,10 @@ pub struct CcsPShareInstance {
 
 impl CcsPShareInstance {
     /// Attach public H.2 multi-track commitments/norms to this fold instance.
-    pub fn with_multi_track_metadata(self, metadata: MultiTrackFoldMetadata) -> MultiTrackPShareInstance {
+    pub fn with_multi_track_metadata(
+        self,
+        metadata: MultiTrackFoldMetadata,
+    ) -> MultiTrackPShareInstance {
         MultiTrackPShareInstance {
             base: self,
             multi_track_metadata: Some(metadata),

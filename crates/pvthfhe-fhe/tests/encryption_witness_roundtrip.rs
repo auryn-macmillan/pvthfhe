@@ -19,9 +19,7 @@ fn encrypt_with_witness_returns_extended_material() {
     let mut rng = StdRng::seed_from_u64(0xdead);
 
     let shares = (1u32..=3)
-        .map(|party_id| {
-            backend.keygen_share_with_session(&session_id, party_id, &mut rng)
-        })
+        .map(|party_id| backend.keygen_share_with_session(&session_id, party_id, &mut rng))
         .collect::<Result<Vec<_>, _>>()
         .expect("keygen shares");
 
@@ -46,20 +44,14 @@ fn encrypt_with_witness_returns_extended_material() {
     );
 
     // 3. The ciphertext must parse correctly and have 2 polys.
-    let bfv_ct = BfvCiphertext::from_bytes(&ct.bytes, backend.bfv_params())
-        .expect("deserialize ciphertext");
+    let bfv_ct =
+        BfvCiphertext::from_bytes(&ct.bytes, backend.bfv_params()).expect("deserialize ciphertext");
     assert_eq!(bfv_ct.c.len(), 2, "fresh BFV ct must have 2 polys");
 
     // 4. The ct0 and ct1 polynomial bytes in the witness must match the
     //    ciphertext's internal polynomials.
-    let ct0_bytes = bfv_ct
-        .get(0)
-        .expect("ct0 poly")
-        .to_bytes();
-    let ct1_bytes = bfv_ct
-        .get(1)
-        .expect("ct1 poly")
-        .to_bytes();
+    let ct0_bytes = bfv_ct.get(0).expect("ct0 poly").to_bytes();
+    let ct1_bytes = bfv_ct.get(1).expect("ct1 poly").to_bytes();
     assert_eq!(
         witness.ct0_poly_bytes, ct0_bytes,
         "witness ct0 must match ciphertext ct0"
@@ -98,9 +90,7 @@ fn encrypt_with_witness_uses_same_pk_as_normal_encrypt() {
     let mut rng_for_keys = StdRng::seed_from_u64(0xbee);
 
     let shares = (1u32..=3)
-        .map(|party_id| {
-            backend.keygen_share_with_session(&session_id, party_id, &mut rng_for_keys)
-        })
+        .map(|party_id| backend.keygen_share_with_session(&session_id, party_id, &mut rng_for_keys))
         .collect::<Result<Vec<_>, _>>()
         .expect("keygen shares");
 

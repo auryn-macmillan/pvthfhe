@@ -12,7 +12,7 @@
 
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
-use pvthfhe_cyclo::ccs_encode::{CcsInstance, parse_witness};
+use pvthfhe_cyclo::ccs_encode::{parse_witness, CcsInstance};
 use pvthfhe_cyclo::extension::extend;
 use pvthfhe_cyclo::ring::Q_COMMIT;
 
@@ -28,14 +28,21 @@ fn serialize_witness(data: &[Fr]) -> Vec<u8> {
 
 fn fr_to_u64(fr: &Fr) -> u64 {
     let limbs = fr.into_bigint().as_ref().to_vec();
-    assert!(limbs[1] == 0 && limbs[2] == 0 && limbs[3] == 0, "Fr exceeds u64");
+    assert!(
+        limbs[1] == 0 && limbs[2] == 0 && limbs[3] == 0,
+        "Fr exceeds u64"
+    );
     limbs[0]
 }
 
 #[inline]
 fn centred(c: u64) -> u64 {
     let neg = Q_COMMIT - c;
-    if neg < c { neg } else { c }
+    if neg < c {
+        neg
+    } else {
+        c
+    }
 }
 
 fn fr_centred_norm(fr: &Fr) -> u64 {
@@ -55,11 +62,7 @@ fn make_instance(id: u16, witness: Vec<u8>) -> CcsInstance {
 
 #[test]
 fn norm_and_ccs_parse_witness_consistently() {
-    let witness_frs = [
-        Fr::from(1u64),
-        Fr::from(100u64),
-        Fr::from(1024u64),
-    ];
+    let witness_frs = [Fr::from(1u64), Fr::from(100u64), Fr::from(1024u64)];
 
     let witness_bytes = serialize_witness(&witness_frs);
 

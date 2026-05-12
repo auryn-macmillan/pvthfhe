@@ -164,13 +164,16 @@ impl AggregatorFinalWitness {
             self.participant_set_hash
         )
         .expect("write to string");
-        writeln!(&mut output, "d_commitment = \"{}\"", self.d_commitment)
-            .expect("write to string");
+        writeln!(&mut output, "d_commitment = \"{}\"", self.d_commitment).expect("write to string");
         writeln!(&mut output, "d1 = [{}]", quoted_array(&self.d1)).expect("write to string");
         writeln!(&mut output, "d2 = [{}]", quoted_array(&self.d2)).expect("write to string");
         writeln!(&mut output, "d3 = [{}]", quoted_array(&self.d3)).expect("write to string");
-        writeln!(&mut output, "plaintext = [{}]", quoted_array(&self.plaintext))
-            .expect("write to string");
+        writeln!(
+            &mut output,
+            "plaintext = [{}]",
+            quoted_array(&self.plaintext)
+        )
+        .expect("write to string");
         writeln!(&mut output, "q = \"{}\"", self.q).expect("write to string");
         output
     }
@@ -186,8 +189,7 @@ impl SonobeStateCommitmentWitness {
     pub fn to_toml(&self) -> String {
         let mut output = String::new();
         writeln!(&mut output, "commit_pk = \"{}\"", self.commit_pk).expect("write to string");
-        writeln!(&mut output, "commit_ct_in = \"{}\"", self.commit_ct_in)
-            .expect("write to string");
+        writeln!(&mut output, "commit_ct_in = \"{}\"", self.commit_ct_in).expect("write to string");
         writeln!(&mut output, "commit_ct_out = \"{}\"", self.commit_ct_out)
             .expect("write to string");
         writeln!(&mut output, "session_id = \"{}\"", self.session_id).expect("write to string");
@@ -270,7 +272,10 @@ pub fn generate_decrypt_share_witness() -> DecryptShareWitness {
     let lhs = eval_poly_raw(&d_i_raw, r);
     let rhs = eval_poly_raw(&c1_raw, r) * eval_poly_raw(&sk_i_raw, r) + eval_poly_raw(&e_i_raw, r);
     let denominator = r_to_n + Fr::from(1u64);
-    let q = (rhs - lhs) * denominator.inverse().expect("challenge denominator must be non-zero");
+    let q = (rhs - lhs)
+        * denominator
+            .inverse()
+            .expect("challenge denominator must be non-zero");
 
     DecryptShareWitness {
         party_id: field_to_decimal(party_id),
@@ -292,7 +297,11 @@ pub fn generate_decrypt_share_witness() -> DecryptShareWitness {
 /// Generates a valid witness for the full-dimension `aggregator_final` circuit.
 pub fn generate_aggregator_final_witness() -> AggregatorFinalWitness {
     let decrypt_share = generate_decrypt_share_witness();
-    let d1_raw: Vec<Fr> = decrypt_share.d_i.iter().map(|value| decimal_to_field(value)).collect();
+    let d1_raw: Vec<Fr> = decrypt_share
+        .d_i
+        .iter()
+        .map(|value| decimal_to_field(value))
+        .collect();
 
     let mut d2_raw = vec![Fr::from(0u64); N];
     d2_raw[0] = Fr::from(7u64);
@@ -411,8 +420,12 @@ pub fn generate_sonobe_state_commitment_witness() -> SonobeStateCommitmentWitnes
         commit_ct_in: field_to_decimal(Fr::from(2u64)),
         commit_ct_out: field_to_decimal(Fr::from(3u64)),
         session_id: field_to_decimal(Fr::from(1u64)),
-        sonobe_final_state_commitment: field_to_decimal(poseidon_hash_4(&sonobe_state_preimage_raw)),
-        cyclo_aggregate_commitment: field_to_decimal(poseidon_hash_4(&cyclo_aggregate_preimage_raw)),
+        sonobe_final_state_commitment: field_to_decimal(poseidon_hash_4(
+            &sonobe_state_preimage_raw,
+        )),
+        cyclo_aggregate_commitment: field_to_decimal(poseidon_hash_4(
+            &cyclo_aggregate_preimage_raw,
+        )),
         sonobe_state_preimage: sonobe_state_preimage_raw
             .into_iter()
             .map(field_to_decimal)
@@ -527,7 +540,10 @@ fn negacyclic_convolution(left: &[Fr], right: &[Fr]) -> Vec<Fr> {
 }
 
 fn add_polys(left: &[Fr], right: &[Fr]) -> Vec<Fr> {
-    left.iter().zip(right).map(|(lhs, rhs)| *lhs + *rhs).collect()
+    left.iter()
+        .zip(right)
+        .map(|(lhs, rhs)| *lhs + *rhs)
+        .collect()
 }
 
 fn eval_poly_raw(coeffs: &[Fr], r: Fr) -> Fr {

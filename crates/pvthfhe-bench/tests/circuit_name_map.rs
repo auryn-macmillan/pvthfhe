@@ -7,7 +7,7 @@ use std::{
 };
 
 use pvthfhe_bench::comparison_map::{
-    comparison_row_name, mapping_for, INTERFOLD_CIRCUIT_NAMES, CIRCUIT_MAP,
+    comparison_row_name, mapping_for, CIRCUIT_MAP, INTERFOLD_CIRCUIT_NAMES,
 };
 use serde_json::{json, Value};
 
@@ -16,7 +16,8 @@ fn repo_root() -> PathBuf {
 }
 
 fn read_json(path: &Path) -> Value {
-    let raw = fs::read_to_string(path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()));
+    let raw =
+        fs::read_to_string(path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()));
     serde_json::from_str(&raw).unwrap_or_else(|err| panic!("parse {}: {err}", path.display()))
 }
 
@@ -106,7 +107,10 @@ fn refresh_dryrun_json() {
         .status()
         .expect("run bench_comparison --dry-run");
 
-    assert!(status.success(), "bench_comparison --dry-run should succeed");
+    assert!(
+        status.success(),
+        "bench_comparison --dry-run should succeed"
+    );
 
     let source = temp_dir.join("bench/results/comparison-dryrun.json");
     let dest = repo_root().join("bench/results/comparison-dryrun.json");
@@ -119,10 +123,13 @@ fn every_baseline_circuit_name_has_a_mapping_entry() {
     let names = baseline_names();
     let unique_names = names.iter().collect::<HashSet<_>>();
 
-    assert_eq!(names.len(), 12, "expected exactly 12 Interfold circuit names");
     assert_eq!(
-        names,
-        INTERFOLD_CIRCUIT_NAMES,
+        names.len(),
+        12,
+        "expected exactly 12 Interfold circuit names"
+    );
+    assert_eq!(
+        names, INTERFOLD_CIRCUIT_NAMES,
         "baseline must preserve the exact ordered Interfold circuit names"
     );
     assert_eq!(CIRCUIT_MAP.len(), 12, "expected exactly 12 mapping entries");
@@ -138,7 +145,10 @@ fn every_baseline_circuit_name_has_a_mapping_entry() {
             !mapping.pvthfhe_name.is_empty() || mapping.gap_reason.is_some(),
             "mapping for {name} must provide a PVTHFHE analogue or explicit gap reason"
         );
-        assert!(!mapping.cardinality.is_empty(), "mapping for {name} must declare cardinality");
+        assert!(
+            !mapping.cardinality.is_empty(),
+            "mapping for {name} must declare cardinality"
+        );
         assert!(
             !mapping.aggregation_rule.is_empty(),
             "mapping for {name} must declare aggregation_rule"
@@ -161,7 +171,9 @@ fn every_baseline_circuit_has_a_pvthfhe_timing_or_gap_reason() {
         let row = rows
             .iter()
             .find(|row| row["name"] == comparison_name)
-            .unwrap_or_else(|| panic!("missing comparison row for {interfold_name} as {comparison_name}"));
+            .unwrap_or_else(|| {
+                panic!("missing comparison row for {interfold_name} as {comparison_name}")
+            });
         let has_timing = ["prove_ms", "verify_ms", "witness_ms"]
             .iter()
             .any(|key| row[*key].is_number());

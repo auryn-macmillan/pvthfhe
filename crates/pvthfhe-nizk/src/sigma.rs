@@ -252,7 +252,11 @@ pub fn int_poly_to_rns(coeffs: &[i64], ctx: &Arc<Context>) -> Result<Vec<u64>, N
 }
 
 /// Multiply two polynomials in RNS power-basis representation over R_Q.
-pub fn poly_mul_rq(a_rns: &[u64], b_rns: &[u64], ctx: &Arc<Context>) -> Result<Vec<u64>, NizkError> {
+pub fn poly_mul_rq(
+    a_rns: &[u64],
+    b_rns: &[u64],
+    ctx: &Arc<Context>,
+) -> Result<Vec<u64>, NizkError> {
     let mut pa = Poly::try_convert_from(a_rns.to_vec(), ctx, false, Representation::PowerBasis)
         .map_err(|_| NizkError::InvalidInput("Poly convert failed for a"))?;
     let mut pb = Poly::try_convert_from(b_rns.to_vec(), ctx, false, Representation::PowerBasis)

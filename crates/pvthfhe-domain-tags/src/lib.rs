@@ -63,8 +63,12 @@ impl Tag {
             Tag::WirePvssDecryptOpenedProof => b"pvthfhe/wire/pvss-decrypt-opened-proof/v1",
             Tag::CycloAjtaiBinding => b"pvthfhe/cyclo-ajtai-binding/v1",
             Tag::PvssBatchedDkgShareEncryption => b"pvthfhe/pvss/batched-dkg-share-encryption/v1",
-            Tag::PvssBatchedDkgShareEncryptionSkTrack => b"pvthfhe/pvss/batched-dkg-share-encryption/sk-track/v1",
-            Tag::PvssBatchedDkgShareEncryptionESmTrack => b"pvthfhe/pvss/batched-dkg-share-encryption/e-sm-track/v1",
+            Tag::PvssBatchedDkgShareEncryptionSkTrack => {
+                b"pvthfhe/pvss/batched-dkg-share-encryption/sk-track/v1"
+            }
+            Tag::PvssBatchedDkgShareEncryptionESmTrack => {
+                b"pvthfhe/pvss/batched-dkg-share-encryption/e-sm-track/v1"
+            }
             Tag::PvssSmudgeSlotBatch => b"pvthfhe/pvss/smudge-slot-batch/v1",
             Tag::PvssTranscriptRootBinding => b"pvthfhe/pvss/transcript-root-binding/v1",
         }

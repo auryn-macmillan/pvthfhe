@@ -26,7 +26,8 @@ fn write_json(path: &Path, value: &Value) {
 }
 
 fn read_json(path: &Path) -> Value {
-    let raw = fs::read_to_string(path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()));
+    let raw =
+        fs::read_to_string(path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()));
     serde_json::from_str(&raw).unwrap_or_else(|err| panic!("parse {}: {err}", path.display()))
 }
 
@@ -159,7 +160,10 @@ fn schema_version_mismatch_exits_nonzero() {
         .output()
         .expect("run bench_comparison");
 
-    assert!(!output.status.success(), "schema version mismatch should fail");
+    assert!(
+        !output.status.success(),
+        "schema version mismatch should fail"
+    );
     assert!(
         String::from_utf8_lossy(&output.stderr).contains("version"),
         "stderr should mention version mismatch, stderr: {}",

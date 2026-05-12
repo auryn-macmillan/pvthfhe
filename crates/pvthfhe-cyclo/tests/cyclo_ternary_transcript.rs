@@ -26,13 +26,7 @@ fn domain_separator_differs_from_sonobe_v1() {
 
     let ternary = t2.sample_challenge();
 
-    let sonobe_hash = challenge_v1(
-        "test-session",
-        0,
-        b"fold-data",
-        b"",
-        b"",
-    );
+    let sonobe_hash = challenge_v1("test-session", 0, b"fold-data", b"", b"");
 
     // The ternary challenge (i8 in {-1,0,1}) and the Sonobe challenge
     // (u16 from SHA-256) are fundamentally different types and values.
@@ -113,5 +107,8 @@ fn different_absorbed_data_produces_different_challenges() {
             break;
         }
     }
-    assert!(different, "different absorbed data must produce different challenges");
+    assert!(
+        different,
+        "different absorbed data must produce different challenges"
+    );
 }

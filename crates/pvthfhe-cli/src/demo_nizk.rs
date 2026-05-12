@@ -1,11 +1,11 @@
 //! Shared demo NIZK input construction for pvthfhe-cli binaries and tests.
 
 use anyhow::Context;
-use sha2::{Digest, Sha256};
 use pvthfhe_aggregator::keygen::types::Round1Message;
 use pvthfhe_fhe::real_nizk::{NizkStatement, NizkWitness};
 use pvthfhe_rng::OsRng;
 use rand::RngCore;
+use sha2::{Digest, Sha256};
 
 /// Build the demo NIZK statement and witness used by the CLI binaries.
 ///
@@ -40,7 +40,7 @@ pub fn build_demo_nizk_inputs(
             {
                 let _ = s;
                 anyhow::bail!(
-                     "demo_nizk: seed={} requires --features demo-seeded-rng (insecure flag). \
+                    "demo_nizk: seed={} requires --features demo-seeded-rng (insecure flag). \
                      Without this feature, the seed flag is a tripwire; use seed=0 or \
                      compile with --features demo-seeded-rng for deterministic demos.",
                     s
@@ -88,7 +88,6 @@ pub fn build_demo_nizk_inputs(
         },
     ))
 }
-
 
 /// Derive a deterministic small-norm error polynomial from secret key bytes.
 ///

@@ -72,9 +72,15 @@ fn positive_satisfying_witness_returns_ok() {
 
     let z = [Fr::from(1u64), Fr::from(2u64), Fr::from(3u64)];
     let m = [
-        Fr::ZERO, Fr::ZERO, Fr::ZERO,
-        Fr::from(3u64), Fr::ZERO, -Fr::from(1u64),
-        -Fr::from(6u64), Fr::from(3u64), Fr::ZERO,
+        Fr::ZERO,
+        Fr::ZERO,
+        Fr::ZERO,
+        Fr::from(3u64),
+        Fr::ZERO,
+        -Fr::from(1u64),
+        -Fr::from(6u64),
+        Fr::from(3u64),
+        Fr::ZERO,
     ];
 
     let instance = make_instance(3, 3, &m, &z);
@@ -95,9 +101,15 @@ fn negative_non_satisfying_witness_returns_err() {
 
     let z = [Fr::from(1u64), Fr::from(2u64), Fr::from(4u64)];
     let m = [
-        Fr::ZERO, Fr::ZERO, Fr::ZERO,
-        Fr::from(3u64), Fr::ZERO, -Fr::from(1u64),
-        -Fr::from(6u64), Fr::from(3u64), Fr::ZERO,
+        Fr::ZERO,
+        Fr::ZERO,
+        Fr::ZERO,
+        Fr::from(3u64),
+        Fr::ZERO,
+        -Fr::from(1u64),
+        -Fr::from(6u64),
+        Fr::from(3u64),
+        Fr::ZERO,
     ];
 
     let instance = make_instance(3, 3, &m, &z);

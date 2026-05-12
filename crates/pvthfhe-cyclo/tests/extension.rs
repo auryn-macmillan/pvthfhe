@@ -51,15 +51,29 @@ fn extend_r0_is_identity_like() {
     let b = make_instance(2, wb.clone());
     let ext = extend(&a, &b, 0).expect("extend r=0 should succeed");
 
-    assert_eq!(ext.combined_witness_bytes, wa.iter().zip(wb.iter()).map(|(x, y)| x ^ y).collect::<Vec<_>>());
+    assert_eq!(
+        ext.combined_witness_bytes,
+        wa.iter()
+            .zip(wb.iter())
+            .map(|(x, y)| x ^ y)
+            .collect::<Vec<_>>()
+    );
     assert_eq!(ext.challenge_r, 0);
 
     // r=0: combined = a + 0*b = a; norm = max(|a_i|)
-    let expected_norm = a_frs.iter().map(|fr| {
-        let c = fr_u64(fr) % 562_949_953_438_721;
-        let neg = 562_949_953_438_721 - c;
-        if neg < c { neg } else { c }
-    }).max().unwrap();
+    let expected_norm = a_frs
+        .iter()
+        .map(|fr| {
+            let c = fr_u64(fr) % 562_949_953_438_721;
+            let neg = 562_949_953_438_721 - c;
+            if neg < c {
+                neg
+            } else {
+                c
+            }
+        })
+        .max()
+        .unwrap();
     assert_eq!(ext.norm_estimate, expected_norm);
 }
 
@@ -73,17 +87,32 @@ fn extend_r1_correct() {
     let b = make_instance(2, wb.clone());
     let ext = extend(&a, &b, 1).expect("extend r=1");
 
-    assert_eq!(ext.combined_witness_bytes, wa.iter().zip(wb.iter()).map(|(x, y)| x ^ y).collect::<Vec<_>>());
+    assert_eq!(
+        ext.combined_witness_bytes,
+        wa.iter()
+            .zip(wb.iter())
+            .map(|(x, y)| x ^ y)
+            .collect::<Vec<_>>()
+    );
     assert_eq!(ext.challenge_r, 1);
 
     // r=1: combined = a + b; norm = max(|a_i + b_i|)
     use pvthfhe_cyclo::ring::Q_COMMIT;
-    let expected_norm = a_frs.iter().zip(b_frs.iter()).map(|(x, y)| {
-        let sum = fr_u64(x) + fr_u64(y);
-        let c = sum % Q_COMMIT;
-        let neg = Q_COMMIT - c;
-        if neg < c { neg } else { c }
-    }).max().unwrap();
+    let expected_norm = a_frs
+        .iter()
+        .zip(b_frs.iter())
+        .map(|(x, y)| {
+            let sum = fr_u64(x) + fr_u64(y);
+            let c = sum % Q_COMMIT;
+            let neg = Q_COMMIT - c;
+            if neg < c {
+                neg
+            } else {
+                c
+            }
+        })
+        .max()
+        .unwrap();
     assert_eq!(ext.norm_estimate, expected_norm);
 }
 
@@ -97,17 +126,32 @@ fn extend_r_neg1_correct() {
     let b = make_instance(2, wb.clone());
     let ext = extend(&a, &b, -1).expect("extend r=-1");
 
-    assert_eq!(ext.combined_witness_bytes, wa.iter().zip(wb.iter()).map(|(x, y)| x ^ y).collect::<Vec<_>>());
+    assert_eq!(
+        ext.combined_witness_bytes,
+        wa.iter()
+            .zip(wb.iter())
+            .map(|(x, y)| x ^ y)
+            .collect::<Vec<_>>()
+    );
     assert_eq!(ext.challenge_r, -1);
 
     // r=-1: combined = a - b; norm = max(|a_i - b_i|)
     use pvthfhe_cyclo::ring::Q_COMMIT;
-    let expected_norm = a_frs.iter().zip(b_frs.iter()).map(|(x, y)| {
-        let diff = fr_u64(x).wrapping_sub(fr_u64(y));
-        let c = diff % Q_COMMIT;
-        let neg = Q_COMMIT - c;
-        if neg < c { neg } else { c }
-    }).max().unwrap();
+    let expected_norm = a_frs
+        .iter()
+        .zip(b_frs.iter())
+        .map(|(x, y)| {
+            let diff = fr_u64(x).wrapping_sub(fr_u64(y));
+            let c = diff % Q_COMMIT;
+            let neg = Q_COMMIT - c;
+            if neg < c {
+                neg
+            } else {
+                c
+            }
+        })
+        .max()
+        .unwrap();
     assert_eq!(ext.norm_estimate, expected_norm);
 }
 

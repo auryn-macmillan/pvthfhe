@@ -256,7 +256,9 @@ fn matching_session_binding_passes() {
         randomness: vec![],
     };
     let proof = adapter.prove(&stmt, &witness, &mut rng).expect("prove");
-    adapter.verify(&stmt, &proof).expect("legitimate proof must verify");
+    adapter
+        .verify(&stmt, &proof)
+        .expect("legitimate proof must verify");
 }
 
 /// C2-GRN-2: Different participant_id is correctly rejected (not a false

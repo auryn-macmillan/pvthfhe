@@ -7,9 +7,9 @@
 
 pub mod witness_language;
 
-use serde::{Deserialize, Serialize};
 use core::mem::ManuallyDrop;
 use core::ops::{Deref, DerefMut};
+use serde::{Deserialize, Serialize};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Secret material that is zeroized on drop.

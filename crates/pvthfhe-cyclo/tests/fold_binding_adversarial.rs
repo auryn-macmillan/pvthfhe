@@ -8,9 +8,9 @@ use pvthfhe_cyclo::{
     fold::{fold_one_step, init_accumulator, verify_fold},
     CcsPShareInstance,
 };
+use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
-use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
 use sha2::{Digest, Sha256};
 
 fn matrix_1x1(e: Fr) -> Vec<u8> {
@@ -94,8 +94,7 @@ fn fold_does_not_use_sha256_extension_chain() {
         .finalize()
         .to_vec();
 
-    let new_acc = fold_one_step(acc, &instance, &mut rng)
-        .expect("fold_one_step should not fail");
+    let new_acc = fold_one_step(acc, &instance, &mut rng).expect("fold_one_step should not fail");
 
     assert_ne!(
         new_acc.acc_commitment_bytes, old_combined,

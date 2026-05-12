@@ -21,10 +21,7 @@ fn round_trip_serialization() {
     assert_eq!(decoded.n, timings.n);
     assert_eq!(decoded.t, timings.t);
     assert_eq!(decoded.seed, timings.seed);
-    assert_eq!(
-        decoded.compressor_backend_id,
-        timings.compressor_backend_id
-    );
+    assert_eq!(decoded.compressor_backend_id, timings.compressor_backend_id);
     assert_eq!(decoded.produced_at_unix_secs, timings.produced_at_unix_secs);
     assert_eq!(decoded.git_sha, timings.git_sha);
 }

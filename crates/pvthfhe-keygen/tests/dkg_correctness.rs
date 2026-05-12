@@ -25,9 +25,7 @@ fn dkg_n10_t7_correctness_encrypt_decrypt() {
     // Collect t=7 decryption shares from the first 7 parties
     let mut decrypt_shares = Vec::with_capacity(7);
     for party_id in 1u32..=7 {
-        let share = dkg
-            .partial_decrypt(&ct, party_id)
-            .expect("partial decrypt");
+        let share = dkg.partial_decrypt(&ct, party_id).expect("partial decrypt");
         decrypt_shares.push(share);
     }
 
@@ -53,26 +51,16 @@ fn dkg_consistency_across_different_quorums() {
     // Quorum A: parties 1–7
     let mut shares_a = Vec::with_capacity(7);
     for party_id in 1u32..=7 {
-        shares_a.push(
-            dkg.partial_decrypt(&ct, party_id)
-                .expect("partial decrypt"),
-        );
+        shares_a.push(dkg.partial_decrypt(&ct, party_id).expect("partial decrypt"));
     }
-    let recovered_a = dkg
-        .aggregate_decrypt(&ct, &shares_a)
-        .expect("aggregate a");
+    let recovered_a = dkg.aggregate_decrypt(&ct, &shares_a).expect("aggregate a");
 
     // Quorum B: parties 4–10
     let mut shares_b = Vec::with_capacity(7);
     for party_id in 4u32..=10 {
-        shares_b.push(
-            dkg.partial_decrypt(&ct, party_id)
-                .expect("partial decrypt"),
-        );
+        shares_b.push(dkg.partial_decrypt(&ct, party_id).expect("partial decrypt"));
     }
-    let recovered_b = dkg
-        .aggregate_decrypt(&ct, &shares_b)
-        .expect("aggregate b");
+    let recovered_b = dkg.aggregate_decrypt(&ct, &shares_b).expect("aggregate b");
 
     assert_eq!(recovered_a, plaintext);
     assert_eq!(recovered_b, plaintext);

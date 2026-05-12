@@ -179,7 +179,8 @@ pub struct AjtaiMatrix {
 impl AjtaiMatrix {
     /// Constructs the matrix by sampling each entry uniformly from `R_q`
     /// using a seeded `ChaCha20Rng`.
-    pub fn from_seed(seed: [u8; 32], params: &AjtaiParams, m: usize) -> Result<Self, NizkError> { // allow-seeded-rng: API surface; binding enforced at callsite
+    pub fn from_seed(seed: [u8; 32], params: &AjtaiParams, m: usize) -> Result<Self, NizkError> {
+        // allow-seeded-rng: API surface; binding enforced at callsite
         use rand_chacha::ChaCha20Rng;
         use rand_core::SeedableRng;
         let mut rng = ChaCha20Rng::from_seed(seed); // allow-seeded-rng: matrix sampler internal to from_seed

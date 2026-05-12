@@ -78,12 +78,7 @@ fn committed_smudge_rejects_garbage_esm_bytes() {
     // Provide bytes that cannot deserialize into a valid Poly
     let garbage = vec![0xFFu8; 128];
 
-    let result = backend.partial_decrypt_committed_smudge(
-        &ct,
-        1,
-        &garbage,
-        &mut rng,
-    );
+    let result = backend.partial_decrypt_committed_smudge(&ct, 1, &garbage, &mut rng);
 
     assert!(
         result.is_err(),
@@ -110,12 +105,7 @@ fn committed_smudge_with_valid_esm_succeeds() {
     );
 
     // Now use those esm bytes in the committed-smudge path
-    let result = backend.partial_decrypt_committed_smudge(
-        &ct,
-        2,
-        &esm_bytes,
-        &mut rng,
-    );
+    let result = backend.partial_decrypt_committed_smudge(&ct, 2, &esm_bytes, &mut rng);
 
     assert!(
         result.is_ok(),
@@ -142,12 +132,7 @@ fn committed_smudge_witness_marks_esm_committed_true() {
 
     // Use the committed-smudge witness path
     let (_decrypt_share, witness) = backend
-        .partial_decrypt_committed_smudge_with_witness(
-            &ct,
-            3,
-            &esm_bytes,
-            &mut rng,
-        )
+        .partial_decrypt_committed_smudge_with_witness(&ct, 3, &esm_bytes, &mut rng)
         .expect("committed smudge with witness");
 
     assert!(
@@ -196,12 +181,7 @@ fn committed_smudge_witness_records_provided_esm_bytes() {
 
     // Committed smudge with witness
     let (_decrypt_share, witness) = backend
-        .partial_decrypt_committed_smudge_with_witness(
-            &ct,
-            4,
-            &esm_bytes,
-            &mut rng,
-        )
+        .partial_decrypt_committed_smudge_with_witness(&ct, 4, &esm_bytes, &mut rng)
         .expect("committed smudge with witness");
 
     // The witness must record exactly the esm we provided
@@ -253,8 +233,7 @@ fn committed_smudge_produces_different_bytes_than_fresh_local() {
         .expect("level-0 context");
 
     for share_bytes in [&decrypt_share_fresh.bytes, &decrypt_share_committed.bytes] {
-        let decoded =
-            wire::decode_decrypt_share(share_bytes).expect("decode decrypt share");
+        let decoded = wire::decode_decrypt_share(share_bytes).expect("decode decrypt share");
         let _poly = Poly::from_bytes(decoded.d_share_poly.as_slice(), &ctx)
             .expect("deserialize share poly");
     }

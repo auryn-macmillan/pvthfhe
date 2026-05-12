@@ -1,14 +1,14 @@
 //! Frozen trait surface for the P1 PVSS backend boundary.
 
-/// BN254 scalar Shamir secret sharing.
-pub mod shamir;
+pub mod dkg_aggregation;
 /// BFV-backed PVSS encryption adapter.
 pub mod encrypt;
-/// Share-encryption NIZK helpers and proof types.
-pub mod nizk_share;
 /// Share-decryption NIZK helpers and proof types.
 pub mod nizk_decrypt;
-pub mod dkg_aggregation;
+/// Share-encryption NIZK helpers and proof types.
+pub mod nizk_share;
+/// BN254 scalar Shamir secret sharing.
+pub mod shamir;
 pub mod share_computation;
 
 use pvthfhe_types::{ProtocolBytes, ShareSecret};
@@ -128,7 +128,9 @@ impl core::fmt::Debug for PvssError {
             Self::ChallengeVerificationFailed => f.write_str("ChallengeVerificationFailed"),
             Self::CiphertextVMismatch => f.write_str("CiphertextVMismatch"),
             Self::InvalidCommitmentStructure => f.write_str("InvalidCommitmentStructure"),
-            Self::LatticeBindingVerificationFailed => f.write_str("LatticeBindingVerificationFailed"),
+            Self::LatticeBindingVerificationFailed => {
+                f.write_str("LatticeBindingVerificationFailed")
+            }
             Self::D2HashBindingFailed => f.write_str("D2HashBindingFailed"),
             Self::BfvEncryptionProofFailed => f.write_str("BfvEncryptionProofFailed"),
         }
@@ -143,12 +145,18 @@ impl core::fmt::Display for PvssError {
             Self::BackendError(s) => write!(f, "PVSS backend error: {s}"),
             Self::InvalidDomainSeparator => f.write_str("PVSS proof domain separator mismatch"),
             Self::StatementMismatch => f.write_str("PVSS proof statement mismatch"),
-            Self::ChallengeVerificationFailed => f.write_str("PVSS Fiat-Shamir challenge verification failed"),
+            Self::ChallengeVerificationFailed => {
+                f.write_str("PVSS Fiat-Shamir challenge verification failed")
+            }
             Self::CiphertextVMismatch => f.write_str("PVSS ciphertext_v reconstruction mismatch"),
             Self::InvalidCommitmentStructure => f.write_str("PVSS commitment structure invalid"),
-            Self::LatticeBindingVerificationFailed => f.write_str("PVSS lattice binding verification failed"),
+            Self::LatticeBindingVerificationFailed => {
+                f.write_str("PVSS lattice binding verification failed")
+            }
             Self::D2HashBindingFailed => f.write_str("PVSS D2 hash binding verification failed"),
-            Self::BfvEncryptionProofFailed => f.write_str("PVSS BFV encryption proof verification failed"),
+            Self::BfvEncryptionProofFailed => {
+                f.write_str("PVSS BFV encryption proof verification failed")
+            }
         }
     }
 }
@@ -201,7 +209,11 @@ impl PvssAdapter for NoopPvssAdapter {
         Err(PvssError::BackendError("noop-pvss".to_owned()))
     }
 
-    fn verify_shares(&self, _shares: &EncryptedShares, _ctx: &PvssContext) -> Result<(), PvssError> {
+    fn verify_shares(
+        &self,
+        _shares: &EncryptedShares,
+        _ctx: &PvssContext,
+    ) -> Result<(), PvssError> {
         Err(PvssError::BackendError("noop-pvss".to_owned()))
     }
 

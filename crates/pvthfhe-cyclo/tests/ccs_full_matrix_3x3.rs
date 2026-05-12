@@ -40,17 +40,35 @@ fn three_matrix_valid_a_times_b_equals_c_satisfies() {
     let witness = vec![a.clone(), b.clone(), c.clone(), one.clone(), zero.clone()];
 
     // M1 selects a (index 0)
-    let m1_data = serialize_matrix_rq(1, 5, &[
-        one.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone(),
-    ]);
+    let m1_data = serialize_matrix_rq(
+        1,
+        5,
+        &[
+            one.clone(),
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+        ],
+    );
     // M2 selects b (index 1)
-    let m2_data = serialize_matrix_rq(1, 5, &[
-        zero.clone(), one.clone(), zero.clone(), zero.clone(), zero.clone(),
-    ]);
+    let m2_data = serialize_matrix_rq(
+        1,
+        5,
+        &[
+            zero.clone(),
+            one.clone(),
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+        ],
+    );
     // M3 selects c (index 2)
-    let m3_data = serialize_matrix_rq(1, 5, &[
-        zero.clone(), zero.clone(), one.clone(), zero.clone(), zero,
-    ]);
+    let m3_data = serialize_matrix_rq(
+        1,
+        5,
+        &[zero.clone(), zero.clone(), one.clone(), zero.clone(), zero],
+    );
 
     let ajtai_hash: [u8; 32] = Sha256::new()
         .chain_update(b"test_a_times_b")
@@ -87,17 +105,41 @@ fn three_matrix_tampered_c_rejected() {
     let zero = zero_poly();
 
     // Tamper: use zero instead of correct c
-    let witness = vec![a.clone(), b.clone(), zero.clone(), one.clone(), zero.clone()];
+    let witness = vec![
+        a.clone(),
+        b.clone(),
+        zero.clone(),
+        one.clone(),
+        zero.clone(),
+    ];
 
-    let m1_data = serialize_matrix_rq(1, 5, &[
-        one.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone(),
-    ]);
-    let m2_data = serialize_matrix_rq(1, 5, &[
-        zero.clone(), one.clone(), zero.clone(), zero.clone(), zero.clone(),
-    ]);
-    let m3_data = serialize_matrix_rq(1, 5, &[
-        zero.clone(), zero.clone(), one.clone(), zero.clone(), zero,
-    ]);
+    let m1_data = serialize_matrix_rq(
+        1,
+        5,
+        &[
+            one.clone(),
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+        ],
+    );
+    let m2_data = serialize_matrix_rq(
+        1,
+        5,
+        &[
+            zero.clone(),
+            one.clone(),
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+        ],
+    );
+    let m3_data = serialize_matrix_rq(
+        1,
+        5,
+        &[zero.clone(), zero.clone(), one.clone(), zero.clone(), zero],
+    );
 
     let ajtai_hash: [u8; 32] = Sha256::new()
         .chain_update(b"test_tampered_c")

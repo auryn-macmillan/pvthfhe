@@ -4,9 +4,7 @@
 //! - Fr (BN254 scalar field) via `CcsInstance` and `check_satisfiability()`
 //! - R_q (polynomial ring) via `CcsRqInstance` and `check_satisfiability_rq()`
 
-use crate::ring::{
-    ntt_mul, ring_add_poly, rqpoly_to_bytes, RqPoly, PHI_COMMIT, Q_COMMIT,
-};
+use crate::ring::{ntt_mul, ring_add_poly, rqpoly_to_bytes, RqPoly, PHI_COMMIT, Q_COMMIT};
 use crate::{CcsPShareInstance, CycloError, MultiTrackPShareInstance};
 use ark_bn254::Fr;
 use ark_ff::{AdditiveGroup, PrimeField};
@@ -133,7 +131,9 @@ const U32_LEN: usize = 4;
 /// Parse a serialized CCS matrix into `(num_rows, num_cols, flat data)`.
 fn parse_matrix(bytes: &[u8]) -> Result<(u32, u32, Vec<Fr>), CycloError> {
     if bytes.len() < 2 * U32_LEN {
-        return Err(CycloError::InvalidInstance("ccs_matrix too short for header"));
+        return Err(CycloError::InvalidInstance(
+            "ccs_matrix too short for header",
+        ));
     }
     let rows = u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
     let cols = u32::from_be_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]);
@@ -152,7 +152,9 @@ fn parse_matrix(bytes: &[u8]) -> Result<(u32, u32, Vec<Fr>), CycloError> {
 /// Parse serialized witness bytes into a vector of Fr elements.
 pub fn parse_witness(bytes: &[u8]) -> Result<Vec<Fr>, CycloError> {
     if bytes.len() < U32_LEN {
-        return Err(CycloError::InvalidInstance("witness_bytes too short for header"));
+        return Err(CycloError::InvalidInstance(
+            "witness_bytes too short for header",
+        ));
     }
     let num_vars = u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
     let expected_len = U32_LEN + num_vars as usize * FR_SERIALIZED_LEN;
@@ -177,8 +179,7 @@ fn fr_from_bytes_le(bytes: &[u8]) -> Result<Fr, CycloError> {
         *limb = u64::from_le_bytes(arr);
     }
     let bigint = ark_ff::BigInt::new(limbs);
-    Fr::from_bigint(bigint)
-        .ok_or_else(|| CycloError::InvalidInstance("Fr deserialization failure"))
+    Fr::from_bigint(bigint).ok_or_else(|| CycloError::InvalidInstance("Fr deserialization failure"))
 }
 
 /// Compute `m · z` (matrix-vector multiply, field arithmetic).
@@ -244,9 +245,7 @@ fn parse_rq_matrix(bytes: &[u8]) -> Result<(u32, u32, Vec<RqPoly>), CycloError> 
     let num_entries = (rows as usize) * (cols as usize);
     let expected_data_len = num_entries * RQ_POLY_BYTES;
     if bytes.len() != 2 * U32_LEN + expected_data_len {
-        return Err(CycloError::InvalidInstance(
-            "ccs_rq_matrix length mismatch",
-        ));
+        return Err(CycloError::InvalidInstance("ccs_rq_matrix length mismatch"));
     }
     let mut polys = Vec::with_capacity(num_entries);
     let data_start = 2 * U32_LEN;
@@ -276,8 +275,7 @@ fn mat_vec_mul_rq(rows: u32, cols: u32, m: &[RqPoly], z: &[RqPoly]) -> Vec<RqPol
     for r in 0..rows as usize {
         let mut acc = zero_rq_poly();
         for c in 0..cols as usize {
-            let prod = ntt_mul(&m[r * cols as usize + c], &z[c])
-                .unwrap_or_else(|_| zero_rq_poly());
+            let prod = ntt_mul(&m[r * cols as usize + c], &z[c]).unwrap_or_else(|_| zero_rq_poly());
             acc = ring_add_poly(&acc, &prod);
         }
         result[r] = acc;
@@ -296,7 +294,10 @@ pub fn check_satisfiability_rq(instance: &CcsRqInstance) -> Result<(), CycloErro
     let has_three_matrices = !instance.m2_bytes.is_empty() || !instance.m3_bytes.is_empty();
 
     if has_three_matrices {
-        if instance.m1_bytes.is_empty() || instance.m2_bytes.is_empty() || instance.m3_bytes.is_empty() {
+        if instance.m1_bytes.is_empty()
+            || instance.m2_bytes.is_empty()
+            || instance.m3_bytes.is_empty()
+        {
             return Err(CycloError::InvalidInstance(
                 "3-matrix CCS: m1_bytes, m2_bytes, and m3_bytes must all be non-empty",
             ));
@@ -449,7 +450,7 @@ pub fn encode_rq_instance(instance: &CcsRqInstance) -> Vec<u8> {
 pub fn decode_rq_instance(bytes: &[u8]) -> Result<CcsRqInstance, CycloError> {
     const HDR_MIN: usize = 4 + 4   // num_rows + num_cols
         + 4                        // first m1_len
-        + 32 + 32;                 // ajtai_hash + public_io_hash
+        + 32 + 32; // ajtai_hash + public_io_hash
 
     if bytes.len() < HDR_MIN {
         return Err(CycloError::InvalidInstance(
@@ -467,8 +468,7 @@ pub fn decode_rq_instance(bytes: &[u8]) -> Result<CcsRqInstance, CycloError> {
     pos += 4;
 
     // Read m1_len then m1_bytes (interleaved)
-    let m1_len =
-        u32::from_be_bytes([bytes[pos], bytes[pos + 1], bytes[pos + 2], bytes[pos + 3]]);
+    let m1_len = u32::from_be_bytes([bytes[pos], bytes[pos + 1], bytes[pos + 2], bytes[pos + 3]]);
     pos += 4;
     if bytes.len() < pos + m1_len as usize {
         return Err(CycloError::InvalidInstance(
@@ -488,8 +488,7 @@ pub fn decode_rq_instance(bytes: &[u8]) -> Result<CcsRqInstance, CycloError> {
             "encoded R_q instance truncated at m2_len",
         ));
     }
-    let m2_len =
-        u32::from_be_bytes([bytes[pos], bytes[pos + 1], bytes[pos + 2], bytes[pos + 3]]);
+    let m2_len = u32::from_be_bytes([bytes[pos], bytes[pos + 1], bytes[pos + 2], bytes[pos + 3]]);
     pos += 4;
     if bytes.len() < pos + m2_len as usize {
         return Err(CycloError::InvalidInstance(
@@ -509,8 +508,7 @@ pub fn decode_rq_instance(bytes: &[u8]) -> Result<CcsRqInstance, CycloError> {
             "encoded R_q instance truncated at m3_len",
         ));
     }
-    let m3_len =
-        u32::from_be_bytes([bytes[pos], bytes[pos + 1], bytes[pos + 2], bytes[pos + 3]]);
+    let m3_len = u32::from_be_bytes([bytes[pos], bytes[pos + 1], bytes[pos + 2], bytes[pos + 3]]);
     pos += 4;
     if bytes.len() < pos + m3_len as usize {
         return Err(CycloError::InvalidInstance(
@@ -524,8 +522,7 @@ pub fn decode_rq_instance(bytes: &[u8]) -> Result<CcsRqInstance, CycloError> {
     };
     pos += m3_len as usize;
 
-    let num_vars =
-        u32::from_be_bytes([bytes[pos], bytes[pos + 1], bytes[pos + 2], bytes[pos + 3]]);
+    let num_vars = u32::from_be_bytes([bytes[pos], bytes[pos + 1], bytes[pos + 2], bytes[pos + 3]]);
     pos += 4;
 
     let expected_witness_bytes = num_vars as usize * RQ_POLY_BYTES;
@@ -618,18 +615,48 @@ mod tests {
 
     #[test]
     fn encode_decode_rq_three_matrix_roundtrip() {
-        let z = vec![one_poly(), one_poly(), one_poly(), one_poly(), RqPoly::zero()];
+        let z = vec![
+            one_poly(),
+            one_poly(),
+            one_poly(),
+            one_poly(),
+            RqPoly::zero(),
+        ];
         // 1×5 matrices for a*b=c check:
         // M1 selects z[0]=a, M2 selects z[1]=b, M3 selects z[2]=c
-        let m1_data = serialize_matrix_rq(1, 5, &[
-            one_poly(), RqPoly::zero(), RqPoly::zero(), RqPoly::zero(), RqPoly::zero(),
-        ]);
-        let m2_data = serialize_matrix_rq(1, 5, &[
-            RqPoly::zero(), one_poly(), RqPoly::zero(), RqPoly::zero(), RqPoly::zero(),
-        ]);
-        let m3_data = serialize_matrix_rq(1, 5, &[
-            RqPoly::zero(), RqPoly::zero(), one_poly(), RqPoly::zero(), RqPoly::zero(),
-        ]);
+        let m1_data = serialize_matrix_rq(
+            1,
+            5,
+            &[
+                one_poly(),
+                RqPoly::zero(),
+                RqPoly::zero(),
+                RqPoly::zero(),
+                RqPoly::zero(),
+            ],
+        );
+        let m2_data = serialize_matrix_rq(
+            1,
+            5,
+            &[
+                RqPoly::zero(),
+                one_poly(),
+                RqPoly::zero(),
+                RqPoly::zero(),
+                RqPoly::zero(),
+            ],
+        );
+        let m3_data = serialize_matrix_rq(
+            1,
+            5,
+            &[
+                RqPoly::zero(),
+                RqPoly::zero(),
+                one_poly(),
+                RqPoly::zero(),
+                RqPoly::zero(),
+            ],
+        );
 
         let instance = CcsRqInstance {
             ajtai_hash: [3u8; 32],

@@ -4,7 +4,9 @@
 //! ring `Z_q[X]/(X^256+1)`. The commitment matrix `A ∈ R_q^{m×n}` is derived
 //! deterministically from a seed stored in [`AjtaiParams`].
 
-use crate::ring::{bytes_to_rqpoly, ntt_mul, ring_add_poly, rqpoly_to_bytes, RqPoly, PHI_COMMIT, Q_COMMIT};
+use crate::ring::{
+    bytes_to_rqpoly, ntt_mul, ring_add_poly, rqpoly_to_bytes, RqPoly, PHI_COMMIT, Q_COMMIT,
+};
 use crate::CycloError;
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
@@ -38,9 +40,7 @@ fn generate_matrix(params: &AjtaiParams) -> Vec<Vec<RqPoly>> {
     for _row in 0..params.m {
         let mut row = Vec::with_capacity(params.n);
         for _col in 0..params.n {
-            let coeffs: Vec<u64> = (0..PHI_COMMIT)
-                .map(|_| rng.next_u64() % Q_COMMIT)
-                .collect();
+            let coeffs: Vec<u64> = (0..PHI_COMMIT).map(|_| rng.next_u64() % Q_COMMIT).collect();
             row.push(RqPoly(coeffs));
         }
         matrix.push(row);
@@ -83,11 +83,7 @@ pub fn commit(
 ///
 /// Recomputes `A·w` from the deterministic matrix and checks element-wise
 /// equality against the stored commitment vector.
-pub fn verify(
-    params: &AjtaiParams,
-    commitment: &AjtaiCommitment,
-    witness: &[RqPoly],
-) -> bool {
+pub fn verify(params: &AjtaiParams, commitment: &AjtaiCommitment, witness: &[RqPoly]) -> bool {
     if commitment.commitment.len() != params.m {
         return false;
     }

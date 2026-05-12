@@ -65,8 +65,8 @@ fn challenge_entropy_minimum_13_bits() {
         let session_id = format!("challenge-entropy-{:05}", i);
         let instance = make_instance(1, i as u8);
 
-        let acc = init_accumulator(&instance, &session_id)
-            .expect("init_accumulator should succeed");
+        let acc =
+            init_accumulator(&instance, &session_id).expect("init_accumulator should succeed");
 
         let challenge = compute_challenge(
             &acc.session_id,
@@ -80,8 +80,8 @@ fn challenge_entropy_minimum_13_bits() {
         let old_public_io = acc.acc_public_io_bytes.clone();
         let session_id_clone = acc.session_id.clone();
 
-        let new_acc = fold_one_step(acc, &instance, &mut rng)
-            .expect("fold_one_step should succeed");
+        let new_acc =
+            fold_one_step(acc, &instance, &mut rng).expect("fold_one_step should succeed");
 
         let expected_io = fiat_shamir::public_io_v1(
             &session_id_clone,
@@ -100,9 +100,7 @@ fn challenge_entropy_minimum_13_bits() {
     }
 
     let unique_count = seen_challenges.len();
-    eprintln!(
-        "challenge_entropy: {unique_count} unique challenges out of {NUM_SAMPLES} samples"
-    );
+    eprintln!("challenge_entropy: {unique_count} unique challenges out of {NUM_SAMPLES} samples");
 
     assert!(
         unique_count >= 8192,

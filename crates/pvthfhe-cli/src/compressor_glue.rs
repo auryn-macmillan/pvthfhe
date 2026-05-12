@@ -10,7 +10,7 @@ use {
     ark_bn254::Fr,
     ark_ff::PrimeField,
     pvthfhe_compressor::{
-        sonobe::{encode_triple, SonobeCompressor, CycloFoldStepCircuit},
+        sonobe::{encode_triple, CycloFoldStepCircuit, SonobeCompressor},
         CompressedProof as SonobeProof, ProofCompressor, VerifierKey,
     },
 };

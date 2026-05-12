@@ -60,8 +60,8 @@ fn make_instance(id: u16) -> CcsPShareInstance {
 #[test]
 fn commitment_is_not_sha256_hash() {
     let instance = make_instance(1);
-    let acc = init_accumulator(&instance, "test-session")
-        .expect("init_accumulator should not fail");
+    let acc =
+        init_accumulator(&instance, "test-session").expect("init_accumulator should not fail");
     assert_ne!(
         acc.acc_commitment_bytes.len(),
         32,
@@ -79,12 +79,10 @@ fn commitment_is_not_sha256_hash() {
 #[test]
 fn commitment_decodes_as_ajtai() {
     let instance = make_instance(1);
-    let acc = init_accumulator(&instance, "test-session")
-        .expect("init_accumulator should not fail");
-    let decoded = pvthfhe_cyclo::ajtai::decode_commitment(
-        &acc.acc_commitment_bytes,
-        AJTAI_COMMITMENT_M,
-    );
+    let acc =
+        init_accumulator(&instance, "test-session").expect("init_accumulator should not fail");
+    let decoded =
+        pvthfhe_cyclo::ajtai::decode_commitment(&acc.acc_commitment_bytes, AJTAI_COMMITMENT_M);
     assert!(
         decoded.is_ok(),
         "Accumulator commitment must decode as AjtaiCommitment with m=13"
@@ -96,12 +94,10 @@ fn commitment_decodes_as_ajtai() {
 fn valid_fold_with_ajtai_commitment_passes() {
     let instance = make_instance(1);
     let mut rng = ChaCha20Rng::from_seed([42u8; 32]);
-    let acc = init_accumulator(&instance, "test-session")
-        .expect("init_accumulator should not fail");
-    let new_acc = fold_one_step(acc, &instance, &mut rng)
-        .expect("fold_one_step should not fail");
-    verify_fold(&new_acc, &[make_instance(1)])
-        .expect("verify_fold must accept honest fold");
+    let acc =
+        init_accumulator(&instance, "test-session").expect("init_accumulator should not fail");
+    let new_acc = fold_one_step(acc, &instance, &mut rng).expect("fold_one_step should not fail");
+    verify_fold(&new_acc, &[make_instance(1)]).expect("verify_fold must accept honest fold");
 }
 
 /// Tampered accumulator commitment must be rejected by verify_fold.
@@ -109,10 +105,10 @@ fn valid_fold_with_ajtai_commitment_passes() {
 fn tampered_ajtai_commitment_rejected() {
     let instance = make_instance(1);
     let mut rng = ChaCha20Rng::from_seed([42u8; 32]);
-    let acc = init_accumulator(&instance, "test-session")
-        .expect("init_accumulator should not fail");
-    let mut new_acc = fold_one_step(acc, &instance, &mut rng)
-        .expect("fold_one_step should not fail");
+    let acc =
+        init_accumulator(&instance, "test-session").expect("init_accumulator should not fail");
+    let mut new_acc =
+        fold_one_step(acc, &instance, &mut rng).expect("fold_one_step should not fail");
     // Tamper a byte of the Ajtai-encoded commitment
     new_acc.acc_commitment_bytes[0] ^= 0xFF;
     let result = verify_fold(&new_acc, &[make_instance(1)]);

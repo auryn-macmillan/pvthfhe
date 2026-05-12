@@ -1,14 +1,14 @@
 //! Adversarial tests for norm-explosion rejection in the fold path.
 
+use ark_bn254::Fr;
+use ark_ff::{AdditiveGroup, BigInteger, PrimeField};
 use pvthfhe_cyclo::{
     fold::{fold_one_step, init_accumulator, AJTAI_COMMITMENT_BYTES},
     CcsPShareInstance, PVTHFHE_CYCLO_PARAMS,
 };
+use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
-use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
-use ark_bn254::Fr;
-use ark_ff::{AdditiveGroup, BigInteger, PrimeField};
 
 fn per_step_budget() -> u64 {
     PVTHFHE_CYCLO_PARAMS.norm_bound_b / u64::from(PVTHFHE_CYCLO_PARAMS.sequential_t)
@@ -24,8 +24,9 @@ fn make_honest_instance(id: u16) -> CcsPShareInstance {
     let mut binding = [0u8; 32];
     binding[0] = id as u8;
     let sha256_binding_bytes: ProtocolBytes = binding.to_vec().into();
-    let ajtai_bytes: Vec<u8> =
-        (0..AJTAI_COMMITMENT_BYTES).map(|i| (i as u8).wrapping_add(id as u8)).collect();
+    let ajtai_bytes: Vec<u8> = (0..AJTAI_COMMITMENT_BYTES)
+        .map(|i| (i as u8).wrapping_add(id as u8))
+        .collect();
     CcsPShareInstance {
         participant_id: id,
         ajtai_commitment_bytes: ajtai_bytes.into(),

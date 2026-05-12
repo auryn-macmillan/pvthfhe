@@ -25,8 +25,12 @@ fn same_seed_produces_same_ciphertext() {
     let mut rng_a = ChaCha8Rng::seed_from_u64(42);
     let mut rng_b = ChaCha8Rng::seed_from_u64(42);
 
-    let ct_a = backend.encrypt(&pk, b"hello", &mut rng_a).expect("encrypt a");
-    let ct_b = backend.encrypt(&pk, b"hello", &mut rng_b).expect("encrypt b");
+    let ct_a = backend
+        .encrypt(&pk, b"hello", &mut rng_a)
+        .expect("encrypt a");
+    let ct_b = backend
+        .encrypt(&pk, b"hello", &mut rng_b)
+        .expect("encrypt b");
 
     assert_eq!(
         ct_a.bytes, ct_b.bytes,

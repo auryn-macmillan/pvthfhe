@@ -58,5 +58,8 @@ fn fhers_partial_decrypt_returns_real_decryption_share_polynomials() {
             .expect("level-0 context"),
     )
     .expect("deserialize share poly with smudging");
-    assert!(!share_poly.to_bytes().is_empty(), "share poly should be non-empty");
+    assert!(
+        !share_poly.to_bytes().is_empty(),
+        "share poly should be non-empty"
+    );
 }

@@ -144,15 +144,13 @@ impl<B: FheBackend> EnclaveAggregator for PvthfheEnclaveAggregator<B> {
             return Ok(false);
         }
 
-        let version =
-            u16::from_le_bytes([proof.0[0], proof.0[1]]);
+        let version = u16::from_le_bytes([proof.0[0], proof.0[1]]);
         if version != SGX_ECDSA_QUOTE_VERSION {
             return Ok(false);
         }
 
         // Attestation key type at offset 2-3: 0x0002 = ECDSA-256-with-P-256
-        let att_key_type =
-            u16::from_le_bytes([proof.0[2], proof.0[3]]);
+        let att_key_type = u16::from_le_bytes([proof.0[2], proof.0[3]]);
         if att_key_type != 2 {
             return Ok(false);
         }

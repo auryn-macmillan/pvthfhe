@@ -133,7 +133,8 @@ fn fhers_aggregate_decrypt_wrong_ciphertext() {
         pvthfhe_fhe::wire::decode_decrypt_share(&share_b_3.bytes).expect("decode share");
     let len = decoded.d_share_poly.len();
     decoded.d_share_poly[len - 1] ^= 0x01;
-    share_b_3.bytes = pvthfhe_fhe::wire::encode_decrypt_share(decoded.d_share_poly.as_slice()).into();
+    share_b_3.bytes =
+        pvthfhe_fhe::wire::encode_decrypt_share(decoded.d_share_poly.as_slice()).into();
 
     let recovered = backend
         .aggregate_decrypt(&ct_b, &[share_a_1, share_a_2, share_b_3], 3)

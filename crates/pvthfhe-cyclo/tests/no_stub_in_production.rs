@@ -50,7 +50,9 @@ fn struct_name_from_type(ty: &Type) -> Option<String> {
 
 fn is_cyclo_adapter_impl(item_impl: &ItemImpl) -> bool {
     item_impl.trait_.as_ref().is_some_and(|(_, path, _)| {
-        path.segments.last().is_some_and(|seg| seg.ident == "CycloAdapter")
+        path.segments
+            .last()
+            .is_some_and(|seg| seg.ident == "CycloAdapter")
     })
 }
 
@@ -64,7 +66,10 @@ fn no_stub_cyclo_adapter_or_production_docs() {
 
     for entry in WalkDir::new(&src_root).into_iter().filter_map(Result::ok) {
         let path = entry.path();
-        if entry.file_type().is_dir() || should_skip(path) || path.extension().and_then(|s| s.to_str()) != Some("rs") {
+        if entry.file_type().is_dir()
+            || should_skip(path)
+            || path.extension().and_then(|s| s.to_str()) != Some("rs")
+        {
             continue;
         }
 
@@ -90,7 +95,10 @@ fn no_stub_cyclo_adapter_or_production_docs() {
         .iter()
         .filter(|(_, name)| name == "StubCycloAdapter")
         .collect::<Vec<_>>();
-    assert!(stub_impls.is_empty(), "StubCycloAdapter is still the CycloAdapter impl target: {stub_impls:?}");
+    assert!(
+        stub_impls.is_empty(),
+        "StubCycloAdapter is still the CycloAdapter impl target: {stub_impls:?}"
+    );
 
     let production_docs = struct_docs
         .iter()

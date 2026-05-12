@@ -52,14 +52,9 @@ fn aggregate_must_use_submitted_shares_not_internal_state() {
     let len = decoded.d_share_poly.len();
     decoded.d_share_poly[len - 1] ^= 0x01;
     let mut tampered_share3 = share3_other.clone();
-    tampered_share3.bytes =
-        wire::encode_decrypt_share(decoded.d_share_poly.as_slice()).into();
+    tampered_share3.bytes = wire::encode_decrypt_share(decoded.d_share_poly.as_slice()).into();
 
-    let result = backend.aggregate_decrypt(
-        &ct_hello,
-        &[share1, share2, tampered_share3],
-        3,
-    );
+    let result = backend.aggregate_decrypt(&ct_hello, &[share1, share2, tampered_share3], 3);
 
     // RED assertion: submitted share3 is from ct_other (+ byte flip).
     // Valid wire format, valid Poly — validation at fhers.rs:664-679 passes.

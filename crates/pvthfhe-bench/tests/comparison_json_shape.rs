@@ -81,7 +81,10 @@ fn comparison_json_shape() {
         .status()
         .expect("run bench_comparison --dry-run");
 
-    assert!(status.success(), "bench_comparison --dry-run should succeed");
+    assert!(
+        status.success(),
+        "bench_comparison --dry-run should succeed"
+    );
 
     let output = fs::read_to_string(&output_path)
         .unwrap_or_else(|err| panic!("read {}: {err}", output_path.display()));

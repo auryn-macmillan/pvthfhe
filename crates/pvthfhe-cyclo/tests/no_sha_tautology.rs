@@ -48,8 +48,7 @@ fn extract_fn_body(source: &str) -> String {
 
 #[test]
 fn check_satisfiability_has_no_sha256_tautology() {
-    let source = fs::read_to_string(SOURCE_PATH)
-        .expect("ccs_encode.rs must exist");
+    let source = fs::read_to_string(SOURCE_PATH).expect("ccs_encode.rs must exist");
 
     let fn_body = extract_fn_body(&source);
 

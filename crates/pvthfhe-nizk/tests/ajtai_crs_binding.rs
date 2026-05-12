@@ -52,7 +52,13 @@ fn epoch_crs_seed(epoch: u64, session_id: &str) -> [u8; 32] {
     ])
 }
 
-fn ccs_instance_seed(session_id: &str, participant_id: u16, q: u64, degree: u64, error_bound: u64) -> [u8; 32] {
+fn ccs_instance_seed(
+    session_id: &str,
+    participant_id: u16,
+    q: u64,
+    degree: u64,
+    error_bound: u64,
+) -> [u8; 32] {
     sha256(&[
         session_id.as_bytes(),
         &participant_id.to_be_bytes(),
@@ -68,11 +74,7 @@ fn ccs_instance_seed(session_id: &str, participant_id: u16, q: u64, degree: u64,
 #[test]
 fn adapter_does_not_seed_ajtai_from_ccs_instance_id() {
     let path = adapter_src();
-    assert!(
-        path.exists(),
-        "adapter.rs not found at {}",
-        path.display()
-    );
+    assert!(path.exists(), "adapter.rs not found at {}", path.display());
 
     // Search for the old pattern: compute_ajtai_commitment(&ccs_id, …
     let out = Command::new("rg")
@@ -104,11 +106,7 @@ fn adapter_does_not_seed_ajtai_from_ccs_instance_id() {
 #[test]
 fn adapter_references_epoch_crs_derivation() {
     let path = adapter_src();
-    assert!(
-        path.exists(),
-        "adapter.rs not found at {}",
-        path.display()
-    );
+    assert!(path.exists(), "adapter.rs not found at {}", path.display());
 
     // Search for the new pattern: derive_epoch_crs_seed or equivalent
     let out = Command::new("rg")

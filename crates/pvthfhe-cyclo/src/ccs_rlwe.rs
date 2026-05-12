@@ -1,7 +1,5 @@
 use crate::ccs_encode::CcsRqInstance;
-use crate::ring::{
-    ntt_mul, ring_add_poly, rqpoly_to_bytes, RqPoly, PHI_COMMIT, Q_COMMIT,
-};
+use crate::ring::{ntt_mul, ring_add_poly, rqpoly_to_bytes, RqPoly, PHI_COMMIT, Q_COMMIT};
 use crate::CycloError;
 use sha2::{Digest, Sha256};
 
@@ -78,31 +76,61 @@ pub fn encode_rlwe_share_relation(
     // Row 0: [1, 0, 0, 0, 0] → selects c
     // Row 1: [0, 0, 0, 0, 1] → selects one
     let m1 = vec![
-        one.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone(),
-        zero.clone(), zero.clone(), zero.clone(), zero.clone(), one.clone(),
+        one.clone(),
+        zero.clone(),
+        zero.clone(),
+        zero.clone(),
+        zero.clone(),
+        zero.clone(),
+        zero.clone(),
+        zero.clone(),
+        zero.clone(),
+        one.clone(),
     ];
 
     // Matrix M₂ (2 rows × 5 cols)
     // Row 0: [0, 1, 0, 0, 0] → selects s_i
     // Row 1: [0, 0, 0, 0, 1] → selects one
     let m2 = vec![
-        zero.clone(), one.clone(), zero.clone(), zero.clone(), zero.clone(),
-        zero.clone(), zero.clone(), zero.clone(), zero.clone(), one.clone(),
+        zero.clone(),
+        one.clone(),
+        zero.clone(),
+        zero.clone(),
+        zero.clone(),
+        zero.clone(),
+        zero.clone(),
+        zero.clone(),
+        zero.clone(),
+        one.clone(),
     ];
 
     // Matrix M₃ (2 rows × 5 cols)
     // Row 0: [0, 0, -1, 1, 0] → selects d_i - e_i
     // Row 1: [0, 0, 0, 0, 1]  → selects one
     let m3 = vec![
-        zero.clone(), zero.clone(), neg_one,     one.clone(), zero.clone(),
-        zero.clone(), zero.clone(), zero.clone(), zero.clone(), one.clone(),
+        zero.clone(),
+        zero.clone(),
+        neg_one,
+        one.clone(),
+        zero.clone(),
+        zero.clone(),
+        zero.clone(),
+        zero.clone(),
+        zero.clone(),
+        one.clone(),
     ];
 
     let m1_bytes = serialize_matrix_rq(2, 5, &m1);
     let m2_bytes = serialize_matrix_rq(2, 5, &m2);
     let m3_bytes = serialize_matrix_rq(2, 5, &m3);
 
-    let party_bytes: Vec<u8> = party_id.to_be_bytes().iter().cycle().take(32).copied().collect();
+    let party_bytes: Vec<u8> = party_id
+        .to_be_bytes()
+        .iter()
+        .cycle()
+        .take(32)
+        .copied()
+        .collect();
     let ajtai_hash: [u8; 32] = Sha256::new()
         .chain_update(&party_bytes)
         .chain_update(b"rlwe_ajtai")

@@ -8,7 +8,8 @@ use std::{
 use serde_json::{json, Value};
 
 fn read_json(path: &Path) -> Value {
-    let raw = fs::read_to_string(path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()));
+    let raw =
+        fs::read_to_string(path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()));
     serde_json::from_str(&raw).unwrap_or_else(|err| panic!("parse {}: {err}", path.display()))
 }
 
@@ -85,7 +86,10 @@ fn no_not_wired_rows_in_comparison_json() {
         .status()
         .expect("run bench_comparison --dry-run");
 
-    assert!(status.success(), "bench_comparison --dry-run should succeed");
+    assert!(
+        status.success(),
+        "bench_comparison --dry-run should succeed"
+    );
 
     let comparison = read_json(&output_path);
     let rows = comparison["circuit_timings"]

@@ -52,14 +52,14 @@ fn verify_proof_has_no_unconditional_accept() {
     let source_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("src")
         .join("lib.rs");
-    let source = std::fs::read_to_string(&source_path)
-        .unwrap_or_else(|e| panic!("Cannot read lib.rs: {e}"));
+    let source =
+        std::fs::read_to_string(&source_path).unwrap_or_else(|e| panic!("Cannot read lib.rs: {e}"));
 
     // Find the verify_proof function body and check it does not contain
     // an unconditional Ok(true). We use the syn AST to locate the function,
     // then extract the body text by substring matching on the source.
-    let file: syn::File = syn::parse_file(&source)
-        .unwrap_or_else(|e| panic!("Cannot parse lib.rs: {e}"));
+    let file: syn::File =
+        syn::parse_file(&source).unwrap_or_else(|e| panic!("Cannot parse lib.rs: {e}"));
 
     let body_str = find_verify_proof_body(&file, &source);
 

@@ -178,23 +178,35 @@ impl<'a> Cursor<'a> {
 
     fn read_exact(&mut self, len: usize) -> Result<&'a [u8], SchemaError> {
         let end = self.offset.checked_add(len).ok_or(SchemaError::Truncated)?;
-        let slice = self.bytes.get(self.offset..end).ok_or(SchemaError::Truncated)?;
+        let slice = self
+            .bytes
+            .get(self.offset..end)
+            .ok_or(SchemaError::Truncated)?;
         self.offset = end;
         Ok(slice)
     }
 
     fn read_u16(&mut self) -> Result<u16, SchemaError> {
-        let b: [u8; 2] = self.read_exact(2)?.try_into().map_err(|_| SchemaError::Truncated)?;
+        let b: [u8; 2] = self
+            .read_exact(2)?
+            .try_into()
+            .map_err(|_| SchemaError::Truncated)?;
         Ok(u16::from_be_bytes(b))
     }
 
     fn read_u32(&mut self) -> Result<u32, SchemaError> {
-        let b: [u8; 4] = self.read_exact(4)?.try_into().map_err(|_| SchemaError::Truncated)?;
+        let b: [u8; 4] = self
+            .read_exact(4)?
+            .try_into()
+            .map_err(|_| SchemaError::Truncated)?;
         Ok(u32::from_be_bytes(b))
     }
 
     fn read_u64(&mut self) -> Result<u64, SchemaError> {
-        let b: [u8; 8] = self.read_exact(8)?.try_into().map_err(|_| SchemaError::Truncated)?;
+        let b: [u8; 8] = self
+            .read_exact(8)?
+            .try_into()
+            .map_err(|_| SchemaError::Truncated)?;
         Ok(u64::from_be_bytes(b))
     }
 

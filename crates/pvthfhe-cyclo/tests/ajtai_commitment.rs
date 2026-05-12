@@ -41,8 +41,8 @@ fn roundtrip_commit_then_verify() {
     let mut rng = ChaCha20Rng::from_seed([0x11u8; 32]);
     let witness = random_witness(params.n, &mut rng);
 
-    let commitment = commit(&params, &witness, &mut rng)
-        .expect("commit should succeed on valid witness");
+    let commitment =
+        commit(&params, &witness, &mut rng).expect("commit should succeed on valid witness");
 
     assert!(
         verify(&params, &commitment, &witness),
@@ -63,8 +63,7 @@ fn binding_different_witness_different_commitment() {
     // The witnesses must be different; just to be safe, ensure w1 != w2
     assert_ne!(w1, w2, "test setup: witnesses should differ");
 
-    let c1 = commit(&params, &w1, &mut rng)
-        .expect("commit should succeed");
+    let c1 = commit(&params, &w1, &mut rng).expect("commit should succeed");
 
     // The binding property: verifying c1 with w2 should fail
     assert!(
@@ -81,15 +80,16 @@ fn wire_format_roundtrip() {
     let mut rng = ChaCha20Rng::from_seed([0x33u8; 32]);
     let witness = random_witness(params.n, &mut rng);
 
-    let c = commit(&params, &witness, &mut rng)
-        .expect("commit should succeed");
+    let c = commit(&params, &witness, &mut rng).expect("commit should succeed");
 
     let encoded = encode_commitment(&c);
-    let decoded = decode_commitment(&encoded, params.m)
-        .expect("decode should succeed on valid wire bytes");
+    let decoded =
+        decode_commitment(&encoded, params.m).expect("decode should succeed on valid wire bytes");
 
-    assert_eq!(c.commitment, decoded.commitment,
-        "commitment wire-format roundtrip must be lossless");
+    assert_eq!(
+        c.commitment, decoded.commitment,
+        "commitment wire-format roundtrip must be lossless"
+    );
 }
 
 // ── reject too-short witness ─────────────────────────────────────────────
@@ -116,8 +116,7 @@ fn verify_wrong_witness_length() {
     let mut rng = ChaCha20Rng::from_seed([0x55u8; 32]);
     let witness = random_witness(params.n, &mut rng);
 
-    let c = commit(&params, &witness, &mut rng)
-        .expect("commit should succeed");
+    let c = commit(&params, &witness, &mut rng).expect("commit should succeed");
 
     let short_witness = random_witness(1, &mut rng);
     assert!(
@@ -139,8 +138,7 @@ fn verify_wrong_commitment_length() {
         commitment: vec![RqPoly::zero()], // only 1 row, but m=4
     };
 
-    let c = commit(&params, &witness, &mut rng)
-        .expect("commit should succeed");
+    let c = commit(&params, &witness, &mut rng).expect("commit should succeed");
 
     assert!(
         verify(&params, &bad_commitment, &witness) != verify(&params, &c, &witness)

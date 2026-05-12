@@ -72,7 +72,10 @@ fn serialize_witness(data: &[Fr]) -> Vec<u8> {
 fn fr_to_u64(fr: &Fr) -> u64 {
     let bi = fr.into_bigint();
     let limbs = bi.as_ref();
-    assert!(limbs[1] == 0 && limbs[2] == 0 && limbs[3] == 0, "Fr exceeds u64");
+    assert!(
+        limbs[1] == 0 && limbs[2] == 0 && limbs[3] == 0,
+        "Fr exceeds u64"
+    );
     limbs[0]
 }
 
@@ -102,10 +105,7 @@ fn make_instances(
     let witness_ccs = serialize_witness(witness_frs);
 
     // Hashes.
-    let ajtai_hash: [u8; 32] = Sha256::new()
-        .chain_update(ajtai_bytes)
-        .finalize()
-        .into();
+    let ajtai_hash: [u8; 32] = Sha256::new().chain_update(ajtai_bytes).finalize().into();
     let public_io_hash: [u8; 32] = Sha256::new()
         .chain_update(public_io_bytes)
         .finalize()
@@ -156,9 +156,15 @@ fn forgery_resistance_100k_attempts() {
     //  M·z = [0, 0, 0]  →  M·z ⊙ z = 0   ✓
     let z_honest = [Fr::from(1u64), Fr::from(2u64), Fr::from(3u64)];
     let matrix = [
-        Fr::ZERO, Fr::ZERO, Fr::ZERO,
-        Fr::from(3u64), Fr::ZERO, -Fr::from(1u64),
-        -Fr::from(6u64), Fr::from(3u64), Fr::ZERO,
+        Fr::ZERO,
+        Fr::ZERO,
+        Fr::ZERO,
+        Fr::from(3u64),
+        Fr::ZERO,
+        -Fr::from(1u64),
+        -Fr::from(6u64),
+        Fr::from(3u64),
+        Fr::ZERO,
     ];
     let ccs_matrix = serialize_matrix(3, 3, &matrix);
 
@@ -207,13 +213,8 @@ fn forgery_resistance_100k_attempts() {
             }
         }
 
-        let (pshare, ccs_inst) = make_instances(
-            1u16,
-            &ajtai_bytes,
-            &public_io_bytes,
-            &forged,
-            &ccs_matrix,
-        );
+        let (pshare, ccs_inst) =
+            make_instances(1u16, &ajtai_bytes, &public_io_bytes, &forged, &ccs_matrix);
 
         // ── fold path ────────────────────────────────────────────────────
         let acc = match init_accumulator(&pshare, "forgery-session") {
@@ -251,7 +252,10 @@ fn forgery_resistance_100k_attempts() {
                 eprintln!(
                     "FORGERY attempt {}: witness {:?} satisfied CCS",
                     attempt,
-                    forged.iter().map(|f| f.into_bigint().as_ref()[0]).collect::<Vec<u64>>()
+                    forged
+                        .iter()
+                        .map(|f| f.into_bigint().as_ref()[0])
+                        .collect::<Vec<u64>>()
                 );
                 forgeries += 1;
             }

@@ -11,9 +11,9 @@ use crate::{
     FheBackend,
 };
 #[cfg(any(feature = "mock", test))]
-use rand_core::RngCore;
-#[cfg(any(feature = "mock", test))]
 use pvthfhe_types::ProtocolBytes;
+#[cfg(any(feature = "mock", test))]
+use rand_core::RngCore;
 
 fn parse_u64_list(value: &str) -> Option<Vec<u64>> {
     let trimmed = value.trim();

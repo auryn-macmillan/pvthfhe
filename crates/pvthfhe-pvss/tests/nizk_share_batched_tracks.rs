@@ -99,7 +99,8 @@ fn batched_track_binding_rejects_esm_ciphertext_tamper_while_sk_is_unchanged() {
     };
 
     let proof =
-        ShareNizkProver::prove_batched(&backend, &batched_stmt, &sk_witness, &[esm_witness]).expect("batched proof");
+        ShareNizkProver::prove_batched(&backend, &batched_stmt, &sk_witness, &[esm_witness])
+            .expect("batched proof");
 
     let mut tampered_stmt = batched_stmt.clone();
     tampered_stmt.esm_slots[0].ciphertext_u.0[0] ^= 0x55;
@@ -154,7 +155,8 @@ fn batched_valid_tracks_fail_closed_until_d1_bfv_relation_exists() {
     };
 
     let proof =
-        ShareNizkProver::prove_batched(&backend, &batched_stmt, &sk_witness, &[esm_witness]).expect("batched proof");
+        ShareNizkProver::prove_batched(&backend, &batched_stmt, &sk_witness, &[esm_witness])
+            .expect("batched proof");
 
     let result = ShareNizkBatchedVerifier::verify(&backend, &batched_stmt, &proof);
     assert!(
@@ -193,10 +195,10 @@ fn batched_schema_projects_legacy_track_statements_with_independent_commitments(
         esm_slots: vec![esm_track],
     };
 
-    let sk_legacy: ShareNizkStatement = stmt
-        .legacy_statement_for_track(ShareNizkTrackType::Sk, None);
-    let esm_legacy: ShareNizkStatement = stmt
-        .legacy_statement_for_track(ShareNizkTrackType::ESm, Some(9));
+    let sk_legacy: ShareNizkStatement =
+        stmt.legacy_statement_for_track(ShareNizkTrackType::Sk, None);
+    let esm_legacy: ShareNizkStatement =
+        stmt.legacy_statement_for_track(ShareNizkTrackType::ESm, Some(9));
 
     assert_ne!(sk_legacy.share_commitment, esm_legacy.share_commitment);
     assert_ne!(sk_legacy.ciphertext_u, esm_legacy.ciphertext_u);
@@ -235,10 +237,8 @@ fn batched_projection_rejects_cross_track_replay_when_public_material_matches() 
         esm_slots: vec![esm_track],
     };
 
-    let sk_legacy = stmt
-        .legacy_statement_for_track(ShareNizkTrackType::Sk, None);
-    let esm_legacy =
-        stmt.legacy_statement_for_track(ShareNizkTrackType::ESm, Some(4));
+    let sk_legacy = stmt.legacy_statement_for_track(ShareNizkTrackType::Sk, None);
+    let esm_legacy = stmt.legacy_statement_for_track(ShareNizkTrackType::ESm, Some(4));
 
     assert_ne!(
         sk_legacy, esm_legacy,
@@ -287,8 +287,7 @@ fn batched_rejects_sk_proof_reused_as_esm_track_proof() {
     };
     let proof = ShareNizkProver::prove_batched(&backend, &stmt, &sk_witness, &[esm_witness])
         .expect("batched prover must succeed");
-    let esm_statement =
-        stmt.legacy_statement_for_track(ShareNizkTrackType::ESm, Some(5));
+    let esm_statement = stmt.legacy_statement_for_track(ShareNizkTrackType::ESm, Some(5));
 
     let result = ShareNizkVerifier::verify(&backend, &esm_statement, &proof);
     assert!(

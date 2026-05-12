@@ -1,9 +1,8 @@
 use crate::{
-    ajtai,
-    ccs_encode, fiat_shamir,
+    ajtai, ccs_encode, fiat_shamir,
     ring::{ring_add_poly, scalar_mul, PHI_COMMIT, Q_COMMIT},
-    CcsPShareInstance, CycloAccumulator, CycloError, PVTHFHE_CYCLO_PARAMS,
-    MultiTrackPShareInstance,
+    CcsPShareInstance, CycloAccumulator, CycloError, MultiTrackPShareInstance,
+    PVTHFHE_CYCLO_PARAMS,
 };
 use ark_ff::PrimeField;
 use rand_core::RngCore;
@@ -32,7 +31,11 @@ fn witness_norm_estimate(witness_bytes: &[u8]) -> u64 {
                 let limbs = fr.into_bigint().as_ref().to_vec();
                 let c = limbs[0] % Q_COMMIT;
                 let neg = Q_COMMIT - c;
-                if neg < c { neg } else { c }
+                if neg < c {
+                    neg
+                } else {
+                    c
+                }
             })
             .max()
             .unwrap_or(0),
@@ -69,7 +72,11 @@ pub fn init_accumulator_multitrack(
     instance: &MultiTrackPShareInstance,
     session_id: &str,
 ) -> Result<CycloAccumulator, CycloError> {
-    init_accumulator_inner(&instance.base, instance.multi_track_metadata.as_ref(), session_id)
+    init_accumulator_inner(
+        &instance.base,
+        instance.multi_track_metadata.as_ref(),
+        session_id,
+    )
 }
 
 fn init_accumulator_inner(
@@ -248,7 +255,10 @@ pub fn verify_fold_multitrack(
 ) -> Result<(), CycloError> {
     verify_fold_inner(
         acc,
-        instances.iter().map(|inst| (&inst.base, inst.multi_track_metadata.as_ref())).collect(),
+        instances
+            .iter()
+            .map(|inst| (&inst.base, inst.multi_track_metadata.as_ref()))
+            .collect(),
     )
 }
 
@@ -276,7 +286,11 @@ fn verify_fold_inner(
             ));
         }
         if let Some(metadata) = inst.1 {
-            metadata.validate_for_instance(inst.0.participant_id, &acc.session_id, instances.len())?;
+            metadata.validate_for_instance(
+                inst.0.participant_id,
+                &acc.session_id,
+                instances.len(),
+            )?;
             if ccs_encode::public_io_binding_bytes(&MultiTrackPShareInstance {
                 base: CcsPShareInstance {
                     participant_id: inst.0.participant_id,
@@ -287,7 +301,10 @@ fn verify_fold_inner(
                     ccs_matrix_bytes: inst.0.ccs_matrix_bytes.clone(),
                 },
                 multi_track_metadata: Some(metadata.clone()),
-            }).len() > MAX_INSTANCE_BYTES {
+            })
+            .len()
+                > MAX_INSTANCE_BYTES
+            {
                 return Err(CycloError::InvalidInstance(
                     "multi-track public binding exceeds maximum allowed size",
                 ));

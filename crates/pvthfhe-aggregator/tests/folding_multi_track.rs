@@ -11,7 +11,12 @@ use pvthfhe_aggregator::folding::{
 const SESSION: &str = "h2-aggregator-session";
 const PARAMS: (u64, usize, u64) = (65_537, 1_024, 17);
 
-fn track(kind: FoldTrackKind, slot_index: Option<u16>, fill: u8, bound: u64) -> FoldTrackCommitment {
+fn track(
+    kind: FoldTrackKind,
+    slot_index: Option<u16>,
+    fill: u8,
+    bound: u64,
+) -> FoldTrackCommitment {
     FoldTrackCommitment {
         kind,
         slot_index,

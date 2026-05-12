@@ -1,6 +1,8 @@
 //! T11.5 side-channel audit tests.
 
-use pvthfhe_nizk::sigma::{compute_d_rns, prove, verify, SigmaStatement, SigmaWitness, RLWE_N, RLWE_Q0, RLWE_Q1, RLWE_Q2};
+use pvthfhe_nizk::sigma::{
+    compute_d_rns, prove, verify, SigmaStatement, SigmaWitness, RLWE_N, RLWE_Q0, RLWE_Q1, RLWE_Q2,
+};
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
 

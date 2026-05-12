@@ -25,7 +25,8 @@ fn repo_root() -> PathBuf {
 }
 
 fn read_json(path: &Path) -> Value {
-    let raw = fs::read_to_string(path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()));
+    let raw =
+        fs::read_to_string(path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()));
     serde_json::from_str(&raw).unwrap_or_else(|err| panic!("parse {}: {err}", path.display()))
 }
 
@@ -38,7 +39,9 @@ fn circuit_rows(markdown: &str) -> Vec<Vec<String>> {
     let mut in_circuit_table = false;
     let mut rows = Vec::new();
     for line in markdown.lines() {
-        if line == "| Circuit | Cardinality | PVTHFHE (ms) | Interfold (ms) | Ratio | Status | Notes |" {
+        if line
+            == "| Circuit | Cardinality | PVTHFHE (ms) | Interfold (ms) | Ratio | Status | Notes |"
+        {
             in_circuit_table = true;
             continue;
         }
@@ -83,7 +86,9 @@ fn render_comparison_smoke_has_no_na_pvthfhe_cells_and_shows_merged_notes() {
         .current_dir(&repo_root)
         .args([
             "--comparison-json",
-            comparison_input_path.to_str().expect("utf8 comparison path"),
+            comparison_input_path
+                .to_str()
+                .expect("utf8 comparison path"),
             "--baseline-json",
             repo_root
                 .join("bench/results/interfold-trbfv-baseline.json")

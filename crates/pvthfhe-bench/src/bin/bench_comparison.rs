@@ -3,7 +3,11 @@ use pvthfhe_bench::comparison_map::{mapping_for_comparison_row, COMPARISON_ROW_N
 use pvthfhe_bench::e2e_timings::E2eTimings;
 use pvthfhe_bench::BenchEnv;
 use serde::Serialize;
-use std::{fs, path::{Path, PathBuf}, process::ExitCode};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    process::ExitCode,
+};
 
 const NIZK_BACKEND_ID: &str = "cyclo-ajtai-d2-conditional";
 const FOLDING_BACKEND_ID: &str = "cyclo-rlwe-t10-lemma9-heuristic";
@@ -178,7 +182,8 @@ fn main() -> ExitCode {
 }
 
 fn load_e2e_timings(path: &Path) -> Result<E2eTimings, String> {
-    let raw = fs::read_to_string(path).map_err(|err| format!("read {} failed: {err}", path.display()))?;
+    let raw =
+        fs::read_to_string(path).map_err(|err| format!("read {} failed: {err}", path.display()))?;
     let timings: E2eTimings = serde_json::from_str(&raw)
         .map_err(|err| format!("parse {} failed: {err}", path.display()))?;
     E2eTimings::check_version(&timings.schema_version)
@@ -295,7 +300,9 @@ fn row_for(name: &'static str, timings: &E2eTimings) -> CircuitTimingRow {
             cardinality_tag: cardinality_tag(name),
             instances_run: timings.phases.onchain_verify.instances_run,
             comparability_note: comparability_note(name),
-            gap_reason: Some("Measured via fallback compressor.verify proxy on the NoGo on-chain path"),
+            gap_reason: Some(
+                "Measured via fallback compressor.verify proxy on the NoGo on-chain path",
+            ),
         };
     }
 
@@ -315,7 +322,10 @@ fn row_for(name: &'static str, timings: &E2eTimings) -> CircuitTimingRow {
         };
     }
 
-    if matches!(name, "ZkDecryptedSharesAggregation" | "ZkDecryptionAggregation") {
+    if matches!(
+        name,
+        "ZkDecryptedSharesAggregation" | "ZkDecryptionAggregation"
+    ) {
         return CircuitTimingRow {
             name,
             prove_ms: Some(timings.phases.aggregate_decrypt.total_ms),

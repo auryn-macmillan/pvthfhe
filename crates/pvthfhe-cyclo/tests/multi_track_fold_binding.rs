@@ -30,7 +30,12 @@ fn make_ajtai_bytes(id: u8) -> Vec<u8> {
         .collect()
 }
 
-fn track(kind: FoldTrackKind, slot_index: Option<u16>, fill: u8, bound: u64) -> FoldTrackCommitment {
+fn track(
+    kind: FoldTrackKind,
+    slot_index: Option<u16>,
+    fill: u8,
+    bound: u64,
+) -> FoldTrackCommitment {
     FoldTrackCommitment {
         kind,
         slot_index,
@@ -81,7 +86,14 @@ fn verify_fold_rejects_tampered_esm_track_while_sk_track_remains_valid() {
     let acc1 = fold_one_step_multitrack(acc0, &inst_a, &mut rng).expect("fold A");
     let acc2 = fold_one_step_multitrack(acc1, &inst_b, &mut rng).expect("fold B");
 
-    verify_fold_multitrack(&acc2, &[make_instance_with_count(1, 2), make_instance_with_count(2, 2)]).expect("honest fold accepts");
+    verify_fold_multitrack(
+        &acc2,
+        &[
+            make_instance_with_count(1, 2),
+            make_instance_with_count(2, 2),
+        ],
+    )
+    .expect("honest fold accepts");
 
     let mut tampered = make_instance_with_count(2, 2);
     let metadata = tampered

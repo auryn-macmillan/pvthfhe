@@ -12,8 +12,8 @@ use fhe::bfv::{
 };
 use fhe::mbfv::{Aggregate, CommonRandomPoly, PublicKeyShare};
 use fhe::trbfv::ShareManager;
-use fhe_math::rq::{Poly, Representation};
 use fhe_math::rq::traits::TryConvertFrom;
+use fhe_math::rq::{Poly, Representation};
 use fhe_traits::{
     DeserializeParametrized, DeserializeWithContext, FheDecoder, FheEncoder, FheEncrypter,
     Serialize,
@@ -206,7 +206,8 @@ impl FhersBackend {
         n: usize,
         t: usize,
     ) -> Result<Poly, FheError> {
-        let (sk_poly_sum_coeffs, sk_poly_sum_poly, esi_poly_sum) = self.party_state_data(party_id)?;
+        let (sk_poly_sum_coeffs, sk_poly_sum_poly, esi_poly_sum) =
+            self.party_state_data(party_id)?;
         let share_manager =
             ShareManager::new(n, self.shamir_threshold(n, t), self.bfv_params.clone());
         let sk_poly_sum = match sk_poly_sum_poly {
@@ -432,7 +433,12 @@ fn encode_plaintext_slots(plaintext: &[u8], degree: usize) -> Result<Vec<u64>, F
     );
     slots.extend(bytes_to_slots(plaintext, degree.saturating_sub(1)));
     slots.truncate(degree);
-    eprintln!("[FHE-ENCODE] plaintext_len={} first_slot(original_len)={} total_slots_after_trunc={}", plaintext.len(), slots[0], slots.len());
+    eprintln!(
+        "[FHE-ENCODE] plaintext_len={} first_slot(original_len)={} total_slots_after_trunc={}",
+        plaintext.len(),
+        slots[0],
+        slots.len()
+    );
     Ok(slots)
 }
 
@@ -446,7 +452,11 @@ fn decode_plaintext_slots(slots: &[u64]) -> Result<Vec<u8>, FheError> {
     let max = payload_slots.len() * 2;
     if original_len > max {
         eprintln!("[FHE-DECODE] FAIL: decoded plaintext length {original_len} exceeds max {max}");
-        eprintln!("  total_slots={} first_few_slots={:02x?}", slots.len(), &slots[..std::cmp::min(8, slots.len())]);
+        eprintln!(
+            "  total_slots={} first_few_slots={:02x?}",
+            slots.len(),
+            &slots[..std::cmp::min(8, slots.len())]
+        );
         return Err(FheError::Backend {
             reason: format!("decoded plaintext length {original_len} exceeds max {max}"),
         });
@@ -509,7 +519,10 @@ impl FheBackend for FhersBackend {
 
         Ok(KeygenShare {
             party_id,
-            bytes: ProtocolBytes(wire::encode_keygen_share(&crp.to_bytes(), &p0_share.to_bytes())),
+            bytes: ProtocolBytes(wire::encode_keygen_share(
+                &crp.to_bytes(),
+                &p0_share.to_bytes(),
+            )),
         })
     }
 
@@ -656,27 +669,32 @@ impl FheBackend for FhersBackend {
         //   u  = encryption randomness (CBD with SK_VARIANCE)
         //   e1 = error polynomial for ct₀ leg (error_1 variance)
         //   e2 = error polynomial for ct₁ leg (standard variance)
-        let (ct, u, e1, e2) = bfv_pk
-            .try_encrypt_extended(&pt, &mut encrypt_rng)
-            .map_err(|err| FheError::Backend {
-                reason: err.to_string(),
-            })?;
+        let (ct, u, e1, e2) =
+            bfv_pk
+                .try_encrypt_extended(&pt, &mut encrypt_rng)
+                .map_err(|err| FheError::Backend {
+                    reason: err.to_string(),
+                })?;
 
-        let ct0_poly = ct
-            .get(0)
-            .ok_or(FheError::Backend {
-                reason: "ciphertext missing c[0]".into(),
-            })?;
-        let ct1_poly = ct
-            .get(1)
-            .ok_or(FheError::Backend {
-                reason: "ciphertext missing c[1]".into(),
-            })?;
+        let ct0_poly = ct.get(0).ok_or(FheError::Backend {
+            reason: "ciphertext missing c[0]".into(),
+        })?;
+        let ct1_poly = ct.get(1).ok_or(FheError::Backend {
+            reason: "ciphertext missing c[1]".into(),
+        })?;
 
         let ciphertext_bytes = ct.to_bytes();
 
-        let pk0_bytes = bfv_pk.c.get(0).ok_or(FheError::MalformedPublicKey)?.to_bytes();
-        let pk1_bytes = bfv_pk.c.get(1).ok_or(FheError::MalformedPublicKey)?.to_bytes();
+        let pk0_bytes = bfv_pk
+            .c
+            .get(0)
+            .ok_or(FheError::MalformedPublicKey)?
+            .to_bytes();
+        let pk1_bytes = bfv_pk
+            .c
+            .get(1)
+            .ok_or(FheError::MalformedPublicKey)?
+            .to_bytes();
 
         let witness = EncryptionWitness {
             plaintext_poly_bytes,
@@ -725,9 +743,12 @@ impl FheBackend for FhersBackend {
                 sample.round() as i64
             })
             .collect();
-        let ctx = self.bfv_params.ctx_at_level(0).map_err(|err| FheError::Backend {
-            reason: err.to_string(),
-        })?;
+        let ctx = self
+            .bfv_params
+            .ctx_at_level(0)
+            .map_err(|err| FheError::Backend {
+                reason: err.to_string(),
+            })?;
         let noise_poly = Poly::try_convert_from(
             noise_coeffs.as_slice(),
             ctx,
@@ -804,9 +825,12 @@ impl FheBackend for FhersBackend {
                 sample.round() as i64
             })
             .collect();
-        let ctx = self.bfv_params.ctx_at_level(0).map_err(|err| FheError::Backend {
-            reason: err.to_string(),
-        })?;
+        let ctx = self
+            .bfv_params
+            .ctx_at_level(0)
+            .map_err(|err| FheError::Backend {
+                reason: err.to_string(),
+            })?;
         let noise_poly = Poly::try_convert_from(
             noise_coeffs.as_slice(),
             ctx,
@@ -980,18 +1004,9 @@ impl FheBackend for FhersBackend {
 
     fn decode_pk_polys(&self, pk: &OpaquePublicKey) -> Result<(Vec<u8>, Vec<u8>), FheError> {
         let bfv_pk = self.decode_public_key(pk)?;
-        let p0 = bfv_pk
-                    .c
-                    .get(0)
-                    .ok_or(FheError::MalformedPublicKey)?;
-        let p1 = bfv_pk
-            .c
-            .get(1)
-            .ok_or(FheError::MalformedPublicKey)?;
-        let p1 = bfv_pk
-                    .c
-                    .get(1)
-                    .ok_or(FheError::MalformedPublicKey)?;
+        let p0 = bfv_pk.c.get(0).ok_or(FheError::MalformedPublicKey)?;
+        let p1 = bfv_pk.c.get(1).ok_or(FheError::MalformedPublicKey)?;
+        let p1 = bfv_pk.c.get(1).ok_or(FheError::MalformedPublicKey)?;
         let mut p0 = p0.clone();
         p0.change_representation(Representation::PowerBasis);
         let mut p1 = p1.clone();
@@ -1002,14 +1017,8 @@ impl FheBackend for FhersBackend {
     fn decode_ct_polys(&self, ct: &Ciphertext) -> Result<(Vec<u8>, Vec<u8>), FheError> {
         let ct = BfvCiphertext::from_bytes(&ct.bytes, &self.bfv_params)
             .map_err(|_| FheError::MalformedCiphertext)?;
-        let c0 = ct
-            .c
-            .get(0)
-            .ok_or(FheError::MalformedCiphertext)?;
-        let c1 = ct
-            .c
-            .get(1)
-            .ok_or(FheError::MalformedCiphertext)?;
+        let c0 = ct.c.get(0).ok_or(FheError::MalformedCiphertext)?;
+        let c1 = ct.c.get(1).ok_or(FheError::MalformedCiphertext)?;
         let mut c0 = c0.clone();
         c0.change_representation(Representation::PowerBasis);
         let mut c1 = c1.clone();
@@ -1073,17 +1082,17 @@ impl FheBackend for FhersBackend {
         let effective_shares = shares
             .iter()
             .map(|share| {
-                let decoded =
-                    wire::decode_decrypt_share(share.bytes.as_slice()).map_err(|_| {
-                        FheError::MalformedDecryptShare {
-                            party_id: share.party_id,
+                let decoded = wire::decode_decrypt_share(share.bytes.as_slice()).map_err(|_| {
+                    FheError::MalformedDecryptShare {
+                        party_id: share.party_id,
+                    }
+                })?;
+                let poly =
+                    Poly::from_bytes(decoded.d_share_poly.as_slice(), &ctx).map_err(|err| {
+                        FheError::Backend {
+                            reason: err.to_string(),
                         }
                     })?;
-                let poly = Poly::from_bytes(decoded.d_share_poly.as_slice(), &ctx).map_err(
-                    |err| FheError::Backend {
-                        reason: err.to_string(),
-                    },
-                )?;
                 Ok((share.party_id as usize, poly))
             })
             .collect::<Result<Vec<_>, FheError>>()?;
@@ -1104,9 +1113,11 @@ impl FheBackend for FhersBackend {
                 reason: err.to_string(),
             }
         })?;
-        eprintln!("[FHE-DECRYPT] aggregate_decrypt: slots.len()={} first_8_slots={:02x?}",
+        eprintln!(
+            "[FHE-DECRYPT] aggregate_decrypt: slots.len()={} first_8_slots={:02x?}",
             slots.len(),
-            &slots[..std::cmp::min(8, slots.len())]);
+            &slots[..std::cmp::min(8, slots.len())]
+        );
 
         decode_plaintext_slots(&slots)
     }

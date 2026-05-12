@@ -18,9 +18,7 @@ fn encryption_witness_field_roundtrip() {
     let mut rng = StdRng::seed_from_u64(0xfeed);
 
     let shares = (1u32..=3)
-        .map(|party_id| {
-            backend.keygen_share_with_session(&session_id, party_id, &mut rng)
-        })
+        .map(|party_id| backend.keygen_share_with_session(&session_id, party_id, &mut rng))
         .collect::<Result<Vec<_>, _>>()
         .expect("keygen shares");
 
@@ -44,8 +42,14 @@ fn encryption_witness_field_roundtrip() {
         recipient_pk1_bytes: witness.recipient_pk1_bytes.clone(),
     };
 
-    assert_eq!(witness, reconstructed, "witness must roundtrip through field reconstruction");
-    assert!(reconstructed.is_complete(), "reconstructed witness must be complete");
+    assert_eq!(
+        witness, reconstructed,
+        "witness must roundtrip through field reconstruction"
+    );
+    assert!(
+        reconstructed.is_complete(),
+        "reconstructed witness must be complete"
+    );
 }
 
 #[test]
@@ -55,9 +59,7 @@ fn encryption_witness_field_bytes_are_non_empty() {
     let mut rng = StdRng::seed_from_u64(0xbeef);
 
     let shares = (1u32..=3)
-        .map(|party_id| {
-            backend.keygen_share_with_session(&session_id, party_id, &mut rng)
-        })
+        .map(|party_id| backend.keygen_share_with_session(&session_id, party_id, &mut rng))
         .collect::<Result<Vec<_>, _>>()
         .expect("keygen shares");
 

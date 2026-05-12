@@ -175,12 +175,13 @@ fn verifier_accepts_internally_consistent_but_invalid_proof() {
         share_bytes: ShareSecret::new(share),
         encryption_randomness: EncRandomness::new(vec![0xBBu8; 32]),
     };
-    let proof = ShareNizkProver::prove(&backend, &stmt, &witness)
-        .expect("v4 prover produces proof");
+    let proof =
+        ShareNizkProver::prove(&backend, &stmt, &witness).expect("v4 prover produces proof");
     // Tamper ciphertext in proof statement to mismatch
     let mut tampered_stmt = stmt.clone();
     tampered_stmt.ciphertext_u = ProtocolBytes(vec![0xFF; 128]);
-    tampered_stmt.ciphertext_v = ProtocolBytes(compute_ciphertext_v(tampered_stmt.ciphertext_u.as_slice()).to_vec());
+    tampered_stmt.ciphertext_v =
+        ProtocolBytes(compute_ciphertext_v(tampered_stmt.ciphertext_u.as_slice()).to_vec());
     let result = ShareNizkVerifier::verify(&backend, &tampered_stmt, &proof);
     assert!(
         result.is_err(),

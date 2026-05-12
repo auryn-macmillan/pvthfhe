@@ -26,10 +26,9 @@ fn should_skip(path: &Path) -> bool {
             c.as_os_str().to_str(),
             Some("tests") | Some("target") | Some("vendor-stub")
         )
-    })
-        || path
-            .components()
-            .any(|c| c.as_os_str().to_str() == Some("pvthfhe-types"))
+    }) || path
+        .components()
+        .any(|c| c.as_os_str().to_str() == Some("pvthfhe-types"))
 }
 
 fn struct_is_secret_like(name: &str) -> bool {
@@ -160,7 +159,10 @@ fn secret_types_use_newtypes() {
     let root = workspace_root();
     let mut violations = Vec::new();
 
-    for entry in WalkDir::new(root.join("crates")).into_iter().filter_map(Result::ok) {
+    for entry in WalkDir::new(root.join("crates"))
+        .into_iter()
+        .filter_map(Result::ok)
+    {
         let path = entry.path();
         if entry.file_type().is_dir() {
             continue;
@@ -195,14 +197,23 @@ fn secret_types_use_newtypes() {
     }
 
     if !violations.is_empty() {
-        let mut counts: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+        let mut counts: std::collections::BTreeMap<String, usize> =
+            std::collections::BTreeMap::new();
         for v in &violations {
             *counts.entry(v.crate_name.clone()).or_default() += 1;
         }
 
         let list = violations
             .iter()
-            .map(|v| format!("{}:{}.{}: {}", v.file.display(), v.struct_name, v.field_name, v.type_repr))
+            .map(|v| {
+                format!(
+                    "{}:{}.{}: {}",
+                    v.file.display(),
+                    v.struct_name,
+                    v.field_name,
+                    v.type_repr
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n");
 

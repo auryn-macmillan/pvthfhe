@@ -198,44 +198,46 @@ fn build_context(
     let circuit_rows = baseline
         .circuit_timings
         .iter()
-        .map(|baseline_row| -> Result<TemplateRow, RenderComparisonError> {
-            let mapping = mapping_for(&baseline_row.name).ok_or_else(|| {
-                RenderComparisonError::MissingCircuitMapping(baseline_row.name.clone())
-            })?;
-            let our_name = comparison_row_name(&baseline_row.name);
-            let comparison_row = comparison
-                .circuit_timings
-                .iter()
-                .find(|row| row.name == our_name)
-                .ok_or_else(|| {
-                    RenderComparisonError::MissingComparisonRow(baseline_row.name.clone())
+        .map(
+            |baseline_row| -> Result<TemplateRow, RenderComparisonError> {
+                let mapping = mapping_for(&baseline_row.name).ok_or_else(|| {
+                    RenderComparisonError::MissingCircuitMapping(baseline_row.name.clone())
                 })?;
-            if comparison_row.cardinality_tag != mapping.cardinality {
-                return Err(RenderComparisonError::CardinalityMismatch {
-                    circuit: baseline_row.name.clone(),
-                    expected: mapping.cardinality.to_owned(),
-                    actual: comparison_row.cardinality_tag.clone(),
-                });
-            }
-            let our_ms = primary_ms(comparison_row);
+                let our_name = comparison_row_name(&baseline_row.name);
+                let comparison_row = comparison
+                    .circuit_timings
+                    .iter()
+                    .find(|row| row.name == our_name)
+                    .ok_or_else(|| {
+                        RenderComparisonError::MissingComparisonRow(baseline_row.name.clone())
+                    })?;
+                if comparison_row.cardinality_tag != mapping.cardinality {
+                    return Err(RenderComparisonError::CardinalityMismatch {
+                        circuit: baseline_row.name.clone(),
+                        expected: mapping.cardinality.to_owned(),
+                        actual: comparison_row.cardinality_tag.clone(),
+                    });
+                }
+                let our_ms = primary_ms(comparison_row);
 
-            Ok(TemplateRow {
-                name: baseline_row.name.clone(),
-                cardinality: mapping.cardinality.to_owned(),
-                our_ms: format_optional_ms(our_ms),
-                their_ms: format_ms(baseline_row.ms),
-                ratio: format_ratio(our_ms, baseline_row.ms),
-                status: comparison_row.status.clone(),
-                note: build_note(
-                    mapping.aggregation_rule,
-                    &comparison_row.comparability_note,
-                    comparison_row.instances_run,
-                    mapping.proof_system_note,
-                    comparison_row.gap_reason.as_deref(),
-                    &baseline_row.note,
-                ),
-            })
-        })
+                Ok(TemplateRow {
+                    name: baseline_row.name.clone(),
+                    cardinality: mapping.cardinality.to_owned(),
+                    our_ms: format_optional_ms(our_ms),
+                    their_ms: format_ms(baseline_row.ms),
+                    ratio: format_ratio(our_ms, baseline_row.ms),
+                    status: comparison_row.status.clone(),
+                    note: build_note(
+                        mapping.aggregation_rule,
+                        &comparison_row.comparability_note,
+                        comparison_row.instances_run,
+                        mapping.proof_system_note,
+                        comparison_row.gap_reason.as_deref(),
+                        &baseline_row.note,
+                    ),
+                })
+            },
+        )
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(TemplateContext {
@@ -278,7 +280,10 @@ fn format_our_hardware(hardware: &HardwareDisclosure) -> String {
 fn format_their_hardware(raw: &str) -> String {
     let mut parts = raw.splitn(2, ',');
     let cpu = parts.next().unwrap_or(raw).trim();
-    let tail = parts.next().map(str::trim).unwrap_or("hardware details unpublished");
+    let tail = parts
+        .next()
+        .map(str::trim)
+        .unwrap_or("hardware details unpublished");
     let normalized_tail = tail
         .replace("14c", "14 cores")
         .replace("/48GB", ", 48 GB RAM")
@@ -325,11 +330,13 @@ fn build_note(
 }
 
 fn validated_commit_sha(commit_sha: &str) -> Result<&str, RenderComparisonError> {
-    let is_valid = (7..=64).contains(&commit_sha.len())
-        && commit_sha.chars().all(|ch| ch.is_ascii_hexdigit());
+    let is_valid =
+        (7..=64).contains(&commit_sha.len()) && commit_sha.chars().all(|ch| ch.is_ascii_hexdigit());
     if is_valid {
         Ok(commit_sha)
     } else {
-        Err(RenderComparisonError::InvalidCommitSha(commit_sha.to_owned()))
+        Err(RenderComparisonError::InvalidCommitSha(
+            commit_sha.to_owned(),
+        ))
     }
 }

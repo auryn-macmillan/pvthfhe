@@ -43,8 +43,7 @@ fn roundtrip_bfv(n: usize, t: usize, plaintext: &[u8]) -> Result<Vec<u8>, FheErr
 
 #[test]
 fn real_bfv_backend_does_not_require_mock_acknowledgement() {
-    let backend =
-        FhersBackend::load_params(CANONICAL_PARAMS_TOML).expect("load params");
+    let backend = FhersBackend::load_params(CANONICAL_PARAMS_TOML).expect("load params");
     assert!(
         !backend.requires_mock_acknowledgement(),
         "FhersBackend must not require mock acknowledgement — it uses real fhe.rs BFV"
@@ -86,8 +85,7 @@ fn real_bfv_roundtrip_n3_t2_recovers_plaintext() {
 fn real_bfv_encrypt_produces_non_trivial_ciphertext() {
     // A real BFV ciphertext should be large (encodes polynomial pairs),
     // not trivial like the XOR mock which produces short ciphertexts.
-    let backend =
-        FhersBackend::load_params(CANONICAL_PARAMS_TOML).expect("load params");
+    let backend = FhersBackend::load_params(CANONICAL_PARAMS_TOML).expect("load params");
     let session_id = [0xBFu8; 32];
     let mut rng = thread_rng();
 
@@ -97,9 +95,7 @@ fn real_bfv_encrypt_produces_non_trivial_ciphertext() {
         .expect("keygen");
     let pk = backend.aggregate_keygen(&shares).expect("aggregate");
 
-    let ct = backend
-        .encrypt(&pk, b"test", &mut rng)
-        .expect("encrypt");
+    let ct = backend.encrypt(&pk, b"test", &mut rng).expect("encrypt");
 
     // Real BFV ciphertext with n=8192 should be many KB, not a few bytes.
     // The XOR mock produces ciphertext the same length as the plaintext.
@@ -114,8 +110,7 @@ fn real_bfv_encrypt_produces_non_trivial_ciphertext() {
 fn real_bfv_ciphertext_is_valid_structurally() {
     // Verify that the ciphertext can be deserialized as a real BfvCiphertext,
     // which the mock XOR ciphertext cannot.
-    let backend =
-        FhersBackend::load_params(CANONICAL_PARAMS_TOML).expect("load params");
+    let backend = FhersBackend::load_params(CANONICAL_PARAMS_TOML).expect("load params");
     let session_id = [0xBFu8; 32];
     let mut rng = thread_rng();
 
@@ -141,8 +136,7 @@ fn real_bfv_ciphertext_is_valid_structurally() {
 #[test]
 fn real_bfv_rejects_party_id_zero() {
     // fhe.rs uses 1-based party IDs. Party ID 0 should be rejected.
-    let backend =
-        FhersBackend::load_params(CANONICAL_PARAMS_TOML).expect("load params");
+    let backend = FhersBackend::load_params(CANONICAL_PARAMS_TOML).expect("load params");
     let session_id = [0xBFu8; 32];
     let mut rng = thread_rng();
 
@@ -153,19 +147,11 @@ fn real_bfv_rejects_party_id_zero() {
         .expect("keygen");
 
     let pk = backend.aggregate_keygen(&shares).expect("aggregate");
-    backend
-        .setup_threshold(3, 2)
-        .expect("setup threshold");
-    let ct = backend
-        .encrypt(&pk, b"test", &mut rng)
-        .expect("encrypt");
+    backend.setup_threshold(3, 2).expect("setup threshold");
+    let ct = backend.encrypt(&pk, b"test", &mut rng).expect("encrypt");
 
-    let share_1 = backend
-        .partial_decrypt(&ct, 1, &mut rng)
-        .expect("share 1");
-    let mut bad_share = backend
-        .partial_decrypt(&ct, 2, &mut rng)
-        .expect("share 2");
+    let share_1 = backend.partial_decrypt(&ct, 1, &mut rng).expect("share 1");
+    let mut bad_share = backend.partial_decrypt(&ct, 2, &mut rng).expect("share 2");
     bad_share.party_id = 0;
 
     let result = backend.aggregate_decrypt(&ct, &[share_1, bad_share], 2);
@@ -183,7 +169,8 @@ fn real_bfv_roundtrip_noise_tolerance_large_message() {
     let recovered = roundtrip_bfv(5, 3, &msg).expect("roundtrip large msg");
 
     assert_eq!(
-        recovered, msg,
+        recovered,
+        msg,
         "real BFV roundtrip must handle large messages ({} bytes)",
         msg.len()
     );
@@ -192,14 +179,16 @@ fn real_bfv_roundtrip_noise_tolerance_large_message() {
 #[test]
 fn real_bfv_roundtrip_noise_tolerance_zero_message() {
     let recovered = roundtrip_bfv(5, 3, b"").expect("roundtrip empty msg");
-    assert!(recovered.is_empty(), "empty plaintext roundtrip must yield empty");
+    assert!(
+        recovered.is_empty(),
+        "empty plaintext roundtrip must yield empty"
+    );
 }
 
 #[test]
 fn real_bfv_roundtrip_uses_different_parties_for_distinct_quorums() {
     // n=7, t=4 → shamir_threshold(7,4)=3, 3<=(7-1)/2=3 → OK
-    let backend =
-        FhersBackend::load_params(CANONICAL_PARAMS_TOML).expect("load params");
+    let backend = FhersBackend::load_params(CANONICAL_PARAMS_TOML).expect("load params");
     let session_id = [0xBFu8; 32];
     let mut rng = thread_rng();
 

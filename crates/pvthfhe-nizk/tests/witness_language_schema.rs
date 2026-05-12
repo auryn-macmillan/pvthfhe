@@ -56,7 +56,10 @@ fn schema_rejects_malformed_version() {
 
 #[test]
 fn schema_relation_id_round_trip() {
-    for relation in [R3Relation::ShareWellFormedness, R3Relation::PartialDecryption] {
+    for relation in [
+        R3Relation::ShareWellFormedness,
+        R3Relation::PartialDecryption,
+    ] {
         let mut stmt = make_share_wf_statement();
         stmt.relation = relation;
         let bytes = stmt.to_statement_bytes().expect("must serialize");

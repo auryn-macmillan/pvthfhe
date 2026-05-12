@@ -24,9 +24,7 @@ fn dkg_secrecy_t_minus_1_insufficient_for_decryption() {
     // Collect only t-1=6 decryption shares
     let mut decrypt_shares = Vec::with_capacity(6);
     for party_id in 1u32..=6 {
-        let share = dkg
-            .partial_decrypt(&ct, party_id)
-            .expect("partial decrypt");
+        let share = dkg.partial_decrypt(&ct, party_id).expect("partial decrypt");
         decrypt_shares.push(share);
     }
 
@@ -73,9 +71,7 @@ fn dkg_secrecy_distinguisher_game() {
         // Adversary obtains t-1 decryption shares (parties 2..=t)
         let mut shares = Vec::with_capacity(6);
         for party_id in 2u32..=7 {
-            let share = dkg
-                .partial_decrypt(&ct, party_id)
-                .expect("partial decrypt");
+            let share = dkg.partial_decrypt(&ct, party_id).expect("partial decrypt");
             shares.push(share);
         }
 

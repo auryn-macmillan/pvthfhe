@@ -50,8 +50,10 @@ fn make_rq_instance(
     let ajtai_data: Vec<u8> = vec![participant_id as u8; 32];
     let public_io_data: Vec<u8> = vec![(participant_id as u8).wrapping_add(1); 32];
     let ajtai_hash: [u8; 32] = Sha256::new().chain_update(&ajtai_data).finalize().into();
-    let public_io_hash: [u8; 32] =
-        Sha256::new().chain_update(&public_io_data).finalize().into();
+    let public_io_hash: [u8; 32] = Sha256::new()
+        .chain_update(&public_io_data)
+        .finalize()
+        .into();
 
     CcsRqInstance {
         ajtai_hash,
@@ -163,9 +165,15 @@ fn positive_3x3_zero_witness_satisfies() {
     let z2 = zero_poly();
 
     let m = [
-        zero_poly(), zero_poly(), zero_poly(), // row 0
-        zero_poly(), zero_poly(), zero_poly(), // row 1
-        zero_poly(), one_poly(), {
+        zero_poly(),
+        zero_poly(),
+        zero_poly(), // row 0
+        zero_poly(),
+        zero_poly(),
+        zero_poly(), // row 1
+        zero_poly(),
+        one_poly(),
+        {
             // -one_poly mod q_commit
             let mut neg_coeffs = vec![0u64; PHI_COMMIT];
             neg_coeffs[0] = Q_COMMIT - 1;
@@ -187,7 +195,7 @@ fn positive_3x3_zero_witness_satisfies() {
 // M[2] = [0, one, -one], z = [zero, one, one]
 // M[2]·z = 0*zero + one*one + (-one)*one = one - one = zero
 // But z[2] = one → zero * one = 0 → passes! (let's use a case that fails)
-// 
+//
 // M[2] = [0, one, zero], z = [zero, one, one]
 // M[2]·z = 0*zero + one*one + zero*one = one
 // z[2] = one → one * one = one ≠ 0 → fails ✗
@@ -199,9 +207,15 @@ fn negative_3x3_nonzero_product_rejected() {
     let z2 = one_poly();
 
     let m = [
-        zero_poly(), zero_poly(), zero_poly(), // row 0
-        zero_poly(), zero_poly(), zero_poly(), // row 1
-        zero_poly(), one_poly(), zero_poly(), // row 2: [0, 1, 0]
+        zero_poly(),
+        zero_poly(),
+        zero_poly(), // row 0
+        zero_poly(),
+        zero_poly(),
+        zero_poly(), // row 1
+        zero_poly(),
+        one_poly(),
+        zero_poly(), // row 2: [0, 1, 0]
     ];
     let z = [a, b, z2];
 

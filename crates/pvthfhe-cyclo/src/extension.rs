@@ -123,7 +123,11 @@ fn compute_combined_witness_norm(
             let limbs = combined.into_bigint().as_ref().to_vec();
             let c = limbs[0] % Q_COMMIT;
             let neg = Q_COMMIT - c;
-            if neg < c { neg } else { c }
+            if neg < c {
+                neg
+            } else {
+                c
+            }
         })
         .max()
         .unwrap_or(0);

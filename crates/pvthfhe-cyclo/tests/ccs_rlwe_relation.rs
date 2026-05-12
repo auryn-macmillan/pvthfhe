@@ -139,9 +139,8 @@ fn multiple_valid_parties() {
         let secret_key = random_poly(&mut rng);
         let error_poly = random_poly(&mut rng);
 
-        let instance =
-            encode_rlwe_share_relation(&ciphertext, &secret_key, &error_poly, party_id)
-                .expect("encode should succeed");
+        let instance = encode_rlwe_share_relation(&ciphertext, &secret_key, &error_poly, party_id)
+            .expect("encode should succeed");
 
         let result = check_satisfiability_rq(&instance);
         assert!(
@@ -176,10 +175,8 @@ fn deterministic_encoding() {
     let secret_key = random_poly(&mut rng);
     let error_poly = random_poly(&mut rng);
 
-    let instance1 =
-        encode_rlwe_share_relation(&ciphertext, &secret_key, &error_poly, 1).unwrap();
-    let instance2 =
-        encode_rlwe_share_relation(&ciphertext, &secret_key, &error_poly, 1).unwrap();
+    let instance1 = encode_rlwe_share_relation(&ciphertext, &secret_key, &error_poly, 1).unwrap();
+    let instance2 = encode_rlwe_share_relation(&ciphertext, &secret_key, &error_poly, 1).unwrap();
 
     assert_eq!(instance1.ajtai_hash, instance2.ajtai_hash);
     assert_eq!(instance1.public_io_hash, instance2.public_io_hash);

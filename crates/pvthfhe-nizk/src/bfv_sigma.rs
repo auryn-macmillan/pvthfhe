@@ -74,14 +74,12 @@ fn rlwe_context() -> Result<&'static Arc<Context>, NizkError> {
 /// Compute the BFV delta values: Δ[ℓ] = ⌊q_ℓ / t⌋.
 pub fn bfv_delta_rns(t_plain: u64) -> Result<Vec<u64>, NizkError> {
     if t_plain == 0 {
-        return Err(NizkError::InvalidInput("plaintext modulus must be positive"));
+        return Err(NizkError::InvalidInput(
+            "plaintext modulus must be positive",
+        ));
     }
     let ctx = rlwe_context()?;
-    Ok(ctx
-        .q
-        .iter()
-        .map(|m| m.modulus() / t_plain)
-        .collect())
+    Ok(ctx.q.iter().map(|m| m.modulus() / t_plain).collect())
 }
 
 /// Public statement for the BFV encryption sigma protocol.
@@ -203,7 +201,9 @@ pub fn prove(
         || wit.e1.len() != RLWE_N
         || wit.m.len() != RLWE_N
     {
-        return Err(NizkError::InvalidInput("witness polynomials must have length N"));
+        return Err(NizkError::InvalidInput(
+            "witness polynomials must have length N",
+        ));
     }
     if stmt.delta_limbs.len() != 3 {
         return Err(NizkError::InvalidInput("delta_limbs must have length 3"));
@@ -222,8 +222,7 @@ pub fn prove(
 
     let pk0_yu_rns = poly_mul_rq(&stmt.pk0_rns, &y_u_rns, ctx)?;
     let delta_ym_rns = scale_plaintext_to_rns(&y_m, &stmt.delta_limbs)?;
-    let t0_rns =
-        rns_add(&rns_add(&pk0_yu_rns, &y_e0_rns, ctx)?, &delta_ym_rns, ctx)?;
+    let t0_rns = rns_add(&rns_add(&pk0_yu_rns, &y_e0_rns, ctx)?, &delta_ym_rns, ctx)?;
 
     let pk1_yu_rns = poly_mul_rq(&stmt.pk1_rns, &y_u_rns, ctx)?;
     let t1_rns = rns_add(&pk1_yu_rns, &y_e1_rns, ctx)?;
@@ -282,7 +281,9 @@ pub fn verify(
         return Err(NizkError::InvalidInput("statement RNS lengths must be 3*N"));
     }
     if proof.t0_rns.len() != RNS_LEN || proof.t1_rns.len() != RNS_LEN {
-        return Err(NizkError::InvalidInput("proof t0/t1_rns length must be 3*N"));
+        return Err(NizkError::InvalidInput(
+            "proof t0/t1_rns length must be 3*N",
+        ));
     }
     if proof.u_resp.len() != RLWE_N
         || proof.e0_resp.len() != RLWE_N
@@ -290,7 +291,9 @@ pub fn verify(
         || proof.m_resp.len() != RLWE_N
         || proof.ch.len() != RLWE_N
     {
-        return Err(NizkError::InvalidInput("proof polynomial lengths must be N"));
+        return Err(NizkError::InvalidInput(
+            "proof polynomial lengths must be N",
+        ));
     }
 
     let ctx = rlwe_context()?;
@@ -461,7 +464,9 @@ pub fn decode_bfv_sigma_proof(bytes: &[u8]) -> Result<BfvSigmaProof, NizkError> 
     let mut offset = 0;
 
     fn read_u32_le(bytes: &[u8], offset: &mut usize) -> Result<u32, NizkError> {
-        let end = offset.checked_add(4).ok_or(NizkError::InvalidInput("eof"))?;
+        let end = offset
+            .checked_add(4)
+            .ok_or(NizkError::InvalidInput("eof"))?;
         let arr: [u8; 4] = bytes
             .get(*offset..end)
             .ok_or(NizkError::InvalidInput("eof"))?
@@ -472,7 +477,9 @@ pub fn decode_bfv_sigma_proof(bytes: &[u8]) -> Result<BfvSigmaProof, NizkError> 
     }
 
     fn read_u64_le(bytes: &[u8], offset: &mut usize) -> Result<u64, NizkError> {
-        let end = offset.checked_add(8).ok_or(NizkError::InvalidInput("eof"))?;
+        let end = offset
+            .checked_add(8)
+            .ok_or(NizkError::InvalidInput("eof"))?;
         let arr: [u8; 8] = bytes
             .get(*offset..end)
             .ok_or(NizkError::InvalidInput("eof"))?
@@ -483,7 +490,9 @@ pub fn decode_bfv_sigma_proof(bytes: &[u8]) -> Result<BfvSigmaProof, NizkError> 
     }
 
     fn read_i64_le(bytes: &[u8], offset: &mut usize) -> Result<i64, NizkError> {
-        let end = offset.checked_add(8).ok_or(NizkError::InvalidInput("eof"))?;
+        let end = offset
+            .checked_add(8)
+            .ok_or(NizkError::InvalidInput("eof"))?;
         let arr: [u8; 8] = bytes
             .get(*offset..end)
             .ok_or(NizkError::InvalidInput("eof"))?

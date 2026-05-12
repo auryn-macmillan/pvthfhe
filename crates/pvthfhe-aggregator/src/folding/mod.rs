@@ -22,10 +22,10 @@ use pvthfhe_cyclo::fold as cyclo_fold;
 #[cfg(feature = "real-folding")]
 use pvthfhe_cyclo::fold::AJTAI_COMMITMENT_BYTES;
 pub use pvthfhe_cyclo::CcsPShareInstance;
-pub use pvthfhe_cyclo::{FoldTrackCommitment, FoldTrackKind, MultiTrackFoldMetadata};
-use pvthfhe_cyclo::{CycloAccumulator, CycloAdapter as _, CycloError, CYCLO_BACKEND_ID};
 #[cfg(feature = "real-folding")]
 use pvthfhe_cyclo::MultiTrackPShareInstance;
+use pvthfhe_cyclo::{CycloAccumulator, CycloAdapter as _, CycloError, CYCLO_BACKEND_ID};
+pub use pvthfhe_cyclo::{FoldTrackCommitment, FoldTrackKind, MultiTrackFoldMetadata};
 #[cfg(feature = "real-folding")]
 use pvthfhe_domain_tags::Tag;
 #[cfg(feature = "real-folding")]
@@ -147,8 +147,9 @@ impl FoldingScheme for HashChainFoldingScheme {
 
         // Fold via the Cyclo LatticeFold+ backend, including H.2 metadata.
         let mut rng = OsRng;
-        let new_cyclo_acc = cyclo_fold::fold_one_step_multitrack(prev_cyclo_acc, &ccs_instance, &mut rng)
-            .map_err(|e| FoldError(format!("Cyclo fold failed: {e}")))?;
+        let new_cyclo_acc =
+            cyclo_fold::fold_one_step_multitrack(prev_cyclo_acc, &ccs_instance, &mut rng)
+                .map_err(|e| FoldError(format!("Cyclo fold failed: {e}")))?;
 
         // Maintain backward-compatible hash-chain fields
         let stmt_bytes = serialize_fold_statement(stmt);

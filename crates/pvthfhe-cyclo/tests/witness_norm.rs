@@ -24,8 +24,9 @@ fn one_var_witness(fr: Fr) -> Vec<u8> {
 }
 
 fn make_instance_with_witness(id: u16, witness_bytes: Vec<u8>) -> CcsPShareInstance {
-    let ajtai_bytes: Vec<u8> =
-        (0..AJTAI_COMMITMENT_BYTES).map(|i| (i as u8).wrapping_add(id as u8)).collect();
+    let ajtai_bytes: Vec<u8> = (0..AJTAI_COMMITMENT_BYTES)
+        .map(|i| (i as u8).wrapping_add(id as u8))
+        .collect();
     CcsPShareInstance {
         participant_id: id,
         ajtai_commitment_bytes: ajtai_bytes.into(),
@@ -60,9 +61,7 @@ fn norm_rejects_large_coefficient_not_byte_max() {
                 got
             );
         }
-        Ok(_) => panic!(
-            "fold_one_step should have rejected witness with ∞-norm 2^48"
-        ),
+        Ok(_) => panic!("fold_one_step should have rejected witness with ∞-norm 2^48"),
         Err(other) => panic!("unexpected error: {:?}", other),
     }
 }

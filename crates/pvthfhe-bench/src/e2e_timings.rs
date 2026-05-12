@@ -61,11 +61,7 @@ impl E2eTimings {
             seed,
             compressor_backend_id: compressor_backend_id.into(),
             phases: E2ePhases::zeroed(),
-            produced_at_unix_secs: chrono::Utc::now()
-                .timestamp()
-                .try_into()
-                .ok()
-                .unwrap_or(0),
+            produced_at_unix_secs: chrono::Utc::now().timestamp().try_into().ok().unwrap_or(0),
             git_sha: std::process::Command::new("git")
                 .args(["rev-parse", "--short", "HEAD"])
                 .output()

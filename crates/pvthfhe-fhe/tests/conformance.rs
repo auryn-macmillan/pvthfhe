@@ -54,10 +54,7 @@ fn test_round_trip<B: FheBackend>(backend: B) {
         "aggregate_keygen failed",
     );
     let ct = must_ok(backend.encrypt(&pk, plaintext, &mut rng), "encrypt failed");
-    must_ok(
-        backend.setup_threshold(n, t),
-        "setup_threshold failed",
-    );
+    must_ok(backend.setup_threshold(n, t), "setup_threshold failed");
     let ds1 = must_ok(
         backend.partial_decrypt(&ct, 1, &mut rng),
         "partial_decrypt(1) failed",
@@ -104,10 +101,7 @@ fn test_decrypt_share_party_id<B: FheBackend>(backend: B) {
     );
     let pk = must_ok(backend.aggregate_keygen(&[s1, s2, s3]), "aggregate_keygen");
     let ct = must_ok(backend.encrypt(&pk, b"test", &mut rng), "encrypt");
-    must_ok(
-        backend.setup_threshold(n, t),
-        "setup_threshold failed",
-    );
+    must_ok(backend.setup_threshold(n, t), "setup_threshold failed");
     let ds = must_ok(backend.partial_decrypt(&ct, 2, &mut rng), "partial_decrypt");
     assert_eq!(ds.party_id, 2);
 }
@@ -135,10 +129,7 @@ fn test_insufficient_shares<B: FheBackend>(backend: B) {
         .aggregate_keygen(&[s1, s2, s3])
         .expect("aggregate_keygen");
     let ct = backend.encrypt(&pk, b"test", &mut rng).expect("encrypt");
-    must_ok(
-        backend.setup_threshold(n, t),
-        "setup_threshold failed",
-    );
+    must_ok(backend.setup_threshold(n, t), "setup_threshold failed");
     let ds1 = backend
         .partial_decrypt(&ct, 1, &mut rng)
         .expect("partial_decrypt(1)");

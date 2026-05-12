@@ -97,9 +97,9 @@ impl DkgCeremony {
         let mut rng = OsRng;
 
         for party_id in 1u32..=self.n as u32 {
-            let share = self
-                .backend
-                .keygen_share_with_session(&self.session_id, party_id, &mut rng)?;
+            let share =
+                self.backend
+                    .keygen_share_with_session(&self.session_id, party_id, &mut rng)?;
             self.keygen_shares.push(share);
         }
 
@@ -115,9 +115,7 @@ impl DkgCeremony {
     ///
     /// Errors with [`DkgError::NotInitialized`] if `run` has not been called.
     pub fn public_key(&self) -> Result<&PublicKey, DkgError> {
-        self.public_key
-            .as_ref()
-            .ok_or(DkgError::NotInitialized)
+        self.public_key.as_ref().ok_or(DkgError::NotInitialized)
     }
 
     /// Encrypts `plaintext` under the collective public key.

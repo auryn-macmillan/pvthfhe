@@ -9,6 +9,7 @@
 //! V4 proofs include a self-contained BFV encryption relation proof.
 //! V3 and earlier proofs fail-closed (rejected).
 
+use fhe_math::rq::Context;
 use fhe_traits::DeserializeWithContext;
 use pvthfhe_domain_tags::Tag;
 use pvthfhe_fhe::types::{Ciphertext, PublicKey};
@@ -33,6 +34,8 @@ use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use rand_core::RngCore;
 use sha2::{Digest, Sha256};
+use std::sync::{Arc, OnceLock};
+use subtle::ConstantTimeEq;
 
 use crate::PvssError;
 
@@ -845,25 +848,29 @@ fn read_bfv_u64_vec(bytes: &[u8], offset: &mut usize) -> Result<Vec<u64>, PvssEr
     Ok(out)
 }
 
+// ── RLWE context (cached, shared by helpers) ──────────────────────────────
+
+const RLWE_MODULI: [u64; 3] = [sigma::RLWE_Q0, sigma::RLWE_Q1, sigma::RLWE_Q2];
+
+fn get_rlwe_context() -> Result<&'static Arc<Context>, PvssError> {
+    static CTX: OnceLock<Result<Arc<Context>, String>> = OnceLock::new();
+    CTX.get_or_init(|| {
+        Context::new(&RLWE_MODULI, sigma::RLWE_N)
+            .map(Arc::new)
+            .map_err(|e| format!("{e:?}"))
+    })
+    .as_ref()
+    .map_err(|_| PvssError::LatticeBindingVerificationFailed)
+}
+
 /// Convert poly_bytes (serialized fhe-math `Poly`) to i64 coefficient vector.
 ///
 /// Deserializes the Poly, converts to power basis, and extracts the limb-0
 /// coefficients centered around 0.
 fn poly_bytes_to_i64(poly_bytes: &[u8]) -> Result<Vec<i64>, PvssError> {
-    use fhe_math::rq::{Context, Poly, Representation};
-    use std::sync::{Arc, OnceLock};
+    use fhe_math::rq::{Poly, Representation};
 
-    const MODULI: [u64; 3] = [sigma::RLWE_Q0, sigma::RLWE_Q1, sigma::RLWE_Q2];
-
-    static CTX: OnceLock<Result<Arc<Context>, String>> = OnceLock::new();
-    let ctx = CTX
-        .get_or_init(|| {
-            Context::new(&MODULI, sigma::RLWE_N)
-                .map(Arc::new)
-                .map_err(|e| format!("{e:?}"))
-        })
-        .as_ref()
-        .map_err(|_| PvssError::InvalidShare)?;
+    let ctx = get_rlwe_context()?;
 
     let mut poly = Poly::from_bytes(poly_bytes, ctx).map_err(|_| PvssError::InvalidShare)?;
     poly.change_representation(Representation::PowerBasis);
@@ -927,16 +934,16 @@ fn verify_algebraic_relation(
         eprintln!("[NIZK-VERIFY] FAIL: algebraic_proof is empty");
         return Err(PvssError::LatticeBindingVerificationFailed);
     }
-    let (_d_rns, sigma_proof) = decode_algebraic_proof(opened.algebraic_proof.as_slice())?;
+    let (d_rns, sigma_proof) = decode_algebraic_proof(opened.algebraic_proof.as_slice())?;
 
     // Verify the sigma proof against the reconstructed statement
     let stmt = &opened.statement;
     let c_rns = derive_share_sigma_c_rns(stmt.session_id.as_slice(), stmt.recipient_index);
     let sigma_stmt = sigma::SigmaStatement {
         c_rns,
-        d_rns: _d_rns.clone(),
+        d_rns: d_rns.clone(),
     };
-    // Verify challenge and equation
+    // Verify challenge — constant-time comparison
     let expected_ch = {
         let mut ts = Transcript::new(
             stmt.session_id.as_slice(),
@@ -960,7 +967,7 @@ fn verify_algebraic_relation(
             .flat_map(|x| x.to_le_bytes())
             .collect();
         ts.absorb(b"d_rns", &d_bytes);
-        let pvss_commitment = test_digest_sigma_d(&_d_rns);
+        let pvss_commitment = test_digest_sigma_d(&d_rns);
         ts.absorb(b"pvss_commitment", &pvss_commitment);
         let mut raw = [0u8; sigma::RLWE_N / 8];
         ts.challenge_bytes(b"binary_challenge", &mut raw);
@@ -976,7 +983,13 @@ fn verify_algebraic_relation(
         }
         bits
     };
-    if expected_ch != sigma_proof.ch {
+    let expected_ch_bytes: Vec<u8> = expected_ch.iter().flat_map(|x| x.to_le_bytes()).collect();
+    let proof_ch_bytes: Vec<u8> = sigma_proof.ch.iter().flat_map(|x| x.to_le_bytes()).collect();
+    if !bool::from(
+        expected_ch_bytes
+            .as_slice()
+            .ct_eq(proof_ch_bytes.as_slice()),
+    ) {
         eprintln!("[NIZK-VERIFY] FAIL: algebraic sigma challenge mismatch");
         return Err(PvssError::LatticeBindingVerificationFailed);
     }
@@ -990,6 +1003,29 @@ fn verify_algebraic_relation(
     let max_ze = sigma_proof.z_e.iter().map(|x| x.abs()).max().unwrap_or(0);
     if max_ze > sigma::B_Z_E {
         eprintln!("[NIZK-VERIFY] FAIL: algebraic z_e norm bound exceeded");
+        return Err(PvssError::LatticeBindingVerificationFailed);
+    }
+
+    // ── Algebraic equation: c*z_s + z_e == t + ch*d_i (mod Q) ──
+    let ctx = get_rlwe_context()?;
+    let z_s_rns = sigma::int_poly_to_rns(&sigma_proof.z_s, ctx)
+        .map_err(|_| PvssError::LatticeBindingVerificationFailed)?;
+    let z_e_rns = sigma::int_poly_to_rns(&sigma_proof.z_e, ctx)
+        .map_err(|_| PvssError::LatticeBindingVerificationFailed)?;
+    let c_zs_rns = sigma::poly_mul_rq(&sigma_stmt.c_rns, &z_s_rns, ctx)
+        .map_err(|_| PvssError::LatticeBindingVerificationFailed)?;
+    let lhs_rns = sigma::rns_add(&c_zs_rns, &z_e_rns, ctx)
+        .map_err(|_| PvssError::LatticeBindingVerificationFailed)?;
+
+    let ch_rns = sigma::int_poly_to_rns(&sigma_proof.ch, ctx)
+        .map_err(|_| PvssError::LatticeBindingVerificationFailed)?;
+    let ch_di_rns = sigma::poly_mul_rq(&ch_rns, &sigma_stmt.d_rns, ctx)
+        .map_err(|_| PvssError::LatticeBindingVerificationFailed)?;
+    let rhs_rns = sigma::rns_add(&sigma_proof.t_rns, &ch_di_rns, ctx)
+        .map_err(|_| PvssError::LatticeBindingVerificationFailed)?;
+
+    if lhs_rns != rhs_rns {
+        eprintln!("[NIZK-VERIFY] FAIL: algebraic equation c*z_s + z_e != t + ch*d_i");
         return Err(PvssError::LatticeBindingVerificationFailed);
     }
 
@@ -1282,6 +1318,7 @@ fn validate_witness(witness: &ShareNizkWitness) -> Result<(), PvssError> {
 }
 
 fn derive_challenge(stmt: &ShareNizkStatement, commitment_ct: &[u8]) -> [u8; CHALLENGE_LEN] {
+    // TODO(C5): usize→u32 fallback; refactor to error-propagate if this function gains a Result return.
     let participant_id = u32::try_from(stmt.dealer_index).unwrap_or(u32::MAX);
     let mut transcript = Transcript::new(stmt.session_id.as_slice(), participant_id);
     transcript.absorb(b"domain_separator", SHARE_NIZK_DOMAIN_SEPARATOR.as_bytes());

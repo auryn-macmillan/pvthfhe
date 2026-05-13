@@ -134,7 +134,9 @@ fn run_dry_run_pvss_probe(args: &Args) -> anyhow::Result<()> {
 
     let backend_threshold = args.t;
     let backend = FhersBackend::load_params(DEMO_PARAMS_TOML).context("backend init")?;
-    let mut simulator = KeygenSimulator::new(args.n, backend_threshold, backend.clone());
+    let mut simulator =
+        KeygenSimulator::new(args.n, backend_threshold, backend.clone())
+            .map_err(|e| anyhow::anyhow!("keygen param: {e}"))?;
     let transcript = match simulator.run().context("keygen")? {
         KeygenResult::Complete(transcript) => transcript,
         KeygenResult::Blamed(blamed) => anyhow::bail!("keygen blamed: {blamed:?}"),

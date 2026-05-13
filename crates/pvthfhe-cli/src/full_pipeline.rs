@@ -120,7 +120,9 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         "keygen",
         Some(&format!("n={} t={} seed={}", cfg.n, cfg.t, cfg.seed)),
     );
-    let mut simulator = KeygenSimulator::new(cfg.n, backend_threshold, backend.clone());
+    let mut simulator =
+        KeygenSimulator::new(cfg.n, backend_threshold, backend.clone())
+            .map_err(|e| anyhow::anyhow!("keygen param: {e}"))?;
     let keygen_started = Instant::now();
     let transcript = match simulator.run().context("keygen")? {
         KeygenResult::Complete(transcript) => transcript,
@@ -243,11 +245,9 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let aggregate_key = backend
         .aggregate_keygen(&aggregate_keygen_shares)
         .context("aggregate_keygen")?;
-    assert_eq!(
-        aggregate_pk.bytes,
-        aggregate_key.bytes,
-        "DKG aggregate key mismatch"
-    );
+    if aggregate_pk.bytes != aggregate_key.bytes {
+        anyhow::bail!("DKG aggregate key mismatch");
+    }
     observer.phase_end("aggregate_keygen", elapsed_ms(aggregate_keygen_started));
 
     let plaintext = 0xB10C_u64.to_le_bytes().to_vec();
@@ -381,6 +381,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 let ciphertext_hash =
                     compute_decrypt_ciphertext_hash(&ciphertext.bytes, &ciphertext_v);
                 let recipient_id = u16::try_from(zero_based).unwrap_or(0);
+                // TODO(C5): cfg.n is validated early; refactor to error-propagate if this
+                // block is restructured to return Result.
                 let accepted_participant_ids: Vec<u16> =
                     (1..=u16::try_from(cfg.n).unwrap_or(u16::MAX)).collect();
                 let sk_agg_commit = compute_sk_aggregate_commitment(
@@ -574,6 +576,8 @@ fn serialize_nizk_statement(stmt: &NizkStatement) -> Vec<u8> {
     h.update(stmt.participant_id.to_be_bytes());
     h.update(stmt.epoch.to_be_bytes());
     h.update(stmt.params.0.to_be_bytes());
+    // TODO(C5): usize→u64 conversion infallible on 64-bit; if this function
+    // gains a Result return, switch to ?.
     h.update(
         u64::try_from(stmt.params.1)
             .unwrap_or(u64::MAX)

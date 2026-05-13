@@ -63,7 +63,10 @@ fn run_benchmark(n: usize, t: usize) -> Result<BenchRow, FheError> {
     let backend_threshold = t.min((n + 1) / 2);
 
     let keygen_started = Instant::now();
-    let mut simulator = KeygenSimulator::new_with_backend(n, backend_threshold, backend.clone());
+    let mut simulator = KeygenSimulator::new_with_backend(n, backend_threshold, backend.clone())
+        .map_err(|e| FheError::Backend {
+            reason: format!("keygen new: {e}"),
+        })?;
     let transcript = match simulator.run()? {
         KeygenResult::Complete(transcript) => transcript,
         KeygenResult::Blamed(blamed) => {

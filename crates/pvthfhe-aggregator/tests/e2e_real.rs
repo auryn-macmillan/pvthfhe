@@ -171,7 +171,7 @@ fn test_e2e_real_pipeline_p4_p1_p2_p3() {
         variance = 10
     "#;
     let backend = ok(MockBackend::load_params(toml), "backend params load");
-    let mut sim = KeygenSimulator::new(4, 3, backend);
+    let mut sim = KeygenSimulator::new(7, 3, backend).unwrap();
     let result = ok(sim.run(), "keygen must not error");
 
     let transcript = match result {
@@ -180,7 +180,7 @@ fn test_e2e_real_pipeline_p4_p1_p2_p3() {
     };
 
     // Verify DKG transcript is well-formed
-    assert_eq!(transcript.participant_set.len(), 4);
+    assert_eq!(transcript.participant_set.len(), 7);
     assert_ne!(transcript.dkg_root, [0u8; 32], "dkg_root must be non-zero");
 
     // ── PHASE 1: Encrypt / NIZK (surrogate) ──────────────────────────────────
@@ -195,7 +195,7 @@ fn test_e2e_real_pipeline_p4_p1_p2_p3() {
 
     // ── PHASE 2: Fold N NIZK proofs into a single accumulator ─────────────────
     let params = (65537u64, 1024usize, 17u64);
-    for i in 1u64..=4u64 {
+    for i in 1u64..=7u64 {
         let tag = i as u8;
         let stmt = FoldStatement {
             fold_index: i,
@@ -219,12 +219,12 @@ fn test_e2e_real_pipeline_p4_p1_p2_p3() {
             .unwrap_or_else(|e| unreachable!("fold step {} failed: {}", i, e));
     }
 
-    assert_eq!(acc.fold_depth(), 4, "must have folded 4 proofs");
+    assert_eq!(acc.fold_depth(), 7, "must have folded 7 proofs");
 
     // Verify accumulator matches expected params
     ok(
         verify_acc(&acc, &params),
-        "verify_acc must accept after 4 folds",
+        "verify_acc must accept after 7 folds",
     );
 
     let final_proof = ok(finalize(&acc), "finalize must succeed");

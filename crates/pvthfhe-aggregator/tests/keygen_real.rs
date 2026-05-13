@@ -18,7 +18,7 @@ fn keygen_real_n8_produces_v1_public_key_bytes() {
         FhersBackend::load_params(TEST_PARAMS_TOML),
         "load real backend",
     );
-    let mut simulator = KeygenSimulator::new_with_backend(8, 5, backend);
+    let mut simulator = KeygenSimulator::new_with_backend(8, 3, backend).unwrap();
     let result = must(simulator.run(), "run keygen simulator");
 
     let transcript = match result {

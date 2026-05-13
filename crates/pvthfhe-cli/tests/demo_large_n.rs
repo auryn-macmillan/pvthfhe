@@ -16,9 +16,9 @@ mod tests {
         let mut observer = QuietObserver;
         let report = run_full_pipeline(
             &PipelineConfig {
-                n: 128,
+                n: 129,
                 t: 64,
-                seed: 1,
+                seed: 0,
             },
             &mut observer,
         )

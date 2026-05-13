@@ -566,14 +566,17 @@ fn absorb_u64s(h: &mut Sha256, values: &[u64]) {
 }
 
 fn add_mod(lhs: u64, rhs: u64, modulus: u64) -> u64 {
+    debug_assert!(modulus > 0, "modulus must be positive");
     ((lhs as u128 + rhs as u128) % modulus as u128) as u64
 }
 
 fn sub_mod(lhs: u64, rhs: u64, modulus: u64) -> u64 {
+    debug_assert!(modulus > 0, "modulus must be positive");
     ((lhs as u128 + modulus as u128 - rhs as u128) % modulus as u128) as u64
 }
 
 fn neg_mod(value: u64, modulus: u64) -> u64 {
+    debug_assert!(modulus > 0, "modulus must be positive");
     if value % modulus == 0 {
         0
     } else {
@@ -582,10 +585,12 @@ fn neg_mod(value: u64, modulus: u64) -> u64 {
 }
 
 fn mul_mod(lhs: u64, rhs: u64, modulus: u64) -> u64 {
+    debug_assert!(modulus > 0, "modulus must be positive");
     ((lhs as u128 * rhs as u128) % modulus as u128) as u64
 }
 
 fn mod_inverse(value: u64, modulus: u64) -> Option<u64> {
+    debug_assert!(modulus > 0, "modulus must be positive");
     let (mut old_r, mut r) = (i128::from(modulus), i128::from(value % modulus));
     let (mut old_s, mut s) = (0i128, 1i128);
     while r != 0 {

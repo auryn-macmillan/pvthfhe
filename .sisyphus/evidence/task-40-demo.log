@@ -1,8 +1,4 @@
-   Compiling pvthfhe-fhe v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-fhe)
-   Compiling pvthfhe-keygen-spec v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-keygen-spec)
-   Compiling pvthfhe-aggregator v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-aggregator)
 warning: pvthfhe-fhe@0.1.0: MOCK BACKEND ACTIVE — XOR/SHA256 ONLY. Set PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK=1 to use.
-warning: pvthfhe-aggregator@0.1.0: SURROGATE ACTIVE: HonkVerifier, micronova_wrap, aggregator_final are research surrogates — do not deploy
 warning: unused variable: `p1`
     --> crates/pvthfhe-fhe/src/fhers.rs:1090:13
      |
@@ -22,7 +18,10 @@ warning: method `decryption_share_poly_from_full_state` is never used
     |
     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
 
-   Compiling pvthfhe-keygen v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-keygen)
+warning: `pvthfhe-fhe` (lib) generated 2 warnings (run `cargo fix --lib -p pvthfhe-fhe` to apply 1 suggestion)
+   Compiling pvthfhe-aggregator v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-aggregator)
+   Compiling pvthfhe-pvss v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-pvss)
+   Compiling pvthfhe-cyclo v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-cyclo)
 warning: use of deprecated struct `hermine::HermineAdapter`: HermineAdapter uses deterministic share derivation (CRITICAL finding F60). Use LatticePvssBfvAdapter instead.
   --> crates/pvthfhe-keygen/src/hermine.rs:62:6
    |
@@ -37,48 +36,47 @@ warning: use of deprecated struct `hermine::HermineAdapter`: HermineAdapter uses
 267 | impl KeygenAdapter for HermineAdapter {
     |                        ^^^^^^^^^^^^^^
 
-   Compiling pvthfhe-pvss v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-pvss)
+warning: `pvthfhe-keygen` (lib) generated 2 warnings
+warning: pvthfhe-aggregator@0.1.0: SURROGATE ACTIVE: HonkVerifier, micronova_wrap, aggregator_final are research surrogates — do not deploy
 warning: missing documentation for an associated function
-    --> crates/pvthfhe-pvss/src/nizk_share.rs:1170:5
+    --> crates/pvthfhe-pvss/src/nizk_share.rs:1206:5
      |
-1170 |     pub fn from_opened(opened: &ShareNizkOpenedProof) -> Result<Self, PvssError> {
+1206 |     pub fn from_opened(opened: &ShareNizkOpenedProof) -> Result<Self, PvssError> {
      |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
      |
      = note: requested on the command line with `-W missing-docs`
 
 warning: missing documentation for an associated function
-    --> crates/pvthfhe-pvss/src/nizk_share.rs:1182:5
+    --> crates/pvthfhe-pvss/src/nizk_share.rs:1218:5
      |
-1182 |     pub fn from_bytes(proof_bytes: Vec<u8>) -> Result<Self, PvssError> {
+1218 |     pub fn from_bytes(proof_bytes: Vec<u8>) -> Result<Self, PvssError> {
      |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: missing documentation for a method
-    --> crates/pvthfhe-pvss/src/nizk_share.rs:1190:5
+    --> crates/pvthfhe-pvss/src/nizk_share.rs:1226:5
      |
-1190 |     pub fn decode(&self) -> Result<ShareNizkOpenedProof, PvssError> {
+1226 |     pub fn decode(&self) -> Result<ShareNizkOpenedProof, PvssError> {
      |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-warning: `pvthfhe-keygen` (lib) generated 2 warnings
-warning: `pvthfhe-fhe` (lib) generated 2 warnings (run `cargo fix --lib -p pvthfhe-fhe` to apply 1 suggestion)
    Compiling pvthfhe-bench v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-bench)
 warning: `pvthfhe-pvss` (lib) generated 3 warnings
    Compiling pvthfhe-cli v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-cli)
-    Finished `release` profile [optimized] target(s) in 10.43s
+    Finished `release` profile [optimized] target(s) in 12.32s
      Running `target/release/pvthfhe-cli demo --n 10 --threshold 4 --seed 1`
-[2m2026-05-12T22:53:46.865830Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m starting demo pipeline [3mn[0m[2m=[0m10 [3mthreshold[0m[2m=[0m4 [3mseed[0m[2m=[0m1
+[2m2026-05-13T12:52:56.484840Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m starting demo pipeline [3mn[0m[2m=[0m10 [3mthreshold[0m[2m=[0m4 [3mseed[0m[2m=[0m1
 demo: n=10 threshold=4 seed=1
 pvss_backend_id=lattice-pvss-bfv-d2
-[2m2026-05-12T22:53:46.865851Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m backend_id_p1 [3mbackend_id[0m[2m=[0m"cyclo-ajtai-d2-conditional"
-[2m2026-05-12T22:53:46.865854Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m backend_id_p2 [3mbackend_id_p2[0m[2m=[0m"cyclo-rlwe-t10-lemma9-heuristic"
-[2m2026-05-12T22:53:46.865855Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m backend_id_p3 [3mbackend_id_p3[0m[2m=[0m"sonobe-nova-bn254-grumpkin"
+[2m2026-05-13T12:52:56.484861Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m backend_id_p1 [3mbackend_id[0m[2m=[0m"cyclo-ajtai-d2-conditional"
+[2m2026-05-13T12:52:56.484864Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m backend_id_p2 [3mbackend_id_p2[0m[2m=[0m"cyclo-rlwe-t10-lemma9-heuristic"
+[2m2026-05-13T12:52:56.484865Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m backend_id_p3 [3mbackend_id_p3[0m[2m=[0m"sonobe-nova-bn254-grumpkin"
 backend_id == "cyclo-ajtai-d2-conditional"
 backend_id_p2: cyclo-rlwe-t10-lemma9-heuristic
 backend_id_p3: sonobe-nova-bn254-grumpkin
 note: on-chain Solidity verify is NOT run by demo (use bench-comparison)
 pvss_backend_id=lattice-pvss-bfv-d2
-[2m2026-05-12T22:53:46.887341Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m seed flag ignored in production path; will require --insecure-seed in future R3.6
+[2m2026-05-13T12:52:56.504630Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m seed flag ignored in production path; will require --insecure-seed in future R3.6
 step 1/9: keygen (n=10 t=4 seed=1)
-keygen: complete (27.882 ms)
+keygen: complete (28.375 ms)
 step 2/9: nizk_prove (dealer=1)
 step 2/9: nizk_prove (dealer=2)
 step 2/9: nizk_prove (dealer=3)
@@ -180,49 +178,49 @@ step 3/9: nizk_verify (dealer=10 recipient=7)
 step 3/9: nizk_verify (dealer=10 recipient=8)
 step 3/9: nizk_verify (dealer=10 recipient=9)
 step 4/9: pvss_share_encrypt (lattice-pvss-bfv-d2)
-pvss_share_encrypt: complete (509.543 ms)
+pvss_share_encrypt: complete (527.062 ms)
 step 5/9: cyclo_fold (cyclo-rlwe-t10-lemma9-heuristic)
-cyclo_fold: complete (1.227 ms)
-[2m2026-05-12T22:53:49.450103Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: params serialized [3mprover_key_bytes_len[0m[2m=[0m2162768 [3mverifier_key_bytes_len[0m[2m=[0m2162768 [3mrss_kb[0m[2m=[0m175000
+cyclo_fold: complete (1.214 ms)
+[2m2026-05-13T12:52:58.950053Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: params serialized [3mprover_key_bytes_len[0m[2m=[0m2162768 [3mverifier_key_bytes_len[0m[2m=[0m2162768 [3mrss_kb[0m[2m=[0m171860
 step 6/9: compressor_prove (sonobe-nova-bn254-grumpkin)
-[2m2026-05-12T22:53:49.456796Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: deserialize_params start [3mrss_kb[0m[2m=[0m175000
-[2m2026-05-12T22:53:49.773818Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: pp_deserialize done [3mrss_kb[0m[2m=[0m175000 [3mrss_delta_kb[0m[2m=[0m0
-[2m2026-05-12T22:53:50.336745Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: vp_deserialize done [3mrss_kb[0m[2m=[0m219880 [3mrss_delta_kb[0m[2m=[0m44880
-[2m2026-05-12T22:53:50.594554Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: Nova::init done [3mrss_kb[0m[2m=[0m270296
-[2m2026-05-12T22:53:50.655651Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m0 [3mrss_kb[0m[2m=[0m280652
-[2m2026-05-12T22:53:50.746821Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m1 [3mrss_kb[0m[2m=[0m288012
-[2m2026-05-12T22:53:50.859278Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m2 [3mrss_kb[0m[2m=[0m290840
-[2m2026-05-12T22:53:50.978153Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m3 [3mrss_kb[0m[2m=[0m298092
-[2m2026-05-12T22:53:51.092782Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m4 [3mrss_kb[0m[2m=[0m304832
-[2m2026-05-12T22:53:51.211638Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m5 [3mrss_kb[0m[2m=[0m308604
-[2m2026-05-12T22:53:51.332073Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m6 [3mrss_kb[0m[2m=[0m310672
-[2m2026-05-12T22:53:51.455607Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m7 [3mrss_kb[0m[2m=[0m314280
-[2m2026-05-12T22:53:51.583555Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m8 [3mrss_kb[0m[2m=[0m316280
-[2m2026-05-12T22:53:51.705863Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m9 [3mrss_kb[0m[2m=[0m321012
-[2m2026-05-12T22:53:51.708980Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: ivc proof serialized [3mivc_bytes_len[0m[2m=[0m7245080 [3mrss_kb[0m[2m=[0m321012
-compressor_prove: complete (2276.869 ms)
+[2m2026-05-13T12:52:58.955609Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: deserialize_params start [3mrss_kb[0m[2m=[0m171860
+[2m2026-05-13T12:52:59.273566Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: pp_deserialize done [3mrss_kb[0m[2m=[0m171924 [3mrss_delta_kb[0m[2m=[0m64
+[2m2026-05-13T12:52:59.825562Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: vp_deserialize done [3mrss_kb[0m[2m=[0m216804 [3mrss_delta_kb[0m[2m=[0m44944
+[2m2026-05-13T12:53:00.077073Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: Nova::init done [3mrss_kb[0m[2m=[0m267220
+[2m2026-05-13T12:53:00.140471Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m0 [3mrss_kb[0m[2m=[0m277540
+[2m2026-05-13T12:53:00.226782Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m1 [3mrss_kb[0m[2m=[0m283264
+[2m2026-05-13T12:53:00.342650Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m2 [3mrss_kb[0m[2m=[0m288300
+[2m2026-05-13T12:53:00.471355Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m3 [3mrss_kb[0m[2m=[0m295104
+[2m2026-05-13T12:53:00.596228Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m4 [3mrss_kb[0m[2m=[0m304180
+[2m2026-05-13T12:53:00.714802Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m5 [3mrss_kb[0m[2m=[0m308492
+[2m2026-05-13T12:53:00.829691Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m6 [3mrss_kb[0m[2m=[0m311696
+[2m2026-05-13T12:53:00.951992Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m7 [3mrss_kb[0m[2m=[0m314780
+[2m2026-05-13T12:53:01.066799Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m8 [3mrss_kb[0m[2m=[0m316668
+[2m2026-05-13T12:53:01.180586Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m9 [3mrss_kb[0m[2m=[0m316740
+[2m2026-05-13T12:53:01.183257Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: ivc proof serialized [3mivc_bytes_len[0m[2m=[0m7245080 [3mrss_kb[0m[2m=[0m316740
+compressor_prove: complete (2246.832 ms)
 step 7/9: compressor_verify (sonobe-nova-bn254-grumpkin)
-compressor_verify: complete (618.763 ms)
+compressor_verify: complete (586.002 ms)
 step 8/9: partial_decrypt (party_id=1)
-partial_decrypt: complete (1.779 ms)
-partial_decrypt: complete (1.766 ms)
-partial_decrypt: complete (1.705 ms)
-partial_decrypt: complete (1.720 ms)
+partial_decrypt: complete (1.739 ms)
+partial_decrypt: complete (1.651 ms)
+partial_decrypt: complete (1.648 ms)
+partial_decrypt: complete (1.668 ms)
 step 9/9: aggregate_decrypt
-aggregate_decrypt: complete (31.386 ms)
+aggregate_decrypt: complete (21.437 ms)
 plaintext_roundtrip: OK
-aggregate_pk_hash: 9b01fc0f3873408b97c4c654745a2737bbe33c5708cbfd2cb5b1432118571e1e
-ciphertext_hash: a76d2bbc2305aea0ef40ba67bd7bead722cf36035b16146e5b53949537d0fd2c
-compressed_proof_digest: ddfdffd9409caf22c0771d854a4341cf230f8557d96f82c1a59021646c23cc75
-keygen_ms=27.881501999999998
-aggregate_keygen_ms=4.977548
-encrypt_ms=2.9289009999999998
-share_encryption_proof_ms=278
-partial_decrypt_ms=6.970008
-aggregate_decrypt_ms=31.385857
-decrypt_ms=38.355865
+aggregate_pk_hash: 8753a61fe1a64080af36887e2787cd596ddab3f3150c65831f8e7df29dbd074e
+ciphertext_hash: 649e7e22e7fdc262c60d5d61364ee2281d669bdd097c75cad64e5058df1be327
+compressed_proof_digest: 56da42df6edc39e088a6e14ed7b69ea8889acc0d1c37b76e7c651956574bbddb
+keygen_ms=28.374935999999998
+aggregate_keygen_ms=4.908013
+encrypt_ms=2.8460400000000003
+share_encryption_proof_ms=281
+partial_decrypt_ms=6.706891000000001
+aggregate_decrypt_ms=21.43727
+decrypt_ms=28.144161000000004
 threshold=4
 n=10
 verify: ACCEPT
 pvss_backend_id=lattice-pvss-bfv-d2
-[2m2026-05-12T22:53:53.093074Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m demo complete: ACCEPT
+[2m2026-05-13T12:53:02.487348Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m demo complete: ACCEPT

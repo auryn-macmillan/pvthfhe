@@ -19,7 +19,7 @@ mod threshold_below;
 mod withhold_reveal;
 
 const TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
-const N_PARTIES: usize = 4;
+const N_PARTIES: usize = 5;
 const THRESHOLD: usize = 2;
 
 fn acknowledge_mock_backend() {
@@ -46,7 +46,7 @@ fn backend_from_seed(_seed: u64) -> MockBackend {
 }
 
 fn simulator_from_seed(seed: u64) -> KeygenSimulator {
-    KeygenSimulator::new(N_PARTIES, THRESHOLD, backend_from_seed(seed))
+    KeygenSimulator::new(N_PARTIES, THRESHOLD, backend_from_seed(seed)).unwrap()
 }
 
 fn decrypt_fixture(seed: u64) -> DecryptFixture {

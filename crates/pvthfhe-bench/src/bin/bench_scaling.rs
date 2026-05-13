@@ -156,7 +156,8 @@ fn run_pipeline_with_backend<B: FheBackend + Clone + 'static>(
 
     let start = Instant::now();
 
-    let mut sim = KeygenSimulator::new(n_parties, backend_threshold, backend.clone());
+    let mut sim = KeygenSimulator::new(n_parties, backend_threshold, backend.clone())
+        .map_err(|e| format!("keygen new: {e}"))?;
     let transcript = match sim.run().map_err(|err| format!("keygen run: {err}"))? {
         KeygenResult::Complete(transcript) => transcript,
         KeygenResult::Blamed(ids) => return Err(format!("keygen blamed: {ids:?}")),

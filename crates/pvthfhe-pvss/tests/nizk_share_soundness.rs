@@ -651,3 +651,175 @@ fn test_d2_binding(
     h.update(relation_binding);
     h.finalize().into()
 }
+
+// ── RED: sigma equation tamper tests ───────────────────────────────────────
+//
+// These tests construct valid algebraic proofs, then tamper with z_s or d_rns
+// in the proof bytes.  The verifier MUST detect the tampering via the
+// c*z_s + z_e == t + ch*d_i (mod Q) equation check that was added in
+// verify_algebraic_relation().  Before the equation check was added (D.1
+// blocker), the verifier accepted proofs with arbitrary z_s/z_e values within
+// norm bounds — a critical soundness gap.
+//
+// Because the verifier checks algebraic_relation (step 6) before the BFV
+// encryption proof (step 11), a tampered z_s/d_rns is caught at step 6 even
+// when the BFV proof is empty (MockBackend limitation).
+
+fn forge_valid_algebraic_proof(
+    stmt: &ShareNizkStatement,
+    committed_share: &[u8],
+) -> (Vec<u8>, Vec<u64>) {
+    let s_i = test_share_sigma_witness(committed_share);
+    let e_i = vec![0i64; RLWE_N];
+    let c_rns = test_share_sigma_c_rns(stmt.session_id.as_slice(), stmt.recipient_index);
+    let d_rns = sigma::compute_d_rns(&c_rns, &s_i, &e_i).expect("compute d_rns");
+    let sigma_stmt = SigmaStatement {
+        c_rns,
+        d_rns: d_rns.clone(),
+    };
+    let sigma_witness = SigmaWitness { s_i, e_i };
+    let mut proof_rng = ChaCha20Rng::from_seed([0xA5; 32]);
+    let proof = sigma::prove(
+        &test_share_sigma_session_binding(stmt),
+        u32::try_from(stmt.recipient_index).expect("recipient index fits u32"),
+        &sigma_stmt,
+        &sigma_witness,
+        &test_digest_sigma_d(&d_rns),
+        &mut proof_rng,
+    )
+    .expect("sigma prove");
+    (test_encode_algebraic_proof(&d_rns, &proof), d_rns)
+}
+
+fn tamper_z_s_in_algebraic_proof(ap_bytes: &[u8]) -> Vec<u8> {
+    // Layout: u32 len + d_rns(u64)*24576 + u32 len + t_rns(u64)*24576 + u32 len + z_s...
+    let d_rns_data = RLWE_N * 3 * 8; // 24576 * 8 = 196608
+    let t_rns_data = RLWE_N * 3 * 8; // same
+    // skip: 4 (d_rns len) + d_rns_data + 4 (t_rns len) + t_rns_data + 4 (z_s len)
+    let z_s_offset = 4 + d_rns_data + 4 + t_rns_data + 4;
+    assert!(
+        ap_bytes.len() > z_s_offset,
+        "algebraic_proof too short ({}) for z_s tamper at offset {}",
+        ap_bytes.len(),
+        z_s_offset
+    );
+    let mut tampered = ap_bytes.to_vec();
+    tampered[z_s_offset] ^= 0x01; // flip low byte of first z_s coefficient
+    tampered
+}
+
+fn assemble_opened_proof(
+    stmt: &ShareNizkStatement,
+    algebraic_proof: &[u8],
+    bfv_encryption_proof: &[u8],
+) -> ShareNizkOpenedProof {
+    let relation_binding = test_relation_binding(stmt, algebraic_proof);
+    let commitment_bytes =
+        ProtocolBytes(b"attacker-commitment-ct-value-32".to_vec());
+    let commitment_binding = test_commitment_binding(stmt, &relation_binding);
+    let challenge = test_challenge(stmt, commitment_bytes.as_slice());
+    let lattice_binding = test_lattice_binding(
+        stmt,
+        commitment_bytes.as_slice(),
+        &commitment_binding,
+        &challenge,
+        &relation_binding,
+    );
+    let d2_binding = test_d2_binding(stmt, commitment_bytes.as_slice(), &relation_binding);
+    ShareNizkOpenedProof {
+        statement: stmt.clone(),
+        commitment_bytes,
+        commitment_seed: [0u8; DIGEST_LEN],
+        commitment_binding,
+        challenge,
+        lattice_binding,
+        relation_binding,
+        algebraic_proof: ProtocolBytes(algebraic_proof.to_vec()),
+        d2_binding,
+        bfv_encryption_proof: ProtocolBytes(bfv_encryption_proof.to_vec()),
+        domain_separator: SHARE_NIZK_DOMAIN_SEPARATOR.to_owned(),
+    }
+}
+
+#[test]
+fn verifier_rejects_proof_with_tampered_z_s() {
+    acknowledge_mock_backend();
+
+    let backend = MockBackend::load_params(TEST_PARAMS_TOML).expect("load mock backend");
+    let session_id = vec![0xD1u8; 32];
+    let committed_share = vec![0x13u8; 48];
+
+    let share_commitment = compute_share_commitment(&session_id, 0, &committed_share);
+    let stmt = ShareNizkStatement {
+        session_id: ProtocolBytes(session_id.clone()),
+        dealer_index: 0,
+        recipient_index: 0,
+        recipient_pk: ProtocolBytes(vec![0u8; 64]),
+        bfv_params_digest: ProtocolBytes(canonical_bfv_params_digest().to_vec()),
+        dkg_root: ProtocolBytes(session_id),
+        ciphertext_u: ProtocolBytes(vec![0u8; 128]),
+        ciphertext_v: ProtocolBytes(compute_ciphertext_v(&vec![0u8; 128]).to_vec()),
+        share_commitment: ProtocolBytes(share_commitment.to_vec()),
+    };
+
+    // Build a valid algebraic proof, then tamper z_s
+    let (valid_ap, _d_rns) = forge_valid_algebraic_proof(&stmt, &committed_share);
+    let tampered_ap = tamper_z_s_in_algebraic_proof(&valid_ap);
+    assert_ne!(
+        valid_ap, tampered_ap,
+        "tampered algebraic_proof must differ from valid proof"
+    );
+
+    let opened =
+        assemble_opened_proof(&stmt, &tampered_ap, b"");
+    let proof = ShareNizkProof::from_opened(&opened).expect("encode tampered proof");
+
+    let result = ShareNizkVerifier::verify(&backend, &stmt, &proof);
+    assert!(
+        result.is_err(),
+        "RED→GREEN: verifier must reject proof with tampered z_s (equation check). Got: {:?}",
+        result
+    );
+}
+
+#[test]
+fn verifier_rejects_proof_with_tampered_d_rns() {
+    acknowledge_mock_backend();
+
+    let backend = MockBackend::load_params(TEST_PARAMS_TOML).expect("load mock backend");
+    let session_id = vec![0xD2u8; 32];
+    let committed_share = vec![0x42u8; 48];
+
+    let share_commitment = compute_share_commitment(&session_id, 0, &committed_share);
+    let stmt = ShareNizkStatement {
+        session_id: ProtocolBytes(session_id.clone()),
+        dealer_index: 0,
+        recipient_index: 0,
+        recipient_pk: ProtocolBytes(vec![0u8; 64]),
+        bfv_params_digest: ProtocolBytes(canonical_bfv_params_digest().to_vec()),
+        dkg_root: ProtocolBytes(session_id),
+        ciphertext_u: ProtocolBytes(vec![0u8; 128]),
+        ciphertext_v: ProtocolBytes(compute_ciphertext_v(&vec![0u8; 128]).to_vec()),
+        share_commitment: ProtocolBytes(share_commitment.to_vec()),
+    };
+
+    let (valid_ap, _d_rns) = forge_valid_algebraic_proof(&stmt, &committed_share);
+    // Tamper first byte of the first d_rns limb (offset 4: after u32 length prefix)
+    let mut tampered_ap = valid_ap.clone();
+    assert!(tampered_ap.len() > 4, "algebraic_proof too short for d_rns tamper");
+    tampered_ap[4] ^= 0x01;
+    assert_ne!(
+        valid_ap, tampered_ap,
+        "tampered algebraic_proof must differ from valid proof"
+    );
+
+    let opened = assemble_opened_proof(&stmt, &tampered_ap, b"");
+    let proof = ShareNizkProof::from_opened(&opened).expect("encode tampered proof");
+
+    let result = ShareNizkVerifier::verify(&backend, &stmt, &proof);
+    assert!(
+        result.is_err(),
+        "RED→GREEN: verifier must reject proof with tampered d_rns (equation check). Got: {:?}",
+        result
+    );
+}

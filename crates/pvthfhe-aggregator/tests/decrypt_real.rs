@@ -31,7 +31,7 @@ fn decrypt_real_smoke_test() {
         FhersBackend::load_params(TEST_PARAMS_TOML),
         "load real backend",
     );
-    let mut simulator = KeygenSimulator::new_with_backend(8, 5, backend.clone());
+    let mut simulator = KeygenSimulator::new_with_backend(8, 3, backend.clone()).unwrap();
     let result = must(simulator.run(), "run keygen simulator");
 
     let transcript = match result {
@@ -39,7 +39,7 @@ fn decrypt_real_smoke_test() {
         KeygenResult::Blamed(blamed) => panic!("expected complete transcript, blamed: {blamed:?}"),
     };
 
-    must(backend.setup_threshold(8, 5), "setup threshold state");
+    must(backend.setup_threshold(8, 3), "setup threshold state");
 
     let mut rng = thread_rng();
     let plaintext = [0u8; 64];
@@ -81,7 +81,7 @@ fn decrypt_real_smoke_test() {
             &backend,
             &ciphertext,
             &shares,
-            5,
+            3,
             &transcript.participant_set,
             &transcript.dkg_root,
             &ciphertext_hash,

@@ -79,6 +79,7 @@ impl<B: FheBackend> EnclaveAggregator for PvthfheEnclaveAggregator<B> {
             .iter()
             .enumerate()
             .map(|(i, s)| pvthfhe_fhe::KeygenShare {
+                // TODO(C5): usize→u32 fallback in stub; production enclave will have validated counts.
                 party_id: u32::try_from(i).unwrap_or(u32::MAX),
                 bytes: ProtocolBytes(s.0.clone()),
             })
@@ -102,6 +103,7 @@ impl<B: FheBackend> EnclaveAggregator for PvthfheEnclaveAggregator<B> {
             .iter()
             .enumerate()
             .map(|(i, s)| pvthfhe_fhe::DecryptShare {
+                // TODO(C5): usize→u32 fallback in stub; production enclave will have validated counts.
                 party_id: u32::try_from(i).unwrap_or(u32::MAX),
                 bytes: ProtocolBytes(s.0.clone()),
                 nizk_proof_bytes: None,

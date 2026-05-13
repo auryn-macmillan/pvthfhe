@@ -7,7 +7,7 @@ use std::process::Command;
 fn demo_runs_full_pipeline() -> Result<(), Box<dyn std::error::Error>> {
     let mut cmd = Command::cargo_bin("pvthfhe-cli")?;
     let output = cmd
-        .args(["demo", "--n", "3", "--threshold", "2", "--seed", "0"])
+        .args(["demo", "--n", "5", "--threshold", "2", "--seed", "0"])
         .env_remove("PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK")
         .output()?;
 

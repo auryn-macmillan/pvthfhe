@@ -6,6 +6,7 @@ use rand_core::OsRng;
 use sha2::{Digest, Sha256};
 use std::{
     collections::{HashMap, HashSet},
+    fmt,
     sync::Arc,
 };
 
@@ -22,6 +23,28 @@ pub enum KeygenResult {
     Blamed(Vec<PartyId>),
 }
 
+/// Error returned when [`KeygenSimulator::new`] receives invalid parameters.
+#[derive(Debug)]
+pub enum KeygenError {
+    /// Threshold t must satisfy 1 ≤ t ≤ ⌊(n-1)/2⌋.
+    InvalidThreshold { n: usize, t: usize },
+}
+
+impl fmt::Display for KeygenError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidThreshold { n, t } => {
+                write!(
+                    f,
+                    "invalid threshold: n={n}, t={t} (must satisfy 1 ≤ t ≤ ⌊(n-1)/2⌋)"
+                )
+            }
+        }
+    }
+}
+
+impl std::error::Error for KeygenError {}
+
 pub struct KeygenSimulator {
     n_parties: usize,
     threshold: usize,
@@ -30,6 +53,7 @@ pub struct KeygenSimulator {
 }
 
 fn party_id_from_index(index: usize) -> PartyId {
+    // TODO(C5): usize→u32 fallback; party count is validated at construction.
     u32::try_from(index.saturating_add(1)).unwrap_or(u32::MAX)
 }
 
@@ -42,21 +66,44 @@ fn hash_bytes(data: &[u8]) -> [u8; 32] {
 }
 
 impl KeygenSimulator {
-    pub fn new<B: FheBackend + 'static>(n_parties: usize, threshold: usize, backend: B) -> Self {
+    pub fn new<B: FheBackend + 'static>(
+        n_parties: usize,
+        threshold: usize,
+        backend: B,
+    ) -> Result<Self, KeygenError> {
+        if n_parties == 0 {
+            return Err(KeygenError::InvalidThreshold {
+                n: n_parties,
+                t: threshold,
+            });
+        }
+        if threshold == 0 || threshold > n_parties {
+            return Err(KeygenError::InvalidThreshold {
+                n: n_parties,
+                t: threshold,
+            });
+        }
+        let max_t = (n_parties - 1) / 2;
+        if threshold > max_t {
+            return Err(KeygenError::InvalidThreshold {
+                n: n_parties,
+                t: threshold,
+            });
+        }
         Self::assert_mock_acknowledged_if_needed(&backend);
-        Self {
+        Ok(Self {
             n_parties,
             threshold,
             backend: Arc::new(backend),
             faults: HashMap::new(),
-        }
+        })
     }
 
     pub fn new_with_backend<B: FheBackend + 'static>(
         n_parties: usize,
         threshold: usize,
         backend: B,
-    ) -> Self {
+    ) -> Result<Self, KeygenError> {
         Self::new(n_parties, threshold, backend)
     }
 

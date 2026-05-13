@@ -19,8 +19,8 @@ fn run_subcommand(args: &[&str]) -> std::process::Output {
 
 #[test]
 fn keygen_subcommand_not_stub() {
-    let output = run_subcommand(&["keygen", "--n", "3", "--threshold", "2"]);
-    // On current main: prints "keygen: n=3 threshold=2 (stub)"
+    let output = run_subcommand(&["keygen", "--n", "5", "--threshold", "2"]);
+    // On current main: prints "keygen: n=5 threshold=2 (stub)"
     // After GREEN: produces real key material output
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);

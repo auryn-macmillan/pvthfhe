@@ -85,6 +85,7 @@ impl MultiTrackFoldMetadata {
         out.extend_from_slice(&self.participant_id.to_be_bytes());
         push_u64_len(&mut out, &self.party_binding);
         out.extend_from_slice(&self.instance_count.to_be_bytes());
+        // TODO(C5): usize→u32 fallback; track count bounded by protocol, conversion infallible in practice.
         out.extend_from_slice(
             &u32::try_from(self.tracks.len())
                 .unwrap_or(u32::MAX)
@@ -193,6 +194,7 @@ impl MultiTrackFoldMetadata {
 }
 
 fn push_u64_len(out: &mut Vec<u8>, value: &[u8]) {
+    // TODO(C5): usize→u64 fallback; infallible on 64-bit, defensive on 32-bit.
     out.extend_from_slice(&u64::try_from(value.len()).unwrap_or(u64::MAX).to_be_bytes());
     out.extend_from_slice(value);
 }

@@ -21,7 +21,7 @@ fn malformed_proof_blamed() {
         variance = 10
     "#;
     let backend = MockBackend::load_params(toml).unwrap();
-    let mut sim = KeygenSimulator::new(4, 2, backend);
+    let mut sim = KeygenSimulator::new(5, 2, backend).unwrap();
     sim.inject_fault(1, FaultType::MalformedProof);
     let result = sim.run().unwrap();
     match result {
@@ -42,7 +42,7 @@ fn withhold_share_blamed() {
         variance = 10
     "#;
     let backend = MockBackend::load_params(toml).unwrap();
-    let mut sim = KeygenSimulator::new(4, 2, backend);
+    let mut sim = KeygenSimulator::new(5, 2, backend).unwrap();
     sim.inject_fault(1, FaultType::WithholdShare);
     let result = sim.run().unwrap();
     match result {
@@ -63,7 +63,7 @@ fn equivocate_blamed() {
         variance = 10
     "#;
     let backend = MockBackend::load_params(toml).unwrap();
-    let mut sim = KeygenSimulator::new(4, 2, backend);
+    let mut sim = KeygenSimulator::new(5, 2, backend).unwrap();
     sim.inject_fault(2, FaultType::Equivocate);
     let result = sim.run().unwrap();
     match result {

@@ -105,19 +105,22 @@ impl LatticePvssBfvAdapter {
         let effective_sk_share = sk_agg_share.or(witness.sk_agg_share);
         let effective_esm_share = witness.esm_agg_share;
         let mode = match committed_esm_noise_bytes {
-            Some(_) if effective_sk_share.is_some() && effective_esm_share.is_some() => {
+            Some(_) => {
+                let sk_val = effective_sk_share.ok_or(PvssError::InvalidShare)?;
+                let esm_val = effective_esm_share.ok_or(PvssError::InvalidShare)?;
                 let ciphertext_hash =
                     compute_decrypt_ciphertext_hash(ciphertext_u, &ciphertext_v);
                 let recipient_id =
                     u16::try_from(party_index).map_err(|_| PvssError::InvalidShare)?;
-                let accepted_participant_ids: Vec<u16> =
-                    (1..=u16::try_from(ctx.n).unwrap_or(u16::MAX)).collect();
+                let accepted_participant_ids: Vec<u16> = (1..=u16::try_from(ctx.n)
+                    .map_err(|_| PvssError::BackendError("n too large for u16".to_string()))?)
+                    .collect();
                 let sk_agg_commit = compute_sk_aggregate_commitment(
                     &ctx.session_id,
                     &dkg_root,
                     recipient_id,
                     &accepted_participant_ids,
-                    ark_bn254::Fr::from(effective_sk_share.unwrap_or(0)),
+                    ark_bn254::Fr::from(sk_val),
                 );
                 let esm_agg_commit = compute_esm_aggregate_commitment(
                     &ctx.session_id,
@@ -125,7 +128,7 @@ impl LatticePvssBfvAdapter {
                     recipient_id,
                     &accepted_participant_ids,
                     1, // slot_id = 1
-                    ark_bn254::Fr::from(effective_esm_share.unwrap_or(0)),
+                    ark_bn254::Fr::from(esm_val),
                 );
                 DecryptNizkMode::CommittedSmudge {
                     slot_id: 1,
@@ -136,7 +139,7 @@ impl LatticePvssBfvAdapter {
                     esm_agg_commit,
                 }
             }
-            _ => DecryptNizkMode::LegacyLocalSmudge,
+            None => DecryptNizkMode::LegacyLocalSmudge,
         };
 
         let statement = DecryptNizkStatement {

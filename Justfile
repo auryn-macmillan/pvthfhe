@@ -42,9 +42,9 @@ bench-scaling:
 
 bench-comparison n="3" t="1" seed="1":
     mkdir -p bench/results
-    cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features sonobe-compressor -- --n {{n}} --t {{t}} --seed {{seed}}
-    cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features sonobe-compressor -- --n {{n}} --t {{t}} --seed {{seed}}
-    cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features sonobe-compressor -- --n {{n}} --t {{t}} --seed {{seed}}
+    cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features sonobe-compressor,demo-seeded-rng -- --n {{n}} --t {{t}} --seed {{seed}}
+    cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features sonobe-compressor,demo-seeded-rng -- --n {{n}} --t {{t}} --seed {{seed}}
+    cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features sonobe-compressor,demo-seeded-rng -- --n {{n}} --t {{t}} --seed {{seed}}
     cargo run -p pvthfhe-bench --bin bench_comparison -- --n {{n}} --t {{t}} --seed {{seed}}
     cargo run -p pvthfhe-bench --bin render_comparison -- --comparison-json bench/results/comparison.json --output-dir bench/results
 

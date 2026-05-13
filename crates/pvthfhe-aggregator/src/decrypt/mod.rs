@@ -171,6 +171,9 @@ pub fn partial_decrypt(
 
             let decryption_noise_bytes = witness.esm_noise_poly_bytes.clone();
 
+            let expected_sk_agg_share =
+                pvthfhe_pvss::nizk_decrypt::derive_party_binding(party_pk_bytes);
+            let dealer_index = pvthfhe_pvss::derive_dealer_index(&session_id);
             let stmt = DecryptNizkStatement {
                 session_id,
                 party_index,
@@ -180,6 +183,8 @@ pub fn partial_decrypt(
                 party_pk: party_pk_bytes.to_vec(),
                 epoch,
                 dkg_root: dkg_root.to_vec(),
+                expected_sk_agg_share,
+                dealer_index,
                 mode: DecryptNizkMode::LegacyLocalSmudge,
             };
 

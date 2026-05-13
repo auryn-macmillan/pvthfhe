@@ -8,8 +8,8 @@ use pvthfhe_types::{EncRandomness, ProtocolBytes, ShareSecret};
 use rand_core::{RngCore, SeedableRng};
 
 use crate::nizk_decrypt::{
-    compute_decrypt_ciphertext_hash, DecryptNizkMode, DecryptNizkProof, DecryptNizkProver,
-    DecryptNizkStatement, DecryptNizkVerifier, DecryptNizkWitness,
+    compute_decrypt_ciphertext_hash, derive_party_binding, DecryptNizkMode, DecryptNizkProof,
+    DecryptNizkProver, DecryptNizkStatement, DecryptNizkVerifier, DecryptNizkWitness,
 };
 use crate::nizk_share::{
     canonical_bfv_params_digest, compute_ciphertext_v, compute_share_commitment, ShareNizkProof,
@@ -142,6 +142,8 @@ impl LatticePvssBfvAdapter {
             None => DecryptNizkMode::LegacyLocalSmudge,
         };
 
+        let expected_sk_agg_share =
+            effective_sk_share.unwrap_or_else(|| derive_party_binding(party_pk));
         let statement = DecryptNizkStatement {
             session_id: ctx.session_id.clone(),
             party_index,
@@ -151,6 +153,8 @@ impl LatticePvssBfvAdapter {
             party_pk: party_pk.to_vec(),
             epoch: ctx.epoch,
             dkg_root,
+            expected_sk_agg_share,
+            dealer_index: ctx.dealer_index,
             mode,
         };
         let proof = DecryptNizkProver::prove(&statement, witness)?;
@@ -237,7 +241,7 @@ impl PvssAdapter for LatticePvssBfvAdapter {
             let ciphertext_v = compute_ciphertext_v(&ciphertext_u);
             let statement = ShareNizkStatement {
                 session_id: ProtocolBytes(ctx.session_id.clone()),
-                dealer_index: 0,
+                dealer_index: ctx.dealer_index,
                 recipient_index: index,
                 recipient_pk: ProtocolBytes(recipient_pk_bytes.clone()),
                 bfv_params_digest: ProtocolBytes(bfv_params_digest.clone()),

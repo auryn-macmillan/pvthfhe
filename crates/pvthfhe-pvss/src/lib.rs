@@ -28,6 +28,23 @@ pub struct PvssContext {
     pub epoch: u64,
     /// DKG anchoring root digest for session binding.
     pub dkg_root: Vec<u8>,
+    /// Cryptographically-derived dealer identity index bound to the session.
+    pub dealer_index: usize,
+}
+
+/// Derive a deterministic dealer index from session identity bytes.
+///
+/// Uses SHA-256 over the session_id with a domain separator to produce a
+/// non-zero dealer index that is deterministic for the same session.
+pub fn derive_dealer_index(session_id: &[u8]) -> usize {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(b"pvthfhe-dealer-index-v1");
+    hasher.update(session_id);
+    let digest: [u8; 32] = hasher.finalize().into();
+    let raw = u64::from_be_bytes(digest[..8].try_into().unwrap_or([0u8; 8]));
+    // Map to [1, u16::MAX] to avoid zero and stay within reasonable range.
+    (raw % u64::from(u16::MAX - 1) + 1) as usize
 }
 
 /// Encrypted-share bundle emitted by a PVSS dealer.

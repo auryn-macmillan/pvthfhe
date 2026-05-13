@@ -17,6 +17,8 @@ fn sample_statement() -> DecryptNizkStatement {
         party_pk: vec![0x55; 48],
         epoch: 0,
         dkg_root: vec![0xAB; 32],
+        expected_sk_agg_share: pvthfhe_pvss::nizk_decrypt::derive_party_binding(&[0x55; 48]),
+        dealer_index: pvthfhe_pvss::derive_dealer_index(&[9; 32]),
         mode: DecryptNizkMode::LegacyLocalSmudge,
     }
 }

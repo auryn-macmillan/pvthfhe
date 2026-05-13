@@ -649,7 +649,8 @@ fn encode_bfv_encryption_proof_from_witness(
         poly_bytes_to_rns(&enc_witness.ct0_poly_bytes).map_err(|_| PvssError::InvalidShare)?;
     let ct1_rns =
         poly_bytes_to_rns(&enc_witness.ct1_poly_bytes).map_err(|_| PvssError::InvalidShare)?;
-    let delta_limbs = bfv_delta_rns(65536).map_err(|_| PvssError::InvalidShare)?;
+    let t_plain: u64 = 65536;
+    let delta_limbs = bfv_delta_rns(t_plain).map_err(|_| PvssError::InvalidShare)?;
 
     let bfv_stmt = BfvSigmaStatement {
         pk0_rns: pk0_rns.clone(),
@@ -657,6 +658,7 @@ fn encode_bfv_encryption_proof_from_witness(
         ct0_rns: ct0_rns.clone(),
         ct1_rns: ct1_rns.clone(),
         delta_limbs: delta_limbs.clone(),
+        t_plain,
     };
 
     // --- Build BFV sigma witness ---
@@ -675,8 +677,10 @@ fn encode_bfv_encryption_proof_from_witness(
 
     let encoded_proof = encode_bfv_sigma_proof(&proof);
 
-    // --- Encode self-contained proof: [delta_limbs][pk0_rns][pk1_rns][ct0_rns][ct1_rns][proof] ---
+    // --- Encode self-contained proof: [t_plain][delta_limbs][pk0_rns][pk1_rns][ct0_rns][ct1_rns][proof] ---
     let mut out = Vec::new();
+    // t_plain (u64 LE)
+    out.extend_from_slice(&t_plain.to_le_bytes());
     // delta_limbs (3 u64 values)
     for v in &delta_limbs {
         out.extend_from_slice(&v.to_le_bytes());
@@ -723,8 +727,19 @@ pub fn verify_bfv_encryption_proof(
 
     let mut offset = 0;
 
+    // Read t_plain (u64 LE)
+    if bfv_encryption_proof.len() < 8 {
+        return Err(PvssError::BfvEncryptionProofFailed);
+    }
+    let t_plain = u64::from_le_bytes(
+        bfv_encryption_proof[offset..offset + 8]
+            .try_into()
+            .unwrap(),
+    );
+    offset += 8;
+
     // Read delta_limbs (3 u64)
-    if bfv_encryption_proof.len() < 24 {
+    if bfv_encryption_proof.len() < offset + 24 {
         return Err(PvssError::BfvEncryptionProofFailed);
     }
     let delta_limbs: Vec<u64> = (0..3)
@@ -774,6 +789,7 @@ pub fn verify_bfv_encryption_proof(
         ct0_rns,
         ct1_rns,
         delta_limbs,
+        t_plain,
     };
 
     // Decode BfvSigmaProof

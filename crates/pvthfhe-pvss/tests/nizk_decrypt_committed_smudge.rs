@@ -35,6 +35,8 @@ fn committed_statement() -> DecryptNizkStatement {
         party_pk: vec![0x55; 48],
         epoch: 7,
         dkg_root: dkg_root.clone(),
+        expected_sk_agg_share: sk_agg_share,
+        dealer_index: pvthfhe_pvss::derive_dealer_index(&session_id),
         mode: DecryptNizkMode::CommittedSmudge {
             slot_id: SLOT_ID,
             decrypt_round: DECRYPT_ROUND,

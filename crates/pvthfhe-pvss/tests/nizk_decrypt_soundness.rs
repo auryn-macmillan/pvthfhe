@@ -19,6 +19,8 @@ fn sample_statement() -> DecryptNizkStatement {
         party_pk: vec![0xCC; 48],
         epoch: 0,
         dkg_root: vec![0xDD; 32],
+        expected_sk_agg_share: 0x1234_5678_9ABC_DEF0,
+        dealer_index: pvthfhe_pvss::derive_dealer_index(&[0xAA; 32]),
         mode: DecryptNizkMode::LegacyLocalSmudge,
     }
 }
@@ -31,13 +33,12 @@ fn sample_statement() -> DecryptNizkStatement {
 /// After GREEN, a proof produced with a secret key that does not match
 /// the party's real `sk_i` must be REJECTED by the verifier.
 #[test]
-#[ignore = "RED: R3.2 decrypt NIZK — vacuous binding via derive_secret_share"]
 fn adversary_without_ski_cannot_produce_valid_proof() {
     let stmt = sample_statement();
 
     // Witness with a trivially-wrong "secret key" — this should fail
-    // verification after GREEN because the NIZK must prove knowledge of
-    // the REAL sk_i matching party_pk.
+    // verification because the NIZK must prove knowledge of
+    // the REAL sk_agg_share matching expected_sk_agg_share in the statement.
     let wrong_witness = DecryptNizkWitness {
         secret_key_bytes: Secret::new(vec![0x00; 64]),
         decryption_noise: Secret::new(vec![0x00; 64]),
@@ -46,20 +47,18 @@ fn adversary_without_ski_cannot_produce_valid_proof() {
         esm_noise_poly_bytes: None,
     };
 
-    // The adversary (who does not know the real sk_i) produces a proof
+    // The adversary (who does not know the real sk_agg_share) produces a proof
     // using arbitrary bytes as witness.
     let proof = DecryptNizkProver::prove(&stmt, &wrong_witness)
         .expect("adversary must be able to call prove");
 
-    // After GREEN, this proof must be REJECTED.  Currently it is ACCEPTED
-    // because `derive_secret_share` uses only public data, so the verifier
-    // cannot distinguish real from fake witnesses.
+    // The proof must be REJECTED because the adversary does not provide
+    // the correct sk_agg_share matching expected_sk_agg_share.
     let result = DecryptNizkVerifier::verify(&stmt, &proof);
 
     assert!(
         result.is_err(),
-        "Proof with wrong sk_i must be REJECTED (soundness violation). \
-         Currently accepted because derive_secret_share ignores witness data."
+        "Proof with wrong sk_agg_share must be REJECTED (soundness violation)."
     );
 }
 
@@ -68,21 +67,21 @@ fn adversary_without_ski_cannot_produce_valid_proof() {
 /// tell which party (with which sk_i) produced the proof, making the NIZK
 /// useless for attributing decryption shares.
 #[test]
-#[ignore = "RED: R3.2 decrypt NIZK — vacuous binding via derive_secret_share"]
 fn two_different_witnesses_both_verify() {
     let stmt = sample_statement();
+    let correct_sk = stmt.expected_sk_agg_share;
 
     let witness_a = DecryptNizkWitness {
         secret_key_bytes: Secret::new(vec![0x11; 64]),
         decryption_noise: Secret::new(vec![0x22; 64]),
-        sk_agg_share: None,
+        sk_agg_share: Some(correct_sk),
         esm_agg_share: None,
         esm_noise_poly_bytes: None,
     };
     let witness_b = DecryptNizkWitness {
         secret_key_bytes: Secret::new(vec![0xAA; 64]),
         decryption_noise: Secret::new(vec![0xBB; 64]),
-        sk_agg_share: None,
+        sk_agg_share: Some(correct_sk ^ 0xFFFF_FFFF),
         esm_agg_share: None,
         esm_noise_poly_bytes: None,
     };
@@ -93,8 +92,6 @@ fn two_different_witnesses_both_verify() {
     let result_a = DecryptNizkVerifier::verify(&stmt, &proof_a);
     let result_b = DecryptNizkVerifier::verify(&stmt, &proof_b);
 
-    // Currently BOTH verify because derive_secret_share ignores witness.
-    // After GREEN, at most one should verify (the one with the correct sk_i).
     assert!(
         result_a.is_err() || result_b.is_err(),
         "At least one proof with a different witness must be REJECTED. \

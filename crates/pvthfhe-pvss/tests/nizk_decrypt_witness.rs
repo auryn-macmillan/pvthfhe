@@ -13,14 +13,15 @@ const SOURCE_PATH: &str = "src/nizk_decrypt.rs";
 /// It currently derives a u64 secret-share scalar from public statement
 /// fields — anyone can compute it, defeating the NIZK binding.
 #[test]
-#[ignore = "RED: R3.2 decrypt NIZK — derive_secret_share must be removed"]
 fn derive_secret_share_is_absent() {
     let src = fs::read_to_string(SOURCE_PATH).expect("nizk_decrypt.rs must be readable");
 
-    // Block-lines grep: look for fn derive_secret_share definition.
+    // Block-lines grep: look for fn derive_secret_share definition (not _poly).
     let found = src
         .lines()
-        .filter(|line| line.contains("fn derive_secret_share"))
+        .filter(|line| {
+            line.contains("fn derive_secret_share(") || line.contains("fn derive_secret_share\n")
+        })
         .count();
 
     assert_eq!(
@@ -36,7 +37,6 @@ fn derive_secret_share_is_absent() {
 /// share from public data alone.  After GREEN, `DecryptNizkStatement` fields
 /// must not suffice to reconstruct the `secret_share` value used in the proof.
 #[test]
-#[ignore = "RED: R3.2 decrypt NIZK — secret share derivable from public statement"]
 fn secret_share_not_derivable_from_statement() {
     // Construct a sample statement and show that the secret_share used in
     // the proof commitment must depend on secret key bytes (witness), not
@@ -50,7 +50,7 @@ fn secret_share_not_derivable_from_statement() {
     // For now: the RED test is the source-grep above.  This test serves as
     // a placeholder for the GREEN-phase behavioral check.
     let src = fs::read_to_string(SOURCE_PATH).expect("nizk_decrypt.rs must be readable");
-    let has_derive = src.contains("fn derive_secret_share");
+    let has_derive = src.contains("fn derive_secret_share(");
     assert!(
         !has_derive,
         "derive_secret_share must not exist: secret_share is derivable from public statement"

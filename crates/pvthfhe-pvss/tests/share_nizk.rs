@@ -46,6 +46,7 @@ fn sample_context() -> PvssContext {
         session_id: vec![9; 32],
         epoch: 0,
         dkg_root: vec![],
+        dealer_index: pvthfhe_pvss::derive_dealer_index(&[9; 32]),
     }
 }
 

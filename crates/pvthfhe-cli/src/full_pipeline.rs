@@ -409,6 +409,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                     party_pk: party_pk.clone(),
                     epoch: 0,
                     dkg_root,
+                    expected_sk_agg_share: *sk_agg_share,
+                    dealer_index: pvthfhe_pvss::derive_dealer_index(session_id.as_bytes()),
                     mode: DecryptNizkMode::CommittedSmudge {
                         slot_id: 1,
                         decrypt_round: 0,
@@ -439,9 +441,13 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                     ciphertext_u: ciphertext.bytes.clone(),
                     ciphertext_v,
                     decrypted_share_bytes: share.bytes.0.clone(),
-                    party_pk,
+                    party_pk: party_pk.clone(),
                     epoch: 0,
                     dkg_root,
+                    expected_sk_agg_share: pvthfhe_pvss::nizk_decrypt::derive_party_binding(
+                        party_pk.as_slice(),
+                    ),
+                    dealer_index: pvthfhe_pvss::derive_dealer_index(session_id.as_bytes()),
                     mode: DecryptNizkMode::LegacyLocalSmudge,
                 };
                 let proof_bytes = share.nizk_proof_bytes.clone();

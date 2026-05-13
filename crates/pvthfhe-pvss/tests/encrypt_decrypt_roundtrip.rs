@@ -37,12 +37,14 @@ fn encrypt_decrypt_roundtrip_recovers_secret() {
 
     let encryption_backend = MockBackend::load_params(TEST_PARAMS_TOML).expect("load mock backend");
     let adapter = LatticePvssBfvAdapter::new_with_backend(encryption_backend);
+    let dealer_index = pvthfhe_pvss::derive_dealer_index(&[9; 32]);
     let ctx = PvssContext {
         n: 3,
         t: 2,
         session_id: vec![9; 32],
         epoch: 0,
         dkg_root: vec![],
+        dealer_index,
     };
 
     let mut rng = ChaCha8Rng::seed_from_u64(7);

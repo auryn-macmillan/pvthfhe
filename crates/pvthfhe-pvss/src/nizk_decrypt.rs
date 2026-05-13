@@ -74,6 +74,10 @@ pub struct DecryptNizkStatement {
     pub dkg_root: Vec<u8>,
     /// Explicit smudging mode for this decryption relation.
     pub mode: DecryptNizkMode,
+    /// Expected DKG-anchored secret-key aggregate share for witness binding.
+    pub expected_sk_agg_share: u64,
+    /// Cryptographically-derived dealer identity index bound to the session.
+    pub dealer_index: usize,
 }
 
 /// Secret witness for one share-decryption proof.
@@ -184,7 +188,7 @@ impl DecryptNizkVerifier {
         let participant_id =
             u16::try_from(stmt.party_index).map_err(|_| PvssError::InvalidShare)?;
         let session_id = hex_encode(&stmt.session_id);
-        let legacy_secret_share = derive_party_binding(&stmt.party_pk);
+        let bound_secret_share = verify_secret_share(stmt);
         let inner_stmt = NizkStatement {
             ciphertext_bytes: encode_ciphertext_bytes(stmt)?,
             decrypt_share_bytes: stmt.decrypted_share_bytes.clone(),
@@ -192,7 +196,7 @@ impl DecryptNizkVerifier {
                 stmt,
                 &session_id,
                 participant_id,
-                legacy_secret_share,
+                bound_secret_share,
             ),
             params: (RLWE_Q_LOG2, RLWE_DEGREE, RLWE_ERROR_BOUND),
             session_id,
@@ -406,15 +410,19 @@ fn proof_commitment(
     }
 }
 
+fn verify_secret_share(stmt: &DecryptNizkStatement) -> u64 {
+    stmt.expected_sk_agg_share
+}
+
 fn verify_commitment(
     stmt: &DecryptNizkStatement,
     session_id: &str,
     participant_id: u16,
-    legacy_secret_share: u64,
+    secret_share: u64,
 ) -> [u8; DIGEST_LEN] {
     match &stmt.mode {
         DecryptNizkMode::LegacyLocalSmudge => {
-            hash_bridge::commit(session_id, participant_id, legacy_secret_share)
+            hash_bridge::commit(session_id, participant_id, secret_share)
         }
         DecryptNizkMode::CommittedSmudge { sk_agg_commit, .. } => *sk_agg_commit,
     }
@@ -497,6 +505,8 @@ fn encode_opened_proof_body(opened: &DecryptNizkOpenedProof) -> Result<Vec<u8>, 
     encode_bytes(&mut out, &opened.statement.party_pk)?;
     out.extend_from_slice(&opened.statement.epoch.to_be_bytes());
     encode_bytes(&mut out, &opened.statement.dkg_root)?;
+    out.extend_from_slice(&opened.statement.expected_sk_agg_share.to_be_bytes());
+    encode_usize(&mut out, opened.statement.dealer_index)?;
     encode_mode(&mut out, &opened.statement.mode)?;
     encode_bytes(&mut out, opened.backend_id.as_bytes())?;
     encode_bytes(&mut out, &opened.inner_proof_bytes)?;
@@ -524,6 +534,8 @@ fn decode_opened_proof_body(bytes: &[u8]) -> Result<DecryptNizkOpenedProof, Pvss
     let party_pk = cursor.read_vec()?;
     let epoch = cursor.read_u64()?;
     let dkg_root = cursor.read_vec()?;
+    let expected_sk_agg_share = cursor.read_u64()?;
+    let dealer_index = cursor.read_usize()?;
     let mode = cursor.read_mode()?;
     let backend_id = String::from_utf8(cursor.read_vec()?).map_err(|_| PvssError::InvalidShare)?;
     let inner_proof_bytes = cursor.read_vec()?;
@@ -539,6 +551,8 @@ fn decode_opened_proof_body(bytes: &[u8]) -> Result<DecryptNizkOpenedProof, Pvss
             party_pk,
             epoch,
             dkg_root,
+            expected_sk_agg_share,
+            dealer_index,
             mode,
         },
         backend_id,

@@ -44,12 +44,14 @@ pub fn run_lattice_pvss(
     let adapter =
         LatticePvssBfvAdapter::new().map_err(|err| anyhow::anyhow!("pvss init: {err}"))?;
     let session_id = pvss_session_id(session_label, transcript, seed);
+    let dealer_index = pvthfhe_pvss::derive_dealer_index(&session_id);
     let ctx = PvssContext {
         n: transcript.participant_set.len(),
         t: threshold,
         session_id: session_id.clone(),
         epoch: 0,
         dkg_root: transcript.dkg_root.to_vec(),
+        dealer_index,
     };
     let recipient_pks = derive_recipient_public_keys(backend, transcript)?;
     let secret = derive_secret(transcript);

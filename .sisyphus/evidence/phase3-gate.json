@@ -1,22 +1,22 @@
 {
-  "status": "PASS",
-  "timestamp": "2026-05-04T20:37:28Z",
+  "status": "FAIL",
+  "timestamp": "2026-05-13T22:32:09Z",
   "steps": {
     "workspace-tests": {
-      "status": "PASS",
-      "detail": "cargo test -p pvthfhe-cyclo, pvthfhe-aggregator, and pvthfhe-micronova passed"
+      "status": "FAIL",
+      "detail": "cargo test -p pvthfhe-aggregator failed: `pvthfhe-aggregator` (test \"final_aggregation_proof\") generated 1 warning\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.71s\n     Running unittests src/lib.rs (target/debug/deps/pvthfhe_aggregator-dfee896a3053be05)\n     Running tests/adversarial/mod.rs (target/debug/deps/adversarial-797ba41f7c831145)\nerror: test failed, to rerun pass `-p pvthfhe-aggregator --test adversarial`"
     },
     "clippy": {
-      "status": "PASS",
-      "detail": "cargo clippy --workspace passed"
+      "status": "FAIL",
+      "detail": "cargo clippy failed: allow(clippy::needless_range_loop)]`\nhelp: consider using an iterator and enumerate()\n     |\n1431 -             for j in 0..n {\n1431 +             for (j, <item>) in party_ids.iter().enumerate().take(n) {\n     |\n\nwarning: pvthfhe-fhe@0.1.0: MOCK BACKEND ACTIVE \u2014 XOR/SHA256 ONLY. Set PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK=1 to use.\nerror: could not compile `pvthfhe-fhe` (lib) due to 17 previous errors"
     },
     "fmt": {
-      "status": "PASS",
-      "detail": "cargo fmt --check passed"
+      "status": "FAIL",
+      "detail": "cargo fmt --check failed: usize) -> Fr {\n     let x = Fr::from(x as u64);\nDiff in /home/dev/pvthfhe/crates/pvthfhe-types/src/lib.rs:353:\n             .finish()\n     }\n }\n\u001b[31m-\n\u001b[m\u000f\u001b[31m-\n\u001b[m\u000f \nDiff in /home/dev/pvthfhe/crates/pvthfhe-types/tests/secret_types_present.rs:89:\n         \"EncRandomness\",\n         \"CcsWitnessSecret\",\n         \"ProtocolBytes\",\n\u001b[31m-\n\u001b[m\u000f     ]\n     .iter()\n     .any(|token| repr.contains(token))"
     },
     "deny": {
-      "status": "PASS",
-      "detail": "cargo deny check passed"
+      "status": "FAIL",
+      "detail": "cargo deny check failed: pvthfhe/deny.toml:13:16\n   \u2502\n13 \u2502     { crate = \"fhe-traits\", allow = [\"MIT\"] },\n   \u2502                \u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501 unmatched license exception\n\nwarning[license-exception-not-encountered]: license exception was not encountered\n   \u250c\u2500 /home/dev/pvthfhe/deny.toml:14:16\n   \u2502\n14 \u2502     { crate = \"prime_factorization\", allow = [\"CC0-1.0\"] },\n   \u2502                \u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501 unmatched license exception"
     },
     "noir-tests": {
       "status": "PASS",

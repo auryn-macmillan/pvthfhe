@@ -27,8 +27,8 @@ use crate::{StepCircuit, StepCircuitDescriptor};
 
 /// Merkle witness data for a single step.
 ///
-/// For depth-1 (N=8) with arity 8: 7 siblings.
-/// For depth-5 (N=8192) with arity 8: 35 siblings.
+/// For depth-5 (N=8192) with arity 8: 35 siblings (5 levels × 7 siblings/level).
+/// Also supports smaller depths (e.g., depth-1 / N=8: 7 siblings).
 #[derive(Clone, Debug)]
 pub struct MerkleWitnessData<F: PrimeField> {
     pub leaf_value: F,
@@ -41,7 +41,7 @@ impl<F: PrimeField> Default for MerkleWitnessData<F> {
         Self {
             leaf_value: F::zero(),
             leaf_index: F::zero(),
-            siblings: vec![F::zero(); 7],
+            siblings: vec![F::zero(); 35],
         }
     }
 }
@@ -163,6 +163,8 @@ fn verify_merkle_path<F: PrimeField>(
 
 /// Step circuit for C7 decryption aggregation with in-circuit Merkle verification.
 ///
+/// Default: depth-5, arity-8  (N=8192, 32768-capable tree).
+///
 /// State (3 elements):
 ///   z[0] = accumulated share evaluation    Σ λ_i · d_i(r)
 ///   z[1] = accumulated Lagrange sum        Σ λ_i
@@ -197,7 +199,7 @@ impl<F: PrimeField> FCircuit<F> for C7MerkleStepCircuit<F> {
     type ExternalInputsVar = C7MerkleExternalInputsVar<F>;
 
     fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
-        Self::new_with_depth(1, 8)
+        Self::new_with_depth(5, 8)
     }
 
     fn state_len(&self) -> usize {
@@ -253,8 +255,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn merkle_external_inputs_width_depth1_arity8() {
-        assert_eq!(merkle_external_inputs_width(1, 8), 12);
+    fn merkle_circuit_descriptor_width_depth5() {
+        let circuit = C7MerkleStepCircuit::<Fr>::new(()).expect("construct C7 merkle");
+        assert_eq!(circuit.descriptor().width, 40);
     }
 
     #[test]

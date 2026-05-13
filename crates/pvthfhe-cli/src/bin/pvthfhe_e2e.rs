@@ -20,7 +20,7 @@ use {
     ark_bn254::Fr,
     pvthfhe_compressor::{
         sonobe::{
-            encode_triple, C7DecryptAggregationCircuit, C7MerkleExternalInputs,
+            encode_triple, hash8_native, C7DecryptAggregationCircuit, C7MerkleExternalInputs,
             C7MerkleStepCircuit, MerkleWitnessData, SonobeCompressor,
         },
         ProofCompressor,
@@ -416,15 +416,28 @@ fn run_c7_merkle_optional(n: usize, seed: u64) -> (f64, bool) {
     let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
 
     let steps: Vec<C7MerkleExternalInputs<Fr>> = (0..n)
-        .map(|i| C7MerkleExternalInputs {
-            share_eval: Fr::from((42 + i as u64) * 100),
-            lagrange_coeff: Fr::from(1u64),
-            merkle_root: Fr::from(8u64),
-            merkle_data: MerkleWitnessData {
-                leaf_value: Fr::from(1u64),
-                leaf_index: Fr::from(0u64),
-                siblings: vec![Fr::from(1u64); 7],
-            },
+        .map(|i| {
+            let leaf_value = Fr::from(1u64);
+            let siblings: Vec<Fr> = vec![Fr::from(1u64); 35];
+            // Compute depth-5 Poseidon merkle root (5 levels × 7 siblings)
+            let mut current = leaf_value;
+            for level in 0..5 {
+                let start = level * 7;
+                let level_siblings = &siblings[start..start + 7];
+                let mut inputs = vec![current];
+                inputs.extend_from_slice(level_siblings);
+                current = hash8_native(&inputs);
+            }
+            C7MerkleExternalInputs {
+                share_eval: Fr::from((42 + i as u64) * 100),
+                lagrange_coeff: Fr::from(1u64),
+                merkle_root: current,
+                merkle_data: MerkleWitnessData {
+                    leaf_value,
+                    leaf_index: Fr::from(0u64),
+                    siblings,
+                },
+            }
         })
         .collect();
 

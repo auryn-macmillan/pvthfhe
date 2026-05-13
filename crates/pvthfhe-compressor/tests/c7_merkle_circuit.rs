@@ -31,17 +31,24 @@ fn make_merkle_step(
     }
 }
 
-/// Compute a valid Merkle root via Poseidon for depth-1 arity-8.
-fn poseidon_merkle_root(leaf: Fr, siblings: &[Fr; 7]) -> Fr {
-    let mut inputs = vec![leaf];
-    inputs.extend_from_slice(siblings);
-    hash8_native(&inputs)
+/// Compute a valid Merkle root via Poseidon for depth-5 arity-8.
+/// Walks 5 levels: for each level, hash current with 7 siblings.
+fn poseidon_merkle_root(leaf: Fr, all_siblings: &[Fr; 35]) -> Fr {
+    let mut current = leaf;
+    for level in 0..5 {
+        let start = level * 7;
+        let level_siblings = &all_siblings[start..start + 7];
+        let mut inputs = vec![current];
+        inputs.extend_from_slice(level_siblings);
+        current = hash8_native(&inputs);
+    }
+    current
 }
 
-/// Create a valid Merkle step for testing. Uses real Poseidon hashes.
+/// Create a valid Merkle step for testing. Uses real Poseidon hashes with depth-5.
 fn valid_merkle_step(share_eval: u64) -> C7MerkleExternalInputs<Fr> {
     let leaf = Fr::from(1u64);
-    let siblings = [Fr::from(1u64); 7];
+    let siblings = [Fr::from(1u64); 35];
     let root = poseidon_merkle_root(leaf, &siblings);
     make_merkle_step(
         Fr::from(share_eval),
@@ -77,7 +84,7 @@ fn merkle_circuit_hash_deterministic() {
     assert_eq!(circuit_a.circuit_hash(), circuit_b.circuit_hash());
 }
 
-/// Test 4: full roundtrip prove/verify with 4 steps (depth-1, 7 siblings).
+/// Test 4: full roundtrip prove/verify with 4 steps (depth-5, 35 siblings).
 #[test]
 fn merkle_circuit_roundtrip() {
     let num_steps = 4;
@@ -119,7 +126,7 @@ fn merkle_circuit_wrong_leaf_rejected() {
 
     let step0 = valid_merkle_step(4200);
     let leaf_wrong = Fr::from(9999u64);
-    let siblings = [Fr::from(1u64); 7];
+    let siblings = [Fr::from(1u64); 35];
     let root_correct = poseidon_merkle_root(Fr::from(1u64), &siblings);
     let step1 = make_merkle_step(
         Fr::from(4200u64),
@@ -169,11 +176,11 @@ fn merkle_circuit_differs_from_c7_basic() {
     );
 }
 
-/// Test 7: descriptor width is 12 for depth-1, arity-8.
+/// Test 7: descriptor width is 40 for depth-5, arity-8.
 #[test]
-fn merkle_circuit_descriptor_width_depth1() {
+fn merkle_circuit_descriptor_width_depth5() {
     let circuit = C7MerkleStepCircuit::<Fr>::new(()).expect("construct C7 merkle");
-    assert_eq!(circuit.descriptor().width, 12);
+    assert_eq!(circuit.descriptor().width, 40);
 }
 
 /// Test 8: circuit with custom depth/arity computes correct width.

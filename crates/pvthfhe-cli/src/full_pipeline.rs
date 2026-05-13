@@ -1140,19 +1140,25 @@ fn run_c7_verification(
     let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
     let steps: Vec<C7MerkleExternalInputs<Fr>> = witnesses.participants.iter().map(|w| {
         let leaf = w.share_eval;
-        let siblings = [Fr::zero(); 7];
-        let mut hash_inputs = vec![leaf];
-        hash_inputs.extend_from_slice(&siblings);
-        let root = hash8_native(&hash_inputs);
+        let siblings: Vec<Fr> = vec![Fr::zero(); 35];
+        // Compute depth-5 Poseidon merkle root (5 levels × 7 siblings)
+        let mut current = leaf;
+        for level in 0..5 {
+            let start = level * 7;
+            let level_siblings = &siblings[start..start + 7];
+            let mut inputs = vec![current];
+            inputs.extend_from_slice(level_siblings);
+            current = hash8_native(&inputs);
+        }
 
         C7MerkleExternalInputs {
             share_eval: w.share_eval,
             lagrange_coeff: w.lagrange_coeff,
-            merkle_root: root,
+            merkle_root: current,
             merkle_data: MerkleWitnessData {
                 leaf_value: leaf,
                 leaf_index: Fr::zero(),
-                siblings: siblings.to_vec(),
+                siblings,
             },
         }
     }).collect();

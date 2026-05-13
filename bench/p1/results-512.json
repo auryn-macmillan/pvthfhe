@@ -4,11 +4,11 @@
   "q": 65537,
   "error_bound": 17,
   "iterations": 100,
-  "median_prove_ms": 0.0120795,
-  "median_verify_ms": 0.00412,
-  "proof_size_bytes": 12366,
-  "batch_verify_1_ms": 0.00627,
-  "batch_verify_10_ms": 0.059429,
-  "batch_verify_100_ms": 0.42664,
-  "batch_verify_100_ms_per_proof": 0.0042664
+  "median_prove_ms": 17.110098,
+  "median_verify_ms": 1.733159,
+  "proof_size_bytes": 616566,
+  "batch_verify_1_ms": 1.912053,
+  "batch_verify_10_ms": 23.037531,
+  "batch_verify_100_ms": 230.942202,
+  "batch_verify_100_ms_per_proof": 2.30942202
 }

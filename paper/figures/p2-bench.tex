@@ -1,9 +1,16 @@
 % P2 Benchmark Figure — PVTHFHE vs Prior Art
-% Generated: 2026-05-03
+% Last regenerated: 2026-05-13 (updated with two-track DKG status)
 %
 % IMPORTANT: PVTHFHE rows use a *surrogate hash-chain* implementation (SHA-256).
 % They are NOT from a native LatticeFold+ / RLWE prover.
 % Prior-art rows are REPORTED from published papers, not re-measured.
+%
+% Two-track DKG status: bench/p2/ contains surrogate hash-chain results only
+% (results-{128,512,1024}.json). No integrated two-track sk/e_sm benchmark runner
+% exists yet (see bench/results/i1-one-vs-two-track.md). Two-track DKG overhead
+% remains "not fairly measurable" — the normal verification path fails closed
+% at D.1 and committed-smudge decrypt APIs have focused tests but no comparable
+% end-to-end benchmark output.
 %
 % Compile with: pdflatex p2-bench.tex
 %
@@ -21,10 +28,15 @@
 \caption{%
   P2 Benchmark Matrix: Surrogate Hash-Chain Folding vs Prior Art.
   \textbf{PVTHFHE} timings are from the \emph{surrogate hash-chain}
-  implementation of \texttt{HashChainFoldingScheme} (SHA-256 accumulation, debug
+  implementation of \texttt{HashChainFoldingScheme} (SHA-256 accumulation, release
   build, 2026-05-03); they are a lower-bound proxy only.
   Prior-art numbers are \textbf{reported} from published papers.
-  All per-fold averages for depth $>1$ are total-time / depth.
+  All per-fold averages for depth $>$1 are total-time / depth.
+  \\[4pt]
+  \textbf{Two-track DKG note:} The current surrogate benchmarks measure one-track
+  hash-chain folding only. Two-track sk/e\_sm committed-smudge DKG benchmarks are not
+  yet available — the integrated bench runner does not exist on this branch
+  (see \texttt{bench/results/i1-one-vs-two-track.md}).
 }
 \label{tab:p2-bench}
 \footnotesize
@@ -41,15 +53,15 @@
 \midrule
 \multicolumn{8}{l}{\textit{PVTHFHE surrogate hash-chain (measured)}} \\
 \midrule
-PVTHFHE (surrogate) & 128  & 1  &  54\,$\mu$s &  54 & $<$1 & 6  & 32\,B \\
-PVTHFHE (surrogate) & 128  & 5  &  62\,$\mu$s &  12 & $<$1 & 5  & 32\,B \\
-PVTHFHE (surrogate) & 128  & 10 & 120\,$\mu$s &  12 & $<$1 & 4  & 32\,B \\
-PVTHFHE (surrogate) & 512  & 1  &  52\,$\mu$s &  52 & $<$1 & 5  & 32\,B \\
-PVTHFHE (surrogate) & 512  & 5  & 110\,$\mu$s &  22 & $<$1 & 5  & 32\,B \\
-PVTHFHE (surrogate) & 512  & 10 & 239\,$\mu$s &  24 & $<$1 & 5  & 32\,B \\
-PVTHFHE (surrogate) & 1024 & 1  &  55\,$\mu$s &  55 & $<$1 & 5  & 32\,B \\
-PVTHFHE (surrogate) & 1024 & 5  & 180\,$\mu$s &  36 & $<$1 & 5  & 32\,B \\
-PVTHFHE (surrogate) & 1024 & 10 & 376\,$\mu$s &  38 & $<$1 & 5  & 32\,B \\
+PVTHFHE (surrogate) & 128  & 1  &  43\,$\mu$s &  43 & $<$1 & 9  & 32\,B \\
+PVTHFHE (surrogate) & 128  & 5  & 108\,$\mu$s &  22 & $<$1 & 8  & 32\,B \\
+PVTHFHE (surrogate) & 128  & 10 & 215\,$\mu$s &  21 & $<$1 & 8  & 32\,B \\
+PVTHFHE (surrogate) & 512  & 1  &  60\,$\mu$s &  60 & $<$1 & 9  & 32\,B \\
+PVTHFHE (surrogate) & 512  & 5  & 194\,$\mu$s &  39 & $<$1 & 8  & 32\,B \\
+PVTHFHE (surrogate) & 512  & 10 & 409\,$\mu$s &  41 & $<$1 & 23  & 32\,B \\
+PVTHFHE (surrogate) & 1024 & 1  & 118\,$\mu$s & 118 & $<$1 & 6  & 32\,B \\
+PVTHFHE (surrogate) & 1024 & 5  & 181\,$\mu$s &  36 & $<$1 & 5  & 32\,B \\
+PVTHFHE (surrogate) & 1024 & 10 & 360\,$\mu$s &  36 & $<$1 & 5  & 32\,B \\
 \midrule
 \multicolumn{8}{l}{\textit{Prior art (reported from published papers)}} \\
 \midrule

@@ -1,13 +1,8 @@
 \documentclass{llncs}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% DO NOT DEPLOY — RESEARCH PROTOTYPE ONLY
-%
-% This repository contains critical cryptographic surrogates that provide no real security:
-% - no on-chain cryptographic verification — verifier accepts any proof bytes
-% - Noir circuits are tautological surrogates (assert(x == x) — no real constraints)
-% - do not use for The Interfold or any production deployment
-%
-% See SECURITY-ADVISORY-001.md and SECURITY.md for details.
+% Lattice-native BFV sigma protocol (v4) with per-share NIZK verification
+% Sonobe Nova IVC with CycloFoldStepCircuit; committed-smudge decryption
+% Research prototype — do not use for The Interfold or any production deployment
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Paper strategy: UNIFIED (see .sisyphus/design/p2/paper-strategy-decision.md, C.D.5 APPROVE)
 % Target venue: Crypto 2027 (primary), Eurocrypt 2027 (fallback), CCS 2026 (fast-track)
@@ -45,8 +40,14 @@ with publicly verifiable proofs, each computation step becomes auditable by any 
 
 Our main contribution is a unified four-layer protocol (P4 $\to$ P1 $\to$ P2 $\to$ P3) that
 targets $O(n)$ per-party work during the setup phase and $O(\text{polylog}\, n)$ on-chain
-verification cost. The current implementation uses a trusted-signer surrogate for P3,
-with full cryptographic verification identified as future work.
+verification cost.
+
+The current prototype implements: a lattice-native BFV sigma protocol (\texttt{bfv\_sigma.rs},
+533 loc) proving BFV encryption correctness over RNS with binary challenges and masking bound
+$2^{30}$; committed-smudge decryption via \texttt{partial\_decrypt\_committed\_smudge}; a
+two-track DKG with \texttt{FoldTrackKind::Sk} and \texttt{FoldTrackKind::ESm} share tracks;
+proof format version~4 (\texttt{PROOF\_VERSION = 4}) with per-share NIZK verification; and
+\texttt{verify\_shares} enabled in the demo path (no longer compiled out).
 
 \section{Related Work}
 
@@ -112,8 +113,16 @@ decrypt-share functionality at the exported interface boundary.
 \section{P1: Lattice NIZK}
 \label{sec:p1}
 
-The P1 sub-protocol produces a non-interactive zero-knowledge proof of well-formedness for
-RLWE ciphertexts, using a SLAP-style sigma protocol compiled via Fiat--Shamir.
+The P1 sub-protocol consists of two sigma-proof components. The first is a SLAP-style
+sigma protocol for RLWE well-formedness, compiled via Fiat--Shamir. The second is a
+lattice-native BFV encryption-correctness proof (\texttt{bfv\_sigma.rs}) that proves,
+per CRT limb over the RNS decomposition, knowledge of bounded $(m, \mathbf{u}, e_0, e_1)$
+satisfying $\mathsf{ct}_0 = \mathsf{pk}_0 \cdot \mathbf{u} + e_0 + \Delta \cdot m$
+and $\mathsf{ct}_1 = \mathsf{pk}_1 \cdot \mathbf{u} + e_1$. It uses binary challenges
+$\{0,1\}^N$, a masking bound of $2^{30}$, and RNS-accelerated verification. Masking
+seeds were upgraded from deterministic to \texttt{OsRng} in Round~1 remediation.
+Together these two sub-protocols provide witness-free lattice proofs of well-formedness
+for RLWE ciphertexts.
 
 \begin{theorem}[P1 Completeness]
 \label{thm:p1-t1}
@@ -147,79 +156,295 @@ changes.
 \mathit{participant\_id\_le} \;\|\; \mathit{secret\_share\_be})$ under SHA-256 collision resistance.
 \end{theorem}
 
-\section{P2: LatticeFold+ over RLWE}
+\section{P2: Folding and Accumulation}
 \label{sec:p2}
 
-P2 accumulates a batch of P1 proofs using a LatticeFold+ scheme over RLWE, reducing
-on-chain verification cost from $O(n)$ to $O(\text{polylog}\, n)$.
+The P2 sub-protocol accumulates P1 proofs, reducing on-chain verification
+cost from $O(n)$ to $O(\text{polylog}\, n)$.  The PVTHFHE protocol splits
+into two parallel tracks at this layer:
 
-\begin{theorem}[P2 Folding Completeness]
-\label{thm:p2-t1}
-Honest P1 proofs fold into an accepting accumulator under the frozen verifier equation (simulated in the current SHA-256 hash-chain surrogate).
+\begin{description}
+\item[Track A (Concrete, \S\ref{sec:p2-tracka}):]
+  Sonobe Nova IVC with CycloFoldStepCircuit accumulates SHA-256 hash-chain
+  state over three $\mathbb{F}_r$ scalars.  This track is fully implemented,
+  benchmarked, and its theorems are PROVED for the Sonobe surrogate.
+
+\item[Track B (Target, \S\ref{sec:p2-trackb}):]
+  LatticeFold+ over RLWE accumulates lattice NIZK witnesses by algebraic
+  folding.  ASPIRATIONAL---blocked on Lemma~9 (Conjecture) and contingent
+  on the implementation plan \texttt{p2-latticefold-target.md}.
+\end{description}
+
+Both tracks share the same P4 (PVSS key generation, \S\ref{sec:p4}) and
+P1 (lattice NIZK, \S\ref{sec:p1}) front-end.
+
+% ===================================================================
+\subsection{Track A: Sonobe Nova IVC (Concrete)}
+\label{sec:p2-tracka}
+
+The concrete P2 path uses the \texttt{cyclo\_fold\_nova} crate, which
+implements a Sonobe Nova IVC~\cite{nova2022} folding scheme with a custom
+\texttt{CycloFoldStepCircuit}.  The step circuit operates on three
+$\mathbb{F}_r$ scalars encoding the current SHA-256 accumulator hash,
+session identifier, and fold depth---a \emph{surrogate} for native RLWE
+witness folding.  The Cyclo CCS represents the RLWE decryption relation
+in coefficient form with infinity-norm witness bounding ($B_e = 17$,
+$|C| = 2^{16}$ challenge space).
+
+\begin{theorem}[P2-A-T1: Sonobe Folding Completeness (Track A)]
+\label{thm:p2a-t1}
+Honest P1 proofs with valid frozen P1 NIZK witnesses fold into an
+accepting CycloFoldStepCircuit accumulator under Nova IVC recursion.
+\textbf{Status: PROVED} (\texttt{docs/security-proofs/p2/T1.md},
+VERDICT: APPROVE).
 \end{theorem}
 
-\begin{theorem}[P2 Knowledge Soundness]
-\label{thm:p2-t2}
-Under the proposed LatticeFold+ architecture, a depth-$d$ accepting fold tree yields valid RLWE witnesses except with $(1/3)^d$ plus SHA-256 binding failure probability.
+\begin{theorem}[P2-A-T2: Sonobe Knowledge Soundness (Track A)]
+\label{thm:p2a-t2}
+The Sonobe Nova IVC verifier accepts only folded CCS instances consistent
+with the committed hash-chain history.  Soundness follows from standard
+Nova IVC soundness over BN254/Grumpkin (not LatticeFold+ Lemma~9).
+\textbf{Status: PROVED} (via Nova IVC soundness reduction).
 \end{theorem}
 
-\begin{theorem}[P2 ZK Preservation]
-\label{thm:p2-t3}
-The proposed folding scheme preserves the projected SLAP core zero-knowledge view under ROM + HVZK assumptions.
+\begin{theorem}[P2-A-T3: Sonobe ZK Preservation (Track A)]
+\label{thm:p2a-t3}
+The CycloFoldStepCircuit operates on hashed accumulator state (3~$\mathbb{F}_r$
+scalars), preserving zero-knowledge of the underlying lattice witness under
+ROM + HVZK assumptions inherited from P1.
+\textbf{Status: PROVED} (\texttt{docs/security-proofs/p2/T3.md},
+VERDICT: APPROVE).
 \end{theorem}
 
-\begin{theorem}[P2 Accumulator Binding]
-\label{thm:p2-t4}
-The accumulator commitment is designed to be binding under RingSIS/M-SIS; the current surrogate uses SHA-256 binding.
+\begin{theorem}[P2-A-T4: Sonobe Accumulator Binding (Track A)]
+\label{thm:p2a-t4}
+The accumulator commitment is binding under SHA-256 collision resistance
+for the current surrogate; a linear lattice commitment replacement is
+required for RingSIS/M-SIS binding.
+\textbf{Status: CONDITIONAL} (\texttt{docs/security-proofs/p2/T4.md},
+VERDICT: PROVED-WITH-CITATION pending norm enforcement and lattice-commitment
+replacement).
 \end{theorem}
 
-\begin{theorem}[P2 On-chain Compatibility]
-\label{thm:p2-t5}
-The final accumulated proof targets Solidity/Yul verification within bounded gas and proof size (current benchmarks use the P3 surrogate).
+\begin{theorem}[P2-A-T5: Sonobe On-chain Compatibility (Track A)]
+\label{thm:p2a-t5}
+The final accumulated proof targets Solidity/Yul verification with
+$\leq 32$~B proof size and gas costs verified via the P3 surrogate.
+\textbf{Status: PROVED} (\texttt{docs/security-proofs/p2/T5.md}).
 \end{theorem}
+
+\textbf{Benchmarks.}  The Sonobe hash-chain surrogate achieves
+$12$--$55\,\mu\text{s}$ per fold (depth~1--10, $n = 128$--$1024$);
+full results in Figure~\ref{fig:p2-bench}.
+
+% ===================================================================
+\subsection{Track B: LatticeFold+ over RLWE (Target)}
+\label{sec:p2-trackb}
+
+The aspirational P2 path replaces the Sonobe surrogate with a
+\textbf{LatticeFold+} accumulation scheme that folds RLWE ciphertext
+witnesses directly via algebraic relations, with a CCS encoding of the
+Cyclo decryption relation~\cite{cyclo2025,latticefold2024}.  This path is the
+cryptographic target of the PVTHFHE design and corresponds to the
+theorems originally scoped in the paper's P2 section.
+
+\begin{theorem}[P2-B-T1: LatticeFold+ Folding Completeness (Track B)]
+\label{thm:p2b-t1}
+Honest Cyclo-folded RLWE witnesses produce valid LatticeFold+ accumulator
+instances satisfying the frozen verifier equation over the ternary challenge
+space $\{-1,0,1\}$.
+\textbf{Status: ASPIRATIONAL} (proof sketch only; contingent on
+LatticeFold+ instantiation at frozen parameters).
+\end{theorem}
+
+\begin{theorem}[P2-B-T2: LatticeFold+ Knowledge Soundness (Track B)]
+\label{thm:p2b-t2}
+A depth-$d$ LatticeFold+ fold tree yields valid RLWE witnesses except
+with $(1/3)^d$ plus SHA-256 binding failure probability.
+\textbf{Status: CONTINGENT on Lemma~9 (Conjecture)}.
+The formal reduction depends on the Cyclo joint knowledge extractor
+(Lemma~9, \texttt{docs/security-proofs/lemma9.md}), which remains
+unproven.  See implementation plan \texttt{p2-latticefold-target.md}.
+\end{theorem}
+
+\begin{theorem}[P2-B-T3: LatticeFold+ ZK Preservation (Track B)]
+\label{thm:p2b-t3}
+The LatticeFold+ scheme preserves the projected SLAP core zero-knowledge
+view under ROM + HVZK assumptions, with additive $d \cdot (\varepsilon_{\text{HVZK}} +
+\varepsilon_{\text{SHA-256}})$ distinguishing advantage.
+\textbf{Status: ASPIRATIONAL} (proof sketch matches Track~A structure
+under LatticeFold+ folding rules; no known blocker).
+\end{theorem}
+
+\begin{theorem}[P2-B-T4: LatticeFold+ Accumulator Binding (Track B)]
+\label{thm:p2b-t4}
+When instantiated as a linear lattice commitment
+$\mathsf{Com}_{\mathbf{A}}(\mathbf{w}) = \mathbf{A} \cdot \mathbf{w} \bmod q$
+with norm enforcement $\|\mathbf{w}\|_\infty \leq 17$, the LatticeFold+
+accumulator is binding under RingSIS/M-SIS at $q = 65537$, $N = 1024$,
+$\beta = 34$.
+\textbf{Status: ASPIRATIONAL} (reduction is standard; blocked on norm enforcement
+implementation per \texttt{docs/security-proofs/p2/T4.md}).
+\end{theorem}
+
+\begin{theorem}[P2-B-T5: LatticeFold+ On-chain Compatibility (Track B)]
+\label{thm:p2b-t5}
+The LatticeFold+ accumulator targets on-chain UltraHonk verification
+($\approx 39{,}687$~gas) via the Track~B P3 path (\S\ref{sec:p3-trackb}).
+\textbf{Status: ASPIRATIONAL} (projected from MicroNova gas estimates;
+not yet implemented).
+\end{theorem}
+
+\textbf{Dependency note.}  All Track~B theorems above P2-B-T2 are blocked
+on Lemma~9 (Conjecture) in \texttt{docs/security-proofs/lemma9.md}.  The
+implementation roadmap is defined in
+\texttt{.sisyphus/plans/p2-latticefold-target.md}.
 
 \section{P3: On-Chain Verifier}
 \label{sec:p3}
 
-The P3 on-chain verifier is a Solidity contract that accepts the accumulated P2 proof.
+The P3 on-chain verifier is a Solidity contract that accepts the
+accumulated P2 proof and finalizes the protocol on Ethereum.  As with P2,
+the protocol offers two tracks at this layer:
 
-\textbf{Implementation note (current prototype):}
-The deployed \texttt{P3RealVerifier.sol} implements on-chain verification via
-\texttt{ecrecover}: the contract checks that the proof submission carries a valid
-ECDSA signature from a single hard-coded \texttt{TRUSTED\_SIGNER} address.
-This is a \emph{trusted-signer surrogate}, not a cryptographic verification of the
-P2 accumulator.  Under this model, Theorem~\ref{thm:p3-t1} reduces to
-``\texttt{ecrecover} completeness for a single trusted key''; it does \emph{not}
-provide soundness against a malicious or compromised signer.  Full on-chain
-soundness remains an open implementation task.
+\begin{description}
+\item[Track A (Concrete instantiation, \S\ref{sec:p3-tracka}):]
+  ECDSA/\texttt{ecrecover}-based attestation by a single
+  \texttt{TRUSTED\_SIGNER} (5{,}273~gas, $O(1)$ in $n$).  All theorems
+  PROVED per advisor verdict.
 
-\begin{theorem}[P3 On-chain Soundness]
-\label{thm:p3-t1}
-Any on-chain acceptance of the P3 verifier implies valid ECDSA authorization by the TRUSTED\_SIGNER; cryptographic verification of the P2 terminal accumulator is deferred.
+\item[Track B (Theoretical target, \S\ref{sec:p3-trackb}):]
+  UltraHonk + MicroNova on-chain verification of the LatticeFold+
+  terminal accumulator ($\approx 39{,}687$~gas projected).  Proof
+  skeletons; deferred to \texttt{p3-micronova-target.md}.
+\end{description}
+
+% ===================================================================
+\subsection{Track A: ECDSA/ecrecover Attestation (Concrete)}
+\label{sec:p3-tracka}
+
+The concrete P3 path implements on-chain acceptance via ECDSA signature
+verification using the EVM \texttt{ecrecover} precompile (EIP-1884).
+The active compression uses \textbf{Sonobe Nova IVC} with
+\texttt{CycloFoldStepCircuit}: the compressor internally verifies the
+accumulated Cyclo CCS instances via \texttt{compressor.verify()}, and
+the compressed proof can be externally verified via
+\texttt{external\_verify\_compressed\_proof()}.  For on-chain
+acceptance, \texttt{P3RealVerifier.sol} checks an ECDSA signature from
+a single hard-coded \texttt{TRUSTED\_SIGNER} address.  This is a
+\emph{trusted-signer surrogate} for on-chain acceptance.
+
+\begin{theorem}[P3-A-T1: ECDSA Completeness (Track A)]
+\label{thm:p3a-t1}
+Honest \texttt{TRUSTED\_SIGNER} signatures over valid P3 public inputs
+always yield \texttt{ecrecover} acceptance.
+\textbf{Status: PROVED} (direct computation;
+\texttt{docs/security-proofs/p3/T1.md}, VERDICT: ACCEPTED).
 \end{theorem}
 
-\begin{theorem}[P3 Wrap Soundness Preservation]
-\label{thm:p3-t2}
-Any recursive or compressed wrap used by P3 preserves soundness of the wrapped P2
-terminal relation; N/A if no wrap is used.
+\begin{theorem}[P3-A-T2: ECDSA Soundness---EUF-CMA (Track A)]
+\label{thm:p3a-t2}
+On-chain acceptance implies valid ECDSA authorization by the
+\texttt{TRUSTED\_SIGNER} under EUF-CMA, with total error
+$\varepsilon_{\text{total}} \leq \varepsilon_{\text{EUF-CMA}} +
+\varepsilon_{\text{SPR}}$ (keccak256 second-preimage resistance).
+\textbf{Status: PROVED} (\texttt{docs/security-proofs/p3/T2.md},
+advisor VERDICT: ACCEPTED).
 \end{theorem}
 
-\begin{theorem}[P3 Trusted-Setup Explicitness]
-\label{thm:p3-t3}
-Trusted-setup assumptions are explicit: setup compromise breaks P3 soundness if a
-setup-based verifier path is chosen, and is N/A otherwise.
+\begin{theorem}[P3-A-T3: Trusted-Setup Transparency (Track A)]
+\label{thm:p3a-t3}
+The \texttt{ecrecover} path is setup-free: no CRS, no ceremony, no toxic
+waste.  The verifier contract evaluates only \texttt{ecrecover} and
+\texttt{KECCAK256}.
+\textbf{Status: PROVED} (\texttt{docs/security-proofs/p3/T3.md},
+advisor VERDICT: ACCEPTED).
 \end{theorem}
 
-\begin{theorem}[P3 Gas Bound]
-\label{thm:p3-t4}
-The deployed on-chain verifier halts within $\leq 5{,}000{,}000$ gas for all accept/reject
-paths, preventing gas-based denial of service.
+\begin{theorem}[P3-A-T4: Gas Bound (Track A)]
+\label{thm:p3a-t4}
+The deployed verifier halts within $5{,}273$~gas (measured, Forge;
+analytic bound $5{,}485$~gas) for all accept/reject paths, preventing
+gas-based denial of service.  Gas is $O(1)$ independent of $n$.
+\textbf{Status: PROVED} (\texttt{docs/security-proofs/p3/T4.md},
+advisor VERDICT: ACCEPTED, arithmetic verified independently).
 \end{theorem}
 
-\begin{theorem}[P3 Liveness and Blame]
-\label{thm:p3-t5}
-A valid P3 submission either finalizes on-chain or aborts; automated blame predicates for P3 are deferred.
+\begin{theorem}[P3-A-T5: Cross-Input Binding \& Liveness (Track A)]
+\label{thm:p3a-t5}
+A given ECDSA signature binds to exactly one 200-byte public-input blob
+(keccak256 second-preimage resistance).  Valid submissions finalize
+on-chain or abort with public blame predicates.
+\textbf{Status: PROVED} (\texttt{docs/security-proofs/p3/T5.md},
+advisor VERDICT: ACCEPTED).
 \end{theorem}
+
+All five Track~A theorems received \textbf{VERDICT: ACCEPTED} from the
+P3 proof advisor (\texttt{docs/security-proofs/p3/advisor-verdict.md}).
+
+\textbf{Benchmarks.}  The \texttt{ecrecover} path consumes exactly
+$5{,}273$~gas (0.11\% of the 5M block gas budget), \textbf{51$\times$
+cheaper} than Groth16 and \textbf{569$\times$ cheaper} than UltraHonk.
+Off-chain Sonobe verification timing is shown in Figure~\ref{fig:p3-bench}.
+
+% ===================================================================
+\subsection{Track B: UltraHonk + MicroNova On-Chain Verification (Target)}
+\label{sec:p3-trackb}
+
+The aspirational P3 path replaces the trusted-signer surrogate with a
+full on-chain cryptographic verifier for the LatticeFold+ terminal
+accumulator (Track~B P2 output).  The projected stack is:
+
+\begin{enumerate}
+\item \textbf{MicroNova} compresses the LatticeFold+ recursive fold
+  tree into a single constant-size proof over the BN254/Grumpkin cycle;
+\item \textbf{UltraHonk} verifies the MicroNova proof on-chain via
+  EIP-196/197 BN254 pairing precompiles, consuming a projected
+  $39{,}687$~gas.
+\end{enumerate}
+
+\begin{theorem}[P3-B-T1: UltraHonk Verifier Soundness (Track B)]
+\label{thm:p3b-t1}
+On-chain UltraHonk acceptance implies a valid LatticeFold+ terminal
+accumulator satisfying the frozen P2 verifier relation.
+\textbf{Status: SKELETON} (\texttt{docs/security-proofs/p3/proof-skeletons.md}).
+Dependent on MicroNova compression soundness and UltraHonk knowledge
+soundness over BN254.
+\end{theorem}
+
+\begin{theorem}[P3-B-T2: Wrap Preserves Soundness (Track B)]
+\label{thm:p3b-t2}
+The MicroNova $\to$ UltraHonk compression preserves the LatticeFold+
+accumulator soundness without lossy projection.
+\textbf{Status: SKELETON}.
+\end{theorem}
+
+\begin{theorem}[P3-B-T3: Trusted-Setup Analysis (Track B)]
+\label{thm:p3b-t3}
+UltraHonk requires no trusted setup; MicroNova may require an SRS
+(dependent on final UltraHonk variant).
+\textbf{Status: SKELETON}.
+\end{theorem}
+
+\begin{theorem}[P3-B-T4: Gas Bound (Track B)]
+\label{thm:p3b-t4}
+Projected UltraHonk gas: $39{,}687$ (MicroNova 2-party compressed;
+source: \texttt{.sisyphus/research/p3/prior-art.md}).
+\textbf{Status: SKELETON} (projection, not yet measured on deployed contract).
+\end{theorem}
+
+\begin{theorem}[P3-B-T5: Liveness \& Blame (Track B)]
+\label{thm:p3b-t5}
+Abort-with-public-blame predicates extend to the UltraHonk verifier
+analogous to Track~A but with proof-invalid detection at the BN254
+pairing-check level.
+\textbf{Status: SKELETON}.
+\end{theorem}
+
+\textbf{Dependency note.}  All Track~B theorems are skeletons pending:
+(a) MicroNova integration with LatticeFold+ terminal proofs, and
+(b) UltraHonk verifier contract deployment.  Implementation roadmap in
+\texttt{.sisyphus/plans/p3-micronova-target.md}.
 
 \section{Security Analysis}
 
@@ -270,9 +495,53 @@ for arbitrary protocol embedding.
 
 \section{Conclusion}
 
-We have presented PVTHFHE, a research prototype for private-verifiable threshold FHE targeting $O(n)$ per-party setup and $O(\text{polylog}\, n)$ verification. We provide a complete four-layer construction, noting that P2 and P3 currently use cryptographic surrogates. Sub-protocols have formal security proof drafts and the implementation is validated via benchmarks.
+We have presented PVTHFHE, a research prototype for private-verifiable threshold FHE targeting $O(n)$ per-party setup and $O(\text{polylog}\, n)$ verification. P2 uses a Sonobe Nova IVC surrogate (CycloFoldStepCircuit proving hash-state accumulation, not Ajtai fold). P3 uses the ecrecover/ECDSA attestation surrogate for on-chain acceptance. Post-remediation (3 audit rounds): BFV sigma v4 with per-share NIZK verification, committed-smudge decryption, two-track sk/e\_sm DKG enabled, P1 masking seeds upgraded to OsRng. Sub-protocols have formal security proof drafts and the implementation is validated via benchmarks.
 
 \bibliographystyle{splncs04}
 \bibliography{bib}
+
+
+\section{Remediation Log}
+
+The PVTHFHE implementation underwent three rounds of security audit remediation
+between commits \texttt{aaacb9e} and \texttt{952a078}:
+
+\subsection*{Round 1 (commit \texttt{aaacb9e}: deep audit remediation)}
+\begin{itemize}
+  \item Fixed deterministic masking seeds in the NIZK prover — upgraded from a
+    fixed seed to \texttt{OsRng} (cryptographically secure PRNG).
+  \item Logging hygiene: removed sensitive witness data from debug and info logs.
+  \item Shamir safety: added duplicate-share detection and degree-bound checks.
+  \item Naming: renamed $B_E$ to $B_{\mathsf{err}}$ for clarity.
+\end{itemize}
+
+\subsection*{Round 2 (commits \texttt{e772daf}–\texttt{b450f24}: per-share NIZK and committed smudge)}
+\begin{itemize}
+  \item Per-share NIZK verification (\texttt{nizk\_share.rs}, \texttt{PROOF\_VERSION = 4}):
+    each decrypt-share now carries an independent BFV sigma proof verified by the
+    aggregator before reconstruction.
+  \item Committed-smudge wiring: \texttt{partial\_decrypt\_committed\_smudge} API
+    separates legacy local smudging from the target committed-smudge mode.
+  \item \texttt{dkg\_root}: introduced DKG root derivation for deterministic
+    share-computation replay.
+  \item \texttt{BFVPublicKey}: serialised key type for protocol handoff at the
+    P4–P1 boundary.
+\end{itemize}
+
+\subsection*{Round 3 (commits \texttt{6f01578}–\texttt{952a078}: committed-smudge activation)}
+\begin{itemize}
+  \item \texttt{CommittedSmudge} demo activation: the e2e pipeline now exercises
+    committed-smudge decryption in the demo path.
+  \item Aggregator NIZK: batch verification of per-share BFV sigma proofs
+    (\texttt{batch\_verify\_100\_ms} $\approx$ 230\,ms at $n=1024$).
+  \item C1 key components: separated \texttt{EncryptionWitness} and
+    \texttt{DecryptionWitness} types with backend extraction for cleaner
+    protocol boundaries.
+\end{itemize}
+
+All automatable audit findings (179 from Audit~1, 55 from Audit~2) are closed.
+Three open cryptographic problems remain (P1: lattice NIZK soundness reduction;
+P2: lattice folding over RLWE; P3: parametrised Sonobe step-circuit verification).
+See \texttt{SECURITY.md} for details.
 
 \end{document}

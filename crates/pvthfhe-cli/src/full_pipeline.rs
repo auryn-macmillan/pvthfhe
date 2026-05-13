@@ -24,6 +24,8 @@ use pvthfhe_pvss::nizk_decrypt::{
     compute_decrypt_ciphertext_hash, derive_party_binding, DecryptNizkMode, DecryptNizkProof,
     DecryptNizkProver, DecryptNizkStatement, DecryptNizkVerifier, DecryptNizkWitness,
 };
+#[cfg(feature = "pipeline-extra-checks")]
+use pvthfhe_pvss::slot_registry::SmudgeSlotRegistry;
 use pvthfhe_pvss::nizk_share::compute_ciphertext_v;
 use pvthfhe_rng::OsRng;
 use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes, Secret};
@@ -372,6 +374,9 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         ));
     }
 
+    #[cfg(feature = "pipeline-extra-checks")]
+    let mut smudge_slot_registry = SmudgeSlotRegistry::new();
+
     let mut shares = Vec::with_capacity(cfg.t);
     let mut partial_decrypt_ms = Vec::with_capacity(cfg.t);
     for party_index in 1..=cfg.t {
@@ -453,6 +458,13 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                     esm_agg_share: Some(*esm_agg_share),
                     esm_noise_poly_bytes: Some(esm_bytes.clone()),
                 };
+                #[cfg(feature = "pipeline-extra-checks")]
+                {
+                    let pid = u16::try_from(party_id).context("party id out of u16 range")?;
+                    smudge_slot_registry
+                        .check_and_record(session_id.as_bytes(), pid, 1)
+                        .context("smudge slot reuse detected")?;
+                }
                 let proof = DecryptNizkProver::prove(&statement, &witness)
                     .with_context(|| format!("NIZK prove failed for party {party_id}"))?;
                 share.nizk_proof_bytes = Some(proof.proof_bytes.clone());

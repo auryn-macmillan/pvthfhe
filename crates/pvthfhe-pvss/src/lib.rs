@@ -10,6 +10,8 @@ pub mod nizk_share;
 /// BN254 scalar Shamir secret sharing.
 pub mod shamir;
 pub mod share_computation;
+/// Smudge-slot freshness enforcement (F.2).
+pub mod slot_registry;
 
 use pvthfhe_types::{ProtocolBytes, ShareSecret};
 
@@ -102,6 +104,13 @@ pub enum PvssError {
     D2HashBindingFailed,
     /// BFV encryption relation proof verification failed.
     BfvEncryptionProofFailed,
+    /// Committed smudging slot was reused in the same decryption session.
+    SmudgeSlotReused {
+        /// Party that attempted to reuse a slot.
+        party_id: u16,
+        /// Slot identifier that was already consumed.
+        slot_id: u16,
+    },
 }
 
 impl core::fmt::Debug for PvssContext {
@@ -150,6 +159,7 @@ impl core::fmt::Debug for PvssError {
             }
             Self::D2HashBindingFailed => f.write_str("D2HashBindingFailed"),
             Self::BfvEncryptionProofFailed => f.write_str("BfvEncryptionProofFailed"),
+            Self::SmudgeSlotReused { .. } => f.write_str("SmudgeSlotReused(<redacted>)"),
         }
     }
 }
@@ -173,6 +183,12 @@ impl core::fmt::Display for PvssError {
             Self::D2HashBindingFailed => f.write_str("PVSS D2 hash binding verification failed"),
             Self::BfvEncryptionProofFailed => {
                 f.write_str("PVSS BFV encryption proof verification failed")
+            }
+            Self::SmudgeSlotReused { party_id, slot_id } => {
+                write!(
+                    f,
+                    "PVSS smudge slot reused: party_id={party_id} slot_id={slot_id}"
+                )
             }
         }
     }

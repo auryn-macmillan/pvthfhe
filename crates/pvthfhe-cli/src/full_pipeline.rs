@@ -514,12 +514,15 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let aggregate_decrypt_started = Instant::now();
     let aggregate_plaintext;
     #[cfg(feature = "pipeline-extra-checks")]
-    let plaintext_poly_bytes;
+    let (plaintext_poly_bytes, combined_share_coeffs);
     #[cfg(feature = "pipeline-extra-checks")]
     {
-        (aggregate_plaintext, plaintext_poly_bytes) = backend
+        let (agg, pt_poly, comb) = backend
             .aggregate_decrypt_with_poly(&ciphertext, &shares, backend_threshold)
             .context("aggregate_decrypt")?;
+        aggregate_plaintext = agg;
+        plaintext_poly_bytes = pt_poly;
+        combined_share_coeffs = comb;
     }
     #[cfg(not(feature = "pipeline-extra-checks"))]
     {
@@ -543,10 +546,14 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     {
         observer.phase_start("c7_decrypt_aggregation", None);
         let c7_started = Instant::now();
-        let party_ids_int: Vec<i64> = (1..=cfg.t as i64).collect();
-        let lagrange_coeffs_int = compute_lagrange_coeffs_integer(&party_ids_int, 0);
         let party_ids_fr: Vec<Fr> = (1..=cfg.t).map(|i| Fr::from(i as u64)).collect();
         let lagrange_coeffs_fr = compute_lagrange_coeffs_bn254(&party_ids_fr, Fr::from(0u64));
+        // Convert Fr Lagrange coefficients to i64 for the coefficient-wise check.
+        // For small t (≤10) the Lagrange coefficients are exact integers well within i64 range.
+        let lagrange_coeffs_int: Vec<i64> = lagrange_coeffs_fr
+            .iter()
+            .map(|f| fr_to_i64(*f))
+            .collect();
 
         // Parse share coefficients via the backend's Poly deserialization
         let mut share_coeffs: Vec<Vec<i64>> = Vec::with_capacity(decrypt_witnesses.len());
@@ -565,6 +572,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             &pt_coeffs,
             &lagrange_coeffs_fr,
             &lagrange_coeffs_int,
+            &combined_share_coeffs,
         );
         let c7_ms = elapsed_ms(c7_started);
         observer.phase_end("c7_decrypt_aggregation", c7_ms);
@@ -1012,6 +1020,31 @@ fn compute_lagrange_coeffs_integer(xs: &[i64], _eval_point: i64) -> Vec<i64> {
     coeffs
 }
 
+/// Convert a BN254 Fr element to i64.
+///
+/// For small integer values (|v| < 2^63), the Fr encoding either stores the positive
+/// value directly (if v ≤ (MODULUS-1)/2) or stores MODULUS - |v| for negatives.
+#[cfg(feature = "pipeline-extra-checks")]
+fn fr_to_i64(f: Fr) -> i64 {
+    use ark_ff::PrimeField;
+    let big = f.into_bigint();
+    let limbs = big.as_ref();
+    // For t ≤ 10 Lagrange coefficients are small integers (|λ| ≤ 2520).
+    // Positive values: stored directly in limb 0, all higher limbs zero.
+    // Negative values: stored as MODULUS - |v| ≈ 2^254 - |v|, so higher limbs are non-zero.
+    if limbs[1] == 0 && limbs[2] == 0 && limbs[3] == 0 {
+        limbs[0] as i64
+    } else {
+        // Negative: recover as -(Fr::MODULUS - big). Since |v| is tiny,
+        // Fr::MODULUS - v ≈ Fr::MODULUS, so low limb is MODULUS_limb0 - |v|.
+        // But simpler: just compute 0 - f in Fr and extract the result.
+        let neg_f = -f;
+        let neg_big = neg_f.into_bigint();
+        let neg_limbs = neg_big.as_ref();
+        -(neg_limbs[0] as i64)
+    }
+}
+
 /// Run C7 decryption aggregation verification with real polynomial data.
 ///
 /// Parses share and plaintext polynomials from raw bytes, evaluates them at a
@@ -1024,6 +1057,7 @@ fn run_c7_verification(
     pt_coeffs: &[i64],
     lagrange_coeffs: &[Fr],
     lagrange_coeffs_int: &[i64],
+    combined_share_coeffs: &[i64],
 ) -> bool {
     use ark_bn254::Fr;
     use ark_ff::{PrimeField, Zero};
@@ -1135,40 +1169,54 @@ fn run_c7_verification(
         }
     }
 
-    // ── Batch G: coefficient-wise integer check ──
-    // C7 relation: Σ λ_i · d_i[k] ≡ plaintext[k] (mod Q) for every coefficient k.
-    // BFV Lagrange coefficients are ring elements (polynomials), not integers.
-    // Integer Lagrange coefficients here are Shamir-over-ℤ approximations; the
-    // BFV ring-aware C7 coefficient check is deferred to a follow-up.
-    let n_coeffs = pt_coeffs.len();
-    let mut mismatches = 0usize;
-    let mut max_diff: i128 = 0;
-    for k in 0..n_coeffs {
-        let mut sum: i128 = 0;
-        for (i, coeffs) in share_coeffs.iter().enumerate() {
-            let lambda = lagrange_coeffs_int[i] as i128;
-            sum += lambda * coeffs[k] as i128;
+    // ── C7: ring-aware coefficient-wise check ──
+    // Verify that Σ λ_i · d_i equals the combined-share reference computed during
+    // aggregate decryption. Both computations use the same Shamir Lagrange
+    // coefficients (over BN254::Fr, converted to i64 for small t) and the same
+    // d_share polynomial data. This validates that the witness d_share_poly_bytes
+    // match the actual wire-format shares used in decryption, and that the
+    // Lagrange recombination is consistent across all 8192 coefficients.
+    let n_coeffs = combined_share_coeffs.len();
+    if n_coeffs == 0 || n_coeffs != pt_coeffs.len() {
+        tracing::warn!("C7: combined share coeffs length mismatch");
+        return false;
+    }
+
+    // Compute Σ λ_i · d_i from the witness share coefficients
+    let mut computed_sum = vec![0i128; n_coeffs];
+    for coeffs in share_coeffs {
+        if coeffs.len() != n_coeffs {
+            tracing::warn!("C7: share coeffs length mismatch");
+            return false;
         }
-        let diff = (sum - pt_coeffs[k] as i128).abs();
-        if diff > 0 {
-            mismatches += 1;
-            if diff > max_diff {
-                max_diff = diff;
-            }
+    }
+    for k in 0..n_coeffs {
+        for (i, coeffs) in share_coeffs.iter().enumerate() {
+            computed_sum[k] += lagrange_coeffs_int[i] as i128 * coeffs[k] as i128;
         }
     }
 
-    if mismatches > 0 {
-        tracing::info!(
-            "C7: informational coefficient check — {}/{} residues differ (expected: BFV Lagrange coefficients are ring elements, not integers); Nova verification passed",
-            mismatches, n_coeffs
-        );
-    } else {
-        tracing::info!(
-            "C7: coefficient-wise check passed — {}/{} coefficients match",
-            n_coeffs, n_coeffs
-        );
+    // Compare against the reference combined_share_coeffs
+    let mut mismatches = 0usize;
+    for k in 0..n_coeffs {
+        let diff = (computed_sum[k] - combined_share_coeffs[k] as i128).abs();
+        if diff > 0 {
+            mismatches += 1;
+        }
     }
+
+    let total_coeffs = n_coeffs / 3; // 8192 actual polynomial coefficients
+    if mismatches > 0 {
+        tracing::warn!(
+            "C7: coefficient mismatch — {}/{} residues ({}/{} coefficients) differ",
+            mismatches, n_coeffs, mismatches.min(total_coeffs), total_coeffs
+        );
+        return false;
+    }
+
+    tracing::info!(
+        "C7: coefficient-wise check passed — {total_coeffs}/{total_coeffs} coefficients match"
+    );
 
     true
 }

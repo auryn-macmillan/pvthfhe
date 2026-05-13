@@ -2152,10 +2152,14 @@ dependencies = [
 name = "pvthfhe-fhe"
 version = "0.1.0"
 dependencies = [
+ "ark-bn254",
+ "ark-ff",
  "fhe",
  "fhe-math",
  "fhe-traits",
  "ndarray",
+ "num-bigint",
+ "num-traits",
  "pvthfhe-domain-tags",
  "pvthfhe-keygen",
  "pvthfhe-nizk",

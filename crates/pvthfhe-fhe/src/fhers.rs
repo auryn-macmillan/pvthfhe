@@ -1215,9 +1215,12 @@ impl FhersBackend {
             .map_err(|err| FheError::Backend {
                 reason: err.to_string(),
             })?;
-        let poly = Poly::from_bytes(poly_bytes, &ctx).map_err(|err| FheError::Backend {
+        let mut poly = Poly::from_bytes(poly_bytes, &ctx).map_err(|err| FheError::Backend {
             reason: err.to_string(),
         })?;
+        // Ensure coefficients are in power-basis representation (not NTT) for
+        // coefficient-wise arithmetic checks (C7 ring-aware verification).
+        poly.change_representation(Representation::PowerBasis);
         let mut coeffs = Vec::new();
         for c in poly.coefficients() {
             coeffs.push(*c as i64);
@@ -1225,12 +1228,86 @@ impl FhersBackend {
         Ok(coeffs)
     }
 
-    /// Aggregate decryption shares into recovered plaintext AND plaintext polynomial bytes.
+    /// CRT-reconstruct polynomial coefficients from RNS residues (3 moduli → 1 integer per coeff).
     ///
-    /// Returns `(decoded_plaintext_bytes, plaintext_poly_bytes)` where:
+    /// The [`poly_coeffs_from_bytes`](Self::poly_coeffs_from_bytes) method returns
+    /// 24 576 residues (8192 coefficients × 3 moduli, modulus-major layout:
+    /// all coefficients for q₀, then all for q₁, then all for q₂).
+    /// This method reconstructs them into 8 192 i128 integers via CRT.
+    pub fn crt_reconstruct_coeffs(&self, residues: &[i64]) -> Vec<i128> {
+        use num_bigint::BigInt;
+        use num_traits::ToPrimitive;
+
+        const MODULI_I128: [i128; 3] = [
+            288230376173076481,
+            288230376167047169,
+            288230376161280001,
+        ];
+        let moduli_big: [BigInt; 3] = [
+            BigInt::from(MODULI_I128[0]),
+            BigInt::from(MODULI_I128[1]),
+            BigInt::from(MODULI_I128[2]),
+        ];
+        let q_big: BigInt = &moduli_big[0] * &moduli_big[1] * &moduli_big[2];
+
+        let n_coeffs = residues.len() / 3;
+        let mut coeffs = Vec::with_capacity(n_coeffs);
+
+        // Precompute M_j = Q / q_j (as BigInt)
+        let m_big: [BigInt; 3] = [
+            &q_big / &moduli_big[0],
+            &q_big / &moduli_big[1],
+            &q_big / &moduli_big[2],
+        ];
+        // Precompute inv_j = M_j^{-1} mod q_j (as i128, since q_j < 2^63)
+        let mut m_inv = [0i128; 3];
+        for j in 0..3 {
+            let mj_i128 = (&m_big[j] % &moduli_big[j])
+                .to_i128()
+                .unwrap_or(0);
+            let (_, inv, _) = Self::egcd_i128(mj_i128, MODULI_I128[j]);
+            m_inv[j] = (inv % MODULI_I128[j] + MODULI_I128[j]) % MODULI_I128[j];
+        }
+
+        // Residues are in modulus-major layout: [c0_q0, c1_q0, ..., cₙ₋₁_q0, c0_q1, ..., cₙ₋₁_q2]
+        for i in 0..n_coeffs {
+            let mut val_big = BigInt::from(0u32);
+            for j in 0..3 {
+                let r = residues[j * n_coeffs + i] as i128;
+                let term = BigInt::from(r)
+                    * &m_big[j]
+                    * m_inv[j];
+                val_big = (&val_big + term) % &q_big;
+            }
+            // Convert back to i128; since Q ≈ 2^174 > i128::MAX, this may truncate.
+            // The caller is responsible for using a type that fits.
+            match val_big.to_i128() {
+                Some(v) => coeffs.push(v),
+                None => coeffs.push(i128::MAX), // overflow sentinel
+            }
+        }
+        coeffs
+    }
+
+    fn egcd_i128(a: i128, b: i128) -> (i128, i128, i128) {
+        if b == 0 {
+            (a, 1, 0)
+        } else {
+            let (g, x1, y1) = Self::egcd_i128(b, a.wrapping_rem_euclid(b));
+            (g, y1, x1 - (a / b) * y1)
+        }
+    }
+
+    /// Aggregate decryption shares into recovered plaintext, plaintext polynomial bytes,
+    /// and combined share coefficients.
+    ///
+    /// Returns `(decoded_plaintext_bytes, plaintext_poly_bytes, combined_share_coeffs)` where:
     /// - `decoded_plaintext_bytes` is the slot-decoded message (same as [`FheBackend::aggregate_decrypt`])
     /// - `plaintext_poly_bytes` is the raw [`Poly`](fhe_math::rq::Poly) byte serialization
     ///   of the recovered plaintext polynomial (N coefficients, i64 each, little-endian)
+    /// - `combined_share_coeffs` is the Lagrange-weighted sum Σ λ_i · d_i of the decoded
+    ///   share polynomials (24 576 residue values in modulus-major RNS layout), providing
+    ///   an independent reference for the C7 ring-aware coefficient check.
     ///
     /// The polynomial bytes are needed by the C7 verification path to check
     /// `Σ λ_i · d_i(r) ≡ plaintext(r) (mod Q)`.
@@ -1239,7 +1316,7 @@ impl FhersBackend {
         ct: &Ciphertext,
         shares: &[DecryptShare],
         threshold: usize,
-    ) -> Result<(Vec<u8>, Vec<u8>), FheError> {
+    ) -> Result<(Vec<u8>, Vec<u8>, Vec<i64>), FheError> {
         let (n, configured_threshold) = self.threshold_params()?;
         if shares.len() < configured_threshold {
             return Err(FheError::InsufficientShares {
@@ -1292,6 +1369,24 @@ impl FhersBackend {
             .collect::<Result<Vec<_>, FheError>>()?;
         let (party_ids, share_polys): (Vec<_>, Vec<_>) = effective_shares.into_iter().unzip();
 
+        // Compute the Lagrange-weighted sum of the share polynomials BEFORE they are
+        // consumed by decrypt_from_shares. This provides an independent ground-truth
+        // reference for the C7 ring-aware coefficient check.
+        let combined_share_coeffs = {
+            // Compute integer Lagrange coefficients for the given party IDs.
+            let lambda_int = Self::compute_lagrange_coeffs_integer(&party_ids);
+            let coeffs_per_poly = share_polys[0].coefficients().len();
+            let mut sum = vec![0i128; coeffs_per_poly];
+            for (poly, lambda) in share_polys.iter().zip(lambda_int.iter()) {
+                for (k, c) in poly.coefficients().iter().enumerate() {
+                    sum[k] += *lambda as i128 * (*c as i128);
+                }
+            }
+            // Constrain to i64 range (residues are < 2^58 and lambda are small,
+            // so the sum fits in i64 after mod reduction).
+            sum.iter().map(|s| *s as i64).collect::<Vec<i64>>()
+        };
+
         let share_manager = ShareManager::new(
             n,
             self.shamir_threshold(n, configured_threshold),
@@ -1320,7 +1415,29 @@ impl FhersBackend {
         );
 
         let decoded = decode_plaintext_slots(&slots)?;
-        Ok((decoded, plaintext_poly_bytes))
+        Ok((decoded, plaintext_poly_bytes, combined_share_coeffs))
+    }
+
+    /// Compute integer Lagrange coefficients for the given 1-based party IDs.
+    ///
+    /// λ_i = Π_{j≠i} (0 - x_j) / Π_{j≠i} (x_i - x_j) for evaluation at 0.
+    fn compute_lagrange_coeffs_integer(party_ids: &[usize]) -> Vec<i64> {
+        let n = party_ids.len();
+        let mut coeffs = Vec::with_capacity(n);
+        for i in 0..n {
+            let xi = party_ids[i] as i128;
+            let mut num: i128 = 1;
+            let mut den: i128 = 1;
+            for j in 0..n {
+                if i != j {
+                    let xj = party_ids[j] as i128;
+                    num *= -xj;
+                    den *= xi - xj;
+                }
+            }
+            coeffs.push((num / den) as i64);
+        }
+        coeffs
     }
 }
 

@@ -65,7 +65,7 @@ fn proof_keeps_replay_relation_witness_private() {
         encryption_randomness: EncRandomness::new(randomness.to_vec()),
     };
 
-    let proof = ShareNizkProver::prove(&backend, &stmt, &witness).expect("prover must succeed");
+    let proof = ShareNizkProver::prove(&backend, &stmt, &witness, None).expect("prover must succeed");
 
     let opened = proof.decode().expect("proof must decode");
     assert_eq!(opened.domain_separator, SHARE_NIZK_DOMAIN_SEPARATOR);
@@ -114,13 +114,13 @@ fn proofs_for_different_relation_witnesses_have_different_commitments() {
         share_bytes: ShareSecret::new(share.clone()),
         encryption_randomness: EncRandomness::new(randomness1.to_vec()),
     };
-    let proof1 = ShareNizkProver::prove(&backend, &stmt, &witness1).expect("prove");
+    let proof1 = ShareNizkProver::prove(&backend, &stmt, &witness1, None).expect("prove");
 
     let witness2 = ShareNizkWitness {
         share_bytes: ShareSecret::new(share2),
         encryption_randomness: EncRandomness::new(randomness2.to_vec()),
     };
-    let proof2 = ShareNizkProver::prove(&backend, &stmt2, &witness2).expect("prove");
+    let proof2 = ShareNizkProver::prove(&backend, &stmt2, &witness2, None).expect("prove");
 
     let opened1 = proof1.decode().expect("decode real");
     let opened2 = proof2.decode().expect("decode sim");

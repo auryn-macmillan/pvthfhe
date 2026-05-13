@@ -82,7 +82,7 @@ fn verifier_rejects_ciphertext_share_commitment_mismatch() {
         encryption_randomness: EncRandomness::new(vec![0xD1; 32]),
     };
 
-    let result = ShareNizkProver::prove(&backend, &stmt, &witness)
+    let result = ShareNizkProver::prove(&backend, &stmt, &witness, None)
         .and_then(|proof| ShareNizkVerifier::verify(&backend, &stmt, &proof));
     assert!(
         result.is_err(),
@@ -133,7 +133,7 @@ fn make_consistent_but_invalid_proof(
         encryption_randomness: EncRandomness::new(fake_randomness),
     };
 
-    ShareNizkProver::prove(backend, &stmt, &witness).map(|_| ())
+    ShareNizkProver::prove(backend, &stmt, &witness, None).map(|_| ())
 }
 
 fn stmt_dkg_root_from_sid(sid: &[u8]) -> Vec<u8> {
@@ -176,7 +176,7 @@ fn verifier_accepts_internally_consistent_but_invalid_proof() {
         encryption_randomness: EncRandomness::new(vec![0xBBu8; 32]),
     };
     let proof =
-        ShareNizkProver::prove(&backend, &stmt, &witness).expect("v4 prover produces proof");
+        ShareNizkProver::prove(&backend, &stmt, &witness, None).expect("v4 prover produces proof");
     // Tamper ciphertext in proof statement to mismatch
     let mut tampered_stmt = stmt.clone();
     tampered_stmt.ciphertext_u = ProtocolBytes(vec![0xFF; 128]);
@@ -232,7 +232,7 @@ fn adversary_can_forge_proof_for_arbitrary_ciphertext() {
         encryption_randomness: EncRandomness::new(vec![0xCCu8; 32]),
     };
 
-    let result = ShareNizkProver::prove(&backend, &stmt, &witness)
+    let result = ShareNizkProver::prove(&backend, &stmt, &witness, None)
         .and_then(|proof| ShareNizkVerifier::verify(&backend, &stmt, &proof));
     assert!(
         result.is_err(),
@@ -285,7 +285,7 @@ fn forgery_count_over_many_attempts() {
             encryption_randomness: EncRandomness::new(vec![0u8; 32]),
         };
 
-        if let Ok(proof) = ShareNizkProver::prove(&backend, &stmt, &witness) {
+        if let Ok(proof) = ShareNizkProver::prove(&backend, &stmt, &witness, None) {
             if ShareNizkVerifier::verify(&backend, &stmt, &proof).is_ok() {
                 successes += 1;
             }

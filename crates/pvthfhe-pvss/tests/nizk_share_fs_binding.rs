@@ -89,9 +89,9 @@ fn challenge_changes_when_witness_changes() {
         encryption_randomness: EncRandomness::new(enc_seed_b.to_vec()),
     };
 
-    let proof_a = ShareNizkProver::prove(&backend, &stmt_a, &witness_a)
+    let proof_a = ShareNizkProver::prove(&backend, &stmt_a, &witness_a, None)
         .expect("prover must succeed for witness A");
-    let proof_b = ShareNizkProver::prove(&backend, &stmt_b, &witness_b)
+    let proof_b = ShareNizkProver::prove(&backend, &stmt_b, &witness_b, None)
         .expect("prover must succeed for witness B");
 
     let opened_a = proof_a.decode().expect("decode proof A");
@@ -152,7 +152,7 @@ fn valid_v3_proof_fails_closed_until_bfv_relation_exists() {
         encryption_randomness: EncRandomness::new(enc_seed.to_vec()),
     };
 
-    let proof = ShareNizkProver::prove(&backend, &stmt, &witness).expect("prover must succeed");
+    let proof = ShareNizkProver::prove(&backend, &stmt, &witness, None).expect("prover must succeed");
 
     let result = ShareNizkVerifier::verify(&backend, &stmt, &proof);
     assert!(

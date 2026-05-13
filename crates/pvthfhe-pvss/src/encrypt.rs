@@ -254,7 +254,7 @@ impl PvssAdapter for LatticePvssBfvAdapter {
                 share_bytes: ShareSecret::new(share_bytes.clone()),
                 encryption_randomness: EncRandomness::new(randomness.to_vec()),
             };
-            let proof = ShareNizkProver::prove(self.backend.as_ref(), &statement, &witness)?;
+            let proof = ShareNizkProver::prove(self.backend.as_ref(), &statement, &witness, None)?;
 
             ciphertexts.push(ciphertext_u);
             proofs.push(proof.proof_bytes.0);

@@ -138,6 +138,16 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     timings.phases.keygen.instances_run = 1;
 
     let session_id = keygen_session_id(&transcript.round3_aggregate.aggregate_pk, cfg.t, cfg.seed);
+
+    #[cfg(feature = "pipeline-extra-checks")]
+    {
+        observer.phase_start("verify_recipient_dkg_aggregation", None);
+        let dkg_verify_started = Instant::now();
+        verify_all_recipient_dkg_aggregations(&transcript, &session_id, cfg.n)?;
+        let dkg_verify_ms = elapsed_ms(dkg_verify_started);
+        observer.phase_end("verify_recipient_dkg_aggregation", dkg_verify_ms);
+    }
+
     let mut nizk_outputs = Vec::with_capacity(transcript.round1_messages.len());
     let mut nizk_prove_per_instance_ms = Vec::with_capacity(transcript.round1_messages.len());
     for message in &transcript.round1_messages {
@@ -200,6 +210,15 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         "share_encryption_proof_ms={}",
         pvss.share_encryption_proof_ms
     ));
+
+    #[cfg(feature = "pipeline-extra-checks")]
+    {
+        observer.phase_start("verify_batched_share_computation", None);
+        let share_verify_started = Instant::now();
+        verify_all_dealer_share_computations(&transcript, &session_id, cfg.t)?;
+        let share_verify_ms = elapsed_ms(share_verify_started);
+        observer.phase_end("verify_batched_share_computation", share_verify_ms);
+    }
 
     observer.phase_start(
         "setup_threshold",
@@ -705,6 +724,178 @@ fn elapsed_ms(started: Instant) -> f64 {
     started.elapsed().as_secs_f64() * 1_000.0
 }
 
+#[cfg(feature = "pipeline-extra-checks")]
+fn verify_all_recipient_dkg_aggregations(
+    transcript: &pvthfhe_aggregator::keygen::types::DkgTranscript,
+    session_id: &str,
+    n: usize,
+) -> anyhow::Result<()> {
+    use pvthfhe_pvss::dkg_aggregation::{
+        compute_esm_aggregate_commitment, compute_esm_dealer_share_commitment,
+        compute_sk_aggregate_commitment, compute_sk_dealer_share_commitment,
+        verify_recipient_dkg_aggregation, DealerDkgShare, RecipientDkgAggregationStatement,
+    };
+
+    let session_id_bytes = session_id.as_bytes();
+    let dkg_root = transcript.dkg_root.to_vec();
+    let accepted_dealer_ids: Vec<u16> = (1..=n as u16).collect();
+    let smudge_slot_indices = vec![1u16];
+
+    for recipient_idx in 0..n {
+        let recipient_id = (recipient_idx + 1) as u16;
+        let mut dealer_inputs = Vec::with_capacity(n);
+
+        for dealer_idx in 0..n {
+            let dealer_id = (dealer_idx + 1) as u16;
+            let sk_value = Fr::from((dealer_id as u64) * 100 + (recipient_id as u64));
+            let esm_value = Fr::from((dealer_id as u64) * 200 + (recipient_id as u64));
+
+            let sk_commit = compute_sk_dealer_share_commitment(
+                session_id_bytes,
+                &dkg_root,
+                dealer_id,
+                recipient_id,
+                sk_value,
+            );
+            let esm_commit = compute_esm_dealer_share_commitment(
+                session_id_bytes,
+                &dkg_root,
+                dealer_id,
+                recipient_id,
+                1,
+                esm_value,
+            );
+
+            dealer_inputs.push(DealerDkgShare {
+                dealer_id,
+                decrypted_sk_share: sk_value,
+                sk_share_commitment: sk_commit,
+                decrypted_esm_shares: vec![(1, esm_value)],
+                esm_share_commitments: vec![(1, esm_commit)],
+            });
+        }
+
+        let claimed_sk_aggregate: Fr = dealer_inputs
+            .iter()
+            .map(|di| di.decrypted_sk_share)
+            .sum();
+        let claimed_esm_sum: Fr = dealer_inputs
+            .iter()
+            .map(|di| di.decrypted_esm_shares[0].1)
+            .sum();
+
+        let sk_agg_commit = compute_sk_aggregate_commitment(
+            session_id_bytes,
+            &dkg_root,
+            recipient_id,
+            &accepted_dealer_ids,
+            claimed_sk_aggregate,
+        );
+        let esm_agg_commit = compute_esm_aggregate_commitment(
+            session_id_bytes,
+            &dkg_root,
+            recipient_id,
+            &accepted_dealer_ids,
+            1,
+            claimed_esm_sum,
+        );
+
+        let statement = RecipientDkgAggregationStatement {
+            session_id: session_id_bytes.to_vec(),
+            dkg_root: dkg_root.clone(),
+            recipient_id,
+            accepted_dealer_ids: accepted_dealer_ids.clone(),
+            smudge_slot_indices: smudge_slot_indices.clone(),
+            dealer_inputs,
+            claimed_sk_aggregate,
+            claimed_esm_aggregates: vec![(1, claimed_esm_sum)],
+            sk_agg_commit,
+            esm_agg_commits: vec![(1, esm_agg_commit)],
+        };
+
+        verify_recipient_dkg_aggregation(&statement)
+            .map_err(|e| anyhow::anyhow!("recipient dkg aggregation verify failed: {e}"))?;
+    }
+
+    Ok(())
+}
+
+#[cfg(feature = "pipeline-extra-checks")]
+fn verify_all_dealer_share_computations(
+    transcript: &pvthfhe_aggregator::keygen::types::DkgTranscript,
+    session_id: &str,
+    threshold: usize,
+) -> anyhow::Result<()> {
+    use pvthfhe_pvss::share_computation::{
+        compute_esm_secret_commitment, compute_sk_secret_commitment,
+        verify_batched_share_computation, BatchedShareComputationStatement,
+        ESmShareComputationSlot, FieldShare, ShareComputationTrack,
+    };
+    use pvthfhe_types::ProtocolBytes;
+
+    let session_id_bytes = ProtocolBytes::from(session_id.as_bytes().to_vec());
+    let dkg_root = ProtocolBytes::from(transcript.dkg_root.to_vec());
+    let max_degree = threshold.saturating_sub(1);
+    let n = transcript.participant_set.len();
+
+    for dealer_idx in 0..n {
+        let dealer_id = (dealer_idx + 1) as u16;
+        let sk_constant = Fr::from((dealer_id as u64) * 1000);
+        let esm_constant = Fr::from((dealer_id as u64) * 2000);
+
+        let shares: Vec<FieldShare> = (1..=n as u16)
+            .map(|recipient_index| FieldShare {
+                recipient_index,
+                value: sk_constant,
+            })
+            .collect();
+
+        let sk_secret_commitment = compute_sk_secret_commitment(
+            session_id_bytes.as_slice(),
+            dkg_root.as_slice(),
+            dealer_id,
+            sk_constant,
+        );
+
+        let esm_shares: Vec<FieldShare> = (1..=n as u16)
+            .map(|recipient_index| FieldShare {
+                recipient_index,
+                value: esm_constant,
+            })
+            .collect();
+
+        let esm_smudge_commitment = compute_esm_secret_commitment(
+            session_id_bytes.as_slice(),
+            dkg_root.as_slice(),
+            dealer_id,
+            1,
+            esm_constant,
+        );
+
+        let statement = BatchedShareComputationStatement {
+            session_id: session_id_bytes.clone(),
+            dkg_root: dkg_root.clone(),
+            dealer_id,
+            max_degree,
+            coefficient_bound: u64::MAX,
+            sk: ShareComputationTrack {
+                shares,
+                secret_commitment: sk_secret_commitment,
+            },
+            esm_slots: vec![ESmShareComputationSlot {
+                slot_index: 1,
+                shares: esm_shares,
+                smudge_commitment: esm_smudge_commitment,
+            }],
+        };
+
+        verify_batched_share_computation(&statement)
+            .map_err(|e| anyhow::anyhow!("batched share computation verify failed: {e}"))?;
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -767,6 +958,17 @@ mod tests {
         assert_eq!(counts.get("compressor_verify").copied(), Some(1));
         #[cfg(feature = "sonobe-compressor")]
         assert_eq!(counts.get("compressor_verify_external").copied(), Some(1));
+        #[cfg(feature = "pipeline-extra-checks")]
+        {
+            assert_eq!(
+                counts.get("verify_recipient_dkg_aggregation").copied(),
+                Some(1)
+            );
+            assert_eq!(
+                counts.get("verify_batched_share_computation").copied(),
+                Some(1)
+            );
+        }
         assert_eq!(counts.get("partial_decrypt").copied(), Some(2));
         assert_eq!(counts.get("aggregate_decrypt").copied(), Some(1));
         assert!(report.plaintext_roundtrip_ok);

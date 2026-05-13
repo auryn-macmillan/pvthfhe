@@ -63,6 +63,9 @@ sonobe-compressor = ["dep:pvthfhe-compressor"]
 # Stage 0 tripwire bypass: enable seeded RNG in demo paths.
 # Must NOT be enabled in release/production builds.
 demo-seeded-rng = []
+# Enable extra pipeline verification checks (E.1 share-computation + E.2 DKG-aggregation).
+# Requires with-fhe (default). Opt-in; existing demo behavior unchanged without this flag.
+pipeline-extra-checks = []
 
 [dev-dependencies]
 assert_cmd = "2"

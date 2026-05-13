@@ -74,7 +74,7 @@ fn verifier_rejects_tampered_d2_binding() {
         encryption_randomness: EncRandomness::new(randomness.to_vec()),
     };
 
-    let mut proof = ShareNizkProver::prove(&backend, &stmt, &witness)
+    let mut proof = ShareNizkProver::prove(&backend, &stmt, &witness, None)
         .expect("prover must accept self-consistent inputs");
 
     // Tamper with the d2_binding in the serialized proof envelope.
@@ -139,7 +139,7 @@ fn verifier_fails_closed_for_valid_d2_binding_without_bfv_relation() {
         encryption_randomness: EncRandomness::new(randomness.to_vec()),
     };
 
-    let proof = ShareNizkProver::prove(&backend, &stmt, &witness)
+    let proof = ShareNizkProver::prove(&backend, &stmt, &witness, None)
         .expect("prover must accept self-consistent inputs");
 
     let result = ShareNizkVerifier::verify(&backend, &stmt, &proof);

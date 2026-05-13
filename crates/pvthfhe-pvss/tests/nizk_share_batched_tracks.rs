@@ -1,11 +1,11 @@
 //! D.2 regression: batched share proofs must bind `sk` and `e_sm` tracks independently.
 
+use pvthfhe_domain_tags::Tag;
 use pvthfhe_fhe::{mock::MockBackend, types::PublicKey, FheBackend};
 use pvthfhe_pvss::nizk_share::{
-    canonical_bfv_params_digest, compute_ciphertext_v, compute_share_commitment,
-    ShareNizkBatchedStatement, ShareNizkBatchedVerifier, ShareNizkProver,
-    ShareNizkStatement, ShareNizkTrackStatement, ShareNizkTrackType, ShareNizkVerifier,
-    ShareNizkWitness,
+    canonical_bfv_params_digest, compute_ciphertext_v, compute_share_commitment_tracked,
+    ShareNizkBatchedStatement, ShareNizkBatchedVerifier, ShareNizkProver, ShareNizkStatement,
+    ShareNizkTrackStatement, ShareNizkTrackType, ShareNizkVerifier, ShareNizkWitness,
 };
 use pvthfhe_pvss::PvssError;
 use pvthfhe_types::{EncRandomness, ProtocolBytes, ShareSecret};
@@ -40,7 +40,12 @@ fn track_statement(
         )
         .expect("encrypt track payload")
         .bytes;
-    let share_commitment = compute_share_commitment(session_id, 0, &payload);
+    let track_domain_tag = match track_type {
+        ShareNizkTrackType::Sk => Tag::PvssBatchedDkgShareEncryptionSkTrack.as_bytes(),
+        ShareNizkTrackType::ESm => Tag::PvssBatchedDkgShareEncryptionESmTrack.as_bytes(),
+    };
+    let share_commitment =
+        compute_share_commitment_tracked(session_id, 0, &payload, track_domain_tag);
     let ciphertext_v = compute_ciphertext_v(&ciphertext_u);
     (
         ShareNizkTrackStatement {

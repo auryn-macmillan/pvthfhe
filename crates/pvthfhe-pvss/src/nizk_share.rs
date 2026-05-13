@@ -242,7 +242,9 @@ impl ShareNizkBatchedVerifier {
         batched: &ShareNizkBatchedStatement,
         proof: &ShareNizkProof,
     ) -> Result<(), PvssError> {
-        if proof.domain_separator != SHARE_NIZK_DOMAIN_SEPARATOR {
+        let expected_domain = std::str::from_utf8(Tag::PvssBatchedDkgShareEncryption.as_bytes())
+            .map_err(|_| PvssError::InvalidDomainSeparator)?;
+        if proof.domain_separator != expected_domain {
             return Err(PvssError::InvalidDomainSeparator);
         }
 
@@ -345,11 +347,12 @@ impl ShareNizkProver {
         backend: &dyn FheBackend,
         stmt: &ShareNizkStatement,
         witness: &ShareNizkWitness,
+        track_domain_tag: Option<&[u8]>,
     ) -> Result<ShareNizkProof, PvssError> {
         validate_statement(stmt)?;
         validate_witness(witness)?;
 
-        let commitment_seed = compute_commitment_seed(stmt);
+        let commitment_seed = compute_commitment_seed(stmt, track_domain_tag);
 
         let commitment_ct = create_commitment_ct(backend, stmt, witness, &commitment_seed)?;
 
@@ -413,6 +416,9 @@ impl ShareNizkProver {
         sk_witness: &ShareNizkWitness,
         esm_witnesses: &[ShareNizkWitness],
     ) -> Result<ShareNizkProof, PvssError> {
+        let sk_domain_tag = Tag::PvssBatchedDkgShareEncryptionSkTrack.as_bytes();
+        let esm_domain_tag = Tag::PvssBatchedDkgShareEncryptionESmTrack.as_bytes();
+
         // Prove SK track — construct statement from the sk track directly
         let sk_stmt = ShareNizkStatement {
             session_id: batched.session_id.clone(),
@@ -425,7 +431,7 @@ impl ShareNizkProver {
             ciphertext_v: batched.sk.ciphertext_v.clone(),
             share_commitment: batched.sk.track_commitment.clone(),
         };
-        let sk_proof = Self::prove(backend, &sk_stmt, sk_witness)?;
+        let sk_proof = Self::prove(backend, &sk_stmt, sk_witness, Some(sk_domain_tag))?;
 
         // Prove ESm tracks — construct statements from array positions,
         // not logical slot_index, to avoid the off-by-one in
@@ -444,7 +450,7 @@ impl ShareNizkProver {
                 ciphertext_v: esm_track.ciphertext_v.clone(),
                 share_commitment: esm_track.track_commitment.clone(),
             };
-            let esm_proof = Self::prove(backend, &esm_stmt, esm_witness)?;
+            let esm_proof = Self::prove(backend, &esm_stmt, esm_witness, Some(esm_domain_tag))?;
             esm_proofs.push(esm_proof);
         }
 
@@ -465,9 +471,11 @@ impl ShareNizkProver {
             out.extend_from_slice(esm_bytes);
         }
 
+        let batched_domain = std::str::from_utf8(Tag::PvssBatchedDkgShareEncryption.as_bytes())
+            .map_err(|_| PvssError::InvalidShare)?;
         Ok(ShareNizkProof {
             proof_bytes: ProtocolBytes(out),
-            domain_separator: SHARE_NIZK_DOMAIN_SEPARATOR.to_owned(),
+            domain_separator: batched_domain.to_owned(),
         })
     }
 }
@@ -1319,10 +1327,36 @@ fn compute_ajtai_d2_binding(
     recipient_index: usize,
     share_bytes: &[u8],
 ) -> Result<[u8; DIGEST_LEN], PvssError> {
+    compute_ajtai_d2_binding_inner(session_id, recipient_index, share_bytes, None)
+}
+
+fn compute_ajtai_d2_binding_tracked(
+    session_id: &[u8],
+    recipient_index: usize,
+    share_bytes: &[u8],
+    track_domain_tag: &[u8],
+) -> Result<[u8; DIGEST_LEN], PvssError> {
+    compute_ajtai_d2_binding_inner(
+        session_id,
+        recipient_index,
+        share_bytes,
+        Some(track_domain_tag),
+    )
+}
+
+fn compute_ajtai_d2_binding_inner(
+    session_id: &[u8],
+    recipient_index: usize,
+    share_bytes: &[u8],
+    track_domain_tag: Option<&[u8]>,
+) -> Result<[u8; DIGEST_LEN], PvssError> {
     let mut hasher = Sha256::new();
     hasher.update(b"pvthfhe-d2-ajtai-matrix-v1");
     hasher.update(session_id);
     hasher.update(recipient_index.to_le_bytes());
+    if let Some(tag) = track_domain_tag {
+        hasher.update(tag);
+    }
     let matrix_seed: [u8; DIGEST_LEN] = hasher.finalize().into();
 
     let params = AjtaiParams::default();
@@ -1395,6 +1429,22 @@ pub fn compute_share_commitment(
         .expect("share_commitment computation must not fail for valid inputs")
 }
 
+/// Compute the share commitment with per-track domain separation (D.2).
+///
+/// Unlike [`compute_share_commitment`], this variant includes a
+/// `track_domain_tag` (e.g., [`Tag::PvssBatchedDkgShareEncryptionSkTrack`]
+/// or [`Tag::PvssBatchedDkgShareEncryptionESmTrack`]) in the Ajtai D2
+/// binding to prevent cross-track replay.
+pub fn compute_share_commitment_tracked(
+    session_id: &[u8],
+    recipient_index: usize,
+    share_bytes: &[u8],
+    track_domain_tag: &[u8],
+) -> [u8; DIGEST_LEN] {
+    compute_ajtai_d2_binding_tracked(session_id, recipient_index, share_bytes, track_domain_tag)
+        .expect("share_commitment computation must not fail for valid inputs")
+}
+
 /// Compute the hash-bound secondary ciphertext component from `ciphertext_u`.
 pub fn compute_ciphertext_v(ciphertext_u: &[u8]) -> [u8; DIGEST_LEN] {
     let mut hasher = Sha256::new();
@@ -1411,13 +1461,19 @@ pub fn canonical_bfv_params_digest() -> [u8; DIGEST_LEN] {
     hasher.finalize().into()
 }
 
-fn compute_commitment_seed(stmt: &ShareNizkStatement) -> [u8; DIGEST_LEN] {
+fn compute_commitment_seed(
+    stmt: &ShareNizkStatement,
+    track_domain_tag: Option<&[u8]>,
+) -> [u8; DIGEST_LEN] {
     let mut hasher = Sha256::new();
     hasher.update(b"greco-bfv-commitment-seed-v2");
     hasher.update(stmt.session_id.as_slice());
     hasher.update(stmt.recipient_pk.as_slice());
     hasher.update(stmt.ciphertext_u.as_slice());
     hasher.update(stmt.share_commitment.as_slice());
+    if let Some(tag) = track_domain_tag {
+        hasher.update(tag);
+    }
     hasher.finalize().into()
 }
 

@@ -414,7 +414,7 @@ Batch I: Benchmark and security-proof closure
 
 ## Batch G — C7-Equivalent Final Decryption Aggregation
 
-**G.1 current status (2026-05-13):** Aggregator_final Noir circuit exists as N=8 research prototype (`circuits/aggregator_final/`). Key properties: verifies Lagrange recombination of threshold decryption shares via Poseidon binding with domain-separation tags; uses protocol_constants for CRT modulus Q (not prover-supplied); 8 adversarial tests pass (tampered shares, wrong participant ids, wrong Lagrange coefficients, duplicate participants, participant outside accepted set, wrong CRT reconstruction, wrong plaintext decode, mixed session/ciphertext shares). Full-dimension integration harness (`crates/pvthfhe-circuit-tests/tests/aggregator_final_full_dim.rs`) runs canonical nargo→bb→ultra_honk flow with frozen 7-field public input format. Production-dimension (N=8192) circuit and CRT reconstruction verification deferred to later batches (G.2+/H).
+**G.1 current status (2026-05-13):** Implemented at N=8 research prototype level with both Sonobe Nova (P1.3-P1.5) and Noir (aggregator_final) paths. Production N=8192 deferred to Phase 2.
 
 ### G.1 — Add final aggregation proof relation
 

@@ -1,5 +1,8 @@
 //! Sonobe Nova proof-compressor backend.
 
+pub mod c7_circuit;
+pub use c7_circuit::C7DecryptAggregationCircuit;
+
 use std::fmt::Debug;
 use std::fs;
 

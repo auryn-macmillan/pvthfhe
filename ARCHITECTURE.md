@@ -94,7 +94,7 @@ Each protocol step produces verifiable artifacts. A third-party verifier with on
 | BFV encryption relation | BfvSigmaProof | **Partial** (R4 fix) | Plaintext domain `|z_m_i| < t/2` enforced since `5dee0f8`; full BFV containment D.1-deferred |
 | Cyclo folding | Fold accumulator | **Yes** (conditional) | `verify_fold()` recomputes accumulator deterministically; soundness conditional on P1/P2 |
 | Sonobe compressor | Compressed proof | **Yes** | Dual verification path (in-process + external re-parse from bytes) |
-| Aggregate decrypt | Plaintext | **Partial** (C7 prototype) | aggregator_final Noir circuit exists (N=8 research prototype, 8 adversarial tests pass). Full-dimension harness runs canonical nargo→bb→ultra_honk flow. Production-dimension (N=8192) circuit deferred |
+| Aggregate decrypt | Plaintext | **Partial** (C7 prototype) | Sonobe C7DecryptAggregationCircuit (N=8 prototype via Nova IVC; Phase 2 Merkle-proof for N=8192 deferred). Complementary Noir aggregator_final path exists (N=8, standalone verification). |
 | On-chain verify | UltraHonk proof | **No** (not run by demo) | Requires separate `bench-comparison` invocation |
 
 Key R4 improvements:
@@ -110,7 +110,7 @@ The current implementation uses Sonobe substitution for the folding and compress
 - **P2**: LatticeFold+ folding substituted by off-chain Sonobe. E.1/E.2 pipeline verifier wiring covers batched Shamir share-computation and DKG aggregation relations.
 - **P3**: MicroNova SNARK compression substituted by off-chain Sonobe + on-chain commitment topology. G.1 aggregator_final Noir circuit (N=8, 8 adversarial tests pass) verifies Lagrange recombination of decryption shares.
 - **C6**: CommittedSmudge mode enforces DKG-bound smudging; F.2 smudge-slot freshness enforced via public SlotRegistry.
-- **C7**: aggregator_final Noir circuit (N=8) verifies participant ids, Lagrange, Poseidon-binding; full-dimension harness runs canonical nargo→bb→ultra_honk flow.
+- **C7**: Sonobe C7DecryptAggregationCircuit (N=8 via Nova IVC, P1.3-P1.5) folds per-participant Lagrange recombination into Nova accumulator. Complementary Noir aggregator_final path (N=8) provides standalone verification. Phase 2 full N=8192 Merkle-proof verification deferred.
 
 ### End-to-End Verifiability Chain
 

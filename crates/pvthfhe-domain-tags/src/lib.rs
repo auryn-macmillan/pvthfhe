@@ -42,8 +42,10 @@ pub enum Tag {
     PvssBatchedDkgShareEncryptionESmTrack,
     /// `pvthfhe/pvss/smudge-slot-batch/v1` — smudge slot/batch identity binding.
     PvssSmudgeSlotBatch,
-    /// `pvthfhe/pvss/transcript-root-binding/v1` — transcript-root replay binding.
-    PvssTranscriptRootBinding,
+/// `pvthfhe/pvss/transcript-root-binding/v1` — transcript-root replay binding.
+PvssTranscriptRootBinding,
+/// `pvthfhe/pvss/c7-decrypt-aggregation/v1` — C7 decryption aggregation step circuit.
+PvssC7DecryptAggregation,
 }
 
 impl Tag {
@@ -69,13 +71,14 @@ impl Tag {
             Tag::PvssBatchedDkgShareEncryptionESmTrack => {
                 b"pvthfhe/pvss/batched-dkg-share-encryption/e-sm-track/v1"
             }
-            Tag::PvssSmudgeSlotBatch => b"pvthfhe/pvss/smudge-slot-batch/v1",
-            Tag::PvssTranscriptRootBinding => b"pvthfhe/pvss/transcript-root-binding/v1",
-        }
+Tag::PvssSmudgeSlotBatch => b"pvthfhe/pvss/smudge-slot-batch/v1",
+Tag::PvssTranscriptRootBinding => b"pvthfhe/pvss/transcript-root-binding/v1",
+Tag::PvssC7DecryptAggregation => b"pvthfhe/pvss/c7-decrypt-aggregation/v1",
+}
     }
 
     pub const fn all_literals() -> &'static [&'static [u8]] {
-        const ALL: [&[u8]; 18] = [
+        const ALL: [&[u8]; 19] = [
             Tag::Finalize.as_bytes(),
             Tag::KeygenSimulatorSession.as_bytes(),
             Tag::ProofTag.as_bytes(),
@@ -93,8 +96,9 @@ impl Tag {
             Tag::PvssBatchedDkgShareEncryptionSkTrack.as_bytes(),
             Tag::PvssBatchedDkgShareEncryptionESmTrack.as_bytes(),
             Tag::PvssSmudgeSlotBatch.as_bytes(),
-            Tag::PvssTranscriptRootBinding.as_bytes(),
-        ];
+Tag::PvssTranscriptRootBinding.as_bytes(),
+Tag::PvssC7DecryptAggregation.as_bytes(),
+];
         &ALL
     }
 }

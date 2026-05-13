@@ -15,6 +15,15 @@ use pvthfhe_fhe::{fhers::FhersBackend, real_nizk::CYCLO_BACKEND_ID, FheBackend};
 use std::{path::Path, time::Instant};
 use tracing::{info, warn};
 
+#[cfg(feature = "sonobe-compressor")]
+use {
+    ark_bn254::Fr,
+    pvthfhe_compressor::{
+        sonobe::{encode_triple, C7DecryptAggregationCircuit, SonobeCompressor},
+        ProofCompressor,
+    },
+};
+
 const DEMO_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 131072\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
 
 /// End-to-end PVTHFHE phase runner.
@@ -223,6 +232,13 @@ impl BenchObserver {
             onchain_verify_started.elapsed().as_secs_f64() * 1_000.0;
         self.timings.phases.onchain_verify.instances_run = 1;
 
+        let (c7_ms, c7_ran) = run_c7_sonobe_optional(self.timings.n, self.timings.seed);
+        if c7_ran {
+            println!("c7_decrypt_aggregation");
+            self.timings.phases.c7_decrypt_aggregation.total_ms = c7_ms;
+            self.timings.phases.c7_decrypt_aggregation.instances_run = 1;
+        }
+
         println!("backend_id_p1={CYCLO_BACKEND_ID}");
         println!(
             "compressor_backend_id={}",
@@ -342,6 +358,37 @@ fn run_noir_aggregator_final_optional() {
 
 #[cfg(not(feature = "sonobe-compressor"))]
 fn run_noir_aggregator_final_optional() {}
+
+#[cfg(feature = "sonobe-compressor")]
+fn run_c7_sonobe_optional(n: usize, seed: u64) -> (f64, bool) {
+    if std::env::var("PVTHFHE_RUN_C7_SONOBE").unwrap_or_default() != "1" {
+        return (0.0, false);
+    }
+
+    let mut epoch_hash = [0u8; 32];
+    epoch_hash[..8].copy_from_slice(&seed.to_be_bytes());
+
+    let start = Instant::now();
+    let compressor = SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch_hash, n)
+        .expect("C7 sonobe compressor construction failed");
+    let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64))).to_vec();
+    let public_inputs =
+        encode_triple((Fr::from(1u64), Fr::from(1u64), Fr::from(1u64))).to_vec();
+    let proof = compressor
+        .prove(&acc, &public_inputs)
+        .expect("C7 sonobe prove failed");
+    let vk = compressor.verifier_key();
+    let _ = compressor
+        .verify(&vk, &proof, &public_inputs)
+        .expect("C7 sonobe verify failed");
+    let ms = start.elapsed().as_secs_f64() * 1_000.0;
+    (ms, true)
+}
+
+#[cfg(not(feature = "sonobe-compressor"))]
+fn run_c7_sonobe_optional(_n: usize, _seed: u64) -> (f64, bool) {
+    (0.0, false)
+}
 
 #[cfg(test)]
 mod tests {

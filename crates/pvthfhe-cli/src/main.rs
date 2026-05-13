@@ -393,7 +393,7 @@ struct DemoObserver {
 
 #[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]
 impl DemoObserver {
-    const STEP_COUNT: usize = 9;
+    const STEP_COUNT: usize = 10;
 
     fn pvss_backend_id(&self) -> &str {
         self.pvss_backend_id.as_deref().unwrap_or(PVSS_BACKEND_ID)
@@ -418,14 +418,8 @@ impl PipelineObserver for DemoObserver {
                 self.keygen_announced = true;
                 Self::print_step(1, "keygen", detail);
             }
-            "nizk_prove" => match detail {
-                Some(detail) => println!("step 2/9: nizk_prove ({detail})"),
-                None => println!("step 2/9: nizk_prove"),
-            },
-            "nizk_verify" => match detail {
-                Some(detail) => println!("step 3/9: nizk_verify ({detail})"),
-                None => println!("step 3/9: nizk_verify"),
-            },
+            "nizk_prove" => Self::print_step(2, "nizk_prove", detail),
+            "nizk_verify" => Self::print_step(3, "nizk_verify", detail),
             "pvss_share_encrypt" if !self.pvss_announced => {
                 self.pvss_announced = true;
                 Self::print_step(4, "pvss_share_encrypt", detail);

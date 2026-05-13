@@ -151,6 +151,13 @@ fn main() -> anyhow::Result<()> {
             r8_aggregate(&ciphertext, &shares, threshold)?;
         }
         Commands::Verify { proof } => {
+            // Planned: --verify-only mode will read public artifacts (aggregate_pk,
+            // ciphertext, compressed_proof, dkg transcript) from disk and run all
+            // NIZK verifications + fold verification + compressor verification
+            // without requiring secret key material, then print verify: ACCEPT/REJECT.
+            // This enables a third-party verifier role with only public data.
+            // Dependencies: share_computation verifier (batch D.2), dkg_aggregation
+            // verifier (batch D.2), and artifact serialization (TBD).
             info!(proof = %proof, "verify stub — real HonkVerifier not yet integrated");
             println!("verify: proof={proof} (stub)");
         }
@@ -352,9 +359,14 @@ fn run_demo(n: usize, threshold: usize, seed: u64, force_large_n: bool) -> anyho
     println!("decrypt_ms={decrypt_ms}");
     println!("threshold={threshold}");
     println!("n={n}");
-    println!("verify: ACCEPT");
+    if report.all_verifications_passed {
+        println!("verify: ACCEPT");
+        info!("demo complete: ACCEPT");
+    } else {
+        println!("verify: REJECT");
+        info!("demo complete: REJECT");
+    }
     println!("pvss_backend_id={}", observer.pvss_backend_id());
-    info!("demo complete: ACCEPT");
 
     Ok(())
 }

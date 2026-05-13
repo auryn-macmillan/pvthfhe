@@ -57,6 +57,10 @@ pub struct PipelineReport {
     pub timings: E2eTimings,
     /// Whether aggregate decrypt matched the original plaintext.
     pub plaintext_roundtrip_ok: bool,
+    /// Whether all verification checks (NIZK, fold, compressor, decrypt NIZK) passed.
+    /// Set to `true` only when `run_full_pipeline` completes without error — any
+    /// verification failure propagates via `?` and prevents reaching this constructor.
+    pub all_verifications_passed: bool,
     /// Aggregate public key hash.
     pub aggregate_pk_hash_hex: String,
     /// Ciphertext hash.
@@ -486,6 +490,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     Ok(PipelineReport {
         timings,
         plaintext_roundtrip_ok,
+        all_verifications_passed: true,
         aggregate_pk_hash_hex,
         ciphertext_hash_hex,
         compressed_proof_digest_hex: hex::encode(compressed.digest),

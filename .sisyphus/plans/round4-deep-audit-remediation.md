@@ -1,6 +1,6 @@
 # Round 4 Deep Audit Remediation Plan
 
-**Status**: IN PROGRESS
+**Status**: NEARLY COMPLETE (Batches A, B, C done; D, E in progress)
 **Created**: 2026-05-13
 **Audits**: NIZK proof soundness + PVSS security guarantees + E2E verifiability + Bug/edge case surface
 **Pre-audit baseline**: `2d2540d` (Momus remediation complete)

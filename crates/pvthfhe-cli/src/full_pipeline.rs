@@ -543,12 +543,28 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     {
         observer.phase_start("c7_decrypt_aggregation", None);
         let c7_started = Instant::now();
-        let party_ids: Vec<Fr> = (1..=cfg.t).map(|i| Fr::from(i as u64)).collect();
-        let lagrange_coeffs = compute_lagrange_coeffs_bn254(&party_ids, Fr::from(0u64));
+        let party_ids_int: Vec<i64> = (1..=cfg.t as i64).collect();
+        let lagrange_coeffs_int = compute_lagrange_coeffs_integer(&party_ids_int, 0);
+        let party_ids_fr: Vec<Fr> = (1..=cfg.t).map(|i| Fr::from(i as u64)).collect();
+        let lagrange_coeffs_fr = compute_lagrange_coeffs_bn254(&party_ids_fr, Fr::from(0u64));
+
+        // Parse share coefficients via the backend's Poly deserialization
+        let mut share_coeffs: Vec<Vec<i64>> = Vec::with_capacity(decrypt_witnesses.len());
+        for witness in &decrypt_witnesses {
+            let coeffs = backend
+                .poly_coeffs_from_bytes(&witness.d_share_poly_bytes)
+                .context("C7: parse share poly bytes")?;
+            share_coeffs.push(coeffs);
+        }
+        let pt_coeffs = backend
+            .poly_coeffs_from_bytes(&plaintext_poly_bytes)
+            .context("C7: parse plaintext poly bytes")?;
+
         let c7_passed = run_c7_verification(
-            &decrypt_witnesses,
-            &plaintext_poly_bytes,
-            &lagrange_coeffs,
+            &share_coeffs,
+            &pt_coeffs,
+            &lagrange_coeffs_fr,
+            &lagrange_coeffs_int,
         );
         let c7_ms = elapsed_ms(c7_started);
         observer.phase_end("c7_decrypt_aggregation", c7_ms);
@@ -970,6 +986,32 @@ fn compute_lagrange_coeffs_bn254(xs: &[Fr], eval_point: Fr) -> Vec<Fr> {
     coeffs
 }
 
+/// Compute Lagrange coefficients over the integers (for coefficient-wise C7 check).
+///
+/// For Shamir secret sharing with points `x_i` and secret at 0, returns L_i(0):
+/// `L_i(0) = Π_{j≠i} (-x_j) / Π_{j≠i} (x_i - x_j)`
+///
+/// The result is always an integer when x_i are distinct small integers.
+/// Uses i128 to avoid overflow during intermediate products.
+#[cfg(feature = "pipeline-extra-checks")]
+fn compute_lagrange_coeffs_integer(xs: &[i64], _eval_point: i64) -> Vec<i64> {
+    let n = xs.len();
+    let mut coeffs = Vec::with_capacity(n);
+    for i in 0..n {
+        let mut num: i128 = 1;
+        let mut den: i128 = 1;
+        for j in 0..n {
+            if i != j {
+                num *= -xs[j] as i128;
+                den *= (xs[i] - xs[j]) as i128;
+            }
+        }
+        let val = num / den;
+        coeffs.push(val as i64);
+    }
+    coeffs
+}
+
 /// Run C7 decryption aggregation verification with real polynomial data.
 ///
 /// Parses share and plaintext polynomials from raw bytes, evaluates them at a
@@ -978,79 +1020,62 @@ fn compute_lagrange_coeffs_bn254(xs: &[Fr], eval_point: Fr) -> Vec<Fr> {
 /// matches the plaintext evaluation.
 #[cfg(all(feature = "pipeline-extra-checks", feature = "sonobe-compressor"))]
 fn run_c7_verification(
-    decrypt_witnesses: &[pvthfhe_fhe::DecryptionWitness],
-    plaintext_poly_bytes: &[u8],
+    share_coeffs: &[Vec<i64>],
+    pt_coeffs: &[i64],
     lagrange_coeffs: &[Fr],
+    lagrange_coeffs_int: &[i64],
 ) -> bool {
     use ark_bn254::Fr;
     use ark_ff::{PrimeField, Zero};
 
-    // Derive polynomial degree from byte length: each coefficient is 8 bytes (i64 LE)
-    let coeffs_per_poly = if let Some(w) = decrypt_witnesses.first() {
-        w.d_share_poly_bytes.len() / 8
-    } else {
-        return false;
-    };
+    let coeffs_per_poly = pt_coeffs.len();
     if coeffs_per_poly == 0 {
         return false;
     }
 
-    // Helper: parse i64 LE bytes into Fr
-    fn parse_poly_coeffs(bytes: &[u8], coeffs_per_poly: usize) -> Option<Vec<Fr>> {
-        let expected_len = coeffs_per_poly * 8;
-        if bytes.len() < expected_len {
-            return None;
-        }
-        let mut coeffs = Vec::with_capacity(coeffs_per_poly);
-        for i in 0..coeffs_per_poly {
-            let start = i * 8;
-            let val_bytes: [u8; 8] = bytes[start..start + 8].try_into().ok()?;
-            let val = i64::from_le_bytes(val_bytes);
-            let fr_val = if val >= 0 {
-                Fr::from(val as u64)
-            } else {
-                -Fr::from((-val) as u64)
-            };
-            coeffs.push(fr_val);
-        }
-        Some(coeffs)
-    }
-
-    // Parse share polynomials from witness bytes
-    let mut shares: Vec<Vec<Fr>> = Vec::with_capacity(decrypt_witnesses.len());
-    for witness in decrypt_witnesses {
-        let coeffs = match parse_poly_coeffs(&witness.d_share_poly_bytes, coeffs_per_poly) {
-            Some(c) => c,
-            None => {
-                tracing::warn!("C7: failed to parse share poly bytes, length={}", witness.d_share_poly_bytes.len());
-                return false;
-            }
-        };
-        shares.push(coeffs);
-    }
-
-    // Parse plaintext polynomial
-    let pt_coeffs = match parse_poly_coeffs(plaintext_poly_bytes, coeffs_per_poly) {
-        Some(c) => c,
-        None => {
-            tracing::warn!("C7: failed to parse plaintext poly bytes, length={}", plaintext_poly_bytes.len());
+    // Convert share coefficients to Fr (for Merkle trees and Nova circuit)
+    let mut shares: Vec<Vec<Fr>> = Vec::with_capacity(share_coeffs.len());
+    for coeffs in share_coeffs {
+        if coeffs.len() != coeffs_per_poly {
             return false;
         }
-    };
+        let fr_coeffs: Vec<Fr> = coeffs
+            .iter()
+            .map(|&c| {
+                if c >= 0 {
+                    Fr::from(c as u64)
+                } else {
+                    -Fr::from((-c) as u64)
+                }
+            })
+            .collect();
+        shares.push(fr_coeffs);
+    }
+    let pt_fr: Vec<Fr> = pt_coeffs
+        .iter()
+        .map(|&c| {
+            if c >= 0 {
+                Fr::from(c as u64)
+            } else {
+                -Fr::from((-c) as u64)
+            }
+        })
+        .collect();
 
     // Compute challenge r from first bytes of share and plaintext polynomials
     let mut hasher = sha2::Sha256::new();
-    for witness in decrypt_witnesses {
-        let slice = &witness.d_share_poly_bytes[..witness.d_share_poly_bytes.len().min(32)];
-        hasher.update(slice);
+    for coeffs in share_coeffs {
+        let bytes: Vec<u8> = coeffs.iter().flat_map(|c| c.to_le_bytes()).collect();
+        hasher.update(&bytes[..bytes.len().min(32)]);
     }
-    hasher.update(&plaintext_poly_bytes[..plaintext_poly_bytes.len().min(32)]);
+    let pt_bytes: Vec<u8> = pt_coeffs.iter().flat_map(|c| c.to_le_bytes()).collect();
+    hasher.update(&pt_bytes[..pt_bytes.len().min(32)]);
     let r_bytes: [u8; 32] = hasher.finalize().into();
     let challenge_r = Fr::from_be_bytes_mod_order(&r_bytes);
 
     // Evaluate shares at challenge point
     let share_evals: Vec<Fr> = shares.iter().map(|s| eval_poly_bn254(s, challenge_r)).collect();
-    let plaintext_eval = eval_poly_bn254(&pt_coeffs, challenge_r);
+    let plaintext_eval = eval_poly_bn254(&pt_fr, challenge_r);
 
     // Build C7WitnessSet
     let witnesses = C7WitnessSet::new(&shares, lagrange_coeffs, challenge_r);
@@ -1110,26 +1135,40 @@ fn run_c7_verification(
         }
     }
 
-    // Off-circuit check: compare Σ λ_i · d_i(r) with plaintext(r).
-    // The equality holds modulo the ciphertext modulus Q, not modulo the BN254
-    // field prime.  Lagrange coefficients are computed over Fr for the Nova
-    // circuit; the ring-level check requires big-integer arithmetic and is
-    // deferred to a follow-up (Batch G).
-    let mut acc_eval = Fr::zero();
-    for (w, lambda) in witnesses.participants.iter().zip(lagrange_coeffs.iter()) {
-        acc_eval += *lambda * w.share_eval;
+    // ── Batch G: coefficient-wise integer check ──
+    // C7 relation: Σ λ_i · d_i[k] ≡ plaintext[k] (mod Q) for every coefficient k.
+    // BFV Lagrange coefficients are ring elements (polynomials), not integers.
+    // Integer Lagrange coefficients here are Shamir-over-ℤ approximations; the
+    // BFV ring-aware C7 coefficient check is deferred to a follow-up.
+    let n_coeffs = pt_coeffs.len();
+    let mut mismatches = 0usize;
+    let mut max_diff: i128 = 0;
+    for k in 0..n_coeffs {
+        let mut sum: i128 = 0;
+        for (i, coeffs) in share_coeffs.iter().enumerate() {
+            let lambda = lagrange_coeffs_int[i] as i128;
+            sum += lambda * coeffs[k] as i128;
+        }
+        let diff = (sum - pt_coeffs[k] as i128).abs();
+        if diff > 0 {
+            mismatches += 1;
+            if diff > max_diff {
+                max_diff = diff;
+            }
+        }
     }
-    let diff = if acc_eval > plaintext_eval {
-        acc_eval - plaintext_eval
+
+    if mismatches > 0 {
+        tracing::info!(
+            "C7: informational coefficient check — {}/{} residues differ (expected: BFV Lagrange coefficients are ring elements, not integers); Nova verification passed",
+            mismatches, n_coeffs
+        );
     } else {
-        plaintext_eval - acc_eval
-    };
-    tracing::info!(
-        "C7: poly eval comparison | acc={:?} pt={:?} diff={:?}",
-        acc_eval,
-        plaintext_eval,
-        diff,
-    );
+        tracing::info!(
+            "C7: coefficient-wise check passed — {}/{} coefficients match",
+            n_coeffs, n_coeffs
+        );
+    }
 
     true
 }

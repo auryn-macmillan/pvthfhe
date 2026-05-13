@@ -1207,6 +1207,24 @@ impl FheBackend for FhersBackend {
 }
 
 impl FhersBackend {
+    /// Decode polynomial bytes into i64 coefficients (for C7 verification).
+    pub fn poly_coeffs_from_bytes(&self, poly_bytes: &[u8]) -> Result<Vec<i64>, FheError> {
+        let ctx = self
+            .bfv_params
+            .ctx_at_level(0)
+            .map_err(|err| FheError::Backend {
+                reason: err.to_string(),
+            })?;
+        let poly = Poly::from_bytes(poly_bytes, &ctx).map_err(|err| FheError::Backend {
+            reason: err.to_string(),
+        })?;
+        let mut coeffs = Vec::new();
+        for c in poly.coefficients() {
+            coeffs.push(*c as i64);
+        }
+        Ok(coeffs)
+    }
+
     /// Aggregate decryption shares into recovered plaintext AND plaintext polynomial bytes.
     ///
     /// Returns `(decoded_plaintext_bytes, plaintext_poly_bytes)` where:

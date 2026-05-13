@@ -1,8 +1,7 @@
 DO NOT DEPLOY — RESEARCH PROTOTYPE ONLY
 
-This repository contains critical cryptographic surrogates that provide no real security:
-- on-chain cryptographic verification: real UltraHonk verifier (committing to Sonobe state) + off-chain attestation
-- Noir circuits: real aggregation and wrapping logic (not tautological surrogates)
+- on-chain verification: UltraHonk verifier (Track A: Sonobe attestation; Track B: MicroNova target)
+- Noir circuits: real aggregation and wrapping logic
 - do not use for The Interfold or any production deployment
 
 See SECURITY-ADVISORY-001.md and SECURITY.md for details.

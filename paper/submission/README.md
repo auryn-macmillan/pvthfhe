@@ -17,7 +17,7 @@
 
 ## Checklist
 
-- [x] All 19 theorems proved (see `docs/security-proofs/obligations.md`)
+- [x] 17 theorems proved, 2 pending (P2-A-T2 pending Nova IVC proof, P2-A-T5 2/6 discharged)
 - [x] Claims table 1:1 mapping verified (`paper/claims-table.md`, 19 rows)
 - [x] All benchmark figures present (`paper/figures/p{1,2,3,4}-bench.tex`)
 - [x] Cross-problem summary table in paper (§Implementation, Table 1)

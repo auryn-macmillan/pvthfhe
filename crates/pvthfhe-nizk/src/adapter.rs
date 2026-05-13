@@ -158,8 +158,12 @@ impl NizkAdapter for CycloNizkAdapter {
             .try_into()
             .map_err(|_| NizkError::InvalidProof("bad sha256_binding commitment"))?;
 
-        let _ = session_id_encoded;
-        let _ = encoded_pid;
+        if session_id_encoded != stmt.session_id.as_bytes() {
+            return Err(NizkError::VerificationFailed("session_id mismatch"));
+        }
+        if encoded_pid != stmt.participant_id {
+            return Err(NizkError::VerificationFailed("participant_id mismatch"));
+        }
 
         let sigma_section_len = usize::try_from(cur.read_u32()?)
             .map_err(|_| NizkError::InvalidProof("sigma_section_len overflow"))?;

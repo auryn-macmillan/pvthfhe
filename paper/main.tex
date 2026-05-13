@@ -103,6 +103,9 @@ Follows from SHA-256 collision resistance; see \texttt{docs/security-proofs/p4/t
 Misbehavior covered by the implemented commitment-recomputation predicates yields
 publicly checkable blame against the cheater, while honest parties are never falsely blamed.
 \end{theorem}
+\begin{proof}
+Proved by case analysis over the concrete blame predicates defined in \texttt{docs/security-proofs/p4/t4-abort-with-blame-robustness.md}.
+\end{proof}
 
 \begin{theorem}[P4 Sequential Composition]
 \label{thm:p4-t5}

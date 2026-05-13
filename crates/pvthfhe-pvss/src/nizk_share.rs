@@ -231,16 +231,105 @@ impl ShareNizkBatchedStatement {
 pub struct ShareNizkBatchedVerifier;
 
 impl ShareNizkBatchedVerifier {
-    /// Verify a batched statement. Currently delegates to individual
-    /// `ShareNizkVerifier::verify` for the sk track only (D.2 stub).
+    /// Verify a batched proof covering sk and e_sm tracks.
+    ///
+    /// Decodes the batched proof envelope, dispatches each sub-proof
+    /// to [`ShareNizkVerifier::verify`] against the corresponding
+    /// per-track statement, and enforces cross-track domain binding
+    /// (sk and e_sm track commitments must differ).
     pub fn verify(
-        _backend: &dyn FheBackend,
-        _batched: &ShareNizkBatchedStatement,
-        _proof: &ShareNizkProof,
+        backend: &dyn FheBackend,
+        batched: &ShareNizkBatchedStatement,
+        proof: &ShareNizkProof,
     ) -> Result<(), PvssError> {
-        // D.2 stub: batched verification not yet implemented; fail closed.
-        Err(PvssError::BfvEncryptionProofFailed)
+        if proof.domain_separator != SHARE_NIZK_DOMAIN_SEPARATOR {
+            return Err(PvssError::InvalidDomainSeparator);
+        }
+
+        let bytes = proof.proof_bytes.as_slice();
+        if bytes.len() < 2 {
+            return Err(PvssError::BfvEncryptionProofFailed);
+        }
+
+        let num_tracks = u16::from_be_bytes([bytes[0], bytes[1]]);
+        let mut offset: usize = 2;
+
+        if num_tracks < 1 {
+            return Err(PvssError::BfvEncryptionProofFailed);
+        }
+        let expected_esm_tracks = num_tracks as usize - 1;
+        if expected_esm_tracks != batched.esm_slots.len() {
+            return Err(PvssError::BfvEncryptionProofFailed);
+        }
+
+        // ── SK track verification ──
+        let sk_stmt = ShareNizkStatement {
+            session_id: batched.session_id.clone(),
+            dealer_index: batched.dealer_index,
+            recipient_index: batched.recipient_index,
+            recipient_pk: batched.recipient_pk.clone(),
+            bfv_params_digest: batched.bfv_params_digest.clone(),
+            dkg_root: batched.dkg_root.clone(),
+            ciphertext_u: batched.sk.ciphertext_u.clone(),
+            ciphertext_v: batched.sk.ciphertext_v.clone(),
+            share_commitment: batched.sk.track_commitment.clone(),
+        };
+        let sk_proof = read_batched_sub_proof(bytes, &mut offset)?;
+        ShareNizkVerifier::verify(backend, &sk_stmt, &sk_proof)?;
+
+        // ── ESm track verification ──
+        for (_i, esm_slot) in batched.esm_slots.iter().enumerate() {
+            let esm_stmt = ShareNizkStatement {
+                session_id: batched.session_id.clone(),
+                dealer_index: batched.dealer_index,
+                recipient_index: batched.recipient_index,
+                recipient_pk: batched.recipient_pk.clone(),
+                bfv_params_digest: batched.bfv_params_digest.clone(),
+                dkg_root: batched.dkg_root.clone(),
+                ciphertext_u: esm_slot.ciphertext_u.clone(),
+                ciphertext_v: esm_slot.ciphertext_v.clone(),
+                share_commitment: esm_slot.track_commitment.clone(),
+            };
+            let esm_proof = read_batched_sub_proof(bytes, &mut offset)?;
+            ShareNizkVerifier::verify(backend, &esm_stmt, &esm_proof)?;
+
+            // Cross-track binding: sk and e_sm commitments must differ
+            if batched.sk.track_commitment == esm_slot.track_commitment {
+                return Err(PvssError::BfvEncryptionProofFailed);
+            }
+        }
+
+        if offset != bytes.len() {
+            return Err(PvssError::BfvEncryptionProofFailed);
+        }
+
+        Ok(())
     }
+}
+
+/// Decode a single sub-proof from a batched proof byte stream.
+///
+/// Reads `[proof_len: u32][proof_bytes]` from `bytes` starting at
+/// `*offset`, advances `*offset`, and returns the reconstructed
+/// [`ShareNizkProof`].
+fn read_batched_sub_proof(bytes: &[u8], offset: &mut usize) -> Result<ShareNizkProof, PvssError> {
+    let remaining = bytes.len().checked_sub(*offset).unwrap_or(0);
+    if remaining < 4 {
+        return Err(PvssError::BfvEncryptionProofFailed);
+    }
+    let proof_len = u32::from_be_bytes([
+        bytes[*offset],
+        bytes[*offset + 1],
+        bytes[*offset + 2],
+        bytes[*offset + 3],
+    ]) as usize;
+    *offset += 4;
+    if proof_len > MAX_FIELD_LEN || bytes.len().checked_sub(*offset).unwrap_or(0) < proof_len {
+        return Err(PvssError::BfvEncryptionProofFailed);
+    }
+    let sub_proof_bytes = bytes[*offset..*offset + proof_len].to_vec();
+    *offset += proof_len;
+    ShareNizkProof::from_bytes(sub_proof_bytes).map_err(|_| PvssError::BfvEncryptionProofFailed)
 }
 
 impl ShareNizkProver {
@@ -313,14 +402,19 @@ impl ShareNizkProver {
         ShareNizkProof::from_opened(&opened)
     }
 
-    /// Produce a batched share-encryption proof (D.2 stub).
+    /// Produce a batched share-encryption proof (D.2).
+    ///
+    /// Creates independent per-track proofs for the sk track and each
+    /// e_sm slot, then concatenates them into a single batched proof
+    /// envelope. The proof is verified by [`ShareNizkBatchedVerifier::verify`].
     pub fn prove_batched(
         backend: &dyn FheBackend,
         batched: &ShareNizkBatchedStatement,
         sk_witness: &ShareNizkWitness,
         esm_witnesses: &[ShareNizkWitness],
     ) -> Result<ShareNizkProof, PvssError> {
-        let stmt = ShareNizkStatement {
+        // Prove SK track — construct statement from the sk track directly
+        let sk_stmt = ShareNizkStatement {
             session_id: batched.session_id.clone(),
             dealer_index: batched.dealer_index,
             recipient_index: batched.recipient_index,
@@ -331,8 +425,50 @@ impl ShareNizkProver {
             ciphertext_v: batched.sk.ciphertext_v.clone(),
             share_commitment: batched.sk.track_commitment.clone(),
         };
-        let _ = esm_witnesses;
-        Self::prove(backend, &stmt, sk_witness)
+        let sk_proof = Self::prove(backend, &sk_stmt, sk_witness)?;
+
+        // Prove ESm tracks — construct statements from array positions,
+        // not logical slot_index, to avoid the off-by-one in
+        // legacy_statement_for_track which uses slot_index as an array offset.
+        let mut esm_proofs: Vec<ShareNizkProof> = Vec::with_capacity(esm_witnesses.len());
+        for (i, esm_witness) in esm_witnesses.iter().enumerate() {
+            let esm_track = &batched.esm_slots[i];
+            let esm_stmt = ShareNizkStatement {
+                session_id: batched.session_id.clone(),
+                dealer_index: batched.dealer_index,
+                recipient_index: batched.recipient_index,
+                recipient_pk: batched.recipient_pk.clone(),
+                bfv_params_digest: batched.bfv_params_digest.clone(),
+                dkg_root: batched.dkg_root.clone(),
+                ciphertext_u: esm_track.ciphertext_u.clone(),
+                ciphertext_v: esm_track.ciphertext_v.clone(),
+                share_commitment: esm_track.track_commitment.clone(),
+            };
+            let esm_proof = Self::prove(backend, &esm_stmt, esm_witness)?;
+            esm_proofs.push(esm_proof);
+        }
+
+        // Encode batched proof:
+        //   [num_tracks: u16][sk_proof_len: u32][sk_proof_bytes]
+        //   [esm0_proof_len: u32][esm0_proof_bytes]...
+        let num_tracks = 1u16 + esm_proofs.len() as u16;
+        let mut out = Vec::new();
+        out.extend_from_slice(&num_tracks.to_be_bytes());
+        // SK track proof
+        let sk_bytes = sk_proof.proof_bytes.as_slice();
+        out.extend_from_slice(&(sk_bytes.len() as u32).to_be_bytes());
+        out.extend_from_slice(sk_bytes);
+        // ESm track proofs
+        for esm_proof in &esm_proofs {
+            let esm_bytes = esm_proof.proof_bytes.as_slice();
+            out.extend_from_slice(&(esm_bytes.len() as u32).to_be_bytes());
+            out.extend_from_slice(esm_bytes);
+        }
+
+        Ok(ShareNizkProof {
+            proof_bytes: ProtocolBytes(out),
+            domain_separator: SHARE_NIZK_DOMAIN_SEPARATOR.to_owned(),
+        })
     }
 }
 

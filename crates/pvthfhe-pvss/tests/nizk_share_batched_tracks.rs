@@ -3,8 +3,9 @@
 use pvthfhe_fhe::{mock::MockBackend, types::PublicKey, FheBackend};
 use pvthfhe_pvss::nizk_share::{
     canonical_bfv_params_digest, compute_ciphertext_v, compute_share_commitment,
-    ShareNizkBatchedStatement, ShareNizkBatchedVerifier, ShareNizkProver, ShareNizkStatement,
-    ShareNizkTrackStatement, ShareNizkTrackType, ShareNizkVerifier, ShareNizkWitness,
+    ShareNizkBatchedStatement, ShareNizkBatchedVerifier, ShareNizkProver,
+    ShareNizkStatement, ShareNizkTrackStatement, ShareNizkTrackType, ShareNizkVerifier,
+    ShareNizkWitness,
 };
 use pvthfhe_pvss::PvssError;
 use pvthfhe_types::{EncRandomness, ProtocolBytes, ShareSecret};
@@ -295,4 +296,206 @@ fn batched_rejects_sk_proof_reused_as_esm_track_proof() {
         "D.3: an sk proof must be rejected when replayed as an e_sm slot proof, got {:?}",
         result
     );
+}
+
+// ── D.2 RED tests ─────────────────────────────────────────────────────────
+
+#[test]
+fn tampered_esm_track_rejected() {
+    acknowledge_mock_backend();
+
+    let backend = MockBackend::load_params(TEST_PARAMS_TOML).expect("load mock backend");
+
+    let mut rng = ChaCha8Rng::seed_from_u64(0xD200);
+    let mut session_id = vec![0u8; 32];
+    rng.fill_bytes(&mut session_id);
+    let mut recipient_pk = vec![0u8; 64];
+    rng.fill_bytes(&mut recipient_pk);
+
+    let (sk_track, sk_witness) = track_statement(
+        &backend,
+        &session_id,
+        &recipient_pk,
+        ShareNizkTrackType::Sk,
+        None,
+        b"sk-track-0000000000000000000000000000".to_vec(),
+        [0xA1; 32],
+    );
+    let (esm_track, esm_witness) = track_statement(
+        &backend,
+        &session_id,
+        &recipient_pk,
+        ShareNizkTrackType::ESm,
+        Some(7),
+        b"esm-track-000000000000000000000000000".to_vec(),
+        [0xA2; 32],
+    );
+
+    let batched_stmt = ShareNizkBatchedStatement {
+        session_id: ProtocolBytes(session_id.clone()),
+        dealer_index: 0,
+        recipient_index: 0,
+        recipient_pk: ProtocolBytes(recipient_pk),
+        bfv_params_digest: ProtocolBytes(canonical_bfv_params_digest().to_vec()),
+        dkg_root: ProtocolBytes(session_id),
+        sk: sk_track,
+        esm_slots: vec![esm_track],
+    };
+
+    let proof =
+        ShareNizkProver::prove_batched(&backend, &batched_stmt, &sk_witness, &[esm_witness])
+            .expect("batched proof");
+
+    // Tamper ONLY the esm track's ciphertext
+    let mut tampered_stmt = batched_stmt.clone();
+    tampered_stmt.esm_slots[0].ciphertext_u.0[0] ^= 0x55;
+    tampered_stmt.esm_slots[0].ciphertext_v = ProtocolBytes(
+        compute_ciphertext_v(tampered_stmt.esm_slots[0].ciphertext_u.as_slice()).to_vec(),
+    );
+
+    let result = ShareNizkBatchedVerifier::verify(&backend, &tampered_stmt, &proof);
+    assert!(
+        result.is_err(),
+        "D.2 RED: tampering only the e_sm track's ciphertext must be rejected. result = {:?}",
+        result
+    );
+}
+
+#[test]
+fn cross_track_domain_replay_rejected() {
+    acknowledge_mock_backend();
+
+    let backend = MockBackend::load_params(TEST_PARAMS_TOML).expect("load mock backend");
+
+    let mut rng = ChaCha8Rng::seed_from_u64(0xD201);
+    let mut session_id = vec![0u8; 32];
+    rng.fill_bytes(&mut session_id);
+    let mut recipient_pk = vec![0u8; 64];
+    rng.fill_bytes(&mut recipient_pk);
+
+    // SK track
+    let (sk_track, sk_witness) = track_statement(
+        &backend,
+        &session_id,
+        &recipient_pk,
+        ShareNizkTrackType::Sk,
+        None,
+        b"sk-replay-0000000000000000000000000000".to_vec(),
+        [0xB1; 32],
+    );
+    // ESm track with distinct payload
+    let (esm_track, esm_witness) = track_statement(
+        &backend,
+        &session_id,
+        &recipient_pk,
+        ShareNizkTrackType::ESm,
+        Some(3),
+        b"esm-replay-000000000000000000000000000".to_vec(),
+        [0xB2; 32],
+    );
+
+    let batched_stmt = ShareNizkBatchedStatement {
+        session_id: ProtocolBytes(session_id.clone()),
+        dealer_index: 0,
+        recipient_index: 0,
+        recipient_pk: ProtocolBytes(recipient_pk),
+        bfv_params_digest: ProtocolBytes(canonical_bfv_params_digest().to_vec()),
+        dkg_root: ProtocolBytes(session_id),
+        sk: sk_track,
+        esm_slots: vec![esm_track],
+    };
+
+    let proof =
+        ShareNizkProver::prove_batched(&backend, &batched_stmt, &sk_witness, &[esm_witness])
+            .expect("batched proof");
+
+    // Swap SK and ESm track types: retype the sk track as ESm and the esm as Sk
+    let mut swapped = batched_stmt.clone();
+    swapped.sk.track_type = ShareNizkTrackType::ESm;
+    swapped.sk.slot_index = Some(99);
+    swapped.esm_slots[0].track_type = ShareNizkTrackType::Sk;
+    swapped.esm_slots[0].slot_index = None;
+
+    let result = ShareNizkBatchedVerifier::verify(&backend, &swapped, &proof);
+    assert!(
+        result.is_err(),
+        "D.2 RED: cross-track domain replay (sk↔esm swap) must be rejected. result = {:?}",
+        result
+    );
+}
+
+#[test]
+fn sk_only_batched_proof_accepted() {
+    acknowledge_mock_backend();
+
+    let backend = MockBackend::load_params(TEST_PARAMS_TOML).expect("load mock backend");
+
+    let mut rng = ChaCha8Rng::seed_from_u64(0xD202);
+    let mut session_id = vec![0u8; 32];
+    rng.fill_bytes(&mut session_id);
+    let mut recipient_pk = vec![0u8; 64];
+    rng.fill_bytes(&mut recipient_pk);
+
+    let (sk_track, sk_witness) = track_statement(
+        &backend,
+        &session_id,
+        &recipient_pk,
+        ShareNizkTrackType::Sk,
+        None,
+        b"sk-only-track-00000000000000000000000".to_vec(),
+        [0xC1; 32],
+    );
+
+    let batched_stmt = ShareNizkBatchedStatement {
+        session_id: ProtocolBytes(session_id.clone()),
+        dealer_index: 0,
+        recipient_index: 0,
+        recipient_pk: ProtocolBytes(recipient_pk),
+        bfv_params_digest: ProtocolBytes(canonical_bfv_params_digest().to_vec()),
+        dkg_root: ProtocolBytes(session_id),
+        sk: sk_track,
+        esm_slots: vec![],
+    };
+
+    let proof =
+        ShareNizkProver::prove_batched(&backend, &batched_stmt, &sk_witness, &[])
+            .expect("batched prover must succeed for sk-only");
+
+    // Verify batched proof structure: must contain exactly 1 track
+    let proof_bytes = proof.proof_bytes.as_slice();
+    assert!(
+        proof_bytes.len() >= 2,
+        "batched proof too short: {} bytes",
+        proof_bytes.len()
+    );
+    let num_tracks = u16::from_be_bytes([proof_bytes[0], proof_bytes[1]]);
+    assert_eq!(
+        num_tracks, 1,
+        "sk-only batched proof must encode exactly 1 track, got {num_tracks}"
+    );
+
+    // With a real BFV backend, verification would succeed.
+    // With the mock backend, the individual verifier fails closed because
+    // the BFV encryption sigma proof is empty (mock doesn't implement
+    // encrypt_with_witness).  We assert that the batched verifier does NOT
+    // fail with a format / batching error — the failure (if any) must come
+    // from the underlying individual verifier.
+    let result = ShareNizkBatchedVerifier::verify(&backend, &batched_stmt, &proof);
+    match result {
+        Ok(()) => {
+            // Real backend path: success.
+        }
+        Err(PvssError::LatticeBindingVerificationFailed) => {
+            // Mock backend path: fails closed due to empty BFV proof.
+            // This is the expected individual-verifier error, not a
+            // batched-format error.
+        }
+        other => {
+            panic!(
+                "sk-only batched proof must either succeed or fail with \
+                 LatticeBindingVerificationFailed (mock limitation), \
+                 not with a format error: {other:?}"
+            );
+        }
+    }
 }

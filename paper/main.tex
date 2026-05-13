@@ -143,6 +143,8 @@ HVZK-to-Fiat--Shamir compilation; the current deterministic audit payload lies o
 theorem statement.
 \end{theorem}
 
+\textbf{Note on T2/T3 tension.} The extraction argument (Theorem~\ref{thm:p1-t2}) relies on witness opening in the proof payload, which is not zero-knowledge. The ZK proof (Theorem~\ref{thm:p1-t3}) is scoped to the projected SLAP core transcript excluding those openings. A proof object cannot simultaneously satisfy both theorems in their current form; simulation-extractability (P1-T4) is deferred.
+
 \begin{theorem}[P1 Simulation-Extractability Deferred]
 \label{thm:p1-t4}
 Simulation-extractability is not part of the frozen P1 baseline because P2 does not consume
@@ -204,7 +206,7 @@ VERDICT: APPROVE).
 The Sonobe Nova IVC verifier accepts only folded CCS instances consistent
 with the committed hash-chain history.  Soundness follows from standard
 Nova IVC soundness over BN254/Grumpkin (not LatticeFold+ Lemma~9).
-\textbf{Status: PROVED} (via Nova IVC soundness reduction).
+\textbf{Status: PENDING -- proof file proves LatticeFold+ extractor; Nova IVC soundness reduction to be written.}
 \end{theorem}
 
 \begin{theorem}[P2-A-T3: Sonobe ZK Preservation (Track A)]
@@ -230,7 +232,7 @@ replacement).
 \label{thm:p2a-t5}
 The final accumulated proof targets Solidity/Yul verification with
 $\leq 32$~B proof size and gas costs verified via the P3 surrogate.
-\textbf{Status: PROVED} (\texttt{docs/security-proofs/p2/T5.md}).
+\textbf{Status: PARTIAL (2/6 obligations discharged; Phase D deliverables remain)}
 \end{theorem}
 
 \textbf{Benchmarks.}  The Sonobe hash-chain surrogate achieves

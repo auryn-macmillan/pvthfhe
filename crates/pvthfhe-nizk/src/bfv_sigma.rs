@@ -547,3 +547,73 @@ pub fn decode_bfv_sigma_proof(bytes: &[u8]) -> Result<BfvSigmaProof, NizkError> 
         ch,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand_chacha::ChaCha8Rng;
+    use rand_core::SeedableRng;
+
+    fn zero_rns() -> Vec<u64> {
+        vec![0u64; RNS_LEN]
+    }
+
+    fn zero_i64_vec() -> Vec<i64> {
+        vec![0i64; RLWE_N]
+    }
+
+    /// RED test (Batch B.1): verifier must reject proofs with m_resp
+    /// coefficients outside the BFV plaintext domain [-t/2, t/2).
+    ///
+    /// Before the domain constraint is enforced, this test should FAIL.
+    /// After enforcement, tampered m_resp values (65536) are >= t_half = 32768
+    /// and must be rejected with "z_m outside plaintext domain".
+    #[test]
+    fn red_verifier_rejects_plaintext_domain_violation() {
+        let mut rng = ChaCha8Rng::seed_from_u64(0xB1D0_0001);
+
+        let delta = bfv_delta_rns(65536).expect("bfv delta");
+
+        let stmt = BfvSigmaStatement {
+            pk0_rns: zero_rns(),
+            pk1_rns: zero_rns(),
+            ct0_rns: zero_rns(),
+            ct1_rns: zero_rns(),
+            delta_limbs: delta,
+        };
+
+        let wit = BfvSigmaWitness {
+            u: zero_i64_vec(),
+            e0: zero_i64_vec(),
+            e1: zero_i64_vec(),
+            m: zero_i64_vec(),
+        };
+
+        let binding_data = b"b1-plaintext-domain-test";
+
+        let mut proof =
+            prove(&stmt, &wit, binding_data, &mut rng).expect("prove with zero witness");
+
+        // Tamper with m_resp: set every coefficient to t_plain (65536),
+        // which is >= t_half (32768) and thus outside the plaintext domain.
+        proof.m_resp.iter_mut().for_each(|c| *c = 65536);
+
+        let result = verify(&stmt, &proof, binding_data);
+
+        assert!(
+            result.is_err(),
+            "verifier must reject proof with m_resp outside plaintext domain [-32768, 32767]"
+        );
+        match &result {
+            Err(NizkError::VerificationFailed(msg)) => {
+                assert!(
+                    msg.contains("plaintext domain"),
+                    "error message must mention 'plaintext domain', got: {msg}"
+                );
+            }
+            other => panic!(
+                "expected VerificationFailed about plaintext domain, got {other:?}"
+            ),
+        }
+    }
+}

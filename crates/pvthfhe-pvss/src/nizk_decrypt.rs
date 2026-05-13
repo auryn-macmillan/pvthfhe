@@ -352,6 +352,12 @@ fn validate_witness(
             if expected_esm != *esm_agg_commit {
                 return Err(PvssError::InvalidShare);
             }
+            if let Some(ref esm_bytes) = witness.esm_noise_poly_bytes {
+                let derived_esm_share = derive_party_binding(esm_bytes);
+                if derived_esm_share != esm_agg_share {
+                    return Err(PvssError::InvalidShare);
+                }
+            }
             Ok(())
         }
     }

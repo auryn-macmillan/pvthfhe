@@ -19,7 +19,10 @@ use tracing::{info, warn};
 use {
     ark_bn254::Fr,
     pvthfhe_compressor::{
-        sonobe::{encode_triple, C7DecryptAggregationCircuit, SonobeCompressor},
+        sonobe::{
+            encode_triple, C7DecryptAggregationCircuit, C7MerkleExternalInputs,
+            C7MerkleStepCircuit, MerkleWitnessData, SonobeCompressor,
+        },
         ProofCompressor,
     },
 };
@@ -177,6 +180,7 @@ fn print_phase_markers() {
     println!("noir_aggregator_final");
     println!("noir_sonobe_wrap");
     println!("onchain_verify");
+    println!("c7_merkle_aggregation");
 }
 
 fn rss_mb() -> u64 {
@@ -237,6 +241,13 @@ impl BenchObserver {
             println!("c7_decrypt_aggregation");
             self.timings.phases.c7_decrypt_aggregation.total_ms = c7_ms;
             self.timings.phases.c7_decrypt_aggregation.instances_run = 1;
+        }
+
+        let (c7m_ms, c7m_ran) = run_c7_merkle_optional(self.timings.n, self.timings.seed);
+        if c7m_ran {
+            println!("c7_merkle_aggregation");
+            self.timings.phases.c7_merkle_aggregation.total_ms = c7m_ms;
+            self.timings.phases.c7_merkle_aggregation.instances_run = 1;
         }
 
         println!("backend_id_p1={CYCLO_BACKEND_ID}");
@@ -387,6 +398,50 @@ fn run_c7_sonobe_optional(n: usize, seed: u64) -> (f64, bool) {
 
 #[cfg(not(feature = "sonobe-compressor"))]
 fn run_c7_sonobe_optional(_n: usize, _seed: u64) -> (f64, bool) {
+    (0.0, false)
+}
+
+#[cfg(feature = "sonobe-compressor")]
+fn run_c7_merkle_optional(n: usize, seed: u64) -> (f64, bool) {
+    if std::env::var("PVTHFHE_RUN_C7_MERKLE").unwrap_or_default() != "1" {
+        return (0.0, false);
+    }
+
+    let mut epoch_hash = [0u8; 32];
+    epoch_hash[..8].copy_from_slice(&seed.to_be_bytes());
+
+    let start = Instant::now();
+    let compressor = SonobeCompressor::<C7MerkleStepCircuit<Fr>>::new(epoch_hash, n)
+        .expect("C7 merkle sonobe compressor construction failed");
+    let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
+
+    let steps: Vec<C7MerkleExternalInputs<Fr>> = (0..n)
+        .map(|i| C7MerkleExternalInputs {
+            share_eval: Fr::from((42 + i as u64) * 100),
+            lagrange_coeff: Fr::from(1u64),
+            merkle_root: Fr::from(8u64),
+            merkle_data: MerkleWitnessData {
+                leaf_value: Fr::from(1u64),
+                leaf_index: Fr::from(0u64),
+                siblings: vec![Fr::from(1u64); 7],
+            },
+        })
+        .collect();
+
+    let proof = compressor
+        .prove_steps_merkle(&acc, &steps)
+        .expect("C7 merkle sonobe prove failed");
+    let vk = compressor.verifier_key();
+    let valid = compressor
+        .verify_steps_merkle(&vk, &proof, &steps)
+        .expect("C7 merkle sonobe verify failed");
+    assert!(valid, "Merkle proof must verify");
+    let ms = start.elapsed().as_secs_f64() * 1_000.0;
+    (ms, true)
+}
+
+#[cfg(not(feature = "sonobe-compressor"))]
+fn run_c7_merkle_optional(_n: usize, _seed: u64) -> (f64, bool) {
     (0.0, false)
 }
 

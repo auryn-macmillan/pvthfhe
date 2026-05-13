@@ -27,6 +27,7 @@ pub struct E2ePhases {
     pub noir_sonobe_wrap: PhaseTiming,
     pub noir_aggregator_final: PhaseTiming,
     pub c7_decrypt_aggregation: PhaseTiming,
+    pub c7_merkle_aggregation: PhaseTiming,
     pub onchain_verify: PhaseTiming,
 }
 
@@ -104,6 +105,7 @@ impl E2ePhases {
             noir_sonobe_wrap: PhaseTiming::zeroed(),
             noir_aggregator_final: PhaseTiming::zeroed(),
             c7_decrypt_aggregation: PhaseTiming::zeroed(),
+            c7_merkle_aggregation: PhaseTiming::zeroed(),
             onchain_verify: PhaseTiming::zeroed(),
         }
     }

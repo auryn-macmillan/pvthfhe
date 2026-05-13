@@ -1,7 +1,12 @@
 //! Sonobe Nova proof-compressor backend.
 
 pub mod c7_circuit;
+pub mod c7_merkle_circuit;
 pub use c7_circuit::{c7_fold_witnesses, C7DecryptAggregationCircuit};
+pub use c7_merkle_circuit::{
+    merkle_external_inputs_width, C7MerkleExternalInputs, C7MerkleExternalInputsVar,
+    C7MerkleStepCircuit, MerkleWitnessData,
+};
 
 use std::fmt::Debug;
 use std::fs;
@@ -176,7 +181,7 @@ impl<F: PrimeField> StepCircuit for CycloFoldStepCircuit<F> {
 /// Proof compressor backed by Sonobe Nova over the BN254/Grumpkin cycle.
 #[derive(Clone, Debug)]
 pub struct SonobeCompressor<
-    S: FCircuit<Fr, Params = (), ExternalInputs = ExternalInputs3<Fr>> + StepCircuit + Clone + Debug,
+    S: FCircuit<Fr, Params = ()> + StepCircuit + Clone + Debug,
 > {
     prover_key_bytes: Vec<u8>,
     verifier_key_bytes: Vec<u8>,
@@ -190,10 +195,7 @@ pub struct SonobeCompressor<
 type SonobeNova<S> = Nova<G1, G2, S, Pedersen<G1>, Pedersen<G2>, false>;
 
 impl<
-        S: FCircuit<Fr, Params = (), ExternalInputs = ExternalInputs3<Fr>>
-            + StepCircuit
-            + Clone
-            + Debug,
+        S: FCircuit<Fr, Params = ()> + StepCircuit + Clone + Debug,
     > SonobeCompressor<S>
 {
     /// Creates a new Sonobe compressor instance bound to an on-chain epoch.
@@ -607,6 +609,133 @@ impl<
     }
 }
 
+impl<
+        S: FCircuit<Fr, Params = (), ExternalInputs = C7MerkleExternalInputs<Fr>>
+            + StepCircuit
+            + Clone
+            + Debug,
+    > SonobeCompressor<S>
+{
+    /// Prove with per-step Merkle external inputs.
+    ///
+    /// Each step i uses `steps[i]` as its `C7MerkleExternalInputs` value.
+    /// The proof header stores `public_inputs_hash = Keccak256(concat(encode_merkle_step(steps)))`.
+    pub fn prove_steps_merkle(
+        &self,
+        acc: &[u8],
+        steps: &[C7MerkleExternalInputs<Fr>],
+    ) -> Result<CompressedProof, CompressorError> {
+        assert_eq!(
+            steps.len(),
+            self.ivc_steps,
+            "steps.len() must equal ivc_steps ({})",
+            self.ivc_steps
+        );
+
+        let initial = decode_triple(acc)?;
+        let params = self.deserialize_params()?;
+        let circuit =
+            S::new(()).map_err(|_| CompressorError::Backend("sonobe circuit init failed"))?;
+        let state_len = circuit.state_len();
+
+        let mut initial_state = Vec::with_capacity(state_len);
+        initial_state.push(initial.0);
+        initial_state.push(initial.1);
+        initial_state.push(initial.2);
+        for _ in 3..state_len {
+            initial_state.push(Fr::from(0u64));
+        }
+
+        let mut nova = SonobeNova::<S>::init(&params, circuit, initial_state)
+            .map_err(|_| CompressorError::Backend("sonobe init failed"))?;
+        let mut rng = OsRng;
+
+        for (step_idx, ext_inputs) in steps.iter().enumerate() {
+            nova.prove_step(&mut rng, ext_inputs.clone(), None)
+                .map_err(|_| CompressorError::Backend("sonobe prove step merkle failed"))?;
+            tracing::info!(step = step_idx, rss_kb = rss_kb(), "sonobe: prove_steps_merkle done");
+        }
+
+        let ivc_proof = nova.ivc_proof();
+        let mut ivc_bytes = Vec::new();
+        ivc_proof
+            .serialize_with_mode(&mut ivc_bytes, Compress::Yes)
+            .map_err(|_| CompressorError::Backend("sonobe proof serialization failed"))?;
+
+        let mut steps_bytes = Vec::new();
+        for step in steps {
+            steps_bytes.extend_from_slice(&encode_merkle_step(step));
+        }
+        let public_inputs_hash: [u8; 32] = Keccak256::digest(&steps_bytes).into();
+
+        let mut proof_bytes = Vec::with_capacity(76 + ivc_bytes.len());
+        proof_bytes.extend_from_slice(&PROOF_MAGIC);
+        proof_bytes.extend_from_slice(&PROOF_VERSION.to_be_bytes());
+        proof_bytes.extend_from_slice(&normalized_hash(acc)?);
+        proof_bytes.extend_from_slice(&public_inputs_hash);
+        #[allow(clippy::as_conversions)]
+        proof_bytes.extend_from_slice(&(ivc_bytes.len() as u32).to_be_bytes());
+        proof_bytes.extend_from_slice(&ivc_bytes);
+
+        tracing::info!(
+            ivc_bytes_len = ivc_bytes.len(),
+            rss_kb = rss_kb(),
+            "sonobe: prove_steps_merkle proof serialized"
+        );
+        Ok(CompressedProof(proof_bytes))
+    }
+
+    /// Verify a proof produced by [`Self::prove_steps_merkle`].
+    pub fn verify_steps_merkle(
+        &self,
+        vk: &VerifierKey,
+        proof: &CompressedProof,
+        steps: &[C7MerkleExternalInputs<Fr>],
+    ) -> Result<bool, CompressorError> {
+        if vk != &self.verifier_key {
+            return Ok(false);
+        }
+
+        let parsed = parse_proof(&proof.0)?;
+
+        let mut steps_bytes = Vec::new();
+        for step in steps {
+            steps_bytes.extend_from_slice(&encode_merkle_step(step));
+        }
+        let expected_hash: [u8; 32] = Keccak256::digest(&steps_bytes).into();
+        if parsed.public_inputs_hash != expected_hash {
+            return Ok(false);
+        }
+
+        let ivc_proof =
+            SonobeIvcProof::deserialize_with_mode(parsed.ivc_bytes, Compress::Yes, Validate::Yes)
+                .map_err(|_| CompressorError::InvalidProof)?;
+
+        if ivc_proof.z_0.len() != self.state_len || ivc_proof.z_i.len() != self.state_len {
+            return Ok(false);
+        }
+
+        if normalized_hash(&encode_triple((
+            ivc_proof.z_0[0],
+            ivc_proof.z_0[1],
+            ivc_proof.z_0[2],
+        )))? != parsed.acc_hash
+        {
+            return Ok(false);
+        }
+
+        let verifier = SonobeNova::<S>::vp_deserialize_with_mode(
+            self.verifier_key_bytes.as_slice(),
+            Compress::Yes,
+            Validate::Yes,
+            (),
+        )
+        .map_err(|_| CompressorError::Backend("sonobe verifier key deserialization failed"))?;
+
+        Ok(SonobeNova::<S>::verify(verifier, ivc_proof).is_ok())
+    }
+}
+
 struct ParsedProof<'a> {
     acc_hash: [u8; 32],
     public_inputs_hash: [u8; 32],
@@ -683,6 +812,19 @@ pub fn encode_triple(value: (Fr, Fr, Fr)) -> [u8; 96] {
     out[0..32].copy_from_slice(&a);
     out[32..64].copy_from_slice(&b);
     out[64..96].copy_from_slice(&c);
+    out
+}
+
+fn encode_merkle_step(step: &C7MerkleExternalInputs<Fr>) -> Vec<u8> {
+    let mut out = Vec::new();
+    out.extend_from_slice(&encode_scalar(step.share_eval));
+    out.extend_from_slice(&encode_scalar(step.lagrange_coeff));
+    out.extend_from_slice(&encode_scalar(step.merkle_root));
+    out.extend_from_slice(&encode_scalar(step.merkle_data.leaf_value));
+    out.extend_from_slice(&encode_scalar(step.merkle_data.leaf_index));
+    for sib in &step.merkle_data.siblings {
+        out.extend_from_slice(&encode_scalar(*sib));
+    }
     out
 }
 

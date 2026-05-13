@@ -46,6 +46,8 @@ pub enum Tag {
 PvssTranscriptRootBinding,
 /// `pvthfhe/pvss/c7-decrypt-aggregation/v1` — C7 decryption aggregation step circuit.
 PvssC7DecryptAggregation,
+/// `pvthfhe/pvss/c7-merkle-decrypt-aggregation/v1` — C7 decryption aggregation with in-circuit Merkle verification.
+PvssC7MerkleDecryptAggregation,
 }
 
 impl Tag {
@@ -74,11 +76,12 @@ impl Tag {
 Tag::PvssSmudgeSlotBatch => b"pvthfhe/pvss/smudge-slot-batch/v1",
 Tag::PvssTranscriptRootBinding => b"pvthfhe/pvss/transcript-root-binding/v1",
 Tag::PvssC7DecryptAggregation => b"pvthfhe/pvss/c7-decrypt-aggregation/v1",
+Tag::PvssC7MerkleDecryptAggregation => b"pvthfhe/pvss/c7-merkle-decrypt-aggregation/v1",
 }
     }
 
     pub const fn all_literals() -> &'static [&'static [u8]] {
-        const ALL: [&[u8]; 19] = [
+        const ALL: [&[u8]; 20] = [
             Tag::Finalize.as_bytes(),
             Tag::KeygenSimulatorSession.as_bytes(),
             Tag::ProofTag.as_bytes(),
@@ -98,6 +101,7 @@ Tag::PvssC7DecryptAggregation => b"pvthfhe/pvss/c7-decrypt-aggregation/v1",
             Tag::PvssSmudgeSlotBatch.as_bytes(),
 Tag::PvssTranscriptRootBinding.as_bytes(),
 Tag::PvssC7DecryptAggregation.as_bytes(),
+Tag::PvssC7MerkleDecryptAggregation.as_bytes(),
 ];
         &ALL
     }

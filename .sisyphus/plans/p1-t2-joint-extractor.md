@@ -1,7 +1,7 @@
 # P1-T2 Joint Knowledge Extractor Roadmap
 
 **Created**: 2026-05-13
-**Updated**: 2026-05-13 (status review)
+**Updated**: 2026-05-13 (proof docs improved with NIZK change log)
 **Status**: OPEN (Lemma 9 dependency — research-blocked)
 **Paper reference**: §5 (P1), theorem P1-T2; claims-table footnote
 

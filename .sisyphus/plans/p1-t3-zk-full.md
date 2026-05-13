@@ -1,7 +1,7 @@
 # P1-T3 Full Zero-Knowledge Roadmap
 
 **Created**: 2026-05-13
-**Updated**: 2026-05-13 (status review)
+**Updated**: 2026-05-13 (proof docs improved with NIZK change log)
 **Status**: OPEN (scope expansion — requires threat model decision)
 **Paper reference**: §5 (P1), theorem P1-T3; claims-table footnote
 

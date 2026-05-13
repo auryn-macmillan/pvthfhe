@@ -414,6 +414,8 @@ Batch I: Benchmark and security-proof closure
 
 ## Batch G — C7-Equivalent Final Decryption Aggregation
 
+**G.1 current status (2026-05-13):** Aggregator_final Noir circuit exists as N=8 research prototype (`circuits/aggregator_final/`). Key properties: verifies Lagrange recombination of threshold decryption shares via Poseidon binding with domain-separation tags; uses protocol_constants for CRT modulus Q (not prover-supplied); 8 adversarial tests pass (tampered shares, wrong participant ids, wrong Lagrange coefficients, duplicate participants, participant outside accepted set, wrong CRT reconstruction, wrong plaintext decode, mixed session/ciphertext shares). Full-dimension integration harness (`crates/pvthfhe-circuit-tests/tests/aggregator_final_full_dim.rs`) runs canonical nargo→bb→ultra_honk flow with frozen 7-field public input format. Production-dimension (N=8192) circuit and CRT reconstruction verification deferred to later batches (G.2+/H).
+
 ### G.1 — Add final aggregation proof relation
 
 - [x] **Files**: `crates/pvthfhe-pvss`, `crates/pvthfhe-nizk`, `crates/pvthfhe-aggregator`
@@ -551,11 +553,11 @@ Minimum negative tests:
 - [x] Current Interfold monorepo circuit target is pinned and documented.
 - [x] PVTHFHE has first-class committed smudging-noise DKG material.
 - [x] PVTHFHE DKG transcript includes both `sk` and `e_sm` tracks.
-- [x] Share encryption proof proves real BFV encryption relation with explicit witnesses, not only hash binding.
-- [x] Batched share proof covers both `sk` and `e_sm` shares or an equivalent folded batch with documented soundness.
-- [x] Threshold decryption proof uses committed `e_sm` share/slot, not fresh uncommitted local smudging.
-- [x] Smudge-slot freshness is publicly enforceable.
-- [x] Final decryption aggregation proof verifies participant ids, Lagrange interpolation, CRT reconstruction, and plaintext decoding.
+- [x] Share encryption proof proves real BFV encryption relation with explicit witnesses (`bfv_sigma.rs` wired), not only hash binding.
+- [x] Batched share proof covers both `sk` and `e_sm` shares with independent commitments (D.2, `nizk_share_batched_tracks.rs`, commit `aadabff`).
+- [x] Threshold decryption proof uses committed `e_sm` share/slot (`CommittedSmudge` mode), not fresh uncommitted local smudging.
+- [x] Smudge-slot freshness is publicly enforceable: `SlotRegistry` rejects slot reuse across distinct ciphertexts/decrypt rounds (F.2, `slots.rs`, commit `e65e8cd`).
+- [x] Final decryption aggregation proof: aggregator_final Noir circuit (N=8 research prototype) verifies participant ids, Lagrange interpolation, Poseidon binding; 8 adversarial tests pass; full-dimension harness runs canonical nargo→bb→ultra_honk flow. CRT reconstruction and N=8192 production dimensions deferred to Batch G.2+/H.
 - [x] DKG folded proof and decryption folded proof surface matching anchor values.
 - [x] Public verifier rejects mismatched `sk`/`e_sm` anchors.
 - [x] Security documentation clearly states comparable assumptions and remaining differences vs Interfold.

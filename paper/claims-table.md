@@ -20,8 +20,12 @@
 | P3 | P3-A-T3 | Trusted-Setup Transparency: ecrecover path is setup-free (no CRS, no ceremony). | PROVED | SKELETON | §7.A — Track A | docs/security-proofs/p3/T3.md |
 | P3 | P3-A-T4 | Gas Bound: verifier halts within 5,273 gas (Forge measured) for all paths; O(1) independent of n; 0.11% of block budget. | PROVED | SKELETON | §7.A — Track A | docs/security-proofs/p3/T4.md |
 | P3 | P3-A-T5 | Cross-Input Binding & Liveness: ECDSA signature binds to one 200-byte blob; valid submissions finalize or abort with public blame. | PROVED | SKELETON | §7.A — Track A | docs/security-proofs/p3/T5.md |
+| C6 | C6-T1 | Threshold decryption with committed smudging: bfv_sigma.rs provides BFV encryption proof; D.2 batched verifier covers sk+esm tracks with independent commitments; CommittedSmudge mode enforces DKG-bound smudging; statement binds session, dealer, recipient, transcript root. | IMPLEMENTED | ASPIRATIONAL | §Interfold-C6 | docs/security-proofs/interfold-equivalent-pvss.md |
+| C7 | C7-T1 | Final decryption aggregation: aggregator_final Noir circuit (N=8 research prototype, 8 adversarial tests pass, Poseidon binding) verifies Lagrange recombination of threshold decryption shares; full-dimension harness runs canonical nargo→bb→ultra_honk flow. | IMPLEMENTED (N=8) | ASPIRATIONAL | §Interfold-C7 | docs/security-proofs/interfold-equivalent-pvss.md |
+| F.2 | F2-T1 | Smudge-slot freshness: public SlotRegistry rejects slot reuse across distinct ciphertexts or decrypt rounds; freshness check is part of protocol acceptance, not only local convention. | IMPLEMENTED | ASPIRATIONAL | §F.2-SmudgeFreshness | docs/security-proofs/interfold-equivalent-pvss.md |
 
 **Provenance legend:**
+- **IMPLEMENTED**: Implemented in the prototype and passes test suite; formal proof may be partial or deferred.
 - **PROVED**: Full formal proof with explicit reduction; advisor VERDICT: ACCEPTED or APPROVE.
 - **PROVED-WITH-CITATION**: Proof valid under cited assumptions; scope explicitly bounded.
 - **CONDITIONAL**: Proof document describes exact conditions for the theorem to hold; some conditions are not yet implemented.

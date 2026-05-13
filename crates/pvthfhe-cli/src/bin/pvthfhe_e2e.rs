@@ -200,7 +200,14 @@ impl BenchObserver {
         println!("compressor_prove");
         println!("compressor_verify");
         println!("noir_decrypt_share");
+
+        let noir_aggregator_final_start = Instant::now();
+        info!(phase = "noir_aggregator_final", proof_digest = %report.compressed_proof_digest_hex, "phase start");
+        run_noir_aggregator_final_optional();
         println!("noir_aggregator_final");
+        self.timings.phases.noir_aggregator_final.total_ms =
+            noir_aggregator_final_start.elapsed().as_secs_f64() * 1_000.0;
+        self.timings.phases.noir_aggregator_final.instances_run = 1;
 
         let noir_sonobe_wrap_started = Instant::now();
         info!(phase = "noir_sonobe_wrap", proof_digest = %report.compressed_proof_digest_hex, "phase start");
@@ -304,6 +311,37 @@ fn parse_rss_mb(statm: &str) -> u64 {
         .map(|pages| pages * 4096 / 1024 / 1024)
         .unwrap_or(0)
 }
+
+#[cfg(feature = "sonobe-compressor")]
+fn run_noir_aggregator_final_optional() {
+    if std::env::var("PVTHFHE_RUN_NOIR_CIRCUIT").unwrap_or_default() != "1" {
+        return;
+    }
+
+    fn tool_in_path(tool: &str) -> bool {
+        std::env::var_os("PATH")
+            .map(|paths| std::env::split_paths(&paths).any(|path| path.join(tool).is_file()))
+            .unwrap_or(false)
+    }
+
+    if !tool_in_path("nargo") || !tool_in_path("bb") {
+        warn!("PVTHFHE_RUN_NOIR_CIRCUIT=1 but nargo or bb not found in PATH; skipping Noir circuit execution");
+        return;
+    }
+
+    let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let prover_toml = repo_root.join("circuits/aggregator_final/Prover.toml");
+
+    match pvthfhe_circuit_tests::nargo::execute("aggregator_final", &prover_toml)
+        .and_then(|_artifacts| pvthfhe_circuit_tests::bb::write_vk_prove_verify("aggregator_final", "ultra_honk"))
+    {
+        Ok(_) => info!(phase = "noir_aggregator_final", "Noir aggregator_final circuit proof succeeded"),
+        Err(err) => warn!(phase = "noir_aggregator_final", error = %err, "Noir aggregator_final circuit proof failed"),
+    }
+}
+
+#[cfg(not(feature = "sonobe-compressor"))]
+fn run_noir_aggregator_final_optional() {}
 
 #[cfg(test)]
 mod tests {

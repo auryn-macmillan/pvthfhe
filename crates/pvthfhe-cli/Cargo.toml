@@ -31,6 +31,7 @@ pvthfhe-pvss = { path = "../pvthfhe-pvss", optional = true }
 pvthfhe-fhe = { path = "../pvthfhe-fhe", optional = true }
 pvthfhe-aggregator = { path = "../pvthfhe-aggregator", optional = true }
 pvthfhe-compressor = { path = "../pvthfhe-compressor", optional = true }
+pvthfhe-circuit-tests = { path = "../pvthfhe-circuit-tests", optional = true }
 pvthfhe-cyclo = { path = "../pvthfhe-cyclo" }
 pvthfhe-rng = { path = "../pvthfhe-rng" }
 pvthfhe-types = { path = "../pvthfhe-types" }
@@ -59,7 +60,7 @@ with-fhe = [
 mock = ["with-fhe", "pvthfhe-fhe/mock", "pvthfhe-aggregator/mock"]
 probe-no-fhe = []
 surrogate-compressor = []
-sonobe-compressor = ["dep:pvthfhe-compressor"]
+sonobe-compressor = ["dep:pvthfhe-compressor", "dep:pvthfhe-circuit-tests"]
 # Stage 0 tripwire bypass: enable seeded RNG in demo paths.
 # Must NOT be enabled in release/production builds.
 demo-seeded-rng = []

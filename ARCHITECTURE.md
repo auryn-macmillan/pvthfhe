@@ -94,7 +94,7 @@ Each protocol step produces verifiable artifacts. A third-party verifier with on
 | BFV encryption relation | BfvSigmaProof | **Partial** (R4 fix) | Plaintext domain `|z_m_i| < t/2` enforced since `5dee0f8`; full BFV containment D.1-deferred |
 | Cyclo folding | Fold accumulator | **Yes** (conditional) | `verify_fold()` recomputes accumulator deterministically; soundness conditional on P1/P2 |
 | Sonobe compressor | Compressed proof | **Yes** | Dual verification path (in-process + external re-parse from bytes) |
-| Aggregate decrypt | Plaintext | **No** (C7 gap) | Reconstruction correctness not provably verifiable; C7 Noir circuit stubbed |
+| Aggregate decrypt | Plaintext | **Partial** (C7 prototype) | aggregator_final Noir circuit exists (N=8 research prototype, 8 adversarial tests pass). Full-dimension harness runs canonical nargo→bb→ultra_honk flow. Production-dimension (N=8192) circuit deferred |
 | On-chain verify | UltraHonk proof | **No** (not run by demo) | Requires separate `bench-comparison` invocation |
 
 Key R4 improvements:
@@ -106,9 +106,11 @@ Key R4 improvements:
 ### Implementation State
 
 The current implementation uses Sonobe substitution for the folding and compression layers:
-- **P1**: Lattice NIZK well-formedness soundness (conditional, see `SECURITY.md`).
-- **P2**: LatticeFold+ folding substituted by off-chain Sonobe.
-- **P3**: MicroNova SNARK compression substituted by off-chain Sonobe + on-chain commitment topology.
+- **P1**: Lattice NIZK well-formedness soundness (conditional, see `SECURITY.md`). D.2 batched share-encryption proof covers sk+esm tracks with independent commitments; D.3 domain separation prevents cross-track replay.
+- **P2**: LatticeFold+ folding substituted by off-chain Sonobe. E.1/E.2 pipeline verifier wiring covers batched Shamir share-computation and DKG aggregation relations.
+- **P3**: MicroNova SNARK compression substituted by off-chain Sonobe + on-chain commitment topology. G.1 aggregator_final Noir circuit (N=8, 8 adversarial tests pass) verifies Lagrange recombination of decryption shares.
+- **C6**: CommittedSmudge mode enforces DKG-bound smudging; F.2 smudge-slot freshness enforced via public SlotRegistry.
+- **C7**: aggregator_final Noir circuit (N=8) verifies participant ids, Lagrange, Poseidon-binding; full-dimension harness runs canonical nargo→bb→ultra_honk flow.
 
 ### End-to-End Verifiability Chain
 
@@ -158,3 +160,27 @@ These verifiers exist and accept only public inputs, but are not called from
 - **F4 — Dealer identity binding** (Batch B): `dealer_index` is now derived
   cryptographically from the session ID and bound into all NIZK statements and share
   commitments, preventing cross-session share replay by malicious dealers.
+
+### Folding and On-Chain Status
+
+This section documents the current implementation status of the folding and on-chain
+verification layers across the two architectural tracks (Track A: Sonobe substitute;
+Track B: LatticeFold+/MicroNova target).
+
+| Component | Track | Status | Details |
+|-----------|-------|--------|---------|
+| **P2 — LatticeFold+** | B | Research-blocked | Depends on unresolved Lemma 9 / Cyclo RLWE folding theorem. No implementation exists; Sonobe Nova substitutes in Track A. |
+| **P3 — MicroNova** | B | Deferred | Target architecture only. Sonobe Nova IVC with CycloFoldStepCircuit substitutes in Track A (see `spec-real-p2p3.md` §5.1). |
+| **Sonobe Nova / ecrecover** | A | Benchmarkable | Real CCS satisfiability with epoch-bound SRS. Phase timings (`cyclo_fold`, `compressor_prove`, `compressor_verify`) are populated in the benchmark pipeline. |
+| **Noir aggregator_final circuit** | A | Optional / benchmark-gated | Noir circuit (`circuits/aggregator_final`) runs the canonical nargo+bb flow when `PVTHFHE_RUN_NOIR_CIRCUIT=1` is set and nargo/bb are in PATH. Phase timing (`noir_aggregator_final`) is recorded in `e2e_timings.json`. Not required for the default benchmark. |
+| **LatticeFold+ / MicroNova / UltraHonk** | B | Target only | No implementation. This track represents the aspirational architecture with lattice-native folding and on-chain SNARK verification. All current benchmarks use the Track A Sonobe substitute. |
+| **On-chain verifier** | N/A | Compiles, not run | The Solidity UltraHonk verifier compiles (`contracts/`) but is not invoked during the demo or benchmark. The `onchain_verify` phase in the benchmark is a timing-only marker. A separate `bench-comparison` invocation is required for on-chain verification measurement. |
+
+#### Track Summary
+
+- **Track A (Active)**: Sonobe Nova folding + Sonobe IVC compression + Noir UltraHonk circuit proofs. All phases are benchmarkable and timed in the e2e pipeline. This is the current implementation path.
+- **Track B (Target)**: LatticeFold+ native RLWE folding + MicroNova IVC + on-chain UltraHonk verification. This track is the architectural target but has no implementation; it is blocked on resolution of open problems P2 and P3.
+
+The migration surface from Track A to Track B is bounded: the `Compressor` trait and
+`CycloFoldStepCircuit` are designed to accept a lattice-native fold step once P2 is
+resolved, without changing the pipeline topology or on-chain verifier interface.

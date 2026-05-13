@@ -25,6 +25,7 @@ pub struct E2ePhases {
     pub partial_decrypt: PerInstancePhase,
     pub aggregate_decrypt: PhaseTiming,
     pub noir_sonobe_wrap: PhaseTiming,
+    pub noir_aggregator_final: PhaseTiming,
     pub onchain_verify: PhaseTiming,
 }
 
@@ -100,6 +101,7 @@ impl E2ePhases {
             partial_decrypt: PerInstancePhase::zeroed(),
             aggregate_decrypt: PhaseTiming::zeroed(),
             noir_sonobe_wrap: PhaseTiming::zeroed(),
+            noir_aggregator_final: PhaseTiming::zeroed(),
             onchain_verify: PhaseTiming::zeroed(),
         }
     }

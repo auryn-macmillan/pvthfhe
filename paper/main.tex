@@ -46,8 +46,13 @@ The current prototype implements: a lattice-native BFV sigma protocol (\texttt{b
 533 loc) proving BFV encryption correctness over RNS with binary challenges and masking bound
 $2^{30}$; committed-smudge decryption via \texttt{partial\_decrypt\_committed\_smudge}; a
 two-track DKG with \texttt{FoldTrackKind::Sk} and \texttt{FoldTrackKind::ESm} share tracks;
-proof format version~4 (\texttt{PROOF\_VERSION = 4}) with per-share NIZK verification; and
-\texttt{verify\_shares} enabled in the demo path (no longer compiled out).
+proof format version~4 (\texttt{PROOF\_VERSION = 4}) with per-share NIZK verification;
+\texttt{verify\_shares} enabled in the demo path (no longer compiled out); D.2 batched
+share-encryption proof covering sk+esm tracks with independent commitments via
+\texttt{batch\_verify\_share\_encryption}; D.3 per-track domain separation preventing
+cross-track replay (domain tags in \texttt{pvthfhe-domain-tags}); E.1/E.2 pipeline verifier
+wiring for batched Shamir share-computation and DKG aggregation relations; F.2 smudge-slot
+freshness enforcement via public \texttt{SlotRegistry} rejecting slot reuse.
 
 \section{Related Work}
 
@@ -500,7 +505,7 @@ for arbitrary protocol embedding.
 
 \section{Conclusion}
 
-We have presented PVTHFHE, a research prototype for private-verifiable threshold FHE targeting $O(n)$ per-party setup and $O(\text{polylog}\, n)$ verification. P2 uses a Sonobe Nova IVC surrogate (CycloFoldStepCircuit proving hash-state accumulation, not Ajtai fold). P3 uses the ecrecover/ECDSA attestation surrogate for on-chain acceptance. Post-remediation (3 audit rounds): BFV sigma v4 with per-share NIZK verification, committed-smudge decryption, two-track sk/e\_sm DKG enabled, P1 masking seeds upgraded to OsRng. Sub-protocols have formal security proof drafts and the implementation is validated via benchmarks.
+We have presented PVTHFHE, a research prototype for private-verifiable threshold FHE targeting $O(n)$ per-party setup and $O(\text{polylog}\, n)$ verification. P2 uses a Sonobe Nova IVC surrogate (CycloFoldStepCircuit proving hash-state accumulation, not Ajtai fold). P3 uses the ecrecover/ECDSA attestation surrogate for on-chain acceptance. Post-remediation (4 audit rounds including R4): BFV sigma v4 with per-share NIZK verification; committed-smudge decryption; two-track sk/e\_sm DKG enabled; P1 masking seeds upgraded to OsRng; D.2 batched share-encryption proof covering both sk and e\_sm tracks with independent commitments; D.3 domain separation preventing cross-track replay; E.1/E.2 pipeline verifier wiring; F.2 smudge-slot freshness enforcement; G.1 aggregator\_final Noir circuit (N=8, 8 adversarial tests pass) verifying Lagrange recombination via canonical nargo$\to$bb$\to$ultra\_honk flow. Sub-protocols have formal security proof drafts and the implementation is validated via benchmarks.
 
 \bibliographystyle{splncs04}
 \bibliography{bib}

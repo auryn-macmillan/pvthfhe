@@ -29,7 +29,8 @@ use pvthfhe_pvss::slot_registry::SmudgeSlotRegistry;
 #[cfg(all(feature = "pipeline-extra-checks", feature = "sonobe-compressor"))]
 use pvthfhe_compressor::{
     poly_eval::eval_poly_bn254,
-    sonobe::{encode_triple, C7MerkleExternalInputs, C7MerkleStepCircuit, MerkleWitnessData, SonobeCompressor},
+    sonobe::{encode_triple, hash8_native, C7MerkleExternalInputs, C7MerkleStepCircuit,
+             MerkleWitnessData, SonobeCompressor},
     witness::C7WitnessSet,
 };
 use pvthfhe_pvss::nizk_share::compute_ciphertext_v;
@@ -1137,17 +1138,21 @@ fn run_c7_verification(
     };
 
     let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
-    // POSEIDON PLACEHOLDER: merkle_root must equal leaf_value + Σ siblings.
-    // With all-zero siblings we set merkle_root = share_eval for placeholder consistency.
     let steps: Vec<C7MerkleExternalInputs<Fr>> = witnesses.participants.iter().map(|w| {
+        let leaf = w.share_eval;
+        let siblings = [Fr::zero(); 7];
+        let mut hash_inputs = vec![leaf];
+        hash_inputs.extend_from_slice(&siblings);
+        let root = hash8_native(&hash_inputs);
+
         C7MerkleExternalInputs {
             share_eval: w.share_eval,
             lagrange_coeff: w.lagrange_coeff,
-            merkle_root: w.share_eval,
+            merkle_root: root,
             merkle_data: MerkleWitnessData {
-                leaf_value: w.share_eval,
+                leaf_value: leaf,
                 leaf_index: Fr::zero(),
-                siblings: vec![Fr::zero(); 7],
+                siblings: siblings.to_vec(),
             },
         }
     }).collect();

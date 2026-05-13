@@ -8,11 +8,6 @@
 //!   - accumulated_eval   = Σ λ_i · d_i(r)  (plaintext evaluation at challenge point r)
 //!   - lagrange_sum       = Σ λ_i            (should equal 1)
 //!   - step_count         = t                (number of participants folded)
-//!
-//! POSEIDON PLACEHOLDER: The Merkle path verification uses a linear-combination
-//! check (parent = Σ siblings + leaf) instead of real Poseidon hashing in R1CS.
-//! This is sufficient for circuit structure validation and Nova prove/verify
-//! cycles. Real Poseidon R1CS must be swapped in before production use.
 
 use std::borrow::Borrow;
 
@@ -27,6 +22,7 @@ use sha3::{Digest, Keccak256};
 
 use pvthfhe_domain_tags::Tag;
 
+use super::poseidon_gadget::hash8;
 use crate::{StepCircuit, StepCircuitDescriptor};
 
 /// Merkle witness data for a single step.
@@ -125,20 +121,18 @@ pub fn merkle_external_inputs_width(depth: usize, arity: usize) -> usize {
     5 + depth * (arity - 1)
 }
 
-/// POSEIDON PLACEHOLDER: Verify a Merkle path using a linear-combination check.
+/// Verify a Merkle path using real Poseidon hashing in R1CS.
 ///
-/// For each level: compute parent = leaf + sum of all siblings.
-/// Check that the final value equals the provided merkle_root.
-///
-/// This is NOT cryptographically secure. It exists to validate the circuit
-/// structure and enable Nova prove/verify cycles during Phase A development.
-/// Real Poseidon R1CS must be swapped in before production use.
-fn verify_merkle_path_placeholder<F: PrimeField>(
+/// For each level: hash `current_node` together with `arity-1` siblings
+/// using Poseidon (8-to-1 compression), then compare the result against
+/// `merkle_root`.
+fn verify_merkle_path<F: PrimeField>(
     leaf_value: &FpVar<F>,
     siblings: &[FpVar<F>],
     depth: usize,
     arity: usize,
     merkle_root: &FpVar<F>,
+    cs: ConstraintSystemRef<F>,
 ) -> Result<(), SynthesisError> {
     let siblings_per_level = arity - 1;
     let expected_sibling_count = depth * siblings_per_level;
@@ -154,11 +148,13 @@ fn verify_merkle_path_placeholder<F: PrimeField>(
         let end = start + siblings_per_level;
         let level_siblings = &siblings[start..end];
 
-        let mut parent = current.clone();
+        let mut inputs: Vec<FpVar<F>> = Vec::with_capacity(arity);
+        inputs.push(current.clone());
         for sib in level_siblings {
-            parent = &parent + sib;
+            inputs.push(sib.clone());
         }
-        current = parent;
+
+        current = hash8(cs.clone(), &inputs)?;
     }
 
     current.enforce_equal(merkle_root)?;
@@ -215,13 +211,13 @@ impl<F: PrimeField> FCircuit<F> for C7MerkleStepCircuit<F> {
         z_i: Vec<FpVar<F>>,
         external_inputs: Self::ExternalInputsVar,
     ) -> Result<Vec<FpVar<F>>, SynthesisError> {
-        // 1. Merkle path verification in constraints (POSEIDON PLACEHOLDER)
-        verify_merkle_path_placeholder(
+        verify_merkle_path(
             &external_inputs.merkle_leaf_value,
             &external_inputs.merkle_siblings,
             self.merkle_depth,
             self.merkle_arity,
             &external_inputs.merkle_root,
+            cs.clone(),
         )?;
 
         // 2. Update state (same recurrence as C7DecryptAggregationCircuit):

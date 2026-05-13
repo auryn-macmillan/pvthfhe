@@ -1,6 +1,7 @@
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
-use sha3::{Digest, Keccak256};
+
+use crate::sonobe::hash8_native;
 
 /// A Merkle proof for a single leaf in an 8-ary tree.
 #[derive(Clone, Debug)]
@@ -16,11 +17,7 @@ pub struct MerkleProof {
 }
 
 fn hash8(values: &[Fr]) -> Fr {
-    let mut hasher = Keccak256::new();
-    for v in values {
-        hasher.update(v.into_bigint().to_bytes_le());
-    }
-    Fr::from_le_bytes_mod_order(&hasher.finalize())
+    hash8_native(values)
 }
 
 /// Build an 8-ary Merkle tree over the given leaves.

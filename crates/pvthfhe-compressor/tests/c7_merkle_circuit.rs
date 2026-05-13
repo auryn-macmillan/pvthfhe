@@ -2,8 +2,8 @@ use ark_bn254::Fr;
 use ark_ff::Field;
 use folding_schemes::frontend::FCircuit;
 use pvthfhe_compressor::sonobe::{
-    encode_triple, C7DecryptAggregationCircuit, C7MerkleExternalInputs, C7MerkleStepCircuit,
-    MerkleWitnessData, SonobeCompressor,
+    encode_triple, hash8_native, C7DecryptAggregationCircuit, C7MerkleExternalInputs,
+    C7MerkleStepCircuit, MerkleWitnessData, SonobeCompressor,
 };
 use pvthfhe_compressor::StepCircuit;
 
@@ -11,32 +11,46 @@ fn epoch() -> [u8; 32] {
     [0x03u8; 32]
 }
 
-fn encode_triple_scalar(a: u64, b: u64, c: u64) -> Vec<u8> {
-    encode_triple((Fr::from(a), Fr::from(b), Fr::from(c))).to_vec()
-}
-
 fn make_merkle_step(
-    share_eval: u64,
-    lagrange_coeff: u64,
-    merkle_root: u64,
-    leaf_value: u64,
-    leaf_index: u64,
-    siblings: &[u64],
+    share_eval: Fr,
+    lagrange_coeff: Fr,
+    merkle_root: Fr,
+    leaf_value: Fr,
+    leaf_index: Fr,
+    siblings: &[Fr],
 ) -> C7MerkleExternalInputs<Fr> {
     C7MerkleExternalInputs {
-        share_eval: Fr::from(share_eval),
-        lagrange_coeff: Fr::from(lagrange_coeff),
-        merkle_root: Fr::from(merkle_root),
+        share_eval,
+        lagrange_coeff,
+        merkle_root,
         merkle_data: MerkleWitnessData {
-            leaf_value: Fr::from(leaf_value),
-            leaf_index: Fr::from(leaf_index),
-            siblings: siblings.iter().map(|v| Fr::from(*v)).collect(),
+            leaf_value,
+            leaf_index,
+            siblings: siblings.to_vec(),
         },
     }
 }
 
+/// Compute a valid Merkle root via Poseidon for depth-1 arity-8.
+fn poseidon_merkle_root(leaf: Fr, siblings: &[Fr; 7]) -> Fr {
+    let mut inputs = vec![leaf];
+    inputs.extend_from_slice(siblings);
+    hash8_native(&inputs)
+}
+
+/// Create a valid Merkle step for testing. Uses real Poseidon hashes.
 fn valid_merkle_step(share_eval: u64) -> C7MerkleExternalInputs<Fr> {
-    make_merkle_step(share_eval, 1, 8, 1, 0, &[1u64; 7])
+    let leaf = Fr::from(1u64);
+    let siblings = [Fr::from(1u64); 7];
+    let root = poseidon_merkle_root(leaf, &siblings);
+    make_merkle_step(
+        Fr::from(share_eval),
+        Fr::from(1u64),
+        root,
+        leaf,
+        Fr::from(0u64),
+        &siblings,
+    )
 }
 
 /// Test 1: C7 Merkle step circuit compiles with Sonobe.
@@ -86,14 +100,14 @@ fn merkle_circuit_roundtrip() {
     let valid = compressor
         .verify_steps_merkle(&vk, &proof, &steps)
         .expect("verify_steps_merkle");
-    assert!(valid, "Nova Merkle proof must verify");
+    assert!(valid, "Nova Merkle proof must verify with real Poseidon");
 }
 
-/// Test 5: tampered leaf_value should cause verification to fail.
+/// Test 5: tampered leaf_value MUST be rejected by proof verification.
 ///
-/// The placeholder verifier computes root = leaf + sum(siblings).
-/// Setting leaf_value=2 instead of 1 means computed root = 9, but merkle_root = 8.
-/// The circuit's enforce_equal constraint should reject this.
+/// With real Poseidon, a wrong leaf_value produces a different hash than
+/// the provided merkle_root. The proof must either fail to produce or fail
+/// to verify.
 #[test]
 fn merkle_circuit_wrong_leaf_rejected() {
     let num_steps = 4;
@@ -103,32 +117,42 @@ fn merkle_circuit_wrong_leaf_rejected() {
 
     let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
 
-    let steps: Vec<C7MerkleExternalInputs<Fr>> = (0..num_steps)
-        .map(|i| {
-            if i == 1 {
-                make_merkle_step(4200, 1, 8, 2, 0, &[1u64; 7])
-            } else {
-                valid_merkle_step((42 + i as u64) * 100)
-            }
-        })
-        .collect();
+    let step0 = valid_merkle_step(4200);
+    let leaf_wrong = Fr::from(9999u64);
+    let siblings = [Fr::from(1u64); 7];
+    let root_correct = poseidon_merkle_root(Fr::from(1u64), &siblings);
+    let step1 = make_merkle_step(
+        Fr::from(4200u64),
+        Fr::from(1u64),
+        root_correct, // correct root for leaf=1, but leaf is 9999
+        leaf_wrong,
+        Fr::from(0u64),
+        &siblings,
+    );
+    let step2 = valid_merkle_step(4400);
+    let step3 = valid_merkle_step(4500);
+
+    let steps = vec![step0, step1, step2, step3];
 
     let result = compressor.prove_steps_merkle(&acc, &steps);
 
     match result {
+        // If prove succeeds (Nova may fold unsatisfied constraints),
+        // verification must reject the proof.
         Ok(proof) => {
             let vk = compressor.verifier_key();
-            let verify_result = compressor
+            let valid = compressor
                 .verify_steps_merkle(&vk, &proof, &steps)
-                .unwrap_or(false);
-            if verify_result {
-                eprintln!(
-                    "WARNING: placeholder verifier accepted wrong leaf (expected with \
-                     linear-combination placeholder; real Poseidon R1CS would reject)"
-                );
-            }
+                .expect("verify_steps_merkle");
+            assert!(
+                !valid,
+                "Nova verification MUST reject tampered leaf with real Poseidon"
+            );
         }
-        Err(_) => {}
+        // If prove fails, that's also acceptable.
+        Err(_) => {
+            // prove_step rejected the unsatisfiable constraints — correct behavior.
+        }
     }
 }
 

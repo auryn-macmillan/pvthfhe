@@ -1206,6 +1206,106 @@ impl FheBackend for FhersBackend {
     }
 }
 
+impl FhersBackend {
+    /// Aggregate decryption shares into recovered plaintext AND plaintext polynomial bytes.
+    ///
+    /// Returns `(decoded_plaintext_bytes, plaintext_poly_bytes)` where:
+    /// - `decoded_plaintext_bytes` is the slot-decoded message (same as [`FheBackend::aggregate_decrypt`])
+    /// - `plaintext_poly_bytes` is the raw [`Poly`](fhe_math::rq::Poly) byte serialization
+    ///   of the recovered plaintext polynomial (N coefficients, i64 each, little-endian)
+    ///
+    /// The polynomial bytes are needed by the C7 verification path to check
+    /// `Σ λ_i · d_i(r) ≡ plaintext(r) (mod Q)`.
+    pub fn aggregate_decrypt_with_poly(
+        &self,
+        ct: &Ciphertext,
+        shares: &[DecryptShare],
+        threshold: usize,
+    ) -> Result<(Vec<u8>, Vec<u8>), FheError> {
+        let (n, configured_threshold) = self.threshold_params()?;
+        if shares.len() < configured_threshold {
+            return Err(FheError::InsufficientShares {
+                have: shares.len(),
+                need: configured_threshold,
+            });
+        }
+        if threshold != configured_threshold {
+            return Err(FheError::Backend {
+                reason: format!(
+                    "threshold mismatch: requested {threshold}, configured {configured_threshold}"
+                ),
+            });
+        }
+
+        for share in shares {
+            if share.party_id == 0 || share.party_id as usize > n {
+                return Err(FheError::MalformedDecryptShare {
+                    party_id: share.party_id,
+                });
+            }
+        }
+
+        let ciphertext = BfvCiphertext::from_bytes(&ct.bytes, &self.bfv_params)
+            .map_err(|_| FheError::MalformedCiphertext)?;
+        let ciphertext = Arc::new(ciphertext);
+        let ctx = self
+            .bfv_params
+            .ctx_at_level(0)
+            .map_err(|err| FheError::Backend {
+                reason: err.to_string(),
+            })?;
+
+        let effective_shares = shares
+            .iter()
+            .map(|share| {
+                let decoded = wire::decode_decrypt_share(share.bytes.as_slice()).map_err(|_| {
+                    FheError::MalformedDecryptShare {
+                        party_id: share.party_id,
+                    }
+                })?;
+                let poly =
+                    Poly::from_bytes(decoded.d_share_poly.as_slice(), &ctx).map_err(|err| {
+                        FheError::Backend {
+                            reason: err.to_string(),
+                        }
+                    })?;
+                Ok((share.party_id as usize, poly))
+            })
+            .collect::<Result<Vec<_>, FheError>>()?;
+        let (party_ids, share_polys): (Vec<_>, Vec<_>) = effective_shares.into_iter().unzip();
+
+        let share_manager = ShareManager::new(
+            n,
+            self.shamir_threshold(n, configured_threshold),
+            self.bfv_params.clone(),
+        );
+        let plaintext = share_manager
+            .decrypt_from_shares(share_polys, party_ids, ciphertext)
+            .map_err(|err| FheError::Backend {
+                reason: err.to_string(),
+            })?;
+
+        // Capture the raw plaintext polynomial bytes before slot-decoding.
+        let plaintext_poly = plaintext.to_poly();
+        let plaintext_poly_bytes = plaintext_poly.to_bytes();
+
+        let slots = Vec::<u64>::try_decode(&plaintext, Encoding::poly()).map_err(|err| {
+            FheError::Backend {
+                reason: err.to_string(),
+            }
+        })?;
+        #[cfg(feature = "trace-decrypt")]
+        eprintln!(
+            "[FHE-DECRYPT] aggregate_decrypt_with_poly: slots.len()={} first_8_slots={:02x?}",
+            slots.len(),
+            &slots[..std::cmp::min(8, slots.len())]
+        );
+
+        let decoded = decode_plaintext_slots(&slots)?;
+        Ok((decoded, plaintext_poly_bytes))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

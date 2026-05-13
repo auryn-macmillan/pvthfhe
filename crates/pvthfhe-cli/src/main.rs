@@ -450,6 +450,9 @@ impl PipelineObserver for DemoObserver {
                 self.aggregate_decrypt_announced = true;
                 Self::print_step(9, "aggregate_decrypt", detail);
             }
+            "c7_decrypt_aggregation" => {
+                Self::print_step(10, "c7_decrypt_aggregation", detail);
+            }
             _ => {}
         }
     }
@@ -459,7 +462,8 @@ impl PipelineObserver for DemoObserver {
             "aggregate_keygen" => self.aggregate_keygen_ms = Some(ms),
             "encrypt" => self.encrypt_ms = Some(ms),
             "keygen" | "pvss_share_encrypt" | "cyclo_fold" | "compressor_prove"
-            | "compressor_verify" | "partial_decrypt" | "aggregate_decrypt" => {
+            | "compressor_verify" | "partial_decrypt" | "aggregate_decrypt"
+            | "c7_decrypt_aggregation" => {
                 println!("{name}: complete ({ms:.3} ms)")
             }
             _ => {}

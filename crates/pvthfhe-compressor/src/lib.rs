@@ -1,5 +1,14 @@
 //! Frozen trait surface for the P2→P3 proof-compression boundary.
 
+/// Poseidon-based 8-ary Merkle tree for share coefficient commitment.
+pub mod merkle;
+
+/// Polynomial evaluation over Bn254 scalar field.
+pub mod poly_eval;
+
+/// Witness generation pipeline for C7 decryption aggregation.
+pub mod witness;
+
 /// Sonobe-backed proof compressor implementation.
 pub mod sonobe;
 

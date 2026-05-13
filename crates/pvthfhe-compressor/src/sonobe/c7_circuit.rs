@@ -15,8 +15,9 @@ use sha3::{Digest, Keccak256};
 
 use pvthfhe_domain_tags::Tag;
 
-use super::{ExternalInputs3, ExternalInputs3Var};
-use crate::{StepCircuit, StepCircuitDescriptor};
+use super::{ExternalInputs3, ExternalInputs3Var, SonobeCompressor};
+use crate::{CompressedProof, CompressorError, StepCircuit, StepCircuitDescriptor};
+use crate::witness::C7WitnessSet;
 
 /// Step circuit for C7 decryption aggregation.
 ///
@@ -77,4 +78,32 @@ impl<F: PrimeField> StepCircuit for C7DecryptAggregationCircuit<F> {
     fn circuit_hash(&self) -> [u8; 32] {
         Keccak256::digest(Tag::PvssC7DecryptAggregation.as_bytes()).into()
     }
+}
+
+/// Fold a set of C7 witnesses through Nova IVC using per-step external inputs.
+///
+/// This function:
+/// 1. Verifies all Merkle proofs off-circuit (SECURITY: must pass!)
+/// 2. Builds initial Nova state `[0, 0, 0]`
+/// 3. Creates per-step `ExternalInputs3` from `(share_eval, lagrange_coeff, merkle_root)`
+/// 4. Calls `compressor.prove_steps()` with the per-step inputs
+/// 5. Returns the compressed proof
+pub fn c7_fold_witnesses(
+    compressor: &SonobeCompressor<C7DecryptAggregationCircuit<ark_bn254::Fr>>,
+    witnesses: &C7WitnessSet,
+    acc: &[u8],
+) -> Result<CompressedProof, CompressorError> {
+    use ark_bn254::Fr;
+
+    if !witnesses.verify_merkle_proofs() {
+        return Err(CompressorError::InvalidProof);
+    }
+
+    let steps: Vec<ExternalInputs3<Fr>> = witnesses
+        .participants
+        .iter()
+        .map(|w| ExternalInputs3(w.share_eval, w.lagrange_coeff, w.merkle_root))
+        .collect();
+
+    compressor.prove_steps(acc, &steps)
 }

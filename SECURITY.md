@@ -53,7 +53,33 @@ This is a research prototype and contains components where formal soundness proo
 - **Aggregate decryption**: Correctness partially verifiable through aggregator_final Noir circuit (N=8 research prototype, Poseidon binding, 8 adversarial tests pass). Full N=8192 dimension and CRT reconstruction verification deferred. See `circuits/aggregator_final/` and `.sisyphus/plans/interfold-equivalent-pvss.md` Batch G.
 - **C3 (Share Encryption Gap)**: **Algebraic sigma proves hash-preimage, not Shamir/BFV structure**. The verifier checks hash bindings but cannot independently confirm that the ciphertext encrypts the committed share under the recipient's BFV public key. The D.1 containment fails closed. See `interfold-equivalence.md` §C3.
 - **C2 (Encryption Correctness Gap)**: **Encryption is trusted; no verifiable proof of correct encryption exists**. `backend.encrypt()` produces a ciphertext without a proof that it matches the plaintext under the aggregate key. A malicious encryptor can produce a semantically incorrect ciphertext. Mitigation: the semantic roundtrip check detects errors at the aggregate level only. See `threat-model-v1.md` §7.2 item 12.
-- **C7 (Final Aggregation Gap)**: **Partially addressed**. C7 Sonobe step circuit (P1.3) folds Lagrange recombination into Nova accumulator at N=8. Phase 2 full N=8192 Merkle-proof verification deferred. Noir aggregator_final circuit provides standalone verification. Production C7 requires Merkle-proof in Sonobe circuit + N=8192 Noir circuit.
+- **C7 (Final Aggregation Gap)**: **Partially addressed**. C7 Sonobe step circuit (P1.3) folds Lagrange recombination into Nova accumulator at N=8. Phase 2 N=8192 off-circuit Merkle-proof verification implemented (8-ary Keccak256 Merkle tree; `verify_merkle_proofs()` called before Nova folding; trust boundary: if Merkle verifier is executed, Nova external inputs are sound). Noir aggregator_final circuit provides standalone verification. Production C7 requires in-circuit Merkle-proof (Phase 3) + N=8192 Noir circuit.
+
+### Off-Circuit Merkle Trust Model (C7 Phase 2)
+
+The C7 Phase 2 Merkle verification is performed off-circuit before Nova folding. The
+trust model assumes:
+
+1. **Merkle verifier is executed**: `c7_fold_witnesses()` calls `verify_merkle_proofs()`
+   before Nova folding. If a malicious prover skips this check, the verifier still
+   runs it before accepting the proof (pipeline-level trust boundary).
+
+2. **Hash collision resistance**: The Merkle tree uses Keccak256 (SHA-3) for the
+   compression function. Breaking proof integrity requires finding a Keccak256
+   collision or preimage, which is infeasible under standard assumptions.
+
+3. **Root binding**: The `merkle_root` is bound into the Nova external inputs as
+   `ExternalInputs3.2`. A prover cannot use a different root without detection
+   because the verifier checks the Merkle proof against the committed root.
+
+4. **No in-circuit constraints**: The Merkle proof is NOT constrained inside the
+   R1CS circuit. This means the Nova proof alone does not attest to Merkle
+   soundness. The verifier must run the Merkle check as a separate step.
+   Phase 3 will move this into the circuit.
+
+5. **Pipeline integration**: The `c7_fold_witnesses` function enforces the Merkle
+   check before any Nova operations occur, providing a defense-in-depth barrier.
+
 - **Bench stub phases**: `onchain_verify`, `noir_decrypt_share`, `noir_aggregator_final`, `noir_sonobe_wrap` phases in the bench binary (`pvthfhe_e2e.rs`) are timing-only markers. No Solidity verifier or Noir circuit is executed during these phases. See `.sisyphus/design/spec-real-p2p3.md` §6 for the production verification plan.
 
 ## Logging Hygiene

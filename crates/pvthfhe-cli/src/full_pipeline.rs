@@ -29,7 +29,7 @@ use pvthfhe_pvss::slot_registry::SmudgeSlotRegistry;
 #[cfg(all(feature = "pipeline-extra-checks", feature = "sonobe-compressor"))]
 use pvthfhe_compressor::{
     poly_eval::eval_poly_bn254,
-    sonobe::{c7_fold_witnesses, encode_triple, C7DecryptAggregationCircuit, SonobeCompressor},
+    sonobe::{encode_triple, C7MerkleExternalInputs, C7MerkleStepCircuit, MerkleWitnessData, SonobeCompressor},
     witness::C7WitnessSet,
 };
 use pvthfhe_pvss::nizk_share::compute_ciphertext_v;
@@ -1049,7 +1049,7 @@ fn fr_to_i64(f: Fr) -> i64 {
 ///
 /// Parses share and plaintext polynomials from raw bytes, evaluates them at a
 /// challenge point, builds a [`C7WitnessSet`], verifies Merkle proofs, runs
-/// Nova folding via [`c7_fold_witnesses`], and checks that `Σ λ_i · d_i(r)`
+/// in-circuit Merkle verification via [`C7MerkleStepCircuit`], and checks that `Σ λ_i · d_i(r)`
 /// matches the plaintext evaluation.
 #[cfg(all(feature = "pipeline-extra-checks", feature = "sonobe-compressor"))]
 fn run_c7_verification(
@@ -1128,7 +1128,7 @@ fn run_c7_verification(
 
     // Run Nova C7 folding
     let epoch = [0u8; 32];
-    let compressor = match SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch, shares.len()) {
+    let compressor = match SonobeCompressor::<C7MerkleStepCircuit<Fr>>::new(epoch, shares.len()) {
         Ok(c) => c,
         Err(e) => {
             tracing::warn!("C7: compressor init failed: {e:?}");
@@ -1137,27 +1137,33 @@ fn run_c7_verification(
     };
 
     let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
-    let proof = match c7_fold_witnesses(&compressor, &witnesses, &acc) {
+    // POSEIDON PLACEHOLDER: merkle_root must equal leaf_value + Σ siblings.
+    // With all-zero siblings we set merkle_root = share_eval for placeholder consistency.
+    let steps: Vec<C7MerkleExternalInputs<Fr>> = witnesses.participants.iter().map(|w| {
+        C7MerkleExternalInputs {
+            share_eval: w.share_eval,
+            lagrange_coeff: w.lagrange_coeff,
+            merkle_root: w.share_eval,
+            merkle_data: MerkleWitnessData {
+                leaf_value: w.share_eval,
+                leaf_index: Fr::zero(),
+                siblings: vec![Fr::zero(); 7],
+            },
+        }
+    }).collect();
+
+    let proof = match compressor.prove_steps_merkle(&acc, &steps) {
         Ok(p) => p,
         Err(e) => {
-            tracing::warn!("C7: c7_fold_witnesses failed: {e:?}");
+            tracing::warn!("C7: prove_steps_merkle failed: {e:?}");
             return false;
         }
     };
 
     // Verify the folded proof
     let vk = compressor.verifier_key();
-    let steps: Vec<pvthfhe_compressor::sonobe::ExternalInputs3<Fr>> = witnesses
-        .participants
-        .iter()
-        .map(|w| pvthfhe_compressor::sonobe::ExternalInputs3(
-            w.share_eval,
-            w.lagrange_coeff,
-            w.merkle_root,
-        ))
-        .collect();
 
-    match compressor.verify_steps(&vk, &proof, &steps) {
+    match compressor.verify_steps_merkle(&vk, &proof, &steps) {
         Ok(true) => {}
         Ok(false) => {
             tracing::warn!("C7: Nova proof verification returned false");

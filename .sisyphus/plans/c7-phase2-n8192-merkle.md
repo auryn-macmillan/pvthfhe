@@ -206,8 +206,8 @@ impl C7DecryptAggregationCircuit<Fr> {
 
 ## Non-Goals
 
-- In-circuit Merkle proof verification (Phase 3)
-- Changing the C7DecryptAggregationCircuit (stays 3 inputs, 3 constraints)
+- In-circuit Merkle proof verification (Phase 3 — see `c7-phase3-in-circuit-merkle.md`)
+- Ring-aware C7 coefficient check (see `c7-ring-aware-coefficient-check.md`)
 - Replacing the Noir aggregator_final circuit
 
 ## Execution Order

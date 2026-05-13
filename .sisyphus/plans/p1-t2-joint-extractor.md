@@ -1,8 +1,15 @@
 # P1-T2 Joint Knowledge Extractor Roadmap
 
 **Created**: 2026-05-13
-**Status**: OPEN (Lemma 9 dependency)
+**Updated**: 2026-05-13 (status review)
+**Status**: OPEN (Lemma 9 dependency — research-blocked)
 **Paper reference**: §5 (P1), theorem P1-T2; claims-table footnote
+
+## Implementation Status (2026-05-13)
+
+P1-T2 remains research-blocked. The straight-line extractor (`docs/security-proofs/p1/T2.md`) is approved for the SHA-256 binding path. Implementation of the NIZK-level improvements has been extensive (R4 audit sigma equation fix, bfv_sigma plaintext domain check, decrypt NIZK witness binding, dealer identity binding, batched share-encryption proof, per-track domain separation). These strengthen the base protocol that P1-T2's extractor would compose with. However, the joint extractor composition with Cyclo Theorem 3 remains blocked on Lemma 9.
+
+**No additional implementation is possible without Lemma 9 resolution.** This plan serves as a research roadmap and documentation artifact.
 
 ## Goal
 

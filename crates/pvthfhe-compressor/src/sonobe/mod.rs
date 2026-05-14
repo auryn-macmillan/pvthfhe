@@ -138,7 +138,7 @@ impl<F: PrimeField> StepCircuit for ToyStepCircuit<F> {
 
 /// CycloFold step circuit encoding the R4 aggregator fold relation (R5.2).
 ///
-/// State: [accumulated_instance_hash, accumulated_norm, fold_count, ring_verification_count].
+/// State: [accumulated_instance_hash, accumulated_norm, fold_count].
 /// Step: folds a new party instance into the accumulated state.
 ///
 /// # M1 Ring Verification Path
@@ -168,7 +168,7 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
     }
 
     fn state_len(&self) -> usize {
-        4
+        3
     }
 
     fn generate_step_constraints(
@@ -183,27 +183,19 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
         let escalated_norm = z_i[1].clone() + &external_inputs.1;
         let count_inc = z_i[2].clone() + &external_inputs.2;
 
-        // ring_verification_count: placeholder counter (not real R1CS).
-        // Real ring-equation verification via verify_ring_equation_r1cs()
-        // is implemented but not wired into this step circuit.
-        // See crates/pvthfhe-compressor/src/sonobe/cyclo_verifier.rs
-        // and tests/cyclo_r1cs_verifier.rs for the real implementation.
-        let ring_verification_count = z_i[3].clone() + FpVar::<F>::one();
-
         let _ = cs.num_constraints();
 
         Ok(vec![
             folded_hash,
             escalated_norm,
             count_inc,
-            ring_verification_count,
         ])
     }
 }
 
 impl<F: PrimeField> StepCircuit for CycloFoldStepCircuit<F> {
     fn descriptor(&self) -> StepCircuitDescriptor {
-        StepCircuitDescriptor { width: 4 }
+        StepCircuitDescriptor { width: 3 }
     }
 
     fn circuit_hash(&self) -> [u8; 32] {

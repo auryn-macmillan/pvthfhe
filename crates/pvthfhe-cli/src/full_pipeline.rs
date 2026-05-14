@@ -515,15 +515,14 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let aggregate_decrypt_started = Instant::now();
     let aggregate_plaintext;
     #[cfg(feature = "pipeline-extra-checks")]
-    let (plaintext_poly_bytes, combined_share_coeffs);
+    let plaintext_poly_bytes;
     #[cfg(feature = "pipeline-extra-checks")]
     {
-        let (agg, pt_poly, comb) = backend
+        let (agg, pt_poly, _) = backend
             .aggregate_decrypt_with_poly(&ciphertext, &shares, backend_threshold)
             .context("aggregate_decrypt")?;
         aggregate_plaintext = agg;
         plaintext_poly_bytes = pt_poly;
-        combined_share_coeffs = comb;
     }
     #[cfg(not(feature = "pipeline-extra-checks"))]
     {
@@ -549,17 +548,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         let c7_started = Instant::now();
         let party_ids_fr: Vec<Fr> = (1..=cfg.t).map(|i| Fr::from(i as u64)).collect();
         let lagrange_coeffs_fr = compute_lagrange_coeffs_bn254(&party_ids_fr, Fr::from(0u64));
-        // Compute Lagrange coefficients as rational numbers.
-        // For t > 10, intermediate products may overflow i128; skip the check gracefully.
-        let party_ids_int: Vec<i64> = (1..=cfg.t as i64).collect();
-        let (lagrange_numers, lagrange_denom) = if cfg.t > 10 {
-            tracing::warn!("C7: skipping coefficient check for t={} (i128 overflow risk)", cfg.t);
-            (vec![], 0)
-        } else {
-            compute_lagrange_coeffs_rational(&party_ids_int, 0)
-        };
 
-        // Parse share coefficients via the backend's Poly deserialization
+        // Parse share polynomial coefficients
         let mut share_coeffs: Vec<Vec<i64>> = Vec::with_capacity(decrypt_witnesses.len());
         for witness in &decrypt_witnesses {
             let coeffs = backend
@@ -568,25 +558,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             share_coeffs.push(coeffs);
         }
 
-        // Parse plaintext polynomial coefficients for the C7 check
-        let pt_coeffs = backend
-            .poly_coeffs_from_bytes(&plaintext_poly_bytes)
-            .context("C7: parse plaintext poly bytes")?;
-        let pt_crt = backend.crt_reconstruct_coeffs(&pt_coeffs);
-
-        // CRT-reconstruct share coefficients for integer-level check
-        let mut share_crt: Vec<Vec<i128>> = Vec::with_capacity(share_coeffs.len());
-        for coeffs in &share_coeffs {
-            share_crt.push(backend.crt_reconstruct_coeffs(coeffs));
-        }
-
-        let c7_passed = run_c7_verification(
-            &share_crt,
-            &pt_crt,
-            &lagrange_coeffs_fr,
-            &lagrange_numers,
-            lagrange_denom,
-        );
+        let c7_passed = run_c7_verification(&share_coeffs, &lagrange_coeffs_fr);
         let c7_ms = elapsed_ms(c7_started);
         observer.phase_end("c7_decrypt_aggregation", c7_ms);
         if !c7_passed {
@@ -1007,112 +979,20 @@ fn compute_lagrange_coeffs_bn254(xs: &[Fr], eval_point: Fr) -> Vec<Fr> {
     coeffs
 }
 
-/// Compute Lagrange coefficients as rational numbers (scaled integers) for coefficient-wise C7 check.
-///
-/// Returns `(numerators, denominator)` where denominator D = lcm of all λ_i denominators
-/// and each numerator n_i = λ_i · D (exact integer).
-///
-/// For Shamir with points `x_i` and eval at 0:
-///   λ_i = Π_{j≠i} (-x_j) / Π_{j≠i} (x_i - x_j)
-///
-/// Fraction accumulation avoids premature integer division which would truncate non-integer λ_i.
-/// Uses i128 arithmetic valid for t ≤ 12 where intermediate products fit in i128.
-#[cfg(feature = "pipeline-extra-checks")]
-fn compute_lagrange_coeffs_rational(xs: &[i64], eval_point: i64) -> (Vec<i128>, i128) {
-    let n = xs.len();
-    let mut numerators = Vec::with_capacity(n);
-    let mut denominators = Vec::with_capacity(n);
-    for i in 0..n {
-        let mut num: i128 = 1;
-        let mut den: i128 = 1;
-        for j in 0..n {
-            if i != j {
-                num *= eval_point as i128 - xs[j] as i128;
-                den *= xs[i] as i128 - xs[j] as i128;
-            }
-        }
-        numerators.push(num);
-        denominators.push(den);
-    }
-
-    // Compute common denominator D = lcm of all denominators
-    let d = lcm_all(&denominators);
-    // n_i = λ_i · D = num_i * (D / den_i) — exact integer division
-    let denominators_clone = denominators; // take ownership
-    let scaled_numers: Vec<i128> = numerators
-        .iter()
-        .zip(denominators_clone.iter())
-        .map(|(&num, &den)| num * (d / den))
-        .collect();
-    (scaled_numers, d)
-}
-
-fn lcm_all(vals: &[i128]) -> i128 {
-    if vals.is_empty() { return 1; }
-    let mut result = vals[0].abs();
-    for &v in &vals[1..] {
-        result = lcm(result, v.abs());
-    }
-    result
-}
-
-fn lcm(a: i128, b: i128) -> i128 {
-    if a == 0 || b == 0 { return 0; }
-    a / gcd(a, b) * b
-}
-
-fn gcd(mut a: i128, mut b: i128) -> i128 {
-    while b != 0 {
-        let t = b;
-        b = a % b;
-        a = t;
-    }
-    a.abs()
-}
-
-/// Convert a BN254 Fr element to i64.
-///
-/// For small integer values (|v| < 2^63), the Fr encoding either stores the positive
-/// value directly (if v ≤ (MODULUS-1)/2) or stores MODULUS - |v| for negatives.
-#[cfg(feature = "pipeline-extra-checks")]
-fn fr_to_i64(f: Fr) -> i64 {
-    use ark_ff::PrimeField;
-    let big = f.into_bigint();
-    let limbs = big.as_ref();
-    // For t ≤ 10 Lagrange coefficients are small integers (|λ| ≤ 2520).
-    // Positive values: stored directly in limb 0, all higher limbs zero.
-    // Negative values: stored as MODULUS - |v| ≈ 2^254 - |v|, so higher limbs are non-zero.
-    if limbs[1] == 0 && limbs[2] == 0 && limbs[3] == 0 {
-        limbs[0] as i64
-    } else {
-        // Negative: recover as -(Fr::MODULUS - big). Since |v| is tiny,
-        // Fr::MODULUS - v ≈ Fr::MODULUS, so low limb is MODULUS_limb0 - |v|.
-        // But simpler: just compute 0 - f in Fr and extract the result.
-        let neg_f = -f;
-        let neg_big = neg_f.into_bigint();
-        let neg_limbs = neg_big.as_ref();
-        -(neg_limbs[0] as i64)
-    }
-}
-
 /// Run C7 decryption aggregation verification with real polynomial data.
-///
-/// Parses share and plaintext polynomials from raw bytes, evaluates them at a
-/// challenge point, builds a [`C7WitnessSet`], verifies Merkle proofs, runs
-/// in-circuit Merkle verification via [`C7MerkleStepCircuit`], and checks that `Σ λ_i · d_i(r)`
-/// matches the plaintext evaluation.
 #[cfg(all(feature = "pipeline-extra-checks", feature = "sonobe-compressor"))]
 fn run_c7_verification(
-    share_coeffs: &[Vec<i128>],
-    pt_coeffs: &[i128],
+    share_coeffs: &[Vec<i64>],
     lagrange_coeffs: &[Fr],
-    lagrange_numers: &[i128],
-    lagrange_denom: i128,
 ) -> bool {
     use ark_bn254::Fr;
     use ark_ff::{PrimeField, Zero};
 
-    let coeffs_per_poly = pt_coeffs.len();
+    let coeffs_per_poly = if let Some(coeffs) = share_coeffs.first() {
+        coeffs.len()
+    } else {
+        return false;
+    };
     if coeffs_per_poly == 0 {
         return false;
     }
@@ -1135,31 +1015,15 @@ fn run_c7_verification(
             .collect();
         shares.push(fr_coeffs);
     }
-    let pt_fr: Vec<Fr> = pt_coeffs
-        .iter()
-        .map(|&c| {
-            if c >= 0 {
-                Fr::from(c as u64)
-            } else {
-                -Fr::from((-c) as u64)
-            }
-        })
-        .collect();
 
-    // Compute challenge r from first bytes of share and plaintext polynomials
+    // Compute challenge r from share polynomial bytes
     let mut hasher = sha2::Sha256::new();
     for coeffs in share_coeffs {
         let bytes: Vec<u8> = coeffs.iter().flat_map(|c| c.to_le_bytes()).collect();
         hasher.update(&bytes[..bytes.len().min(32)]);
     }
-    let pt_bytes: Vec<u8> = pt_coeffs.iter().flat_map(|c| c.to_le_bytes()).collect();
-    hasher.update(&pt_bytes[..pt_bytes.len().min(32)]);
     let r_bytes: [u8; 32] = hasher.finalize().into();
     let challenge_r = Fr::from_be_bytes_mod_order(&r_bytes);
-
-    // Evaluate shares at challenge point
-    let share_evals: Vec<Fr> = shares.iter().map(|s| eval_poly_bn254(s, challenge_r)).collect();
-    let plaintext_eval = eval_poly_bn254(&pt_fr, challenge_r);
 
     // Build C7WitnessSet
     let witnesses = C7WitnessSet::new(&shares, lagrange_coeffs, challenge_r);

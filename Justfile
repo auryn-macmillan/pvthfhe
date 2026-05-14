@@ -18,9 +18,11 @@ phase2-gate:
 phase3-gate:
     python3 .sisyphus/scripts/phase3-gate.py
 
+# Default: Track B (LatticeFold+/MicroNova). Use `demo-e2e-track-a` for Track A (Sonobe Nova/hash-then-fold).
 demo-e2e n="10" t="4" seed="1":
     @echo "*** PVTHFHE end-to-end demo (research prototype) ***"
     @echo "* Supported range: 1 ≤ t ≤ n ≤ 255 (Shamir over GF(256)) *"
+    @echo "* Track B (LatticeFold+/MicroNova) — default *"
     @echo "* Pipeline includes keygen, NIZK, RLWE folding, Sonobe Nova compression (see WARNING.md and SECURITY.md for surrogate disclosures) *"
     @echo "* On-chain Solidity verify is NOT run by this demo (use bench-comparison) *"
     @echo "* DO NOT DEPLOY — research prototype only                                 *"
@@ -28,6 +30,10 @@ demo-e2e n="10" t="4" seed="1":
     cargo run --release -p pvthfhe-cli --features "sonobe-compressor,demo-seeded-rng,pipeline-extra-checks" -- \
         demo --n {{n}} --threshold {{t}} --seed {{seed}} \
         2>&1 | tee .sisyphus/evidence/task-40-demo.log
+
+# Track A: Sonobe Nova/hash-then-fold (set PVTHFHE_TRACK=A).
+demo-e2e-track-a n="10" t="4" seed="1":
+    PVTHFHE_TRACK=A just demo-e2e {{n}} {{t}} {{seed}}
 
 bench-p4:
     mkdir -p .sisyphus/evidence/benchmarks/p4

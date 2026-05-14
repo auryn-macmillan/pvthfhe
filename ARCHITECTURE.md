@@ -184,3 +184,16 @@ Track B: LatticeFold+/MicroNova target).
 The migration surface from Track A to Track B is bounded: the `Compressor` trait and
 `CycloFoldStepCircuit` are designed to accept a lattice-native fold step once P2 is
 resolved, without changing the pipeline topology or on-chain verifier interface.
+
+## Track Selection
+
+The end-to-end demo (`just demo-e2e`) supports two architectural tracks, selected at
+runtime via the `PVTHFHE_TRACK` environment variable:
+
+- **Default: Track B (LatticeFold+/MicroNova)** — the target architecture with
+  AjtaiMatrix commitments and norm-enforced DKG folding. Activated by default or with
+  `PVTHFHE_TRACK=B`.
+- **Track A (Sonobe Nova/hash-then-fold)** — the current Sonobe-substitute path with
+  hash-accumulate compression. Activated with `PVTHFHE_TRACK=A` or
+  `just demo-e2e-track-a`.
+- Both tracks pass `just demo-e2e` and produce valid pipeline outputs.

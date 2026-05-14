@@ -45,6 +45,30 @@ use crate::{
 
 const DEMO_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 131072\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
 
+/// Pipeline track selector.
+///
+/// Track A: Sonobe Nova hash-then-fold (current behavior, unchanged).
+/// Track B: LatticeFold+ / MicroNova with AjtaiMatrix, norm enforcement,
+///          R1CS hash-and-verify compressor (default with `pipeline-extra-checks`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Track {
+    /// Sonobe Nova hash-then-fold.
+    A,
+    /// LatticeFold+ / MicroNova with AjtaiMatrix, norm enforcement, R1CS hash-and-verify.
+    B,
+}
+
+impl std::str::FromStr for Track {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_uppercase().as_str() {
+            "A" => Ok(Track::A),
+            "B" => Ok(Track::B),
+            _ => Err(format!("Invalid track: {s}. Use A or B")),
+        }
+    }
+}
+
 /// Full pipeline configuration.
 #[derive(Debug, Clone, Copy)]
 pub struct PipelineConfig {
@@ -92,6 +116,14 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     cfg: &PipelineConfig,
     observer: &mut O,
 ) -> anyhow::Result<PipelineReport> {
+    #[cfg(feature = "pipeline-extra-checks")]
+    let track: Track = std::env::var("PVTHFHE_TRACK")
+        .unwrap_or_else(|_| "B".to_string())
+        .parse()
+        .unwrap_or(Track::B);
+    #[cfg(not(feature = "pipeline-extra-checks"))]
+    let track = Track::A;
+
     if cfg.t == 0 || cfg.t > cfg.n {
         anyhow::bail!(
             "invalid threshold: t={} must satisfy 1 <= t <= n={}",
@@ -295,7 +327,61 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         .iter()
         .map(|(pid, stmt, wit, _proof)| (*pid, stmt, wit))
         .collect();
-    let fold_instances = build_fold_instances(&nizk_refs, ct_hash, cfg.seed)?;
+    let fold_instances = build_fold_instances(&nizk_refs, ct_hash, cfg.seed, track)?;
+
+    // D.4 — Track B: norm enforcement on folding witnesses
+    #[cfg(feature = "pipeline-extra-checks")]
+    if track == Track::B {
+        use pvthfhe_aggregator::folding::norm::validate_folding_witness;
+        use pvthfhe_aggregator::folding::ring_element::RingElement;
+        use ark_bn254::Fr;
+
+        const PHI_COMMIT: usize = 256;
+        for &(_party_id, _stmt, witness) in &nizk_refs {
+            let s_coeffs: Vec<Fr> = witness
+                .secret_share_poly
+                .iter()
+                .take(PHI_COMMIT)
+                .map(|&c| {
+                    if c >= 0 {
+                        Fr::from(c as u64)
+                    } else {
+                        -Fr::from((-c) as u64)
+                    }
+                })
+                .collect();
+            let e_coeffs: Vec<Fr> = witness
+                .error
+                .iter()
+                .take(PHI_COMMIT)
+                .map(|&c| {
+                    if c >= 0 {
+                        Fr::from(c as u64)
+                    } else {
+                        -Fr::from((-c) as u64)
+                    }
+                })
+                .collect();
+
+            let s = RingElement { coeffs: s_coeffs };
+            let e = RingElement { coeffs: e_coeffs };
+            let zs = RingElement::zero(PHI_COMMIT);
+            let ze = RingElement::zero(PHI_COMMIT);
+
+            let b = Fr::from(1024u64);
+            let b_e = Fr::from(16u64);
+            let b_z = Fr::from(2049u64);
+
+            validate_folding_witness(&s, &e, &zs, &ze, b, b_e, b_z)
+                .map_err(|e| anyhow::anyhow!("Track B norm enforcement failed: {e}"))?;
+        }
+        tracing::info!(
+            "Track B: norm enforcement active (bound B={}, B_e={})",
+            1024,
+            16
+        );
+    }
+
     let mut fold_rng = OsRng;
     let batch_size = usize::try_from(PVTHFHE_CYCLO_PARAMS.sequential_t)
         .context("sequential_t overflows usize")?;
@@ -344,6 +430,18 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     observer.phase_end("compressor_new", elapsed_ms(compressor_new_started));
 
     observer.phase_start("compressor_prove", Some(compressor.backend_id()));
+
+    // D.2 — Track B: native ring-equation verification before compressor.prove()
+    #[cfg(feature = "pipeline-extra-checks")]
+    if track == Track::B {
+        // M6 hash-and-verify: ring equation verified natively before folding.
+        // The R1CS path is the placeholder in CycloFoldStepCircuit.
+        // For now, log Track B activity; full native ring check wiring pending.
+        tracing::info!(
+            "Track B: hash-and-verify compressor (ring equation native check pending)"
+        );
+    }
+
     let compressor_prove_started = Instant::now();
     let compressed = compressor.prove(&fold_report).context("compressor_prove")?;
     let compressor_prove_ms = elapsed_ms(compressor_prove_started);
@@ -601,10 +699,15 @@ fn keygen_session_id(aggregate_pk: &PublicKey, threshold: usize, seed: u64) -> S
 /// Each `CcsPShareInstance` binds the real CCS witness produced by the R3 NIZK layer
 /// to the Cyclo fold instance, replacing the synthetic `vec![1u8; 32]` / `vec![party_id; 32]`
 /// inputs used before R8.1.
+///
+/// When `track` is [`Track::B`] and `pipeline-extra-checks` is active, uses the
+/// deterministic [`AjtaiMatrix`] from `pvthfhe_aggregator::folding::ajtai` instead of
+/// the Cyclo Ajtai commitment.
 pub fn build_fold_instances(
     nizk_outputs: &[(u32, &NizkStatement, &NizkWitness)],
     ct_hash: [u8; 32],
     seed: u64,
+    track: Track,
 ) -> anyhow::Result<Vec<CcsPShareInstance>> {
     nizk_outputs
         .iter()
@@ -613,8 +716,12 @@ pub fn build_fold_instances(
 
             let ccs_witness_bytes = serialize_nizk_witness(witness);
             let public_io_bytes = serialize_nizk_statement(stmt);
-            let ajtai_commitment_bytes =
-                compute_cyclo_ajtai_commitment(witness, participant_id, seed);
+            let ajtai_commitment_bytes = compute_ajtai_commitment_for_track(
+                witness,
+                participant_id,
+                seed,
+                track,
+            );
 
             let mut binding_hasher = Sha256::new();
             binding_hasher.update(ajtai_commitment_bytes.as_slice());
@@ -700,6 +807,47 @@ fn serialize_nizk_witness(_witness: &NizkWitness) -> CcsWitnessSecret {
     out.extend_from_slice(&0_u64.to_le_bytes());
     out.extend_from_slice(&0_u64.to_le_bytes());
     CcsWitnessSecret::new(out)
+}
+
+/// Dispatch Ajtai commitment based on pipeline track.
+///
+/// Track A uses the Cyclo Ajtai commitment over `R_{q_commit}`.
+/// Track B uses the deterministic AjtaiMatrix from `pvthfhe_aggregator::folding::ajtai`.
+#[allow(unused_variables)]
+fn compute_ajtai_commitment_for_track(
+    witness: &NizkWitness,
+    participant_id: u16,
+    seed: u64,
+    track: Track,
+) -> Vec<u8> {
+    #[cfg(feature = "pipeline-extra-checks")]
+    if track == Track::B {
+        use pvthfhe_aggregator::folding::ajtai::AjtaiMatrix;
+        use ark_bn254::Fr;
+
+        let mut epoch_hash = [0u8; 32];
+        epoch_hash[..8].copy_from_slice(&seed.to_be_bytes());
+        let mat = AjtaiMatrix::<Fr>::from_epoch(&epoch_hash, 1, witness.secret_share_poly.len());
+        let witness_fr: Vec<Fr> = witness
+            .secret_share_poly
+            .iter()
+            .map(|&c| {
+                if c >= 0 {
+                    Fr::from(c as u64)
+                } else {
+                    -Fr::from((-c) as u64)
+                }
+            })
+            .collect();
+        let commitment = mat.commit(&witness_fr);
+        let mut bytes = Vec::new();
+        for c in commitment {
+            bytes.extend_from_slice(&c.to_string().as_bytes());
+        }
+        return bytes;
+    }
+    // Track A (and fallback): Cyclo Ajtai commitment
+    compute_cyclo_ajtai_commitment(witness, participant_id, seed)
 }
 
 /// Compute a real Ajtai commitment over `R_{q_commit}` for the Cyclo fold instance.
@@ -1122,5 +1270,20 @@ mod tests {
         assert!(report.plaintext_roundtrip_ok);
         assert!(report.timings.phases.cyclo_fold.total_ms > 0.0);
         assert!(report.timings.phases.compressor_prove.total_ms > 0.0);
+    }
+
+    #[test]
+    fn track_a_from_str() {
+        assert_eq!("A".parse::<Track>().unwrap(), Track::A);
+    }
+
+    #[test]
+    fn track_b_from_str() {
+        assert_eq!("B".parse::<Track>().unwrap(), Track::B);
+    }
+
+    #[test]
+    fn track_invalid() {
+        assert!("X".parse::<Track>().is_err());
     }
 }

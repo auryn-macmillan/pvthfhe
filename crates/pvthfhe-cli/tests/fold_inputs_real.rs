@@ -7,7 +7,7 @@
 //! real cryptographic data rather than synthetic placeholders.
 
 use pvthfhe_aggregator::folding::CcsPShareInstance;
-use pvthfhe_cli::full_pipeline::build_fold_instances;
+use pvthfhe_cli::full_pipeline::{build_fold_instances, Track};
 use pvthfhe_fhe::real_nizk::{NizkStatement, NizkWitness};
 
 fn make_statement(party_id: u16, seed: u8) -> NizkStatement {
@@ -66,8 +66,8 @@ fn instances_vary_with_witness_data() {
     let nizk_a = vec![(1u32, &stmt_a, &wit_a)];
     let nizk_b = vec![(1u32, &stmt_b, &wit_b)];
 
-    let instances_a = build_fold_instances(&nizk_a, [0u8; 32], 0).expect("build_fold_instances");
-    let instances_b = build_fold_instances(&nizk_b, [0u8; 32], 0).expect("build_fold_instances");
+    let instances_a = build_fold_instances(&nizk_a, [0u8; 32], 0, Track::A).expect("build_fold_instances");
+    let instances_b = build_fold_instances(&nizk_b, [0u8; 32], 0, Track::A).expect("build_fold_instances");
 
     assert_eq!(instances_a.len(), 1);
     assert_eq!(instances_b.len(), 1);
@@ -112,7 +112,7 @@ fn instances_differ_across_parties() {
 
     let nizk = vec![(1u32, &stmt_p1, &wit_p1), (2u32, &stmt_p2, &wit_p2)];
 
-    let instances = build_fold_instances(&nizk, [0u8; 32], 0).expect("build_fold_instances");
+    let instances = build_fold_instances(&nizk, [0u8; 32], 0, Track::A).expect("build_fold_instances");
 
     assert_eq!(instances.len(), 2);
     let i1 = &instances[0];
@@ -158,8 +158,8 @@ fn instances_are_deterministic() {
     let nizk_a = vec![(1u32, &stmt, &wit)];
     let nizk_b = vec![(1u32, &stmt, &wit)];
 
-    let instances_a = build_fold_instances(&nizk_a, [0xAA; 32], 99).expect("first build");
-    let instances_b = build_fold_instances(&nizk_b, [0xAA; 32], 99).expect("second build");
+    let instances_a = build_fold_instances(&nizk_a, [0xAA; 32], 99, Track::A).expect("first build");
+    let instances_b = build_fold_instances(&nizk_b, [0xAA; 32], 99, Track::A).expect("second build");
 
     assert_eq!(instances_a.len(), instances_b.len());
     assert_eq!(instances_a.len(), 1);
@@ -207,7 +207,7 @@ fn witness_bytes_contain_poly_coefficients() {
     let wit = make_witness(party_id, seed);
 
     let nizk = vec![(u32::from(party_id), &stmt, &wit)];
-    let instances = build_fold_instances(&nizk, [0u8; 32], 0).expect("build_fold_instances");
+    let instances = build_fold_instances(&nizk, [0u8; 32], 0, Track::A).expect("build_fold_instances");
 
     assert_eq!(instances.len(), 1);
     let inst = &instances[0];
@@ -263,11 +263,11 @@ fn binding_is_function_of_all_fields() {
 
     let nizk_base = vec![(1u32, &stmt, &wit)];
     let instances_base =
-        build_fold_instances(&nizk_base, [0x00; 32], 0).expect("build_fold_instances base");
+        build_fold_instances(&nizk_base, [0x00; 32], 0, Track::A).expect("build_fold_instances base");
     let binding_base = instances_base[0].sha256_binding_bytes.as_slice().to_vec();
 
     let instances_ct =
-        build_fold_instances(&nizk_base, [0xFF; 32], 0).expect("build_fold_instances ct");
+        build_fold_instances(&nizk_base, [0xFF; 32], 0, Track::A).expect("build_fold_instances ct");
     assert_ne!(
         binding_base,
         instances_ct[0].sha256_binding_bytes.as_slice(),
@@ -275,7 +275,7 @@ fn binding_is_function_of_all_fields() {
     );
 
     let instances_seed =
-        build_fold_instances(&nizk_base, [0x00; 32], 1).expect("build_fold_instances seed");
+        build_fold_instances(&nizk_base, [0x00; 32], 1, Track::A).expect("build_fold_instances seed");
     assert_ne!(
         binding_base,
         instances_seed[0].sha256_binding_bytes.as_slice(),
@@ -285,7 +285,7 @@ fn binding_is_function_of_all_fields() {
     let wit2 = make_witness(1, 0x20);
     let nizk_wit2 = vec![(1u32, &stmt, &wit2)];
     let instances_wit =
-        build_fold_instances(&nizk_wit2, [0x00; 32], 0).expect("build_fold_instances wit2");
+        build_fold_instances(&nizk_wit2, [0x00; 32], 0, Track::A).expect("build_fold_instances wit2");
     assert_ne!(
         binding_base,
         instances_wit[0].sha256_binding_bytes.as_slice(),
@@ -295,7 +295,7 @@ fn binding_is_function_of_all_fields() {
     let stmt2 = make_statement(1, 0x30);
     let nizk_stmt2 = vec![(1u32, &stmt2, &wit)];
     let instances_stmt =
-        build_fold_instances(&nizk_stmt2, [0x00; 32], 0).expect("build_fold_instances stmt2");
+        build_fold_instances(&nizk_stmt2, [0x00; 32], 0, Track::A).expect("build_fold_instances stmt2");
     assert_ne!(
         binding_base,
         instances_stmt[0].sha256_binding_bytes.as_slice(),
@@ -360,8 +360,8 @@ fn ajtai_commitment_is_witness_derived() {
     let nizk_b = vec![(1u32, &stmt, &wit_b)];
 
     let ct_hash = [0xDE; 32];
-    let instances_a = build_fold_instances(&nizk_a, ct_hash, 0).expect("build_fold_instances a");
-    let instances_b = build_fold_instances(&nizk_b, ct_hash, 0).expect("build_fold_instances b");
+    let instances_a = build_fold_instances(&nizk_a, ct_hash, 0, Track::A).expect("build_fold_instances a");
+    let instances_b = build_fold_instances(&nizk_b, ct_hash, 0, Track::A).expect("build_fold_instances b");
 
     let ia = &instances_a[0];
     let ib = &instances_b[0];

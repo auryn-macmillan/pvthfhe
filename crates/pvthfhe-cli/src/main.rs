@@ -380,6 +380,8 @@ fn run_demo(_n: usize, _threshold: usize, _seed: u64, _force_large_n: bool) -> a
 #[derive(Default)]
 struct DemoObserver {
     keygen_announced: bool,
+    nizk_prove_announced: bool,
+    nizk_verify_announced: bool,
     pvss_announced: bool,
     cyclo_fold_announced: bool,
     compressor_prove_announced: bool,
@@ -418,8 +420,14 @@ impl PipelineObserver for DemoObserver {
                 self.keygen_announced = true;
                 Self::print_step(1, "keygen", detail);
             }
-            "nizk_prove" => Self::print_step(2, "nizk_prove", detail),
-            "nizk_verify" => Self::print_step(3, "nizk_verify", detail),
+            "nizk_prove" if !self.nizk_prove_announced => {
+                self.nizk_prove_announced = true;
+                Self::print_step(2, "nizk_prove", detail);
+            }
+            "nizk_verify" if !self.nizk_verify_announced => {
+                self.nizk_verify_announced = true;
+                Self::print_step(3, "nizk_verify", detail);
+            }
             "pvss_share_encrypt" if !self.pvss_announced => {
                 self.pvss_announced = true;
                 Self::print_step(4, "pvss_share_encrypt", detail);
@@ -455,7 +463,7 @@ impl PipelineObserver for DemoObserver {
         match name {
             "aggregate_keygen" => self.aggregate_keygen_ms = Some(ms),
             "encrypt" => self.encrypt_ms = Some(ms),
-            "keygen" | "nizk_prove" | "nizk_verify" | "pvss_share_encrypt" | "cyclo_fold" | "compressor_prove"
+            "keygen" | "pvss_share_encrypt" | "cyclo_fold" | "compressor_prove"
             | "compressor_verify" | "partial_decrypt" | "aggregate_decrypt"
             | "c7_decrypt_aggregation" => {
                 println!("{name}: complete ({ms:.3} ms)")

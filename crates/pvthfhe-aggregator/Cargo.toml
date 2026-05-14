@@ -65,6 +65,14 @@ path = "tests/p2_bench.rs"
 required-features = ["real-folding"]
 
 [[test]]
+name = "cyclo_norm_enforcement"
+path = "tests/cyclo_norm_enforcement.rs"
+
+[[test]]
+name = "ajtai_commitment"
+path = "tests/ajtai_commitment.rs"
+
+[[test]]
 name = "e2e_real"
 path = "tests/e2e_real.rs"
 required-features = ["real-verifier"]

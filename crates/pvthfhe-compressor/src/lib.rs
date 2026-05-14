@@ -12,6 +12,9 @@ pub mod witness;
 /// Sonobe-backed proof compressor implementation.
 pub mod sonobe;
 
+/// MicroNova recursive compression (P3-M2).
+pub mod micronova;
+
 /// Opaque compressed-proof bytes.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompressedProof(pub Vec<u8>);

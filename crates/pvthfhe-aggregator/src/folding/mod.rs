@@ -140,10 +140,11 @@ impl FoldingScheme for HashChainFoldingScheme {
         let ccs_instance = fold_stmt_witness_to_cyclo_instance(stmt, witness, acc);
 
         // Get or initialise the Cyclo accumulator
-        let prev_cyclo_acc = acc.cyclo_acc.clone().unwrap_or_else(|| {
-            cyclo_fold::init_accumulator_multitrack(&ccs_instance, &acc.session_id)
-                .expect("init_accumulator must succeed for valid instance")
-        });
+        let prev_cyclo_acc = match acc.cyclo_acc.clone() {
+            Some(acc) => acc,
+            None => cyclo_fold::init_accumulator_multitrack(&ccs_instance, &acc.session_id)
+                .map_err(|e| FoldError(format!("init_accumulator: {e}")))?,
+        };
 
         // Fold via the Cyclo LatticeFold+ backend, including H.2 metadata.
         let mut rng = OsRng;

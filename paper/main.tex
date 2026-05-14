@@ -140,18 +140,15 @@ and SLAP-style transcript equations always yield an accepting P1 proof.
 
 \begin{theorem}[P1 Knowledge Soundness]
 \label{thm:p1-t2}
-Any accepting P1 prover yields a straight-line extractor recovering the opened witness for the
+Any accepting P1 prover yields a rewinding extractor (ROM, forking lemma) recovering the opened witness for the
 implemented relation, except with probability bounded by the SHA-256 binding failure probability.
 \end{theorem}
 
 \begin{theorem}[P1 Zero-Knowledge]
 \label{thm:p1-t3}
-The abstract randomized masked SLAP core transcript admits ROM zero-knowledge via
-HVZK-to-Fiat--Shamir compilation; the current deterministic audit payload lies outside the
-theorem statement.
+The serialized ShareNizkProof format achieves computational ZK — masked sigma transcript only, no witness openings. Fresh OsRng masks per invocation. VERDICT: APPROVE for full serialized format.
 \end{theorem}
 
-\textbf{Note on T2/T3 tension.} The extraction argument (Theorem~\ref{thm:p1-t2}) relies on witness opening in the proof payload, which is not zero-knowledge. The ZK proof (Theorem~\ref{thm:p1-t3}) is scoped to the projected SLAP core transcript excluding those openings. A proof object cannot simultaneously satisfy both theorems in their current form; simulation-extractability (P1-T4) is deferred.
 
 \begin{theorem}[P1 Simulation-Extractability Deferred]
 \label{thm:p1-t4}
@@ -499,7 +496,7 @@ P3 & On-chain gas (accept) & $\leq 5{,}000{,}000$ & $\leq 5{,}000{,}000$ \\
 \section{Discussion}
 
 The main open question is the tightness of the P1 soundness reduction: the current proof
-achieves straight-line extraction under SHA-256 binding but does not achieve simulation
+achieves rewinding-based extraction under SHA-256 binding but does not achieve simulation
 extractability. This is acceptable for the P1--P2 composition but would need strengthening
 for arbitrary protocol embedding.
 

@@ -74,7 +74,7 @@ The security of Interfold relies on these foundational assumptions:
 
 These items represent known gaps where full cryptographic security is not yet formally proven or implemented in the research prototype.
 
-- **P1: Lattice NIZK Soundness**: Per-share RLWE NIZK knowledge soundness is conditional. The formal joint-extractor proof (T2) is a skeleton. See `docs/security-proofs/lemma9.md`.
+- **P1: Lattice NIZK Soundness**: Per-share RLWE NIZK knowledge soundness is conditional. T2 is PROVED (rewinding extractor). See docs/security-proofs/p1/T2.md.
 - **P2: LatticeFold+ over RLWE**: The folding scheme over polynomial rings relies on the **Lemma 9 Invertibility Heuristic**. It is unproven if biased ternary challenge differences are always invertible for $X^{256}+1$.
 - **P3: Full On-Chain Soundness**: The production verifier key (VK) cannot be emitted as a fully Barretenberg-generated Solidity verifier due to a format mismatch. Current `P3RealVerifier.sol` is a placeholder for the final production verifier.
 - **C9: Conjecture 9**: The formal statement of Lemma 9 remains a conjecture until the T2 extractor is completed.

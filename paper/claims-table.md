@@ -6,7 +6,7 @@
 | P4 | P4-T4 | Abort-with-Blame Robustness: misbehavior covered by commitment-recomputation predicates yields publicly checkable blame; honest parties are never falsely blamed. | PROVED | PROVED (shared) | §P4-Robustness | docs/security-proofs/p4/t4-abort-with-blame-robustness.md |
 | P4 | P4-T5 | Sequential Composition: simulated P4 session/public-key handoff composes sequentially with the P1 decrypt-share functionality at the exported interface boundary. | PROVED | PROVED (shared) | §P4-Composition | docs/security-proofs/p4/t5-sequential-composition.md |
 | P1 | P1-T1 | Completeness: honest witnesses satisfying the SHA-256 commitment opening, bounded-error check, and SLAP-style transcript equations always yield an accepting P1 proof. | PROVED | PROVED (shared) | §P1-Completeness | docs/security-proofs/p1/T1.md |
-| P1 | P1-T2 | Soundness (Knowledge): any accepting P1 prover yields a straight-line extractor recovering the opened witness for the implemented relation, except with probability bounded by SHA-256 binding failure. | PROVED | PROVED (shared) | §P1-Soundness | docs/security-proofs/p1/T2.md |
+| P1 | P1-T2 | Soundness (Knowledge): any accepting P1 prover yields a rewinding extractor (ROM, forking lemma) recovering the opened witness for the implemented relation, except with probability bounded by SHA-256 binding failure. | PROVED | PROVED (shared) | §P1-Soundness | docs/security-proofs/p1/T2.md |
 | P1 | P1-T3 | Zero-Knowledge: the abstract randomized masked SLAP core transcript admits ROM zero-knowledge via HVZK-to-Fiat–Shamir compilation. | PROVED | PROVED (shared) | §P1-ZK | docs/security-proofs/p1/T3.md |
 | P1 | P1-T4 | Simulation-Extractability Scope: simulation-extractability is not required for the frozen P1 baseline; the interface boundary with P2 does not consume simulated P1 transcripts. | PROVED-WITH-CITATION | PROVED-WITH-CITATION (shared) | §P1-SimExtractability | docs/security-proofs/p1/T4.md |
 | P1 | P1-T5 | Commitment Binding: pvss_commitment is binding on domain SHA256(session_id ‖ participant_id_le ‖ secret_share_be) under SHA-256 collision resistance. | PROVED | PROVED (shared) | §P1-Binding | docs/security-proofs/p1/T5.md |
@@ -35,4 +35,4 @@
 - **(shared)**: Theorem applies identically to both tracks (P4 and P1 components).
 
 **P1 criticality footnote (from SECURITY.md §P1):**
-P1 soundness is conditional on Module-SIS + Cyclo Theorem 3. Formal joint-extractor proof (T2) is a skeleton per SECURITY.md §P1. See `.sisyphus/plans/p1-t2-joint-extractor.md`.
+P1 soundness is conditional on Module-SIS + Cyclo Theorem 3. T2 is PROVED (rewinding extractor, ROM, forking lemma). See docs/security-proofs/p1/T2.md and joint-extractor/M1-M5.

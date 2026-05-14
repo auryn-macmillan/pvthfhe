@@ -2,7 +2,7 @@
 
 > ⚠️  **DO NOT DEPLOY — RESEARCH PROTOTYPE ONLY**
 >
-- on-chain verification: UltraHonk verifier (Track A: Sonobe attestation; Track B: MicroNova target)
+- on-chain verification: UltraHonk verifier (Track A: ECDSA/ecrecover attestation; Track B: MicroNova target)
 - Noir circuits: real aggregation and wrapping logic
 - **do not use for The Interfold or any production deployment**
 >
@@ -190,8 +190,7 @@ resolved, without changing the pipeline topology or on-chain verifier interface.
 The end-to-end demo (`just demo-e2e`) supports two architectural tracks, selected at
 runtime via the `PVTHFHE_TRACK` environment variable:
 
-- **Default: Track B (LatticeFold+/MicroNova)** — the target architecture with
-  AjtaiMatrix commitments and norm-enforced DKG folding. Activated by default or with
+- **Default: Track B — norm-enforced Sonobe Nova path. The architectural LatticeFold+/MicroNova target is deferred (P2 OPEN).** Activated by default or with
   `PVTHFHE_TRACK=B`.
 - **Track A (Sonobe Nova/hash-then-fold)** — the current Sonobe-substitute path with
   hash-accumulate compression. Activated with `PVTHFHE_TRACK=A` or

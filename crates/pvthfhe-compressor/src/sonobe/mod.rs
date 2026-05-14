@@ -3,12 +3,14 @@
 pub mod c7_circuit;
 pub mod c7_merkle_circuit;
 pub mod cyclo_verifier;
+pub mod fold_verifier_circuit;
 pub mod poseidon_gadget;
 pub use c7_circuit::{c7_fold_witnesses, C7DecryptAggregationCircuit};
 pub use c7_merkle_circuit::{
     merkle_external_inputs_width, C7MerkleExternalInputs, C7MerkleExternalInputsVar,
     C7MerkleStepCircuit, MerkleWitnessData,
 };
+pub use fold_verifier_circuit::FoldVerifierStepCircuit;
 pub use poseidon_gadget::hash8_native;
 
 use std::fmt::Debug;

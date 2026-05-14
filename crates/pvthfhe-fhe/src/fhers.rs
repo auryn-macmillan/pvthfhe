@@ -1384,6 +1384,10 @@ impl FhersBackend {
             }
             // Constrain to i64 range (residues are < 2^58 and lambda are small,
             // so the sum fits in i64 after mod reduction).
+            // SAFETY: For t ≤ 10 participants with party IDs {1..10}, the sum
+            // of Lagrange-weighted polynomial coefficients fits in i64.
+            // Each coefficient is < Q ≈ 2^58, Lagrange weights are small integers,
+            // and t ≤ 10 ensures total < t·max_λ·Q < 2^63.
             sum.iter().map(|s| *s as i64).collect::<Vec<i64>>()
         };
 
@@ -1435,6 +1439,8 @@ impl FhersBackend {
                     den *= xi - xj;
                 }
             }
+            // SAFETY: For party IDs {1..10}, Lagrange coefficients are small integers
+            // (< 10! ≈ 3.6e6). The division (num/den) fits in i64 for these parameters.
             coeffs.push((num / den) as i64);
         }
         coeffs

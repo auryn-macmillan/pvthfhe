@@ -43,3 +43,58 @@
 
 - **? in closures**: The `?` operator cannot be used inside closures that don't return `Result`/`Option`. Required restructuring with `match` (A.2) and `collect::<Result<Vec<_>, _>>()` (A.3).
 - **Move semantics**: Cloning `s.coeffs` instead of `s_coeffs` after the latter was moved into `s` (A.1 fix v2).
+
+## Batch E progress (2026-05-14)
+
+### E.2: i128 truncation SAFETY comments — DONE
+- Added SAFETY comment at `fhers.rs:1387` documenting that for t ≤ 10 with party IDs {1..10}, the Lagrange-weighted coefficient sum fits in i64 (< 2^63).
+- Added SAFETY comment at `fhers.rs:1438` documenting that Lagrange coefficients are small integers (< 10! ≈ 3.6e6) and the division fits in i64.
+- These are necessary comments (security/reviewable bounds), not code smells. The `as i64` cast is maintained per task spec (E.2 says "document safe bounds" as alternative to `try_from`).
+
+### E.3: Track parsing tests — DONE
+- Added three new tests to `full_pipeline.rs`:
+  - `track_a_lowercase`: verifies `"a".parse::<Track>()` → `Track::A`
+  - `track_b_lowercase`: verifies `"b".parse::<Track>()` → `Track::B`  
+  - `track_empty_defaults_b`: verifies `""` parse falls back to `Track::B`
+- All 6 Track parsing tests pass (3 existing + 3 new).
+
+## Batch B: Comment-Only Fixes (2026-05-14)
+
+### B.1: CycloFoldStepCircuit ring verifier comment (mod.rs:186-198)
+Replaced misleading PLACEHOLDER comment with honest documentation:
+- Acknowledges `ring_verification_count` is a dead counter (not real R1CS)
+- Points to real implementation at `cyclo_verifier.rs` and `tests/cyclo_r1cs_verifier.rs`
+- No logic changes
+
+### B.3: build_fold_instances AjtaiMatrix doc comment (full_pipeline.rs:709-710)
+Fixed: old comment claimed Track B uses deterministic AjtaiMatrix from aggregator.
+New: "Track B uses the same Cyclo Ajtai commitment format. The aggregator's AjtaiMatrix is experimental and not yet integrated."
+
+### B.4: compute_ajtai_commitment_for_track doc comment (full_pipeline.rs:817-820)
+Fixed: old comment claimed Track A uses Cyclo and Track B uses AjtaiMatrix.
+New: "Both tracks use the Cyclo Ajtai commitment format. Track B AjtaiMatrix integration is deferred per p2-m4-lattice-commitment."
+
+## Batch C Learnings (2026-05-14)
+
+### C.1: Enable C7 Sonobe in demo-e2e
+- Added `export PVTHFHE_RUN_C7_SONOBE=1` before the cargo run in the `demo-e2e` recipe (Justfile line 30).
+- The env var is read by `run_c7_sonobe_optional()` in pvthfhe_e2e.rs (line 376).
+- Previously, C7 Sonobe never ran during `just demo-e2e` because the env var defaulted to empty/"0".
+
+### C.2: Silent-pass markers
+- Documented three deferred phases in `finish()`:
+  - `noir_decrypt_share` — Noir decrypt-share circuit not implemented
+  - `noir_sonobe_wrap` — Sonobe wrap circuit not implemented
+  - `onchain_verify` — on-chain UltraHonk verification not implemented
+- Added a block comment at the top of `finish()` listing all deferred phases.
+- Removed misleading timing blocks (Instant::now + elapsed) for `noir_sonobe_wrap` and `onchain_verify` that were printing 0.0 ms measurements of nothing.
+- Added inline `// Phase marker only — not implemented. See deferred plans.` on each marker println.
+
+### C.3: Track B comment in bench script
+- Added a comment to `bench/i1_one_vs_two_track.py` noting that:
+  - Track B benchmarking requires `--features pipeline-extra-checks,sonobe-compressor` and `PVTHFHE_TRACK=B`
+  - The current benchmark uses Track A only (default)
+  - Users should see `just bench-comparison` for the full Track B feature set
+
+### C.4: bench-comparison features verified
+- Confirmed `just bench-comparison` recipe (Justfile line 51) has: `sonobe-compressor,demo-seeded-rng,pipeline-extra-checks` — correct per plan.

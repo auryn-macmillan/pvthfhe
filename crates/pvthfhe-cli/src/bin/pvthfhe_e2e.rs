@@ -202,6 +202,11 @@ impl BenchObserver {
     }
 
     fn finish(mut self, report: PipelineReport) -> anyhow::Result<()> {
+        // Deferred phases (not yet implemented — see deferred plans):
+        //   - noir_decrypt_share  (Noir decrypt-share circuit)
+        //   - noir_sonobe_wrap    (Sonobe wrap circuit)
+        //   - onchain_verify      (on-chain UltraHonk verification)
+        // These print phase markers only; no actual work is performed.
         self.timings.phases.pvss_share_encrypt = report.timings.phases.pvss_share_encrypt.clone();
         self.timings.phases.pvss_decrypt_prove = report.timings.phases.pvss_decrypt_prove.clone();
 
@@ -212,6 +217,7 @@ impl BenchObserver {
         println!("cyclo_fold");
         println!("compressor_prove");
         println!("compressor_verify");
+        // Phase marker only — not implemented. See deferred plans.
         println!("noir_decrypt_share");
 
         let noir_aggregator_final_start = Instant::now();
@@ -222,19 +228,11 @@ impl BenchObserver {
             noir_aggregator_final_start.elapsed().as_secs_f64() * 1_000.0;
         self.timings.phases.noir_aggregator_final.instances_run = 1;
 
-        let noir_sonobe_wrap_started = Instant::now();
-        info!(phase = "noir_sonobe_wrap", proof_digest = %report.compressed_proof_digest_hex, "phase start");
+        // Phase marker only — not implemented. See deferred plans.
         println!("noir_sonobe_wrap");
-        self.timings.phases.noir_sonobe_wrap.total_ms =
-            noir_sonobe_wrap_started.elapsed().as_secs_f64() * 1_000.0;
-        self.timings.phases.noir_sonobe_wrap.instances_run = 1;
 
-        let onchain_verify_started = Instant::now();
-        info!(phase = "onchain_verify", proof_digest = %report.compressed_proof_digest_hex, "phase start");
+        // Phase marker only — not implemented. See deferred plans.
         println!("onchain_verify");
-        self.timings.phases.onchain_verify.total_ms =
-            onchain_verify_started.elapsed().as_secs_f64() * 1_000.0;
-        self.timings.phases.onchain_verify.instances_run = 1;
 
         let (c7_ms, c7_ran) = run_c7_sonobe_optional(self.timings.n, self.timings.seed);
         if c7_ran {

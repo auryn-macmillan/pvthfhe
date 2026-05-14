@@ -706,9 +706,8 @@ fn keygen_session_id(aggregate_pk: &PublicKey, threshold: usize, seed: u64) -> S
 /// to the Cyclo fold instance, replacing the synthetic `vec![1u8; 32]` / `vec![party_id; 32]`
 /// inputs used before R8.1.
 ///
-/// When `track` is [`Track::B`] and `pipeline-extra-checks` is active, uses the
-/// deterministic [`AjtaiMatrix`] from `pvthfhe_aggregator::folding::ajtai` instead of
-/// the Cyclo Ajtai commitment.
+/// Track B uses the same Cyclo Ajtai commitment format (`pvthfhe-cyclo`).
+/// The aggregator's `AjtaiMatrix` is experimental and not yet integrated.
 pub fn build_fold_instances(
     nizk_outputs: &[(u32, &NizkStatement, &NizkWitness)],
     ct_hash: [u8; 32],
@@ -815,10 +814,10 @@ fn serialize_nizk_witness(_witness: &NizkWitness) -> CcsWitnessSecret {
     CcsWitnessSecret::new(out)
 }
 
-/// Dispatch Ajtai commitment based on pipeline track.
+/// Compute Cyclo Ajtai commitment for either pipeline track.
 ///
-/// Track A uses the Cyclo Ajtai commitment over `R_{q_commit}`.
-/// Track B uses the deterministic AjtaiMatrix from `pvthfhe_aggregator::folding::ajtai`.
+/// Both tracks use the Cyclo Ajtai commitment format (`pvthfhe-cyclo::ajtai`).
+/// The Track B `AjtaiMatrix` integration is deferred per p2-m4-lattice-commitment.
 #[allow(unused_variables)]
 fn compute_ajtai_commitment_for_track(
     witness: &NizkWitness,
@@ -1268,5 +1267,21 @@ mod tests {
     #[test]
     fn track_invalid() {
         assert!("X".parse::<Track>().is_err());
+    }
+
+    #[test]
+    fn track_a_lowercase() {
+        assert_eq!("a".parse::<Track>().unwrap(), Track::A);
+    }
+
+    #[test]
+    fn track_b_lowercase() {
+        assert_eq!("b".parse::<Track>().unwrap(), Track::B);
+    }
+
+    #[test]
+    fn track_empty_defaults_b() {
+        let track: Track = "".parse().unwrap_or(Track::B);
+        assert_eq!(track, Track::B);
     }
 }

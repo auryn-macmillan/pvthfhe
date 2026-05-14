@@ -27,6 +27,7 @@ demo-e2e n="10" t="4" seed="1":
     @echo "* On-chain Solidity verify is NOT run by this demo (use bench-comparison) *"
     @echo "* DO NOT DEPLOY — research prototype only                                 *"
     mkdir -p .sisyphus/evidence
+    export PVTHFHE_RUN_C7_SONOBE=1
     cargo run --release -p pvthfhe-cli --features "sonobe-compressor,demo-seeded-rng,pipeline-extra-checks" -- \
         demo --n {{n}} --threshold {{t}} --seed {{seed}} \
         2>&1 | tee .sisyphus/evidence/task-40-demo.log

@@ -234,6 +234,7 @@ pub trait FheBackend: Send + Sync {
         ct: &Ciphertext,
         shares: &[DecryptShare],
         threshold: usize,
+        _session_id: &[u8],
     ) -> Result<Vec<u8>, FheError>;
 }
 

@@ -13,6 +13,6 @@ fn adversarial_tampered_ciphertext_hash_is_rejected() {
 
     assert!(matches!(
         result,
-        Err(DecryptError::InvalidShare { party_id: 1 })
+        Err(DecryptError::InvalidShare { party_id: 1, .. })
     ));
 }

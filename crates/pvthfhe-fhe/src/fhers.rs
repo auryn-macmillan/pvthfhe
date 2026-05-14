@@ -624,8 +624,15 @@ impl FheBackend for FhersBackend {
     fn aggregate_keygen(&self, shares: &[KeygenShare]) -> Result<OpaquePublicKey, FheError> {
         let mut crp_bytes = None::<Vec<u8>>;
         let mut p0_share_bytes = Vec::with_capacity(shares.len());
+        let mut seen_party_ids = std::collections::HashSet::new();
 
         for share in shares {
+            if !seen_party_ids.insert(share.party_id) {
+                return Err(FheError::MalformedKeygenShare {
+                    party_id: share.party_id,
+                });
+            }
+
             let decoded = wire::decode_keygen_share(share.bytes.as_slice()).map_err(|_| {
                 FheError::MalformedKeygenShare {
                     party_id: share.party_id,
@@ -1127,6 +1134,7 @@ impl FheBackend for FhersBackend {
         ct: &Ciphertext,
         shares: &[DecryptShare],
         threshold: usize,
+        _session_id: &[u8],
     ) -> Result<Vec<u8>, FheError> {
         let (n, configured_threshold) = self.threshold_params()?;
         if shares.len() < configured_threshold {
@@ -1316,6 +1324,7 @@ impl FhersBackend {
         ct: &Ciphertext,
         shares: &[DecryptShare],
         threshold: usize,
+        _session_id: &[u8],
     ) -> Result<(Vec<u8>, Vec<u8>, Vec<i64>), FheError> {
         let (n, configured_threshold) = self.threshold_params()?;
         if shares.len() < configured_threshold {

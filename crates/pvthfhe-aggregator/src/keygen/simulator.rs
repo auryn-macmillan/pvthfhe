@@ -331,7 +331,10 @@ impl KeygenSimulator {
             commitment: hash_bytes(&party_id.to_be_bytes()),
             poly_commit: hash_bytes(&party_id.to_be_bytes()),
             encrypted_shares,
-            nizk: vec![0x00, 0x01], // valid
+            // STUB: Real NIZK for keygen shares requires wiring CycloNizkAdapter per dealer.
+            // See SECURITY.md §Keygen NIZK stubs.
+            // Tracked in p2-m6-r1cs-cyclo-verifier.md, deferred to M2.
+            nizk: vec![0x00, 0x01], // valid (stub)
         })
     }
 }

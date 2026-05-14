@@ -274,7 +274,7 @@ fn r8_aggregate(ciphertext_hex: &str, shares_hex: &str, threshold: usize) -> any
 
     let ct = pvthfhe_fhe::Ciphertext { bytes: ct_bytes };
     let plaintext = backend
-        .aggregate_decrypt(&ct, &shares, threshold)
+        .aggregate_decrypt(&ct, &shares, threshold, b"")
         .context("aggregate_decrypt")?;
     let plaintext_hex = hex::encode(&plaintext);
     println!("aggregate: plaintext_hex={plaintext_hex}");

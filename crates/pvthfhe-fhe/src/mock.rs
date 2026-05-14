@@ -107,8 +107,9 @@ impl FheBackend for MockBackend {
         ct: &Ciphertext,
         shares: &[DecryptShare],
         threshold: usize,
+        _session_id: &[u8],
     ) -> Result<Vec<u8>, FheError> {
         assert_mock_acknowledged();
-        self.inner.aggregate_decrypt(ct, shares, threshold)
+        self.inner.aggregate_decrypt(ct, shares, threshold, _session_id)
     }
 }

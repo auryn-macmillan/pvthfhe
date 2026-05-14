@@ -2255,6 +2255,7 @@ dependencies = [
  "sha2",
  "subtle",
  "syn 2.0.117",
+ "tracing",
 ]
 
 [[package]]

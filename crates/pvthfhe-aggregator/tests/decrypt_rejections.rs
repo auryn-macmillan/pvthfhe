@@ -41,6 +41,7 @@ fn rejects_malformed_share() {
         &allowed_parties,
         &dkg_root,
         &ciphertext_hash,
+        "test-session",
         1,
     );
 
@@ -76,6 +77,7 @@ fn rejects_insufficient_shares() {
         &allowed_parties,
         &dkg_root,
         &ciphertext_hash,
+        "test-session",
         1,
     );
 
@@ -111,6 +113,7 @@ fn rejects_duplicate_party() {
         &allowed_parties,
         &dkg_root,
         &ciphertext_hash,
+        "test-session",
         1,
     );
 
@@ -145,6 +148,7 @@ fn rejects_unknown_party() {
         &allowed_parties,
         &dkg_root,
         &ciphertext_hash,
+        "test-session",
         1,
     );
 

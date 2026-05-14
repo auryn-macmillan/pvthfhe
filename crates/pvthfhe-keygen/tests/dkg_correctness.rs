@@ -30,8 +30,7 @@ fn dkg_n10_t7_correctness_encrypt_decrypt() {
     }
 
     // Aggregate decryption — must recover original plaintext
-    let recovered = dkg
-        .aggregate_decrypt(&ct, &decrypt_shares)
+    let recovered = dkg.aggregate_decrypt(&ct, &decrypt_shares)
         .expect("aggregate decrypt");
     assert_eq!(
         recovered, plaintext,

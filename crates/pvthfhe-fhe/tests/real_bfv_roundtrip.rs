@@ -36,7 +36,7 @@ fn roundtrip_bfv(n: usize, t: usize, plaintext: &[u8]) -> Result<Vec<u8>, FheErr
         .map(|pid| backend.partial_decrypt(&ct, pid, &mut rng))
         .collect::<Result<_, _>>()?;
 
-    backend.aggregate_decrypt(&ct, &decrypt_shares, t)
+    backend.aggregate_decrypt(&ct, &decrypt_shares, t, b"")
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────
@@ -154,7 +154,7 @@ fn real_bfv_rejects_party_id_zero() {
     let mut bad_share = backend.partial_decrypt(&ct, 2, &mut rng).expect("share 2");
     bad_share.party_id = 0;
 
-    let result = backend.aggregate_decrypt(&ct, &[share_1, bad_share], 2);
+    let result = backend.aggregate_decrypt(&ct, &[share_1, bad_share], 2, b"");
     assert!(
         matches!(result, Err(FheError::MalformedDecryptShare { .. })),
         "party_id 0 must be rejected by FhersBackend; mock backend accepts party_id 0"
@@ -208,7 +208,7 @@ fn real_bfv_roundtrip_uses_different_parties_for_distinct_quorums() {
         .collect::<Result<_, _>>()
         .expect("partial decrypt A");
     let recovered_a = backend
-        .aggregate_decrypt(&ct, &shares_a, 4)
+        .aggregate_decrypt(&ct, &shares_a, 4, b"")
         .expect("aggregate A");
 
     // Quorum B: parties 4-7 (different set, same threshold)
@@ -217,7 +217,7 @@ fn real_bfv_roundtrip_uses_different_parties_for_distinct_quorums() {
         .collect::<Result<_, _>>()
         .expect("partial decrypt B");
     let recovered_b = backend
-        .aggregate_decrypt(&ct, &shares_b, 4)
+        .aggregate_decrypt(&ct, &shares_b, 4, b"")
         .expect("aggregate B");
 
     assert_eq!(recovered_a, plaintext);

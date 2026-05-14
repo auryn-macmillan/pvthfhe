@@ -145,6 +145,6 @@ impl DkgCeremony {
         ct: &Ciphertext,
         shares: &[DecryptShare],
     ) -> Result<Vec<u8>, DkgError> {
-        Ok(self.backend.aggregate_decrypt(ct, shares, self.t)?)
+        Ok(self.backend.aggregate_decrypt(ct, shares, self.t, b"")?)
     }
 }

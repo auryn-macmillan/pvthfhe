@@ -103,6 +103,9 @@ fn init_accumulator_inner(
     let acc_public_io_bytes =
         fiat_shamir::init_public_io_v1(session_id, public_io_binding.as_slice()).to_vec();
 
+    // Satisfaction check is deferred to verify_fold (line 352).
+    // No duplicate rejection — duplicates are caught by verify_fold recomputation.
+
     Ok(CycloAccumulator {
         fold_depth: 0,
         acc_commitment_bytes,

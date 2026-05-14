@@ -55,6 +55,24 @@ This is a research prototype and contains components where formal soundness proo
 - **C2 (Encryption Correctness Gap)**: **Encryption is trusted; no verifiable proof of correct encryption exists**. `backend.encrypt()` produces a ciphertext without a proof that it matches the plaintext under the aggregate key. A malicious encryptor can produce a semantically incorrect ciphertext. Mitigation: the semantic roundtrip check detects errors at the aggregate level only. See `threat-model-v1.md` §7.2 item 12.
 - **C7 (Final Aggregation Gap)**: **Partially addressed**. C7 Sonobe step circuit (P1.3) folds Lagrange recombination into Nova accumulator at N=8. Phase 2 N=8192 off-circuit Merkle-proof verification implemented (8-ary Keccak256 Merkle tree; `verify_merkle_proofs()` called before Nova folding; trust boundary: if Merkle verifier is executed, Nova external inputs are sound). Phase 3 adds in-circuit Merkle verification via `C7MerkleStepCircuit` with a Poseidon placeholder (linear-combination based, not cryptographically secure). Full Poseidon R1CS deferred to Phase B. Noir aggregator_final circuit provides standalone verification. Production C7 requires real Poseidon R1CS in-circuit Merkle proof + N=8192 Noir circuit.
 
+### R6 Adversarial Audit Findings (2026-05-14)
+
+SmudgeSlotRegistry enforcement is now unconditional (was gated behind pipeline-extra-checks). See round6-adversarial-remediation.md.
+
+Known limitations (documented, not exploitable):
+- e_i=0 in algebraic proof (defense-in-depth; BFV proof provides RLWE soundness)
+- Circular pvss_commitment in algebraic proof (defense-in-depth; D2/BFV layers bind independently)
+- BFV sigma challenge relies on caller for session binding (all callers provide full binding)
+- Ajtai witness bound enforced only at commit time (verifier relies on binding + sigma bounds)
+- Compressor hash-accumulates (full lattice fold deferred to P3)
+- Keygen NIZK is a stub in simulator (real pipeline uses RealNizkAdapter)
+
+Cross-session replay hardening:
+- aggregate_decrypt now checks session_id against external expectation
+- D2 hash binding now includes dkg_root
+- FhersBackend::aggregate_keygen now detects duplicate party_id
+- Epoch hash expanded from 8 bytes to full 32-byte SHA-256
+
 ### Off-Circuit Merkle Trust Model (C7 Phase 2)
 
 The C7 Phase 2 Merkle verification is performed off-circuit before Nova folding. The

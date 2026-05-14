@@ -21,8 +21,8 @@ const FINAL_PLAINTEXT_HASH_DOMAIN: &[u8] = b"pvthfhe-final-plaintext-hash-v1";
 
 #[derive(Debug, thiserror::Error)]
 pub enum DecryptError {
-    #[error("invalid share from party {party_id}")]
-    InvalidShare { party_id: u32 },
+    #[error("invalid share from party {party_id}: {reason}")]
+    InvalidShare { party_id: u32, reason: String },
     #[error("insufficient shares: need {needed}, got {got}")]
     InsufficientShares { needed: usize, got: usize },
     #[error("duplicate party id {0}")]
@@ -237,7 +237,7 @@ pub fn verify_final_aggregation(
         || proof.statement_digest != final_aggregation_statement_digest(stmt)
         || proof.relation_digest != final_aggregation_relation_digest(stmt)
     {
-        return Err(DecryptError::InvalidShare { party_id: 0 });
+        return Err(DecryptError::InvalidShare { party_id: 0, reason: "validation failed".into() });
     }
     Ok(())
 }
@@ -250,7 +250,7 @@ pub fn verify_dkg_decryption_anchor_equality(
         || dkg.sk_agg_commits_root != decrypt.expected_sk_commits_root
         || dkg.esm_agg_commits_root != decrypt.expected_esm_commits_root
     {
-        return Err(DecryptError::InvalidShare { party_id: 0 });
+        return Err(DecryptError::InvalidShare { party_id: 0, reason: "validation failed".into() });
     }
     Ok(())
 }
@@ -271,6 +271,7 @@ pub fn aggregate_decrypt(
     allowed_parties: &[u32],
     dkg_root: &[u8; 32],
     ciphertext_hash: &[u8; 32],
+    session_id: &str,
     _epoch: u64,
 ) -> Result<Vec<u8>, DecryptError> {
     let mut seen_parties = HashSet::new();
@@ -288,6 +289,7 @@ pub fn aggregate_decrypt(
         if payload.ciphertext_hash != *ciphertext_hash {
             return Err(DecryptError::InvalidShare {
                 party_id: payload.party_id,
+                reason: "ciphertext hash mismatch".into(),
             });
         }
 
@@ -306,6 +308,12 @@ pub fn aggregate_decrypt(
         })?;
 
         let party_index = (payload.party_id.saturating_sub(1)) as usize;
+        if opened.statement.session_id.as_slice() != session_id.as_bytes() {
+            return Err(DecryptError::InvalidShare {
+                party_id: payload.party_id,
+                reason: "session_id mismatch".into(),
+            });
+        }
         if opened.statement.party_index != party_index
             || opened.statement.dkg_root != dkg_root.to_vec()
             || sha256_bytes(&opened.statement.ciphertext_u) != *ciphertext_hash
@@ -333,7 +341,7 @@ pub fn aggregate_decrypt(
         });
     }
 
-    Ok(backend.aggregate_decrypt(ct, &valid_shares, threshold)?)
+    Ok(backend.aggregate_decrypt(ct, &valid_shares, threshold, session_id.as_bytes())?)
 }
 
 fn validate_final_aggregation_statement(
@@ -347,7 +355,7 @@ fn validate_final_aggregation_statement(
         || stmt.selected_shares.len() < stmt.threshold
         || stmt.selected_shares.len() != stmt.lagrange_coefficients.len()
     {
-        return Err(DecryptError::InvalidShare { party_id: 0 });
+        return Err(DecryptError::InvalidShare { party_id: 0, reason: "validation failed".into() });
     }
     validate_strictly_sorted(&stmt.accepted_participant_ids)?;
 
@@ -376,6 +384,7 @@ fn validate_final_aggregation_statement(
         {
             return Err(DecryptError::InvalidShare {
                 party_id: u32::from(share.participant_id),
+                reason: "invalid selected share".into(),
             });
         }
         selected_ids.push(share.participant_id);
@@ -390,6 +399,7 @@ fn validate_final_aggregation_statement(
         {
             return Err(DecryptError::InvalidShare {
                 party_id: u32::from(share.participant_id),
+                reason: "lagrange coefficient mismatch".into(),
             });
         }
         combined = add_mod(
@@ -403,7 +413,7 @@ fn validate_final_aggregation_statement(
         );
     }
     if combined != stmt.combined_share_mod_plaintext % modulus {
-        return Err(DecryptError::InvalidShare { party_id: 0 });
+        return Err(DecryptError::InvalidShare { party_id: 0, reason: "validation failed".into() });
     }
 
     validate_crt(&stmt.crt, modulus, stmt.combined_share_mod_plaintext)?;
@@ -411,18 +421,18 @@ fn validate_final_aggregation_statement(
     if stmt.plaintext_hash
         != compute_final_plaintext_hash(&stmt.plaintext_encoding.decoded_plaintext)
     {
-        return Err(DecryptError::InvalidShare { party_id: 0 });
+        return Err(DecryptError::InvalidShare { party_id: 0, reason: "validation failed".into() });
     }
     Ok(())
 }
 
 fn validate_strictly_sorted(values: &[u16]) -> Result<(), DecryptError> {
     if values.iter().any(|value| *value == 0) {
-        return Err(DecryptError::InvalidShare { party_id: 0 });
+        return Err(DecryptError::InvalidShare { party_id: 0, reason: "validation failed".into() });
     }
     for window in values.windows(2) {
         if window[0] >= window[1] {
-            return Err(DecryptError::InvalidShare { party_id: 0 });
+            return Err(DecryptError::InvalidShare { party_id: 0, reason: "validation failed".into() });
         }
     }
     Ok(())
@@ -446,6 +456,7 @@ fn lagrange_coefficient_at_zero_mod(
     }
     let inv = mod_inverse(denominator, modulus).ok_or(DecryptError::InvalidShare {
         party_id: u32::from(participant_id),
+        reason: "modular inverse failed".into(),
     })?;
     Ok(mul_mod(numerator, inv, modulus))
 }
@@ -460,15 +471,15 @@ fn validate_crt(
         || crt.reconstructed_mod_plaintext >= plaintext_modulus
         || crt.reconstructed_mod_plaintext != combined_share % plaintext_modulus
     {
-        return Err(DecryptError::InvalidShare { party_id: 0 });
+        return Err(DecryptError::InvalidShare { party_id: 0, reason: "validation failed".into() });
     }
     let mut seen_moduli = HashSet::new();
     for (&modulus, &residue) in crt.moduli.iter().zip(&crt.residues) {
         if modulus < 2 || residue >= modulus || !seen_moduli.insert(modulus) {
-            return Err(DecryptError::InvalidShare { party_id: 0 });
+            return Err(DecryptError::InvalidShare { party_id: 0, reason: "validation failed".into() });
         }
         if crt.reconstructed_mod_plaintext % modulus != residue {
-            return Err(DecryptError::InvalidShare { party_id: 0 });
+            return Err(DecryptError::InvalidShare { party_id: 0, reason: "validation failed".into() });
         }
     }
     Ok(())
@@ -476,24 +487,24 @@ fn validate_crt(
 
 fn validate_plaintext_decoding(encoding: &PlaintextEncodingClaim) -> Result<(), DecryptError> {
     let Some((&original_len, payload_slots)) = encoding.slots.split_first() else {
-        return Err(DecryptError::InvalidShare { party_id: 0 });
+        return Err(DecryptError::InvalidShare { party_id: 0, reason: "validation failed".into() });
     };
     if original_len as usize != encoding.decoded_plaintext.len()
         || encoding.decoded_plaintext.len() > payload_slots.len() * 2
     {
-        return Err(DecryptError::InvalidShare { party_id: 0 });
+        return Err(DecryptError::InvalidShare { party_id: 0, reason: "validation failed".into() });
     }
     let mut bytes = Vec::with_capacity(payload_slots.len() * 2);
     for slot in payload_slots {
         if *slot >= encoding.plaintext_modulus {
-            return Err(DecryptError::InvalidShare { party_id: 0 });
+            return Err(DecryptError::InvalidShare { party_id: 0, reason: "validation failed".into() });
         }
         bytes.push((slot & 0xff) as u8);
         bytes.push(((slot >> 8) & 0xff) as u8);
     }
     bytes.truncate(original_len as usize);
     if bytes != encoding.decoded_plaintext {
-        return Err(DecryptError::InvalidShare { party_id: 0 });
+        return Err(DecryptError::InvalidShare { party_id: 0, reason: "validation failed".into() });
     }
     Ok(())
 }

@@ -97,7 +97,7 @@ fn run_benchmark(n: usize, t: usize) -> Result<BenchRow, FheError> {
     let partial_decrypt_total_s = elapsed_seconds(partial_started);
 
     let aggregate_started = Instant::now();
-    let recovered = backend.aggregate_decrypt(&ciphertext, &shares, backend_threshold)?;
+    let recovered = backend.aggregate_decrypt(&ciphertext, &shares, backend_threshold, b"")?;
     let aggregate_decrypt_s = elapsed_seconds(aggregate_started);
     if recovered != PLAINTEXT {
         panic!(

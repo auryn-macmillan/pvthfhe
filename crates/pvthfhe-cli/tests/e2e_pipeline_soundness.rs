@@ -98,13 +98,13 @@ mod tests {
 
         // With t valid shares, aggregate succeeds and recovers plaintext.
         let recovered = backend
-            .aggregate_decrypt(&ct, &valid_shares, t)
+            .aggregate_decrypt(&ct, &valid_shares, t, b"")
             .expect("aggregate_decrypt with t valid shares");
         assert_eq!(recovered, plaintext);
 
         // With only t-1 valid shares, aggregate fails.
         let insufficient = &valid_shares[..t - 1];
-        let result = backend.aggregate_decrypt(&ct, insufficient, t);
+        let result = backend.aggregate_decrypt(&ct, insufficient, t, b"");
         assert!(
             result.is_err(),
             "aggregate_decrypt with t-1 shares should fail, got: {:?}",
@@ -119,7 +119,7 @@ mod tests {
             .map(|b| b.wrapping_add(1))
             .collect();
         tampered[1].bytes = pvthfhe_types::ProtocolBytes(corruption);
-        let result = backend.aggregate_decrypt(&ct, &tampered, t);
+        let result = backend.aggregate_decrypt(&ct, &tampered, t, b"");
         assert!(
             result.is_err(),
             "aggregate_decrypt with tampered share should fail, got: {:?}",

@@ -46,6 +46,7 @@ fn no_plaintext_without_valid_nizk_proof() {
         &[1, 2],
         &dkg_root,
         &ciphertext_hash,
+        "test-session",
         42,
     );
 

@@ -375,6 +375,11 @@ pub fn verify(
     Ok(())
 }
 
+// The challenge is derived from `binding_data` which must include session_id,
+// participant_id, and epoch binding. The verifier relies on the caller to
+// provide complete binding data — this function does NOT internally bind to
+// any protocol identifiers. Callers in nizk_share.rs and adapter.rs provide
+// full binding via bfv_sigma_binding_data().
 #[allow(clippy::too_many_arguments)]
 fn derive_challenge(
     t0_rns: &[u64],

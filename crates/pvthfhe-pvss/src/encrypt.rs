@@ -402,8 +402,9 @@ fn validate_context(ctx: &PvssContext) -> Result<(), PvssError> {
     Ok(())
 }
 
-fn share_proof_dkg_root(ctx: &PvssContext) -> Vec<u8> {
+pub fn share_proof_dkg_root(ctx: &PvssContext) -> Vec<u8> {
     if ctx.dkg_root.is_empty() {
+        tracing::warn!("share_proof_dkg_root: dkg_root is empty, falling back to session_id (provisional root; will break when full DkgAnchorSet rolls out)");
         ctx.session_id.clone()
     } else {
         ctx.dkg_root.clone()

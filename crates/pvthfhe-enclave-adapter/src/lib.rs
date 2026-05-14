@@ -110,7 +110,7 @@ impl<B: FheBackend> EnclaveAggregator for PvthfheEnclaveAggregator<B> {
             })
             .collect();
         self.backend
-            .aggregate_decrypt(&ciphertext, &fhe_shares, self.threshold)
+            .aggregate_decrypt(&ciphertext, &fhe_shares, self.threshold, b"")
             .map_err(|e| format!("{e:?}"))
     }
 

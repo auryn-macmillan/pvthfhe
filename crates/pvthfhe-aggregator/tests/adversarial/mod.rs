@@ -146,6 +146,7 @@ fn aggregate_fixture_shares(
         &fixture.allowed_parties,
         &fixture.dkg_root,
         &fixture.ciphertext_hash,
+        "test-session",
         fixture.epoch,
     )
 }

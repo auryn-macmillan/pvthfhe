@@ -34,7 +34,7 @@ proptest! {
         let ds1 = backend.partial_decrypt(&ct, 1, &mut rng).unwrap();
         let ds2 = backend.partial_decrypt(&ct, 2, &mut rng).unwrap();
 
-        let recovered = backend.aggregate_decrypt(&ct, &[ds0, ds1, ds2], 2).unwrap();
+        let recovered = backend.aggregate_decrypt(&ct, &[ds0, ds1, ds2], 2, b"").unwrap();
         prop_assert_eq!(recovered, plaintext);
     }
 }

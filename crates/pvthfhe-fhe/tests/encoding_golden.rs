@@ -40,7 +40,7 @@ fn encoding_golden_real_ascii_roundtrip() {
         .expect("partial decrypt shares");
 
     let recovered = backend
-        .aggregate_decrypt(&ciphertext, &decrypt_shares, 2)
+        .aggregate_decrypt(&ciphertext, &decrypt_shares, 2, b"")
         .expect("aggregate decrypt");
 
     assert_eq!(recovered, plaintext);

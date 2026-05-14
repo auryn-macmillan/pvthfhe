@@ -31,7 +31,7 @@ fn fhers_aggregate_decrypt_happy_path() {
         .expect("partial decrypt shares");
 
     let recovered = backend
-        .aggregate_decrypt(&ciphertext, &shares, 3)
+        .aggregate_decrypt(&ciphertext, &shares, 3, b"")
         .expect("aggregate decrypt");
 
     assert_eq!(recovered, b"42");
@@ -48,7 +48,7 @@ fn fhers_aggregate_decrypt_insufficient_shares() {
         .collect::<Result<Vec<_>, _>>()
         .expect("partial decrypt shares");
 
-    let result = backend.aggregate_decrypt(&ciphertext, &shares, 3);
+    let result = backend.aggregate_decrypt(&ciphertext, &shares, 3, b"");
 
     assert_eq!(
         result,
@@ -67,7 +67,7 @@ fn fhers_aggregate_decrypt_all_shares() {
         .expect("partial decrypt shares");
 
     let recovered = backend
-        .aggregate_decrypt(&ciphertext, &shares, 3)
+        .aggregate_decrypt(&ciphertext, &shares, 3, b"")
         .expect("aggregate decrypt");
 
     assert_eq!(recovered, b"42");
@@ -86,7 +86,7 @@ fn fhers_aggregate_decrypt_rejects_tampered_share_party_id() {
 
     shares[1].party_id = 0;
 
-    let result = backend.aggregate_decrypt(&ciphertext, &shares, 3);
+    let result = backend.aggregate_decrypt(&ciphertext, &shares, 3, b"");
     assert!(
         matches!(result, Err(FheError::MalformedDecryptShare { .. })),
         "tampered share (party_id=0) must be rejected, got: {result:?}"
@@ -106,7 +106,7 @@ fn fhers_aggregate_decrypt_rejects_tampered_share_out_of_range_party_id() {
 
     shares[1].party_id = 999;
 
-    let result = backend.aggregate_decrypt(&ciphertext, &shares, 3);
+    let result = backend.aggregate_decrypt(&ciphertext, &shares, 3, b"");
     assert!(
         matches!(result, Err(FheError::MalformedDecryptShare { .. })),
         "tampered share (party_id=999 out of range) must be rejected, got: {result:?}"
@@ -137,7 +137,7 @@ fn fhers_aggregate_decrypt_wrong_ciphertext() {
         pvthfhe_fhe::wire::encode_decrypt_share(decoded.d_share_poly.as_slice()).into();
 
     let recovered = backend
-        .aggregate_decrypt(&ct_b, &[share_a_1, share_a_2, share_b_3], 3)
+        .aggregate_decrypt(&ct_b, &[share_a_1, share_a_2, share_b_3], 3, b"")
         .expect("aggregate decrypt should produce garbled bytes");
 
     assert_ne!(recovered, b"42");

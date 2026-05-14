@@ -162,7 +162,7 @@ fn all_golden_vectors() {
 
         let ct = pvthfhe_fhe::types::Ciphertext { bytes: expected_ct };
         let recovered = backend
-            .aggregate_decrypt(&ct, &decrypt_shares, v.params.threshold)
+            .aggregate_decrypt(&ct, &decrypt_shares, v.params.threshold, b"")
             .expect("aggregate_decrypt failed");
         let expected_recovered =
             hex::decode(&v.recovered_plaintext).expect("bad hex in recovered_plaintext");

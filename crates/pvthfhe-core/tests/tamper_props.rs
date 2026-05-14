@@ -43,7 +43,7 @@ proptest! {
             ds0.bytes[pos] ^= tamper_byte;
         }
 
-        let result = backend.aggregate_decrypt(&ct, &[ds0, ds1, ds2], 2);
+        let result = backend.aggregate_decrypt(&ct, &[ds0, ds1, ds2], 2, b"");
         match result {
             Err(_) => {}
             Ok(recovered) => {

@@ -70,6 +70,7 @@ fn tampered_partial_rejected_no_plaintext() {
         &[1, 2],
         &dkg_root,
         &ciphertext_hash,
+        "test-session",
         epoch,
     );
 

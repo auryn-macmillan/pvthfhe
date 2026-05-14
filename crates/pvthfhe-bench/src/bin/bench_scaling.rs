@@ -198,6 +198,7 @@ fn run_pipeline_with_backend<B: FheBackend + Clone + 'static>(
         &allowed,
         &dkg_root,
         &ct_hash,
+        "bench",
         1,
     )
     .map_err(|err| format!("aggregate_decrypt: {err}"))?;

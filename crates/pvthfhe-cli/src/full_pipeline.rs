@@ -24,7 +24,6 @@ use pvthfhe_pvss::nizk_decrypt::{
     compute_decrypt_ciphertext_hash, derive_party_binding, DecryptNizkMode, DecryptNizkProof,
     DecryptNizkProver, DecryptNizkStatement, DecryptNizkVerifier, DecryptNizkWitness,
 };
-#[cfg(feature = "pipeline-extra-checks")]
 use pvthfhe_pvss::slot_registry::SmudgeSlotRegistry;
 #[cfg(all(feature = "pipeline-extra-checks", feature = "sonobe-compressor"))]
 use pvthfhe_compressor::sonobe::{
@@ -430,8 +429,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
     observer.phase_start("compressor_new", None);
     let compressor_new_started = Instant::now();
-    let mut epoch_hash = [0u8; 32];
-    epoch_hash[..8].copy_from_slice(&cfg.seed.to_be_bytes());
+    let epoch_hash: [u8; 32] = Sha256::digest(cfg.seed.to_be_bytes()).into();
     let compressor = Compressor::new(epoch_hash, cfg.n)?;
     observer.phase_end("compressor_new", elapsed_ms(compressor_new_started));
 
@@ -482,7 +480,6 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         ));
     }
 
-    #[cfg(feature = "pipeline-extra-checks")]
     let mut smudge_slot_registry = SmudgeSlotRegistry::new();
 
     let mut shares = Vec::with_capacity(cfg.t);
@@ -568,13 +565,10 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                     esm_agg_share: Some(*esm_agg_share),
                     esm_noise_poly_bytes: Some(esm_bytes.clone()),
                 };
-                #[cfg(feature = "pipeline-extra-checks")]
-                {
-                    let pid = u16::try_from(party_id).context("party id out of u16 range")?;
-                    smudge_slot_registry
-                        .check_and_record(session_id.as_bytes(), pid, 1)
-                        .context("smudge slot reuse detected")?;
-                }
+                let pid = u16::try_from(party_id).context("party id out of u16 range")?;
+                smudge_slot_registry
+                    .check_and_record(session_id.as_bytes(), pid, 1)
+                    .context("smudge slot reuse detected")?;
                 let proof = DecryptNizkProver::prove(&statement, &witness)
                     .with_context(|| format!("NIZK prove failed for party {party_id}"))?;
                 share.nizk_proof_bytes = Some(proof.proof_bytes.clone());
@@ -620,7 +614,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     #[cfg(feature = "pipeline-extra-checks")]
     {
         let (agg, pt_poly, _) = backend
-            .aggregate_decrypt_with_poly(&ciphertext, &shares, backend_threshold)
+            .aggregate_decrypt_with_poly(&ciphertext, &shares, backend_threshold, session_id.as_bytes())
             .context("aggregate_decrypt")?;
         aggregate_plaintext = agg;
         plaintext_poly_bytes = pt_poly;
@@ -628,7 +622,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     #[cfg(not(feature = "pipeline-extra-checks"))]
     {
         aggregate_plaintext = backend
-            .aggregate_decrypt(&ciphertext, &shares, backend_threshold)
+            .aggregate_decrypt(&ciphertext, &shares, backend_threshold, session_id.as_bytes())
             .context("aggregate_decrypt")?;
     }
     let aggregate_decrypt_ms = elapsed_ms(aggregate_decrypt_started);

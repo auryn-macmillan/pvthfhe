@@ -58,6 +58,7 @@ fn decrypt_roundtrip_golden() {
         &allowed_parties,
         &dkg_root,
         &ciphertext_hash,
+        "test-session",
         1,
     )
     .unwrap();

@@ -82,7 +82,7 @@ fn encrypt_decrypt_roundtrip_recovers_secret() {
                 .partial_decrypt(&ciphertext, 1, &mut rng)
                 .expect("partial decrypt");
             let share_bytes = backend
-                .aggregate_decrypt(&ciphertext, &[decrypt_share], 1)
+                .aggregate_decrypt(&ciphertext, &[decrypt_share], 1, b"")
                 .expect("aggregate decrypt");
 
             adapter

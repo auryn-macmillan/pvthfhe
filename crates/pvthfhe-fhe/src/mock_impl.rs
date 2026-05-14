@@ -165,6 +165,7 @@ impl FheBackend for MockBackendInner {
         ct: &Ciphertext,
         shares: &[DecryptShare],
         threshold: usize,
+        _session_id: &[u8],
     ) -> Result<Vec<u8>, FheError> {
         let mut seen = std::collections::BTreeSet::new();
         for s in shares {
@@ -209,7 +210,7 @@ mod unit_tests {
             nizk_proof_bytes: None,
         };
         let shares = vec![share1.clone(), share1.clone()];
-        let result = backend.aggregate_decrypt(&ct, &shares, 2);
+        let result = backend.aggregate_decrypt(&ct, &shares, 2, b"");
         assert!(
             matches!(result, Err(FheError::MalformedDecryptShare { party_id: 1 })),
             "expected MalformedDecryptShare for duplicate party_id 1, got: {result:?}"

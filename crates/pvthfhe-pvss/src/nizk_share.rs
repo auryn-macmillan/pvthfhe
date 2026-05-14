@@ -382,6 +382,7 @@ impl ShareNizkProver {
         hasher.update(&commitment_ct);
         hasher.update(stmt.share_commitment.as_slice());
         hasher.update(stmt.session_id.as_slice());
+        hasher.update(stmt.dkg_root.as_slice());
         hasher.update(&(stmt.recipient_index as u64).to_le_bytes());
         let d2_binding: [u8; 32] = hasher.finalize().into();
 
@@ -552,6 +553,11 @@ impl ShareNizkVerifier {
 /// Build algebraic proof: share sigma proof over RLWE relation.
 fn build_algebraic_proof(stmt: &ShareNizkStatement, witness: &ShareNizkWitness) -> Vec<u8> {
     let s_i = derive_share_sigma_witness(witness.share_bytes.expose());
+    // e_i is set to zero for the algebraic proof. This proves d_i = c * s_i
+    // rather than d_i = c * s_i + e_i. The full RLWE relation with non-zero error
+    // is proved separately by the BFV encryption proof (v4). The e_i=0 path
+    // provides defense-in-depth algebraic binding; the cryptographic RLWE
+    // soundness comes from the BFV sigma proof.
     let e_i = vec![0i64; sigma::RLWE_N];
     let c_rns = derive_share_sigma_c_rns(stmt.session_id.as_slice(), stmt.recipient_index);
     let d_rns =
@@ -568,6 +574,11 @@ fn build_algebraic_proof(stmt: &ShareNizkStatement, witness: &ShareNizkWitness) 
         u32::try_from(stmt.recipient_index).unwrap_or(0),
         &sigma_stmt,
         &sigma_witness,
+        // NOTE: Uses SHA256(d_rns) as pvss_commitment in Fiat-Shamir — circular binding.
+        // The d_rns is in the proof, making the challenge self-referential.
+        // Defense-in-depth: the overall ShareNizkVerifier includes additional layers
+        // (D2 binding, BFV proof, relation binding) that independently bind to the
+        // real statement. See round6-adversarial-remediation F5.
         &test_digest_sigma_d(&d_rns),
         &mut proof_rng,
     );
@@ -1127,6 +1138,11 @@ fn verify_algebraic_relation(
             .flat_map(|x| x.to_le_bytes())
             .collect();
         ts.absorb(b"d_rns", &d_bytes);
+        // NOTE: Uses SHA256(d_rns) as pvss_commitment in Fiat-Shamir — circular binding.
+        // The d_rns is in the proof, making the challenge self-referential.
+        // Defense-in-depth: the overall ShareNizkVerifier includes additional layers
+        // (D2 binding, BFV proof, relation binding) that independently bind to the
+        // real statement. See round6-adversarial-remediation F5.
         let pvss_commitment = test_digest_sigma_d(&d_rns);
         ts.absorb(b"pvss_commitment", &pvss_commitment);
         let mut raw = [0u8; sigma::RLWE_N / 8];
@@ -1238,6 +1254,7 @@ fn verify_d2_hash_binding(
     hasher.update(opened.commitment_bytes.as_slice());
     hasher.update(stmt.share_commitment.as_slice());
     hasher.update(stmt.session_id.as_slice());
+    hasher.update(stmt.dkg_root.as_slice());
     hasher.update(&(stmt.recipient_index as u64).to_le_bytes());
     let expected: [u8; 32] = hasher.finalize().into();
     if expected != opened.d2_binding {

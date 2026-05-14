@@ -64,7 +64,7 @@ fn test_round_trip<B: FheBackend>(backend: B) {
         "partial_decrypt(2) failed",
     );
     let recovered = must_ok(
-        backend.aggregate_decrypt(&ct, &[ds1, ds2], t),
+        backend.aggregate_decrypt(&ct, &[ds1, ds2], t, b""),
         "aggregate_decrypt failed",
     );
     assert_eq!(recovered, plaintext.as_ref());
@@ -140,7 +140,7 @@ fn test_insufficient_shares<B: FheBackend>(backend: B) {
         .partial_decrypt(&ct, 3, &mut rng)
         .expect("partial_decrypt(3)");
     // Only t-1 shares when threshold is t — must fail
-    let result = backend.aggregate_decrypt(&ct, &[ds1.clone()], t);
+    let result = backend.aggregate_decrypt(&ct, &[ds1.clone()], t, b"");
     assert!(
         matches!(result, Err(FheError::InsufficientShares { .. })),
         "expected InsufficientShares, got {:?}",
@@ -150,7 +150,7 @@ fn test_insufficient_shares<B: FheBackend>(backend: B) {
     // (fhe.rs uses 1-based party IDs).
     let mut bad_share = ds2;
     bad_share.party_id = 0;
-    let result = backend.aggregate_decrypt(&ct, &[ds1, bad_share], t);
+    let result = backend.aggregate_decrypt(&ct, &[ds1, bad_share], t, b"");
     assert!(
         matches!(result, Err(FheError::MalformedDecryptShare { .. })),
         "expected MalformedDecryptShare for party_id=0, got {:?}",
@@ -213,7 +213,7 @@ fn test_primary_backend_surface<B: FheBackend>(backend: B) {
     ));
 
     assert!(matches!(
-        backend.aggregate_decrypt(&pvthfhe_fhe::Ciphertext { bytes: vec![] }, &[], 1),
+        backend.aggregate_decrypt(&pvthfhe_fhe::Ciphertext { bytes: vec![] }, &[], 1, b""),
         Err(FheError::Backend { .. })
     ));
 }

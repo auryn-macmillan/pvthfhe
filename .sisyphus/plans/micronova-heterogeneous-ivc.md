@@ -141,7 +141,7 @@ impl MicroNovaCompressor {
 | `heterogeneous_folds_verify_with_nova` | Full prove/verify cycle |
 | `heterogeneous_depth_4_tree` | 16 leaves → 8 → 4 → 2 → 1 (5 levels) |
 
-### MN.5 — Integration with demo-e2e
+### MN.5 — Integration with demo-e2e ✅ DONE
 
 **File**: `crates/pvthfhe-cli/src/full_pipeline.rs`
 
@@ -158,11 +158,11 @@ match std::env::var("PVTHFHE_COMPRESSOR").as_deref() {
 }
 ```
 
-### MN.6 — Documentation
+### MN.6 — Documentation ✅ DONE
 
-- Update `ARCHITECTURE.md`: MicroNova compressor status
-- Update `p3-micronova-target.md`: mark MN.1-MN.5 complete
-- Add `docs/security-proofs/p3/heterogeneous-ivc.md`: soundness argument
+- [x] Update `ARCHITECTURE.md`: MicroNova compressor status
+- [x] Add `docs/security-proofs/p3/heterogeneous-ivc.md`: soundness argument
+- [ ] Update `p3-micronova-target.md`: mark MN.1-MN.5 complete
 
 ---
 

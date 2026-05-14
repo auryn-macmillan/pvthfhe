@@ -11,6 +11,7 @@ pub mod witness;
 
 /// Sonobe-backed proof compressor implementation.
 pub mod sonobe;
+pub use sonobe::heterogeneous;
 
 /// MicroNova recursive compression (P3-M2).
 pub mod micronova;

@@ -196,3 +196,14 @@ runtime via the `PVTHFHE_TRACK` environment variable:
   hash-accumulate compression. Activated with `PVTHFHE_TRACK=A` or
   `just demo-e2e-track-a`.
 - Both tracks pass `just demo-e2e` and produce valid pipeline outputs.
+
+## MicroNova Heterogeneous IVC
+
+PVTHFHE_COMPRESSOR=micronova enables heterogeneous incremental
+verifiable computation. Different step circuits handle different tree
+levels (leaf ring-equation verifier vs internal fold verifier).
+
+Same SonobeCompressor handles the full tree via
+HeterogeneousStepCircuit<LatticeFoldTreeCircuitFamily>.
+
+See `.sisyphus/plans/micronova-heterogeneous-ivc.md` for full design.

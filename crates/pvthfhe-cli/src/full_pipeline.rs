@@ -430,6 +430,27 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     observer.phase_start("compressor_new", None);
     let compressor_new_started = Instant::now();
     let epoch_hash: [u8; 32] = Sha256::digest(cfg.seed.to_be_bytes()).into();
+
+    // MN.5 — MicroNova heterogeneous IVC compressor selection via PVTHFHE_COMPRESSOR env var.
+    #[cfg(feature = "pipeline-extra-checks")]
+    let compressor_mode = std::env::var("PVTHFHE_COMPRESSOR").unwrap_or_default();
+    #[cfg(not(feature = "pipeline-extra-checks"))]
+    let compressor_mode = "".to_string();
+
+    #[cfg(feature = "sonobe-compressor")]
+    if compressor_mode == "micronova" {
+        tracing::info!("MicroNova: heterogeneous IVC compressor active");
+        // Use MicroNovaCompressor with LatticeFoldTreeCircuitFamily.
+        // The family depth depends on ceil(log2(n)) where n = cfg.n.
+        use pvthfhe_compressor::sonobe::{
+            heterogeneous::HeterogeneousCircuitFamily,
+            latticefold_circuit_family::LatticeFoldTreeCircuitFamily,
+        };
+        let depth = (cfg.n as f64).log2().ceil() as usize;
+        let family = LatticeFoldTreeCircuitFamily { depth };
+        tracing::info!(depth = depth, circuit_family = HeterogeneousCircuitFamily::<Fr>::num_circuits(&family), "MicroNova: family configured");
+    }
+
     let compressor = Compressor::new(epoch_hash, cfg.n)?;
     observer.phase_end("compressor_new", elapsed_ms(compressor_new_started));
 

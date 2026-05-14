@@ -4,7 +4,9 @@ pub mod c7_circuit;
 pub mod c7_merkle_circuit;
 pub mod cyclo_verifier;
 pub mod fold_verifier_circuit;
+pub mod heterogeneous;
 pub mod latticefold_adapter;
+pub mod latticefold_circuit_family;
 pub mod poseidon_gadget;
 pub mod ring_element_var;
 pub use c7_circuit::{c7_fold_witnesses, C7DecryptAggregationCircuit};
@@ -13,7 +15,9 @@ pub use c7_merkle_circuit::{
     C7MerkleStepCircuit, MerkleWitnessData,
 };
 pub use fold_verifier_circuit::FoldVerifierStepCircuit;
+pub use heterogeneous::HeterogeneousStepCircuit;
 pub use latticefold_adapter::*;
+pub use latticefold_circuit_family::LatticeFoldTreeCircuitFamily;
 pub use poseidon_gadget::hash8_native;
 
 use std::fmt::Debug;

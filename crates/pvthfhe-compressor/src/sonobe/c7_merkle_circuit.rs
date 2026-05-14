@@ -253,6 +253,7 @@ impl<F: PrimeField> StepCircuit for C7MerkleStepCircuit<F> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ark_bn254::Fr;
 
     #[test]
     fn merkle_circuit_descriptor_width_depth5() {

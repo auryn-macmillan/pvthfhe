@@ -15,6 +15,7 @@ fn cyclo_fold_accepts_tuple_external_inputs() {
         FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(100u64))).unwrap(),
         FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(50u64))).unwrap(),
         FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(3u64))).unwrap(),
+        FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(0u64))).unwrap(),
     ];
 
     let external_inputs = ExternalInputs3Var(
@@ -27,9 +28,10 @@ fn cyclo_fold_accepts_tuple_external_inputs() {
         .generate_step_constraints(cs.clone(), 0, z_i, external_inputs)
         .expect("generate step constraints");
 
-    assert_eq!(next_state.len(), 3);
+    assert_eq!(next_state.len(), 4);
 
     assert_eq!(next_state[0].value().unwrap(), Fr::from(800u64));
     assert_eq!(next_state[1].value().unwrap(), Fr::from(60u64));
     assert_eq!(next_state[2].value().unwrap(), Fr::from(4u64));
+    assert_eq!(next_state[3].value().unwrap(), Fr::from(1u64));
 }

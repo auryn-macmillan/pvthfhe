@@ -2,6 +2,7 @@
 
 pub mod c7_circuit;
 pub mod c7_merkle_circuit;
+pub mod cyclo_verifier;
 pub mod poseidon_gadget;
 pub use c7_circuit::{c7_fold_witnesses, C7DecryptAggregationCircuit};
 pub use c7_merkle_circuit::{
@@ -20,6 +21,7 @@ use ark_ff::{BigInteger, PrimeField};
 use ark_grumpkin::Projective as G2;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::fields::fp::FpVar;
+use ark_r1cs_std::fields::FieldVar;
 use ark_relations::gr1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Validate};
 use folding_schemes::{
@@ -131,8 +133,19 @@ impl<F: PrimeField> StepCircuit for ToyStepCircuit<F> {
 
 /// CycloFold step circuit encoding the R4 aggregator fold relation (R5.2).
 ///
-/// State: [accumulated_instance_hash, accumulated_norm, fold_count].
+/// State: [accumulated_instance_hash, accumulated_norm, fold_count, ring_verification_count].
 /// Step: folds a new party instance into the accumulated state.
+///
+/// # M1 Ring Verification Path
+///
+/// The fourth state element `ring_verification_count` tracks how many ring-equation
+/// verifications have passed. In M1, this is incremented by 1 each fold step as a
+/// documented placeholder. The actual R1CS constraint encoding for the P1 verifier
+/// equation (`c·z_s + z_e - t - c·d ≡ 0`) using `CycloVerifierCCS` is deferred to M2.
+///
+/// For native pre-verification (outside R1CS), use [`cyclo_verifier::verify_ring_equation`].
+///
+/// The original hash-then-fold path (3-element state) remains as the Track A fallback.
 #[derive(Clone, Copy, Debug)]
 pub struct CycloFoldStepCircuit<F: PrimeField> {
     _field: std::marker::PhantomData<F>,
@@ -150,7 +163,7 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
     }
 
     fn state_len(&self) -> usize {
-        3
+        4
     }
 
     fn generate_step_constraints(
@@ -160,19 +173,36 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
         z_i: Vec<FpVar<F>>,
         external_inputs: Self::ExternalInputsVar,
     ) -> Result<Vec<FpVar<F>>, SynthesisError> {
+        // Track A: hash-accumulate fold (existing path)
         let folded_hash = z_i[0].clone() * &external_inputs.0 + z_i[0].clone();
         let escalated_norm = z_i[1].clone() + &external_inputs.1;
         let count_inc = z_i[2].clone() + &external_inputs.2;
 
+        // M1 PLACEHOLDER: Ring-equation verification via CycloVerifierCCS
+        //
+        // Track B (deferred to M2): Verify c·z_s + z_e - t - c·d ≡ 0
+        // over R = Z_q[X]/(X^256+1) using FpVar operations (R1CS constraint
+        // encoding of RingElement arithmetic).
+        //
+        // For now, incrementing the verification counter tracks that a fold
+        // step occurred. Native pre-verification is available via
+        // `cyclo_verifier::verify_ring_equation()`.
+        let ring_verification_count = z_i[3].clone() + FpVar::<F>::one();
+
         let _ = cs.num_constraints();
 
-        Ok(vec![folded_hash, escalated_norm, count_inc])
+        Ok(vec![
+            folded_hash,
+            escalated_norm,
+            count_inc,
+            ring_verification_count,
+        ])
     }
 }
 
 impl<F: PrimeField> StepCircuit for CycloFoldStepCircuit<F> {
     fn descriptor(&self) -> StepCircuitDescriptor {
-        StepCircuitDescriptor { width: 3 }
+        StepCircuitDescriptor { width: 4 }
     }
 
     fn circuit_hash(&self) -> [u8; 32] {

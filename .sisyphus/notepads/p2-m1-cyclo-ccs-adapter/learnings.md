@@ -77,3 +77,67 @@
 - R1CS constraint encoding (to_ccs_matrix)
 - Wire into CycloFoldStepCircuit
 - CCS matrix (A, B, C) construction
+
+---
+
+## P2-M1.4 — Wire CycloVerifierCCS into CycloFoldStepCircuit — 2026-05-14
+
+### Files Created
+
+- `crates/pvthfhe-compressor/src/sonobe/cyclo_verifier.rs` — `verify_ring_equation()` free function wrapping `CycloVerifierCCS::verify_native()`
+
+### Files Modified
+
+- `crates/pvthfhe-compressor/Cargo.toml` — added `pvthfhe-aggregator` dependency
+- `crates/pvthfhe-compressor/src/sonobe/mod.rs` — updated `CycloFoldStepCircuit`:
+  - `state_len()` 3 → 4 (added `ring_verification_count`)
+  - `descriptor().width` 3 → 4
+  - `generate_step_constraints` now returns 4 elements with M1 placeholder comment
+  - Added `pub mod cyclo_verifier;` and `use ark_r1cs_std::fields::FieldVar;`
+
+### Key Decisions
+
+1. **State layout**: [commitment_hash, norm, fold_count, ring_verification_count]
+2. **M1 placeholder**: The 4th state element increments by 1 each fold step, tracking that a step occurred. The actual R1CS ring-equation verification is deferred to M2.
+3. **Native pre-verification**: `cyclo_verifier::verify_ring_equation()` provides a native (non-R1CS) check that can be called before folding enters the circuit.
+4. **Track A/B coexistence**: The hash-then-fold path (Track A, 3-element state originally) is preserved. The 4th element is the Track B placeholder.
+5. **`FpVar::one()`**: Used `FpVar::<F>::one()` (from `FieldVar` trait) to increment the verification counter in R1CS. The initial attempt to use `FpVar::constant()` failed because that method doesn't exist on `FpVar`.
+
+## P2-M1.5 — 7 RED Tests — 2026-05-14
+
+### File Created
+
+- `crates/pvthfhe-aggregator/tests/cyclo_ccs_adapter.rs` — 7 integration tests
+
+### Test Results
+
+- 7/7 passed (0 compilation errors, 0 LSP diagnostics)
+
+### Test Fixes
+
+- **`verifier_rejects_wrong_challenge`**: Original test data (all ones) was too symmetric — the equation `c·1 + 1 - 1 - c·1 = 0` holds for any c. Fixed by using distinct values (s=2, d=3, e=5, t=4) where t is valid only for c=1.
+- **Unused variable `c`** in `verifier_accepts_honest_witness`: removed redundant `let c = challenge;` binding.
+
+## P2-M1.6 — Documentation — 2026-05-14
+
+### Updated
+
+- `crates/pvthfhe-compressor/src/sonobe/mod.rs`: CycloFoldStepCircuit docstring now documents the 4-element state layout, M1 ring verification placeholder, and Track A/B coexistence.
+- `crates/pvthfhe-compressor/src/sonobe/cyclo_verifier.rs`: full module and function docstrings explaining the M1 ring-equation verification and M2 deferral.
+- `crates/pvthfhe-compressor/src/sonobe/c7_merkle_circuit.rs`: fixed pre-existing missing `use ark_bn254::Fr;` in test module.
+- `crates/pvthfhe-compressor/tests/multi_input_step_circuit.rs`: updated to 4-element state with ring_verification_count assertions.
+
+### Verification
+
+- `cargo build --workspace`: passes
+- `cargo test -p pvthfhe-aggregator --test cyclo_ccs_adapter`: 7/7 passed
+- `cargo test -p pvthfhe-compressor`: passes (pre-existing RED `sonobe_isolated_mem` test excepted)
+- `cargo test -p pvthfhe-aggregator --test folding_relation --test cyclo_wire`: passes
+- `just demo-e2e`: ACCEPT
+- LSP diagnostics: 0 errors across all changed files
+
+### Deferred to M2
+
+- R1CS constraint encoding of RingElement operations (`add`, `sub`, `scale` as FpVar operations)
+- CCS matrix construction (`to_ccs_matrix`)
+- Actual ring-equation enforcement in R1CS constraints (currently just increments counter)

@@ -5,6 +5,7 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
+pvthfhe-aggregator = { path = "../pvthfhe-aggregator" }
 pvthfhe-domain-tags = { path = "../pvthfhe-domain-tags" }
 pvthfhe-rng = { path = "../pvthfhe-rng" }
 pvthfhe-types = { path = "../pvthfhe-types" }

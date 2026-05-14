@@ -3,11 +3,15 @@
   "started_at": "2026-05-14T03:20:47.598Z",
   "session_ids": [
     "ses_1e864f9f1ffecXRmG0OjbjoCa3",
-    "ses_1db7def4effeUHBx1T3vVW4ell"
+    "ses_1db7def4effeUHBx1T3vVW4ell",
+    "ses_1db730413ffede8bx7h9SwKBEy",
+    "ses_1db681cc7ffe4gFj3ZZcoMCO2K"
   ],
   "session_origins": {
     "ses_1e864f9f1ffecXRmG0OjbjoCa3": "direct",
-    "ses_1db7def4effeUHBx1T3vVW4ell": "appended"
+    "ses_1db7def4effeUHBx1T3vVW4ell": "appended",
+    "ses_1db730413ffede8bx7h9SwKBEy": "appended",
+    "ses_1db681cc7ffe4gFj3ZZcoMCO2K": "appended"
   },
   "plan_name": "p1-t2-joint-extractor",
   "agent": "atlas",

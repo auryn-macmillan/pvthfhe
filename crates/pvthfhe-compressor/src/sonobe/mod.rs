@@ -6,6 +6,7 @@ pub mod cyclo_verifier;
 pub mod fold_verifier_circuit;
 pub mod latticefold_adapter;
 pub mod poseidon_gadget;
+pub mod ring_element_var;
 pub use c7_circuit::{c7_fold_witnesses, C7DecryptAggregationCircuit};
 pub use c7_merkle_circuit::{
     merkle_external_inputs_width, C7MerkleExternalInputs, C7MerkleExternalInputsVar,
@@ -182,11 +183,15 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
         let escalated_norm = z_i[1].clone() + &external_inputs.1;
         let count_inc = z_i[2].clone() + &external_inputs.2;
 
-        // M1 PLACEHOLDER: Ring-equation verification via CycloVerifierCCS
+        // M1/M6 PLACEHOLDER: Ring-equation verification via CycloVerifierCCS
         //
         // Track B (deferred to M2): Verify c·z_s + z_e - t - c·d ≡ 0
         // over R = Z_q[X]/(X^256+1) using FpVar operations (R1CS constraint
         // encoding of RingElement arithmetic).
+        //
+        // M6: R1CS ring equation verification (ternary challenge, zero multiplications).
+        // When enabled, replaces hash-then-fold with verify_ring_equation_r1cs().
+        // See crates/pvthfhe-compressor/src/sonobe/cyclo_verifier.rs::verify_ring_equation_r1cs
         //
         // For now, incrementing the verification counter tracks that a fold
         // step occurred. Native pre-verification is available via

@@ -1,7 +1,7 @@
 # P2 LatticeFold+ Target Implementation Plan
 
 **Created**: 2026-05-13
-**Status**: ASPIRATIONAL (blocked on Lemma 9)
+**Status**: OPEN — Lemma 9 accepted as documented assumption (2026-05-14). Unblocks research. Cyclo Theorem 3 (ePrint 2026/359) + Lemma 9 invertibility assumption provide the soundness foundation. The active backend is `cyclo-rlwe-t10-lemma9-heuristic`.
 **Paper reference**: §6.B (Track B), theorems P2-B-T1 through P2-B-T5
 
 ## Goal

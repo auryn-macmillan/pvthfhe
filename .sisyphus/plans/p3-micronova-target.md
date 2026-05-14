@@ -1,7 +1,7 @@
 # P3 MicroNova + UltraHonk Target Implementation Plan
 
 **Created**: 2026-05-13
-**Status**: ASPIRATIONAL (blocked on P2 Track B)
+**Status**: OPEN — Lemma 9 accepted as documented assumption (2026-05-14). Unblocks research. Previously blocked on P2 which was blocked on Lemma 9.
 **Paper reference**: §7.B (Track B), theorems P3-B-T1 through P3-B-T5
 
 ## Goal

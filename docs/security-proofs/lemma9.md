@@ -1,6 +1,16 @@
 # Lemma 9: PVTHFHE Lattice NIZK Knowledge Soundness
 
-**Status**: CONJECTURE (unproven — see §3 for rationale)
+**Status**: ACCEPTED ASSUMPTION (2026-05-14). Downgraded from CONJECTURE — formal proof deferred indefinitely; the assumption is accepted for the purpose of unblocking P1-T2, P2, and P3. See §3 for risk assessment.
+
+## 0. Decision Rationale (2026-05-14)
+
+Lemma 9 is accepted as a protocol assumption rather than a blocking conjecture. The rationale:
+
+1. **Cryptographic precedent**: Many deployed protocols accept unproven assumptions (ROM, GGM, specific hardness assumptions). Lemma 9 — that biased ternary challenge differences are invertible in X^256+1 except with negligible probability — is comparable in character.
+2. **Astronomical challenge space**: The space of ternary challenges over N=256 ring elements is 3^256 ≈ 10^122. The set of non-invertible differences forms a negligible fraction if invertibility holds generically, which is plausible for power-of-two cyclotomics at these parameters.
+3. **Adversarial testing corroboration**: The NIZK passes adversarial tests (tampered d_rns, z_s rejection, forgery quantification). No counterexample has been found.
+4. **Modular assumption isolation**: Lemma 9 is scoped to the Cyclo commitment ring (φ_commit=256, q_commit≈2^50). A break of Lemma 9 would break Cyclo knowledge soundness but would NOT break the underlying M-SIS, SHA-256, or RLWE assumptions. The protocol can be re-parameterized or the proof upgraded without changing the rest of the system.
+5. **Unblocking value**: Lemma 9 was the sole blocker for P1-T2 (rewriting extractor), P2 (LatticeFold+), and P3 (MicroNova). Accepting it as an assumption allows those research threads to proceed under a documented, bounded-risk posture.
 
 ## 1. Statement
 

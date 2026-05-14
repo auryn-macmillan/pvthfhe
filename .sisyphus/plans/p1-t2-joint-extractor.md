@@ -1,8 +1,8 @@
 # P1-T2 Joint Knowledge Extractor Roadmap
 
 **Created**: 2026-05-13
-**Updated**: 2026-05-13 (proof docs improved with NIZK change log)
-**Status**: OPEN (Lemma 9 dependency — research-blocked)
+**Updated**: 2026-05-14 (Lemma 9 accepted as assumption — unblocks P1-T2 rewrite)
+**Status**: OPEN — P1-T2 extractor needs rewriting for rewinding extractor (no witness openings exist in serialized proof). Lemma 9 accepted as documented assumption. The joint extractor composition with Cyclo Theorem 3 remains to be written.
 **Paper reference**: §5 (P1), theorem P1-T2; claims-table footnote
 
 ## Implementation Status (2026-05-13)

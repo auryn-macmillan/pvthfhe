@@ -115,18 +115,25 @@ impl<F: PrimeField> RingElement<F> {
     }
 
     /// Compute the infinity norm (maximum absolute coefficient magnitude).
+    /// Signed infinity norm: max |c_i| over all coefficients.
     ///
-    /// Returns the coefficient with the largest value. For signed
-    /// comparison in a prime field, the coefficient furthest from
-    /// zero is selected.
-    ///
-    /// Note: For coefficients larger than p/2, this does not perform
-    /// signed representation conversion. The result is the raw field
-    /// element with the largest value.
+    /// For a prime field F_p, values > p/2 represent negative integers
+    /// (stored as p - |c|). This method converts to absolute value before
+    /// taking the max, so both positive and negative coefficients are
+    /// compared by magnitude.
     pub fn norm_inf(&self) -> F {
-        self.coeffs
-            .iter()
-            .fold(F::zero(), |acc, &c| if c > acc { c } else { acc })
+        let half = <F as PrimeField>::MODULUS_MINUS_ONE_DIV_TWO;
+        self.coeffs.iter().fold(F::zero(), |acc, &c| {
+            let c_big = c.into_bigint();
+            let abs = if c_big > half {
+                // Signed representation: c > (p-1)/2 means negative.
+                // Field negation -c yields MODULUS - c, the absolute value.
+                -c
+            } else {
+                c
+            };
+            if abs > acc { abs } else { acc }
+        })
     }
 
     /// Returns the number of coefficients (ring dimension N).

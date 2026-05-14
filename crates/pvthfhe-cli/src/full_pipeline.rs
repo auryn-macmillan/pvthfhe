@@ -409,6 +409,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         accumulators.push(acc);
     }
 
+    let acc_len = accumulators.len();
     let fold_report = CycloFoldAllReport::new(accumulators, fold_instances.len(), batch_size);
     let cyclo_fold_ms = elapsed_ms(cyclo_fold_started);
     observer.phase_end("cyclo_fold", cyclo_fold_ms);
@@ -451,7 +452,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         tracing::info!(depth = depth, circuit_family = HeterogeneousCircuitFamily::<Fr>::num_circuits(&family), "MicroNova: family configured");
     }
 
-    let compressor = Compressor::new(epoch_hash, cfg.n)?;
+    let compressor = Compressor::new(epoch_hash, acc_len)?;
     observer.phase_end("compressor_new", elapsed_ms(compressor_new_started));
 
     observer.phase_start("compressor_prove", Some(compressor.backend_id()));

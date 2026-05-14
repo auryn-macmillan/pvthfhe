@@ -650,4 +650,7 @@ impl Default for HashChainCycloAdapter {
     }
 }
 
+pub mod ccs_adapter;
+pub mod ring_element;
+
 const _: &str = CYCLO_BACKEND_ID;

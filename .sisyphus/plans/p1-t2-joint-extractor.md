@@ -5,11 +5,11 @@
 **Status**: OPEN — P1-T2 extractor needs rewriting for rewinding extractor (no witness openings exist in serialized proof). Lemma 9 accepted as documented assumption. The joint extractor composition with Cyclo Theorem 3 remains to be written.
 **Paper reference**: §5 (P1), theorem P1-T2; claims-table footnote
 
-## Implementation Status (2026-05-13)
+## Implementation Status (2026-05-14)
 
-P1-T2 remains research-blocked. The straight-line extractor (`docs/security-proofs/p1/T2.md`) is approved for the SHA-256 binding path. Implementation of the NIZK-level improvements has been extensive (R4 audit sigma equation fix, bfv_sigma plaintext domain check, decrypt NIZK witness binding, dealer identity binding, batched share-encryption proof, per-track domain separation). These strengthen the base protocol that P1-T2's extractor would compose with. However, the joint extractor composition with Cyclo Theorem 3 remains blocked on Lemma 9.
+P1-T2 extractor rewritten (`0465ce2`) as a rewinding forking-lemma extractor. The proof is now consistent with the ZK sigma transcript (no witness openings). Lemma 9 accepted as documented assumption (`6ce6efa`). The NIZK-level improvements from R4 audit and Interfold-Equivalent PVSS strengthen the base protocol. 
 
-**No additional implementation is possible without Lemma 9 resolution.** This plan serves as a research roadmap and documentation artifact.
+**Remaining**: The joint extractor composition with Cyclo Theorem 3 (M4) — a self-contained proof document that composes the rewinding extractor with Cyclo folding knowledge soundness. Milestones M1-M3 are prerequisite research for M4. This is purely theoretical proof-writing; no code changes are needed.
 
 ## Goal
 
@@ -17,19 +17,19 @@ Construct a formal joint knowledge extractor for the Cyclo-companion Ajtai NIZK 
 
 ## Current State
 
-P1-T2 is currently PROVED for the straight-line extractor under SHA-256 binding only. The proof (`docs/security-proofs/p1/T2.md`) provides knowledge soundness for the implemented relation but does not compose with Cyclo folding knowledge soundness (Cyclo Theorem 3) to produce a joint extractor. Lemma 9 (`docs/security-proofs/lemma9.md`) remains a CONJECTURE.
+P1-T2 has been rewritten at `0465ce2` as a rewinding extractor operating on the ZK sigma transcript `(t_bytes, z_s, z_e)`. The extractor uses forking-lemma rewinding under the ROM, accepting Lemma 9 as a documented assumption for challenge difference invertibility. The SHA-256 binding path remains the reduction target. The joint extractor composition with Cyclo Theorem 3 has not been written.
 
 ## Blocked Dependencies
 
 | Dependency | Status |
 |-----------|--------|
-| Lemma 9 (Cyclo joint extractor) | CONJECTURE |
+| Lemma 9 (Cyclo joint extractor) | ACCEPTED ASSUMPTION (`docs/security-proofs/lemma9.md` §0) |
 | M-SIS hardness at frozen parameters | Standard assumption (unproven) |
 | Fiat-Shamir heuristic in ROM | Standard assumption |
 
 ## Research Milestones
 
-1. **M1: Forking-lemma extraction** — Formalize the ROM forking-lemma argument for the multi-layer composition (Cyclo fold + Ajtai commitment + RLWE relation). Quantify extraction probability and reduction loss.
+1. **M1: Forking-lemma extraction** ✅ — **COMPLETE** (`0465ce2` rewinding extractor + M1 formalization at `docs/security-proofs/p1/joint-extractor/M1-forking-lemma.md`). The ROM forking-lemma argument is formalized for the 3-layer composition. Extraction probability: ε² - 4ε/|C|. Tightness: 1/ε² for dominant term.
 
 2. **M2: M-SIS reduction** — Reduce the forking-lemma extraction event to M-SIS over the commitment ring R_{q_commit} at N=8192. Bound the norm of the extracted witness difference.
 

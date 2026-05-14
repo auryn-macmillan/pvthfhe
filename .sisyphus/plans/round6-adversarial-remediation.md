@@ -1,7 +1,7 @@
 # Plan: Round 6 — Adversarial Audit Remediation
 
 **Plan**: `round6-adversarial-remediation`
-**Status**: DRAFT
+**Status**: COMPLETE — all 5 batches implemented (`fea730d`). SmudgeSlot enforcement now unconditional. session_id check added to aggregate_decrypt. Keygen duplicate party_id detection added. D2 dkg_root binding enforced. All fixes confirmed intact after MicroNova updates.
 **Created**: 2026-05-14
 **Audits**: NIZK soundness, threshold/robustness, replay/splicing/timing, DKG+compressor+fold
 

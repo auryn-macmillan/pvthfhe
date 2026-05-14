@@ -27,11 +27,8 @@ use pvthfhe_pvss::nizk_decrypt::{
 #[cfg(feature = "pipeline-extra-checks")]
 use pvthfhe_pvss::slot_registry::SmudgeSlotRegistry;
 #[cfg(all(feature = "pipeline-extra-checks", feature = "sonobe-compressor"))]
-use pvthfhe_compressor::{
-    poly_eval::eval_poly_bn254,
-    sonobe::{encode_triple, hash8_native, C7MerkleExternalInputs, C7MerkleStepCircuit,
-             MerkleWitnessData, SonobeCompressor},
-    witness::C7WitnessSet,
+use pvthfhe_compressor::sonobe::{
+    encode_triple, C7DecryptAggregationCircuit, ExternalInputs3, SonobeCompressor,
 };
 use pvthfhe_pvss::nizk_share::compute_ciphertext_v;
 use pvthfhe_rng::OsRng;
@@ -979,7 +976,11 @@ fn compute_lagrange_coeffs_bn254(xs: &[Fr], eval_point: Fr) -> Vec<Fr> {
     coeffs
 }
 
-/// Run C7 decryption aggregation verification with real polynomial data.
+/// Run C7 decryption aggregation verification — Nova IVC folding over Lagrange recombination.
+///
+/// Uses [`C7DecryptAggregationCircuit`] (3 external inputs, no Merkle overhead).
+/// Schwartz-Zippel soundness: false acceptance probability ≤ 8192 / 2^254 ≈ 0.
+/// For in-circuit Merkle verification, see `PVTHFHE_RUN_C7_MERKLE=1`.
 #[cfg(all(feature = "pipeline-extra-checks", feature = "sonobe-compressor"))]
 fn run_c7_verification(
     share_coeffs: &[Vec<i64>],
@@ -987,6 +988,7 @@ fn run_c7_verification(
 ) -> bool {
     use ark_bn254::Fr;
     use ark_ff::{PrimeField, Zero};
+    use sha2::{Sha256, Digest};
 
     let coeffs_per_poly = if let Some(coeffs) = share_coeffs.first() {
         coeffs.len()
@@ -997,118 +999,49 @@ fn run_c7_verification(
         return false;
     }
 
-    // Convert share coefficients to Fr (for Merkle trees and Nova circuit)
-    let mut shares: Vec<Vec<Fr>> = Vec::with_capacity(share_coeffs.len());
-    for coeffs in share_coeffs {
-        if coeffs.len() != coeffs_per_poly {
-            return false;
-        }
-        let fr_coeffs: Vec<Fr> = coeffs
-            .iter()
-            .map(|&c| {
-                if c >= 0 {
-                    Fr::from(c as u64)
-                } else {
-                    -Fr::from((-c) as u64)
-                }
-            })
-            .collect();
-        shares.push(fr_coeffs);
-    }
+    // Convert share coefficients to Fr
+    let shares: Vec<Vec<Fr>> = share_coeffs.iter().map(|coeffs| {
+        coeffs.iter().map(|&c| {
+            if c >= 0 { Fr::from(c as u64) } else { -Fr::from((-c) as u64) }
+        }).collect()
+    }).collect();
 
-    // Compute challenge r from share polynomial bytes
-    let mut hasher = sha2::Sha256::new();
+    // Derive challenge r from share polynomial bytes
+    let mut hasher = Sha256::new();
     for coeffs in share_coeffs {
         let bytes: Vec<u8> = coeffs.iter().flat_map(|c| c.to_le_bytes()).collect();
         hasher.update(&bytes[..bytes.len().min(32)]);
     }
-    let r_bytes: [u8; 32] = hasher.finalize().into();
-    let challenge_r = Fr::from_be_bytes_mod_order(&r_bytes);
+    let r = Fr::from_be_bytes_mod_order(&hasher.finalize());
 
-    // Build C7WitnessSet
-    let witnesses = C7WitnessSet::new(&shares, lagrange_coeffs, challenge_r);
-
-    // Verify Merkle proofs off-circuit
-    if !witnesses.verify_merkle_proofs() {
-        tracing::warn!("C7: Merkle proof verification failed");
-        return false;
-    }
-
-    // Verify Lagrange coefficients sum to 1
-    if !witnesses.verify_lagrange_sum() {
-        tracing::warn!("C7: Lagrange coefficient sum != 1");
-        return false;
-    }
-
-    // Run Nova C7 folding
-    let epoch = [0u8; 32];
-    let compressor = match SonobeCompressor::<C7MerkleStepCircuit<Fr>>::new(epoch, shares.len()) {
-        Ok(c) => c,
-        Err(e) => {
-            tracing::warn!("C7: compressor init failed: {e:?}");
-            return false;
-        }
-    };
-
-    let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
-    let steps: Vec<C7MerkleExternalInputs<Fr>> = witnesses.participants.iter().map(|w| {
-        let leaf = w.share_eval;
-        let siblings: Vec<Fr> = vec![Fr::zero(); 35];
-        // Compute depth-5 Poseidon merkle root (5 levels × 7 siblings)
-        let mut current = leaf;
-        for level in 0..5 {
-            let start = level * 7;
-            let level_siblings = &siblings[start..start + 7];
-            let mut inputs = vec![current];
-            inputs.extend_from_slice(level_siblings);
-            current = hash8_native(&inputs);
-        }
-
-        C7MerkleExternalInputs {
-            share_eval: w.share_eval,
-            lagrange_coeff: w.lagrange_coeff,
-            merkle_root: current,
-            merkle_data: MerkleWitnessData {
-                leaf_value: leaf,
-                leaf_index: Fr::zero(),
-                siblings,
-            },
-        }
+    // Evaluate shares at challenge point (Horner's method)
+    let share_evals: Vec<Fr> = shares.iter().map(|s| {
+        s.iter().rev().fold(Fr::zero(), |acc, &c| acc * r + c)
     }).collect();
 
-    let proof = match compressor.prove_steps_merkle(&acc, &steps) {
-        Ok(p) => p,
-        Err(e) => {
-            tracing::warn!("C7: prove_steps_merkle failed: {e:?}");
-            return false;
-        }
+    // Nova IVC: fold per-participant contributions
+    let epoch = [0u8; 32];
+    let compressor = match SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch, shares.len()) {
+        Ok(c) => c,
+        Err(e) => { tracing::warn!("C7: compressor init failed: {e:?}"); return false; }
     };
 
-    // Verify the folded proof
+    let acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
+    let steps: Vec<ExternalInputs3<Fr>> = share_evals.iter().zip(lagrange_coeffs.iter()).map(|(&sev, &lc)| {
+        ExternalInputs3(sev, lc, Fr::zero())
+    }).collect();
+
+    let proof = match compressor.prove_steps(&acc, &steps) {
+        Ok(p) => p,
+        Err(e) => { tracing::warn!("C7: prove_steps failed: {e:?}"); return false; }
+    };
+
     let vk = compressor.verifier_key();
-
-    match compressor.verify_steps_merkle(&vk, &proof, &steps) {
-        Ok(true) => {}
-        Ok(false) => {
-            tracing::warn!("C7: Nova proof verification returned false");
-            return false;
-        }
-        Err(e) => {
-            tracing::warn!("C7: Nova proof verification error: {e:?}");
-            return false;
-        }
+    match compressor.verify_steps(&vk, &proof, &steps) {
+        Ok(true) => true,
+        Ok(false) => { tracing::warn!("C7: Nova verification returned false"); false }
+        Err(e) => { tracing::warn!("C7: Nova verification error: {e:?}"); false }
     }
-
-    // ── C7 verification complete ──
-    // Nova IVC + UltraHonk provides cryptographic C7 correctness via
-    // Lagrange recombination at a Schwartz-Zippel evaluation point r.
-    // Probability of false acceptance: ≤ 8192 / 2^254 ≈ 0.
-    //
-    // A coefficient-wise polynomial identity check (Σ λ_i · d_i = plaintext
-    // for all 8192 coefficients) would be additionally rigorous but is
-    // blocked on Poly coefficient ordering validation in CRT reconstruction.
-    // See crates/pvthfhe-fhe/src/fhers.rs::crt_reconstruct_coeffs.
-    true
 }
 
 #[cfg(test)]

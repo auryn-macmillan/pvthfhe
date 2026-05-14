@@ -29,15 +29,11 @@ P1-T2 has been rewritten at `0465ce2` as a rewinding extractor operating on the 
 
 ## Research Milestones
 
-1. **M1: Forking-lemma extraction** ✅ — **COMPLETE** (`0465ce2` rewinding extractor + M1 formalization at `docs/security-proofs/p1/joint-extractor/M1-forking-lemma.md`). The ROM forking-lemma argument is formalized for the 3-layer composition. Extraction probability: ε² - 4ε/|C|. Tightness: 1/ε² for dominant term.
-
-2. **M2: M-SIS reduction** — Reduce the forking-lemma extraction event to M-SIS over the commitment ring R_{q_commit} at N=8192. Bound the norm of the extracted witness difference.
-
-3. **M3: Challenge-space analysis** — Prove that the biased ternary challenge set {-1,0,1} over the cyclotomic ring X^{256}+1 does not produce singular extraction matrices except with negligible probability (Lemma 9 heuristic).
-
-4. **M4: Joint extractor composition** — Compose the straight-line extractor from P1-T2 with Cyclo Theorem 3 and the M-SIS reduction to produce a unified extractor for the full PVTHFHE P1 relation.
-
-5. **M5: Formal write-up** — Produce a self-contained proof document with explicit reduction tightness and parameter bounds.
+- [x] **M1: Forking-lemma extraction** ✅ — **COMPLETE** (`0465ce2` rewinding extractor + M1 formalization at `docs/security-proofs/p1/joint-extractor/M1-forking-lemma.md`). The ROM forking-lemma argument is formalized for the 3-layer composition. Extraction probability: ε² - 4ε/|C|. Tightness: 1/ε² for dominant term.
+- [ ] **M2: M-SIS reduction** — Reduce the forking-lemma extraction event to M-SIS over the commitment ring R_{q_commit} at N=8192. Bound the norm of the extracted witness difference. Deferred pending deeper cryptanalysis.
+- [ ] **M3: Challenge-space analysis** — Prove that the biased ternary challenge set {-1,0,1} over the cyclotomic ring X^{256}+1 does not produce singular extraction matrices except with negligible probability (Lemma 9 heuristic). Deferred (Lemma 9 accepted as assumption, formal proof remains open).
+- [ ] **M4: Joint extractor composition** — Compose the rewinding extractor from P1-T2 with Cyclo Theorem 3 and the M-SIS reduction to produce a unified extractor for the full PVTHFHE P1 relation.
+- [ ] **M5: Formal write-up** — Produce a self-contained proof document with explicit reduction tightness and parameter bounds.
 
 ## Estimated Effort
 

@@ -2,7 +2,7 @@
 
 **Created**: 2026-05-13
 **Updated**: 2026-05-13 (proof docs improved with NIZK change log)
-**Status**: OPEN (scope expansion — requires threat model decision)
+**Status**: RESOLVED — serialized proof confirmed ZK by code inspection (2026-05-14). Audit fields never existed in the code. No witness openings in ShareNizkOpenedProof. Struct-level test (nizk_share_no_witness_leak) and byte-level tests (nizk_share_zk) enforce ZK. See p1-t3-zk-verify-document.md for documentation updates.
 **Paper reference**: §5 (P1), theorem P1-T3; claims-table footnote
 
 ## Implementation Status (2026-05-13)

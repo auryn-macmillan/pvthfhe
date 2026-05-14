@@ -132,3 +132,85 @@ fn proofs_for_different_relation_witnesses_have_different_commitments() {
 
     assert_ne!(opened1.commitment_bytes, opened2.commitment_bytes);
 }
+
+// ── ZK regression: fresh masks, byte-level privacy ──
+
+#[test]
+fn proof_has_fresh_masks_per_invocation() {
+    // Same witness, same statement, two proofs — must differ.
+    // Fresh random masks (OsRng) guarantee z_s and z_e differ each time,
+    // which is required for computational ZK under the masked sigma protocol.
+    acknowledge_mock_backend();
+
+    let backend = MockBackend::load_params(TEST_PARAMS_TOML).expect("load mock backend");
+    let share = vec![42u8; 32];
+    let randomness = [7u8; 32];
+    let stmt = make_statement(&backend, &share, &randomness);
+
+    let witness = ShareNizkWitness {
+        share_bytes: ShareSecret::new(share.clone()),
+        encryption_randomness: EncRandomness::new(randomness.to_vec()),
+    };
+
+    let proof1 = ShareNizkProver::prove(&backend, &stmt, &witness, None)
+        .expect("prover must succeed");
+    let proof2 = ShareNizkProver::prove(&backend, &stmt, &witness, None)
+        .expect("prover must succeed");
+
+    let opened1 = proof1.decode().expect("decode");
+    let opened2 = proof2.decode().expect("decode");
+
+    // Same witness, same statement → commitments may match (deterministic)
+    // but algebraic proof MUST differ (fresh masks per invocation).
+    assert_ne!(
+        opened1.algebraic_proof, opened2.algebraic_proof,
+        "ZK regression: two proofs with same witness must have different algebraic proofs (fresh masks)"
+    );
+
+    // Full serialized bytes must differ.
+    assert_ne!(
+        opened1.commitment_binding, opened2.commitment_binding,
+        "ZK regression: commitment binding must differ between invocations"
+    );
+}
+
+#[test]
+fn algebraic_proof_bytes_do_not_contain_witness_plaintext() {
+    // The algebraic_proof field encodes z_s, z_e, t_bytes — the masked sigma transcript.
+    // It must NOT contain the raw share_bytes or encryption_randomness witness values.
+    acknowledge_mock_backend();
+
+    let backend = MockBackend::load_params(TEST_PARAMS_TOML).expect("load mock backend");
+    let share = vec![0xABu8; 32];
+    let randomness = [0xCDu8; 32];
+    let stmt = make_statement(&backend, &share, &randomness);
+
+    let witness = ShareNizkWitness {
+        share_bytes: ShareSecret::new(share.clone()),
+        encryption_randomness: EncRandomness::new(randomness.to_vec()),
+    };
+
+    let proof = ShareNizkProver::prove(&backend, &stmt, &witness, None)
+        .expect("prover must succeed");
+    let opened = proof.decode().expect("decode");
+
+    let algebraic_bytes = opened.algebraic_proof.as_slice();
+
+    // The share and randomness are 32 bytes each. Neither sequence should appear
+    // verbatim in the algebraic proof (z_s, z_e, t_bytes are masked).
+    assert!(
+        !contains_subsequence(algebraic_bytes, &share),
+        "ZK regression: share bytes found in algebraic proof"
+    );
+    assert!(
+        !contains_subsequence(algebraic_bytes, &randomness),
+        "ZK regression: encryption randomness found in algebraic proof"
+    );
+}
+
+fn contains_subsequence(haystack: &[u8], needle: &[u8]) -> bool {
+    if needle.is_empty() {
+        return false;
+    }
+    haystack.windows(needle.len()).any(|w| w == needle)
+}

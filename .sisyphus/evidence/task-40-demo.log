@@ -28,7 +28,6 @@ warning: associated function `compute_lagrange_coeffs_integer` is never used
      |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: `pvthfhe-fhe` (lib) generated 3 warnings (run `cargo fix --lib -p pvthfhe-fhe` to apply 1 suggestion)
-warning: pvthfhe-aggregator@0.1.0: SURROGATE ACTIVE: HonkVerifier, micronova_wrap, aggregator_final are research surrogates — do not deploy
 warning: missing documentation for a function
    --> crates/pvthfhe-pvss/src/encrypt.rs:405:1
     |
@@ -56,22 +55,7 @@ warning: missing documentation for a method
      |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: `pvthfhe-pvss` (lib) generated 4 warnings
-   Compiling pvthfhe-compressor v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-compressor)
-warning: use of deprecated struct `hermine::HermineAdapter`: HermineAdapter uses deterministic share derivation (CRITICAL finding F60). Use LatticePvssBfvAdapter instead.
-  --> crates/pvthfhe-keygen/src/hermine.rs:62:6
-   |
-62 | impl HermineAdapter {
-   |      ^^^^^^^^^^^^^^
-   |
-   = note: `#[warn(deprecated)]` on by default
-
-warning: use of deprecated struct `hermine::HermineAdapter`: HermineAdapter uses deterministic share derivation (CRITICAL finding F60). Use LatticePvssBfvAdapter instead.
-   --> crates/pvthfhe-keygen/src/hermine.rs:267:24
-    |
-267 | impl KeygenAdapter for HermineAdapter {
-    |                        ^^^^^^^^^^^^^^
-
-warning: `pvthfhe-keygen` (lib) generated 2 warnings
+warning: pvthfhe-aggregator@0.1.0: SURROGATE ACTIVE: HonkVerifier, micronova_wrap, aggregator_final are research surrogates — do not deploy
 warning: unused imports: `BigInteger` and `PrimeField`
  --> crates/pvthfhe-compressor/src/merkle.rs:2:14
   |
@@ -232,301 +216,315 @@ warning: missing documentation for a struct field
 9 |     pub root_proof: CompressedProof,
   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-   Compiling pvthfhe-bench v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-bench)
+warning: `pvthfhe-compressor` (lib) generated 26 warnings (run `cargo fix --lib -p pvthfhe-compressor` to apply 1 suggestion)
+warning: use of deprecated struct `hermine::HermineAdapter`: HermineAdapter uses deterministic share derivation (CRITICAL finding F60). Use LatticePvssBfvAdapter instead.
+  --> crates/pvthfhe-keygen/src/hermine.rs:62:6
+   |
+62 | impl HermineAdapter {
+   |      ^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+
+warning: use of deprecated struct `hermine::HermineAdapter`: HermineAdapter uses deterministic share derivation (CRITICAL finding F60). Use LatticePvssBfvAdapter instead.
+   --> crates/pvthfhe-keygen/src/hermine.rs:267:24
+    |
+267 | impl KeygenAdapter for HermineAdapter {
+    |                        ^^^^^^^^^^^^^^
+
+warning: `pvthfhe-keygen` (lib) generated 2 warnings
    Compiling pvthfhe-cli v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-cli)
 warning: variable `plaintext_poly_bytes` is assigned to, but never used
-   --> crates/pvthfhe-cli/src/full_pipeline.rs:613:9
+   --> crates/pvthfhe-cli/src/full_pipeline.rs:634:9
     |
-613 |     let plaintext_poly_bytes;
+634 |     let plaintext_poly_bytes;
     |         ^^^^^^^^^^^^^^^^^^^^
     |
     = note: consider using `_plaintext_poly_bytes` instead
     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
 
 warning: value assigned to `plaintext_poly_bytes` is never read
-   --> crates/pvthfhe-cli/src/full_pipeline.rs:620:9
+   --> crates/pvthfhe-cli/src/full_pipeline.rs:641:9
     |
-620 |         plaintext_poly_bytes = pt_poly;
+641 |         plaintext_poly_bytes = pt_poly;
     |         ^^^^^^^^^^^^^^^^^^^^
     |
     = help: maybe it is overwritten before being read?
     = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
 
-warning: `pvthfhe-compressor` (lib) generated 26 warnings (run `cargo fix --lib -p pvthfhe-compressor` to apply 1 suggestion)
 warning: `pvthfhe-cli` (lib) generated 2 warnings
-    Finished `release` profile [optimized] target(s) in 26.14s
+    Finished `release` profile [optimized] target(s) in 9.84s
      Running `target/release/pvthfhe-cli demo --n 10 --threshold 4 --seed 1`
-[2m2026-05-14T19:34:03.983722Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m starting demo pipeline [3mn[0m[2m=[0m10 [3mthreshold[0m[2m=[0m4 [3mseed[0m[2m=[0m1
+[2m2026-05-14T19:42:01.368260Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m starting demo pipeline [3mn[0m[2m=[0m10 [3mthreshold[0m[2m=[0m4 [3mseed[0m[2m=[0m1
 demo: n=10 threshold=4 seed=1
 pvss_backend_id=lattice-pvss-bfv-d2
-[2m2026-05-14T19:34:03.983938Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m backend_id_p1 [3mbackend_id[0m[2m=[0m"cyclo-ajtai-d2-conditional"
-[2m2026-05-14T19:34:03.983989Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m backend_id_p2 [3mbackend_id_p2[0m[2m=[0m"cyclo-rlwe-t10-lemma9-heuristic"
-[2m2026-05-14T19:34:03.984039Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m backend_id_p3 [3mbackend_id_p3[0m[2m=[0m"sonobe-nova-bn254-grumpkin"
+[2m2026-05-14T19:42:01.368283Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m backend_id_p1 [3mbackend_id[0m[2m=[0m"cyclo-ajtai-d2-conditional"
+[2m2026-05-14T19:42:01.368286Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m backend_id_p2 [3mbackend_id_p2[0m[2m=[0m"cyclo-rlwe-t10-lemma9-heuristic"
+[2m2026-05-14T19:42:01.368287Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m backend_id_p3 [3mbackend_id_p3[0m[2m=[0m"sonobe-nova-bn254-grumpkin"
 backend_id == "cyclo-ajtai-d2-conditional"
 backend_id_p2: cyclo-rlwe-t10-lemma9-heuristic
 backend_id_p3: sonobe-nova-bn254-grumpkin
 note: on-chain Solidity verify is NOT run by demo (use bench-comparison)
 pvss_backend_id=lattice-pvss-bfv-d2
-[2m2026-05-14T19:34:04.007163Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m seed flag ignored in production path; will require --insecure-seed in future R3.6
+[2m2026-05-14T19:42:01.388269Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m seed flag ignored in production path; will require --insecure-seed in future R3.6
 step 1/10: keygen (n=10 t=4 seed=1)
-keygen: complete (29.278 ms)
+keygen: complete (26.597 ms)
 step 2/10: nizk_prove (dealer=1)
-nizk_prove: complete (22.114 ms)
+nizk_prove: complete (20.342 ms)
 step 2/10: nizk_prove (dealer=2)
-nizk_prove: complete (20.793 ms)
+nizk_prove: complete (19.063 ms)
 step 2/10: nizk_prove (dealer=3)
-nizk_prove: complete (20.624 ms)
+nizk_prove: complete (18.976 ms)
 step 2/10: nizk_prove (dealer=4)
-nizk_prove: complete (20.721 ms)
+nizk_prove: complete (19.099 ms)
 step 2/10: nizk_prove (dealer=5)
-nizk_prove: complete (20.949 ms)
+nizk_prove: complete (19.279 ms)
 step 2/10: nizk_prove (dealer=6)
-nizk_prove: complete (21.753 ms)
+nizk_prove: complete (19.563 ms)
 step 2/10: nizk_prove (dealer=7)
-nizk_prove: complete (27.223 ms)
+nizk_prove: complete (19.400 ms)
 step 2/10: nizk_prove (dealer=8)
-nizk_prove: complete (20.707 ms)
+nizk_prove: complete (19.446 ms)
 step 2/10: nizk_prove (dealer=9)
-nizk_prove: complete (28.650 ms)
+nizk_prove: complete (19.541 ms)
 step 2/10: nizk_prove (dealer=10)
-nizk_prove: complete (26.286 ms)
+nizk_prove: complete (19.549 ms)
 step 3/10: nizk_verify (dealer=1 recipient=2)
-nizk_verify: complete (3.252 ms)
-step 3/10: nizk_verify (dealer=1 recipient=3)
-nizk_verify: complete (2.349 ms)
-step 3/10: nizk_verify (dealer=1 recipient=4)
-nizk_verify: complete (2.283 ms)
-step 3/10: nizk_verify (dealer=1 recipient=5)
-nizk_verify: complete (2.347 ms)
-step 3/10: nizk_verify (dealer=1 recipient=6)
-nizk_verify: complete (2.288 ms)
-step 3/10: nizk_verify (dealer=1 recipient=7)
-nizk_verify: complete (2.288 ms)
-step 3/10: nizk_verify (dealer=1 recipient=8)
-nizk_verify: complete (2.274 ms)
-step 3/10: nizk_verify (dealer=1 recipient=9)
-nizk_verify: complete (2.256 ms)
-step 3/10: nizk_verify (dealer=1 recipient=10)
-nizk_verify: complete (2.287 ms)
-step 3/10: nizk_verify (dealer=2 recipient=1)
-nizk_verify: complete (2.305 ms)
-step 3/10: nizk_verify (dealer=2 recipient=3)
-nizk_verify: complete (2.772 ms)
-step 3/10: nizk_verify (dealer=2 recipient=4)
-nizk_verify: complete (2.283 ms)
-step 3/10: nizk_verify (dealer=2 recipient=5)
-nizk_verify: complete (2.297 ms)
-step 3/10: nizk_verify (dealer=2 recipient=6)
-nizk_verify: complete (2.264 ms)
-step 3/10: nizk_verify (dealer=2 recipient=7)
-nizk_verify: complete (2.263 ms)
-step 3/10: nizk_verify (dealer=2 recipient=8)
-nizk_verify: complete (2.254 ms)
-step 3/10: nizk_verify (dealer=2 recipient=9)
-nizk_verify: complete (2.345 ms)
-step 3/10: nizk_verify (dealer=2 recipient=10)
-nizk_verify: complete (2.509 ms)
-step 3/10: nizk_verify (dealer=3 recipient=1)
-nizk_verify: complete (2.372 ms)
-step 3/10: nizk_verify (dealer=3 recipient=2)
-nizk_verify: complete (2.284 ms)
-step 3/10: nizk_verify (dealer=3 recipient=4)
-nizk_verify: complete (2.248 ms)
-step 3/10: nizk_verify (dealer=3 recipient=5)
-nizk_verify: complete (2.330 ms)
-step 3/10: nizk_verify (dealer=3 recipient=6)
-nizk_verify: complete (2.261 ms)
-step 3/10: nizk_verify (dealer=3 recipient=7)
 nizk_verify: complete (2.312 ms)
+step 3/10: nizk_verify (dealer=1 recipient=3)
+nizk_verify: complete (2.104 ms)
+step 3/10: nizk_verify (dealer=1 recipient=4)
+nizk_verify: complete (2.099 ms)
+step 3/10: nizk_verify (dealer=1 recipient=5)
+nizk_verify: complete (2.086 ms)
+step 3/10: nizk_verify (dealer=1 recipient=6)
+nizk_verify: complete (2.087 ms)
+step 3/10: nizk_verify (dealer=1 recipient=7)
+nizk_verify: complete (2.079 ms)
+step 3/10: nizk_verify (dealer=1 recipient=8)
+nizk_verify: complete (2.090 ms)
+step 3/10: nizk_verify (dealer=1 recipient=9)
+nizk_verify: complete (2.085 ms)
+step 3/10: nizk_verify (dealer=1 recipient=10)
+nizk_verify: complete (2.091 ms)
+step 3/10: nizk_verify (dealer=2 recipient=1)
+nizk_verify: complete (2.102 ms)
+step 3/10: nizk_verify (dealer=2 recipient=3)
+nizk_verify: complete (2.087 ms)
+step 3/10: nizk_verify (dealer=2 recipient=4)
+nizk_verify: complete (2.072 ms)
+step 3/10: nizk_verify (dealer=2 recipient=5)
+nizk_verify: complete (2.080 ms)
+step 3/10: nizk_verify (dealer=2 recipient=6)
+nizk_verify: complete (2.084 ms)
+step 3/10: nizk_verify (dealer=2 recipient=7)
+nizk_verify: complete (2.079 ms)
+step 3/10: nizk_verify (dealer=2 recipient=8)
+nizk_verify: complete (2.079 ms)
+step 3/10: nizk_verify (dealer=2 recipient=9)
+nizk_verify: complete (2.082 ms)
+step 3/10: nizk_verify (dealer=2 recipient=10)
+nizk_verify: complete (2.107 ms)
+step 3/10: nizk_verify (dealer=3 recipient=1)
+nizk_verify: complete (2.118 ms)
+step 3/10: nizk_verify (dealer=3 recipient=2)
+nizk_verify: complete (2.085 ms)
+step 3/10: nizk_verify (dealer=3 recipient=4)
+nizk_verify: complete (2.079 ms)
+step 3/10: nizk_verify (dealer=3 recipient=5)
+nizk_verify: complete (2.073 ms)
+step 3/10: nizk_verify (dealer=3 recipient=6)
+nizk_verify: complete (2.073 ms)
+step 3/10: nizk_verify (dealer=3 recipient=7)
+nizk_verify: complete (2.088 ms)
 step 3/10: nizk_verify (dealer=3 recipient=8)
-nizk_verify: complete (4.272 ms)
+nizk_verify: complete (2.078 ms)
 step 3/10: nizk_verify (dealer=3 recipient=9)
-nizk_verify: complete (2.290 ms)
+nizk_verify: complete (2.079 ms)
 step 3/10: nizk_verify (dealer=3 recipient=10)
-nizk_verify: complete (2.651 ms)
+nizk_verify: complete (2.069 ms)
 step 3/10: nizk_verify (dealer=4 recipient=1)
-nizk_verify: complete (2.284 ms)
+nizk_verify: complete (2.110 ms)
 step 3/10: nizk_verify (dealer=4 recipient=2)
-nizk_verify: complete (2.260 ms)
+nizk_verify: complete (2.081 ms)
 step 3/10: nizk_verify (dealer=4 recipient=3)
-nizk_verify: complete (2.251 ms)
+nizk_verify: complete (2.087 ms)
 step 3/10: nizk_verify (dealer=4 recipient=5)
-nizk_verify: complete (2.253 ms)
+nizk_verify: complete (2.073 ms)
 step 3/10: nizk_verify (dealer=4 recipient=6)
-nizk_verify: complete (2.261 ms)
+nizk_verify: complete (2.088 ms)
 step 3/10: nizk_verify (dealer=4 recipient=7)
-nizk_verify: complete (2.272 ms)
+nizk_verify: complete (2.082 ms)
 step 3/10: nizk_verify (dealer=4 recipient=8)
-nizk_verify: complete (2.306 ms)
+nizk_verify: complete (2.075 ms)
 step 3/10: nizk_verify (dealer=4 recipient=9)
-nizk_verify: complete (2.262 ms)
+nizk_verify: complete (2.084 ms)
 step 3/10: nizk_verify (dealer=4 recipient=10)
-nizk_verify: complete (2.259 ms)
+nizk_verify: complete (2.080 ms)
 step 3/10: nizk_verify (dealer=5 recipient=1)
-nizk_verify: complete (2.290 ms)
+nizk_verify: complete (2.098 ms)
 step 3/10: nizk_verify (dealer=5 recipient=2)
-nizk_verify: complete (2.263 ms)
+nizk_verify: complete (2.098 ms)
 step 3/10: nizk_verify (dealer=5 recipient=3)
-nizk_verify: complete (2.359 ms)
+nizk_verify: complete (2.070 ms)
 step 3/10: nizk_verify (dealer=5 recipient=4)
-nizk_verify: complete (2.268 ms)
+nizk_verify: complete (2.085 ms)
 step 3/10: nizk_verify (dealer=5 recipient=6)
-nizk_verify: complete (2.252 ms)
+nizk_verify: complete (2.088 ms)
 step 3/10: nizk_verify (dealer=5 recipient=7)
-nizk_verify: complete (2.241 ms)
+nizk_verify: complete (2.072 ms)
 step 3/10: nizk_verify (dealer=5 recipient=8)
-nizk_verify: complete (2.262 ms)
+nizk_verify: complete (2.084 ms)
 step 3/10: nizk_verify (dealer=5 recipient=9)
-nizk_verify: complete (2.251 ms)
+nizk_verify: complete (2.076 ms)
 step 3/10: nizk_verify (dealer=5 recipient=10)
-nizk_verify: complete (2.255 ms)
+nizk_verify: complete (2.132 ms)
 step 3/10: nizk_verify (dealer=6 recipient=1)
-nizk_verify: complete (2.357 ms)
+nizk_verify: complete (2.105 ms)
 step 3/10: nizk_verify (dealer=6 recipient=2)
-nizk_verify: complete (2.285 ms)
+nizk_verify: complete (2.085 ms)
 step 3/10: nizk_verify (dealer=6 recipient=3)
-nizk_verify: complete (2.320 ms)
+nizk_verify: complete (2.077 ms)
 step 3/10: nizk_verify (dealer=6 recipient=4)
-nizk_verify: complete (2.324 ms)
+nizk_verify: complete (2.076 ms)
 step 3/10: nizk_verify (dealer=6 recipient=5)
-nizk_verify: complete (2.260 ms)
+nizk_verify: complete (2.072 ms)
 step 3/10: nizk_verify (dealer=6 recipient=7)
-nizk_verify: complete (2.306 ms)
+nizk_verify: complete (2.090 ms)
 step 3/10: nizk_verify (dealer=6 recipient=8)
-nizk_verify: complete (2.258 ms)
+nizk_verify: complete (2.081 ms)
 step 3/10: nizk_verify (dealer=6 recipient=9)
-nizk_verify: complete (2.258 ms)
+nizk_verify: complete (2.080 ms)
 step 3/10: nizk_verify (dealer=6 recipient=10)
-nizk_verify: complete (2.332 ms)
+nizk_verify: complete (2.079 ms)
 step 3/10: nizk_verify (dealer=7 recipient=1)
-nizk_verify: complete (2.357 ms)
+nizk_verify: complete (2.095 ms)
 step 3/10: nizk_verify (dealer=7 recipient=2)
-nizk_verify: complete (2.296 ms)
+nizk_verify: complete (2.080 ms)
 step 3/10: nizk_verify (dealer=7 recipient=3)
-nizk_verify: complete (2.301 ms)
+nizk_verify: complete (2.087 ms)
 step 3/10: nizk_verify (dealer=7 recipient=4)
-nizk_verify: complete (2.262 ms)
+nizk_verify: complete (2.074 ms)
 step 3/10: nizk_verify (dealer=7 recipient=5)
-nizk_verify: complete (2.237 ms)
+nizk_verify: complete (2.083 ms)
 step 3/10: nizk_verify (dealer=7 recipient=6)
-nizk_verify: complete (2.226 ms)
+nizk_verify: complete (2.086 ms)
 step 3/10: nizk_verify (dealer=7 recipient=8)
-nizk_verify: complete (2.311 ms)
+nizk_verify: complete (2.074 ms)
 step 3/10: nizk_verify (dealer=7 recipient=9)
-nizk_verify: complete (2.346 ms)
+nizk_verify: complete (2.087 ms)
 step 3/10: nizk_verify (dealer=7 recipient=10)
-nizk_verify: complete (2.936 ms)
+nizk_verify: complete (2.075 ms)
 step 3/10: nizk_verify (dealer=8 recipient=1)
-nizk_verify: complete (2.302 ms)
+nizk_verify: complete (2.096 ms)
 step 3/10: nizk_verify (dealer=8 recipient=2)
-nizk_verify: complete (2.310 ms)
+nizk_verify: complete (2.077 ms)
 step 3/10: nizk_verify (dealer=8 recipient=3)
-nizk_verify: complete (2.238 ms)
+nizk_verify: complete (2.074 ms)
 step 3/10: nizk_verify (dealer=8 recipient=4)
-nizk_verify: complete (2.242 ms)
+nizk_verify: complete (2.084 ms)
 step 3/10: nizk_verify (dealer=8 recipient=5)
-nizk_verify: complete (2.249 ms)
+nizk_verify: complete (2.077 ms)
 step 3/10: nizk_verify (dealer=8 recipient=6)
-nizk_verify: complete (2.265 ms)
+nizk_verify: complete (2.079 ms)
 step 3/10: nizk_verify (dealer=8 recipient=7)
-nizk_verify: complete (2.276 ms)
+nizk_verify: complete (2.081 ms)
 step 3/10: nizk_verify (dealer=8 recipient=9)
-nizk_verify: complete (2.254 ms)
+nizk_verify: complete (2.074 ms)
 step 3/10: nizk_verify (dealer=8 recipient=10)
-nizk_verify: complete (2.347 ms)
+nizk_verify: complete (2.071 ms)
 step 3/10: nizk_verify (dealer=9 recipient=1)
-nizk_verify: complete (2.339 ms)
+nizk_verify: complete (2.113 ms)
 step 3/10: nizk_verify (dealer=9 recipient=2)
-nizk_verify: complete (2.327 ms)
+nizk_verify: complete (2.188 ms)
 step 3/10: nizk_verify (dealer=9 recipient=3)
-nizk_verify: complete (2.257 ms)
+nizk_verify: complete (2.099 ms)
 step 3/10: nizk_verify (dealer=9 recipient=4)
-nizk_verify: complete (2.271 ms)
+nizk_verify: complete (2.101 ms)
 step 3/10: nizk_verify (dealer=9 recipient=5)
-nizk_verify: complete (2.319 ms)
+nizk_verify: complete (2.083 ms)
 step 3/10: nizk_verify (dealer=9 recipient=6)
-nizk_verify: complete (2.264 ms)
+nizk_verify: complete (2.078 ms)
 step 3/10: nizk_verify (dealer=9 recipient=7)
-nizk_verify: complete (2.334 ms)
+nizk_verify: complete (2.077 ms)
 step 3/10: nizk_verify (dealer=9 recipient=8)
-nizk_verify: complete (2.280 ms)
+nizk_verify: complete (2.080 ms)
 step 3/10: nizk_verify (dealer=9 recipient=10)
-nizk_verify: complete (2.261 ms)
+nizk_verify: complete (2.075 ms)
 step 3/10: nizk_verify (dealer=10 recipient=1)
-nizk_verify: complete (2.282 ms)
+nizk_verify: complete (2.117 ms)
 step 3/10: nizk_verify (dealer=10 recipient=2)
-nizk_verify: complete (2.273 ms)
+nizk_verify: complete (2.083 ms)
 step 3/10: nizk_verify (dealer=10 recipient=3)
-nizk_verify: complete (2.258 ms)
+nizk_verify: complete (2.079 ms)
 step 3/10: nizk_verify (dealer=10 recipient=4)
-nizk_verify: complete (2.313 ms)
+nizk_verify: complete (2.075 ms)
 step 3/10: nizk_verify (dealer=10 recipient=5)
-nizk_verify: complete (2.329 ms)
+nizk_verify: complete (2.132 ms)
 step 3/10: nizk_verify (dealer=10 recipient=6)
-nizk_verify: complete (2.247 ms)
+nizk_verify: complete (2.092 ms)
 step 3/10: nizk_verify (dealer=10 recipient=7)
-nizk_verify: complete (2.244 ms)
+nizk_verify: complete (2.102 ms)
 step 3/10: nizk_verify (dealer=10 recipient=8)
-nizk_verify: complete (2.326 ms)
+nizk_verify: complete (2.092 ms)
 step 3/10: nizk_verify (dealer=10 recipient=9)
-nizk_verify: complete (2.264 ms)
+nizk_verify: complete (2.075 ms)
 step 4/10: pvss_share_encrypt (lattice-pvss-bfv-d2)
-pvss_share_encrypt: complete (567.184 ms)
-[2m2026-05-14T19:34:05.689932Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: norm enforcement active (bound B=1024, B_e=16)
+pvss_share_encrypt: complete (517.503 ms)
+[2m2026-05-14T19:42:02.967894Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: norm enforcement active (bound B=1024, B_e=16)
 step 5/10: cyclo_fold (cyclo-rlwe-t10-lemma9-heuristic)
-cyclo_fold: complete (1.353 ms)
-[2m2026-05-14T19:34:06.651545Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: params serialized [3mprover_key_bytes_len[0m[2m=[0m2162768 [3mverifier_key_bytes_len[0m[2m=[0m2162768 [3mrss_kb[0m[2m=[0m174652
+cyclo_fold: complete (1.230 ms)
+[2m2026-05-14T19:42:03.841100Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: params serialized [3mprover_key_bytes_len[0m[2m=[0m2162768 [3mverifier_key_bytes_len[0m[2m=[0m2162768 [3mrss_kb[0m[2m=[0m173608
 step 6/10: compressor_prove (sonobe-nova-bn254-grumpkin)
-[2m2026-05-14T19:34:06.657632Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: hash-and-verify compressor (ring equation native check pending)
-[2m2026-05-14T19:34:06.657736Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: deserialize_params start [3mrss_kb[0m[2m=[0m174652
-[2m2026-05-14T19:34:07.003035Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: pp_deserialize done [3mrss_kb[0m[2m=[0m174652 [3mrss_delta_kb[0m[2m=[0m0
-[2m2026-05-14T19:34:07.600514Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: vp_deserialize done [3mrss_kb[0m[2m=[0m219532 [3mrss_delta_kb[0m[2m=[0m44880
-[2m2026-05-14T19:34:07.863758Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: Nova::init done [3mrss_kb[0m[2m=[0m269940
-[2m2026-05-14T19:34:07.953396Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m0 [3mrss_kb[0m[2m=[0m280256
-[2m2026-05-14T19:34:08.087174Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m1 [3mrss_kb[0m[2m=[0m287648
-[2m2026-05-14T19:34:08.264503Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m2 [3mrss_kb[0m[2m=[0m292036
-[2m2026-05-14T19:34:08.492448Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m3 [3mrss_kb[0m[2m=[0m302572
-[2m2026-05-14T19:34:08.732429Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m4 [3mrss_kb[0m[2m=[0m307424
-[2m2026-05-14T19:34:08.945367Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m5 [3mrss_kb[0m[2m=[0m311028
-[2m2026-05-14T19:34:09.156759Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m6 [3mrss_kb[0m[2m=[0m312888
-[2m2026-05-14T19:34:09.396489Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m7 [3mrss_kb[0m[2m=[0m314092
-[2m2026-05-14T19:34:09.625730Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m8 [3mrss_kb[0m[2m=[0m315416
-[2m2026-05-14T19:34:09.845625Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m9 [3mrss_kb[0m[2m=[0m319180
-[2m2026-05-14T19:34:09.849703Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: ivc proof serialized [3mivc_bytes_len[0m[2m=[0m7245080 [3mrss_kb[0m[2m=[0m319180
-compressor_prove: complete (3214.776 ms)
+[2m2026-05-14T19:42:03.847566Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: hash-and-verify compressor (ring equation native check pending)
+[2m2026-05-14T19:42:03.847648Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: deserialize_params start [3mrss_kb[0m[2m=[0m173608
+[2m2026-05-14T19:42:04.163386Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: pp_deserialize done [3mrss_kb[0m[2m=[0m173672 [3mrss_delta_kb[0m[2m=[0m64
+[2m2026-05-14T19:42:04.726564Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: vp_deserialize done [3mrss_kb[0m[2m=[0m218556 [3mrss_delta_kb[0m[2m=[0m44948
+[2m2026-05-14T19:42:04.984848Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: Nova::init done [3mrss_kb[0m[2m=[0m273980
+[2m2026-05-14T19:42:05.053153Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m0 [3mrss_kb[0m[2m=[0m284388
+[2m2026-05-14T19:42:05.138461Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m1 [3mrss_kb[0m[2m=[0m290340
+[2m2026-05-14T19:42:05.244287Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m2 [3mrss_kb[0m[2m=[0m295800
+[2m2026-05-14T19:42:05.365256Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m3 [3mrss_kb[0m[2m=[0m302348
+[2m2026-05-14T19:42:05.491742Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m4 [3mrss_kb[0m[2m=[0m307444
+[2m2026-05-14T19:42:05.612885Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m5 [3mrss_kb[0m[2m=[0m315476
+[2m2026-05-14T19:42:05.742150Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m6 [3mrss_kb[0m[2m=[0m318384
+[2m2026-05-14T19:42:05.861358Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m7 [3mrss_kb[0m[2m=[0m321180
+[2m2026-05-14T19:42:05.978576Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m8 [3mrss_kb[0m[2m=[0m322300
+[2m2026-05-14T19:42:06.107260Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m9 [3mrss_kb[0m[2m=[0m324200
+[2m2026-05-14T19:42:06.110076Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: ivc proof serialized [3mivc_bytes_len[0m[2m=[0m7245080 [3mrss_kb[0m[2m=[0m324200
+compressor_prove: complete (2278.454 ms)
 step 7/10: compressor_verify (sonobe-nova-bn254-grumpkin)
-compressor_verify: complete (967.269 ms)
+compressor_verify: complete (587.332 ms)
 step 8/10: partial_decrypt (party_id=1)
-partial_decrypt: complete (2.686 ms)
-partial_decrypt: complete (2.558 ms)
-partial_decrypt: complete (2.557 ms)
-partial_decrypt: complete (5.582 ms)
+partial_decrypt: complete (2.548 ms)
+partial_decrypt: complete (2.427 ms)
+partial_decrypt: complete (2.408 ms)
+partial_decrypt: complete (2.425 ms)
 step 9/10: aggregate_decrypt
-aggregate_decrypt: complete (42.658 ms)
+aggregate_decrypt: complete (25.740 ms)
 step 10/10: c7_decrypt_aggregation
-[2m2026-05-14T19:34:13.521916Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: params serialized [3mprover_key_bytes_len[0m[2m=[0m2162768 [3mverifier_key_bytes_len[0m[2m=[0m2162768 [3mrss_kb[0m[2m=[0m281852
-[2m2026-05-14T19:34:13.541861Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: deserialize_params start [3mrss_kb[0m[2m=[0m212796
-[2m2026-05-14T19:34:14.276655Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: pp_deserialize done [3mrss_kb[0m[2m=[0m212796 [3mrss_delta_kb[0m[2m=[0m0
-[2m2026-05-14T19:34:15.083292Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: vp_deserialize done [3mrss_kb[0m[2m=[0m294820 [3mrss_delta_kb[0m[2m=[0m82024
-[2m2026-05-14T19:34:15.792600Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_steps done [3mstep[0m[2m=[0m0 [3mrss_kb[0m[2m=[0m346836
-[2m2026-05-14T19:34:16.136161Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_steps done [3mstep[0m[2m=[0m1 [3mrss_kb[0m[2m=[0m346840
-[2m2026-05-14T19:34:16.453354Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_steps done [3mstep[0m[2m=[0m2 [3mrss_kb[0m[2m=[0m346856
-[2m2026-05-14T19:34:16.910405Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_steps done [3mstep[0m[2m=[0m3 [3mrss_kb[0m[2m=[0m348616
-[2m2026-05-14T19:34:16.913948Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_steps proof serialized [3mivc_bytes_len[0m[2m=[0m7245080 [3mrss_kb[0m[2m=[0m348616
-c7_decrypt_aggregation: complete (6113.529 ms)
+[2m2026-05-14T19:42:08.297523Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: params serialized [3mprover_key_bytes_len[0m[2m=[0m2162768 [3mverifier_key_bytes_len[0m[2m=[0m2162768 [3mrss_kb[0m[2m=[0m325072
+[2m2026-05-14T19:42:08.303248Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: deserialize_params start [3mrss_kb[0m[2m=[0m325072
+[2m2026-05-14T19:42:08.615728Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: pp_deserialize done [3mrss_kb[0m[2m=[0m325072 [3mrss_delta_kb[0m[2m=[0m0
+[2m2026-05-14T19:42:09.164672Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: vp_deserialize done [3mrss_kb[0m[2m=[0m325072 [3mrss_delta_kb[0m[2m=[0m0
+[2m2026-05-14T19:42:09.476445Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_steps done [3mstep[0m[2m=[0m0 [3mrss_kb[0m[2m=[0m355576
+[2m2026-05-14T19:42:09.564986Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_steps done [3mstep[0m[2m=[0m1 [3mrss_kb[0m[2m=[0m355584
+[2m2026-05-14T19:42:09.673934Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_steps done [3mstep[0m[2m=[0m2 [3mrss_kb[0m[2m=[0m355656
+[2m2026-05-14T19:42:09.790107Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_steps done [3mstep[0m[2m=[0m3 [3mrss_kb[0m[2m=[0m357360
+[2m2026-05-14T19:42:09.793000Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_steps proof serialized [3mivc_bytes_len[0m[2m=[0m7245080 [3mrss_kb[0m[2m=[0m357360
+c7_decrypt_aggregation: complete (2960.567 ms)
 plaintext_roundtrip: OK
-aggregate_pk_hash: 9b75e31e7e2b94087b4834c20e450bde6d9717d1e23cce98713ce7d6a91dc8be
-ciphertext_hash: 52aa6be456d66c5629db4debc64a8a2415217a8735927f08f27bcb66eab190ce
-compressed_proof_digest: b55b9a97f3bbe168d6fb0f9a2c8c04163a206858aefcd45c05c1aa6ce0eba6f3
-keygen_ms=29.278423
-aggregate_keygen_ms=5.348777
-encrypt_ms=3.098425
-share_encryption_proof_ms=304
-partial_decrypt_ms=13.383
-aggregate_decrypt_ms=42.657823
-decrypt_ms=56.040823
+aggregate_pk_hash: b0cb6a13b76c3ec2b15c5f6406dfc563e1da13cc9acde8cd27fdc48a89b6ffd9
+ciphertext_hash: 62f72a3fa3c166189f575727a9890e169efb21a1514b675ea960babc50f7a6b9
+compressed_proof_digest: 11cc50e9d458cd6a8ed90821ad062a0789f411176b9b24408c9cd1f0321f4840
+keygen_ms=26.596695999999998
+aggregate_keygen_ms=4.837166000000001
+encrypt_ms=2.851315
+share_encryption_proof_ms=277
+partial_decrypt_ms=9.808088
+aggregate_decrypt_ms=25.739543
+decrypt_ms=35.547631
 threshold=4
 n=10
 verify: ACCEPT
-[2m2026-05-14T19:34:18.102792Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m demo complete: ACCEPT
+[2m2026-05-14T19:42:10.382862Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m demo complete: ACCEPT
 pvss_backend_id=lattice-pvss-bfv-d2

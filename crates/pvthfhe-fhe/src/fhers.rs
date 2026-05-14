@@ -1306,16 +1306,12 @@ impl FhersBackend {
         }
     }
 
-    /// Aggregate decryption shares into recovered plaintext, plaintext polynomial bytes,
-    /// and combined share coefficients.
+    /// Aggregate decryption shares into recovered plaintext and plaintext polynomial bytes.
     ///
-    /// Returns `(decoded_plaintext_bytes, plaintext_poly_bytes, combined_share_coeffs)` where:
+    /// Returns `(decoded_plaintext_bytes, plaintext_poly_bytes)` where:
     /// - `decoded_plaintext_bytes` is the slot-decoded message (same as [`FheBackend::aggregate_decrypt`])
     /// - `plaintext_poly_bytes` is the raw [`Poly`](fhe_math::rq::Poly) byte serialization
     ///   of the recovered plaintext polynomial (N coefficients, i64 each, little-endian)
-    /// - `combined_share_coeffs` is the Lagrange-weighted sum Σ λ_i · d_i of the decoded
-    ///   share polynomials (24 576 residue values in modulus-major RNS layout), providing
-    ///   an independent reference for the C7 ring-aware coefficient check.
     ///
     /// The polynomial bytes are needed by the C7 verification path to check
     /// `Σ λ_i · d_i(r) ≡ plaintext(r) (mod Q)`.
@@ -1325,7 +1321,7 @@ impl FhersBackend {
         shares: &[DecryptShare],
         threshold: usize,
         _session_id: &[u8],
-    ) -> Result<(Vec<u8>, Vec<u8>, Vec<i64>), FheError> {
+    ) -> Result<(Vec<u8>, Vec<u8>), FheError> {
         let (n, configured_threshold) = self.threshold_params()?;
         if shares.len() < configured_threshold {
             return Err(FheError::InsufficientShares {
@@ -1378,28 +1374,6 @@ impl FhersBackend {
             .collect::<Result<Vec<_>, FheError>>()?;
         let (party_ids, share_polys): (Vec<_>, Vec<_>) = effective_shares.into_iter().unzip();
 
-        // Compute the Lagrange-weighted sum of the share polynomials BEFORE they are
-        // consumed by decrypt_from_shares. This provides an independent ground-truth
-        // reference for the C7 ring-aware coefficient check.
-        let combined_share_coeffs = {
-            // Compute integer Lagrange coefficients for the given party IDs.
-            let lambda_int = Self::compute_lagrange_coeffs_integer(&party_ids);
-            let coeffs_per_poly = share_polys[0].coefficients().len();
-            let mut sum = vec![0i128; coeffs_per_poly];
-            for (poly, lambda) in share_polys.iter().zip(lambda_int.iter()) {
-                for (k, c) in poly.coefficients().iter().enumerate() {
-                    sum[k] += *lambda as i128 * (*c as i128);
-                }
-            }
-            // Constrain to i64 range (residues are < 2^58 and lambda are small,
-            // so the sum fits in i64 after mod reduction).
-            // SAFETY: For t ≤ 10 participants with party IDs {1..10}, the sum
-            // of Lagrange-weighted polynomial coefficients fits in i64.
-            // Each coefficient is < Q ≈ 2^58, Lagrange weights are small integers,
-            // and t ≤ 10 ensures total < t·max_λ·Q < 2^63.
-            sum.iter().map(|s| *s as i64).collect::<Vec<i64>>()
-        };
-
         let share_manager = ShareManager::new(
             n,
             self.shamir_threshold(n, configured_threshold),
@@ -1428,7 +1402,7 @@ impl FhersBackend {
         );
 
         let decoded = decode_plaintext_slots(&slots)?;
-        Ok((decoded, plaintext_poly_bytes, combined_share_coeffs))
+        Ok((decoded, plaintext_poly_bytes))
     }
 
     /// Compute integer Lagrange coefficients for the given 1-based party IDs.

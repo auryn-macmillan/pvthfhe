@@ -613,7 +613,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let plaintext_poly_bytes;
     #[cfg(feature = "pipeline-extra-checks")]
     {
-        let (agg, pt_poly, _) = backend
+        let (agg, pt_poly) = backend
             .aggregate_decrypt_with_poly(&ciphertext, &shares, backend_threshold, session_id.as_bytes())
             .context("aggregate_decrypt")?;
         aggregate_plaintext = agg;

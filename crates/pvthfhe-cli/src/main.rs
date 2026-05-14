@@ -455,7 +455,7 @@ impl PipelineObserver for DemoObserver {
         match name {
             "aggregate_keygen" => self.aggregate_keygen_ms = Some(ms),
             "encrypt" => self.encrypt_ms = Some(ms),
-            "keygen" | "pvss_share_encrypt" | "cyclo_fold" | "compressor_prove"
+            "keygen" | "nizk_prove" | "nizk_verify" | "pvss_share_encrypt" | "cyclo_fold" | "compressor_prove"
             | "compressor_verify" | "partial_decrypt" | "aggregate_decrypt"
             | "c7_decrypt_aggregation" => {
                 println!("{name}: complete ({ms:.3} ms)")

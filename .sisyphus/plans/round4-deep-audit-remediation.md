@@ -1,6 +1,6 @@
 # Round 4 Deep Audit Remediation Plan
 
-**Status**: NEARLY COMPLETE (Batches A, B, C done; D, E in progress)
+**Status**: COMPLETE — all 5 batches shipped. F1 (sigma equation) fixed `2fd44e5`, F2-F4 (BFV domain, decrypt binding, dealer identity) `5dee0f8`, F5-F11 (verifiability, assertion, dead code) `32b9272`/`ddc9ad7`, F12-F16 (CT challenge, benchmark, docs) `32b9272`. Demo ACCEPT. 16 findings resolved.
 **Created**: 2026-05-13
 **Audits**: NIZK proof soundness + PVSS security guarantees + E2E verifiability + Bug/edge case surface
 **Pre-audit baseline**: `2d2540d` (Momus remediation complete)

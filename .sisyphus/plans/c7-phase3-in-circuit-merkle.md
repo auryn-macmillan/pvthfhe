@@ -1,7 +1,7 @@
 # Plan: C7 Phase 3 — In-Circuit Merkle Proof Verification
 
 **Plan**: `c7-phase3-in-circuit-merkle`
-**Status**: COMPLETE (Phase A — Poseidon placeholder)
+**Status**: COMPLETE — Phase A (circuit structure) + Phase B (real Poseidon R1CS) both done. C7MerkleStepCircuit at depth-5 (N=8192) with real Poseidon hash in R1CS constraints (~6,500 constraints/step). Available via PVTHFHE_RUN_C7_MERKLE=1.
 **Completed**: 2026-05-13
 **Goal**: Move Merkle proof verification from off-circuit (Rust pipeline) into the Nova step circuit, so the Nova proof itself cryptographically proves that each participant's claimed `d_i(r)` matches the Merkle-committed share coefficients.
 

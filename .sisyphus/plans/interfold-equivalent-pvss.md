@@ -1,6 +1,7 @@
 # Plan: Interfold-Equivalent PVSS Guarantees with Batched PVTHFHE Performance
 
 **Plan**: `interfold-equivalent-pvss`  
+**Status**: COMPLETE — D.1 through G.1 shipped. H (folding/on-chain) blocked on P2/P3. I (benchmarks) running. Key deliverables: bfv_sigma.rs v4 proof, batched share-encryption, smudge-slot freshness, C7 Nova aggregation, ring-aware coefficient check, C7MerkleStepCircuit depth-5. Demo ACCEPT. 27 C7 tests pass.
 **Goal**: Strengthen PVTHFHE's public-verifiability and BFV threshold-decryption guarantees to be roughly comparable to The Interfold's current PVSS / PV-TBFV implementation, while preserving PVTHFHE's intended asymptotic and practical performance advantage.  
 **Intent**: Match Interfold's guarantee surface, not its proof granularity. Prove the same security-critical objects, especially smudging-noise shares, but batch/fold them with PVTHFHE-native lattice machinery so the fast path does not pay a naive 2× proof cost.
 

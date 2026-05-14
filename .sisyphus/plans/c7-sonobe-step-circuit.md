@@ -1,7 +1,7 @@
 # Plan: C7 Decryption Aggregation via Sonobe Nova (Track A)
 
 **Plan**: `c7-sonobe-step-circuit`
-**Status**: IN PROGRESS
+**Status**: COMPLETE — all phases done (Phase 1 step circuit, Phase 2 N=8192 Merkle, Phase 3 Poseidon R1CS, depth-5 scaling). In-circuit Merkle via C7MerkleStepCircuit available via PVTHFHE_RUN_C7_MERKLE=1. Demo path uses C7DecryptAggregationCircuit (3 constraints, ~3s).
 **Created**: 2026-05-13
 **Goal**: Build a C7-equivalent decryption aggregation proof using the existing Sonobe Nova compressor infrastructure, with no dependency on P2 (LatticeFold+) or P3 (MicroNova).
 

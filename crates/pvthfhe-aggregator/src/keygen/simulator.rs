@@ -285,7 +285,16 @@ impl KeygenSimulator {
         dkg_root.copy_from_slice(&dkg_root_hasher.finalize());
 
         let mut transcript_hasher = Sha256::new();
-        transcript_hasher.update(b"mock_cbor_hash_of_everything");
+        // Serialize round1_messages for transcript hash
+        for msg in &valid_r1 {
+            transcript_hasher.update(&msg.party_id.to_be_bytes());
+            transcript_hasher.update(&msg.nizk);
+            transcript_hasher.update(&msg.pk_i.bytes);
+            transcript_hasher.update(&msg.pk_i_hash);
+            transcript_hasher.update(&msg.commitment);
+            transcript_hasher.update(&msg.poly_commit);
+            // Skip encrypted_shares to avoid ordering issues across parties
+        }
         let mut transcript_hash = [0u8; 32];
         transcript_hash.copy_from_slice(&transcript_hasher.finalize());
 
@@ -332,6 +341,14 @@ impl KeygenSimulator {
             poly_commit: hash_bytes(&party_id.to_be_bytes()),
             encrypted_shares,
             // STUB: Real NIZK for keygen shares requires wiring CycloNizkAdapter per dealer.
+            // Each Round1Message needs a NIZK proving:
+            //   (a) pk_i is a valid BFV public key generated from the party's secret key;
+            //   (b) the commitment binds to the party's Shamir polynomial for sk sharing;
+            //   (c) encrypted_shares[j] encrypts party j's share of both sk and e_sm tracks
+            //       under party j's public key with correct randomness.
+            // Currently `nizk` is a hardcoded [0x00, 0x01] that always passes validation.
+            // This is a known stub (L5); real adversarial testing requires replacing it with
+            // actual Cyclo NIZK proofs. See round10-adversarial-remediation F3.
             // See SECURITY.md §Keygen NIZK stubs.
             // Tracked in p2-m6-r1cs-cyclo-verifier.md, deferred to M2.
             nizk: vec![0x00, 0x01], // valid (stub)

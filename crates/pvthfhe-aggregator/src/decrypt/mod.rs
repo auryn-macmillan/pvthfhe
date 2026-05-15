@@ -1,10 +1,12 @@
+use ark_bn254::Fr;
 use pvthfhe_fhe::{
     types::{Ciphertext, DecryptShare},
     FheBackend, FheError,
 };
 use pvthfhe_pvss::{
+    dkg_aggregation::{compute_esm_aggregate_commitment, compute_sk_aggregate_commitment},
     nizk_decrypt::{
-        DecryptNizkMode, DecryptNizkProof, DecryptNizkProver,
+        compute_decrypt_ciphertext_hash, DecryptNizkMode, DecryptNizkProof, DecryptNizkProver,
         DecryptNizkStatement, DecryptNizkVerifier, DecryptNizkWitness,
     },
     nizk_share::compute_ciphertext_v,
@@ -174,6 +176,55 @@ pub fn partial_decrypt(
             let expected_sk_agg_share =
                 pvthfhe_pvss::nizk_decrypt::derive_party_binding(party_pk_bytes);
             let dealer_index = pvthfhe_pvss::derive_dealer_index(&session_id);
+
+            // R10: LegacyLocalSmudge deprecated for production.
+            // The Legacy path uses public-key-derived binding which ANY key can satisfy.
+            // CommittedSmudge enforces DKG-anchored sk_agg_share/sk_agg_commit binding.
+            // See round10-adversarial-remediation F5.
+            let participant_id = u16::try_from(party_index.saturating_add(1)).unwrap_or(1);
+            let accepted_participant_ids = vec![participant_id];
+            let mode = if witness.esm_committed {
+                let ciphertext_hash =
+                    compute_decrypt_ciphertext_hash(&ciphertext_u, &ciphertext_v);
+                let sk_agg_commit = compute_sk_aggregate_commitment(
+                    dkg_root.as_slice(),
+                    dkg_root.as_slice(),
+                    participant_id,
+                    &accepted_participant_ids,
+                    Fr::from(expected_sk_agg_share),
+                );
+                let esm_agg_share = sha256_bytes(&decryption_noise_bytes);
+                let esm_agg_share_u64 = u64::from_be_bytes(
+                    esm_agg_share[..8].try_into().unwrap_or([0u8; 8]),
+                );
+                let esm_agg_commit = compute_esm_aggregate_commitment(
+                    dkg_root.as_slice(),
+                    dkg_root.as_slice(),
+                    participant_id,
+                    &accepted_participant_ids,
+                    1,
+                    Fr::from(esm_agg_share_u64),
+                );
+                DecryptNizkMode::CommittedSmudge {
+                    slot_id: 1,
+                    decrypt_round: 0,
+                    ciphertext_hash,
+                    accepted_participant_ids,
+                    sk_agg_commit,
+                    esm_agg_commit,
+                }
+            } else {
+                // R10: LegacyLocalSmudge deprecated for production.
+                // The Legacy path uses public-key-derived binding (derive_party_binding)
+                // which ANY key can satisfy. CommittedSmudge requires DKG-anchored
+                // sk_agg_commit/esm_agg_commit. If esm DKG data is unavailable,
+                // the caller must provide it or the pipeline cannot proceed.
+                return Err(DecryptError::InvalidShare {
+                    party_id,
+                    reason: "LegacyLocalSmudge is deprecated — CommittedSmudge required (esm DKG data unavailable for this party)".into(),
+                });
+            };
+
             let stmt = DecryptNizkStatement {
                 session_id,
                 party_index,
@@ -185,18 +236,18 @@ pub fn partial_decrypt(
                 dkg_root: dkg_root.to_vec(),
                 expected_sk_agg_share,
                 dealer_index,
-                mode: DecryptNizkMode::LegacyLocalSmudge,
+                mode,
             };
 
-            let witness = DecryptNizkWitness {
+            let prover_witness = DecryptNizkWitness {
                 secret_key_bytes: Secret::new(sk_bytes.to_vec()),
                 decryption_noise: Secret::new(decryption_noise_bytes),
-                sk_agg_share: None,
+                sk_agg_share: Some(expected_sk_agg_share),
                 esm_agg_share: None,
                 esm_noise_poly_bytes: None,
             };
 
-            match DecryptNizkProver::prove(&stmt, &witness) {
+            match DecryptNizkProver::prove(&stmt, &prover_witness) {
                 Ok(proof) => ProtocolBytes(proof.proof_bytes),
                 Err(_) => ProtocolBytes(vec![]),
             }
@@ -330,6 +381,18 @@ pub fn aggregate_decrypt(
                 party_id: payload.party_id,
             }
         })?;
+
+        // R10: cross-validate payload.share bytes against NIZK statement's claimed decrypted_share_bytes
+        if payload.share.bytes.0 != opened.statement.decrypted_share_bytes {
+            return Err(DecryptError::InvalidShare {
+                party_id: payload.party_id,
+                reason: format!(
+                    "decrypted_share_bytes mismatch: payload has {} bytes, NIZK claims {} bytes",
+                    payload.share.bytes.0.len(),
+                    opened.statement.decrypted_share_bytes.len()
+                ),
+            });
+        }
 
         valid_shares.push(payload.share.clone());
     }

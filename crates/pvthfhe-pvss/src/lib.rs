@@ -111,6 +111,8 @@ pub enum PvssError {
         /// Slot identifier that was already consumed.
         slot_id: u16,
     },
+    /// Cross-share Reed-Solomon parity / batched share computation check failed.
+    ShareVerification(String),
 }
 
 impl core::fmt::Debug for PvssContext {
@@ -160,6 +162,7 @@ impl core::fmt::Debug for PvssError {
             Self::D2HashBindingFailed => f.write_str("D2HashBindingFailed"),
             Self::BfvEncryptionProofFailed => f.write_str("BfvEncryptionProofFailed"),
             Self::SmudgeSlotReused { .. } => f.write_str("SmudgeSlotReused(<redacted>)"),
+            Self::ShareVerification(_) => f.write_str("ShareVerification(<redacted>)"),
         }
     }
 }
@@ -190,6 +193,7 @@ impl core::fmt::Display for PvssError {
                     "PVSS smudge slot reused: party_id={party_id} slot_id={slot_id}"
                 )
             }
+            Self::ShareVerification(s) => write!(f, "PVSS share verification failed: {s}"),
         }
     }
 }

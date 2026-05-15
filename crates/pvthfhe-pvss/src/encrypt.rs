@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use ark_bn254::Fr;
-use ark_ff::PrimeField;
+use ark_ff::{AdditiveGroup, Field, PrimeField};
 use pvthfhe_fhe::{error::FheError, fhers::FhersBackend, types::PublicKey, FheBackend};
 use pvthfhe_rng::OsRng;
 use pvthfhe_types::{EncRandomness, ProtocolBytes, ShareSecret};
@@ -301,6 +301,17 @@ impl PvssAdapter for LatticePvssBfvAdapter {
 
             ShareNizkVerifier::verify(self.backend.as_ref(), &statement, &proof)?;
         }
+
+        // R10 hardening: cross-share Reed-Solomon parity check is now unconditional.
+        // This closes the share-poisoning attack where individually-valid shares
+        // reconstruct garbage. See round10-adversarial-remediation F1/F2.
+        if !shares.share_bytes.is_empty() {
+            verify_share_rs_consistency(&shares.share_bytes, ctx.t)
+                .map_err(|e| PvssError::ShareVerification(format!(
+                    "cross-share RS parity check failed: {e}"
+                )))?;
+        }
+
         Ok(())
     }
 
@@ -552,6 +563,123 @@ fn deserialize_share_payloads(
     }
 
     Ok((original_len, share_frs_by_party))
+}
+
+// ── cross-share RS consistency ─────────────────────────────────────────
+
+/// Verify that all plaintext shares in `share_bytes` form valid RS codewords
+/// (evaluations of the same degree-`(threshold-1)` polynomial) for each Fr chunk.
+///
+/// This prevents the share-poisoning attack where a dishonest dealer creates
+/// individually-valid NIZK proofs for shares that reconstruct garbage.
+/// Equivalent to the RS parity portion of `share_computation::verify_batched_share_computation`.
+fn verify_share_rs_consistency(
+    share_bytes: &[Vec<u8>],
+    threshold: usize,
+) -> Result<(), String> {
+    let n = share_bytes.len();
+    if n == 0 {
+        return Ok(());
+    }
+    let first_len = share_bytes[0].len();
+    if first_len < LENGTH_PREFIX_LEN + FR_SERIALIZED_LEN {
+        return Err("share payload too short".to_string());
+    }
+    let data_len = first_len - LENGTH_PREFIX_LEN;
+    if data_len % FR_SERIALIZED_LEN != 0 {
+        return Err("share payload misaligned".to_string());
+    }
+    let num_chunks = data_len / FR_SERIALIZED_LEN;
+
+    // All shares must have identical length.
+    if share_bytes.iter().any(|b| b.len() != first_len) {
+        return Err("inconsistent share payload lengths".to_string());
+    }
+
+    // Parse all Fr values: party_frs[party][chunk] = Fr
+    let mut party_frs: Vec<Vec<Fr>> = Vec::with_capacity(n);
+    for payload in share_bytes {
+        let mut frs = Vec::with_capacity(num_chunks);
+        for chunk_start in (LENGTH_PREFIX_LEN..first_len).step_by(FR_SERIALIZED_LEN) {
+            let chunk: &[u8; FR_SERIALIZED_LEN] = payload
+                [chunk_start..chunk_start + FR_SERIALIZED_LEN]
+                .try_into()
+                .map_err(|_| "share payload chunk alignment".to_string())?;
+            let fr = bytes32_to_fr(chunk).ok_or("share field element out of range".to_string())?;
+            frs.push(fr);
+        }
+        party_frs.push(frs);
+    }
+
+    let degree = threshold.saturating_sub(1);
+    let min_points = degree + 1;
+    if n < min_points {
+        return Err(format!(
+            "insufficient shares for RS check: need {min_points}, got {n}"
+        ));
+    }
+
+    // For each chunk, verify RS low-degree property.
+    for chunk_idx in 0..num_chunks {
+        let points: Vec<(Fr, Fr)> = party_frs
+            .iter()
+            .enumerate()
+            .map(|(i, frs)| (Fr::from((i + 1) as u64), frs[chunk_idx]))
+            .collect();
+
+        // Interpolate from first `min_points` shares.
+        let coefficients = interpolate_bn254(&points[..min_points])
+            .map_err(|_| format!("chunk {chunk_idx}: interpolation failed"))?;
+
+        // Verify all shares match the polynomial.
+        for (i, frs) in party_frs.iter().enumerate() {
+            let x = Fr::from((i + 1) as u64);
+            let expected = eval_bn254_poly_coeffs(&coefficients, x);
+            if expected != frs[chunk_idx] {
+                return Err(format!(
+                    "chunk {chunk_idx}: share {i} is not on the RS codeword"
+                ));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Lagrange interpolation over BN254 Fr, returning coefficients low-to-high degree.
+fn interpolate_bn254(points: &[(Fr, Fr)]) -> Result<Vec<Fr>, ()> {
+    let degree = points.len() - 1;
+    let mut coefficients = vec![Fr::ZERO; degree + 1];
+    for (i, (x_i, y_i)) in points.iter().enumerate() {
+        let mut basis = vec![Fr::ONE];
+        let mut denominator = Fr::ONE;
+        for (j, (x_j, _)) in points.iter().enumerate() {
+            if i == j {
+                continue;
+            }
+            denominator *= *x_i - *x_j;
+            let mut new_basis = vec![Fr::ZERO; basis.len() + 1];
+            for (k, coeff) in basis.iter().enumerate() {
+                new_basis[k] += *coeff * (-*x_j);
+                new_basis[k + 1] += *coeff;
+            }
+            basis = new_basis;
+        }
+        let inv = denominator.inverse().ok_or(())?;
+        let scale = *y_i * inv;
+        for (k, coeff) in basis.iter().enumerate() {
+            coefficients[k] += *coeff * scale;
+        }
+    }
+    Ok(coefficients)
+}
+
+/// Evaluate a polynomial at x (coefficients in low-to-high order).
+fn eval_bn254_poly_coeffs(coefficients: &[Fr], x: Fr) -> Fr {
+    coefficients
+        .iter()
+        .rev()
+        .fold(Fr::ZERO, |acc, coeff| acc * x + coeff)
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────

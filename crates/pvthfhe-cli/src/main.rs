@@ -285,7 +285,7 @@ fn r8_aggregate(ciphertext_hex: &str, shares_hex: &str, threshold: usize) -> any
 #[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]
 fn run_demo(n: usize, threshold: usize, seed: u64, force_large_n: bool) -> anyhow::Result<()> {
     const MAX_N: usize = 255;
-    const SOFT_CAP_N: usize = 230;
+    const SOFT_CAP_N: usize = 240;
     if n == 0 || n > MAX_N {
         anyhow::bail!("invalid n: n={n} must satisfy 1 <= n <= {MAX_N} (Shamir over GF(256))");
     }

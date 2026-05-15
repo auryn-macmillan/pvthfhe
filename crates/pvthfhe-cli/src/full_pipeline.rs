@@ -26,7 +26,7 @@ use pvthfhe_pvss::nizk_decrypt::{
     DecryptNizkProver, DecryptNizkStatement, DecryptNizkVerifier, DecryptNizkWitness,
 };
 use pvthfhe_pvss::slot_registry::SmudgeSlotRegistry;
-#[cfg(all(feature = "pipeline-extra-checks", feature = "sonobe-compressor"))]
+#[cfg(feature = "sonobe-compressor")]
 use pvthfhe_compressor::sonobe::{
     cyclo_verifier::verify_ring_equation, encode_triple, C7DecryptAggregationCircuit,
     ExternalInputs3, SonobeCompressor,
@@ -755,28 +755,25 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     }
 
     // ── C7 decryption aggregation verification ──
-    #[cfg(feature = "pipeline-extra-checks")]
-    {
-        observer.phase_start("c7_decrypt_aggregation", None);
-        let c7_started = Instant::now();
-        let party_ids_fr: Vec<Fr> = (1..=cfg.t).map(|i| Fr::from(i as u64)).collect();
-        let lagrange_coeffs_fr = compute_lagrange_coeffs_bn254(&party_ids_fr, Fr::from(0u64));
+    observer.phase_start("c7_decrypt_aggregation", None);
+    let c7_started = Instant::now();
+    let party_ids_fr: Vec<Fr> = (1..=cfg.t).map(|i| Fr::from(i as u64)).collect();
+    let lagrange_coeffs_fr = compute_lagrange_coeffs_bn254(&party_ids_fr, Fr::from(0u64));
 
-        // Parse share polynomial coefficients
-        let mut share_coeffs: Vec<Vec<i64>> = Vec::with_capacity(decrypt_witnesses.len());
-        for witness in &decrypt_witnesses {
-            let coeffs = backend
-                .poly_coeffs_from_bytes(&witness.d_share_poly_bytes)
-                .context("C7: parse share poly bytes")?;
-            share_coeffs.push(coeffs);
-        }
+    // Parse share polynomial coefficients
+    let mut share_coeffs: Vec<Vec<i64>> = Vec::with_capacity(decrypt_witnesses.len());
+    for witness in &decrypt_witnesses {
+        let coeffs = backend
+            .poly_coeffs_from_bytes(&witness.d_share_poly_bytes)
+            .context("C7: parse share poly bytes")?;
+        share_coeffs.push(coeffs);
+    }
 
-        let c7_passed = run_c7_verification(&share_coeffs, &lagrange_coeffs_fr);
-        let c7_ms = elapsed_ms(c7_started);
-        observer.phase_end("c7_decrypt_aggregation", c7_ms);
-        if !c7_passed {
-            anyhow::bail!("C7 decryption aggregation verification failed");
-        }
+    let c7_passed = run_c7_verification(&share_coeffs, &lagrange_coeffs_fr, &session_id, cfg.seed);
+    let c7_ms = elapsed_ms(c7_started);
+    observer.phase_end("c7_decrypt_aggregation", c7_ms);
+    if !c7_passed {
+        anyhow::bail!("C7 decryption aggregation verification failed");
     }
 
     Ok(PipelineReport {
@@ -1234,7 +1231,6 @@ fn verify_all_dealer_share_computations(
 ///
 /// For points `x_i` and evaluation point `z`, returns `L_i(z)` for each i:
 /// `L_i(z) = Π_{j≠i} (z - x_j) / Π_{j≠i} (x_i - x_j)`
-#[cfg(feature = "pipeline-extra-checks")]
 fn compute_lagrange_coeffs_bn254(xs: &[Fr], eval_point: Fr) -> Vec<Fr> {
     use ark_ff::{Field, One, Zero};
     let n = xs.len();
@@ -1258,10 +1254,12 @@ fn compute_lagrange_coeffs_bn254(xs: &[Fr], eval_point: Fr) -> Vec<Fr> {
 /// Uses [`C7DecryptAggregationCircuit`] (3 external inputs, no Merkle overhead).
 /// Schwartz-Zippel soundness: false acceptance probability ≤ 8192 / 2^254 ≈ 0.
 /// For in-circuit Merkle verification, see `PVTHFHE_RUN_C7_MERKLE=1`.
-#[cfg(all(feature = "pipeline-extra-checks", feature = "sonobe-compressor"))]
+#[cfg(feature = "sonobe-compressor")]
 fn run_c7_verification(
     share_coeffs: &[Vec<i64>],
     lagrange_coeffs: &[Fr],
+    session_id: &str,
+    seed: u64,
 ) -> bool {
     use ark_bn254::Fr;
     use ark_ff::Zero;
@@ -1313,7 +1311,9 @@ fn run_c7_verification(
         .collect();
 
     // Nova IVC: fold batched contributions
-    let epoch = [0u8; 32];
+    let epoch = Sha256::digest(
+        [session_id.as_bytes(), &seed.to_be_bytes()].concat()
+    ).into();
     let compressor = match SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch, batched_count) {
         Ok(c) => c,
         Err(e) => { tracing::warn!("C7: compressor init failed: {e:?}"); return false; }

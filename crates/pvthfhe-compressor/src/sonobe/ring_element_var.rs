@@ -22,6 +22,14 @@ pub struct RingElementVar<F: PrimeField> {
 }
 
 impl<F: PrimeField> RingElementVar<F> {
+    /// Creates a `RingElementVar` from a vector of coefficient variables.
+    ///
+    /// This is the canonical constructor for ring-element constraint
+    /// representations in the Cyclo verifier R1CS encoding (M6).
+    pub fn from_coeffs(coeffs: Vec<FpVar<F>>) -> Self {
+        Self { coeffs }
+    }
+
     /// Returns the number of coefficients (ring dimension N).
     pub fn n(&self) -> usize {
         self.coeffs.len()

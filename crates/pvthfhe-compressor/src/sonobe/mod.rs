@@ -372,8 +372,10 @@ impl<
         let mut nova = SonobeNova::<S>::init(&params, circuit, initial_state)
             .map_err(|_| CompressorError::Backend("sonobe init failed"))?;
         tracing::info!(rss_kb = rss_kb(), "sonobe: Nova::init done");
-        // allow-seeded-rng: deterministic RNG from epoch-bound srs_hash for reproducible benchmarks
-                let mut rng = ChaCha20Rng::from_seed(self.srs_hash);
+        // Reproducible folding RNG — bound to session epoch via srs_hash.
+        // Acceptable for research prototype; production should mix OsRng nonce.
+        // allow-seeded-rng: deterministic RNG from epoch-bound srs_hash
+        let mut rng = ChaCha20Rng::from_seed(self.srs_hash);
 
         let ext_inputs = ExternalInputs3(delta.0, delta.1, delta.2);
         for step in 0..self.ivc_steps {
@@ -546,8 +548,10 @@ impl<
 
         let mut nova = SonobeNova::<S>::init(&params, circuit, initial_state)
             .map_err(|_| CompressorError::Backend("sonobe init failed"))?;
-        // allow-seeded-rng: deterministic RNG from epoch-bound srs_hash for reproducible benchmarks
-                let mut rng = ChaCha20Rng::from_seed(self.srs_hash);
+        // Reproducible folding RNG — bound to session epoch via srs_hash.
+        // Acceptable for research prototype; production should mix OsRng nonce.
+        // allow-seeded-rng: deterministic RNG from epoch-bound srs_hash
+        let mut rng = ChaCha20Rng::from_seed(self.srs_hash);
 
         for (step_idx, ext_inputs) in steps.iter().enumerate() {
             nova.prove_step(&mut rng, *ext_inputs, None)
@@ -678,8 +682,10 @@ impl<
 
         let mut nova = SonobeNova::<S>::init(&params, circuit, initial_state)
             .map_err(|_| CompressorError::Backend("sonobe init failed"))?;
-        // allow-seeded-rng: deterministic RNG from epoch-bound srs_hash for reproducible benchmarks
-                let mut rng = ChaCha20Rng::from_seed(self.srs_hash);
+        // Reproducible folding RNG — bound to session epoch via srs_hash.
+        // Acceptable for research prototype; production should mix OsRng nonce.
+        // allow-seeded-rng: deterministic RNG from epoch-bound srs_hash
+        let mut rng = ChaCha20Rng::from_seed(self.srs_hash);
 
         for (step_idx, ext_inputs) in steps.iter().enumerate() {
             nova.prove_step(&mut rng, ext_inputs.clone(), None)

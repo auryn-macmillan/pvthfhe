@@ -83,6 +83,10 @@ pub fn build_demo_nizk_inputs(
         NizkWitness {
             secret_share,
             secret_share_poly,
+            // KNOWN LIMITATION: Error polynomial is derived from SHA-256 hash of secret key,
+            // not actual BFV encryption error. Real error is available from
+            // FheBackend::encrypt_with_witness() -> EncryptionWitness.noise.
+            // Wire when NIZK prover can access post-encryption witness.
             error: derive_demo_error_poly(secret_key_bytes),
             randomness,
         },

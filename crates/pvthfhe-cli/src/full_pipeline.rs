@@ -1171,9 +1171,8 @@ fn run_c7_verification(
     let r = Fr::from_be_bytes_mod_order(&hasher.finalize());
 
     // Evaluate shares at challenge point (Horner's method)
-    let share_evals: Vec<Fr> = shares.iter().map(|s| {
-        s.iter().rev().fold(Fr::zero(), |acc, &c| acc * r + c)
-    }).collect();
+    use pvthfhe_compressor::poly_eval::eval_poly_bn254;
+    let share_evals: Vec<Fr> = shares.iter().map(|s| eval_poly_bn254(s, r)).collect();
 
     // Nova IVC: fold per-participant contributions
     let epoch = [0u8; 32];

@@ -41,7 +41,6 @@ use folding_schemes::{
     FoldingScheme,
 };
 use pvthfhe_domain_tags::Tag;
-use pvthfhe_rng::OsRng;
 use pvthfhe_types::witness_language::{BfvParameters as SchemaBfvParams, WitnessStatement};
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
@@ -373,7 +372,8 @@ impl<
         let mut nova = SonobeNova::<S>::init(&params, circuit, initial_state)
             .map_err(|_| CompressorError::Backend("sonobe init failed"))?;
         tracing::info!(rss_kb = rss_kb(), "sonobe: Nova::init done");
-        let mut rng = OsRng;
+        // allow-seeded-rng: deterministic RNG from epoch-bound srs_hash for reproducible benchmarks
+                let mut rng = ChaCha20Rng::from_seed(self.srs_hash);
 
         let ext_inputs = ExternalInputs3(delta.0, delta.1, delta.2);
         for step in 0..self.ivc_steps {
@@ -546,7 +546,8 @@ impl<
 
         let mut nova = SonobeNova::<S>::init(&params, circuit, initial_state)
             .map_err(|_| CompressorError::Backend("sonobe init failed"))?;
-        let mut rng = OsRng;
+        // allow-seeded-rng: deterministic RNG from epoch-bound srs_hash for reproducible benchmarks
+                let mut rng = ChaCha20Rng::from_seed(self.srs_hash);
 
         for (step_idx, ext_inputs) in steps.iter().enumerate() {
             nova.prove_step(&mut rng, *ext_inputs, None)
@@ -677,7 +678,8 @@ impl<
 
         let mut nova = SonobeNova::<S>::init(&params, circuit, initial_state)
             .map_err(|_| CompressorError::Backend("sonobe init failed"))?;
-        let mut rng = OsRng;
+        // allow-seeded-rng: deterministic RNG from epoch-bound srs_hash for reproducible benchmarks
+                let mut rng = ChaCha20Rng::from_seed(self.srs_hash);
 
         for (step_idx, ext_inputs) in steps.iter().enumerate() {
             nova.prove_step(&mut rng, ext_inputs.clone(), None)

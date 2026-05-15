@@ -50,7 +50,7 @@ ark-bn254 = "0.5"
 ark-ff = "0.5"
 
 [features]
-default = ["with-fhe", "sonobe-compressor"]
+default = ["with-fhe", "sonobe-compressor", "pipeline-extra-checks"]
 with-fhe = [
     "dep:pvthfhe-keygen",
     "dep:pvthfhe-bench",

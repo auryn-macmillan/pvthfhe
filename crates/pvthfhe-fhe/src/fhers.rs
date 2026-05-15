@@ -19,7 +19,8 @@ use fhe_traits::{
     Serialize,
 };
 use ndarray::Array2;
-use pvthfhe_rng::OsRng;
+use rand::rngs::StdRng;
+use rayon::prelude::*;
 use pvthfhe_types::ProtocolBytes;
 use rand_chacha::ChaCha8Rng;
 use rand_core::{RngCore, SeedableRng};
@@ -28,6 +29,7 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
+    time::Instant,
 };
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -335,80 +337,99 @@ impl FhersBackend {
                 reason: "n must be > 0".into(),
             });
         }
-        let mut party_states = self.party_states.lock().map_err(|err| FheError::Backend {
-            reason: err.to_string(),
-        })?;
-
         let max_party_id = u32::try_from(n).map_err(|err| FheError::Backend {
             reason: err.to_string(),
         })?;
-        let party_ids = (1u32..=max_party_id).collect::<Vec<_>>();
 
-        if party_ids
-            .iter()
-            .any(|party_id| !party_states.contains_key(party_id))
-        {
-            let missing = party_ids
-                .into_iter()
-                .find(|party_id| !party_states.contains_key(party_id))
-                .expect("checked above");
-            return Err(FheError::UnknownParty { party_id: missing });
-        }
+        // ── Pre-read: extract sk_poly_sum under lock, then release ──
+        let all_sk_coeffs: HashMap<u32, Vec<i64>> = {
+            let party_states = self.party_states.lock().map_err(|err| FheError::Backend {
+                reason: err.to_string(),
+            })?;
+            for pid in 1u32..=max_party_id {
+                if !party_states.contains_key(&pid) {
+                    return Err(FheError::UnknownParty { party_id: pid });
+                }
+            }
+            (1u32..=max_party_id)
+                .map(|pid| (pid, party_states[&pid].sk_poly_sum.clone()))
+                .collect()
+        };
 
-        let mut share_manager =
-            ShareManager::new(n, self.shamir_threshold(n, t), self.bfv_params.clone());
+        let t_pre_read = std::time::Instant::now();
+        tracing::info!(n = n, ms = t_pre_read.elapsed().as_secs_f64() * 1000.0, "setup_threshold: pre-read sk_coeffs");
+
+        let threshold = self.shamir_threshold(n, t);
+        let bfv_params = self.bfv_params.clone();
         let mut distributed = HashMap::<u32, Vec<Array2<u64>>>::new();
         for party_id in 1u32..=max_party_id {
             distributed.insert(party_id, Vec::with_capacity(n));
         }
 
-        for party_id in 1u32..=max_party_id {
-            let sk_poly = share_manager
-                .coeffs_to_poly_level0(
-                    party_states
-                        .get(&party_id)
-                        .ok_or(FheError::UnknownParty { party_id })?
-                        .sk_poly_sum
-                        .as_slice(),
-                )
-                .map_err(|err| FheError::Backend {
-                    reason: err.to_string(),
-                })?;
-            let mut rng = OsRng;
-            let shares = share_manager
-                .generate_secret_shares_from_poly(sk_poly, &mut rng)
-                .map_err(|err| FheError::Backend {
-                    reason: err.to_string(),
-                })?;
-
-            let state = party_states
-                .get_mut(&party_id)
-                .ok_or(FheError::UnknownParty { party_id })?;
-            state.sk_shamir_shares = (0..n)
-                .map(|receiver_index| {
-                    shares[0]
-                        .row(receiver_index)
-                        .iter()
-                        .copied()
-                        .map(|coeff| {
-                            i64::try_from(coeff).map_err(|err| FheError::Backend {
-                                reason: err.to_string(),
-                            })
+        // ── Parallel: each party generates Shamir shares for all recipients ──
+        // allow-seeded-rng: deterministic Shamir share generation so parallel
+        // execution is deterministic and reproducible.
+        let all_shares: Vec<Result<((u32, Vec<Array2<u64>>), Vec<Vec<i64>>), FheError>> =
+            (1u32..=max_party_id)
+                .into_par_iter()
+                .map(|party_id| {
+                    let mut sm = ShareManager::new(n, threshold, bfv_params.clone());
+                    let sk_poly = sm
+                        .coeffs_to_poly_level0(&all_sk_coeffs[&party_id])
+                        .map_err(|err| FheError::Backend {
+                            reason: err.to_string(),
+                        })?;
+                    let mut rng = StdRng::seed_from_u64(party_id as u64);
+                    let shares = sm
+                        .generate_secret_shares_from_poly(sk_poly, &mut rng)
+                        .map_err(|err| FheError::Backend {
+                            reason: err.to_string(),
+                        })?;
+                    let sk_shamir: Vec<Vec<i64>> = (0..n)
+                        .map(|ri| {
+                            shares[0]
+                                .row(ri)
+                                .iter()
+                                .copied()
+                                .map(|c| {
+                                    i64::try_from(c).map_err(|err| FheError::Backend {
+                                        reason: err.to_string(),
+                                    })
+                                })
+                                .collect::<Result<Vec<_>, _>>()
                         })
-                        .collect::<Result<Vec<_>, _>>()
+                        .collect::<Result<Vec<_>, _>>()?;
+                    Ok(((party_id, shares), sk_shamir))
                 })
-                .collect::<Result<Vec<_>, _>>()?;
+                .collect();
 
+        let t_parallel = std::time::Instant::now();
+        let n_parties = max_party_id as usize;
+        let total_allocated_mb = n_parties * (n_parties - 1) * self.bfv_params.moduli().len() * self.bfv_params.degree() * 8 / (1024 * 1024);
+        tracing::info!(n = n, ms = t_parallel.elapsed().as_secs_f64() * 1000.0, total_allocated_mb = total_allocated_mb, "setup_threshold: parallel Shamir generation");
+
+        // ── Re-acquire lock for sequential merge ──
+        let mut party_states = self.party_states.lock().map_err(|err| FheError::Backend {
+            reason: err.to_string(),
+        })?;
+
+        for result in all_shares {
+            let ((party_id, shares), sk_shamir_shares) = result?;
+            party_states
+                .get_mut(&party_id)
+                .ok_or(FheError::UnknownParty { party_id })?
+                .sk_shamir_shares = sk_shamir_shares;
             for receiver_index in 0..n {
                 let receiver_party_id =
                     u32::try_from(receiver_index + 1).map_err(|err| FheError::Backend {
                         reason: err.to_string(),
                     })?;
-
-                let mut sender_share_data =
-                    Vec::with_capacity(self.bfv_params.moduli().len() * self.bfv_params.degree());
+                let mut sender_share_data = Vec::with_capacity(
+                    self.bfv_params.moduli().len() * self.bfv_params.degree(),
+                );
                 for modulus_matrix in &shares {
-                    sender_share_data.extend(modulus_matrix.row(receiver_index).iter().copied());
+                    sender_share_data
+                        .extend(modulus_matrix.row(receiver_index).iter().copied());
                 }
                 let sender_share = Array2::from_shape_vec(
                     (self.bfv_params.moduli().len(), self.bfv_params.degree()),
@@ -417,7 +438,6 @@ impl FhersBackend {
                 .map_err(|err| FheError::Backend {
                     reason: err.to_string(),
                 })?;
-
                 distributed
                     .get_mut(&receiver_party_id)
                     .ok_or(FheError::UnknownParty {
@@ -427,6 +447,10 @@ impl FhersBackend {
             }
         }
 
+        let t_merge = std::time::Instant::now();
+        tracing::info!(n = n, ms = t_merge.elapsed().as_secs_f64() * 1000.0, "setup_threshold: sequential merge into distributed");
+
+        let share_manager = ShareManager::new(n, threshold, bfv_params);
         for party_id in 1u32..=max_party_id {
             let collected = distributed
                 .remove(&party_id)
@@ -456,6 +480,12 @@ impl FhersBackend {
             state.sk_poly_sum_poly = Some(poly_sum);
             state.esi_poly_sum = Vec::new();
         }
+
+        let t_aggregate = std::time::Instant::now();
+        tracing::info!(n = n, ms = t_aggregate.elapsed().as_secs_f64() * 1000.0, "setup_threshold: aggregate collected shares");
+
+        let t_total = std::time::Instant::now();
+        tracing::info!(n = n, ms = t_total.elapsed().as_secs_f64() * 1000.0, "setup_threshold: DONE");
 
         Ok(())
     }

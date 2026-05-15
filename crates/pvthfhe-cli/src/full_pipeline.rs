@@ -263,7 +263,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     );
     let setup_started = Instant::now();
     backend
-        .setup_threshold_cached(cfg.n, backend_threshold, cfg.seed)
+        .setup_threshold(cfg.n, backend_threshold)
         .context("setup_threshold")?;
     observer.phase_end("setup_threshold", elapsed_ms(setup_started));
 

@@ -2076,6 +2076,7 @@ dependencies = [
  "pvthfhe-types",
  "rand 0.8.6",
  "rand_core 0.6.4",
+ "rayon",
  "serde_json",
  "sha2",
  "tracing",
@@ -2216,6 +2217,7 @@ dependencies = [
  "sha2",
  "subtle",
  "thiserror",
+ "zeroize",
 ]
 
 [[package]]

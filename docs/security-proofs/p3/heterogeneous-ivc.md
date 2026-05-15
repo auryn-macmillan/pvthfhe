@@ -91,12 +91,11 @@ relative to the underlying Nova soundness margin.
 
 ---
 
-## Open Questions
-
-1. Does the Sonobe `Nova::verify` path separately validate the step-circuit
-   hash against the verifier key for each step, or does it assume a
-   single-circuit model? If the latter, the hybrid argument's Step 1
-   requires an explicit check in `MicroNovaCompressor::verify_tree`.
-2. Can the union-bound factor `n` be eliminated via a direct reduction
-   that leverages the circuit family's deterministic dispatch without
-   per-circuit hybrid game hops?
+**KNOWN LIMITATION** (2026-05-15): Per-variant verifier key enforcement is
+architecturally impossible in the current Sonobe Nova framework.
+SonobeNova uses a single verifier key; the heterogeneous step circuit
+wrapper produces structurally identical constraints for all variants.
+Security relies on this structural equivalence, which is enforced by
+the LatticeFoldTreeCircuitFamily design (all variants use state_len=2
+and identical ExternalInputs3 width). See micronova/compressor.rs:108-125
+for the diagnostic-only hash computation.

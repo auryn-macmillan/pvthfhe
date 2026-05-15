@@ -22,6 +22,7 @@ pub mod hash_bridge;
 pub mod sigma;
 
 use thiserror::Error;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Canonical backend identifier for the Cyclo-companion Ajtai D2 NIZK.
 ///
@@ -54,7 +55,7 @@ pub struct NizkStatement {
 /// Frozen prover witness for one per-share lattice NIZK claim.
 ///
 /// Phase 2 (N4): will extend with Cyclo fold witness fields.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
 pub struct NizkWitness {
     /// Secret share value inherited from P4 (scalar u64).
     ///

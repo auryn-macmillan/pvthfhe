@@ -113,3 +113,15 @@ fn heterogeneous_depth_four_tree_folds() {
     let vk = compressor.verifier_key();
     assert!(compressor.verify_steps(&vk, &proof, &steps).unwrap());
 }
+
+#[test]
+fn heterogeneous_num_circuits_depth_zero() {
+    let family = LatticeFoldTreeCircuitFamily { depth: 0 };
+    assert_eq!(num_circuits(&family), 1);
+}
+
+#[test]
+fn heterogeneous_num_circuits_depth_one() {
+    let family = LatticeFoldTreeCircuitFamily { depth: 1 };
+    assert_eq!(num_circuits(&family), 2);
+}

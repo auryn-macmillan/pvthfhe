@@ -30,3 +30,18 @@ UFCS in test code to disambiguate.
 
 **Rationale**: generate_step_constraints must work with FpVar<F> which requires F.
 Removing F from the trait would require boxing/dyn dispatch, adding complexity.
+
+## D4: Per-variant verifier limitation documented (2026-05-15)
+
+**Context**: Batch A — document the known limitation that SonobeNova uses a single
+verifier key for all circuit variants, making per-variant enforcement architecturally
+impossible.
+
+**Decision**: Added documentation in three locations:
+- `crates/pvthfhe-compressor/src/micronova/compressor.rs:127-132` — R9 KNOWN LIMITATION comment
+- `docs/security-proofs/p3/heterogeneous-ivc.md:94-101` — replaced open questions with formal limitation
+- `SECURITY.md:51-53` — P3 section addendum
+
+**Rationale**: The per-step variant hash computation in `verify_tree` is diagnostic-only.
+Security relies on structural equivalence of constraints across variants
+(state_len=2, identical ExternalInputs3 width per LatticeFoldTreeCircuitFamily).

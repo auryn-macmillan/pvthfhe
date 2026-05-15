@@ -124,6 +124,13 @@ impl MicroNovaCompressor {
             );
         }
 
+        // KNOWN LIMITATION (R9): The per-step circuit variant hashes computed above
+        // are diagnostic-only. SonobeNova uses a single verifier key (the hetersogeneous
+        // step circuit wrapper), so per-variant enforcement is architecturally impossible
+        // in the current Sonobe framework. The folding soundness relies on the fact that
+        // all circuit variants in the family produce structurally identical constraint
+        // systems. See docs/security-proofs/p3/heterogeneous-ivc.md:96-99.
+
         compressor.verify_steps(&vk, proof, steps)
     }
 

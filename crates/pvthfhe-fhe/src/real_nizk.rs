@@ -5,6 +5,7 @@ use pvthfhe_nizk::adapter::CycloNizkAdapter;
 use pvthfhe_nizk::NizkAdapter as NizkAdapterTrait;
 use rand_core::RngCore;
 use thiserror::Error;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Frozen public statement for one lattice NIZK claim.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -26,7 +27,7 @@ pub struct NizkStatement {
 }
 
 /// Frozen prover witness for one lattice NIZK claim.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
 pub struct NizkWitness {
     /// Secret share value inherited from P4 (scalar u64).
     ///

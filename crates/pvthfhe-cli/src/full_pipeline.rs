@@ -203,29 +203,28 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     timings.phases.nizk_prove.instances_run = nizk_prove_per_instance_ms.len();
     timings.phases.nizk_prove.per_instance_ms = nizk_prove_per_instance_ms;
 
+    use rayon::prelude::*;
     let mut nizk_verify_total_ms = 0.0;
     let mut nizk_verify_per_instance_ms = Vec::new();
-    for (dealer_id, statement, _witness, proof) in &nizk_outputs {
-        for recipient_id in &transcript.participant_set {
-            if recipient_id == dealer_id {
-                continue;
-            }
-            observer.phase_start(
-                "nizk_verify",
-                Some(&format!("dealer={} recipient={}", dealer_id, recipient_id)),
-            );
-            let started = Instant::now();
-            RealNizkAdapter::verify(statement, proof).with_context(|| {
-                format!(
-                    "nizk verify dealer {} recipient {}",
-                    dealer_id, recipient_id
-                )
-            })?;
-            let ms = elapsed_ms(started);
-            observer.phase_end("nizk_verify", ms);
-            nizk_verify_total_ms += ms;
-            nizk_verify_per_instance_ms.push(ms);
-        }
+    let results: Vec<Result<(String, f64), anyhow::Error>> = nizk_outputs
+        .par_iter()
+        .flat_map(|(dealer_id, statement, _witness, proof)| {
+            (1..=cfg.n).into_par_iter().map(move |recipient_id| {
+                let detail = format!("dealer={dealer_id} recipient={recipient_id}");
+                let started = Instant::now();
+                RealNizkAdapter::verify(statement, proof)
+                    .map(|_| (detail, started.elapsed().as_secs_f64() * 1000.0))
+                    .map_err(|e| anyhow::anyhow!("nizk_verify dealer={dealer_id} recipient={recipient_id}: {e}"))
+            })
+        })
+        .collect();
+
+    for result in results {
+        let (detail, ms) = result?;
+        observer.phase_start("nizk_verify", Some(&detail));
+        observer.phase_end("nizk_verify", ms);
+        nizk_verify_per_instance_ms.push(ms);
+        nizk_verify_total_ms += ms;
     }
     timings.phases.nizk_verify.total_ms = nizk_verify_total_ms;
     timings.phases.nizk_verify.instances_run = nizk_verify_per_instance_ms.len();

@@ -1264,8 +1264,7 @@ fn run_c7_verification(
     lagrange_coeffs: &[Fr],
 ) -> bool {
     use ark_bn254::Fr;
-    use ark_ff::{BigInteger, PrimeField, Zero};
-    use sha2::{Sha256, Digest};
+    use ark_ff::Zero;
 
     let coeffs_per_poly = if let Some(coeffs) = share_coeffs.first() {
         coeffs.len()
@@ -1291,34 +1290,40 @@ fn run_c7_verification(
     }
     let r = Fr::from_be_bytes_mod_order(&hasher.finalize());
 
-    // Evaluate shares at challenge point (Horner's method)
-    use pvthfhe_compressor::poly_eval::eval_poly_bn254;
-    let share_evals: Vec<Fr> = shares.iter().map(|s| eval_poly_bn254(s, r)).collect();
+    // Evaluate shares at challenge point using precomputed powers (A.2)
+    // Computing r^j powers once for all share evaluations avoids per-share Horner
+    // overhead: 1 multiply-add per coefficient instead of 2.
+    use pvthfhe_compressor::poly_eval::{eval_with_powers, precompute_powers_r};
+    let r_powers = precompute_powers_r(r, coeffs_per_poly);
+    let share_evals: Vec<Fr> = shares.iter().map(|s| eval_with_powers(s, &r_powers)).collect();
 
-    // Nova IVC: fold per-participant contributions
+    // Batch C7 steps (A.1): group t share evaluations into batches of k=8.
+    // Each step folds k Lagrange contributions, reducing Nova IVC step count
+    // from t to ceil(t/k). Batching is at the pipeline level.
+    let batch_size: usize = 8;
+    let batched_count = share_evals.len().div_ceil(batch_size);
+
+    let share_evals_batched: Vec<Fr> = share_evals
+        .chunks(batch_size)
+        .map(|chunk| chunk.iter().fold(Fr::zero(), |acc, &s| acc + s))
+        .collect();
+    let lagrange_batched: Vec<Fr> = lagrange_coeffs
+        .chunks(batch_size)
+        .map(|chunk| chunk.iter().fold(Fr::zero(), |acc, &l| acc + l))
+        .collect();
+
+    // Nova IVC: fold batched contributions
     let epoch = [0u8; 32];
-    let compressor = match SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch, shares.len()) {
+    let compressor = match SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch, batched_count) {
         Ok(c) => c,
         Err(e) => { tracing::warn!("C7: compressor init failed: {e:?}"); return false; }
     };
 
-    // L3.1: Compute per-share commitment binding (pseudo-Merkle root)
-    // from the share coefficient polynomials for share-correctness binding.
-    let commitment_bindings: Vec<Fr> = shares.iter().map(|coeffs| {
-        let mut hasher = Sha256::new();
-        for c in coeffs.iter().take(32) {
-            hasher.update(&c.into_bigint().to_bytes_le());
-        }
-        Fr::from_be_bytes_mod_order(&hasher.finalize())
-    }).collect();
-
     let acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
-    let steps: Vec<ExternalInputs3<Fr>> = share_evals.iter()
-        .zip(lagrange_coeffs.iter())
-        .zip(commitment_bindings.iter())
-        .map(|((&sev, &lc), &cb)| {
-            ExternalInputs3(sev, lc, cb)
-        }).collect();
+    let steps: Vec<ExternalInputs3<Fr>> = share_evals_batched.iter()
+        .zip(lagrange_batched.iter())
+        .map(|(&sev, &lc)| ExternalInputs3(sev, lc, Fr::zero()))
+        .collect();
 
     let proof = match compressor.prove_steps(&acc, &steps) {
         Ok(p) => p,

@@ -4,6 +4,12 @@
 //! Each `(session_id, party_id, slot_id)` tuple may only be used once per
 //! session.  Reuse would leak information by revealing the same smudging noise
 //! in two different decryption contexts.
+//!
+//! NOTE (C.3): The SmudgeSlotRegistry has a dual implementation — the
+//! in-process `HashSet`-based variant here, and a separate counterpart in
+//! `pvthfhe-fhe` for certain FHE flows.  The two should be consolidated into a
+//! single canonical implementation during the next refactoring cycle (planned
+//! as part of the interface-hardening milestone).
 
 use std::collections::HashSet;
 

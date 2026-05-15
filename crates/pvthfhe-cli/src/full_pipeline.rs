@@ -645,12 +645,13 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                     &accepted_participant_ids,
                     Fr::from(*sk_agg_share),
                 );
+                let slot_id = u16::try_from(party_index).unwrap_or(0);
                 let esm_agg_commit = compute_esm_aggregate_commitment(
                     session_id.as_bytes(),
                     &dkg_root,
                     recipient_id,
                     &accepted_participant_ids,
-                    1,
+                    slot_id,
                     Fr::from(*esm_agg_share),
                 );
                 let statement = DecryptNizkStatement {
@@ -665,7 +666,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                     expected_sk_agg_share: *sk_agg_share,
                     dealer_index: pvthfhe_pvss::derive_dealer_index(session_id.as_bytes()),
                     mode: DecryptNizkMode::CommittedSmudge {
-                        slot_id: 1,
+                        slot_id,
                         decrypt_round: 0,
                         ciphertext_hash,
                         accepted_participant_ids,
@@ -685,7 +686,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 };
                 let pid = u16::try_from(party_id).context("party id out of u16 range")?;
                 smudge_slot_registry
-                    .check_and_record(session_id.as_bytes(), pid, 1)
+                    .check_and_record(session_id.as_bytes(), pid, slot_id)
                     .context("smudge slot reuse detected")?;
                 let proof = DecryptNizkProver::prove(&statement, &witness)
                     .with_context(|| format!("NIZK prove failed for party {party_id}"))?;
@@ -769,7 +770,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         share_coeffs.push(coeffs);
     }
 
-    let c7_passed = run_c7_verification(&share_coeffs, &lagrange_coeffs_fr, &session_id, cfg.seed);
+    let c7_passed = run_c7_verification(&share_coeffs, &lagrange_coeffs_fr, &session_id, cfg.seed, &aggregate_pk.bytes);
     let c7_ms = elapsed_ms(c7_started);
     observer.phase_end("c7_decrypt_aggregation", c7_ms);
     if !c7_passed {
@@ -1260,6 +1261,7 @@ fn run_c7_verification(
     lagrange_coeffs: &[Fr],
     session_id: &str,
     seed: u64,
+    aggregate_pk_bytes: &[u8],
 ) -> bool {
     use ark_bn254::Fr;
     use ark_ff::Zero;
@@ -1310,6 +1312,9 @@ fn run_c7_verification(
         .map(|chunk| chunk.iter().fold(Fr::zero(), |acc, &l| acc + l))
         .collect();
 
+    // Compute aggregate_pk_hash for external input binding (B.4)
+    let agg_pk_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(aggregate_pk_bytes));
+
     // Nova IVC: fold batched contributions
     let epoch = Sha256::digest(
         [session_id.as_bytes(), &seed.to_be_bytes()].concat()
@@ -1322,7 +1327,7 @@ fn run_c7_verification(
     let acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
     let steps: Vec<ExternalInputs3<Fr>> = share_evals_batched.iter()
         .zip(lagrange_batched.iter())
-        .map(|(&sev, &lc)| ExternalInputs3(sev, lc, Fr::zero()))
+        .map(|(&sev, &lc)| ExternalInputs3(sev, lc, agg_pk_hash))
         .collect();
 
     let proof = match compressor.prove_steps(&acc, &steps) {

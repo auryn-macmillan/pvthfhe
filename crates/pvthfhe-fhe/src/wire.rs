@@ -130,6 +130,12 @@ impl WireFormat for DecryptShareV1 {
         let d_share_poly = decoder.read_field()?;
         decoder.finish()?;
 
+        // C.4: Reject oversized d_share_poly (8192 coeffs × 3 moduli × 8 bytes ≈ 196K)
+        const MAX_DECRYPT_SHARE_BYTES: usize = 196_608;
+        if d_share_poly.is_empty() || d_share_poly.len() > MAX_DECRYPT_SHARE_BYTES {
+            return Err(WireError::Other);
+        }
+
         Ok(Self {
             d_share_poly: ProtocolBytes(d_share_poly),
         })

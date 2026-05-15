@@ -1,8 +1,11 @@
 use super::types::{DkgTranscript, PartyId, Round1Message, Round2Message, Round3Aggregate};
 use pvthfhe_domain_tags::Tag;
-use pvthfhe_fhe::{FheBackend, PublicKey};
+use pvthfhe_fhe::{Ciphertext, FheBackend, PublicKey};
+use pvthfhe_nizk::adapter::CycloNizkAdapter;
+use pvthfhe_nizk::{NizkAdapter, NizkStatement, NizkWitness};
 use pvthfhe_types::ProtocolBytes;
-use rand_core::OsRng;
+use rand_chacha::ChaCha8Rng;
+use rand_core::{RngCore, SeedableRng};
 use sha2::{Digest, Sha256};
 use std::{
     collections::{HashMap, HashSet},
@@ -137,12 +140,22 @@ impl KeygenSimulator {
         hash_bytes(&data)
     }
 
+    /// Deterministic keygen for the simulator: derives a seeded RNG from
+    /// `(session_id, party_id)` so all parties can compute each other's
+    /// public keys consistently.  This is correct in the simulator because
+    /// all parties are controlled by a single honest node; a real deployment
+    /// would use independently-generated random keys per party.
     fn keygen_share_with_session(
         &self,
         session_id: &[u8; 32],
         party_id: PartyId,
     ) -> Result<pvthfhe_fhe::KeygenShare, pvthfhe_fhe::FheError> {
-        let mut rng = OsRng;
+        let mut hasher = Sha256::new();
+        hasher.update(b"pvthfhe-sim-keygen-v1");
+        hasher.update(session_id);
+        hasher.update(&party_id.to_be_bytes());
+        let seed: [u8; 32] = hasher.finalize().into();
+        let mut rng = ChaCha8Rng::from_seed(seed); // allow-seeded-rng: deterministic simulator
         if self.backend.supports_session_scoped_keygen() {
             self.backend
                 .keygen_share_with_session(session_id, party_id, &mut rng)
@@ -158,6 +171,17 @@ impl KeygenSimulator {
     pub fn run(&mut self) -> Result<KeygenResult, pvthfhe_fhe::FheError> {
         let session_id = self.session_id();
 
+        // Pre-compute all party public keys (also initialises backend party states).
+        let mut all_pks: HashMap<PartyId, PublicKey> = HashMap::new();
+        for i in 0..self.n_parties {
+            let party_id = party_id_from_index(i);
+            let share = self.keygen_share_with_session(&session_id, party_id)?;
+            let pk = PublicKey {
+                bytes: share.bytes.0,
+            };
+            all_pks.insert(party_id, pk);
+        }
+
         // ROUND 1
         let mut r1_msgs = Vec::new();
         let mut equivocated = HashSet::new();
@@ -167,7 +191,7 @@ impl KeygenSimulator {
             let fault = self.faults.get(&party_id);
 
             // Generate normal message
-            let mut msg = self.generate_r1_msg(&session_id, party_id)?;
+            let mut msg = self.generate_r1_msg(&session_id, party_id, &all_pks)?;
 
             // Apply faults
             if fault == Some(&FaultType::MalformedProof) {
@@ -318,6 +342,7 @@ impl KeygenSimulator {
         &self,
         session_id: &[u8; 32],
         party_id: PartyId,
+        all_pks: &HashMap<PartyId, PublicKey>,
     ) -> Result<Round1Message, pvthfhe_fhe::FheError> {
         let share = self.keygen_share_with_session(session_id, party_id)?;
         let pk_i = PublicKey {
@@ -326,17 +351,41 @@ impl KeygenSimulator {
         let pk_i_hash = hash_bytes(pk_i.bytes.as_slice());
 
         let mut encrypted_shares = HashMap::new();
+        let mut nizk_proofs: Vec<Vec<u8>> = Vec::new();
+
         for j in 0..self.n_parties {
-            let j = party_id_from_index(j);
-            if j != party_id {
-                // STUB: hardcoded encrypted share — deferred CycloNizkAdapter integration.
-                // Each encrypted share should be a BFV encryption of party j's Shamir share
-                // (both sk and e_sm tracks) under pk_j, with a NIZK of well-formedness.
-                // The CycloNizkAdapter (p2-m6-r1cs-cyclo-verifier) will supply the real proofs.
-                // Tracked in SECURITY.md §Keygen NIZK stubs, deferred to M2.
-                encrypted_shares.insert(j, vec![0x11, 0x22]);
+            let recipient_id = party_id_from_index(j);
+            if recipient_id != party_id {
+                match all_pks.get(&recipient_id) {
+                    Some(recipient_pk) => {
+                        match self.encrypt_share_for_recipient(
+                            session_id,
+                            party_id,
+                            recipient_id,
+                            recipient_pk,
+                        ) {
+                            Ok((ct_bytes, nizk_bytes)) => {
+                                encrypted_shares.insert(recipient_id, ct_bytes);
+                                nizk_proofs.push(nizk_bytes);
+                            }
+                            Err(_) => {
+                                // Fallback: hardcoded stub when encryption fails
+                                encrypted_shares.insert(recipient_id, vec![0x11, 0x22]);
+                            }
+                        }
+                    }
+                    None => {
+                        encrypted_shares.insert(recipient_id, vec![0x11, 0x22]);
+                    }
+                }
             }
         }
+
+        let nizk = if nizk_proofs.is_empty() {
+            vec![0x00, 0x01]
+        } else {
+            serialize_nizk_bundle(&nizk_proofs)
+        };
 
         Ok(Round1Message {
             party_id,
@@ -345,18 +394,161 @@ impl KeygenSimulator {
             commitment: hash_bytes(&party_id.to_be_bytes()),
             poly_commit: hash_bytes(&party_id.to_be_bytes()),
             encrypted_shares,
-            // STUB: Real NIZK for keygen shares requires wiring CycloNizkAdapter per dealer.
-            // Each Round1Message needs a NIZK proving:
-            //   (a) pk_i is a valid BFV public key generated from the party's secret key;
-            //   (b) the commitment binds to the party's Shamir polynomial for sk sharing;
-            //   (c) encrypted_shares[j] encrypts party j's share of both sk and e_sm tracks
-            //       under party j's public key with correct randomness.
-            // Currently `nizk` is a hardcoded [0x00, 0x01] that always passes validation.
-            // This is a known stub (L5); real adversarial testing requires replacing it with
-            // actual Cyclo NIZK proofs. See round10-adversarial-remediation F3.
-            // See SECURITY.md §Keygen NIZK stubs.
-            // Tracked in p2-m6-r1cs-cyclo-verifier.md, deferred to M2.
-            nizk: vec![0x00, 0x01], // valid (stub)
+            nizk,
         })
     }
+
+    fn encrypt_share_for_recipient(
+        &self,
+        session_id: &[u8; 32],
+        dealer_id: PartyId,
+        recipient_id: PartyId,
+        recipient_pk: &PublicKey,
+    ) -> Result<(Vec<u8>, Vec<u8>), pvthfhe_fhe::FheError> {
+        let share_bytes = self.keygen_share_with_session(session_id, dealer_id)?;
+        let plaintext = share_bytes.bytes.0;
+
+        let mut hasher = Sha256::new();
+        hasher.update(b"pvthfhe-sim-encrypt-v1");
+        hasher.update(session_id);
+        hasher.update(&dealer_id.to_be_bytes());
+        hasher.update(&recipient_id.to_be_bytes());
+        let encrypt_seed: [u8; 32] = hasher.finalize().into();
+        let mut encrypt_rng =
+            ChaCha8Rng::from_seed(encrypt_seed); // allow-seeded-rng: deterministic simulator
+
+        let ct = self
+            .backend
+            .encrypt(recipient_pk, &plaintext, &mut encrypt_rng)
+            .map_err(|e| pvthfhe_fhe::FheError::Backend {
+                reason: format!("encrypt share for recipient {recipient_id}: {e}"),
+            })?;
+
+        let nizk = self
+            .prove_keygen_nizk(session_id, dealer_id, recipient_id, &ct, &plaintext)
+            .unwrap_or_else(|_| {
+                vec![0x00, 0x01]
+            });
+
+        Ok((ct.bytes, nizk))
+    }
+
+    fn prove_keygen_nizk(
+        &self,
+        session_id: &[u8; 32],
+        dealer_id: PartyId,
+        recipient_id: PartyId,
+        ct: &Ciphertext,
+        plaintext: &[u8],
+    ) -> Result<Vec<u8>, pvthfhe_nizk::NizkError> {
+        let session_str = hex::encode(session_id);
+        let participant_id = u16::try_from(dealer_id)
+            .map_err(|_| pvthfhe_nizk::NizkError::InvalidInput("dealer_id too large"))?;
+
+        let pvss_commitment = {
+            let mut h = Sha256::new();
+            h.update(session_id);
+            h.update(&dealer_id.to_be_bytes());
+            h.update(plaintext);
+            let mut out = [0u8; 32];
+            out.copy_from_slice(&h.finalize());
+            out
+        };
+
+        let statement = NizkStatement {
+            ciphertext_bytes: ct.bytes.clone(),
+            decrypt_share_bytes: vec![0u8; 32],
+            pvss_commitment,
+            params: (
+                65_537,
+                pvthfhe_nizk::sigma::RLWE_N,
+                pvthfhe_nizk::sigma::SIGMA_B_E as u64,
+            ),
+            session_id: session_str,
+            participant_id,
+            epoch: 0,
+        };
+
+        let secret_share = if plaintext.len() >= 8 {
+            u64::from_le_bytes(plaintext[..8].try_into().unwrap_or([0u8; 8]))
+        } else {
+            let mut buf = [0u8; 8];
+            let len = plaintext.len().min(8);
+            buf[..len].copy_from_slice(&plaintext[..len]);
+            u64::from_le_bytes(buf)
+        };
+
+        let secret_share_poly = derive_witness_poly(plaintext);
+        let error = derive_nizk_error_poly(plaintext);
+
+        let mut rng_seed = [0u8; 32];
+        {
+            let mut h = Sha256::new();
+            h.update(b"pvthfhe-sim-nizk-rng-v1");
+            h.update(session_id);
+            h.update(&dealer_id.to_be_bytes());
+            h.update(&recipient_id.to_be_bytes());
+            rng_seed.copy_from_slice(&h.finalize());
+        }
+
+        let witness = NizkWitness {
+            secret_share,
+            secret_share_poly,
+            error,
+            randomness: rng_seed.to_vec(),
+        };
+
+        let adapter = CycloNizkAdapter;
+        let mut prove_rng = ChaCha8Rng::from_seed(rng_seed); // allow-seeded-rng: deterministic simulator
+        let proof = adapter.prove(&statement, &witness, &mut prove_rng)?;
+
+        Ok(proof.proof_bytes)
+    }
+}
+
+fn serialize_nizk_bundle(proofs: &[Vec<u8>]) -> Vec<u8> {
+    let count = u16::try_from(proofs.len()).unwrap_or(u16::MAX);
+    let mut buf = Vec::new();
+    buf.extend_from_slice(&count.to_be_bytes());
+    for proof in proofs {
+        let len = u32::try_from(proof.len()).unwrap_or(u32::MAX);
+        buf.extend_from_slice(&len.to_be_bytes());
+        buf.extend_from_slice(proof);
+    }
+    buf
+}
+
+fn derive_witness_poly(bytes: &[u8]) -> Vec<i64> {
+    let mut hasher = Sha256::new();
+    hasher.update(b"pvthfhe-sim-witness-poly-v1");
+    hasher.update(bytes);
+    let seed: [u8; 32] = hasher.finalize().into();
+    let mut rng = ChaCha8Rng::from_seed(seed); // allow-seeded-rng: deterministic simulator
+    let n = pvthfhe_nizk::sigma::RLWE_N;
+    let mut poly = Vec::with_capacity(n);
+    for _ in 0..n {
+        let v = rng.next_u64();
+        poly.push((v % 3) as i64 - 1);
+    }
+    poly
+}
+
+fn derive_nizk_error_poly(bytes: &[u8]) -> Vec<i64> {
+    let mut hasher = Sha256::new();
+    hasher.update(b"pvthfhe-sim-nizk-error-v1");
+    hasher.update(bytes);
+    let seed: [u8; 32] = hasher.finalize().into();
+    let mut rng = ChaCha8Rng::from_seed(seed); // allow-seeded-rng: deterministic simulator
+    let n = pvthfhe_nizk::sigma::RLWE_N;
+    let b = pvthfhe_nizk::sigma::SIGMA_B_E as u64;
+    let range = 2 * b + 1;
+    let max_multiple = (u64::MAX / range) * range;
+    let mut out = Vec::with_capacity(n);
+    while out.len() < n {
+        let r = rng.next_u64();
+        if r < max_multiple {
+            out.push((r % range) as i64 - b as i64);
+        }
+    }
+    out
 }

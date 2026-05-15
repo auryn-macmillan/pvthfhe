@@ -6,6 +6,7 @@
 use ark_bn254::Fr;
 use pvthfhe_compressor::sonobe::{encode_triple, SonobeCompressor, ToyStepCircuit};
 use pvthfhe_compressor::ProofCompressor;
+use sha2::{Digest, Sha256};
 
 #[test]
 fn ivc_steps_is_runtime_not_constant_four() {
@@ -29,7 +30,9 @@ fn ivc_steps_is_runtime_not_constant_four() {
 
 #[test]
 fn ivc_steps_matches_number_of_parties() {
-    let epoch_hash = [0u8; 32];
+    const SEED: u64 = 0x6976635f73746570;
+    let seed_bytes = SEED.to_be_bytes();
+    let epoch_hash: [u8; 32] = Sha256::digest(&seed_bytes).into();
 
     let n_parties = 16;
     let compressor = SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch_hash, n_parties)

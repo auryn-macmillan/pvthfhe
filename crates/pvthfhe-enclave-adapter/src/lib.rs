@@ -166,9 +166,3 @@ impl<B: FheBackend> EnclaveAggregator for PvthfheEnclaveAggregator<B> {
         Ok(false)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn placeholder() {}
-}

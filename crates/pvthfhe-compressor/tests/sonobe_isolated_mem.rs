@@ -13,6 +13,7 @@ use std::{
 use ark_bn254::Fr;
 use pvthfhe_compressor::sonobe::{encode_triple, SonobeCompressor, ToyStepCircuit};
 use pvthfhe_compressor::ProofCompressor;
+use sha2::{Digest, Sha256};
 
 fn rss_kb() -> u64 {
     fs::read_to_string("/proc/self/statm")
@@ -61,7 +62,9 @@ fn sonobe_prove_peak_rss_under_12gb() {
         }
     });
 
-    let epoch_hash = [0u8; 32];
+    const SEED: u64 = 0x736f6e6f62655f6d;
+    let seed_bytes = SEED.to_be_bytes();
+    let epoch_hash: [u8; 32] = Sha256::digest(&seed_bytes).into();
     let compressor = SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch_hash, 4)
         .expect("construct sonobe compressor");
     let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));

@@ -600,7 +600,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
     let mut smudge_slot_registry = SmudgeSlotRegistry::new();
 
-    let mut decrypt_round: u16 = 0;
+    let mut decrypt_round: u16 = 1;
 
     let mut shares = Vec::with_capacity(cfg.t);
     let mut decrypt_witnesses = Vec::with_capacity(cfg.t);
@@ -635,7 +635,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             if let Some((esm_bytes, sk_agg_share, esm_agg_share)) = per_party_esm.get(&party_id) {
                 let ciphertext_hash =
                     compute_decrypt_ciphertext_hash(&ciphertext.bytes, &ciphertext_v);
-                let recipient_id = u16::try_from(zero_based).unwrap_or(0);
+                let recipient_id = u16::try_from(party_id).unwrap_or(0);
                 // TODO(C5): cfg.n is validated early; refactor to error-propagate if this
                 // block is restructured to return Result.
                 let accepted_participant_ids: Vec<u16> =
@@ -658,7 +658,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 );
                 let statement = DecryptNizkStatement {
                     session_id: session_id.as_bytes().to_vec(),
-                    party_index: zero_based,
+                    party_index: usize::try_from(party_id).unwrap_or(0),
                     ciphertext_u: ciphertext.bytes.clone(),
                     ciphertext_v: ciphertext_v.clone(),
                     decrypted_share_bytes: share.bytes.0.clone(),
@@ -695,9 +695,10 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 share.nizk_proof_bytes = Some(proof.proof_bytes.clone());
                 (statement, Some(proof.proof_bytes))
             } else {
+                tracing::warn!("Track B: LegacyLocalSmudge fallback for party {party_id} — esm DKG data unavailable");
                 let statement = DecryptNizkStatement {
                     session_id: session_id.as_bytes().to_vec(),
-                    party_index: zero_based,
+                    party_index: usize::try_from(party_id).unwrap_or(0),
                     ciphertext_u: ciphertext.bytes.clone(),
                     ciphertext_v,
                     decrypted_share_bytes: share.bytes.0.clone(),

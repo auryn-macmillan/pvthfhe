@@ -7,6 +7,7 @@ use std::fs;
 use ark_bn254::Fr;
 use pvthfhe_compressor::sonobe::{encode_triple, SonobeCompressor, ToyStepCircuit};
 use pvthfhe_compressor::ProofCompressor;
+use sha2::{Digest, Sha256};
 use tracing_subscriber::EnvFilter;
 
 fn rss_kb() -> u64 {
@@ -28,7 +29,9 @@ fn main() {
     let mut peak_rss_kb = rss_kb();
     println!("rss_kb stage=before_new value={peak_rss_kb}");
 
-    let epoch_hash = [0u8; 32];
+    const SEED: u64 = 0x736f6e6f62655f6d;
+    let seed_bytes = SEED.to_be_bytes();
+    let epoch_hash: [u8; 32] = Sha256::digest(&seed_bytes).into();
     let compressor = SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch_hash, 4)
         .expect("construct sonobe compressor");
     peak_rss_kb = peak_rss_kb.max(rss_kb());

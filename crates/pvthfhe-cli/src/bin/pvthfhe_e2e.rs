@@ -25,6 +25,7 @@ use {
         },
         ProofCompressor,
     },
+    sha2::{Digest, Sha256},
 };
 
 const DEMO_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 131072\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
@@ -374,8 +375,8 @@ fn run_c7_sonobe_optional(n: usize, seed: u64) -> (f64, bool) {
         return (0.0, false);
     }
 
-    let mut epoch_hash = [0u8; 32];
-    epoch_hash[..8].copy_from_slice(&seed.to_be_bytes());
+    let seed_bytes = seed.to_be_bytes();
+    let epoch_hash: [u8; 32] = Sha256::digest(&seed_bytes).into();
 
     let start = Instant::now();
     let compressor = SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch_hash, n)
@@ -405,8 +406,8 @@ fn run_c7_merkle_optional(n: usize, seed: u64) -> (f64, bool) {
         return (0.0, false);
     }
 
-    let mut epoch_hash = [0u8; 32];
-    epoch_hash[..8].copy_from_slice(&seed.to_be_bytes());
+    let seed_bytes = seed.to_be_bytes();
+    let epoch_hash: [u8; 32] = Sha256::digest(&seed_bytes).into();
 
     let start = Instant::now();
     let compressor = SonobeCompressor::<C7MerkleStepCircuit<Fr>>::new(epoch_hash, n)

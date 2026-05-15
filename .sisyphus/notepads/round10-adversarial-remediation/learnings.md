@@ -76,3 +76,14 @@
 
 - Full `cargo build --workspace` succeeds with only pre-existing warnings.
 - No new warnings or errors introduced.
+
+## B.1: Noir aggregator_final circuit wiring in C7 pipeline
+
+- Wired Noir `aggregator_final` circuit as an optional phase after Core C7 Nova IVC verification in `full_pipeline.rs`.
+- Guarded by `PVTHFHE_RUN_NOIR_C7` env var (default: off) to keep it optional.
+- All errors are non-fatal: use `tracing::warn!` instead of `?` so pipeline doesn't break if nargo/bb are missing.
+- `build_c7_prover_toml` builds a TOML string with placeholder hash values (0x0000...) and real data for sizing (n_participants, threshold). Pads arrays to 8 to match Noir circuit's `MAX_PARTICIPANTS=8`, `N=8`.
+- Canonical flow: nargo execute → bb write_vk → bb prove → bb verify, run from `circuits/` workspace directory.
+- Observer hooks in main.rs: `c7_noir_aggregator` added to both phase_start (print_step 11) and phase_end match arms.
+- Circuit directory resolved from `CARGO_MANIFEST_DIR` (crates/pvthfhe-cli) → `../../circuits/aggregator_final`.
+- Existing `run_noir_aggregator_final_optional()` in `pvthfhe_e2e.rs` bin uses `PVTHFHE_RUN_NOIR_CIRCUIT` env var and `pvthfhe_circuit_tests` helpers — separate from this pipeline-level integration.

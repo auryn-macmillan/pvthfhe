@@ -1965,3 +1965,26 @@ was updated to encode `Fr::ZERO` as the demo witness.
 - Added `trace-test-vectors` feature to `crates/pvthfhe-core/Cargo.toml` to suppress `unexpected_cfgs` warnings
 - Also fixed pre-existing type mismatch: `KeygenShare.bytes` and `DecryptShare.bytes` now use `ProtocolBytes` instead of `Vec<u8>`, requiring `ProtocolBytes(hex::decode(...))` wrapping
 - Added `pvthfhe-types` as dev-dependency of `pvthfhe-core` for the `ProtocolBytes` import
+## C.2: slot_id parameter (decrypt_round counter)
+
+**Date**: 2026-05-15
+
+**What was done**:
+- Replaced hardcoded `slot_id` computation (`u16::try_from(party_index).unwrap_or(0)`) with `let slot_id = decrypt_round;`
+- Added `let mut decrypt_round: u16 = 0;` before the party loop in full_pipeline.rs
+- Updated `DecryptNizkMode::CommittedSmudge.decrypt_round` field from literal `0` to `decrypt_round.into()` (field is `u64`)
+- Added `decrypt_round += 1;` at end of each loop iteration
+
+**Key insight**: The `decrypt_round` field in `DecryptNizkMode::CommittedSmudge` is `u64`, not `u16`. Used `.into()` conversion. Both `slot_id` (used in check_and_record and esm_agg_commit) and `decrypt_round` (in NIZK statement) now track the same value, keeping the registry check consistent with the NIZK statement.
+
+**Verification**: `cargo build --workspace` passes. All smudge slot tests pass (4/4 in smudge_slot_freshness.rs, 1/1 in keygen-spec).
+
+## C.3: SmudgeSlotRegistry consolidation docs
+
+**Date**: 2026-05-15
+
+**What was done**:
+- Replaced existing NOTE(C.3) in `pvthfhe-pvss/src/slot_registry.rs` with R10 hardening comment documenting the dual implementation and planned consolidation
+- Added similar R10 hardening docstring to `SmudgeSlotRegistry` struct in `pvthfhe-keygen-spec/src/lib.rs`
+
+**Key insight**: Both implementations track `(session_id, party_id, slot_id)` tuples but differ in API style (check_and_record vs consume()) and key format (tuple vs string). Only documentation — no code removal per task constraints.

@@ -456,6 +456,9 @@ impl PipelineObserver for DemoObserver {
             "c7_decrypt_aggregation" => {
                 Self::print_step(10, "c7_decrypt_aggregation", detail);
             }
+            "c7_noir_aggregator" => {
+                Self::print_step(11, "c7_noir_aggregator", detail);
+            }
             "setup_threshold" if !self.setup_threshold_announced => {
                 self.setup_threshold_announced = true;
                 tracing::info!("setup_threshold: computing Shamir shares for all parties");
@@ -470,7 +473,7 @@ impl PipelineObserver for DemoObserver {
             "encrypt" => self.encrypt_ms = Some(ms),
             "keygen" | "pvss_share_encrypt" | "cyclo_fold" | "compressor_prove"
             | "compressor_verify" | "partial_decrypt" | "aggregate_decrypt"
-            | "c7_decrypt_aggregation" | "setup_threshold" => {
+            | "c7_decrypt_aggregation" | "c7_noir_aggregator" | "setup_threshold" => {
                 println!("{name}: complete ({ms:.3} ms)")
             }
             _ => {}

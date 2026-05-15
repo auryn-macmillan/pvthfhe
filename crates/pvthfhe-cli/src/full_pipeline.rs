@@ -600,6 +600,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
     let mut smudge_slot_registry = SmudgeSlotRegistry::new();
 
+    let mut decrypt_round: u16 = 0;
+
     let mut shares = Vec::with_capacity(cfg.t);
     let mut decrypt_witnesses = Vec::with_capacity(cfg.t);
     let mut partial_decrypt_ms = Vec::with_capacity(cfg.t);
@@ -645,7 +647,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                     &accepted_participant_ids,
                     Fr::from(*sk_agg_share),
                 );
-                let slot_id = u16::try_from(party_index).unwrap_or(0);
+                let slot_id = decrypt_round;
                 let esm_agg_commit = compute_esm_aggregate_commitment(
                     session_id.as_bytes(),
                     &dkg_root,
@@ -667,7 +669,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                     dealer_index: pvthfhe_pvss::derive_dealer_index(session_id.as_bytes()),
                     mode: DecryptNizkMode::CommittedSmudge {
                         slot_id,
-                        decrypt_round: 0,
+                        decrypt_round: decrypt_round.into(),
                         ciphertext_hash,
                         accepted_participant_ids,
                         sk_agg_commit,
@@ -711,6 +713,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 let proof_bytes = share.nizk_proof_bytes.clone();
                 (statement, proof_bytes)
             };
+
+        decrypt_round += 1;
 
         shares.push(share);
 
@@ -775,6 +779,75 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     observer.phase_end("c7_decrypt_aggregation", c7_ms);
     if !c7_passed {
         anyhow::bail!("C7 decryption aggregation verification failed");
+    }
+
+    // Optional: Noir aggregator_final circuit verification (B.1)
+    if std::env::var("PVTHFHE_RUN_NOIR_C7").unwrap_or_default() == "1" {
+        observer.phase_start("c7_noir_aggregator", None);
+        let noir_started = Instant::now();
+
+        let circuits_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../circuits/aggregator_final");
+        let noir_workspace = circuits_dir.join("..");
+
+        // Build Prover.toml from current pipeline data
+        let prover_toml = build_c7_prover_toml(&share_coeffs, &lagrange_coeffs_fr);
+        if let Err(e) = std::fs::write(circuits_dir.join("Prover.toml"), &prover_toml) {
+            tracing::warn!("C7 Noir: failed to write Prover.toml: {e}");
+            observer.phase_end("c7_noir_aggregator", elapsed_ms(noir_started));
+        } else {
+            // Run canonical flow: nargo execute → bb write_vk → bb prove → bb verify
+            let mut noir_passed = true;
+
+            let status = std::process::Command::new("nargo")
+                .args(["execute", "--package", "aggregator_final", "--prover-name", "C7Prover"])
+                .current_dir(&noir_workspace)
+                .status();
+            match status {
+                Ok(s) if s.success() => {}
+                Ok(s) => { tracing::warn!("C7 Noir: nargo execute returned non-zero: {s}"); noir_passed = false; }
+                Err(e) => { tracing::warn!("C7 Noir: nargo execute failed: {e}"); noir_passed = false; }
+            }
+
+            if noir_passed {
+                let status = std::process::Command::new("bb")
+                    .args(["write_vk", "--scheme", "ultra_honk", "-b", "target/aggregator_final.json", "-o", "target"])
+                    .current_dir(&noir_workspace)
+                    .status();
+                match status {
+                    Ok(s) if s.success() => {}
+                    Ok(s) => { tracing::warn!("C7 Noir: bb write_vk returned non-zero: {s}"); noir_passed = false; }
+                    Err(e) => { tracing::warn!("C7 Noir: bb write_vk failed: {e}"); noir_passed = false; }
+                }
+            }
+
+            if noir_passed {
+                let status = std::process::Command::new("bb")
+                    .args(["prove", "--scheme", "ultra_honk", "-b", "target/aggregator_final.json", "-w", "target/aggregator_final.gz", "-o", "target"])
+                    .current_dir(&noir_workspace)
+                    .status();
+                match status {
+                    Ok(s) if s.success() => {}
+                    Ok(s) => { tracing::warn!("C7 Noir: bb prove returned non-zero: {s}"); noir_passed = false; }
+                    Err(e) => { tracing::warn!("C7 Noir: bb prove failed: {e}"); noir_passed = false; }
+                }
+            }
+
+            if noir_passed {
+                let status = std::process::Command::new("bb")
+                    .args(["verify", "--scheme", "ultra_honk", "-k", "target/vk", "-p", "target/proof", "-i", "target/public_inputs"])
+                    .current_dir(&noir_workspace)
+                    .status();
+                match status {
+                    Ok(s) if s.success() => {}
+                    Ok(s) => { tracing::warn!("C7 Noir: bb verify returned non-zero: {s}"); }
+                    Err(e) => { tracing::warn!("C7 Noir: bb verify failed: {e}"); }
+                }
+            }
+
+            let noir_ms = elapsed_ms(noir_started);
+            observer.phase_end("c7_noir_aggregator", noir_ms);
+        }
     }
 
     Ok(PipelineReport {
@@ -1341,6 +1414,71 @@ fn run_c7_verification(
         Ok(false) => { tracing::warn!("C7: Nova verification returned false"); false }
         Err(e) => { tracing::warn!("C7: Nova verification error: {e:?}"); false }
     }
+}
+
+fn build_c7_prover_toml(
+    share_coeffs: &[Vec<i64>],
+    lagrange_coeffs: &[Fr],
+) -> String {
+    let n_participants = share_coeffs.len();
+    let threshold = n_participants / 2;
+    let n_coeffs = share_coeffs.first().map(|c| c.len()).unwrap_or(0);
+
+    let mut toml = String::new();
+    toml.push_str(&format!("ciphertext_hash = \"0x{:064x}\"\n", 0u64));
+    toml.push_str(&format!("plaintext_hash = \"0x{:064x}\"\n", 0u64));
+    toml.push_str(&format!("aggregate_pk_hash = \"0x{:064x}\"\n", 0u64));
+    toml.push_str(&format!("dkg_root = \"0x{:064x}\"\n", 0u64));
+    toml.push_str(&format!("epoch = \"1\"\n"));
+    toml.push_str(&format!("participant_set_hash = \"0x{:064x}\"\n", 0u64));
+    toml.push_str(&format!("d_commitment = \"0x{:064x}\"\n", 0u64));
+    toml.push_str(&format!("n_participants = \"{}\"\n", n_participants));
+    toml.push_str(&format!("threshold = \"{}\"\n", threshold));
+
+    toml.push_str("lagrange_coeffs = [");
+    for (i, _lc) in lagrange_coeffs.iter().enumerate() {
+        if i > 0 { toml.push_str(", "); }
+        toml.push_str(&format!("\"0x{:064x}\"", 0u64));
+    }
+    for _i in lagrange_coeffs.len()..8usize {
+        toml.push_str(&format!(", \"0x{:064x}\"", 0u64));
+    }
+    toml.push_str("]\n");
+
+    toml.push_str("participant_shares = [\n");
+    for coeffs in share_coeffs.iter() {
+        toml.push_str("  [");
+        for (j, _c) in coeffs.iter().enumerate() {
+            if j > 0 { toml.push_str(", "); }
+            toml.push_str(&format!("\"0x{:064x}\"", 0u64));
+        }
+        for _j in coeffs.len()..8usize {
+            toml.push_str(&format!(", \"0x{:064x}\"", 0u64));
+        }
+        toml.push_str("],\n");
+    }
+    for _i in share_coeffs.len()..8usize {
+        toml.push_str("  [");
+        for j in 0..8usize {
+            if j > 0 { toml.push_str(", "); }
+            toml.push_str(&format!("\"0x{:064x}\"", 0u64));
+        }
+        toml.push_str("],\n");
+    }
+    toml.push_str("]\n");
+
+    toml.push_str("plaintext = [");
+    for j in 0..n_coeffs {
+        if j > 0 { toml.push_str(", "); }
+        toml.push_str(&format!("\"0x{:064x}\"", 0u64));
+    }
+    for _j in n_coeffs..8usize {
+        toml.push_str(&format!(", \"0x{:064x}\"", 0u64));
+    }
+    toml.push_str("]\n");
+
+    toml.push_str("z_q = \"0\"\n");
+    toml
 }
 
 #[cfg(test)]

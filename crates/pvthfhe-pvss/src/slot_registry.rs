@@ -5,11 +5,11 @@
 //! session.  Reuse would leak information by revealing the same smudging noise
 //! in two different decryption contexts.
 //!
-//! NOTE (C.3): The SmudgeSlotRegistry has a dual implementation — the
-//! in-process `HashSet`-based variant here, and a separate counterpart in
-//! `pvthfhe-fhe` for certain FHE flows.  The two should be consolidated into a
-//! single canonical implementation during the next refactoring cycle (planned
-//! as part of the interface-hardening milestone).
+//! R10 hardening: This is the active SmudgeSlotRegistry used in full_pipeline.rs.
+//! There is a second implementation in pvthfhe-keygen-spec/src/lib.rs (consume-based API)
+//! which is a spec-level abstraction not yet wired. Consolidation is planned.
+//! Both track (session_id, party_id, slot_id) tuples, but the keygen-spec version
+//! uses string keys ("session_id:party_id:slot_index") with consume() pattern.
 
 use std::collections::HashSet;
 

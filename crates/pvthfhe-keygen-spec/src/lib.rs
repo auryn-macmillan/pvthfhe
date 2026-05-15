@@ -803,6 +803,11 @@ impl std::error::Error for SmudgeSlotError {}
 ///
 /// Keyed by `(session_id, party_id, slot_index)`, stored internally as
 /// `"{session_id}:{party_id}:{slot_index}"`.
+///
+/// R10 hardening: This is a spec-level SmudgeSlotRegistry (consume-based API)
+/// not yet wired into the active pipeline. The active implementation lives in
+/// pvthfhe-pvss/src/slot_registry.rs (check_and_record-based API). Both track
+/// (session_id, party_id, slot_id) tuples. Consolidation is planned.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct SmudgeSlotRegistry {
     /// Consumed slots. Each entry: "session_id:party_id:slot_index".

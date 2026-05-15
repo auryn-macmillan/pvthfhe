@@ -329,6 +329,11 @@ impl KeygenSimulator {
         for j in 0..self.n_parties {
             let j = party_id_from_index(j);
             if j != party_id {
+                // STUB: hardcoded encrypted share — deferred CycloNizkAdapter integration.
+                // Each encrypted share should be a BFV encryption of party j's Shamir share
+                // (both sk and e_sm tracks) under pk_j, with a NIZK of well-formedness.
+                // The CycloNizkAdapter (p2-m6-r1cs-cyclo-verifier) will supply the real proofs.
+                // Tracked in SECURITY.md §Keygen NIZK stubs, deferred to M2.
                 encrypted_shares.insert(j, vec![0x11, 0x22]);
             }
         }

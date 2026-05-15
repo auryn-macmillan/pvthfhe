@@ -7,7 +7,7 @@ fn main() {
         );
     } else {
         println!(
-            "cargo:warning=FOLDING ACCUMULATOR IS A SURROGATE — FHE crypto is real (honest-but-curious); folding/on-chain remain surrogate. See SECURITY.md."
+            "cargo:warning=RESEARCH PHASE: FHE crypto is real (honest-but-curious); folding uses hash-based accumulation with Cyclo folding deferred to M2. See SECURITY.md."
         );
     }
 }

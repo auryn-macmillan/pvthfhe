@@ -25,9 +25,14 @@ impl CompressionTree {
             for pair in current_level.chunks(2) {
                 let left = pair[0];
                 let right = pair[1];
-                // Fold left + right → parent hash (identity for this toy)
-                let mut parent = [0u8; 32];
-                for i in 0..32 { parent[i] = left[i] ^ right[i]; }
+                // Fold left + right → parent hash.
+                // Real collapsing fold: SHA-256 of concatenated children.
+                // Full Cyclo fold (fold_one_step_multitrack) deferred to micronova M2.
+                use sha2::{Sha256, Digest};
+                let mut hasher = Sha256::new();
+                hasher.update(&left);
+                hasher.update(&right);
+                let parent: [u8; 32] = hasher.finalize().try_into().unwrap_or([0u8; 32]);
                 let inputs = vec![ExternalInputs3(
                     Fr::from_be_bytes_mod_order(&left),
                     Fr::from_be_bytes_mod_order(&right),

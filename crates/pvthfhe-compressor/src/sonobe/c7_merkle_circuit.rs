@@ -126,8 +126,23 @@ pub fn merkle_external_inputs_width(depth: usize, arity: usize) -> usize {
 /// For each level: hash `current_node` together with `arity-1` siblings
 /// using Poseidon (8-to-1 compression), then compare the result against
 /// `merkle_root`.
+///
+/// # Position-aware ordering (deferred)
+///
+/// The native [`crate::merkle::verify_merkle_proof`] places the current node
+/// at `leaf_index % arity` within the sibling list at each level. The
+/// in-circuit ordering currently always places the current node at position 0,
+/// which is only sound when `leaf_index % arity == 0`.
+///
+/// To close this gap, `leaf_index` is constrained to zero. The native
+/// witness generation (witness.rs:68) always uses leaf_index=0. Full
+/// position-aware Merkle verification requires leaf_index constraint
+/// propagation through tree levels and conditional sibling placement
+/// based on `idx % arity` (see merkle.rs:87-109 for native logic).
+/// This is deferred to a follow-up.
 fn verify_merkle_path<F: PrimeField>(
     leaf_value: &FpVar<F>,
+    leaf_index: &FpVar<F>,
     siblings: &[FpVar<F>],
     depth: usize,
     arity: usize,
@@ -140,6 +155,13 @@ fn verify_merkle_path<F: PrimeField>(
     if siblings.len() != expected_sibling_count {
         return Err(SynthesisError::AssignmentMissing);
     }
+
+    // Enforce leaf_index == 0 for now.
+    // Position-aware Merkle ordering (matching native verify_merkle_proof in
+    // merkle.rs:87-109) is deferred. Currently, the in-circuit ordering always
+    // places the current node at position 0, so only leaf_index=0 is valid.
+    // The native witness generation (witness.rs:68) always proves leaf_index=0.
+    leaf_index.enforce_equal(&FpVar::constant(F::zero()))?;
 
     let mut current = leaf_value.clone();
 
@@ -215,12 +237,19 @@ impl<F: PrimeField> FCircuit<F> for C7MerkleStepCircuit<F> {
     ) -> Result<Vec<FpVar<F>>, SynthesisError> {
         verify_merkle_path(
             &external_inputs.merkle_leaf_value,
+            &external_inputs.merkle_leaf_index,
             &external_inputs.merkle_siblings,
             self.merkle_depth,
             self.merkle_arity,
             &external_inputs.merkle_root,
             cs.clone(),
         )?;
+
+        // Enforce merkle_leaf_index is zero (belt-and-suspenders with verify_merkle_path).
+        // The native witness generation always proves leaf_index=0 (witness.rs:68).
+        // Full position-aware Merkle verification requires leaf_index constraint
+        // propagation through tree levels (see merkle.rs:87-109 for native logic).
+        external_inputs.merkle_leaf_index.enforce_equal(&FpVar::constant(F::zero()))?;
 
         // 2. Update state (same recurrence as C7DecryptAggregationCircuit):
         //    z'[0] = z[0] + ext.lagrange_coeff * ext.share_eval

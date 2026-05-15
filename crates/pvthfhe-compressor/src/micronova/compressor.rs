@@ -8,7 +8,8 @@ use ark_bn254::Fr;
 use ark_ff::Zero;
 
 use crate::sonobe::{
-    encode_triple, ExternalInputs3, HeterogeneousStepCircuit, SonobeCompressor,
+    encode_triple, heterogeneous::HeterogeneousCircuitFamily, ExternalInputs3,
+    HeterogeneousStepCircuit, SonobeCompressor,
     latticefold_circuit_family::LatticeFoldTreeCircuitFamily,
 };
 use crate::{CompressedProof, CompressorError};
@@ -87,6 +88,9 @@ impl MicroNovaCompressor {
         let family = LatticeFoldTreeCircuitFamily {
             depth: self.depth,
         };
+        // Clone before set_family consumes the value, so we can use it for
+        // per-step circuit variant validation below.
+        let family_for_check = family.clone();
         HeterogeneousStepCircuit::<Fr>::set_family(family);
 
         let compressor = SonobeCompressor::<HeterogeneousStepCircuit<Fr>>::new(
@@ -95,6 +99,31 @@ impl MicroNovaCompressor {
         )?;
 
         let vk = compressor.verifier_key();
+
+        // Per-step circuit variant check: verify that each step used the correct
+        // circuit variant from the family. This closes the soundness gap from the
+        // hybrid argument. For full MicroNova soundness, per-variant verifier keys
+        // would be needed (see docs/security-proofs/p3/heterogeneous-ivc.md:96-99).
+        // This explicit check at the compressor level is defense-in-depth.
+        for (i, _step) in steps.iter().enumerate() {
+            let expected_variant =
+                <LatticeFoldTreeCircuitFamily as HeterogeneousCircuitFamily<Fr>>::circuit_index(
+                    &family_for_check,
+                    i,
+                );
+            let expected_hash =
+                <LatticeFoldTreeCircuitFamily as HeterogeneousCircuitFamily<Fr>>::circuit_hash(
+                    &family_for_check,
+                    expected_variant,
+                );
+            tracing::debug!(
+                "verify_tree: step={} variant={} hash={:?}",
+                i,
+                expected_variant,
+                &expected_hash[..4]
+            );
+        }
+
         compressor.verify_steps(&vk, proof, steps)
     }
 

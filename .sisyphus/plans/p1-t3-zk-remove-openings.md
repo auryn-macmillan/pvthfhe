@@ -1,7 +1,7 @@
 # Plan: P1-T3 — Verify and Document Zero-Knowledge of Serialized NIZK Proofs
 
 **Plan**: `p1-t3-zk-verify-document`
-**Status**: DRAFT — pending Momus review (updated from initial version after code inspection)
+**Status**: COMPLETE (superseded by p1-t3-zk-full.md RESOLVED)
 **Created**: 2026-05-14
 **Updated**: 2026-05-14 — findings from code inspection
 **Goal**: Verify that the serialized share NIZK proof achieves computational zero-knowledge, document the proof, and add a RED regression test for the serialized byte format.

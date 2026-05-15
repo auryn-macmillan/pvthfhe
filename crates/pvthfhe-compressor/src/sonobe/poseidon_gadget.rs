@@ -7,8 +7,9 @@
 //! The permutation is implemented as a sponge:
 //!   hash8(inputs) = squeeze(absorb(inputs[0..4]) | absorb(inputs[4..8]))
 //!
-//! Each permutation costs ~2000 R1CS constraints; hash8 uses 3 permutations
-//! (2 absorbs + 1 squeeze), totaling ~6000 constraints.
+//! Each permutation costs ~300 R1CS constraints (variable×variable multiplications only;
+//! MDS mixing and ARK are constant×variable, free in R1CS); hash8 uses 3 permutations
+//! (2 absorbs + 1 squeeze), totaling ~900 constraints.
 
 use ark_ff::PrimeField;
 use ark_r1cs_std::fields::fp::FpVar;

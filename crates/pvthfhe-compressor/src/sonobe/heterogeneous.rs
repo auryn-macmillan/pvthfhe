@@ -8,6 +8,14 @@
 //! This enables MicroNova-style folding where a single Sonobe Nova prover
 //! handles multiple circuit variants within one IVC chain.
 //!
+//! NOTE: Nova preprocessor compiles only ONE circuit variant (the first call to
+//! generate_step_constraints during FCircuit::new). For heterogeneous dispatch,
+//! ALL circuit variants must produce structurally identical constraint systems
+//! (same constraint count and variable shape). This holds for LatticeFoldTreeCircuitFamily
+//! where both leaf and internal variants use 3-element state + 3 arithmetic ops.
+//! See docs/security-proofs/p3/heterogeneous-ivc.md:96-99 for the verifier key
+//! soundness gap and planned per-variant hash check.
+//!
 //! # Usage
 //!
 //! ```ignore
@@ -155,7 +163,9 @@ impl<F: PrimeField> FCircuit<F> for HeterogeneousStepCircuit<F> {
         external_inputs: Self::ExternalInputsVar,
     ) -> Result<Vec<FpVar<F>>, SynthesisError> {
         let family = Self::family_impl();
-        family.generate_step_constraints(cs, i, z_i, external_inputs)
+        let result = family.generate_step_constraints(cs, i, z_i, external_inputs)?;
+        debug_assert_eq!(result.len(), self.state_len(), "heterogeneous circuit family produced state of length {} != state_len() {}", result.len(), self.state_len());
+        Ok(result)
     }
 }
 

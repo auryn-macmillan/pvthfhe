@@ -28,7 +28,7 @@ verifier cost. The current prototype uses:
 | Decrypt (smudge) | `legacy_local_smudge` (non-equivalent) vs `committed_smudge_pvss` (target committed mode) | ✅ Doc split (F.3) |
 | Shamir/RS validity (C2) | BN254-scalar Shamir + batched sk/e_sm share-computation relation | ✅ Implemented (`share_computation.rs`) |
 | Share encryption (C3) | BFV sigma + Ajtai commitment; verifier lacks BFV encryption relation | ⚠️ Partial (D.1 blocker — see §C3 in interfold-equivalence.md) |
-| Final aggregation (C7) | Noir toy circuit (N=8, direct Lagrange, no Cyclo/MicroNova verification) | ❌ Missing (stub — depends on Batch G) |
+| Final aggregation (C7) | Sonobe C7DecryptAggregationCircuit (N=8) + C7MerkleStepCircuit (N=8192, Poseidon R1CS) + Noir aggregator_final | ✅ Implemented (Sonobe C7DecryptAggregationCircuit N=8 + C7MerkleStepCircuit N=8192 Poseidon R1CS + Noir aggregator_final) |
 
 ## Audit Status
 
@@ -112,6 +112,8 @@ The demo exercises the current threshold-FHE pipeline end-to-end using real cryp
 primitives. **The NIZK witness uses real BFV secret key material. The folding path uses real
 CCS satisfiability. The compressor uses real Sonobe Nova IVC.** See `WARNING.md` for
 known limitations.
+
+Verified at up to n=128. Larger n may exceed practical wall time due to O(n²) threshold setup.
 
 ## Key Commands
 

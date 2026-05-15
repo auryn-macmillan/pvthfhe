@@ -1,7 +1,7 @@
 # Plan: E2E Demo — Track B Default with Track A Flag
 
 **Plan**: `demo-e2e-track-b-default`
-**Status**: DRAFT — pending Momus review
+**Status**: COMPLETE
 **Created**: 2026-05-14
 **Goal**: Default `demo-e2e` to Track B (LatticeFold+ / MicroNova) while retaining Track A (Sonobe Nova / hash-then-fold) behind `--track A` flag. No regression in Track A behavior.
 

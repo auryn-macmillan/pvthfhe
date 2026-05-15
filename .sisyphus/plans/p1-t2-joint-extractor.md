@@ -42,6 +42,6 @@ P1-T2 has been rewritten at `0465ce2` as a rewinding extractor operating on the 
 ## Cross-references
 
 - `docs/security-proofs/lemma9.md` — Lemma 9 conjecture details
-- `docs/security-proofs/p1/T2.md` — Current P1-T2 proof (straight-line extractor)
+- `docs/security-proofs/p1/T2.md` — Current P1-T2 proof (rewinding forking-lemma extractor)
 - `docs/security-proofs/p1/theorem-inventory.md` — P1 theorem inventory
 - `SECURITY.md` §P1 — Open problem statement

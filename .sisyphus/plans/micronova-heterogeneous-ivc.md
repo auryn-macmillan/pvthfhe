@@ -1,7 +1,7 @@
 # Plan: Heterogeneous IVC (MicroNova) in Sonobe Fork
 
 **Plan**: `micronova-heterogeneous-ivc`
-**Status**: DRAFT — pending Momus review
+**Status**: COMPLETE
 **Created**: 2026-05-14
 **Goal**: Implement heterogeneous incremental verifiable computation in our sonobe fork, enabling MicroNova-style folding where each step can use a different circuit from a circuit family.
 

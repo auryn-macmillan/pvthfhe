@@ -167,7 +167,7 @@ This section documents the current implementation status of the folding and on-c
 verification layers across the two architectural tracks (Track A: Sonobe substitute;
 Track B: LatticeFold+/MicroNova target).
 
-| Component | Track | Status | Details |
+| Component | Target Track | Status | Details |
 |-----------|-------|--------|---------|
 | **P2 — LatticeFold+** | B | Research-blocked | Depends on unresolved Lemma 9 / Cyclo RLWE folding theorem. No implementation exists; Sonobe Nova substitutes in Track A. |
 | **P3 — MicroNova** | B | Deferred | Target architecture only. Sonobe Nova IVC with CycloFoldStepCircuit substitutes in Track A (see `spec-real-p2p3.md` §5.1). |
@@ -175,6 +175,8 @@ Track B: LatticeFold+/MicroNova target).
 | **Noir aggregator_final circuit** | A | Optional / benchmark-gated | Noir circuit (`circuits/aggregator_final`) runs the canonical nargo+bb flow when `PVTHFHE_RUN_NOIR_CIRCUIT=1` is set and nargo/bb are in PATH. Phase timing (`noir_aggregator_final`) is recorded in `e2e_timings.json`. Not required for the default benchmark. |
 | **LatticeFold+ / MicroNova / UltraHonk** | B | Target only | No implementation. This track represents the aspirational architecture with lattice-native folding and on-chain SNARK verification. All current benchmarks use the Track A Sonobe substitute. |
 | **On-chain verifier** | N/A | Compiles, not run | The Solidity UltraHonk verifier compiles (`contracts/`) but is not invoked during the demo or benchmark. The `onchain_verify` phase in the benchmark is a timing-only marker. A separate `bench-comparison` invocation is required for on-chain verification measurement. |
+
+Note: runtime `PVTHFHE_TRACK` flag uses a different naming convention (A = Sonobe surrogate, B = norm-enforced Sonobe).
 
 #### Track Summary
 
@@ -207,3 +209,7 @@ Same SonobeCompressor handles the full tree via
 HeterogeneousStepCircuit<LatticeFoldTreeCircuitFamily>.
 
 See `.sisyphus/plans/micronova-heterogeneous-ivc.md` for full design.
+
+### Performance Ceiling
+
+demo-e2e completes for n ≤ 128. At n ≥ 150, setup_threshold (O(n²·degree) Shamir share generation) dominates wall time and exceeds practical demo budgets. See fhers.rs:331 compute_party_sk_sums.

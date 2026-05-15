@@ -173,14 +173,20 @@ into two parallel tracks at this layer:
 \begin{description}
 \item[Track A (Concrete, \S\ref{sec:p2-tracka}):]
   Sonobe Nova IVC with CycloFoldStepCircuit accumulates SHA-256 hash-chain
-  state over three $\mathbb{F}_r$ scalars.  This track is fully implemented,
-  benchmarked, and its theorems are PROVED for the Sonobe surrogate.
+  state over three $\mathbb{F}_r$ scalars.  This track is fully implemented and benchmarked; theorems P2-A-T1 and P2-A-T3 are
+  PROVED, P2-A-T2 is PENDING-NOVA-PROOF, P2-A-T4 is CONDITIONAL, and
+  P2-A-T5 is PARTIAL (2/6).
 
 \item[Track B (Target, \S\ref{sec:p2-trackb}):]
   LatticeFold+ over RLWE accumulates lattice NIZK witnesses by algebraic
   folding.  ASPIRATIONAL---blocked on Lemma~9 (Conjecture) and contingent
   on the implementation plan \texttt{p2-latticefold-target.md}.
 \end{description}
+
+A heterogeneous IVC prototype (MicroNova compressor with
+LatticeFoldTreeCircuitFamily) is available via
+\texttt{PVTHFHE\_COMPRESSOR=micronova}. See
+\texttt{ARCHITECTURE.md} \S MicroNova for details.
 
 Both tracks share the same P4 (PVSS key generation, \S\ref{sec:p4}) and
 P1 (lattice NIZK, \S\ref{sec:p1}) front-end.

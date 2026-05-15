@@ -329,6 +329,7 @@ impl FhersBackend {
     }
 
     fn compute_party_sk_sums(&self, n: usize, t: usize) -> Result<(), FheError> {
+        tracing::debug!(n_participants = n, threshold = t, "setup_threshold: computing Shamir shares for all parties (O(n²·degree))");
         if n == 0 {
             return Err(FheError::Backend {
                 reason: "n must be > 0".into(),

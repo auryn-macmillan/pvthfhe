@@ -192,3 +192,58 @@ fn merkle_circuit_custom_depth_descriptor() {
     assert_eq!(circuit.merkle_depth, 5);
     assert_eq!(circuit.merkle_arity, 8);
 }
+
+/// Test 9: non-zero merkle_leaf_index MUST be rejected.
+///
+/// The in-circuit Merkle verification currently only supports position 0
+/// (current node always placed first in the sibling list). A non-zero
+/// leaf_index violates the constraint `leaf_index == 0` enforced in
+/// both `verify_merkle_path` and `generate_step_constraints`.
+/// Full position-aware ordering is deferred (see c7_merkle_circuit.rs docs).
+#[test]
+fn merkle_leaf_index_constraint_enforced() {
+    let num_steps = 4;
+    let compressor = SonobeCompressor::<C7MerkleStepCircuit<Fr>>::new(epoch(), num_steps)
+        .expect("construct C7 merkle sonobe compressor");
+
+    let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
+
+    // Build a step with non-zero leaf_index.
+    let leaf = Fr::from(1u64);
+    let siblings = [Fr::from(1u64); 35];
+    let root = poseidon_merkle_root(leaf, &siblings);
+    let bad_step = make_merkle_step(
+        Fr::from(4200u64),
+        Fr::from(1u64),
+        root,
+        leaf,
+        Fr::from(5u64), // non-zero leaf_index — must be rejected
+        &siblings,
+    );
+
+    let mut steps = vec![bad_step];
+    for i in 1..num_steps {
+        steps.push(valid_merkle_step((42 + i as u64) * 100));
+    }
+
+    let result = compressor.prove_steps_merkle(&acc, &steps);
+
+    match result {
+        // If prove succeeds (Nova may fold unsatisfied constraints),
+        // verification must reject the proof.
+        Ok(proof) => {
+            let vk = compressor.verifier_key();
+            let valid = compressor
+                .verify_steps_merkle(&vk, &proof, &steps)
+                .expect("verify_steps_merkle");
+            assert!(
+                !valid,
+                "Nova verification MUST reject non-zero leaf_index"
+            );
+        }
+        // If prove fails, that's also acceptable — constraint rejected by prover.
+        Err(_) => {
+            // prove_step rejected the unsatisfiable constraint — correct behavior.
+        }
+    }
+}

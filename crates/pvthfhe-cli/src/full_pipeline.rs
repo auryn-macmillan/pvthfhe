@@ -450,8 +450,18 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         let depth = (cfg.n as f64).log2().ceil() as usize;
         let family = LatticeFoldTreeCircuitFamily { depth };
         tracing::info!(depth = depth, circuit_family = HeterogeneousCircuitFamily::<Fr>::num_circuits(&family), "MicroNova: family configured");
+        // NOTE: Full MicroNovaCompressor wiring (using HeterogeneousStepCircuit
+        // instead of CycloFoldStepCircuit) is deferred to P3-M1 integration.
+        // The family is configured but the compressor below still uses
+        // the standard CycloFoldStepCircuit path. See
+        // docs/security-proofs/p3/heterogeneous-ivc.md:96-99 for the
+        // per-variant verifier key soundness gap that must be resolved first.
     }
 
+    // ivc_steps = accumulators.len() (batched count, ~ceil(n/sequential_t=10)).
+    // The compressor hashes all accumulators into a single 96-byte encoding.
+    // Multiple IVC steps apply the same hash — functionally equivalent to one step.
+    // See compressor_glue.rs:compressor_inputs() for the hashing logic.
     let compressor = Compressor::new(epoch_hash, acc_len)?;
     observer.phase_end("compressor_new", elapsed_ms(compressor_new_started));
 

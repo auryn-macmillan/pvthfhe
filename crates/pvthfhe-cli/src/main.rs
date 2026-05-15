@@ -388,6 +388,7 @@ struct DemoObserver {
     compressor_verify_announced: bool,
     partial_decrypt_announced: bool,
     aggregate_decrypt_announced: bool,
+    setup_threshold_announced: bool,
     aggregate_keygen_ms: Option<f64>,
     encrypt_ms: Option<f64>,
     pvss_backend_id: Option<String>,
@@ -455,6 +456,10 @@ impl PipelineObserver for DemoObserver {
             "c7_decrypt_aggregation" => {
                 Self::print_step(10, "c7_decrypt_aggregation", detail);
             }
+            "setup_threshold" if !self.setup_threshold_announced => {
+                self.setup_threshold_announced = true;
+                tracing::info!("setup_threshold: computing Shamir shares for all parties");
+            }
             _ => {}
         }
     }
@@ -465,7 +470,7 @@ impl PipelineObserver for DemoObserver {
             "encrypt" => self.encrypt_ms = Some(ms),
             "keygen" | "pvss_share_encrypt" | "cyclo_fold" | "compressor_prove"
             | "compressor_verify" | "partial_decrypt" | "aggregate_decrypt"
-            | "c7_decrypt_aggregation" => {
+            | "c7_decrypt_aggregation" | "setup_threshold" => {
                 println!("{name}: complete ({ms:.3} ms)")
             }
             _ => {}

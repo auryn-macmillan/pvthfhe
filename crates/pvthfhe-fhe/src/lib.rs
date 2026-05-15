@@ -7,6 +7,7 @@
 
 #![warn(missing_docs)]
 
+pub mod dkg_cache;
 pub mod error;
 pub mod fhers;
 #[cfg(feature = "real-nizk")]

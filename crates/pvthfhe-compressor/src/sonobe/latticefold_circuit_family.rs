@@ -63,7 +63,7 @@ impl LatticeFoldTreeCircuitFamily {
 
 impl<F: PrimeField> HeterogeneousCircuitFamily<F> for LatticeFoldTreeCircuitFamily {
     fn num_circuits(&self) -> usize {
-        2.min(self.depth.max(1))
+        if self.depth == 0 { 1 } else { 2 }
     }
 
     fn circuit_index(&self, i: usize) -> usize {

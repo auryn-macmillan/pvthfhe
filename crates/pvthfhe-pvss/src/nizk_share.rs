@@ -1543,8 +1543,8 @@ fn validate_witness(witness: &ShareNizkWitness) -> Result<(), PvssError> {
 }
 
 fn derive_challenge(stmt: &ShareNizkStatement, commitment_ct: &[u8]) -> [u8; CHALLENGE_LEN] {
-    // TODO(C5): usize→u32 fallback; refactor to error-propagate if this function gains a Result return.
-    let participant_id = u32::try_from(stmt.dealer_index).unwrap_or(u32::MAX);
+    // SAFETY: dealer_index ≤ u32::MAX for realistic n.
+    let participant_id = stmt.dealer_index as u32;
     let mut transcript = Transcript::new(stmt.session_id.as_slice(), participant_id);
     transcript.absorb(b"domain_separator", SHARE_NIZK_DOMAIN_SEPARATOR.as_bytes());
     transcript.absorb(b"session_id", stmt.session_id.as_slice());

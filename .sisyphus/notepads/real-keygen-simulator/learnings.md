@@ -27,3 +27,19 @@
 ### Test results
 - All 10 keygen tests pass (6 honest + 3 malicious + 1 real)
 - `demo-e2e` passes: `verify: ACCEPT`, `plaintext_roundtrip: OK`
+
+## R4: Test design patterns (2026-05-16)
+
+### Reconstructing NIZK statements from tests
+- The `CycloNizkAdapter` uses deterministic proving with a seeded RNG derived from `SHA256(session_id || dealer_id || recipient_id)`.
+- To verify NIZK proofs from integration tests, we need to:
+  1. Compute the session_id from public parameters (same as simulator's `session_id()`)
+  2. Create a fresh `FhersBackend` with identical parameters
+  3. Derive keygen shares using the same seeded RNG
+  4. Reconstruct `NizkStatement` and `NizkProof`
+  5. Call `adapter.verify()`
+- This works because both the simulator and the test backend calls `keygen_share_with_session` with the same inputs, producing identical share bytes.
+
+### NIZK bundle format
+- `serialize_nizk_bundle`: `u16 count BE || (u32 len BE || [u8; len])*`
+- Deserialization must handle edge cases (truncated bundles, count mismatches).

@@ -1316,7 +1316,7 @@ impl FhersBackend {
     ///
     /// The polynomial bytes are needed by the C7 verification path to check
     /// `Σ λ_i · d_i(r) ≡ plaintext(r) (mod Q)`.
-    pub fn aggregate_decrypt_with_poly(
+        pub fn aggregate_decrypt_with_poly(
         &self,
         ct: &Ciphertext,
         shares: &[DecryptShare],
@@ -1356,6 +1356,8 @@ impl FhersBackend {
                 reason: err.to_string(),
             })?;
 
+        let t_start = std::time::Instant::now();
+
         let effective_shares = shares
             .iter()
             .map(|share| {
@@ -1375,16 +1377,34 @@ impl FhersBackend {
             .collect::<Result<Vec<_>, FheError>>()?;
         let (party_ids, share_polys): (Vec<_>, Vec<_>) = effective_shares.into_iter().unzip();
 
+        let t1 = std::time::Instant::now();
+        tracing::info!(
+            ms = t1.duration_since(t_start).as_secs_f64() * 1000.0,
+            "aggregate_decrypt: decode shares"
+        );
+
         let share_manager = ShareManager::new(
             n,
             self.shamir_threshold(n, configured_threshold),
             self.bfv_params.clone(),
         );
+        let t2 = std::time::Instant::now();
+        tracing::info!(
+            ms = t2.duration_since(t1).as_secs_f64() * 1000.0,
+            "aggregate_decrypt: Lagrange coeffs"
+        );
+
         let plaintext = share_manager
             .decrypt_from_shares(share_polys, party_ids, ciphertext)
             .map_err(|err| FheError::Backend {
                 reason: err.to_string(),
             })?;
+
+        let t3 = std::time::Instant::now();
+        tracing::info!(
+            ms = t3.duration_since(t2).as_secs_f64() * 1000.0,
+            "aggregate_decrypt: decrypt_from_shares (NTT)"
+        );
 
         // Capture the raw plaintext polynomial bytes before slot-decoding.
         let plaintext_poly = plaintext.to_poly();
@@ -1403,6 +1423,13 @@ impl FhersBackend {
         );
 
         let decoded = decode_plaintext_slots(&slots)?;
+
+        let t4 = std::time::Instant::now();
+        tracing::info!(
+            ms = t4.duration_since(t3).as_secs_f64() * 1000.0,
+            "aggregate_decrypt: slot decode"
+        );
+
         Ok((decoded, plaintext_poly_bytes))
     }
 

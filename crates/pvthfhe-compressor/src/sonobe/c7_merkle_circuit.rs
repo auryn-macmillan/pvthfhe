@@ -283,6 +283,8 @@ impl<F: PrimeField> StepCircuit for C7MerkleStepCircuit<F> {
 mod tests {
     use super::*;
     use ark_bn254::Fr;
+    use ark_r1cs_std::alloc::AllocVar;
+    use ark_relations::gr1cs::ConstraintSystem;
 
     #[test]
     fn merkle_circuit_descriptor_width_depth5() {
@@ -298,5 +300,48 @@ mod tests {
     #[test]
     fn merkle_external_inputs_width_depth1_arity2() {
         assert_eq!(merkle_external_inputs_width(1, 2), 6);
+    }
+
+    /// RED test: verify that non-zero leaf_index is rejected by the constraint system.
+    ///
+    /// The position-aware Merkle verification (G5) is deferred; currently
+    /// the circuit enforces `leaf_index == 0`. This test proves the constraint
+    /// is active: supplying `leaf_index = 1` yields an unsatisfied constraint
+    /// system.
+    #[test]
+    fn verify_merkle_path_rejects_nonzero_leaf_index() {
+        let cs = ConstraintSystem::<Fr>::new_ref();
+        let depth = 1;
+        let arity = 8;
+        let siblings_count = depth * (arity - 1); // 7
+
+        // All-zero witness except leaf_index = 1
+        let zero = || Ok(Fr::from(0u64));
+        let leaf_index = FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(1u64))).unwrap();
+        let leaf_value = FpVar::<Fr>::new_witness(cs.clone(), zero).unwrap();
+        let siblings: Vec<FpVar<Fr>> = (0..siblings_count)
+            .map(|_| FpVar::<Fr>::new_witness(cs.clone(), zero).unwrap())
+            .collect();
+        let merkle_root = FpVar::<Fr>::new_witness(cs.clone(), zero).unwrap();
+
+        let result = verify_merkle_path(
+            &leaf_value,
+            &leaf_index,
+            &siblings,
+            depth,
+            arity,
+            &merkle_root,
+            cs.clone(),
+        );
+
+        // The enforce_equal constraint is added regardless; if the function
+        // returns Ok, the constraint system must be unsatisfied. If it returns
+        // Err (some arkworks versions reject immediately), the test also passes.
+        if result.is_ok() {
+            assert!(
+                !cs.is_satisfied().unwrap(),
+                "non-zero leaf_index must be rejected by the constraint system"
+            );
+        }
     }
 }

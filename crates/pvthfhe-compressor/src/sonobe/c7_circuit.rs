@@ -29,7 +29,15 @@ use crate::witness::C7WitnessSet;
 /// Per-step external inputs:
 ///   ext.0 = participant share evaluation   d_i(r)
 ///   ext.1 = Lagrange coefficient           λ_i
-///   ext.2 = participant hash               commitment to the share
+///   ext.2 = participant hash               commitment to the share (merkle_root)
+///
+/// # G4: Aggregate PK binding (deferred)
+///
+/// The C7 circuit binds each share to its Merkle root (ext.2, the participant hash),
+/// ensuring every folded share belongs to the committed Merkle tree. The aggregate
+/// public key binding — mapping `dkg_root_hash → agg_pk_hash` — is verified off-circuit
+/// (e.g., via SHA-256 of the DKG transcript). Full in-circuit PK binding (G4) is
+/// deferred to a follow-up; for M1, off-circuit verification suffices.
 #[derive(Clone, Copy, Debug)]
 pub struct C7DecryptAggregationCircuit<F: PrimeField> {
     _field: std::marker::PhantomData<F>,

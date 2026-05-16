@@ -226,6 +226,54 @@ pub fn hash8<F: PrimeField>(
     sponge.squeeze_one()
 }
 
+// ── hash256 ──────────────────────────────────────────────────────────────
+
+/// Hash 256 field elements into 1 using Poseidon sponge in R1CS.
+///
+/// Absorbs all 256 elements into the sponge and squeezes one output.
+/// With rate=4, this requires 64 permutations (256/4) plus one squeeze.
+pub fn hash256<F: PrimeField>(
+    _cs: ConstraintSystemRef<F>,
+    inputs: &[FpVar<F>],
+) -> Result<FpVar<F>, SynthesisError> {
+    let mut sponge = PoseidonSpongeVar::new();
+    sponge.absorb(inputs)?;
+    sponge.squeeze_one()
+}
+
+/// Compute Poseidon hash of 256 field elements natively (outside circuit).
+///
+/// Used for test vector generation. Matches the sponge behavior of the
+/// R1CS version exactly.
+pub fn hash256_native<F: PrimeField + ark_ff::fields::Field>(inputs: &[F]) -> F {
+    let params = PoseidonParams::canonical();
+    let capacity = params.capacity;
+    let rate = params.rate;
+    let mut state = vec![F::zero(); params.t];
+
+    let mut offset = 0;
+    while offset < inputs.len() {
+        let remaining = inputs.len() - offset;
+        let space = rate;
+
+        if remaining <= space {
+            for (i, input) in inputs[offset..].iter().enumerate() {
+                state[capacity + i] += input;
+            }
+            offset = inputs.len();
+        } else {
+            for i in 0..space {
+                state[capacity + i] += inputs[offset + i];
+            }
+            offset += space;
+            native_permute(&mut state, &params);
+        }
+    }
+
+    native_permute(&mut state, &params);
+    state[capacity]
+}
+
 // ── Native hash for test helpers ─────────────────────────────────────────
 
 /// Compute Poseidon hash of 8 field elements natively (outside circuit).

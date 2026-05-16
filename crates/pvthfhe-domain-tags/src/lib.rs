@@ -48,8 +48,10 @@ PvssTranscriptRootBinding,
 PvssC7DecryptAggregation,
 /// `pvthfhe/pvss/c7-merkle-decrypt-aggregation/v1` — C7 decryption aggregation with in-circuit Merkle verification.
 PvssC7MerkleDecryptAggregation,
-/// `pvthfhe/p3/fold-verifier/v1` — P3 LatticeFold+ terminal verifier step circuit.
-PvssFoldVerifier,
+    /// `pvthfhe/p3/fold-verifier/v1` — P3 LatticeFold+ terminal verifier step circuit.
+    PvssFoldVerifier,
+    /// `pvthfhe/sonobe/ring-verifier/v1` — Sonobe ring equation verifier circuit (G1).
+    SonobeRingVerifier,
 }
 
 impl Tag {
@@ -79,12 +81,13 @@ Tag::PvssSmudgeSlotBatch => b"pvthfhe/pvss/smudge-slot-batch/v1",
 Tag::PvssTranscriptRootBinding => b"pvthfhe/pvss/transcript-root-binding/v1",
 Tag::PvssC7DecryptAggregation => b"pvthfhe/pvss/c7-decrypt-aggregation/v1",
 Tag::PvssC7MerkleDecryptAggregation => b"pvthfhe/pvss/c7-merkle-decrypt-aggregation/v1",
-Tag::PvssFoldVerifier => b"pvthfhe/p3/fold-verifier/v1",
-}
+            Tag::PvssFoldVerifier => b"pvthfhe/p3/fold-verifier/v1",
+            Tag::SonobeRingVerifier => b"pvthfhe/sonobe/ring-verifier/v1",
+        }
     }
 
     pub const fn all_literals() -> &'static [&'static [u8]] {
-        const ALL: [&[u8]; 21] = [
+        const ALL: [&[u8]; 22] = [
             Tag::Finalize.as_bytes(),
             Tag::KeygenSimulatorSession.as_bytes(),
             Tag::ProofTag.as_bytes(),
@@ -105,8 +108,9 @@ Tag::PvssFoldVerifier => b"pvthfhe/p3/fold-verifier/v1",
 Tag::PvssTranscriptRootBinding.as_bytes(),
 Tag::PvssC7DecryptAggregation.as_bytes(),
 Tag::PvssC7MerkleDecryptAggregation.as_bytes(),
-Tag::PvssFoldVerifier.as_bytes(),
-];
+            Tag::PvssFoldVerifier.as_bytes(),
+            Tag::SonobeRingVerifier.as_bytes(),
+        ];
         &ALL
     }
 }

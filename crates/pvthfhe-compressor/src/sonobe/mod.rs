@@ -9,6 +9,7 @@ pub mod latticefold_adapter;
 pub mod latticefold_circuit_family;
 pub mod poseidon_gadget;
 pub mod ring_element_var;
+pub mod ring_verifier;
 pub use c7_circuit::{c7_fold_witnesses, C7DecryptAggregationCircuit};
 pub use c7_merkle_circuit::{
     merkle_external_inputs_width, C7MerkleExternalInputs, C7MerkleExternalInputsVar,
@@ -19,6 +20,7 @@ pub use heterogeneous::HeterogeneousStepCircuit;
 pub use latticefold_adapter::*;
 pub use latticefold_circuit_family::LatticeFoldTreeCircuitFamily;
 pub use poseidon_gadget::hash8_native;
+pub use ring_verifier::RingVerifierCircuit;
 
 use std::fmt::Debug;
 use std::fs;
@@ -89,6 +91,46 @@ impl<F: PrimeField> AllocVar<ExternalInputs3<F>, F> for ExternalInputs3Var<F> {
             FpVar::<F>::new_variable(cs.clone(), || Ok(e.0), mode)?,
             FpVar::<F>::new_variable(cs.clone(), || Ok(e.1), mode)?,
             FpVar::<F>::new_variable(cs, || Ok(e.2), mode)?,
+        ))
+    }
+}
+
+/// Quintuple external inputs for ring-element hashes + challenge (G1).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ExternalInputs5<F: PrimeField>(
+    pub F,  // z_s_hash
+    pub F,  // z_e_hash
+    pub F,  // t_hash
+    pub F,  // d_hash
+    pub F,  // challenge (ternary: -1, 0, 1)
+);
+
+/// R1CS variable wrapper for quintuple external inputs.
+#[derive(Clone, Debug)]
+pub struct ExternalInputs5Var<F: PrimeField>(
+    pub FpVar<F>,
+    pub FpVar<F>,
+    pub FpVar<F>,
+    pub FpVar<F>,
+    pub FpVar<F>,
+);
+
+impl<F: PrimeField> AllocVar<ExternalInputs5<F>, F> for ExternalInputs5Var<F> {
+    fn new_variable<T: Borrow<ExternalInputs5<F>>>(
+        cs: impl Into<Namespace<F>>,
+        f: impl FnOnce() -> Result<T, SynthesisError>,
+        mode: AllocationMode,
+    ) -> Result<Self, SynthesisError> {
+        let ns = cs.into();
+        let cs = ns.cs();
+        let v = f()?;
+        let e = v.borrow();
+        Ok(ExternalInputs5Var(
+            FpVar::<F>::new_variable(cs.clone(), || Ok(e.0), mode)?,
+            FpVar::<F>::new_variable(cs.clone(), || Ok(e.1), mode)?,
+            FpVar::<F>::new_variable(cs.clone(), || Ok(e.2), mode)?,
+            FpVar::<F>::new_variable(cs.clone(), || Ok(e.3), mode)?,
+            FpVar::<F>::new_variable(cs, || Ok(e.4), mode)?,
         ))
     }
 }

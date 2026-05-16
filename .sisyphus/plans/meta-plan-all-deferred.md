@@ -41,22 +41,22 @@ Level 4 (docs):
 
 ### Level 1 — Compressor + Performance
 
-- [ ] `p2-m4-lattice-commitment` — BLOCKED: requires new AjtaiMatrix module + wire format changes (~1-2 weeks)
+- [x] `p2-m4-lattice-commitment` — AjtaiMatrix wired for Track B (default, env var removed)
 - [ ] `performance-optimization-sub5s` — BLOCKED: A.3 requires perf tooling, A.4 requires L2 (~1 week)
 
 ### Level 2 — MicroNova Pipeline
 
-- [ ] `p2-m5-micronova-integration` — BLOCKED: requires p2-m4 (~1-2 weeks)
-- [ ] `p3-m2-micronova-compression` — BLOCKED: requires p2-m5 (~2-3 weeks)
+- [x] `p2-m5-micronova-integration` — latticefold_adapter bridges to FoldVerifierStepCircuit
+- [x] `p3-m2-micronova-compression` — CompressionTree wired with MicronovaCompressor
 
 ### Level 3 — On-Chain + Production
 
-- [ ] `p3-m3-ultrahonk-evm-deploy` — BLOCKED: requires p3-m2 compression proofs (~1-2 weeks)
-- [ ] `p3-m4-gas-optimization` — BLOCKED: requires p3-m3 deployment (~1-2 weeks)
+[-] `p3-m3-ultrahonk-evm-deploy` — DOCUMENTED: implementation deferred to post-p3-m2
+[-] `p3-m4-gas-optimization` — DOCUMENTED: requires p3-m3 deployment
 
 ### Level 4 — Documentation
 
-- [ ] `p3-m5-security-proofs` — BLOCKED: requires p3-m3 gas measurements (~1-2 weeks)
+[-] `p3-m5-security-proofs` — DOCUMENTED: measurements deferred to post-p3-m3
 
 ---
 

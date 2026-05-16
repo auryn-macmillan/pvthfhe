@@ -16,6 +16,16 @@ path = "src/bin/pvthfhe_e2e.rs"
 required-features = ["with-fhe"]
 
 [[bin]]
+name = "per-node"
+path = "src/bin/per_node.rs"
+required-features = ["with-fhe"]
+
+[[bin]]
+name = "per-aggregator"
+path = "src/bin/per_aggregator.rs"
+required-features = ["with-fhe", "sonobe-compressor"]
+
+[[bin]]
 name = "sonobe-min"
 path = "src/bin/sonobe_min.rs"
 required-features = ["sonobe-compressor"]
@@ -48,6 +58,7 @@ rayon = "1"
 serde_json = "1"
 ark-bn254 = "0.5"
 ark-ff = "0.5"
+fhe = { git = "https://github.com/gnosisguild/fhe.rs", rev = "5f24d0b62a7329b789db07a065b68accd614a47b", optional = true }
 
 [features]
 default = ["with-fhe", "sonobe-compressor", "pipeline-extra-checks"]
@@ -57,6 +68,7 @@ with-fhe = [
     "dep:pvthfhe-pvss",
     "dep:pvthfhe-fhe",
     "dep:pvthfhe-aggregator",
+    "dep:fhe",
 ]
 mock = ["with-fhe", "pvthfhe-fhe/mock", "pvthfhe-aggregator/mock"]
 probe-no-fhe = []

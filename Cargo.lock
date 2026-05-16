@@ -2061,6 +2061,7 @@ dependencies = [
  "ark-ff",
  "assert_cmd",
  "clap",
+ "fhe",
  "hex",
  "predicates",
  "pvthfhe-aggregator",

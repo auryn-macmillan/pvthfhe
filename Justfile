@@ -36,6 +36,14 @@ demo-e2e n="10" t="4" seed="1":
 demo-e2e-track-a n="10" t="4" seed="1":
     PVTHFHE_TRACK=A just demo-e2e {{n}} {{t}} {{seed}}
 
+# Per-node simulation — measures wall time for ONE party at given n and t
+per-node n="10" t="4" seed="1":
+    cargo run --release --bin per-node -- --n {{n}} --threshold {{t}} --seed {{seed}}
+
+# Per-aggregator simulation — measures wall time for the aggregator node
+aggregator n="10" t="4" seed="1":
+    cargo run --release --bin per-aggregator -- --n {{n}} --threshold {{t}} --seed {{seed}}
+
 bench-p4:
     mkdir -p .sisyphus/evidence/benchmarks/p4
     cargo run --release -p pvthfhe-bench --bin bench_p4 2>&1 | tee .sisyphus/evidence/benchmarks/p4/run.log

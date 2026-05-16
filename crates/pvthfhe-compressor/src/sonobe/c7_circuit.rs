@@ -65,6 +65,29 @@ impl<F: PrimeField> FCircuit<F> for C7DecryptAggregationCircuit<F> {
         z_i: Vec<FpVar<F>>,
         external_inputs: Self::ExternalInputsVar,
     ) -> Result<Vec<FpVar<F>>, SynthesisError> {
+        // ── G2: Share evaluation in R1CS (deferred to M1 follow-up) ──
+        //
+        // ext.0 = claimed share evaluation d_i(r). Currently TRUSTED — the prover
+        // can set ext.0 to any value and the circuit will accept it. This is the
+        // G2 trust gap (.sisyphus/plans/in-circuit-verification.md §G2).
+        //
+        // Design for M1 closure:
+        //   - Pass 8192 share coefficients (coeffs[0..8191]) as private witnesses
+        //   - Pass 8192 precomputed powers r^j as private witnesses
+        //   - Compute eval = Σ coeff[j] × r^j via Horner evaluation in R1CS
+        //     (8192 multiply-adds per step ≈ 8192 R1CS multiplications per step)
+        //   - Enforce eval == ext.0 to close the G2 trust gap
+        //
+        // At t=114, this is 114 × 8192 = 933K private witness values and
+        // ~933K R1CS multiplications — well within Nova's practical range.
+        //
+        // For M0 (current), ext.0 is trusted; the native Merkle proofs
+        // (`verify_merkle_proofs()`) provide off-circuit binding of each
+        // share's polynomial coefficients to their Merkle root (ext.2).
+        // Full in-circuit verification is deferred to M1.
+        //
+        // See .sisyphus/plans/in-circuit-verification.md §G2 for full design.
+
         // z'[0] = z[0] + ext.1 * ext.0   (acc_eval += λ_i · d_i(r))
         let acc_eval = z_i[0].clone() + external_inputs.1.clone() * external_inputs.0;
 

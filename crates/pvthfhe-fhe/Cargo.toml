@@ -33,12 +33,12 @@ tracing = "0.1"
 ndarray = "0.15"
 num-bigint = "0.4"
 num-traits = "0.2"
+ark-bn254 = "0.5"
+ark-ff = "0.5"
 
 [dev-dependencies]
 pvthfhe-keygen = { path = "../pvthfhe-keygen" }
 serde_json = "1"
-ark-bn254 = "0.5"
-ark-ff = "0.5"
 
 [lints]
 workspace = true

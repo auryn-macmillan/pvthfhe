@@ -7,35 +7,42 @@ warning: unused import: `time::Instant`
    |
    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
 
+warning: unused import: `BigInteger`
+  --> crates/pvthfhe-fhe/src/fhers.rs:35:14
+   |
+35 | use ark_ff::{BigInteger, PrimeField};
+   |              ^^^^^^^^^^
+
 warning: unused variable: `p1`
-    --> crates/pvthfhe-fhe/src/fhers.rs:1140:13
+    --> crates/pvthfhe-fhe/src/fhers.rs:1142:13
      |
-1140 |         let p1 = bfv_pk.c.get(1).ok_or(FheError::MalformedPublicKey)?;
+1142 |         let p1 = bfv_pk.c.get(1).ok_or(FheError::MalformedPublicKey)?;
      |             ^^ help: if this is intentional, prefix it with an underscore: `_p1`
      |
      = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
 
 warning: method `decryption_share_poly_from_full_state` is never used
-   --> crates/pvthfhe-fhe/src/fhers.rs:301:8
+   --> crates/pvthfhe-fhe/src/fhers.rs:303:8
     |
- 77 | impl FhersBackend {
+ 79 | impl FhersBackend {
     | ----------------- method in this implementation
 ...
-301 |     fn decryption_share_poly_from_full_state(
+303 |     fn decryption_share_poly_from_full_state(
     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     |
     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
 
 warning: associated function `compute_lagrange_coeffs_integer` is never used
-    --> crates/pvthfhe-fhe/src/fhers.rs:1481:8
+    --> crates/pvthfhe-fhe/src/fhers.rs:1555:8
      |
-1260 | impl FhersBackend {
+1262 | impl FhersBackend {
      | ----------------- associated function in this implementation
 ...
-1481 |     fn compute_lagrange_coeffs_integer(party_ids: &[usize]) -> Vec<i64> {
+1555 |     fn compute_lagrange_coeffs_integer(party_ids: &[usize]) -> Vec<i64> {
      |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-warning: `pvthfhe-fhe` (lib) generated 4 warnings (run `cargo fix --lib -p pvthfhe-fhe` to apply 2 suggestions)
+warning: `pvthfhe-fhe` (lib) generated 5 warnings (run `cargo fix --lib -p pvthfhe-fhe` to apply 2 suggestions)
+warning: pvthfhe-aggregator@0.1.0: aggregator: folding uses CycloFoldStepCircuit with real Ajtai commitments (CycloNizkAdapter)
 warning: missing documentation for a function
    --> crates/pvthfhe-pvss/src/encrypt.rs:416:1
     |
@@ -62,7 +69,6 @@ warning: missing documentation for a method
 1429 |     pub fn decode(&self) -> Result<ShareNizkOpenedProof, PvssError> {
      |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-warning: pvthfhe-aggregator@0.1.0: aggregator: folding uses CycloFoldStepCircuit with real Ajtai commitments (CycloNizkAdapter)
 warning: `pvthfhe-pvss` (lib) generated 4 warnings
 warning: unused imports: `BigInteger` and `PrimeField`
  --> crates/pvthfhe-compressor/src/merkle.rs:2:14
@@ -84,13 +90,27 @@ warning: unused import: `Zero`
 9 | use ark_ff::{PrimeField, Zero};
   |                          ^^^^
 
+warning: unused variable: `idx`
+  --> crates/pvthfhe-compressor/src/sonobe/ring_verifier.rs:72:20
+   |
+72 |             .map(|(idx, &v)| FpVar::new_witness(cs.clone(), || Ok(v)).unwrap())
+   |                    ^^^ help: if this is intentional, prefix it with an underscore: `_idx`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: missing documentation for a module
+  --> crates/pvthfhe-compressor/src/sonobe/mod.rs:12:1
+   |
+12 | pub mod ring_verifier;
+   | ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: requested on the command line with `-W missing-docs`
+
 warning: missing documentation for a struct field
   --> crates/pvthfhe-compressor/src/sonobe/c7_merkle_circuit.rs:34:5
    |
 34 |     pub leaf_value: F,
    |     ^^^^^^^^^^^^^^^^^
-   |
-   = note: requested on the command line with `-W missing-docs`
 
 warning: missing documentation for a struct field
   --> crates/pvthfhe-compressor/src/sonobe/c7_merkle_circuit.rs:35:5
@@ -194,6 +214,12 @@ warning: missing documentation for a method
 213 |     pub fn external_inputs_width(&self) -> usize {
     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+warning: missing documentation for a struct
+  --> crates/pvthfhe-compressor/src/sonobe/ring_verifier.rs:19:1
+   |
+19 | pub struct RingVerifierCircuit<F: PrimeField> {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 warning: missing documentation for an associated function
   --> crates/pvthfhe-compressor/src/micronova/compressor.rs:36:5
    |
@@ -226,477 +252,114 @@ warning: use of deprecated struct `hermine::HermineAdapter`: HermineAdapter uses
 267 | impl KeygenAdapter for HermineAdapter {
     |                        ^^^^^^^^^^^^^^
 
-warning: `pvthfhe-compressor` (lib) generated 24 warnings (run `cargo fix --lib -p pvthfhe-compressor` to apply 2 suggestions)
+warning: `pvthfhe-compressor` (lib) generated 27 warnings (run `cargo fix --lib -p pvthfhe-compressor` to apply 3 suggestions)
 warning: `pvthfhe-keygen` (lib) generated 2 warnings
 warning: missing documentation for a function
-    --> crates/pvthfhe-cli/src/full_pipeline.rs:1563:1
+    --> crates/pvthfhe-cli/src/full_pipeline.rs:1647:1
      |
-1563 | / pub fn build_c7_prover_toml(
-1564 | |     share_coeffs: &[Vec<i64>],
-1565 | |     lagrange_coeffs: &[Fr],
-1566 | |     aggregate_pk_bytes: &[u8],
-1567 | |     session_id: &str,
-1568 | | ) -> String {
+1647 | / pub fn build_c7_prover_toml(
+1648 | |     share_coeffs: &[Vec<i64>],
+1649 | |     lagrange_coeffs: &[Fr],
+1650 | |     aggregate_pk_bytes: &[u8],
+1651 | |     session_id: &str,
+1652 | | ) -> String {
      | |___________^
      |
      = note: requested on the command line with `-W missing-docs`
 
 warning: `pvthfhe-cli` (lib) generated 1 warning
-    Finished `release` profile [optimized] target(s) in 0.11s
-     Running `target/release/pvthfhe-cli demo --n 256 --threshold 127 --seed 1`
-[2m2026-05-16T16:49:51.504165Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m starting demo pipeline [3mn[0m[2m=[0m256 [3mthreshold[0m[2m=[0m127 [3mseed[0m[2m=[0m1
-demo: n=256 threshold=127 seed=1
+    Finished `release` profile [optimized] target(s) in 0.10s
+     Running `target/release/pvthfhe-cli demo --n 10 --threshold 4 --seed 1`
+[2m2026-05-16T22:32:34.305815Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m starting demo pipeline [3mn[0m[2m=[0m10 [3mthreshold[0m[2m=[0m4 [3mseed[0m[2m=[0m1
+demo: n=10 threshold=4 seed=1
 pvss_backend_id=lattice-pvss-bfv-d2
-[2m2026-05-16T16:49:51.504185Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m backend_id_p1 [3mbackend_id[0m[2m=[0m"cyclo-ajtai-d2-conditional"
-[2m2026-05-16T16:49:51.504188Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m backend_id_p2 [3mbackend_id_p2[0m[2m=[0m"cyclo-rlwe-t10-lemma9-heuristic"
-[2m2026-05-16T16:49:51.504189Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m backend_id_p3 [3mbackend_id_p3[0m[2m=[0m"sonobe-nova-bn254-grumpkin"
+[2m2026-05-16T22:32:34.305839Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m backend_id_p1 [3mbackend_id[0m[2m=[0m"cyclo-ajtai-d2-conditional"
+[2m2026-05-16T22:32:34.305843Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m backend_id_p2 [3mbackend_id_p2[0m[2m=[0m"cyclo-rlwe-t10-lemma9-heuristic"
+[2m2026-05-16T22:32:34.305844Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m backend_id_p3 [3mbackend_id_p3[0m[2m=[0m"sonobe-nova-bn254-grumpkin"
 backend_id == "cyclo-ajtai-d2-conditional"
 backend_id_p2: cyclo-rlwe-t10-lemma9-heuristic
 backend_id_p3: sonobe-nova-bn254-grumpkin
 note: on-chain Solidity verify is NOT run by demo (use bench-comparison)
 pvss_backend_id=lattice-pvss-bfv-d2
-[2m2026-05-16T16:49:51.524283Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m seed flag ignored in production path; will require --insecure-seed in future R3.6
-step 1/10: keygen (n=256 t=127 seed=1)
-keygen: complete (87642.155 ms)
+[2m2026-05-16T22:32:34.326186Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m seed flag ignored in production path; will require --insecure-seed in future R3.6
+step 1/10: keygen (n=10 t=4 seed=1)
+keygen: complete (158.385 ms)
 step 2/10: nizk_prove (dealer=1)
 step 3/10: nizk_verify (dealer=1 recipient=1)
 step 4/10: pvss_share_encrypt (lattice-pvss-bfv-d2)
-pvss_share_encrypt: complete (13484.134 ms)
-[2m2026-05-16T16:52:08.510036Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m setup_threshold: computing Shamir shares for all parties
-[2m2026-05-16T16:52:08.511311Z[0m [32m INFO[0m [2mpvthfhe_fhe::fhers[0m[2m:[0m setup_threshold: pre-read sk_coeffs [3mn[0m[2m=[0m256 [3mms[0m[2m=[0m0.00215
-[2m2026-05-16T17:19:52.462418Z[0m [32m INFO[0m [2mpvthfhe_fhe::fhers[0m[2m:[0m setup_threshold: parallel Shamir generation [3mn[0m[2m=[0m256 [3mms[0m[2m=[0m0.008979 [3mtotal_allocated_mb[0m[2m=[0m12240
-[2m2026-05-16T17:20:52.663822Z[0m [32m INFO[0m [2mpvthfhe_fhe::fhers[0m[2m:[0m setup_threshold: sequential merge into distributed [3mn[0m[2m=[0m256 [3mms[0m[2m=[0m0.00943
-[2m2026-05-16T17:20:53.431654Z[0m [32m INFO[0m [2mpvthfhe_fhe::fhers[0m[2m:[0m setup_threshold: aggregate collected shares [3mn[0m[2m=[0m256 [3mms[0m[2m=[0m0.00653
-[2m2026-05-16T17:20:53.431696Z[0m [32m INFO[0m [2mpvthfhe_fhe::fhers[0m[2m:[0m setup_threshold: DONE [3mn[0m[2m=[0m256 [3mms[0m[2m=[0m0.0005
-setup_threshold: complete (1724921.893 ms)
-[2m2026-05-16T17:20:54.026909Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 1
-[2m2026-05-16T17:20:54.036941Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 2
-[2m2026-05-16T17:20:54.046677Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 3
-[2m2026-05-16T17:20:54.056378Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 4
-[2m2026-05-16T17:20:54.066067Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 5
-[2m2026-05-16T17:20:54.075754Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 6
-[2m2026-05-16T17:20:54.085435Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 7
-[2m2026-05-16T17:20:54.095112Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 8
-[2m2026-05-16T17:20:54.104773Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 9
-[2m2026-05-16T17:20:54.114446Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 10
-[2m2026-05-16T17:20:54.124107Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 11
-[2m2026-05-16T17:20:54.133769Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 12
-[2m2026-05-16T17:20:54.143422Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 13
-[2m2026-05-16T17:20:54.153076Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 14
-[2m2026-05-16T17:20:54.162764Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 15
-[2m2026-05-16T17:20:54.172469Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 16
-[2m2026-05-16T17:20:54.182129Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 17
-[2m2026-05-16T17:20:54.191782Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 18
-[2m2026-05-16T17:20:54.201442Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 19
-[2m2026-05-16T17:20:54.211118Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 20
-[2m2026-05-16T17:20:54.220795Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 21
-[2m2026-05-16T17:20:54.230461Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 22
-[2m2026-05-16T17:20:54.240137Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 23
-[2m2026-05-16T17:20:54.249795Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 24
-[2m2026-05-16T17:20:54.259453Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 25
-[2m2026-05-16T17:20:54.269191Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 26
-[2m2026-05-16T17:20:54.278861Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 27
-[2m2026-05-16T17:20:54.288563Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 28
-[2m2026-05-16T17:20:54.298249Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 29
-[2m2026-05-16T17:20:54.307920Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 30
-[2m2026-05-16T17:20:54.317596Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 31
-[2m2026-05-16T17:20:54.327283Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 32
-[2m2026-05-16T17:20:54.336947Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 33
-[2m2026-05-16T17:20:54.346630Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 34
-[2m2026-05-16T17:20:54.356307Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 35
-[2m2026-05-16T17:20:54.365975Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 36
-[2m2026-05-16T17:20:54.375634Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 37
-[2m2026-05-16T17:20:54.385303Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 38
-[2m2026-05-16T17:20:54.395035Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 39
-[2m2026-05-16T17:20:54.404736Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 40
-[2m2026-05-16T17:20:54.414405Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 41
-[2m2026-05-16T17:20:54.424077Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 42
-[2m2026-05-16T17:20:54.433766Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 43
-[2m2026-05-16T17:20:54.443454Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 44
-[2m2026-05-16T17:20:54.453175Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 45
-[2m2026-05-16T17:20:54.462849Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 46
-[2m2026-05-16T17:20:54.472525Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 47
-[2m2026-05-16T17:20:54.482226Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 48
-[2m2026-05-16T17:20:54.491901Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 49
-[2m2026-05-16T17:20:54.501572Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 50
-[2m2026-05-16T17:20:54.511261Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 51
-[2m2026-05-16T17:20:54.520941Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 52
-[2m2026-05-16T17:20:54.530610Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 53
-[2m2026-05-16T17:20:54.540286Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 54
-[2m2026-05-16T17:20:54.549942Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 55
-[2m2026-05-16T17:20:54.559821Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 56
-[2m2026-05-16T17:20:54.569495Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 57
-[2m2026-05-16T17:20:54.579168Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 58
-[2m2026-05-16T17:20:54.588811Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 59
-[2m2026-05-16T17:20:54.598466Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 60
-[2m2026-05-16T17:20:54.608136Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 61
-[2m2026-05-16T17:20:54.617813Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 62
-[2m2026-05-16T17:20:54.627472Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 63
-[2m2026-05-16T17:20:54.637121Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 64
-[2m2026-05-16T17:20:54.646782Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 65
-[2m2026-05-16T17:20:54.656450Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 66
-[2m2026-05-16T17:20:54.666142Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 67
-[2m2026-05-16T17:20:54.675895Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 68
-[2m2026-05-16T17:20:54.685633Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 69
-[2m2026-05-16T17:20:54.695333Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 70
-[2m2026-05-16T17:20:54.704989Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 71
-[2m2026-05-16T17:20:54.714679Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 72
-[2m2026-05-16T17:20:54.724359Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 73
-[2m2026-05-16T17:20:54.734055Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 74
-[2m2026-05-16T17:20:54.743742Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 75
-[2m2026-05-16T17:20:54.753404Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 76
-[2m2026-05-16T17:20:54.763098Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 77
-[2m2026-05-16T17:20:54.772785Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 78
-[2m2026-05-16T17:20:54.782446Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 79
-[2m2026-05-16T17:20:54.792114Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 80
-[2m2026-05-16T17:20:54.801811Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 81
-[2m2026-05-16T17:20:54.811470Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 82
-[2m2026-05-16T17:20:54.821152Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 83
-[2m2026-05-16T17:20:54.830834Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 84
-[2m2026-05-16T17:20:54.840527Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 85
-[2m2026-05-16T17:20:54.850268Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 86
-[2m2026-05-16T17:20:54.859959Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 87
-[2m2026-05-16T17:20:54.869736Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 88
-[2m2026-05-16T17:20:54.879429Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 89
-[2m2026-05-16T17:20:54.889193Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 90
-[2m2026-05-16T17:20:54.898853Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 91
-[2m2026-05-16T17:20:54.908524Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 92
-[2m2026-05-16T17:20:54.918213Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 93
-[2m2026-05-16T17:20:54.927881Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 94
-[2m2026-05-16T17:20:54.937566Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 95
-[2m2026-05-16T17:20:54.947230Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 96
-[2m2026-05-16T17:20:54.956894Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 97
-[2m2026-05-16T17:20:54.966566Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 98
-[2m2026-05-16T17:20:54.976234Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 99
-[2m2026-05-16T17:20:54.985918Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 100
-[2m2026-05-16T17:20:54.995598Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 101
-[2m2026-05-16T17:20:55.005264Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 102
-[2m2026-05-16T17:20:55.014925Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 103
-[2m2026-05-16T17:20:55.024585Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 104
-[2m2026-05-16T17:20:55.034262Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 105
-[2m2026-05-16T17:20:55.043910Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 106
-[2m2026-05-16T17:20:55.053572Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 107
-[2m2026-05-16T17:20:55.063244Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 108
-[2m2026-05-16T17:20:55.072945Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 109
-[2m2026-05-16T17:20:55.082610Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 110
-[2m2026-05-16T17:20:55.092270Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 111
-[2m2026-05-16T17:20:55.101922Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 112
-[2m2026-05-16T17:20:55.111580Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 113
-[2m2026-05-16T17:20:55.121231Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 114
-[2m2026-05-16T17:20:55.130871Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 115
-[2m2026-05-16T17:20:55.140518Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 116
-[2m2026-05-16T17:20:55.150170Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 117
-[2m2026-05-16T17:20:55.159807Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 118
-[2m2026-05-16T17:20:55.169440Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 119
-[2m2026-05-16T17:20:55.179097Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 120
-[2m2026-05-16T17:20:55.188767Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 121
-[2m2026-05-16T17:20:55.198446Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 122
-[2m2026-05-16T17:20:55.208141Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 123
-[2m2026-05-16T17:20:55.217824Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 124
-[2m2026-05-16T17:20:55.227515Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 125
-[2m2026-05-16T17:20:55.237180Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 126
-[2m2026-05-16T17:20:55.246842Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 127
-[2m2026-05-16T17:20:55.256519Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 128
-[2m2026-05-16T17:20:55.266194Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 129
-[2m2026-05-16T17:20:55.275864Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 130
-[2m2026-05-16T17:20:55.285538Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 131
-[2m2026-05-16T17:20:55.295249Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 132
-[2m2026-05-16T17:20:55.304914Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 133
-[2m2026-05-16T17:20:55.314559Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 134
-[2m2026-05-16T17:20:55.324216Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 135
-[2m2026-05-16T17:20:55.333895Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 136
-[2m2026-05-16T17:20:55.343566Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 137
-[2m2026-05-16T17:20:55.353245Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 138
-[2m2026-05-16T17:20:55.362913Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 139
-[2m2026-05-16T17:20:55.372584Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 140
-[2m2026-05-16T17:20:55.382267Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 141
-[2m2026-05-16T17:20:55.391939Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 142
-[2m2026-05-16T17:20:55.401603Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 143
-[2m2026-05-16T17:20:55.411291Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 144
-[2m2026-05-16T17:20:55.420962Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 145
-[2m2026-05-16T17:20:55.430647Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 146
-[2m2026-05-16T17:20:55.440332Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 147
-[2m2026-05-16T17:20:55.449993Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 148
-[2m2026-05-16T17:20:55.459689Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 149
-[2m2026-05-16T17:20:55.469362Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 150
-[2m2026-05-16T17:20:55.479035Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 151
-[2m2026-05-16T17:20:55.488716Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 152
-[2m2026-05-16T17:20:55.498398Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 153
-[2m2026-05-16T17:20:55.508071Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 154
-[2m2026-05-16T17:20:55.517793Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 155
-[2m2026-05-16T17:20:55.527465Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 156
-[2m2026-05-16T17:20:55.537142Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 157
-[2m2026-05-16T17:20:55.546813Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 158
-[2m2026-05-16T17:20:55.556531Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 159
-[2m2026-05-16T17:20:55.566276Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 160
-[2m2026-05-16T17:20:55.575946Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 161
-[2m2026-05-16T17:20:55.585625Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 162
-[2m2026-05-16T17:20:55.595302Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 163
-[2m2026-05-16T17:20:55.604993Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 164
-[2m2026-05-16T17:20:55.614685Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 165
-[2m2026-05-16T17:20:55.624353Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 166
-[2m2026-05-16T17:20:55.634013Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 167
-[2m2026-05-16T17:20:55.643699Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 168
-[2m2026-05-16T17:20:55.653403Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 169
-[2m2026-05-16T17:20:55.663079Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 170
-[2m2026-05-16T17:20:55.672757Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 171
-[2m2026-05-16T17:20:55.682455Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 172
-[2m2026-05-16T17:20:55.692146Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 173
-[2m2026-05-16T17:20:55.701819Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 174
-[2m2026-05-16T17:20:55.711501Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 175
-[2m2026-05-16T17:20:55.721164Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 176
-[2m2026-05-16T17:20:55.730834Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 177
-[2m2026-05-16T17:20:55.740533Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 178
-[2m2026-05-16T17:20:55.750189Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 179
-[2m2026-05-16T17:20:55.759862Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 180
-[2m2026-05-16T17:20:55.769540Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 181
-[2m2026-05-16T17:20:55.779203Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 182
-[2m2026-05-16T17:20:55.788853Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 183
-[2m2026-05-16T17:20:55.798532Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 184
-[2m2026-05-16T17:20:55.808232Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 185
-[2m2026-05-16T17:20:55.817921Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 186
-[2m2026-05-16T17:20:55.827574Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 187
-[2m2026-05-16T17:20:55.837234Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 188
-[2m2026-05-16T17:20:55.846888Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 189
-[2m2026-05-16T17:20:55.856535Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 190
-[2m2026-05-16T17:20:55.866192Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 191
-[2m2026-05-16T17:20:55.875832Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 192
-[2m2026-05-16T17:20:55.885519Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 193
-[2m2026-05-16T17:20:55.895227Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 194
-[2m2026-05-16T17:20:55.904901Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 195
-[2m2026-05-16T17:20:55.914585Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 196
-[2m2026-05-16T17:20:55.924263Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 197
-[2m2026-05-16T17:20:55.933928Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 198
-[2m2026-05-16T17:20:55.943602Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 199
-[2m2026-05-16T17:20:55.953297Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 200
-[2m2026-05-16T17:20:55.962998Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 201
-[2m2026-05-16T17:20:55.972686Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 202
-[2m2026-05-16T17:20:55.982347Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 203
-[2m2026-05-16T17:20:55.992013Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 204
-[2m2026-05-16T17:20:56.001700Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 205
-[2m2026-05-16T17:20:56.011369Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 206
-[2m2026-05-16T17:20:56.021027Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 207
-[2m2026-05-16T17:20:56.030694Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 208
-[2m2026-05-16T17:20:56.040371Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 209
-[2m2026-05-16T17:20:56.050030Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 210
-[2m2026-05-16T17:20:56.059733Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 211
-[2m2026-05-16T17:20:56.069477Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 212
-[2m2026-05-16T17:20:56.079152Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 213
-[2m2026-05-16T17:20:56.088849Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 214
-[2m2026-05-16T17:20:56.098597Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 215
-[2m2026-05-16T17:20:56.108332Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 216
-[2m2026-05-16T17:20:56.118023Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 217
-[2m2026-05-16T17:20:56.127762Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 218
-[2m2026-05-16T17:20:56.137516Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 219
-[2m2026-05-16T17:20:56.147321Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 220
-[2m2026-05-16T17:20:56.157102Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 221
-[2m2026-05-16T17:20:56.167033Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 222
-[2m2026-05-16T17:20:56.176799Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 223
-[2m2026-05-16T17:20:56.186575Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 224
-[2m2026-05-16T17:20:56.196280Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 225
-[2m2026-05-16T17:20:56.205994Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 226
-[2m2026-05-16T17:20:56.215716Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 227
-[2m2026-05-16T17:20:56.225435Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 228
-[2m2026-05-16T17:20:56.235156Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 229
-[2m2026-05-16T17:20:56.244899Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 230
-[2m2026-05-16T17:20:56.254660Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 231
-[2m2026-05-16T17:20:56.264404Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 232
-[2m2026-05-16T17:20:56.274160Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 233
-[2m2026-05-16T17:20:56.283905Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 234
-[2m2026-05-16T17:20:56.293715Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 235
-[2m2026-05-16T17:20:56.303415Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 236
-[2m2026-05-16T17:20:56.313115Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 237
-[2m2026-05-16T17:20:56.322850Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 238
-[2m2026-05-16T17:20:56.332550Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 239
-[2m2026-05-16T17:20:56.342223Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 240
-[2m2026-05-16T17:20:56.351915Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 241
-[2m2026-05-16T17:20:56.361588Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 242
-[2m2026-05-16T17:20:56.371281Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 243
-[2m2026-05-16T17:20:56.380959Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 244
-[2m2026-05-16T17:20:56.390650Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 245
-[2m2026-05-16T17:20:56.400330Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 246
-[2m2026-05-16T17:20:56.410022Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 247
-[2m2026-05-16T17:20:56.419706Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 248
-[2m2026-05-16T17:20:56.429383Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 249
-[2m2026-05-16T17:20:56.439058Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 250
-[2m2026-05-16T17:20:56.448748Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 251
-[2m2026-05-16T17:20:56.458436Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 252
-[2m2026-05-16T17:20:56.468119Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 253
-[2m2026-05-16T17:20:56.477807Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 254
-[2m2026-05-16T17:20:56.487468Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 255
-[2m2026-05-16T17:20:56.497201Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 256
-[2m2026-05-16T17:20:56.515795Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: norm enforcement active (bound B=1024, B_e=16)
+pvss_share_encrypt: complete (535.406 ms)
+[2m2026-05-16T22:32:35.249749Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m setup_threshold: computing Shamir shares for all parties
+[2m2026-05-16T22:32:35.249813Z[0m [32m INFO[0m [2mpvthfhe_fhe::fhers[0m[2m:[0m setup_threshold: pre-read sk_coeffs [3mn[0m[2m=[0m10 [3mms[0m[2m=[0m0.00125
+[2m2026-05-16T22:32:35.433851Z[0m [32m INFO[0m [2mpvthfhe_fhe::fhers[0m[2m:[0m setup_threshold: parallel Shamir generation [3mn[0m[2m=[0m10 [3mms[0m[2m=[0m0.005540000000000001 [3mtotal_allocated_mb[0m[2m=[0m16
+[2m2026-05-16T22:32:35.436510Z[0m [32m INFO[0m [2mpvthfhe_fhe::fhers[0m[2m:[0m setup_threshold: sequential merge into distributed [3mn[0m[2m=[0m10 [3mms[0m[2m=[0m0.00493
+[2m2026-05-16T22:32:35.439168Z[0m [32m INFO[0m [2mpvthfhe_fhe::fhers[0m[2m:[0m setup_threshold: aggregate collected shares [3mn[0m[2m=[0m10 [3mms[0m[2m=[0m0.00119
+[2m2026-05-16T22:32:35.439178Z[0m [32m INFO[0m [2mpvthfhe_fhe::fhers[0m[2m:[0m setup_threshold: DONE [3mn[0m[2m=[0m10 [3mms[0m[2m=[0m0.00052
+setup_threshold: complete (189.420 ms)
+[2m2026-05-16T22:32:35.468409Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 1
+[2m2026-05-16T22:32:35.478852Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 2
+[2m2026-05-16T22:32:35.489180Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 3
+[2m2026-05-16T22:32:35.499506Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 4
+[2m2026-05-16T22:32:35.509823Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 5
+[2m2026-05-16T22:32:35.520161Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 6
+[2m2026-05-16T22:32:35.530477Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 7
+[2m2026-05-16T22:32:35.540803Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 8
+[2m2026-05-16T22:32:35.551119Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 9
+[2m2026-05-16T22:32:35.561580Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: using AjtaiMatrix commitment for participant 10
+[2m2026-05-16T22:32:35.572076Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: norm enforcement active (bound B=1024, B_e=16)
 step 5/10: cyclo_fold (cyclo-rlwe-t10-lemma9-heuristic)
-cyclo_fold: complete (333.038 ms)
-[2m2026-05-16T17:20:58.258727Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: params serialized [3mprover_key_bytes_len[0m[2m=[0m2162768 [3mverifier_key_bytes_len[0m[2m=[0m2162768 [3mrss_kb[0m[2m=[0m25777116
+cyclo_fold: complete (12.473 ms)
+[2m2026-05-16T22:32:36.480915Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: params serialized [3mprover_key_bytes_len[0m[2m=[0m2162768 [3mverifier_key_bytes_len[0m[2m=[0m2162768 [3mrss_kb[0m[2m=[0m221808
 step 6/10: compressor_prove (sonobe-nova-bn254-grumpkin)
-[2m2026-05-16T17:20:58.358276Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: native ring equation verification passed (256/256 parties, challenge=21888242871839275222246405745257275088548364400416034343698204186575808495616)
-[2m2026-05-16T17:20:58.359046Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: deserialize_params start [3mrss_kb[0m[2m=[0m25777372
-[2m2026-05-16T17:20:58.683202Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: pp_deserialize done [3mrss_kb[0m[2m=[0m25777372 [3mrss_delta_kb[0m[2m=[0m0
-[2m2026-05-16T17:20:59.217780Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: vp_deserialize done [3mrss_kb[0m[2m=[0m25777372 [3mrss_delta_kb[0m[2m=[0m0
-[2m2026-05-16T17:20:59.449185Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: Nova::init done [3mrss_kb[0m[2m=[0m25777376
-[2m2026-05-16T17:20:59.525304Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m0 [3mrss_kb[0m[2m=[0m25788036
-[2m2026-05-16T17:20:59.616109Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m1 [3mrss_kb[0m[2m=[0m25792916
-[2m2026-05-16T17:20:59.734387Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m2 [3mrss_kb[0m[2m=[0m25798532
-[2m2026-05-16T17:20:59.873470Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m3 [3mrss_kb[0m[2m=[0m25804720
-[2m2026-05-16T17:21:00.006526Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m4 [3mrss_kb[0m[2m=[0m25811436
-[2m2026-05-16T17:21:00.132806Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m5 [3mrss_kb[0m[2m=[0m25816456
-[2m2026-05-16T17:21:00.265572Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m6 [3mrss_kb[0m[2m=[0m25820484
-[2m2026-05-16T17:21:00.378190Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m7 [3mrss_kb[0m[2m=[0m25820892
-[2m2026-05-16T17:21:00.501124Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m8 [3mrss_kb[0m[2m=[0m25820976
-[2m2026-05-16T17:21:00.626236Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m9 [3mrss_kb[0m[2m=[0m25822872
-[2m2026-05-16T17:21:00.758454Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m10 [3mrss_kb[0m[2m=[0m25825668
-[2m2026-05-16T17:21:00.885838Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m11 [3mrss_kb[0m[2m=[0m25826788
-[2m2026-05-16T17:21:01.009486Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m12 [3mrss_kb[0m[2m=[0m25829504
-[2m2026-05-16T17:21:01.130947Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m13 [3mrss_kb[0m[2m=[0m25829508
-[2m2026-05-16T17:21:01.250705Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m14 [3mrss_kb[0m[2m=[0m25829872
-[2m2026-05-16T17:21:01.368243Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m15 [3mrss_kb[0m[2m=[0m25829876
-[2m2026-05-16T17:21:01.491481Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m16 [3mrss_kb[0m[2m=[0m25829876
-[2m2026-05-16T17:21:01.609794Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m17 [3mrss_kb[0m[2m=[0m25829876
-[2m2026-05-16T17:21:01.727260Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m18 [3mrss_kb[0m[2m=[0m25829916
-[2m2026-05-16T17:21:01.837148Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m19 [3mrss_kb[0m[2m=[0m25829916
-[2m2026-05-16T17:21:01.954764Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m20 [3mrss_kb[0m[2m=[0m25829916
-[2m2026-05-16T17:21:02.072461Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m21 [3mrss_kb[0m[2m=[0m25829916
-[2m2026-05-16T17:21:02.198745Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m22 [3mrss_kb[0m[2m=[0m25829916
-[2m2026-05-16T17:21:02.310367Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m23 [3mrss_kb[0m[2m=[0m25829916
-[2m2026-05-16T17:21:02.423724Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m24 [3mrss_kb[0m[2m=[0m25829916
-[2m2026-05-16T17:21:02.536976Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m25 [3mrss_kb[0m[2m=[0m25829916
-[2m2026-05-16T17:21:02.539821Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: ivc proof serialized [3mivc_bytes_len[0m[2m=[0m7360472 [3mrss_kb[0m[2m=[0m25829916
-compressor_prove: complete (4196.258 ms)
+[2m2026-05-16T22:32:36.489004Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m Track B: native ring equation verification passed (10/10 parties, challenge=21888242871839275222246405745257275088548364400416034343698204186575808495616)
+[2m2026-05-16T22:32:36.489130Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: deserialize_params start [3mrss_kb[0m[2m=[0m222000
+[2m2026-05-16T22:32:36.812679Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: pp_deserialize done [3mrss_kb[0m[2m=[0m222000 [3mrss_delta_kb[0m[2m=[0m0
+[2m2026-05-16T22:32:37.388686Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: vp_deserialize done [3mrss_kb[0m[2m=[0m262272 [3mrss_delta_kb[0m[2m=[0m40272
+[2m2026-05-16T22:32:37.650448Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: Nova::init done [3mrss_kb[0m[2m=[0m315400
+[2m2026-05-16T22:32:37.714567Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_step done [3mstep[0m[2m=[0m0 [3mrss_kb[0m[2m=[0m326160
+[2m2026-05-16T22:32:37.717143Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: ivc proof serialized [3mivc_bytes_len[0m[2m=[0m7360472 [3mrss_kb[0m[2m=[0m326160
+compressor_prove: complete (1249.668 ms)
 step 7/10: compressor_verify (sonobe-nova-bn254-grumpkin)
-compressor_verify: complete (567.020 ms)
+compressor_verify: complete (592.673 ms)
 step 8/10: partial_decrypt (party_id=1)
-partial_decrypt: complete (2.614 ms)
-partial_decrypt: complete (2.389 ms)
-partial_decrypt: complete (2.385 ms)
-partial_decrypt: complete (2.391 ms)
-partial_decrypt: complete (2.382 ms)
-partial_decrypt: complete (2.393 ms)
-partial_decrypt: complete (2.413 ms)
-partial_decrypt: complete (2.411 ms)
-partial_decrypt: complete (2.381 ms)
-partial_decrypt: complete (2.391 ms)
-partial_decrypt: complete (2.401 ms)
-partial_decrypt: complete (2.380 ms)
-partial_decrypt: complete (2.394 ms)
-partial_decrypt: complete (2.379 ms)
-partial_decrypt: complete (2.394 ms)
-partial_decrypt: complete (2.421 ms)
-partial_decrypt: complete (2.402 ms)
-partial_decrypt: complete (2.398 ms)
-partial_decrypt: complete (2.395 ms)
-partial_decrypt: complete (2.395 ms)
-partial_decrypt: complete (2.380 ms)
-partial_decrypt: complete (2.391 ms)
-partial_decrypt: complete (2.392 ms)
-partial_decrypt: complete (2.391 ms)
-partial_decrypt: complete (2.379 ms)
-partial_decrypt: complete (2.398 ms)
-partial_decrypt: complete (2.406 ms)
-partial_decrypt: complete (2.399 ms)
-partial_decrypt: complete (2.390 ms)
-partial_decrypt: complete (2.403 ms)
-partial_decrypt: complete (2.394 ms)
-partial_decrypt: complete (2.391 ms)
-partial_decrypt: complete (2.376 ms)
-partial_decrypt: complete (2.383 ms)
-partial_decrypt: complete (2.398 ms)
-partial_decrypt: complete (2.375 ms)
-partial_decrypt: complete (2.385 ms)
-partial_decrypt: complete (2.405 ms)
-partial_decrypt: complete (2.399 ms)
-partial_decrypt: complete (2.390 ms)
-partial_decrypt: complete (2.382 ms)
-partial_decrypt: complete (2.399 ms)
-partial_decrypt: complete (2.402 ms)
-partial_decrypt: complete (2.381 ms)
-partial_decrypt: complete (2.376 ms)
-partial_decrypt: complete (2.388 ms)
-partial_decrypt: complete (2.390 ms)
-partial_decrypt: complete (2.399 ms)
-partial_decrypt: complete (2.375 ms)
-partial_decrypt: complete (2.393 ms)
-partial_decrypt: complete (2.386 ms)
-partial_decrypt: complete (2.390 ms)
-partial_decrypt: complete (2.392 ms)
-partial_decrypt: complete (2.396 ms)
-partial_decrypt: complete (2.390 ms)
-partial_decrypt: complete (2.388 ms)
-partial_decrypt: complete (2.394 ms)
-partial_decrypt: complete (2.380 ms)
-partial_decrypt: complete (2.380 ms)
-partial_decrypt: complete (2.394 ms)
-partial_decrypt: complete (2.385 ms)
-partial_decrypt: complete (2.394 ms)
-partial_decrypt: complete (2.392 ms)
-partial_decrypt: complete (2.386 ms)
-partial_decrypt: complete (2.396 ms)
-partial_decrypt: complete (2.392 ms)
-partial_decrypt: complete (2.394 ms)
-partial_decrypt: complete (2.400 ms)
-partial_decrypt: complete (2.391 ms)
-partial_decrypt: complete (2.397 ms)
-partial_decrypt: complete (2.389 ms)
-partial_decrypt: complete (2.387 ms)
-partial_decrypt: complete (2.411 ms)
-partial_decrypt: complete (2.401 ms)
-partial_decrypt: complete (2.393 ms)
-partial_decrypt: complete (2.414 ms)
-partial_decrypt: complete (2.404 ms)
-partial_decrypt: complete (2.408 ms)
-partial_decrypt: complete (2.388 ms)
-partial_decrypt: complete (2.391 ms)
-partial_decrypt: complete (2.387 ms)
-partial_decrypt: complete (2.390 ms)
-partial_decrypt: complete (2.392 ms)
-partial_decrypt: complete (2.390 ms)
-partial_decrypt: complete (2.399 ms)
-partial_decrypt: complete (2.433 ms)
-partial_decrypt: complete (2.381 ms)
-partial_decrypt: complete (2.391 ms)
-partial_decrypt: complete (2.390 ms)
-partial_decrypt: complete (2.397 ms)
-partial_decrypt: complete (2.388 ms)
-partial_decrypt: complete (2.397 ms)
-partial_decrypt: complete (2.393 ms)
-partial_decrypt: complete (2.392 ms)
-partial_decrypt: complete (2.390 ms)
-partial_decrypt: complete (2.388 ms)
-partial_decrypt: complete (2.380 ms)
-partial_decrypt: complete (2.406 ms)
-partial_decrypt: complete (2.393 ms)
-partial_decrypt: complete (2.398 ms)
-partial_decrypt: complete (2.392 ms)
-partial_decrypt: complete (2.394 ms)
-partial_decrypt: complete (2.438 ms)
-partial_decrypt: complete (2.413 ms)
-partial_decrypt: complete (2.426 ms)
-partial_decrypt: complete (2.410 ms)
-partial_decrypt: complete (2.404 ms)
-partial_decrypt: complete (2.400 ms)
-partial_decrypt: complete (2.418 ms)
-partial_decrypt: complete (2.430 ms)
-partial_decrypt: complete (2.432 ms)
-partial_decrypt: complete (2.389 ms)
-partial_decrypt: complete (2.400 ms)
-partial_decrypt: complete (2.402 ms)
-partial_decrypt: complete (2.409 ms)
-partial_decrypt: complete (2.396 ms)
-partial_decrypt: complete (2.392 ms)
-partial_decrypt: complete (2.416 ms)
-partial_decrypt: complete (2.389 ms)
-partial_decrypt: complete (2.395 ms)
-partial_decrypt: complete (2.395 ms)
-partial_decrypt: complete (2.401 ms)
-partial_decrypt: complete (2.399 ms)
-partial_decrypt: complete (2.420 ms)
-partial_decrypt: complete (2.394 ms)
-partial_decrypt: complete (2.397 ms)
-partial_decrypt: complete (2.391 ms)
+partial_decrypt: complete (2.716 ms)
+partial_decrypt: complete (2.482 ms)
+partial_decrypt: complete (2.537 ms)
+partial_decrypt: complete (2.502 ms)
 step 9/10: aggregate_decrypt
-[2m2026-05-16T17:21:07.033949Z[0m [32m INFO[0m [2mpvthfhe_fhe::fhers[0m[2m:[0m aggregate_decrypt: decode shares [3mms[0m[2m=[0m28.122173
-[2m2026-05-16T17:21:07.033976Z[0m [32m INFO[0m [2mpvthfhe_fhe::fhers[0m[2m:[0m aggregate_decrypt: Lagrange coeffs [3mms[0m[2m=[0m0.038449
-[2m2026-05-16T17:21:14.988000Z[0m [32m INFO[0m [2mpvthfhe_fhe::fhers[0m[2m:[0m aggregate_decrypt: decrypt_from_shares (NTT) [3mms[0m[2m=[0m7954.010496999999
-[2m2026-05-16T17:21:14.990296Z[0m [32m INFO[0m [2mpvthfhe_fhe::fhers[0m[2m:[0m aggregate_decrypt: slot decode [3mms[0m[2m=[0m2.3093
-aggregate_decrypt: complete (7985.207 ms)
-Error: aggregate_decrypt did not round-trip plaintext (expected 0xB10C)
+[2m2026-05-16T22:32:39.033146Z[0m [32m INFO[0m [2mpvthfhe_fhe::fhers[0m[2m:[0m aggregate_decrypt: decode shares [3mms[0m[2m=[0m0.8865350000000001
+[2m2026-05-16T22:32:39.033163Z[0m [32m INFO[0m [2mpvthfhe_fhe::fhers[0m[2m:[0m aggregate_decrypt: Lagrange coeffs [3mms[0m[2m=[0m0.027789
+[2m2026-05-16T22:32:39.055058Z[0m [32m INFO[0m [2mpvthfhe_fhe::fhers[0m[2m:[0m aggregate_decrypt: decrypt_from_shares (NTT) [3mms[0m[2m=[0m21.892384
+[2m2026-05-16T22:32:39.055826Z[0m [32m INFO[0m [2mpvthfhe_fhe::fhers[0m[2m:[0m aggregate_decrypt: slot decode [3mms[0m[2m=[0m0.770497
+aggregate_decrypt: complete (24.342 ms)
+step 10/10: c7_decrypt_aggregation
+[2m2026-05-16T22:32:39.927369Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: params serialized [3mprover_key_bytes_len[0m[2m=[0m2162768 [3mverifier_key_bytes_len[0m[2m=[0m2162768 [3mrss_kb[0m[2m=[0m290980
+[2m2026-05-16T22:32:39.933202Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: deserialize_params start [3mrss_kb[0m[2m=[0m290980
+[2m2026-05-16T22:32:40.246694Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: pp_deserialize done [3mrss_kb[0m[2m=[0m290980 [3mrss_delta_kb[0m[2m=[0m0
+[2m2026-05-16T22:32:40.793567Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: vp_deserialize done [3mrss_kb[0m[2m=[0m303420 [3mrss_delta_kb[0m[2m=[0m12440
+[2m2026-05-16T22:32:41.113085Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_steps done [3mstep[0m[2m=[0m0 [3mrss_kb[0m[2m=[0m358140
+[2m2026-05-16T22:32:41.195514Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_steps done [3mstep[0m[2m=[0m1 [3mrss_kb[0m[2m=[0m362152
+[2m2026-05-16T22:32:41.302892Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_steps done [3mstep[0m[2m=[0m2 [3mrss_kb[0m[2m=[0m365620
+[2m2026-05-16T22:32:41.415897Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_steps done [3mstep[0m[2m=[0m3 [3mrss_kb[0m[2m=[0m375440
+[2m2026-05-16T22:32:41.536646Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_steps done [3mstep[0m[2m=[0m4 [3mrss_kb[0m[2m=[0m381544
+[2m2026-05-16T22:32:41.657635Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_steps done [3mstep[0m[2m=[0m5 [3mrss_kb[0m[2m=[0m388536
+[2m2026-05-16T22:32:41.771633Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_steps done [3mstep[0m[2m=[0m6 [3mrss_kb[0m[2m=[0m389728
+[2m2026-05-16T22:32:41.774708Z[0m [32m INFO[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m sonobe: prove_steps proof serialized [3mivc_bytes_len[0m[2m=[0m7244952 [3mrss_kb[0m[2m=[0m389728
+[2m2026-05-16T22:32:41.793815Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m C7 tree: depth=2
+[2m2026-05-16T22:32:41.793839Z[0m [32m INFO[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m C7: G3 native check passed ✓ (z0=3504191464034460797670803088786989886040502378858572992336746874257038736446, z1=1, full plaintext binding deferred)
+c7_decrypt_aggregation: complete (2738.010 ms)
+plaintext_roundtrip: OK
+aggregate_pk_hash: 9d9749eb80000f5a10becea9e7e082c5e08d24d1d292b8c98b00a90872b99635
+ciphertext_hash: 3f22289faede38395e464323799bcb01f15b1df466c3ee216a6b1708da1a6276
+compressed_proof_digest: bb0659cd441e25e12d7be390329181c6353b1bbe22749db2c0a8e4c0d74ca959
+keygen_ms=158.385352
+aggregate_keygen_ms=5.799569
+encrypt_ms=3.258744
+share_encryption_proof_ms=275
+partial_decrypt_ms=10.237789
+aggregate_decrypt_ms=24.342262
+decrypt_ms=34.580051
+threshold=4
+n=10
+verify: ACCEPT
+[2m2026-05-16T22:32:41.796691Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m demo complete: ACCEPT
+pvss_backend_id=lattice-pvss-bfv-d2

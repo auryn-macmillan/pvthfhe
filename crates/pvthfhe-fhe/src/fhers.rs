@@ -31,6 +31,8 @@ use std::{
     sync::{Arc, Mutex},
     time::Instant,
 };
+use ark_bn254::Fr;
+use ark_ff::{BigInteger, PrimeField};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Smudging noise standard deviation per coefficient.
@@ -1277,6 +1279,78 @@ impl FhersBackend {
             coeffs.push(*c as i64);
         }
         Ok(coeffs)
+    }
+
+    /// CRT-reconstruct polynomial coefficients from RNS residues into BN254 Fr values.
+    ///
+    /// Takes modulus-major residues (24 576 values = 8192 coeffs × 3 moduli) and
+    /// returns 8 192 centered coefficients in the BN254 scalar field. Each coefficient
+    /// is CRT-reconstructed and then centered to [-Q/2, Q/2) before embedding in Fr.
+    ///
+    /// Used by the C7 G3 plaintext-binding verification for polynomial evaluation
+    /// in the BN254 field.
+    pub fn poly_coeffs_fr_reconstruct(&self, residues: &[i64]) -> Vec<Fr> {
+        use num_bigint::BigInt;
+
+        let n_coeffs = residues.len() / 3;
+        let mut coeffs = Vec::with_capacity(n_coeffs);
+
+        // CRT constants (same as crt_reconstruct_coeffs):
+        //   qⱼ = modulus, Q = q₀·q₁·q₂, Mⱼ = Q/qⱼ, invⱼ = Mⱼ⁻¹ mod qⱼ
+        const Q0: u64 = 288230376173076481;
+        const Q1: u64 = 288230376167047169;
+        const Q2: u64 = 288230376161280001;
+
+        let q0_big = BigInt::from(Q0);
+        let q1_big = BigInt::from(Q1);
+        let q2_big = BigInt::from(Q2);
+        let q_big = &q0_big * &q1_big * &q2_big;
+        let q_half_big = &q_big / 2u32; // floor(Q/2), Q is odd
+
+        // Mⱼ = Q / qⱼ
+        let m0_big = &q1_big * &q2_big;
+        let m1_big = &q0_big * &q2_big;
+        let m2_big = &q0_big * &q1_big;
+
+        // invⱼ = Mⱼ⁻¹ mod qⱼ (compute via extended Euclidean)
+        let m0_mod = (&m0_big % &q0_big).iter_u64_digits().next().unwrap_or(0);
+        let m1_mod = (&m1_big % &q1_big).iter_u64_digits().next().unwrap_or(0);
+        let m2_mod = (&m2_big % &q2_big).iter_u64_digits().next().unwrap_or(0);
+        let (_, inv0_s, _) = Self::egcd_i128(m0_mod as i128, Q0 as i128);
+        let (_, inv1_s, _) = Self::egcd_i128(m1_mod as i128, Q1 as i128);
+        let (_, inv2_s, _) = Self::egcd_i128(m2_mod as i128, Q2 as i128);
+        let inv0: u64 = ((inv0_s % Q0 as i128 + Q0 as i128) % Q0 as i128) as u64;
+        let inv1: u64 = ((inv1_s % Q1 as i128 + Q1 as i128) % Q1 as i128) as u64;
+        let inv2: u64 = ((inv2_s % Q2 as i128 + Q2 as i128) % Q2 as i128) as u64;
+
+        for i in 0..n_coeffs {
+            // CRT: coeff = (r₀·M₀·inv₀ + r₁·M₁·inv₁ + r₂·M₂·inv₂) mod Q
+            let r0 = BigInt::from(residues[i]);
+            let r1 = BigInt::from(residues[n_coeffs + i]);
+            let r2 = BigInt::from(residues[2 * n_coeffs + i]);
+
+            let t0 = r0 * &m0_big * inv0;
+            let t1 = r1 * &m1_big * inv1;
+            let t2 = r2 * &m2_big * inv2;
+            let mut coeff_big = (t0 + t1 + t2) % &q_big;
+
+            // Center to [-Q/2, Q/2)
+            if coeff_big > q_half_big {
+                coeff_big -= &q_big;
+            }
+
+            // Convert BigInt → Fr
+            let (sign, bytes) = coeff_big.to_bytes_le();
+            let mut bytes32 = [0u8; 32];
+            let copy_len = bytes.len().min(32);
+            bytes32[..copy_len].copy_from_slice(&bytes[..copy_len]);
+            let mut fr_val = Fr::from_le_bytes_mod_order(&bytes32);
+            if sign == num_bigint::Sign::Minus {
+                fr_val = -fr_val;
+            }
+            coeffs.push(fr_val);
+        }
+        coeffs
     }
 
     /// CRT-reconstruct polynomial coefficients from RNS residues (3 moduli → 1 integer per coeff).

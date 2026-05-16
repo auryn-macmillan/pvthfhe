@@ -45,3 +45,27 @@
 - **Solution**: Rewrote Track B path to use Cyclo ring arithmetic (`ntt_mul`, `ring_add_poly`) with SHA-256 deterministic matrix derivation (AjtaiMatrix-style epoch-based hashing). Matrix entries are 13×32 RqPoly elements, each with 256 u64 coefficients derived from SHA-256(epoch_hash, row, col, coeff_idx). This preserves the verifiability intent of AjtaiMatrix (SHA-256 > ChaCha20) while producing Cyclo-compatible output.
 - No `use std::env;` import needed removal — all std::env uses are fully-qualified path style and other uses remain (lines 129, 446, 794).
 - Demo result: cyclo_fold (step 5) passes, compressor_prove (step 6) passes with native ring equation verification for all 10 parties. compressor_verify (step 7) fails — pre-existing Sonobe Nova issue.
+
+## D.6 — compressor_verify fix (2026-05-16)
+
+### Bug Diagnosis
+- **Symptom**: `step 7/10: compressor_verify` failed with "sonobe compressed proof verification failed"
+- **NOT** a `state_len` mismatch: both z_0.len() and z_i.len() equal self.state_len (=4)
+- **NOT** a SonobeNova::verify failure: the IVC proof structural verification passed
+- **ACTUAL root cause**: `fold_count != verification_count` check in `SonobeCompressor::verify()` at `mod.rs:473`
+  - `fold_count=11`, `verification_count=1` for n=10 demo
+
+### Cause
+In `compressor_inputs()` (`compressor_glue.rs:189`), the third element of the `acc` triple encoded `total_fold_depth` (sum of all accumulator fold_depths = 10). This value was loaded into the IVC initial state as `z[2]` (fold_count). Meanwhile `z[3]` (verification_count) started at 0. After IVC steps: fold_count = total_fold_depth + ivc_steps, verification_count = ivc_steps. These can never be equal when total_fold_depth > 0.
+
+### Fix
+Changed `compressor_glue.rs:189` from `Fr::from(total_fold_depth)` to `Fr::from(0u64)`. The initial fold count should be 0 since the IVC step circuit manages its own internal step counter. The total_fold_depth from the CycloFoldAllReport is already incorporated into the accumulator commitment hash.
+
+### Files Changed
+- `crates/pvthfhe-cli/src/compressor_glue.rs` — line 189 value fix + docstring update
+- `crates/pvthfhe-compressor/src/sonobe/mod.rs` — temporary debug prints (removed)
+
+### Verification
+- `cargo test -p pvthfhe-cli --test demo_runs_full_pipeline` → ✅ PASS
+- `just demo-e2e` → ✅ ACCEPT (step 7 completes, fold_count=1 verification_count=1)
+- All 10 pipeline steps complete successfully

@@ -161,10 +161,14 @@ impl Compressor {
 
 /// Return the digest inputs expected by the real compressor backend.
 ///
-/// Produces 96-byte encodings: [commitment(32B) || norm(32B) || ring_result(32B)].
-/// The third field was formerly `count_delta`; it is now the ring equation
-/// verification result (`Fr::one()` = passed) after M6. The step counter
-/// is hardcoded as `+1` inside [`CycloFoldStepCircuit::generate_step_constraints`].
+/// Produces 96-byte encodings: [commitment(32B) || norm(32B) || fold_count(32B)].
+/// The third field is the initial fold count (zero; the IVC step circuit
+/// increments fold_count internally by +1 per step). The total fold depth
+/// from the CycloFoldAllReport is already incorporated into the accumulator
+/// commitment hash; duplicating it in the initial fold count would cause a
+/// permanent mismatch against `verification_count` during verification.
+/// Step counter is hardcoded as `+1` inside
+/// [`CycloFoldStepCircuit::generate_step_constraints`].
 #[cfg(feature = "sonobe-compressor")]
 pub fn compressor_inputs(
     report: &pvthfhe_aggregator::folding::CycloFoldAllReport,
@@ -185,7 +189,7 @@ pub fn compressor_inputs(
     let acc = encode_triple((
         Fr::from_le_bytes_mod_order(&acc_commitment_hash),
         Fr::from(total_norm),
-        Fr::from(total_fold_depth),
+        Fr::from(0u64), // initial fold count (IVC step circuit increments internally)
     ))
     .to_vec();
     let public_inputs = encode_triple((

@@ -48,6 +48,10 @@ struct Args {
     /// Deterministic seed.
     #[arg(long, default_value = "1")]
     seed: u64,
+
+    /// Use MicroNova heterogeneous IVC compressor instead of standard Sonobe.
+    #[arg(long, default_value_t = false)]
+    use_micronova: bool,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -56,7 +60,7 @@ fn main() -> anyhow::Result<()> {
 
     if args.threshold == 0 || args.threshold > args.n {
         anyhow::bail!(
-            "threshold must satisfy 1 ≤ t ≤ n (got t={}, n={})",
+            "threshold must satisfy 1 <= t <= n (got t={}, n={})",
             args.threshold,
             args.n
         );
@@ -71,7 +75,7 @@ fn main() -> anyhow::Result<()> {
         );
     }
 
-    // ── Setup: run keygen for n parties, aggregate PK, encrypt ──────────
+    // Setup: run keygen for n parties, aggregate PK, encrypt
     let backend = FhersBackend::load_params(DEMO_PARAMS_TOML).context("backend init")?;
     let mut simulator = KeygenSimulator::new(args.n, args.threshold, backend.clone())
         .map_err(|e| anyhow::anyhow!("keygen params: {e}"))?;
@@ -124,32 +128,36 @@ fn main() -> anyhow::Result<()> {
     let epoch_hash: [u8; 32] = Sha256::digest(args.seed.to_be_bytes()).into();
     let batch_count = args.n.div_ceil(10);
 
-    // ── 1. Compressor: fold ceil(n/10) accumulators via Nova ────────────
+    // 1. Compressor: fold ceil(n/10) accumulators
     #[cfg(feature = "sonobe-compressor")]
     let compressor_ms = {
         let t0 = Instant::now();
-        let compressor =
-            SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, batch_count)
-                .map_err(|e| anyhow::anyhow!("compressor init: {e:?}"))?;
-        let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
-        let steps: Vec<ExternalInputs3<Fr>> = (0..batch_count)
-            .map(|i| {
-                ExternalInputs3(
-                    Fr::from((i + 1) as u64),
-                    Fr::from(1u64),
-                    Fr::from(1u64),
-                )
-            })
-            .collect();
-        let _prove_result = compressor
-            .prove_steps(&acc, &steps)
-            .map_err(|e| anyhow::anyhow!("compressor prove_steps: {e:?}"))?;
+        if args.use_micronova {
+            time_micronova_compressor(epoch_hash, batch_count)?;
+        } else {
+            let compressor =
+                SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, batch_count)
+                    .map_err(|e| anyhow::anyhow!("compressor init: {e:?}"))?;
+            let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
+            let steps: Vec<ExternalInputs3<Fr>> = (0..batch_count)
+                .map(|i| {
+                    ExternalInputs3(
+                        Fr::from((i + 1) as u64),
+                        Fr::from(1u64),
+                        Fr::from(1u64),
+                    )
+                })
+                .collect();
+            let _prove_result = compressor
+                .prove_steps(&acc, &steps)
+                .map_err(|e| anyhow::anyhow!("compressor prove_steps: {e:?}"))?;
+        }
         elapsed_ms(t0)
     };
     #[cfg(not(feature = "sonobe-compressor"))]
     let compressor_ms = 0.0;
 
-    // ── 2. Aggregate decrypt: NTT over t shares ────────────────────────
+    // 2. Aggregate decrypt: NTT over t shares
     let t1 = Instant::now();
     let _recovered = backend
         .aggregate_decrypt(
@@ -161,7 +169,7 @@ fn main() -> anyhow::Result<()> {
         .context("aggregate_decrypt")?;
     let aggregate_ms = elapsed_ms(t1);
 
-    // ── 3. C7: t Nova steps for Lagrange folding ───────────────────────
+    // 3. C7: t Nova steps for Lagrange folding
     #[cfg(feature = "sonobe-compressor")]
     let c7_ms = {
         let t2 = Instant::now();
@@ -189,14 +197,15 @@ fn main() -> anyhow::Result<()> {
     #[cfg(not(feature = "sonobe-compressor"))]
     let c7_ms = 0.0;
 
-    // ── Report ─────────────────────────────────────────────────────────
+    // Report
     let total_ms = compressor_ms + aggregate_ms + c7_ms;
 
     println!("aggregator n={} t={}", args.n, args.threshold);
     println!(
-        "  compressor:      {:.1}s  ({} batched steps, ceil(n/10))",
+        "  compressor:      {:.1}s  ({} batched steps, ceil(n/10){})",
         compressor_ms / 1000.0,
         batch_count,
+        if args.use_micronova { ", MicroNova" } else { "" },
     );
     println!(
         "  aggregate_decrypt: {:.1}s  ({} NTT operations)",
@@ -215,4 +224,25 @@ fn main() -> anyhow::Result<()> {
 
 fn elapsed_ms(started: Instant) -> f64 {
     started.elapsed().as_secs_f64() * 1000.0
+}
+
+#[cfg(feature = "sonobe-compressor")]
+fn time_micronova_compressor(epoch_hash: [u8; 32], batch_count: usize) -> anyhow::Result<()> {
+    use pvthfhe_compressor::micronova::compressor::MicroNovaCompressor;
+
+    let depth = (batch_count as f64).log2().ceil() as usize;
+    let compressor = MicroNovaCompressor::new(depth, epoch_hash);
+    let total_steps = compressor.total_steps();
+    let steps: Vec<ExternalInputs3<Fr>> = (0..total_steps)
+        .map(|i| ExternalInputs3(Fr::from((i + 1) as u64), Fr::from(1u64), Fr::from(1u64)))
+        .collect();
+    let _proof = compressor
+        .prove_tree(&steps)
+        .map_err(|e| anyhow::anyhow!("MicroNova compressor prove_tree: {e:?}"))?;
+    Ok(())
+}
+
+#[cfg(not(feature = "sonobe-compressor"))]
+fn time_micronova_compressor(_epoch_hash: [u8; 32], _batch_count: usize) -> anyhow::Result<()> {
+    Ok(())
 }

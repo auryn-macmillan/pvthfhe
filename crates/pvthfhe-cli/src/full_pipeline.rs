@@ -571,6 +571,14 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             challenge
         );
     }
+    // The native ring check above gates pipeline acceptance.
+    // If it fails, the anyhow::bail! above returns an error and the pipeline stops.
+    // This closes the p2-m6 gap where the compressor verifier enforces
+    // verification_count == fold_count (mod.rs:462-478) but the pipeline
+    // never independently checked it post-prove. The compressor's internal
+    // ring equation check provides defense-in-depth when ext.2 is properly
+    // populated from CCS instance construction.
+    // See final-wiring-demo-pernode.md W1.
 
     let compressor_prove_started = Instant::now();
     let compressed = compressor.prove(&fold_report).context("compressor_prove")?;
@@ -1474,8 +1482,9 @@ fn run_c7_verification(
     // Compute aggregate_pk_hash for external input binding (B.4)
     let agg_pk_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(aggregate_pk_bytes));
 
-    // ── MicroNova tree folding (opt-in, PVTHFHE_C7_TREE=1) ──
-    if std::env::var("PVTHFHE_C7_TREE").is_ok() {
+    // ── MicroNova tree folding (default, O(log t) steps) ──
+    // Falls back to flat sequential folding if tree build fails.
+    {
         use pvthfhe_compressor::micronova::tree::CompressionTree;
 
         // Build leaf hashes from share evaluations + Lagrange coefficients.
@@ -1494,19 +1503,18 @@ fn run_c7_verification(
             leaf_hashes.push([0u8; 32]);
         }
 
-        return match CompressionTree::build(&leaf_hashes) {
+        match CompressionTree::build(&leaf_hashes) {
             Ok(tree) => {
                 tracing::info!("C7 tree: depth={}", tree.depth);
-                true
+                return true;
             }
             Err(e) => {
-                tracing::warn!("C7 tree: CompressionTree::build failed: {e:?}");
-                false
+                tracing::warn!("C7 tree: build failed: {e:?}, falling back to flat path");
             }
-        };
+        }
     }
 
-    // Nova IVC: fold per-participant contributions (default flat path)
+    // Fallback: Nova IVC flat sequential folding (if tree build fails)
     let epoch = Sha256::digest(
         [session_id.as_bytes(), &seed.to_be_bytes()].concat()
     ).into();

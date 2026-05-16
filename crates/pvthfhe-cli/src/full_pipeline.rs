@@ -618,6 +618,28 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         ));
     }
 
+    // G7: Post-hoc NIZK verification binding.
+    // The compressor hashes NIZK proof bytes into the CCS binding.
+    // Re-verify NIZK proofs natively after compressor verify to close
+    // the forgery gap where a malicious prover provides garbage NIZK proof bytes.
+    // This verification is UNCONDITIONAL — it runs in the compressor verify
+    // path and cannot be skipped.
+    {
+        let g7_started = Instant::now();
+        for (party_id, stmt, _witness, proof) in &nizk_outputs {
+            RealNizkAdapter::verify(stmt, proof)
+                .with_context(|| format!("G7: NIZK verification for dealer {party_id}"))?;
+        }
+        let g7_ms = elapsed_ms(g7_started);
+        tracing::info!(
+            "G7: NIZK verification passed for all {} parties ({:.2}ms)",
+            nizk_outputs.len(),
+            g7_ms
+        );
+        observer.phase_start("g7_nizk_verify", None);
+        observer.phase_end("g7_nizk_verify", g7_ms);
+    }
+
     let mut smudge_slot_registry = SmudgeSlotRegistry::new();
 
     let mut decrypt_round: u16 = 1;

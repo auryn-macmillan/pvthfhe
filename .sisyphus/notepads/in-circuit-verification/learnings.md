@@ -33,8 +33,41 @@ The function scales the recovered polynomial from [0, Q) down to [0, t) using `S
 - Log accumulator z0 for trace
 - Full Schwartz-Zippel plaintext binding deferred to follow-up (needs fhe.rs backend extension)
 
-## Files changed
+## G7: NIZK Verification Binding — SIMPLER post-hoc native check
+
+### What was done
+Added unconditional native NIZK re-verification in `full_pipeline.rs` after
+`compressor.verify()`. This closes the forgery gap where a malicious prover
+could provide garbage NIZK proof bytes — the compressor only hashes them
+into the CCS binding but never independently verifies the sigma protocol.
+
+### Key design decisions
+- **No R1CS for commitment opening / challenge derivation / norm bounds**:
+  Deferred. The native NIZK verification path already covers these checks.
+- **RingVerifierCircuit already implements G7.1** (sigma equation in R1CS):
+  The circuit already hashes 4×256 ring coefficients via Poseidon, enforces
+  hash equality with external inputs, and verifies the ternary-challenge
+  sigma equation with zero multiplications.
+- **Verification is UNCONDITIONAL**: Runs in the compressor verify path and
+  cannot be skipped. Previous NIZK verification runs in a separate phase
+  (nizk_verify, lines 219-241) and is architecturally separable.
+
+### Implementation
+- Inserted after external compressor verify block (line 619), before decrypt phase
+- Uses `RealNizkAdapter::verify(stmt, proof)` — already imported
+- Reports timing via `observer.phase_start/end("g7_nizk_verify")`
+- Logs `G7: NIZK verification passed for all N parties`
+
+### Verification
+- Build: `cargo build --workspace` — clean
+- Demo: `just demo-e2e` — `G7: NIZK verification passed for all 10 parties (17.20ms)` + `ACCEPT`
+
+### Files changed
+5. `crates/pvthfhe-cli/src/full_pipeline.rs` — G7 post-hoc NIZK verification
+
+## Files changed (cumulative)
 1. `crates/pvthfhe-compressor/src/sonobe/c7_circuit.rs` — G2 design doc
 2. `crates/pvthfhe-fhe/src/fhers.rs` — `poly_coeffs_fr_reconstruct()`, made `decode_ct_polys` public
 3. `crates/pvthfhe-fhe/Cargo.toml` — moved ark-bn254, ark-ff to [dependencies]
 4. `crates/pvthfhe-cli/src/full_pipeline.rs` — G3 native check, CRT reconstruction, unified aggregate_decrypt path
+5. `crates/pvthfhe-cli/src/full_pipeline.rs` — G7 post-hoc NIZK verification

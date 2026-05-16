@@ -17,6 +17,7 @@ compile_error!(
 );
 
 use pvthfhe_cyclo::adapter::LegacyHashChainAdapter;
+use anyhow::Context;
 #[cfg(feature = "real-folding")]
 use pvthfhe_cyclo::fold as cyclo_fold;
 #[cfg(feature = "real-folding")]
@@ -137,7 +138,8 @@ impl FoldingScheme for HashChainFoldingScheme {
         validate_witness(witness, stmt)?;
 
         // Convert FoldStatement + FoldWitness → CcsPShareInstance
-        let ccs_instance = fold_stmt_witness_to_cyclo_instance(stmt, witness, acc);
+        let ccs_instance = fold_stmt_witness_to_cyclo_instance(stmt, witness, acc)
+            .map_err(|e| FoldError(format!("fold_stmt_witness_to_cyclo_instance: {e}")))?;
 
         // Get or initialise the Cyclo accumulator
         let prev_cyclo_acc = match acc.cyclo_acc.clone() {
@@ -344,9 +346,9 @@ fn fold_stmt_witness_to_cyclo_instance(
     stmt: &FoldStatement,
     _witness: &FoldWitness,
     _acc: &FoldAccumulator,
-) -> MultiTrackPShareInstance {
+) -> anyhow::Result<MultiTrackPShareInstance> {
     // TODO(C5): usize→u16 fallback in non-Result function; add error propagation when feasible.
-    let participant_id = u16::try_from(stmt.fold_index).unwrap_or(u16::MAX);
+    let participant_id = u16::try_from(stmt.fold_index).context("fold_index exceeds u16")?;
     let mut hasher = Sha256::new();
     hasher.update(&participant_id.to_be_bytes());
     hasher.update(stmt.session_id.as_bytes());
@@ -367,10 +369,10 @@ fn fold_stmt_witness_to_cyclo_instance(
         sha256_binding_bytes: ProtocolBytes::from(binding_bytes.to_vec()),
         ccs_matrix_bytes: ProtocolBytes::from(demo_one_by_one_matrix_bytes()),
     };
-    MultiTrackPShareInstance {
+    Ok(MultiTrackPShareInstance {
         base,
         multi_track_metadata: stmt.nizk_statement.multi_track_metadata.clone(),
-    }
+    })
 }
 
 #[cfg(feature = "real-folding")]

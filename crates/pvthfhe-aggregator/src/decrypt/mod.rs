@@ -1,3 +1,4 @@
+use anyhow::Context;
 use ark_bn254::Fr;
 use pvthfhe_fhe::{
     types::{Ciphertext, DecryptShare},
@@ -139,7 +140,7 @@ pub fn partial_decrypt(
     party_pk_bytes: &[u8],
     secret_key_bytes: Option<&[u8]>,
     rng: &mut dyn RngCore,
-) -> Result<DecryptSharePayload, DecryptError> {
+) -> anyhow::Result<DecryptSharePayload> {
     let (share, witness) = match backend.partial_decrypt_with_witness(ct, party_id, rng) {
         Ok(result) => result,
         Err(FheError::Backend { .. }) => {
@@ -155,7 +156,7 @@ pub fn partial_decrypt(
                 version: 1,
             });
         }
-        Err(e) => return Err(DecryptError::Backend(e)),
+        Err(e) => return Err(DecryptError::Backend(e).into()),
     };
 
     let pk_i_hash = sha256_bytes(party_pk_bytes);
@@ -181,7 +182,7 @@ pub fn partial_decrypt(
             // The Legacy path uses public-key-derived binding which ANY key can satisfy.
             // CommittedSmudge enforces DKG-anchored sk_agg_share/sk_agg_commit binding.
             // See round10-adversarial-remediation F5.
-            let participant_id = u16::try_from(party_index.saturating_add(1)).unwrap_or(1);
+            let participant_id = u16::try_from(party_index.saturating_add(1)).context("party_index overflow u16")?;
             let accepted_participant_ids = vec![participant_id];
             let mode = if witness.esm_committed {
                 let ciphertext_hash =
@@ -222,7 +223,7 @@ pub fn partial_decrypt(
                 return Err(DecryptError::InvalidShare {
                     party_id,
                     reason: "LegacyLocalSmudge is deprecated — CommittedSmudge required (esm DKG data unavailable for this party)".into(),
-                });
+                }.into());
             };
 
             let stmt = DecryptNizkStatement {

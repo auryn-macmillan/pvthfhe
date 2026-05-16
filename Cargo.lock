@@ -1988,6 +1988,7 @@ dependencies = [
 name = "pvthfhe-aggregator"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "ark-bn254",
  "ark-ff",
  "criterion",

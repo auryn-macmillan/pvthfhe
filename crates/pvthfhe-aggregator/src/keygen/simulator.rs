@@ -1,3 +1,4 @@
+use anyhow::Context;
 use super::types::{DkgTranscript, PartyId, Round1Message, Round2Message, Round3Aggregate};
 use pvthfhe_domain_tags::Tag;
 use pvthfhe_fhe::{Ciphertext, FheBackend, PublicKey};
@@ -385,6 +386,7 @@ impl KeygenSimulator {
             vec![0x00, 0x01]
         } else {
             serialize_nizk_bundle(&nizk_proofs)
+                .map_err(|e| pvthfhe_fhe::FheError::Backend { reason: format!("{e}") })?
         };
 
         Ok(Round1Message {
@@ -506,8 +508,8 @@ impl KeygenSimulator {
     }
 }
 
-fn serialize_nizk_bundle(proofs: &[Vec<u8>]) -> Vec<u8> {
-    let count = u16::try_from(proofs.len()).unwrap_or(u16::MAX);
+fn serialize_nizk_bundle(proofs: &[Vec<u8>]) -> anyhow::Result<Vec<u8>> {
+    let count = u16::try_from(proofs.len()).context("proof count exceeds u16")?;
     let mut buf = Vec::new();
     buf.extend_from_slice(&count.to_be_bytes());
     for proof in proofs {
@@ -515,7 +517,7 @@ fn serialize_nizk_bundle(proofs: &[Vec<u8>]) -> Vec<u8> {
         buf.extend_from_slice(&len.to_be_bytes());
         buf.extend_from_slice(proof);
     }
-    buf
+    Ok(buf)
 }
 
 fn derive_witness_poly(bytes: &[u8]) -> Vec<i64> {

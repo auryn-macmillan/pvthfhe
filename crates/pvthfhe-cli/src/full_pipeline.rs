@@ -98,6 +98,14 @@ pub struct PipelineReport {
     pub ciphertext_hash_hex: String,
     /// Compressed proof digest.
     pub compressed_proof_digest_hex: String,
+    /// Share coefficient vectors (per-party decrypt coefficients), for Noir C7 Prover.toml.
+    pub share_coeffs: Vec<Vec<i64>>,
+    /// Lagrange coefficients for threshold reconstruction, for Noir C7 Prover.toml.
+    pub lagrange_coeffs: Vec<Fr>,
+    /// Aggregate public key bytes, for Noir C7 Prover.toml.
+    pub aggregate_pk_bytes: Vec<u8>,
+    /// Session identifier, for Noir C7 Prover.toml.
+    pub session_id: String,
 }
 
 /// Observer hooks for pipeline narration and metrics.
@@ -635,11 +643,11 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             if let Some((esm_bytes, sk_agg_share, esm_agg_share)) = per_party_esm.get(&party_id) {
                 let ciphertext_hash =
                     compute_decrypt_ciphertext_hash(&ciphertext.bytes, &ciphertext_v);
-                let recipient_id = u16::try_from(party_id).unwrap_or(0);
+                let recipient_id = u16::try_from(party_id).context("party_id exceeds u16")?;
                 // TODO(C5): cfg.n is validated early; refactor to error-propagate if this
                 // block is restructured to return Result.
                 let accepted_participant_ids: Vec<u16> =
-                    (1..=u16::try_from(cfg.n).unwrap_or(u16::MAX)).collect();
+                    (1..=u16::try_from(cfg.n).context("n exceeds u16")?).collect();
                 let sk_agg_commit = compute_sk_aggregate_commitment(
                     session_id.as_bytes(),
                     &dkg_root,
@@ -858,6 +866,10 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         aggregate_pk_hash_hex,
         ciphertext_hash_hex,
         compressed_proof_digest_hex: hex::encode(compressed.digest),
+        share_coeffs,
+        lagrange_coeffs: lagrange_coeffs_fr,
+        aggregate_pk_bytes: aggregate_pk.bytes,
+        session_id: session_id.to_string(),
     })
 }
 
@@ -1142,9 +1154,10 @@ fn verify_all_recipient_dkg_aggregations(
         verify_recipient_dkg_aggregation, DealerDkgShare, RecipientDkgAggregationStatement,
     };
 
+    let max_n_u16 = u16::try_from(n).context("n exceeds u16")?;
     let session_id_bytes = session_id.as_bytes();
     let dkg_root = transcript.dkg_root.to_vec();
-    let accepted_dealer_ids: Vec<u16> = (1..=n as u16).collect();
+    let accepted_dealer_ids: Vec<u16> = (1..=max_n_u16).collect();
     let smudge_slot_indices = vec![1u16];
 
     for recipient_idx in 0..n {
@@ -1243,13 +1256,14 @@ fn verify_all_dealer_share_computations(
     let dkg_root = ProtocolBytes::from(transcript.dkg_root.to_vec());
     let max_degree = threshold.saturating_sub(1);
     let n = transcript.participant_set.len();
+    let max_n_u16 = u16::try_from(n).context("n exceeds u16")?;
 
     for dealer_idx in 0..n {
         let dealer_id = (dealer_idx + 1) as u16;
         let sk_constant = Fr::from((dealer_id as u64) * 1000);
         let esm_constant = Fr::from((dealer_id as u64) * 2000);
 
-        let shares: Vec<FieldShare> = (1..=n as u16)
+        let shares: Vec<FieldShare> = (1..=max_n_u16)
             .map(|recipient_index| FieldShare {
                 recipient_index,
                 value: sk_constant,
@@ -1263,7 +1277,7 @@ fn verify_all_dealer_share_computations(
             sk_constant,
         );
 
-        let esm_shares: Vec<FieldShare> = (1..=n as u16)
+        let esm_shares: Vec<FieldShare> = (1..=max_n_u16)
             .map(|recipient_index| FieldShare {
                 recipient_index,
                 value: esm_constant,
@@ -1424,7 +1438,7 @@ fn run_c7_verification(
     }
 }
 
-fn build_c7_prover_toml(
+pub fn build_c7_prover_toml(
     share_coeffs: &[Vec<i64>],
     lagrange_coeffs: &[Fr],
     aggregate_pk_bytes: &[u8],

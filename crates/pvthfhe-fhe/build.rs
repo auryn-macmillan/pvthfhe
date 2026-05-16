@@ -7,7 +7,7 @@ fn main() {
         );
     } else {
         println!(
-            "cargo:warning=RESEARCH PHASE: FHE crypto is real (honest-but-curious); folding uses hash-based accumulation with Cyclo folding deferred to M2. See SECURITY.md."
+            "cargo:warning=fhe: BFV backend is real (gnosisguild/fhe.rs); honest-but-curious threshold model."
         );
     }
 }

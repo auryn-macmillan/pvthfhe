@@ -1988,3 +1988,33 @@ was updated to encode `Fr::ZERO` as the demo witness.
 - Added similar R10 hardening docstring to `SmudgeSlotRegistry` struct in `pvthfhe-keygen-spec/src/lib.rs`
 
 **Key insight**: Both implementations track `(session_id, party_id, slot_id)` tuples but differ in API style (check_and_record vs consume()) and key format (tuple vs string). Only documentation — no code removal per task constraints.
+
+## T36 (or equivalent): n-cap and max_t checks in fhers.rs (2026-05-16)
+
+### B.1: n-cap in `compute_party_sk_sums`
+- Added `MAX_N_PRACTICAL = 1024` constant after the `n == 0` check (line 340-345).
+- Returns `FheError::Backend` with a descriptive message about O(n²) memory and suggests per-node simulation for scaling benchmarks.
+- Guards the O(n²) allocation that follows.
+
+### B.2: max_t check in `setup_threshold`
+- Added `let max_t = (n - 1) / 2` after the existing `t == 0 || t > n` check (line 649-654).
+- Returns `FheError::Backend` with a descriptive message about Shamir security requirement `t ≤ (n-1)/2`.
+- Existing logic beyond this point is unchanged.
+
+## A.2 + A.3 remediation (2026-05-16)
+
+### A.2: Fixed `as u16` truncation in full_pipeline.rs
+- Lines 1147, 1252, 1266: Replaced `(1..=n as u16)` with `(1..=max_n_u16)` where `max_n_u16 = u16::try_from(n).context("n exceeds u16")?`
+- Both `verify_all_recipient_dkg_aggregations` and `verify_all_dealer_share_computations` return `anyhow::Result<()>`, so `?` works
+- The `u16::try_from` propagates clean errors instead of silently truncating
+
+### A.3: Dynamic Prover.toml generation in pvthfhe_e2e.rs
+- Made `build_c7_prover_toml` public and exported from `full_pipeline`
+- Added `share_coeffs`, `lagrange_coeffs`, `aggregate_pk_bytes`, `session_id` fields to `PipelineReport` to carry data from `run_full_pipeline` to the e2e observer
+- Updated `run_noir_aggregator_final_optional` to accept `&PipelineReport`, generate Prover.toml dynamically via `build_c7_prover_toml`, write it, then use it
+- Both `#[cfg(feature = "sonobe-compressor")]` and `#[cfg(not(...))]` stubs updated for signature compatibility
+- `pvthfhe-aggregator` has pre-existing build failures (unrelated anyhow import issues) — not caused by these changes
+
+### Pattern: Data passing through PipelineReport
+- `PipelineReport` serves as the bridge between the pipeline runner and observer/consumer
+- Adding fields to it is the standard pattern for passing pipeline-derived data to e2e observers

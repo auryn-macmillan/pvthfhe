@@ -8,7 +8,7 @@ use pvthfhe_aggregator::keygen::simulator::{KeygenResult, KeygenSimulator};
 use pvthfhe_bench::e2e_timings::E2eTimings;
 use pvthfhe_cli::compressor_glue::{compressor_backend_id, log_compressor_mode, Compressor};
 use pvthfhe_cli::full_pipeline::{
-    run_full_pipeline, PipelineConfig, PipelineObserver, PipelineReport,
+    build_c7_prover_toml, run_full_pipeline, PipelineConfig, PipelineObserver, PipelineReport,
 };
 use pvthfhe_cli::pvss_support::{run_lattice_pvss, PVSS_BACKEND_ID};
 use pvthfhe_fhe::{fhers::FhersBackend, real_nizk::CYCLO_BACKEND_ID, FheBackend};
@@ -223,7 +223,7 @@ impl BenchObserver {
 
         let noir_aggregator_final_start = Instant::now();
         info!(phase = "noir_aggregator_final", proof_digest = %report.compressed_proof_digest_hex, "phase start");
-        run_noir_aggregator_final_optional();
+        run_noir_aggregator_final_optional(&report);
         println!("noir_aggregator_final");
         self.timings.phases.noir_aggregator_final.total_ms =
             noir_aggregator_final_start.elapsed().as_secs_f64() * 1_000.0;
@@ -339,7 +339,7 @@ fn parse_rss_mb(statm: &str) -> u64 {
 }
 
 #[cfg(feature = "sonobe-compressor")]
-fn run_noir_aggregator_final_optional() {
+fn run_noir_aggregator_final_optional(report: &PipelineReport) {
     if std::env::var("PVTHFHE_RUN_NOIR_CIRCUIT").unwrap_or_default() != "1" {
         return;
     }
@@ -356,9 +356,19 @@ fn run_noir_aggregator_final_optional() {
     }
 
     let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let prover_toml = repo_root.join("circuits/aggregator_final/Prover.toml");
+    let prover_toml_path = repo_root.join("circuits/aggregator_final/Prover.toml");
+    let prover_toml_data = build_c7_prover_toml(
+        &report.share_coeffs,
+        &report.lagrange_coeffs,
+        &report.aggregate_pk_bytes,
+        &report.session_id,
+    );
+    if let Err(e) = std::fs::write(&prover_toml_path, &prover_toml_data) {
+        warn!(phase = "noir_aggregator_final", error = %e, "Noir aggregator_final: failed to write Prover.toml");
+        return;
+    }
 
-    match pvthfhe_circuit_tests::nargo::execute("aggregator_final", &prover_toml)
+    match pvthfhe_circuit_tests::nargo::execute("aggregator_final", &prover_toml_path)
         .and_then(|_artifacts| pvthfhe_circuit_tests::bb::write_vk_prove_verify("aggregator_final", "ultra_honk"))
     {
         Ok(_) => info!(phase = "noir_aggregator_final", "Noir aggregator_final circuit proof succeeded"),
@@ -367,7 +377,7 @@ fn run_noir_aggregator_final_optional() {
 }
 
 #[cfg(not(feature = "sonobe-compressor"))]
-fn run_noir_aggregator_final_optional() {}
+fn run_noir_aggregator_final_optional(_report: &PipelineReport) {}
 
 #[cfg(feature = "sonobe-compressor")]
 fn run_c7_sonobe_optional(n: usize, seed: u64) -> (f64, bool) {

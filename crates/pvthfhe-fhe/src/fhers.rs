@@ -337,6 +337,12 @@ impl FhersBackend {
                 reason: "n must be > 0".into(),
             });
         }
+        const MAX_N_PRACTICAL: usize = 1024;
+        if n > MAX_N_PRACTICAL {
+            return Err(FheError::Backend {
+                reason: format!("n={n} exceeds practical limit {MAX_N_PRACTICAL} (O(n²) memory would exceed available RAM). Use per-node simulation for scaling benchmarks.")
+            });
+        }
         let max_party_id = u32::try_from(n).map_err(|err| FheError::Backend {
             reason: err.to_string(),
         })?;
@@ -638,6 +644,12 @@ impl FheBackend for FhersBackend {
         if t == 0 || t > n {
             return Err(FheError::Backend {
                 reason: format!("invalid threshold parameters: n={n}, t={t}"),
+            });
+        }
+        let max_t = (n - 1) / 2;
+        if t > max_t {
+            return Err(FheError::Backend {
+                reason: format!("threshold t={t} exceeds max_t={max_t} for n={n}. Must satisfy t ≤ (n-1)/2 for Shamir security.")
             });
         }
         self.compute_party_sk_sums(n, t)?;

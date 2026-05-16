@@ -48,3 +48,14 @@
    values satisfy the fold path's per-step budget.
 4. The `verify_ring_equation` function works correctly with the ternary challenge approach;
    no R1CS multiplications needed due to c ∈ {-1, 0, 1}.
+
+## 2026-05-16: C.1 + C.2 Build Warning Cleanup
+
+### C.1: dead_code blanket comment (pvthfhe-aggregator/src/lib.rs)
+- Added explanatory comment above `#![allow(dead_code)]`: "Allowed: simulator stubs (keygen NIZK, encrypted_shares) and debug-only helpers. Remove when real DKG with distributed peers replaces the simulator."
+- Kept the blanket allow; removing it revealed many dead items across submodules that would require widespread `#[allow(dead_code)]` annotations.
+
+### C.2: SURROGATE warning replacement
+- **aggregator/build.rs**: Replaced "RESEARCH PHASE: ... under active research" with "aggregator: folding uses CycloFoldStepCircuit with real Ajtai commitments (CycloNizkAdapter)"
+- **fhe/build.rs**: Replaced "folding uses hash-based accumulation with Cyclo folding deferred to M2" with "fhe: BFV backend is real (gnosisguild/fhe.rs); honest-but-curious threshold model."
+- Both verified: `cargo:warning=` messages appear correctly on rebuild. No old SURROGATE messages remain.

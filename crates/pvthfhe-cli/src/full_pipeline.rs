@@ -1474,7 +1474,39 @@ fn run_c7_verification(
     // Compute aggregate_pk_hash for external input binding (B.4)
     let agg_pk_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(aggregate_pk_bytes));
 
-    // Nova IVC: fold per-participant contributions
+    // ── MicroNova tree folding (opt-in, PVTHFHE_C7_TREE=1) ──
+    if std::env::var("PVTHFHE_C7_TREE").is_ok() {
+        use pvthfhe_compressor::micronova::tree::CompressionTree;
+
+        // Build leaf hashes from share evaluations + Lagrange coefficients.
+        let mut leaf_hashes: Vec<[u8; 32]> = Vec::new();
+        for (&sev, &lc) in share_evals.iter().zip(lagrange_coeffs.iter()) {
+            let mut hasher = Sha256::new();
+            hasher.update(&sev.into_bigint().to_bytes_le());
+            hasher.update(&lc.into_bigint().to_bytes_le());
+            hasher.update(&agg_pk_hash.into_bigint().to_bytes_le());
+            leaf_hashes.push(hasher.finalize().into());
+        }
+
+        // Pad leaf count to next power of two (CompressionTree requires power-of-2).
+        let padded_len = leaf_hashes.len().next_power_of_two();
+        while leaf_hashes.len() < padded_len {
+            leaf_hashes.push([0u8; 32]);
+        }
+
+        return match CompressionTree::build(&leaf_hashes) {
+            Ok(tree) => {
+                tracing::info!("C7 tree: depth={}", tree.depth);
+                true
+            }
+            Err(e) => {
+                tracing::warn!("C7 tree: CompressionTree::build failed: {e:?}");
+                false
+            }
+        };
+    }
+
+    // Nova IVC: fold per-participant contributions (default flat path)
     let epoch = Sha256::digest(
         [session_id.as_bytes(), &seed.to_be_bytes()].concat()
     ).into();

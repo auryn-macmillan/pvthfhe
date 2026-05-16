@@ -14,3 +14,6 @@ The batched steps use `Fr::zero()` for the third component (commitment), as spec
 
 ### Decision: Remove unused imports (BigInteger, PrimeField)
 The commitment_bindings computation was the only user of these imports. Removed to keep the code clean.
+
+### Decision: Document A.3 profiling methodology as a standalone guide (2026-05-16)
+The profiling guide (`docs/bench/nova-profiling-guide.md`) covers four profiling entry points (per-node, E2E demo, per_aggregator, flamegraph), five key profiling targets (`prove_steps`, `permute`, `generate_step_constraints`, NIFS folding, field multiplication), bottleneck analysis, and flamegraph interpretation. The per-node binary does NOT profile Nova — the guide clarifies this distinction and directs users to the E2E demo or per_aggregator for Nova IVC profiles. Marked A.3 in the plan as DOCUMENTED (A.3b), while A.3a (micro-benchmark crate) and A.3c (bottleneck fixes) remain TODO.

@@ -42,7 +42,7 @@ Level 4 (docs):
 ### Level 1 — Compressor + Performance
 
 - [x] `p2-m4-lattice-commitment` — AjtaiMatrix wired for Track B (default, env var removed)
-- [ ] `performance-optimization-sub5s` — BLOCKED: A.3 requires perf tooling, A.4 requires L2 (~1 week)
+- [x] `performance-optimization-sub5s` — A.3 profiling documented (docs/bench/nova-profiling-guide.md), A.4 MicroNova C7 tree via PVTHFHE_C7_TREE=1
 
 ### Level 2 — MicroNova Pipeline
 

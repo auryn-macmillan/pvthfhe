@@ -43,15 +43,15 @@ Share polynomial evaluation `d_i(r) = Σ coeff[j] · r^j` is computed sequential
 | A.2b | Use precomputed powers for O(N) dot product instead of O(N) Horner | `full_pipeline.rs:1174` | 0.5 day |
 | A.2c | Move evaluation into rayon parallel iterator (already wired in L3) | Already done | — |
 
-### A.3 — Profile Nova hot path
+### A.3 — Profile Nova hot path [DOCUMENTED: see `docs/bench/nova-profiling-guide.md`]
 
 Nova's `prove_step` cycle iterates IVC step by step over the hashed state. Each step performs Fiat-Shamir challenge, R1CS witness generation, and NIFS update. 
 
-| Task | Files | Effort |
-|------|-------|--------|
-| A.3a | Add micro-benchmark: `cargo bench --bench nova_prove_step` | `benches/nova_bench.rs` | 1 day |
-| A.3b | Profile hot spots with `perf` or `cargo flamegraph` | Manual | 0.5 day |
-| A.3c | Address any single-function bottleneck (e.g., reduce field inversion count, cache Poseidon config) | `sonobe/mod.rs` | 1 day |
+| Task | Files | Effort | Status |
+|------|-------|--------|--------|
+| A.3a | Add micro-benchmark: `cargo bench --bench nova_prove_step` | `benches/nova_bench.rs` | 1 day | TODO |
+| A.3b | Profile hot spots with `perf` or `cargo flamegraph` | Manual | 0.5 day | DOCUMENTED |
+| A.3c | Address any single-function bottleneck (e.g., reduce field inversion count, cache Poseidon config) | `sonobe/mod.rs` | 1 day | TODO |
 
 ### A.4 — MicroNova tree folding (O(log n) steps)
 

@@ -43,3 +43,25 @@
 - `crates/pvthfhe-compressor/src/sonobe/latticefold_circuit_family.rs` — leaf circuit parity fix
 - `crates/pvthfhe-compressor/tests/micronova_compression.rs` — added 2 tests
 - `crates/pvthfhe-compressor/tests/latticefold_micronova_integration.rs` — added 1 test
+
+## Date: 2026-05-16 — C7 tree folding wiring
+
+### Wiring MicroNova tree into C7 (run_c7_verification)
+- Added opt-in tree folding path via `PVTHFHE_C7_TREE=1` env var in `run_c7_verification`.
+- Default flat Nova folding with `C7DecryptAggregationCircuit` is preserved (NOT changed).
+- Tree path: builds leaf hashes from share evaluations + Lagrange coefficients via SHA-256, pads to next power of two (CompressionTree requires power-of-2), then calls `CompressionTree::build`.
+- Leaf hash construction: `SHA256(sev_bytes || lc_bytes || agg_pk_hash_bytes)` — using `Fr::into_bigint().to_bytes_le()` for scalar encoding.
+- Dummy padding uses zero-hashes `[0u8; 32]` for leaves beyond the share count.
+
+### Verification
+- Full pipeline (demo-e2e) fails at step 7 (compressor_verify — CycloFold) — pre-existing issue, unrelated to C7 change.
+- C7 step circuit tests: 6/6 pass ✅
+- Micronova compression tests: 4/4 pass ✅
+- Micronova heterogeneous tests: 7/7 pass ✅
+- `cargo build --workspace` compiles cleanly (no new warnings from the change).
+
+### Key design decisions
+- Used `Sha256` for leaf hashing (consistent with CompressionTree's internal SHA-256 tree building).
+- Did NOT modify `CompressionTree` or any tree infrastructure — change is in `full_pipeline.rs` only.
+- Tree path returns early via `return` to keep both paths cleanly separated.
+- Logging: success uses `tracing::info!`, failure uses `tracing::warn!` — consistent with existing flat path style.

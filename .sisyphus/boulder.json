@@ -1,0 +1,19 @@
+{
+  "active_plan": "/home/dev/pvthfhe/.sisyphus/plans/meta-plan-all-deferred.md",
+  "started_at": "2026-05-16T12:35:08.156Z",
+  "session_ids": [
+    "ses_1e864f9f1ffecXRmG0OjbjoCa3",
+    "ses_1cf35e337ffeCynWSPLbHhXCWR",
+    "ses_1cf0da3a1ffevJkAi69nEUmA72",
+    "ses_1cf0c4bc4ffejXKp0r8RX8UJIF"
+  ],
+  "session_origins": {
+    "ses_1e864f9f1ffecXRmG0OjbjoCa3": "direct",
+    "ses_1cf35e337ffeCynWSPLbHhXCWR": "appended",
+    "ses_1cf0da3a1ffevJkAi69nEUmA72": "appended",
+    "ses_1cf0c4bc4ffejXKp0r8RX8UJIF": "appended"
+  },
+  "plan_name": "meta-plan-all-deferred",
+  "agent": "atlas",
+  "task_sessions": {}
+}

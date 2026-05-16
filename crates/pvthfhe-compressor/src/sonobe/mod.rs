@@ -141,19 +141,27 @@ impl<F: PrimeField> StepCircuit for ToyStepCircuit<F> {
 
 /// CycloFold step circuit encoding the R4 aggregator fold relation (R5.2).
 ///
-/// State: [accumulated_instance_hash, accumulated_norm, fold_count].
+/// State: [accumulated_instance_hash, accumulated_norm, fold_count, ring_verification_count].
 /// Step: folds a new party instance into the accumulated state.
 ///
-/// # M1 Ring Verification Path
+/// # M6 Ring Verification Path
 ///
 /// The fourth state element `ring_verification_count` tracks how many ring-equation
-/// verifications have passed. In M1, this is incremented by 1 each fold step as a
-/// documented placeholder. The actual R1CS constraint encoding for the P1 verifier
-/// equation (`c·z_s + z_e - t - c·d ≡ 0`) using `CycloVerifierCCS` is deferred to M2.
+/// verifications have passed, as reported by the native pipeline via `ext.2`.
+/// The native pre-verification (outside R1CS) uses
+/// [`cyclo_verifier::verify_ring_equation`]; the circuit accumulates the result
+/// by incrementing `verification_count += ext.2` where `ext.2 = Fr::one()` for
+/// a passed check and `Fr::zero()` for a failed check.
 ///
-/// For native pre-verification (outside R1CS), use [`cyclo_verifier::verify_ring_equation`].
+/// A remote verifier can check `state[3] == state[2]` to confirm that every
+/// fold step passed its ring equation verification.
 ///
-/// The original hash-then-fold path (3-element state) remains as the Track A fallback.
+/// # Track Compatibility
+///
+/// Track A (hash-only path): `ext.2 = 1` unconditionally — the verification
+/// counter acts as a step counter duplicate (verification_count == fold_count
+/// by construction after every step). Track B (pipeline-extra-checks): the
+/// native ring equation check sets `ext.2` before calling `prove_steps()`.
 #[derive(Clone, Copy, Debug)]
 pub struct CycloFoldStepCircuit<F: PrimeField> {
     _field: std::marker::PhantomData<F>,
@@ -171,7 +179,7 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
     }
 
     fn state_len(&self) -> usize {
-        3
+        4
     }
 
     fn generate_step_constraints(
@@ -181,10 +189,14 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
         z_i: Vec<FpVar<F>>,
         external_inputs: Self::ExternalInputsVar,
     ) -> Result<Vec<FpVar<F>>, SynthesisError> {
-        // Track A: hash-accumulate fold (existing path)
+        // Hash-accumulate fold (existing path)
         let folded_hash = z_i[0].clone() * &external_inputs.0 + z_i[0].clone();
         let escalated_norm = z_i[1].clone() + &external_inputs.1;
-        let count_inc = z_i[2].clone() + &external_inputs.2;
+        // Step counter: hardcoded +1 per step (ext.2 repurposed for ring result)
+        let count_inc = z_i[2].clone() + FpVar::<F>::one();
+        // M6: accumulate ring equation verification result
+        // ext.2 = 1 if ring equation passed, 0 if failed
+        let verification_count = z_i[3].clone() + &external_inputs.2;
 
         let _ = cs.num_constraints();
 
@@ -192,13 +204,14 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
             folded_hash,
             escalated_norm,
             count_inc,
+            verification_count,
         ])
     }
 }
 
 impl<F: PrimeField> StepCircuit for CycloFoldStepCircuit<F> {
     fn descriptor(&self) -> StepCircuitDescriptor {
-        StepCircuitDescriptor { width: 3 }
+        StepCircuitDescriptor { width: 4 }
     }
 
     fn circuit_hash(&self) -> [u8; 32] {
@@ -446,7 +459,23 @@ impl<
         )
         .map_err(|_| CompressorError::Backend("sonobe verifier key deserialization failed"))?;
 
-        Ok(SonobeNova::<S>::verify(verifier, ivc_proof).is_ok())
+        let ring_check = if self.state_len >= 4 {
+            Some((ivc_proof.z_i[2], ivc_proof.z_i[3]))
+        } else {
+            None
+        };
+
+        if !SonobeNova::<S>::verify(verifier, ivc_proof).is_ok() {
+            return Ok(false);
+        }
+
+        if let Some((fold_count, verification_count)) = ring_check {
+            if fold_count != verification_count {
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
     }
 
     fn backend_id(&self) -> &str {
@@ -509,7 +538,23 @@ impl<
             "sonobe external verifier key deserialization failed",
         ))?;
 
-        Ok(SonobeNova::<S>::verify(verifier, ivc_proof).is_ok())
+        let ring_check = if self.state_len >= 4 {
+            Some((ivc_proof.z_i[2], ivc_proof.z_i[3]))
+        } else {
+            None
+        };
+
+        if !SonobeNova::<S>::verify(verifier, ivc_proof).is_ok() {
+            return Ok(false);
+        }
+
+        if let Some((fold_count, verification_count)) = ring_check {
+            if fold_count != verification_count {
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
     }
 
     /// Prove with per-step external inputs.
@@ -639,7 +684,23 @@ impl<
         )
         .map_err(|_| CompressorError::Backend("sonobe verifier key deserialization failed"))?;
 
-        Ok(SonobeNova::<S>::verify(verifier, ivc_proof).is_ok())
+        let ring_check = if self.state_len >= 4 {
+            Some((ivc_proof.z_i[2], ivc_proof.z_i[3]))
+        } else {
+            None
+        };
+
+        if !SonobeNova::<S>::verify(verifier, ivc_proof).is_ok() {
+            return Ok(false);
+        }
+
+        if let Some((fold_count, verification_count)) = ring_check {
+            if fold_count != verification_count {
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
     }
 }
 
@@ -769,7 +830,23 @@ impl<
         )
         .map_err(|_| CompressorError::Backend("sonobe verifier key deserialization failed"))?;
 
-        Ok(SonobeNova::<S>::verify(verifier, ivc_proof).is_ok())
+        let ring_check = if self.state_len >= 4 {
+            Some((ivc_proof.z_i[2], ivc_proof.z_i[3]))
+        } else {
+            None
+        };
+
+        if !SonobeNova::<S>::verify(verifier, ivc_proof).is_ok() {
+            return Ok(false);
+        }
+
+        if let Some((fold_count, verification_count)) = ring_check {
+            if fold_count != verification_count {
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
     }
 }
 

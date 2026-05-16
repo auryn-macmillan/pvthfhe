@@ -161,7 +161,10 @@ impl Compressor {
 
 /// Return the digest inputs expected by the real compressor backend.
 ///
-/// Produces 96-byte encodings: [commitment(32B) || norm(32B) || count(32B)].
+/// Produces 96-byte encodings: [commitment(32B) || norm(32B) || ring_result(32B)].
+/// The third field was formerly `count_delta`; it is now the ring equation
+/// verification result (`Fr::one()` = passed) after M6. The step counter
+/// is hardcoded as `+1` inside [`CycloFoldStepCircuit::generate_step_constraints`].
 #[cfg(feature = "sonobe-compressor")]
 pub fn compressor_inputs(
     report: &pvthfhe_aggregator::folding::CycloFoldAllReport,
@@ -188,7 +191,7 @@ pub fn compressor_inputs(
     let public_inputs = encode_triple((
         Fr::from_le_bytes_mod_order(&public_io_hash),
         Fr::from(total_norm),
-        Fr::from(1u64),
+        Fr::from(1u64), // M6: ring verification result (1 = passed; pipeline checks before prove)
     ))
     .to_vec();
     (acc, public_inputs)

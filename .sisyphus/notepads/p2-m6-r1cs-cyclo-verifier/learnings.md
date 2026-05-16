@@ -25,3 +25,27 @@
 ## Cyclic dependency awareness
 - `cyclo_verifier.rs` in compressor imports from `pvthfhe-aggregator` (RingElement, CycloVerifierCCS)
 - `ring_element_var.rs` has no external dependency — pure arkworks R1CS types
+
+## M6 Verification Counter Implementation (2026-05-16)
+
+### State extension
+- CycloFoldStepCircuit widened from state_len=3 to state_len=4
+- New 4th state element: `ring_verification_count`
+- ext.2 repurposed from `fold_count_delta` to `ring_verification_result` (Fr::ONE=passed, Fr::ZERO=failed)
+- fold_count now hardcoded as `z_i[2] + FpVar::one()` in generate_step_constraints
+
+### Verifier move semantics
+- `SonobeNova::verify()` moves `ivc_proof`, so ring check values must be captured BEFORE the verify call
+- Pattern: `let ring_check = if self.state_len >= 4 { Some((z_i[2], z_i[3])) } else { None };`
+- Guard: only check `fold_count == verification_count` for state_len >= 4 circuits
+- State_len=3 circuits (ToyStepCircuit, HeterogeneousStepCircuit) skip the ring check
+
+### compressor_inputs semantics
+- 3rd element of `encode_triple` was `Fr::from(1u64)` (count_delta), now represents ring_result
+- Pipeline checks ring equation natively BEFORE compressor.prove(), so ext.2=1 by construction
+- No per-step granularity needed for M6 — the pipeline guarantees all-or-nothing ring check
+
+### Test patterns
+- `prove` + `verify`: single ext.2 for all steps (all-pass or all-fail with ext.2=0)
+- `prove_steps` + `verify_steps`: per-step ext.2 for mixed pass/fail scenarios
+- RED test `multi_input_step_circuit` was pre-written with 4-element expectations

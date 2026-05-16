@@ -47,6 +47,7 @@ fn step_circuit_allocates_nonzero_constraints() {
         FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(0u64))).unwrap(),
         FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(0u64))).unwrap(),
         FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(0u64))).unwrap(),
+        FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(0u64))).unwrap(),
     ];
     let external_inputs = ExternalInputs3Var(
         FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(1u64))).unwrap(),

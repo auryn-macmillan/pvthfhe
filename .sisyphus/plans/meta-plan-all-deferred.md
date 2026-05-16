@@ -41,22 +41,22 @@ Level 4 (docs):
 
 ### Level 1 — Compressor + Performance
 
-- [ ] `p2-m4-lattice-commitment` — AjtaiMatrix replacing hash-based commitment (~1-2 weeks, deferred)
-- [ ] `performance-optimization-sub5s` — A.3 (Nova profiling) doc-only, A.4 (MicroNova tree) requires L2. Batch B (decrypt profile) done.
+- [ ] `p2-m4-lattice-commitment` — BLOCKED: requires new AjtaiMatrix module + wire format changes (~1-2 weeks)
+- [ ] `performance-optimization-sub5s` — BLOCKED: A.3 requires perf tooling, A.4 requires L2 (~1 week)
 
 ### Level 2 — MicroNova Pipeline
 
-- [ ] `p2-m5-micronova-integration` — Bridge LatticeFold+ accumulator to FoldVerifierStepCircuit
-- [ ] `p3-m2-micronova-compression` — Recursive compression tree at O(log n)
+- [ ] `p2-m5-micronova-integration` — BLOCKED: requires p2-m4 (~1-2 weeks)
+- [ ] `p3-m2-micronova-compression` — BLOCKED: requires p2-m5 (~2-3 weeks)
 
 ### Level 3 — On-Chain + Production
 
-- [ ] `p3-m3-ultrahonk-evm-deploy` — Deploy HonkVerifier.sol to EVM testnet, measure gas
-- [ ] `p3-m4-gas-optimization` — Profile + optimize EVM verifier gas consumption
+- [ ] `p3-m3-ultrahonk-evm-deploy` — BLOCKED: requires p3-m2 compression proofs (~1-2 weeks)
+- [ ] `p3-m4-gas-optimization` — BLOCKED: requires p3-m3 deployment (~1-2 weeks)
 
 ### Level 4 — Documentation
 
-- [ ] `p3-m5-security-proofs` — Complete T1/T2/T4 proof documents
+- [ ] `p3-m5-security-proofs` — BLOCKED: requires p3-m3 gas measurements (~1-2 weeks)
 
 ---
 

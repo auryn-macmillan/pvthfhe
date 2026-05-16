@@ -240,6 +240,25 @@ warning: use of deprecated struct `hermine::HermineAdapter`: HermineAdapter uses
     |                        ^^^^^^^^^^^^^^
 
 warning: `pvthfhe-keygen` (lib) generated 2 warnings
-    Finished `release` profile [optimized] target(s) in 0.10s
+    Finished `release` profile [optimized] target(s) in 0.12s
      Running `target/release/pvthfhe-cli demo --n 255 --threshold 126 --seed 1`
-Error: soft cap: n=255 > 240 — untested, may exceed BFV noise budget for decryption. Re-run with --force-large-n to proceed at your own risk.
+[2m2026-05-16T01:25:41.241057Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m starting demo pipeline [3mn[0m[2m=[0m255 [3mthreshold[0m[2m=[0m126 [3mseed[0m[2m=[0m1
+demo: n=255 threshold=126 seed=1
+pvss_backend_id=lattice-pvss-bfv-d2
+[2m2026-05-16T01:25:41.241081Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m backend_id_p1 [3mbackend_id[0m[2m=[0m"cyclo-ajtai-d2-conditional"
+[2m2026-05-16T01:25:41.241084Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m backend_id_p2 [3mbackend_id_p2[0m[2m=[0m"cyclo-rlwe-t10-lemma9-heuristic"
+[2m2026-05-16T01:25:41.241098Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m backend_id_p3 [3mbackend_id_p3[0m[2m=[0m"sonobe-nova-bn254-grumpkin"
+backend_id == "cyclo-ajtai-d2-conditional"
+backend_id_p2: cyclo-rlwe-t10-lemma9-heuristic
+backend_id_p3: sonobe-nova-bn254-grumpkin
+note: on-chain Solidity verify is NOT run by demo (use bench-comparison)
+pvss_backend_id=lattice-pvss-bfv-d2
+[2m2026-05-16T01:25:41.261649Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m seed flag ignored in production path; will require --insecure-seed in future R3.6
+step 1/10: keygen (n=255 t=126 seed=1)
+keygen: complete (87508.489 ms)
+step 2/10: nizk_prove (dealer=1)
+step 3/10: nizk_verify (dealer=1 recipient=1)
+step 4/10: pvss_share_encrypt (lattice-pvss-bfv-d2)
+pvss_share_encrypt: complete (13843.377 ms)
+[2m2026-05-16T01:27:58.904489Z[0m [32m INFO[0m [2mpvthfhe_cli[0m[2m:[0m setup_threshold: computing Shamir shares for all parties
+[2m2026-05-16T01:27:58.905851Z[0m [32m INFO[0m [2mpvthfhe_fhe::fhers[0m[2m:[0m setup_threshold: pre-read sk_coeffs [3mn[0m[2m=[0m255 [3mms[0m[2m=[0m0.0033

@@ -37,3 +37,11 @@
 
 - `KeygenShare::bytes` is NOT a valid public key for encryption
 - Must use `backend.aggregate_keygen(&[keygen_share])` to derive a proper `PublicKey`
+
+### P3: Justfile recipes (2026-05-16)
+
+- Added `just per-node n t seed` and `just aggregator n t seed` recipes to Justfile
+- Both use `cargo run --release --bin <name>` with `--n`, `--threshold`, `--seed` args
+- No explicit `--features` flag needed since `with-fhe` and `sonobe-compressor` are both in default features
+- Cargo.toml already had `[[bin]]` entries for both binaries with correct `required-features`
+- Commit: 82045fd — 7 files, single commit as per task instructions

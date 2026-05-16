@@ -1,7 +1,7 @@
 # P3-T1 — UltraHonk Knowledge Soundness over BN254
 
 **Theorem ID**: P3-T1 (UltraHonk refinement)
-**Status**: **DEFERRED — awaiting prerequisite milestone P3-M2 (real proof generation)**
+**Status**: **DOCUMENTED — measurements deferred to post-p3-m3**
 **Reduction target**: UltraHonk knowledge soundness over BN254 (Aztec Protocol security analysis)
 **Replaces**: P3-T1 in `proof-skeletons.md` (SP1 + Groth16 variant)
 

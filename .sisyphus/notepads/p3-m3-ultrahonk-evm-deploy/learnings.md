@@ -22,3 +22,19 @@ for the UltraHonk EVM verifier contract.  The document records:
 - Explicit deferral rationale documented, with checklist for when P3-M2
   delivers
 - No em dashes, no AI slop phrases per project writing conventions
+
+## 2026-05-16
+
+### Status updated to DOCUMENTED
+
+Updated `docs/security-proofs/p3/ultrahonk-deploy.md`: changed status from DEFERRED to
+DOCUMENTED -- implementation deferred to post-p3-m2. No content changes to the deployment
+plan itself; the document already contained the deployment target (Sepolia via Foundry),
+Aztec protocol HonkVerifier.sol reference, and deferral rationale. Also updated the
+meta-plan checkbox in `meta-plan-all-deferred.md` from `- [ ]` to `[-]` (documented,
+implementation deferred).
+
+### Meta-plan update
+
+Changed checkbox for `p3-m3-ultrahonk-evm-deploy` in `.sisyphus/plans/meta-plan-all-deferred.md`
+from unchecked (`- [ ]`) to documented/deferred (`[-]`).

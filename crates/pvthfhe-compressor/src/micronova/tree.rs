@@ -1,59 +1,108 @@
+//! P3-M2 CompressionTree: bottom-up folding verification tree.
+//!
+//! Builds a complete binary tree from leaf accumulator hashes, then folds
+//! all nodes through a [`MicroNovaCompressor`] using heterogeneous IVC.
+//! Internal nodes verify that their children correctly fold, while leaf
+//! nodes contribute their hashes to the accumulator.
+
 use ark_bn254::Fr;
 use ark_ff::{PrimeField, Zero};
-use crate::sonobe::{FoldVerifierStepCircuit, SonobeCompressor, ExternalInputs3, encode_triple};
+use sha2::{Digest, Sha256};
+
+use crate::micronova::compressor::MicroNovaCompressor;
+use crate::sonobe::ExternalInputs3;
 use crate::{CompressedProof, CompressorError};
 
 /// Compression tree: bottom-up folding verification.
+///
+/// For a tree with `2^depth` leaves, there are `2^(depth+1) - 1` total nodes
+/// (internal + leaves). Nodes are ordered level-by-level from root to leaves,
+/// matching the [`crate::sonobe::latticefold_circuit_family::LatticeFoldTreeCircuitFamily`]
+/// indexing scheme.
 pub struct CompressionTree {
+    /// Number of internal levels above the leaves.
     pub depth: usize,
+    /// The compressed root proof covering all tree nodes.
     pub root_proof: CompressedProof,
 }
 
 impl CompressionTree {
     /// Build a compression tree from leaf accumulator hashes.
-    /// Each leaf is a 32-byte hash. Pairs are folded bottom-up.
+    ///
+    /// Each leaf is a 32-byte hash. Pairs are hashed together with SHA-256
+    /// bottom-up to compute internal node hashes. The full tree (leaves +
+    /// internal nodes in level order) is then folded through a single
+    /// heterogeneous IVC chain via [`MicroNovaCompressor::prove_tree`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if `leaf_hashes.len()` is not a power of two.
     pub fn build(leaf_hashes: &[[u8; 32]]) -> Result<Self, CompressorError> {
-        assert!(leaf_hashes.len().is_power_of_two(), "leaf count must be power of 2");
+        assert!(
+            leaf_hashes.len().is_power_of_two(),
+            "leaf count must be power of 2"
+        );
         let depth = leaf_hashes.len().ilog2() as usize;
-        let mut current_level = leaf_hashes.to_vec();
 
-        let epoch = [6u8; 32];
-        let compressor = SonobeCompressor::<FoldVerifierStepCircuit<Fr>>::new(epoch, 1)?;
+        // Build tree bottom-up, storing every level as a Vec<[u8; 32]>.
+        // levels[0] = leaves, levels[1] = first parents, ..., levels[depth] = root.
+        let mut levels: Vec<Vec<[u8; 32]>> = Vec::with_capacity(depth + 1);
+        levels.push(leaf_hashes.to_vec());
 
-        while current_level.len() > 1 {
-            let mut next_level = Vec::new();
-            for pair in current_level.chunks(2) {
-                let left = pair[0];
-                let right = pair[1];
-                // Fold left + right → parent hash.
-                // Real collapsing fold: SHA-256 of concatenated children.
-                // Full Cyclo fold (fold_one_step_multitrack) deferred to micronova M2.
-                use sha2::{Sha256, Digest};
+        while levels.last().unwrap().len() > 1 {
+            let current = levels.last().unwrap();
+            let mut next = Vec::with_capacity(current.len() / 2);
+            for pair in current.chunks(2) {
                 let mut hasher = Sha256::new();
-                hasher.update(&left);
-                hasher.update(&right);
-                let parent: [u8; 32] = hasher.finalize().try_into().unwrap_or([0u8; 32]);
-                let inputs = vec![ExternalInputs3(
-                    Fr::from_be_bytes_mod_order(&left),
-                    Fr::from_be_bytes_mod_order(&right),
-                    Fr::from_be_bytes_mod_order(&parent),
-                )];
-                let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
-                let proof = compressor.prove_steps(&acc, &inputs)?;
-                let vk = compressor.verifier_key();
-                if !compressor.verify_steps(&vk, &proof, &inputs)? {
-                    return Err(CompressorError::InvalidProof);
-                }
-                next_level.push(parent);
+                hasher.update(&pair[0]);
+                hasher.update(&pair[1]);
+                let parent: [u8; 32] = hasher.finalize().into();
+                next.push(parent);
             }
-            current_level = next_level;
+            levels.push(next);
         }
 
-        // Final proof at root level (reuse any leaf's proof for now)
-        let root_proof = compressor.prove_steps(
-            &encode_triple((Fr::zero(), Fr::zero(), Fr::zero())),
-            &[ExternalInputs3(Fr::zero(), Fr::zero(), Fr::zero())],
-        )?;
+        // levels now contains `depth + 1` entries:
+        //    levels[0]         = leaves
+        //    levels[1..depth]  = internal levels (ascending)
+        //    levels[depth]     = root
+
+        let total_nodes = (1usize << (depth + 1)) - 1;
+        let mut steps: Vec<ExternalInputs3<Fr>> = Vec::with_capacity(total_nodes);
+
+        // Walk levels from root (top) to leaves (bottom).
+        for level_from_top in 0..=depth {
+            // Index into `levels` (which is leaf-first).
+            let level_idx = depth - level_from_top;
+            let lvl = &levels[level_idx];
+
+            if level_from_top == depth {
+                // Leaf level — no children below.
+                // Use circuit variant 0 (leaf ring-equation verifier).
+                // ext.0 = ext.1 = 1, ext.2 = leaf_hash.
+                for hash in lvl {
+                    steps.push(ExternalInputs3(
+                        Fr::from(1u64),
+                        Fr::from(1u64),
+                        Fr::from_be_bytes_mod_order(hash),
+                    ));
+                }
+            } else {
+                // Internal level — children are in levels[level_idx - 1].
+                let children_idx = level_idx - 1;
+                for (i, hash) in lvl.iter().enumerate() {
+                    let left = Fr::from_be_bytes_mod_order(&levels[children_idx][2 * i]);
+                    let right = Fr::from_be_bytes_mod_order(&levels[children_idx][2 * i + 1]);
+                    let parent = Fr::from_be_bytes_mod_order(hash);
+                    steps.push(ExternalInputs3(left, right, parent));
+                }
+            }
+        }
+
+        // Fold the entire tree through the heterogeneous compressor.
+        let epoch = [6u8; 32];
+        let compressor = MicroNovaCompressor::new(depth, epoch);
+        let root_proof = compressor.prove_tree(&steps)?;
 
         Ok(Self { depth, root_proof })
     }

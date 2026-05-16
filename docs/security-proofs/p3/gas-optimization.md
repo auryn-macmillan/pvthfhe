@@ -1,7 +1,7 @@
 # P3-M4: Gas Optimization Plan
 
 **Module**: P3-M4
-**Status**: DEFERRED (blocked on P3-M3 EVM deployment)
+**Status**: DOCUMENTED — requires p3-m3 deployment
 **Last Updated**: 2026-05-14
 **Depends On**: P3-M3 (EVM deploy with real HonkVerifier)
 **Related Theorem**: P3-T4 (Gas-bound theorem for on-chain verification)

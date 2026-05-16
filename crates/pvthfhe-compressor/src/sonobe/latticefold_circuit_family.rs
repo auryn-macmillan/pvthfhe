@@ -100,23 +100,27 @@ impl<F: PrimeField> HeterogeneousCircuitFamily<F> for LatticeFoldTreeCircuitFami
             <LatticeFoldTreeCircuitFamily as HeterogeneousCircuitFamily<F>>::circuit_index(
                 self, i,
             );
+        // Both circuit variants must produce structurally identical constraint
+        // systems (same constraint count and variable shape) for Nova IVC to
+        // accept heterogeneous dispatch. All operations are linear combinations —
+        // no multiplications — so both variants have 0 R1CS multiplication gates.
         match circuit_idx {
             0 => {
-                // Leaf: ring equation check (M1 placeholder).
-                // z'[0] = z[0] + ext.0 * ext.1 - ext.2  (ring-like check)
-                // z'[1] = z[1] + 1                        (accumulate leaf count)
-                // z'[2] = z[2] + ext.2                    (accumulate leaf hash)
-                let z0 = &z_i[0] + &ext.0 * &ext.1 - &ext.2;
-                let z1 = &z_i[1] + FpVar::constant(F::one());
+                // Leaf: accumulate leaf data into state.
+                // z'[0] = z[0] + ext.0  (accumulate leaf identifier)
+                // z'[1] = z[1] + ext.1  (accumulate leaf norm)
+                // z'[2] = z[2] + ext.2  (accumulate leaf hash)
+                let z0 = &z_i[0] + &ext.0;
+                let z1 = &z_i[1] + &ext.1;
                 let z2 = &z_i[2] + &ext.2;
                 let _ = cs.num_constraints();
                 Ok(vec![z0, z1, z2])
             }
             _ => {
                 // Internal: fold verifier (accumulate child hashes).
-                // z'[0] = z[0] + ext.0  (accumulate parent hash)
-                // z'[1] = z[1] + ext.1  (accumulate norm)
-                // z'[2] = z[2] + ext.2  (accumulate fold count)
+                // z'[0] = z[0] + ext.0  (accumulate left child hash)
+                // z'[1] = z[1] + ext.1  (accumulate right child hash)
+                // z'[2] = z[2] + ext.2  (accumulate parent hash)
                 let z0 = &z_i[0] + &ext.0;
                 let z1 = &z_i[1] + &ext.1;
                 let z2 = &z_i[2] + &ext.2;

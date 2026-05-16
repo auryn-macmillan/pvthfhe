@@ -1,7 +1,7 @@
 # P3-T4 — Gas-Bound Theorem for UltraHonk On-Chain Verification
 
 **Theorem ID**: P3-T4 (UltraHonk refinement)
-**Status**: **DEFERRED — awaiting prerequisite milestone P3-M3 (EVM deployment with real HonkVerifier)**
+**Status**: **DOCUMENTED — measurements deferred to post-p3-m3**
 **Reduction target**: Static EVM gas schedule (EIP-196/197/1108); no hardness assumption
 **Replaces**: P3-T4 in `proof-skeletons.md` (SP1 + Groth16 variant)
 

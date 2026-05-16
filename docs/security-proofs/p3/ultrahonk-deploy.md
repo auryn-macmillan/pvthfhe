@@ -2,7 +2,7 @@
 
 This document records the deployment plan for the UltraHonk verifier
 Solidity contract (`HonkVerifier.sol`) that validates P3-M2 MicroNova
-compression proofs on-chain.  The deployment is currently **DEFERRED**
+compression proofs on-chain.  The deployment is currently **DOCUMENTED — implementation deferred to post-p3-m2**
 until P3-M2 produces production-ready compression proofs.
 
 ## Source Contract

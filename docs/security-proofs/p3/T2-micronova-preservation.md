@@ -1,7 +1,7 @@
 # P3-T2 — MicroNova Compression Preserves Knowledge Soundness of Nova IVC
 
 **Theorem ID**: P3-T2 (MicroNova refinement)
-**Status**: **DEFERRED — awaiting prerequisite milestones P3-M2 (real proof generation) and P3-M3 (deployment)**
+**Status**: **DOCUMENTED — measurements deferred to post-p3-m3**
 **Reduction target**: MicroNova soundness reduces to Nova IVC knowledge soundness
 **Replaces**: P3-T2 in `proof-skeletons.md` (SP1 + Groth16 wrap variant)
 

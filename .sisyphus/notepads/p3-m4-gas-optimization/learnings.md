@@ -10,3 +10,13 @@
 - All actual profiling is blocked on P3-M3 completing the EVM deploy with a real verifier
 - The `bb write_solidity_verifier` tool is blocked on BB version 5.0.0-nightly.20260324 producing wrong VK shapes
 - Notepad directory pattern: `.sisyphus/notepads/{plan-name}/`
+
+## 2026-05-16 — Status updated to DOCUMENTED
+
+Updated `docs/security-proofs/p3/gas-optimization.md`: changed status from DEFERRED to
+DOCUMENTED -- requires p3-m3 deployment. The document already contained the baseline
+projection (~39,687 gas from Aztec HonkVerifier.sol) and noted that profiling is blocked
+on P3-M3 EVM deployment.
+
+Updated the meta-plan checkbox for `p3-m4-gas-optimization` in
+`.sisyphus/plans/meta-plan-all-deferred.md` from `- [ ]` to `[-]`.

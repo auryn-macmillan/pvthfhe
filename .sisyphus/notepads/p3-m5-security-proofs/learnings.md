@@ -22,3 +22,18 @@ The PVTHFHE Nova IVC chain has length 1 (one Cyclo accumulator verification step
 ### LatticeFold+ UltraHonk subset
 
 LatticeFold+ proofs use a strict subset of UltraHonk: no lookup arguments (Plookup/LogUp), no RAM/ROM tables. This may tighten the knowledge-soundness bound by a factor of 2–4× compared to generic UltraHonk. Documented in T1 §LatticeFold+ Subset Note.
+
+## 2026-05-16 — Status updated to DOCUMENTED
+
+Updated all three P3-M5 theorem documents:
+- `docs/security-proofs/p3/T1-ultrahonk-soundness.md`: changed status from DEFERRED to
+  DOCUMENTED -- measurements deferred to post-p3-m3.
+- `docs/security-proofs/p3/T2-micronova-preservation.md`: same status change.
+- `docs/security-proofs/p3/T4-gas-bound.md`: same status change.
+
+All three documents already contained the required content: T1 references Aztec's security
+analysis for BN254 UltraHonk, T2 documents MicroNova's preservation of Nova knowledge
+soundness, and T4 documents the projected gas (39,687) with measurement methodology.
+
+Updated the meta-plan checkbox for `p3-m5-security-proofs` in
+`.sisyphus/plans/meta-plan-all-deferred.md` from `- [ ]` to `[-]`.

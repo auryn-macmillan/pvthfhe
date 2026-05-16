@@ -17,6 +17,7 @@
 | **G4** | Aggregate PK not bound in C7 | `agg_pk_hash` is external input, circuit doesn't verify derivation | C7 external inputs | High |
 | **G5** | Merkle leaf_index constrained to 0 | Position-aware Merkle verification missing | `C7MerkleStepCircuit` | Medium |
 | **G6** | Compressor hash only | Nova proves hash consistency, not lattice relation | `CycloFoldStepCircuit` | Medium |
+| **G7** | NIZK not verified in circuit | Garbage proof bytes produce valid hash — substitution prevented but forgery not detected | `CycloFoldStepCircuit`, compressor verify path | Critical |
 
 ---
 
@@ -80,6 +81,42 @@ The `C7MerkleStepCircuit` currently constrains `leaf_index == 0`. Full position-
 | G5.2 | Propagate `leaf_index = leaf_index / arity` through each tree level | `c7_merkle_circuit.rs` | 0.5 day |
 | G5.3 | 2 RED tests: non-zero leaf_index passes, wrong leaf_index fails | Tests | 0.5 day |
 
+### G7: Recursive NIZK Verification in Compressor (~1 week)
+
+**Problem**: The compressor folds CCS instance hashes that include NIZK proof bytes. A malicious prover can provide garbage bytes for the NIZK proof — the hash matches (same bytes) but the circuit never verifies the sigma protocol is satisfied. The hash binding prevents **substitution** but not **forgery**.
+
+**Fix**: Verify each NIZK proof **inside the compressor circuit** before folding. The step circuit checks the sigma protocol directly in R1CS constraints.
+
+**Per-NIZK constraint breakdown**:
+
+| Check | Constraints | Notes |
+|-------|-------------|-------|
+| Sigma equation (256 coeffs, ternary c) | 256 `enforce_equal` | Zero multiplications — only additions |
+| Commitment opening (Poseidon) | ~300 | Poseidon hash of 256-Poseidon hashed coefficients |
+| Challenge derivation (Poseidon) | ~300 | Fiat-Shamir on statement + commitment |
+| Response norm bounds | ~300 | Range check on z_s, z_e |
+| **Total per NIZK** | **~1,200** | |
+
+**Impact on compressor** (n=128, batch_size=10 → 13 steps):
+
+```
+Current:  13 steps × 3 constraints = 39
+With NIZK: 13 steps × 1,200 constraints = 15,600 (~0.1% of Nova range)
+Prover:    ~3.5s (was 2.7s, ~30% increase)
+Verifier:  O(1) — Nova verifier checks IVC proof in constant time
+```
+
+For n=1000: 100 steps × 1,200 = 120,000 constraints — well within Nova range.
+
+| Task | Files | Effort |
+|------|-------|--------|
+| G7.1 | Implement sigma equation verification in R1CS (ternary c, 256 coeffs, zero multiplications) | `ring_verifier.rs` (extend to handle NIZK statement fields) | 2 days |
+| G7.2 | Implement commitment opening verification (Poseidon hash of 256 Poseidon-hashed coefficients) | `ring_verifier.rs` | 1 day |
+| G7.3 | Implement challenge derivation in R1CS (Fiat-Shamir over statement + commitment) | `ring_verifier.rs` | 1 day |
+| G7.4 | Implement response norm bounds check (range enforcement on z_s, z_e) | `ring_verifier.rs` | 0.5 day |
+| G7.5 | Wire NIZK verification into compressor step circuit — each fold step verifies one NIZK proof before updating the hash accumulator | `mod.rs:191-208` | 1 day |
+| G7.6 | 6 RED tests: valid proof passes, wrong sigma fails, wrong commitment fails, wrong challenge fails, norm violation fails, forged proof fails | Tests | 1.5 days |
+
 ---
 
 ## Acceptance Criteria
@@ -89,16 +126,17 @@ The `C7MerkleStepCircuit` currently constrains `leaf_index == 0`. Full position-
 - [ ] Plaintext evaluation matches C7 accumulator in R1CS
 - [ ] Aggregate PK bound to DKG root in C7 circuit
 - [ ] Merkle verification supports arbitrary leaf_index
-- [ ] All 14 RED tests pass
+- [ ] NIZK sigma protocol verified in compressor R1CS constraints
+- [ ] **All 20 RED tests pass**
 - [ ] Demo ACCEPT
 - [ ] Per-node + per-aggregator produce output
 
 ## Execution Order
 
-G1 (foundation) → G2+G3 (C7) → G4 (binding) → G5 (Merkle)
+G1 (foundation) → G2+G3 (C7) → G4 (binding) → G5 (Merkle) → G7 (recursive NIZK)
 
-G1 and G4+G5 can run in parallel. G2+G3 require G1 (ring element private witness pattern established).
+G1 and G4+G5 can run in parallel. G2+G3 require G1 (ring element private witness pattern established). G7 requires G1 (same Poseidon+R1CS infrastructure).
 
 ## Estimated Total Effort
 
-~2-3 weeks. G1: 3 days. G2+G3: 6 days. G4: 0.5 days. G5: 2 days. Tests + integration: 3 days.
+~3-4 weeks. G1: 3 days. G2+G3: 6 days. G4: 0.5 days. G5: 2 days. G7: 7 days. Tests + integration: 3 days.

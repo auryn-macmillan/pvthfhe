@@ -29,7 +29,7 @@ use pvthfhe_pvss::slot_registry::SmudgeSlotRegistry;
 #[cfg(feature = "sonobe-compressor")]
 use pvthfhe_compressor::sonobe::{
         cyclo_verifier::verify_ring_equation, encode_triple, C7DecryptAggregationCircuit,
-        ExternalInputs3, SonobeCompressor,
+        ExternalInputs4, SonobeCompressor,
     };
 use pvthfhe_pvss::nizk_share::compute_ciphertext_v;
 use pvthfhe_rng::OsRng;
@@ -642,6 +642,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
     let mut smudge_slot_registry = SmudgeSlotRegistry::new();
 
+    let dkg_root = transcript.dkg_root.to_vec();
+
     let mut decrypt_round: u16 = 1;
 
     let mut shares = Vec::with_capacity(cfg.t);
@@ -823,6 +825,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         &session_id,
         cfg.seed,
         &aggregate_pk.bytes,
+        &dkg_root,
         c7_r,
     );
     let c7_ms = elapsed_ms(c7_started);
@@ -1494,6 +1497,7 @@ fn run_c7_verification(
     session_id: &str,
     seed: u64,
     aggregate_pk_bytes: &[u8],
+    dkg_root_bytes: &[u8],
     r: Fr,
 ) -> bool {
     use ark_bn254::Fr;
@@ -1533,6 +1537,8 @@ fn run_c7_verification(
     // from t to ceil(t/k). Batching is at the pipeline level.
     // Compute aggregate_pk_hash for external input binding (B.4)
     let agg_pk_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(aggregate_pk_bytes));
+    // G4: Compute dkg_root_hash for C7 external input binding
+    let dkg_root_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(dkg_root_bytes));
 
     // ── MicroNova tree folding (default, O(log t) steps) ──
     // Falls back to flat sequential folding if tree build fails.
@@ -1585,18 +1591,18 @@ fn run_c7_verification(
     };
 
     let acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
-    let steps: Vec<ExternalInputs3<Fr>> = share_evals.iter()
+    let steps: Vec<ExternalInputs4<Fr>> = share_evals.iter()
         .zip(lagrange_coeffs.iter())
-        .map(|(&sev, &lc)| ExternalInputs3(sev, lc, agg_pk_hash))
+        .map(|(&sev, &lc)| ExternalInputs4(sev, lc, agg_pk_hash, dkg_root_hash))
         .collect();
 
-    let proof = match compressor.prove_steps(&acc, &steps) {
+    let proof = match compressor.prove_steps_c7(&acc, &steps) {
         Ok(p) => p,
-        Err(e) => { tracing::warn!("C7: prove_steps failed: {e:?}"); return false; }
+        Err(e) => { tracing::warn!("C7: prove_steps_c7 failed: {e:?}"); return false; }
     };
 
     let vk = compressor.verifier_key();
-    match compressor.verify_steps(&vk, &proof, &steps) {
+    match compressor.verify_steps_c7(&vk, &proof, &steps) {
         Ok(true) => {
             // G3 M1: Verify Lagrange sum = 1 and log accumulator after Nova IVC.
             // Full plaintext binding deferred — see verify_c7_plaintext_binding doc.

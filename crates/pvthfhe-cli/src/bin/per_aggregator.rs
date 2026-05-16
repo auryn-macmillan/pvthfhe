@@ -23,7 +23,7 @@ use std::time::Instant;
 use {
     pvthfhe_compressor::sonobe::{
         encode_triple, C7DecryptAggregationCircuit, CycloFoldStepCircuit,
-        ExternalInputs3, SonobeCompressor,
+        ExternalInputs3, ExternalInputs4, SonobeCompressor,
     },
 };
 
@@ -180,17 +180,18 @@ fn main() -> anyhow::Result<()> {
             )
             .map_err(|e| anyhow::anyhow!("C7 compressor init: {e:?}"))?;
         let c7_acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
-        let c7_steps: Vec<ExternalInputs3<Fr>> = (0..args.threshold)
+        let c7_steps: Vec<ExternalInputs4<Fr>> = (0..args.threshold)
             .map(|i| {
-                ExternalInputs3(
+                ExternalInputs4(
                     Fr::from((42 + i) as u64),
                     Fr::from(1u64),
+                    Fr::from(0u64),
                     Fr::from(0u64),
                 )
             })
             .collect();
         let _c7_result = c7_compressor
-            .prove_steps(&c7_acc, &c7_steps)
+            .prove_steps_c7(&c7_acc, &c7_steps)
             .map_err(|e| anyhow::anyhow!("C7 prove_steps: {e:?}"))?;
         elapsed_ms(t2)
     };

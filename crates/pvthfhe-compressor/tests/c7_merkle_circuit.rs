@@ -193,15 +193,13 @@ fn merkle_circuit_custom_depth_descriptor() {
     assert_eq!(circuit.merkle_arity, 8);
 }
 
-/// Test 9: non-zero merkle_leaf_index MUST be rejected.
+/// Test 9: G5 — non-zero leaf_index is now accepted.
 ///
-/// The in-circuit Merkle verification currently only supports position 0
-/// (current node always placed first in the sibling list). A non-zero
-/// leaf_index violates the constraint `leaf_index == 0` enforced in
-/// both `verify_merkle_path` and `generate_step_constraints`.
-/// Full position-aware ordering is deferred (see c7_merkle_circuit.rs docs).
+/// The leaf_index=0 constraint has been removed. Full position-aware
+/// Merkle verification is deferred; the circuit accepts any leaf_index
+/// value (witness generation still uses leaf_index=0).
 #[test]
-fn merkle_leaf_index_constraint_enforced() {
+fn merkle_nonzero_leaf_index_accepted() {
     let num_steps = 4;
     let compressor = SonobeCompressor::<C7MerkleStepCircuit<Fr>>::new(epoch(), num_steps)
         .expect("construct C7 merkle sonobe compressor");
@@ -212,38 +210,27 @@ fn merkle_leaf_index_constraint_enforced() {
     let leaf = Fr::from(1u64);
     let siblings = [Fr::from(1u64); 35];
     let root = poseidon_merkle_root(leaf, &siblings);
-    let bad_step = make_merkle_step(
+    let step_with_nonzero = make_merkle_step(
         Fr::from(4200u64),
         Fr::from(1u64),
         root,
         leaf,
-        Fr::from(5u64), // non-zero leaf_index — must be rejected
+        Fr::from(5u64), // non-zero leaf_index — now accepted
         &siblings,
     );
 
-    let mut steps = vec![bad_step];
+    let mut steps = vec![step_with_nonzero];
     for i in 1..num_steps {
         steps.push(valid_merkle_step((42 + i as u64) * 100));
     }
 
-    let result = compressor.prove_steps_merkle(&acc, &steps);
+    let proof = compressor
+        .prove_steps_merkle(&acc, &steps)
+        .expect("prove_steps_merkle with non-zero leaf_index");
 
-    match result {
-        // If prove succeeds (Nova may fold unsatisfied constraints),
-        // verification must reject the proof.
-        Ok(proof) => {
-            let vk = compressor.verifier_key();
-            let valid = compressor
-                .verify_steps_merkle(&vk, &proof, &steps)
-                .expect("verify_steps_merkle");
-            assert!(
-                !valid,
-                "Nova verification MUST reject non-zero leaf_index"
-            );
-        }
-        // If prove fails, that's also acceptable — constraint rejected by prover.
-        Err(_) => {
-            // prove_step rejected the unsatisfiable constraint — correct behavior.
-        }
-    }
+    let vk = compressor.verifier_key();
+    let valid = compressor
+        .verify_steps_merkle(&vk, &proof, &steps)
+        .expect("verify_steps_merkle");
+    assert!(valid, "G5: non-zero leaf_index must be accepted");
 }

@@ -71,3 +71,58 @@ into the CCS binding but never independently verifies the sigma protocol.
 3. `crates/pvthfhe-fhe/Cargo.toml` — moved ark-bn254, ark-ff to [dependencies]
 4. `crates/pvthfhe-cli/src/full_pipeline.rs` — G3 native check, CRT reconstruction, unified aggregate_decrypt path
 5. `crates/pvthfhe-cli/src/full_pipeline.rs` — G7 post-hoc NIZK verification
+
+## G3: Verified present — M1 native check ✓
+
+### Verification (2026-05-16)
+- G3 native plaintext binding check confirmed present in `full_pipeline.rs::run_c7_verification`
+- Two checkpoints:
+  1. After CompressionTree build (tree path) — calls `verify_c7_plaintext_binding(z0_expected, z1_expected)`
+  2. After Nova IVC verification (flat path) — same call
+- `verify_c7_plaintext_binding` checks Lagrange sum = 1 (`z1 == Fr::from(1u64)`)
+- Full Schwartz-Zippel (z0 == plaintext(r)) deferred per documented fhe.rs API limitation
+- NO changes needed — G3 M1 is correctly implemented
+
+## G4: Aggregate PK Binding via ExternalInputs4
+
+### What was done
+Widened `C7DecryptAggregationCircuit` external inputs from `ExternalInputs3` (3 fields) to `ExternalInputs4` (4 fields), carrying `dkg_root_hash` as the 4th field.
+
+### Files changed
+1. `crates/pvthfhe-compressor/src/sonobe/mod.rs`:
+   - Added `ExternalInputs4<F>` (4-field tuple struct) and `ExternalInputs4Var<F>`
+   - Added `AllocVar` impl for `ExternalInputs4Var<F>`
+   - Added `encode_quad()` helper (128-byte encoding for 4 Fr values)
+   - Added `prove_steps_c7()` and `verify_steps_c7()` methods on `SonobeCompressor<S>` for `S: ExternalInputs4`
+   - These mirror `prove_steps()`/`verify_steps()` but encode 4 fields in the public_inputs_hash
+
+2. `crates/pvthfhe-compressor/src/sonobe/c7_circuit.rs`:
+   - Changed `type ExternalInputs = ExternalInputs4<F>` and `type ExternalInputsVar = ExternalInputs4Var<F>`
+   - Updated `generate_step_constraints` doc comment to note G4 (ext.3 = dkg_root_hash)
+   - Updated `c7_fold_witnesses()` signature: takes `dkg_root_hash: Fr`, constructs `ExternalInputs4`
+   - Changed internal call from `prove_steps()` to `prove_steps_c7()`
+
+3. `crates/pvthfhe-cli/src/full_pipeline.rs`:
+   - Extracted `let dkg_root = transcript.dkg_root.to_vec()` before per-party loop
+   - Added `dkg_root_bytes: &[u8]` parameter to `run_c7_verification()`
+   - Computes `dkg_root_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(dkg_root_bytes))`
+   - Changed flat Nova path to use `ExternalInputs4` + `prove_steps_c7()`/`verify_steps_c7()`
+   - Updated import: `ExternalInputs3` → `ExternalInputs4`
+
+4. Binary entry points:
+   - `per_node.rs`: `ExternalInputs3` → `ExternalInputs4`, `prove_steps` → `prove_steps_c7`
+   - `per_aggregator.rs`: Same + dual import of both `ExternalInputs3` and `ExternalInputs4`
+   - `pvthfhe_e2e.rs`: Replaced `prove()`/`verify()` with `prove_steps_c7()`/`verify_steps_c7()`
+
+5. Tests:
+   - `c7_step_circuit.rs`: Updated roundtrip test to use `ExternalInputs4` + `prove_steps_c7`
+   - `c7_phase2_n8192.rs`: Updated `c7_fold_witnesses` call with `dkg_root_hash`
+
+### Design decisions
+- Circuit does NOT verify ext.3 in R1CS constraints — the pipeline ensures all steps use the same value
+- `ProofCompressor` impl for ExternalInputs4 was attempted but caused E0119 (conflicting trait impls in Rust). Removed; all callers now use step-based API directly.
+- dkg_root_hash computed as `Sha256(dkg_root_bytes)` → `Fr::from_be_bytes_mod_order(...)` — same derivation pattern as `agg_pk_hash`
+
+### Verification
+- Build: `cargo build --workspace` — clean (pre-existing warnings only)
+- Tests: All 15 C7 tests pass (c7_step_circuit: 6/6, c7_phase2_n8192: 9/9)

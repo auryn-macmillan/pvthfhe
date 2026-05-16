@@ -21,9 +21,8 @@ use {
     pvthfhe_compressor::{
         sonobe::{
             encode_triple, hash8_native, C7DecryptAggregationCircuit, C7MerkleExternalInputs,
-            C7MerkleStepCircuit, MerkleWitnessData, SonobeCompressor,
+            C7MerkleStepCircuit, ExternalInputs4, MerkleWitnessData, SonobeCompressor,
         },
-        ProofCompressor,
     },
     sha2::{Digest, Sha256},
 };
@@ -391,15 +390,17 @@ fn run_c7_sonobe_optional(n: usize, seed: u64) -> (f64, bool) {
     let start = Instant::now();
     let compressor = SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch_hash, n)
         .expect("C7 sonobe compressor construction failed");
-    let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64))).to_vec();
-    let public_inputs =
-        encode_triple((Fr::from(1u64), Fr::from(1u64), Fr::from(1u64))).to_vec();
+    let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
+    let steps: Vec<ExternalInputs4<Fr>> = vec![
+        ExternalInputs4(Fr::from(1u64), Fr::from(1u64), Fr::from(1u64), Fr::from(0u64));
+        n
+    ];
     let proof = compressor
-        .prove(&acc, &public_inputs)
+        .prove_steps_c7(&acc, &steps)
         .expect("C7 sonobe prove failed");
     let vk = compressor.verifier_key();
     let _ = compressor
-        .verify(&vk, &proof, &public_inputs)
+        .verify_steps_c7(&vk, &proof, &steps)
         .expect("C7 sonobe verify failed");
     let ms = start.elapsed().as_secs_f64() * 1_000.0;
     (ms, true)

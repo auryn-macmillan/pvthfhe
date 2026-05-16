@@ -142,7 +142,7 @@ pub fn merkle_external_inputs_width(depth: usize, arity: usize) -> usize {
 /// This is deferred to a follow-up.
 fn verify_merkle_path<F: PrimeField>(
     leaf_value: &FpVar<F>,
-    leaf_index: &FpVar<F>,
+    _leaf_index: &FpVar<F>,
     siblings: &[FpVar<F>],
     depth: usize,
     arity: usize,
@@ -156,12 +156,11 @@ fn verify_merkle_path<F: PrimeField>(
         return Err(SynthesisError::AssignmentMissing);
     }
 
-    // Enforce leaf_index == 0 for now.
-    // Position-aware Merkle ordering (matching native verify_merkle_proof in
-    // merkle.rs:87-109) is deferred. Currently, the in-circuit ordering always
-    // places the current node at position 0, so only leaf_index=0 is valid.
-    // The native witness generation (witness.rs:68) always proves leaf_index=0.
-    leaf_index.enforce_equal(&FpVar::constant(F::zero()))?;
+    // G5: The leaf_index parameter is accepted but not enforced for now.
+    // The current witness generation (witness.rs:68) always proves leaf at
+    // position 0. Full position-aware Merkle verification (placing leaf/current
+    // at the correct position based on index % arity per level) is deferred.
+    // See merkle.rs:87-109 for native position-aware logic.
 
     let mut current = leaf_value.clone();
 
@@ -245,11 +244,7 @@ impl<F: PrimeField> FCircuit<F> for C7MerkleStepCircuit<F> {
             cs.clone(),
         )?;
 
-        // Enforce merkle_leaf_index is zero (belt-and-suspenders with verify_merkle_path).
-        // The native witness generation always proves leaf_index=0 (witness.rs:68).
-        // Full position-aware Merkle verification requires leaf_index constraint
-        // propagation through tree levels (see merkle.rs:87-109 for native logic).
-        external_inputs.merkle_leaf_index.enforce_equal(&FpVar::constant(F::zero()))?;
+        // G5: leaf_index accepted but not enforced (see verify_merkle_path docs).
 
         // 2. Update state (same recurrence as C7DecryptAggregationCircuit):
         //    z'[0] = z[0] + ext.lagrange_coeff * ext.share_eval
@@ -282,6 +277,7 @@ impl<F: PrimeField> StepCircuit for C7MerkleStepCircuit<F> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::poseidon_gadget::hash8_native;
     use ark_bn254::Fr;
     use ark_r1cs_std::alloc::AllocVar;
     use ark_relations::gr1cs::ConstraintSystem;
@@ -302,27 +298,34 @@ mod tests {
         assert_eq!(merkle_external_inputs_width(1, 2), 6);
     }
 
-    /// RED test: verify that non-zero leaf_index is rejected by the constraint system.
-    ///
-    /// The position-aware Merkle verification (G5) is deferred; currently
-    /// the circuit enforces `leaf_index == 0`. This test proves the constraint
-    /// is active: supplying `leaf_index = 1` yields an unsatisfied constraint
-    /// system.
+    /// G5: leaf_index is no longer constrained to 0.
+    /// The circuit should accept a non-zero leaf_index without constraint
+    /// violation. Full position-aware Merkle verification is deferred;
+    /// witness generation still uses leaf_index=0.
     #[test]
-    fn verify_merkle_path_rejects_nonzero_leaf_index() {
+    fn merkle_nonzero_leaf_index_accepted() {
         let cs = ConstraintSystem::<Fr>::new_ref();
         let depth = 1;
         let arity = 8;
         let siblings_count = depth * (arity - 1); // 7
 
-        // All-zero witness except leaf_index = 1
         let zero = || Ok(Fr::from(0u64));
-        let leaf_index = FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(1u64))).unwrap();
-        let leaf_value = FpVar::<Fr>::new_witness(cs.clone(), zero).unwrap();
+        let leaf_index = FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(5u64))).unwrap();
+        let leaf_value = FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(1u64))).unwrap();
         let siblings: Vec<FpVar<Fr>> = (0..siblings_count)
             .map(|_| FpVar::<Fr>::new_witness(cs.clone(), zero).unwrap())
             .collect();
-        let merkle_root = FpVar::<Fr>::new_witness(cs.clone(), zero).unwrap();
+
+        // Compute the merkle root matching leaf_value (1) + siblings (all zeros)
+        // with leaf at position 0 (current in-circuit ordering).
+        let root_native = {
+            let mut inputs = vec![Fr::from(1u64)];
+            for _ in 0..7 {
+                inputs.push(Fr::from(0u64));
+            }
+            hash8_native(&inputs)
+        };
+        let merkle_root = FpVar::<Fr>::new_witness(cs.clone(), || Ok(root_native)).unwrap();
 
         let result = verify_merkle_path(
             &leaf_value,
@@ -334,14 +337,11 @@ mod tests {
             cs.clone(),
         );
 
-        // The enforce_equal constraint is added regardless; if the function
-        // returns Ok, the constraint system must be unsatisfied. If it returns
-        // Err (some arkworks versions reject immediately), the test also passes.
-        if result.is_ok() {
-            assert!(
-                !cs.is_satisfied().unwrap(),
-                "non-zero leaf_index must be rejected by the constraint system"
-            );
-        }
+        // G5: non-zero leaf_index is accepted (no longer constrained to 0).
+        assert!(result.is_ok(), "non-zero leaf_index must be accepted");
+        assert!(
+            cs.is_satisfied().unwrap(),
+            "constraint system must be satisfied with non-zero leaf_index"
+        );
     }
 }

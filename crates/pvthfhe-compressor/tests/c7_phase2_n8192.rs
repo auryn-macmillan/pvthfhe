@@ -141,25 +141,28 @@ fn c7_nova_fold_n8192_4_steps() {
 
     let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
 
-    let proof = c7_fold_witnesses(&compressor, &witnesses, &acc)
+    let dkg_root_hash = Fr::from(42u64);
+
+    let proof = c7_fold_witnesses(&compressor, &witnesses, &acc, dkg_root_hash)
         .expect("c7_fold_witnesses");
 
     let vk = compressor.verifier_key();
 
-    let steps: Vec<pvthfhe_compressor::sonobe::ExternalInputs3<Fr>> = witnesses
+    let steps: Vec<pvthfhe_compressor::sonobe::ExternalInputs4<Fr>> = witnesses
         .participants
         .iter()
         .map(|w| {
-            pvthfhe_compressor::sonobe::ExternalInputs3(
+            pvthfhe_compressor::sonobe::ExternalInputs4(
                 w.share_eval,
                 w.lagrange_coeff,
                 w.merkle_root,
+                dkg_root_hash,
             )
         })
         .collect();
 
     let valid = compressor
-        .verify_steps(&vk, &proof, &steps)
-        .expect("verify_steps");
+        .verify_steps_c7(&vk, &proof, &steps)
+        .expect("verify_steps_c7");
     assert!(valid, "Nova proof must verify");
 }

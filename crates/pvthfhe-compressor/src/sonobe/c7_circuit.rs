@@ -15,7 +15,7 @@ use sha3::{Digest, Keccak256};
 
 use pvthfhe_domain_tags::Tag;
 
-use super::{ExternalInputs3, ExternalInputs3Var, SonobeCompressor};
+use super::{ExternalInputs4, ExternalInputs4Var, SonobeCompressor};
 use crate::{CompressedProof, CompressorError, StepCircuit, StepCircuitDescriptor};
 use crate::witness::C7WitnessSet;
 
@@ -45,8 +45,8 @@ pub struct C7DecryptAggregationCircuit<F: PrimeField> {
 
 impl<F: PrimeField> FCircuit<F> for C7DecryptAggregationCircuit<F> {
     type Params = ();
-    type ExternalInputs = ExternalInputs3<F>;
-    type ExternalInputsVar = ExternalInputs3Var<F>;
+    type ExternalInputs = ExternalInputs4<F>;
+    type ExternalInputsVar = ExternalInputs4Var<F>;
 
     fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
         Ok(Self {
@@ -86,7 +86,14 @@ impl<F: PrimeField> FCircuit<F> for C7DecryptAggregationCircuit<F> {
         // share's polynomial coefficients to their Merkle root (ext.2).
         // Full in-circuit verification is deferred to M1.
         //
-        // See .sisyphus/plans/in-circuit-verification.md §G2 for full design.
+        // ── G4: Aggregate PK binding ──
+        //
+        // ext.3 = dkg_root_hash — verified to be constant across steps.
+        // The circuit does not check this; the pipeline ensures all steps use
+        // the same value. Full in-circuit PK binding (G4) is deferred to a
+        // follow-up; for M1, off-circuit verification suffices.
+        //
+        // See .sisyphus/plans/in-circuit-verification.md §G2, §G4 for full design.
 
         // z'[0] = z[0] + ext.1 * ext.0   (acc_eval += λ_i · d_i(r))
         let acc_eval = z_i[0].clone() + external_inputs.1.clone() * external_inputs.0;
@@ -116,13 +123,14 @@ impl<F: PrimeField> StepCircuit for C7DecryptAggregationCircuit<F> {
 /// This function:
 /// 1. Verifies all Merkle proofs off-circuit (SECURITY: must pass!)
 /// 2. Builds initial Nova state `[0, 0, 0]`
-/// 3. Creates per-step `ExternalInputs3` from `(share_eval, lagrange_coeff, merkle_root)`
+/// 3. Creates per-step `ExternalInputs4` from `(share_eval, lagrange_coeff, merkle_root, dkg_root_hash)`
 /// 4. Calls `compressor.prove_steps()` with the per-step inputs
 /// 5. Returns the compressed proof
 pub fn c7_fold_witnesses(
     compressor: &SonobeCompressor<C7DecryptAggregationCircuit<ark_bn254::Fr>>,
     witnesses: &C7WitnessSet,
     acc: &[u8],
+    dkg_root_hash: ark_bn254::Fr,
 ) -> Result<CompressedProof, CompressorError> {
     use ark_bn254::Fr;
 
@@ -130,11 +138,11 @@ pub fn c7_fold_witnesses(
         return Err(CompressorError::InvalidProof);
     }
 
-    let steps: Vec<ExternalInputs3<Fr>> = witnesses
+    let steps: Vec<ExternalInputs4<Fr>> = witnesses
         .participants
         .iter()
-        .map(|w| ExternalInputs3(w.share_eval, w.lagrange_coeff, w.merkle_root))
+        .map(|w| ExternalInputs4(w.share_eval, w.lagrange_coeff, w.merkle_root, dkg_root_hash))
         .collect();
 
-    compressor.prove_steps(acc, &steps)
+    compressor.prove_steps_c7(acc, &steps)
 }

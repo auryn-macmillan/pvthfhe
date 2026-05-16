@@ -3,9 +3,9 @@
 use ark_bn254::Fr;
 use folding_schemes::frontend::FCircuit;
 use pvthfhe_compressor::sonobe::{
-    encode_triple, C7DecryptAggregationCircuit, SonobeCompressor, ToyStepCircuit,
+    encode_triple, C7DecryptAggregationCircuit, ExternalInputs4, SonobeCompressor, ToyStepCircuit,
 };
-use pvthfhe_compressor::{ProofCompressor, StepCircuit};
+use pvthfhe_compressor::StepCircuit;
 
 fn epoch() -> [u8; 32] {
     [0x01u8; 32]
@@ -58,20 +58,24 @@ fn c7_descriptor_width_is_three() {
     assert_eq!(circuit.descriptor().width, 3);
 }
 
-/// Test 6: full roundtrip prove/verify with 4 steps.
+/// Test 6: full roundtrip prove/verify with 4 steps (G4-widened).
 #[test]
 fn c7_roundtrip_prove_verify() {
     let compressor = SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch(), 4)
         .expect("construct C7 sonobe compressor");
-    let acc = encode_triple_scalar(0, 0, 0);
-    let public_inputs = encode_triple_scalar(42, 1, 100);
+    let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
+    let steps: Vec<ExternalInputs4<Fr>> = vec![
+        ExternalInputs4(Fr::from(42u64), Fr::from(1u64), Fr::from(100u64), Fr::from(0u64));
+        4
+    ];
     let proof = compressor
-        .prove(&acc, &public_inputs)
+        .prove_steps_c7(&acc, &steps)
         .expect("prove C7 ivc");
     let vk = compressor.verifier_key();
 
-    assert_eq!(compressor.backend_id(), "sonobe-nova-bn254-grumpkin");
+    // G4: backend_id checked via verifier key field
+    assert_eq!(vk.backend_id, "sonobe-nova-bn254-grumpkin");
     assert!(compressor
-        .verify(&vk, &proof, &public_inputs)
+        .verify_steps_c7(&vk, &proof, &steps)
         .expect("verify C7 ivc"));
 }

@@ -3,9 +3,12 @@
 use ark_bn254::Fr;
 use folding_schemes::frontend::FCircuit;
 use pvthfhe_compressor::sonobe::{
-    encode_triple, C7DecryptAggregationCircuit, ExternalInputs4, SonobeCompressor, ToyStepCircuit,
+    clear_c7_step_data, encode_triple, set_c7_step_data, C7DecryptAggregationCircuit,
+    ExternalInputs4, SonobeCompressor, ToyStepCircuit,
 };
 use pvthfhe_compressor::StepCircuit;
+
+const N_COEFFS: usize = 8192;
 
 fn epoch() -> [u8; 32] {
     [0x01u8; 32]
@@ -13,6 +16,19 @@ fn epoch() -> [u8; 32] {
 
 fn encode_triple_scalar(a: u64, b: u64, c: u64) -> Vec<u8> {
     encode_triple((Fr::from(a), Fr::from(b), Fr::from(c))).to_vec()
+}
+
+/// Build coefficient vectors where `eval(r=0) = ext_0_value`.
+/// Horner's method: eval = c₀·r^{N-1} + c₁·r^{N-2} + ... + c_{N-1}·r⁰.
+/// With r=0, only c_{N-1} (the last coefficient) pairs with r⁰=1.
+fn build_trivial_coeffs(num_steps: usize, ext_0_value: Fr) -> Vec<Vec<Fr>> {
+    let mut coeffs_per_step: Vec<Vec<Fr>> = Vec::with_capacity(num_steps);
+    for _ in 0..num_steps {
+        let mut c = vec![Fr::from(0u64); N_COEFFS];
+        c[N_COEFFS - 1] = ext_0_value;
+        coeffs_per_step.push(c);
+    }
+    coeffs_per_step
 }
 
 /// Test 1: C7 step circuit compiles with Sonobe.
@@ -59,18 +75,33 @@ fn c7_descriptor_width_is_three() {
 }
 
 /// Test 6: full roundtrip prove/verify with 4 steps (G4-widened).
+/// G2 update: sets up thread-local coefficient data so the in-circuit
+/// evaluation check `eval == ext.0` passes (r=0 trivial evaluation).
 #[test]
 fn c7_roundtrip_prove_verify() {
-    let compressor = SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch(), 4)
+    let ext_0 = Fr::from(42u64);
+    let num_steps = 4;
+
+    // Pre-build compressor (sets up constraint system with default zero witnesses)
+    let compressor = SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch(), num_steps)
         .expect("construct C7 sonobe compressor");
+
+    // G2: Set up thread-local coefficient data before proving.
+    // With r=0, r^0=1, r^j=0 for j>0, so coeff[0]=ext_0 suffices.
+    let coeffs = build_trivial_coeffs(num_steps, ext_0);
+    set_c7_step_data(coeffs, Fr::from(0u64));
+
     let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
     let steps: Vec<ExternalInputs4<Fr>> = vec![
-        ExternalInputs4(Fr::from(42u64), Fr::from(1u64), Fr::from(100u64), Fr::from(0u64));
-        4
+        ExternalInputs4(ext_0, Fr::from(1u64), Fr::from(100u64), Fr::from(0u64));
+        num_steps
     ];
     let proof = compressor
         .prove_steps_c7(&acc, &steps)
         .expect("prove C7 ivc");
+
+    clear_c7_step_data();
+
     let vk = compressor.verifier_key();
 
     // G4: backend_id checked via verifier key field

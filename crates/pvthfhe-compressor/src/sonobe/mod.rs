@@ -10,7 +10,9 @@ pub mod latticefold_circuit_family;
 pub mod poseidon_gadget;
 pub mod ring_element_var;
 pub mod ring_verifier;
-pub use c7_circuit::{c7_fold_witnesses, C7DecryptAggregationCircuit};
+pub use c7_circuit::{
+    c7_fold_witnesses, clear_c7_step_data, set_c7_step_data, C7DecryptAggregationCircuit,
+};
 pub use c7_merkle_circuit::{
     merkle_external_inputs_width, C7MerkleExternalInputs, C7MerkleExternalInputsVar,
     C7MerkleStepCircuit, MerkleWitnessData,

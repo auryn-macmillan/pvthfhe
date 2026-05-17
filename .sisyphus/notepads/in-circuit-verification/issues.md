@@ -1,23 +1,29 @@
-# Issues: In-Circuit Verification (G2, G3)
+# Issues: G2 Implementation
 
-## Issue 1: G2 requires 8192-coeff Horner evaluation — ~1 week implementation
-Private witness allocation + Horner evaluation + constraint enforcement.
-See `c7_circuit.rs::generate_step_constraints` for design notes.
+## Resolved
 
-## Issue 2: G3 full closure blocked by fhe.rs API
-`decrypt_from_shares` applies `Scaler` that converts to plaintext modulus space.
-Need the pre-scaling polynomial (`result_poly` before `Scaler::new`).
-Requires fhe.rs backend extension or fork.
+### 1. Type conversion: ark_bn254::Fr → F: PrimeField
+- **Symptom**: Cannot use `F::from(v.into_bigint())` because generic `F` doesn't guarantee `From<ark_bn254::Fr::BigInt>`
+- **Fix**: Serialize to bytes via `CanonicalSerialize`, deserialize via `F::from_le_bytes_mod_order`
 
-## Issue 3: `poly_coeffs_from_bytes` returns RNS residues, not coefficients
-Returns 24576 values (8192 coeffs × 3 moduli) in modulus-major layout.
-Must CRT-reconstruct before polynomial evaluation.
-`poly_coeffs_fr_reconstruct` added as workaround.
+### 2. collect() type inference failure
+- **Symptom**: `Iterator<Item=Vec<u8>>` cannot be collected into `Vec<u8>`
+- **Fix**: Use `flat_map` to flatten nested byte vectors before collecting
 
-## Issue 4: CRT reconstruction using Fr field arithmetic is incorrect
-Cannot use Fr for CRT modulo reduction because intermediate values (2^232)
-exceed Fr-safe range for repeated subtraction. Must use BigInt.
+### 3. Missing trait imports
+- **Symptom**: `FpVar::new_witness`, `enforce_equal` not found
+- **Fix**: Added `use ark_r1cs_std::alloc::AllocVar` and `use ark_r1cs_std::eq::EqGadget`
 
-## Issue 5: `crt_reconstruct_coeffs` has i128 overflow for real data
-The existing method uses i128 for reconstructed coefficients but Q ≈ 2^174 > i128::MAX.
-Only works for small-coefficient test data (N=2048, small messages).
+### 4. FpVar::constant causes incompatible constraint matrices
+- **Symptom**: Proving succeeds, Nova verification fails with `Ok(false)`
+- **Root cause**: Different constant values in R1CS B-matrix between preprocessing (zero) and proving (real r^j)
+- **Fix**: Changed r-powers from constants to witnesses
+
+### 5. Horner evaluation direction mismatch
+- **Symptom**: Real-coefficient test fails verification (eval_poly_bn254 ≠ circuit evaluation)
+- **Root cause**: Horner computes c₀·r^{N-1}, circuit computed c₀·r⁰ (reversed)
+- **Fix**: Use power index `N_COEFFS-1-j` in dot product
+
+## Open
+
+None.

@@ -20,6 +20,10 @@ pub struct C7Witness {
     pub merkle_proof: MerkleProof,
     /// Lagrange coefficient λ_i for this participant.
     pub lagrange_coeff: Fr,
+    /// Share polynomial coefficients (N=8192 field elements).
+    /// Used by the C7DecryptAggregationCircuit for in-circuit
+    /// evaluation verification (G2).
+    pub coeffs: Vec<Fr>,
 }
 
 /// A set of C7 witnesses for all participants in a decryption round.
@@ -72,6 +76,7 @@ impl C7WitnessSet {
                 share_eval,
                 merkle_proof,
                 lagrange_coeff: lagrange_coeffs[i],
+                coeffs: coeffs.clone(),
             });
         }
 

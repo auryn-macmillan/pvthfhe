@@ -1,4 +1,19 @@
-//! Witness generation for the full-dimension `decrypt_share` circuit.
+//! Witness generator for the Noir `decrypt_share` circuit.
+//!
+//! ## DEPRECATED — Hash function mismatch (G.1, security review finding A.1)
+//!
+//! This module uses a custom `rolling_digest` for all hash computations.
+//! The active pipeline (`full_pipeline.rs`) uses canonical Poseidon
+//! `bind_8_with_domain_native` with domain tag 6. These are incompatible.
+//!
+//! The `decrypt_share` Noir circuit is currently deferred in the pipeline
+//! (`pvthfhe_e2e.rs:207`). When activated:
+//! 1. Replace all `rolling_digest_raw` calls with `bind_8_with_domain_native`
+//! 2. Replace `rolling_digest_8_raw` calls with Poseidon sponge absorption
+//! 3. Align domain tags with `protocol_constants/src/lib.nr`
+//!
+//! Until then, this module is kept for reference only and should not be used
+//! as the basis for new circuit development.
 
 use std::{fmt::Write as _, path::Path};
 
@@ -439,6 +454,7 @@ pub fn rolling_digest_8(values: &[String; 8]) -> String {
     field_to_decimal(rolling_digest_8_raw(&raw_values))
 }
 
+// DEPRECATED: use Poseidon bind_8_with_domain_native instead (see G.1)
 fn rolling_digest_raw(values: &[Fr]) -> Fr {
     let mut acc = Fr::from(DIGEST_DOMAIN);
     let mut factor = Fr::from(1u64);
@@ -452,6 +468,7 @@ fn rolling_digest_raw(values: &[Fr]) -> Fr {
     acc
 }
 
+// DEPRECATED: use Poseidon bind_8_with_domain_native instead (see G.1)
 fn rolling_digest_8_raw(values: &[Fr; 8]) -> Fr {
     rolling_digest_raw(values)
 }

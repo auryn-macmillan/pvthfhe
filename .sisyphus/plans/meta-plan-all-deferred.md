@@ -176,7 +176,7 @@ These are tracked in `pvthfhe-followon.md` (183 items, 9-18 months calendar):
 - [x] D.1: Paper fully synced (all 12 alignment-plan criteria done)
 - [x] D.2: REPRODUCING.md covers all C7 variants
 - [-] E.1-E.4: Gate resolution phases Ω2-Ω5 complete (DEFERRED — requires human oracle reviewers, external cryptographers, adversarial dress rehearsal; not automatable)
-- [-] G.1: Canonicalize d_commitment hash function (Poseidon `bind_8_with_domain_native` domain 6) across pipeline, e2e test, and witness_gen. Remove SHA-256 and rolling_digest variants. → demo-e2e, aggregator
+- [x] G.1: Canonicalize d_commitment hash function (Poseidon `bind_8_with_domain_native` domain 6) across pipeline, e2e test, and witness_gen. Remove SHA-256 and rolling_digest variants. → demo-e2e, aggregator
 - [-] G.2: Extend d_commitment to bind ALL protocol steps: keygen_transcript_hash, all_nizk_proofs_hash, fold_accumulator_hash, compressed_proof_digest, ciphertext_hash. Reorder fields to match pipeline step sequence. → demo-e2e, aggregator
 - [-] G.3: Add end-to-end d_commitment verification in `run_full_pipeline()` — post-pipeline assertion in PipelineReport comparing computed d_commitment to Noir-verified value. → demo-e2e
 - [-] G.4: Fix d_commitment circular binding — verifier must supply d_commitment or bind to independently verifiable data (e.g., decrypt_share proofs commit to individual d_i hashes). → demo-e2e, aggregator

@@ -191,7 +191,7 @@ These are tracked in `pvthfhe-followon.md` (183 items, 9-18 months calendar):
 - [x] G.13: Restrict secret key access through `party_state` — add capability or per-party isolate. Audit all `party_secret_key_bytes()` callers. → per-node
 - [x] G.14: Fix Lagrange coefficient overflow for n > 35 in `compute_lagrange_coeffs_integer` — use BigInt or modular arithmetic. → demo-e2e, aggregator
 - [x] G.15: Return error instead of `i128::MAX` sentinel in `crt_reconstruct_coeffs` overflow path. → demo-e2e, aggregator
-- [-] G.16: Design composed circuit or cross-circuit verifier challenge binding C7 decryption aggregation + CycloFold ring/sigma into single IVC chain. → demo-e2e, aggregator
+- [x] G.16: Design composed circuit or cross-circuit verifier challenge binding C7 decryption aggregation + CycloFold ring/sigma into single IVC chain. → demo-e2e, aggregator
 - [-] G.20: Add prover randomness or verifier challenge to C7 challenge derivation (currently fully deterministic from public info). → demo-e2e, aggregator
 - [-] G.26: Formal IND-CPAD reduction with current smudging parameters (σ=2^40·σ_err). → paper, security-proofs
 - [-] G.30: Enforce `fold_count`, `ring_verification_count`, `sigma_verification_count` mutual consistency with actual verification data present (not just counter equality). → demo-e2e, aggregator
@@ -231,7 +231,7 @@ These are tracked in `pvthfhe-followon.md` (183 items, 9-18 months calendar):
 - [x] G.15: Return error instead of i128::MAX sentinel
 
 ### G.D — Compressor & Folding (Tier 1, ~11 days)
-- [-] G.16: Compose C7 + CycloFold into single IVC chain
+- [x] G.16: Compose C7 + CycloFold into single IVC chain
 - [-] G.20: Add prover randomness to C7 challenge derivation
 - [-] G.30: Enforce counter consistency with actual verification data
 - [x] G.31: Reject empty C7WitnessSet in commitment check

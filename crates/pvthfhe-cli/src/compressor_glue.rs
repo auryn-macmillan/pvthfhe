@@ -10,7 +10,7 @@ use {
     ark_bn254::Fr,
     ark_ff::PrimeField,
     pvthfhe_compressor::{
-        sonobe::{encode_triple, CycloFoldStepCircuit, SonobeCompressor},
+        sonobe::{encode_quad, CycloFoldStepCircuit, SonobeCompressor},
         CompressedProof as SonobeProof, ProofCompressor, VerifierKey,
     },
 };
@@ -85,14 +85,17 @@ impl Compressor {
     }
 
     /// Produce a compressed proof for the fold-all report.
+    /// `c7_final_hash` binds the C7 decrypt-aggregation final state to
+    /// the CycloFold proof (G.16 hash chain).
     pub fn prove(
         &self,
         report: &pvthfhe_aggregator::folding::CycloFoldAllReport,
+        c7_final_hash: Fr,
     ) -> anyhow::Result<E2eCompressedProof> {
         match self {
             #[cfg(feature = "sonobe-compressor")]
             Self::Sonobe { inner, .. } => {
-                let (acc, public_inputs) = compressor_inputs(report);
+                let (acc, public_inputs) = compressor_inputs(report, c7_final_hash);
                 let proof = inner
                     .prove(&acc, &public_inputs)
                     .map_err(compressor_error_to_anyhow)?;
@@ -124,6 +127,7 @@ impl Compressor {
         &self,
         report: &pvthfhe_aggregator::folding::CycloFoldAllReport,
         proof: &E2eCompressedProof,
+        c7_final_hash: Fr,
     ) -> anyhow::Result<()> {
         match self {
             #[cfg(feature = "sonobe-compressor")]
@@ -131,7 +135,7 @@ impl Compressor {
                 inner,
                 verifier_key,
             } => {
-                let (_, public_inputs) = compressor_inputs(report);
+                let (_, public_inputs) = compressor_inputs(report, c7_final_hash);
                 let Some(sonobe_proof) = proof.sonobe_proof.as_ref() else {
                     anyhow::bail!("missing sonobe compressed proof bytes");
                 };
@@ -149,7 +153,7 @@ impl Compressor {
             }
             #[cfg(all(feature = "surrogate-compressor", not(feature = "sonobe-compressor")))]
             Self::Surrogate => {
-                let expected = self.prove(report)?;
+                let expected = self.prove(report, c7_final_hash)?;
                 if expected.digest != proof.digest {
                     anyhow::bail!("compressed proof digest mismatch");
                 }
@@ -172,6 +176,7 @@ impl Compressor {
 #[cfg(feature = "sonobe-compressor")]
 pub fn compressor_inputs(
     report: &pvthfhe_aggregator::folding::CycloFoldAllReport,
+    c7_final_hash: Fr,
 ) -> (Vec<u8>, Vec<u8>) {
     let mut acc_hasher = Sha256::new();
     let mut public_hasher = Sha256::new();
@@ -186,16 +191,18 @@ pub fn compressor_inputs(
     let acc_commitment_hash: [u8; 32] = acc_hasher.finalize().into();
     let public_io_hash: [u8; 32] = public_hasher.finalize().into();
 
-    let acc = encode_triple((
+    let acc = encode_quad((
         Fr::from_le_bytes_mod_order(&acc_commitment_hash),
         Fr::from(total_norm),
         Fr::from(0u64), // initial fold count (IVC step circuit increments internally)
+        Fr::from(0u64), // initial c7_final_hash is zero for the accumulator
     ))
     .to_vec();
-    let public_inputs = encode_triple((
+    let public_inputs = encode_quad((
         Fr::from_le_bytes_mod_order(&public_io_hash),
         Fr::from(total_norm),
         Fr::from(1u64), // M6: ring verification result (1 = passed; pipeline checks before prove)
+        c7_final_hash,   // G.16: hash(C7_final_state) binds the two circuits
     ))
     .to_vec();
     (acc, public_inputs)
@@ -234,10 +241,11 @@ pub fn external_verify_compressed_proof(
     compressor: &Compressor,
     proof: &E2eCompressedProof,
     report: &pvthfhe_aggregator::folding::CycloFoldAllReport,
+    c7_final_hash: Fr,
 ) -> anyhow::Result<()> {
     match compressor {
         Compressor::Sonobe { inner, .. } => {
-            let (_, public_inputs) = compressor_inputs(report);
+            let (_, public_inputs) = compressor_inputs(report, c7_final_hash);
             let Some(sonobe_proof) = proof.sonobe_proof.as_ref() else {
                 anyhow::bail!("missing sonobe compressed proof bytes for external verification");
             };

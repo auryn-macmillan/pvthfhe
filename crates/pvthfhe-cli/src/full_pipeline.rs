@@ -606,82 +606,6 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     // populated from CCS instance construction.
     // See final-wiring-demo-pernode.md W1.
 
-    observer.phase_start("compressor_new", None);
-    let compressor_new_started = Instant::now();
-    let epoch_hash: [u8; 32] = Sha256::digest(cfg.seed.to_be_bytes()).into();
-
-    // MN.5 — MicroNova heterogeneous IVC compressor selection via PVTHFHE_COMPRESSOR env var.
-    #[cfg(feature = "pipeline-extra-checks")]
-    let compressor_mode = std::env::var("PVTHFHE_COMPRESSOR").unwrap_or_default();
-    #[cfg(not(feature = "pipeline-extra-checks"))]
-    let compressor_mode = "".to_string();
-
-    #[cfg(feature = "sonobe-compressor")]
-    if compressor_mode == "micronova" {
-        tracing::info!("MicroNova: heterogeneous IVC compressor active");
-        // Use MicroNovaCompressor with LatticeFoldTreeCircuitFamily.
-        // The family depth depends on ceil(log2(n)) where n = cfg.n.
-        use pvthfhe_compressor::sonobe::{
-            heterogeneous::HeterogeneousCircuitFamily,
-            latticefold_circuit_family::LatticeFoldTreeCircuitFamily,
-        };
-        let depth = (cfg.n as f64).log2().ceil() as usize;
-        let family = LatticeFoldTreeCircuitFamily { depth };
-        tracing::info!(depth = depth, circuit_family = HeterogeneousCircuitFamily::<Fr>::num_circuits(&family), "MicroNova: family configured");
-        // NOTE: Full MicroNovaCompressor wiring (using HeterogeneousStepCircuit
-        // instead of CycloFoldStepCircuit) is deferred to P3-M1 integration.
-        // The family is configured but the compressor below still uses
-        // the standard CycloFoldStepCircuit path. See
-        // docs/security-proofs/p3/heterogeneous-ivc.md:96-99 for the
-        // per-variant verifier key soundness gap that must be resolved first.
-    }
-
-    // ivc_steps = share_count: one IVC step per party/NIZK, so the G2-ng
-    // in-circuit ring equation witness at step i corresponds to party i.
-    // The compressor hashes all accumulators into a single 96-byte encoding.
-    // Multiple IVC steps apply the same hash — functionally equivalent to one step.
-    // See compressor_glue.rs:compressor_inputs() for the hashing logic.
-    let compressor = Compressor::new(epoch_hash, fold_report.share_count())?;
-    observer.phase_end("compressor_new", elapsed_ms(compressor_new_started));
-
-    observer.phase_start("compressor_prove", Some(compressor.backend_id()));
-
-    let compressor_prove_started = Instant::now();
-    let compressed = compressor.prove(&fold_report).context("compressor_prove")?;
-    #[cfg(feature = "sonobe-compressor")]
-    clear_cyclo_ring_data();
-    let compressor_prove_ms = elapsed_ms(compressor_prove_started);
-    observer.phase_end("compressor_prove", compressor_prove_ms);
-    timings.phases.compressor_prove.total_ms = compressor_prove_ms;
-    timings.phases.compressor_prove.instances_run = 1;
-
-    observer.phase_start("compressor_verify", Some(compressor.backend_id()));
-    let compressor_verify_started = Instant::now();
-    compressor
-        .verify(&fold_report, &compressed)
-        .context("compressor_verify")?;
-    let compressor_verify_ms = elapsed_ms(compressor_verify_started);
-    observer.phase_end("compressor_verify", compressor_verify_ms);
-    timings.phases.compressor_verify.total_ms = compressor_verify_ms;
-    timings.phases.compressor_verify.instances_run = 1;
-
-    #[cfg(feature = "sonobe-compressor")]
-    {
-        observer.phase_start("compressor_verify_external", Some(compressor.backend_id()));
-        let external_verify_started = Instant::now();
-        crate::compressor_glue::external_verify_compressed_proof(
-            &compressor,
-            &compressed,
-            &fold_report,
-        )
-        .context("compressor_verify_external")?;
-        let external_verify_ms = elapsed_ms(external_verify_started);
-        observer.phase_end("compressor_verify_external", external_verify_ms);
-        observer.note(&format!(
-            "external_compressor_verify_ms={external_verify_ms:.2}"
-        ));
-    }
-
     // G7: Post-hoc NIZK verification binding.
     // The compressor hashes NIZK proof bytes into the CCS binding.
     // Re-verify NIZK proofs natively after compressor verify to close
@@ -899,6 +823,91 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     observer.phase_end("c7_decrypt_aggregation", c7_ms);
     if !c7_passed {
         anyhow::bail!("C7 decryption aggregation verification failed");
+    }
+
+    // G.16: compute hash(C7_final_state) for cross-circuit binding.
+    // The C7 final state is (z0, z1) where z0 = Σ λ_i·d_i(r) and z1 = Σ λ_i.
+    // We evaluate shares at the challenge point r and hash the accumulated state.
+    let c7_final_hash = {
+        use ark_bn254::Fr;
+        use ark_ff::Zero;
+        use pvthfhe_compressor::poly_eval::{eval_with_powers, precompute_powers_r};
+        let coeffs_per_poly = share_coeffs_fr.first().map(|c| c.len()).unwrap_or(0);
+        let r_powers = precompute_powers_r(c7_r, coeffs_per_poly);
+        let share_evals: Vec<Fr> = share_coeffs_fr.iter()
+            .map(|s| eval_with_powers(s, &r_powers))
+            .collect();
+        let z0: Fr = share_evals.iter()
+            .zip(lagrange_coeffs_fr.iter())
+            .map(|(&sev, &lc)| sev * lc)
+            .fold(Fr::zero(), |a, x| a + x);
+        let z1: Fr = lagrange_coeffs_fr.iter().fold(Fr::zero(), |a, &x| a + x);
+        poseidon_hash_of_c7_state((z0, z1))
+    };
+
+    // ── CycloFold Nova compressor (moved after C7 for G.16 hash-chain binding) ──
+    observer.phase_start("compressor_new", None);
+    let compressor_new_started = Instant::now();
+    let epoch_hash: [u8; 32] = Sha256::digest(cfg.seed.to_be_bytes()).into();
+
+    // MN.5 — MicroNova heterogeneous IVC compressor selection via PVTHFHE_COMPRESSOR env var.
+    #[cfg(feature = "pipeline-extra-checks")]
+    let compressor_mode = std::env::var("PVTHFHE_COMPRESSOR").unwrap_or_default();
+    #[cfg(not(feature = "pipeline-extra-checks"))]
+    let compressor_mode = "".to_string();
+
+    #[cfg(feature = "sonobe-compressor")]
+    if compressor_mode == "micronova" {
+        tracing::info!("MicroNova: heterogeneous IVC compressor active");
+        use pvthfhe_compressor::sonobe::{
+            heterogeneous::HeterogeneousCircuitFamily,
+            latticefold_circuit_family::LatticeFoldTreeCircuitFamily,
+        };
+        let depth = (cfg.n as f64).log2().ceil() as usize;
+        let family = LatticeFoldTreeCircuitFamily { depth };
+        tracing::info!(depth = depth, circuit_family = HeterogeneousCircuitFamily::<Fr>::num_circuits(&family), "MicroNova: family configured");
+    }
+
+    let compressor = Compressor::new(epoch_hash, fold_report.share_count())?;
+    observer.phase_end("compressor_new", elapsed_ms(compressor_new_started));
+
+    observer.phase_start("compressor_prove", Some(compressor.backend_id()));
+
+    let compressor_prove_started = Instant::now();
+    let compressed = compressor.prove(&fold_report, c7_final_hash).context("compressor_prove")?;
+    #[cfg(feature = "sonobe-compressor")]
+    clear_cyclo_ring_data();
+    let compressor_prove_ms = elapsed_ms(compressor_prove_started);
+    observer.phase_end("compressor_prove", compressor_prove_ms);
+    timings.phases.compressor_prove.total_ms = compressor_prove_ms;
+    timings.phases.compressor_prove.instances_run = 1;
+
+    observer.phase_start("compressor_verify", Some(compressor.backend_id()));
+    let compressor_verify_started = Instant::now();
+    compressor
+        .verify(&fold_report, &compressed, c7_final_hash)
+        .context("compressor_verify")?;
+    let compressor_verify_ms = elapsed_ms(compressor_verify_started);
+    observer.phase_end("compressor_verify", compressor_verify_ms);
+    timings.phases.compressor_verify.total_ms = compressor_verify_ms;
+    timings.phases.compressor_verify.instances_run = 1;
+
+    #[cfg(feature = "sonobe-compressor")]
+    {
+        observer.phase_start("compressor_verify_external", Some(compressor.backend_id()));
+        let external_verify_started = Instant::now();
+        crate::compressor_glue::external_verify_compressed_proof(
+            &compressor,
+            &compressed,
+            &fold_report,
+            c7_final_hash,
+        )
+        .context("compressor_verify_external")?;
+        let external_verify_ms = elapsed_ms(external_verify_started);
+        observer.phase_end("compressor_verify_external", external_verify_ms);
+        observer.note(&format!(
+            "external_compressor_verify_ms={external_verify_ms:.2}"
+        ));
     }
 
     // Noir aggregator_final circuit verification (always executes for on-chain security)
@@ -1789,6 +1798,10 @@ fn poseidon_hash_native(inputs: &[Fr]) -> Fr {
     hasher
         .hash(inputs)
         .expect("Noir aggregator_final Poseidon input arity matches construction")
+}
+
+fn poseidon_hash_of_c7_state(c7_final_state: (Fr, Fr)) -> Fr {
+    poseidon_hash_native(&[Fr::from(16u64), c7_final_state.0, c7_final_state.1])
 }
 
 fn vector_hash_8(values: &[Fr; 8]) -> Fr {

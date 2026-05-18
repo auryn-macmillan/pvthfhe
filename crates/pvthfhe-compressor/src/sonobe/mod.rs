@@ -609,8 +609,8 @@ pub struct CycloFoldStepCircuit<F: PrimeField> {
 
 impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
     type Params = ();
-    type ExternalInputs = ExternalInputs3<F>;
-    type ExternalInputsVar = ExternalInputs3Var<F>;
+    type ExternalInputs = ExternalInputs4<F>;
+    type ExternalInputsVar = ExternalInputs4Var<F>;
 
     fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
         Ok(Self {
@@ -631,7 +631,8 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
     ) -> Result<Vec<FpVar<F>>, SynthesisError> {
         // Hash-accumulate fold (existing path)
         let folded_hash = z_i[0].clone() * &external_inputs.0 + z_i[0].clone();
-        let escalated_norm = z_i[1].clone() + &external_inputs.1;
+        // G.16: absorb C7 final state hash into CycloFold state for cross-circuit binding
+        let escalated_norm = z_i[1].clone() + &external_inputs.3;
         // Step counter: hardcoded +1 per step (ext.2 repurposed for ring result)
         let count_inc = z_i[2].clone() + FpVar::<F>::one();
         
@@ -831,6 +832,8 @@ impl<
     }
 }
 
+// ProofCompressor impl for ExternalInputs3-based step circuits
+// (ToyStepCircuit, FoldVerifierStepCircuit, RingVerifierCircuit, etc.)
 impl<
         S: FCircuit<Fr, Params = (), ExternalInputs = ExternalInputs3<Fr>>
             + StepCircuit
@@ -839,7 +842,6 @@ impl<
     > ProofCompressor for SonobeCompressor<S>
 {
     fn prove(&self, acc: &[u8], public_inputs: &[u8]) -> Result<CompressedProof, CompressorError> {
-        // F6.3: clear stale thread-local witness data from prior prove calls
         clear_cyclo_ring_data();
         clear_sigma_data();
 
@@ -861,9 +863,6 @@ impl<
         let mut nova = SonobeNova::<S>::init(&params, circuit, initial_state)
             .map_err(|_| CompressorError::Backend("sonobe init failed"))?;
         tracing::info!(rss_kb = rss_kb(), "sonobe: Nova::init done");
-        // Reproducible folding RNG — bound to session epoch via srs_hash.
-        // Acceptable for research prototype; production should mix OsRng nonce.
-        // allow-seeded-rng: deterministic RNG from epoch-bound srs_hash
         let mut rng = ChaCha20Rng::from_seed(self.srs_hash);
 
         let ext_inputs = ExternalInputs3(delta.0, delta.1, delta.2);
@@ -889,7 +888,7 @@ impl<
         proof_bytes.extend_from_slice(&PROOF_VERSION.to_be_bytes());
         proof_bytes.extend_from_slice(&normalized_hash(acc)?);
         proof_bytes.extend_from_slice(&normalized_hash(public_inputs)?);
-                #[allow(clippy::as_conversions)]
+        #[allow(clippy::as_conversions)]
         proof_bytes.extend_from_slice(&(ivc_bytes.len() as u32).to_be_bytes());
         proof_bytes.extend_from_slice(&ivc_bytes);
         Ok(CompressedProof(proof_bytes))
@@ -979,6 +978,155 @@ impl<
     }
 }
 
+// ProofCompressor impl for CycloFoldStepCircuit with G.16 hash-chain binding.
+// Keep this concrete: blanket impls distinguished only by associated-type
+// equality overlap under Rust coherence.
+impl ProofCompressor for SonobeCompressor<CycloFoldStepCircuit<Fr>> {
+    fn prove(&self, acc: &[u8], public_inputs: &[u8]) -> Result<CompressedProof, CompressorError> {
+        // F6.3: clear stale thread-local witness data from prior prove calls
+        clear_cyclo_ring_data();
+        clear_sigma_data();
+
+        let initial = decode_quad(acc)?;
+        let delta = decode_quad(public_inputs)?;
+        let params = self.deserialize_params()?;
+        let circuit =
+            CycloFoldStepCircuit::<Fr>::new(())
+                .map_err(|_| CompressorError::Backend("sonobe circuit init failed"))?;
+        let state_len = circuit.state_len();
+
+        let mut initial_state = Vec::with_capacity(state_len);
+        initial_state.push(initial.0);
+        initial_state.push(initial.1);
+        initial_state.push(initial.2);
+        initial_state.push(initial.3);
+        for _ in 4..state_len {
+            initial_state.push(Fr::from(0u64));
+        }
+
+        let mut nova = SonobeNova::<CycloFoldStepCircuit<Fr>>::init(&params, circuit, initial_state)
+            .map_err(|_| CompressorError::Backend("sonobe init failed"))?;
+        tracing::info!(rss_kb = rss_kb(), "sonobe: Nova::init done");
+        // Reproducible folding RNG — bound to session epoch via srs_hash.
+        // Acceptable for research prototype; production should mix OsRng nonce.
+        // allow-seeded-rng: deterministic RNG from epoch-bound srs_hash
+        let mut rng = ChaCha20Rng::from_seed(self.srs_hash);
+
+        let ext_inputs = ExternalInputs4(delta.0, delta.1, delta.2, delta.3);
+        for step in 0..self.ivc_steps {
+            nova.prove_step(&mut rng, ext_inputs, None)
+                .map_err(|_| CompressorError::Backend("sonobe prove step failed"))?;
+            tracing::info!(step = step, rss_kb = rss_kb(), "sonobe: prove_step done");
+        }
+
+        let ivc_proof = nova.ivc_proof();
+        let mut ivc_bytes = Vec::new();
+        ivc_proof
+            .serialize_with_mode(&mut ivc_bytes, Compress::Yes)
+            .map_err(|_| CompressorError::Backend("sonobe proof serialization failed"))?;
+        tracing::info!(
+            ivc_bytes_len = ivc_bytes.len(),
+            rss_kb = rss_kb(),
+            "sonobe: ivc proof serialized"
+        );
+
+        let mut proof_bytes = Vec::with_capacity(76 + ivc_bytes.len());
+        proof_bytes.extend_from_slice(&PROOF_MAGIC);
+        proof_bytes.extend_from_slice(&PROOF_VERSION.to_be_bytes());
+        proof_bytes.extend_from_slice(&normalized_hash(acc)?);
+        proof_bytes.extend_from_slice(&normalized_hash(public_inputs)?);
+                #[allow(clippy::as_conversions)]
+        proof_bytes.extend_from_slice(&(ivc_bytes.len() as u32).to_be_bytes());
+        proof_bytes.extend_from_slice(&ivc_bytes);
+        Ok(CompressedProof(proof_bytes))
+    }
+
+    fn verify(
+        &self,
+        vk: &VerifierKey,
+        proof: &CompressedProof,
+        public_inputs: &[u8],
+    ) -> Result<bool, CompressorError> {
+        if vk != &self.verifier_key {
+            return Ok(false);
+        }
+
+        let parsed = parse_proof(&proof.0)?;
+        if parsed.public_inputs_hash != normalized_hash(public_inputs)? {
+            return Ok(false);
+        }
+
+        let ivc_proof =
+            SonobeIvcProof::deserialize_with_mode(parsed.ivc_bytes, Compress::Yes, Validate::Yes)
+                .map_err(|_| CompressorError::InvalidProof)?;
+
+        if ivc_proof.z_0.len() != self.state_len || ivc_proof.z_i.len() != self.state_len {
+            return Ok(false);
+        }
+
+        if normalized_hash(&encode_quad((
+            ivc_proof.z_0[0],
+            ivc_proof.z_0[1],
+            ivc_proof.z_0[2],
+            ivc_proof.z_0[3],
+        )))? != parsed.acc_hash
+        {
+            return Ok(false);
+        }
+
+        let verifier = SonobeNova::<CycloFoldStepCircuit<Fr>>::vp_deserialize_with_mode(
+            self.verifier_key_bytes.as_slice(),
+            Compress::Yes,
+            Validate::Yes,
+            (),
+        )
+        .map_err(|_| CompressorError::Backend("sonobe verifier key deserialization failed"))?;
+
+        let ring_check = if self.state_len >= 4 {
+            Some((ivc_proof.z_i[2], ivc_proof.z_i[3]))
+        } else {
+            None
+        };
+
+        let sigma_check = if self.state_len >= 5 {
+            Some((ivc_proof.z_i[2], ivc_proof.z_i[4]))
+        } else {
+            None
+        };
+
+        if let Err(e) = SonobeNova::<CycloFoldStepCircuit<Fr>>::verify(verifier, ivc_proof) { tracing::warn!("Nova::verify failed: {:?}", e);
+            return Ok(false);
+        }
+
+        if let Some((fold_count, verification_count)) = ring_check {
+            if fold_count != verification_count { tracing::warn!("fold_count {:?} != verification_count {:?}", fold_count, verification_count);
+                return Ok(false);
+            }
+        }
+
+        if let Some((fold_count, sigma_count)) = sigma_check {
+            if fold_count != sigma_count { tracing::warn!("fold_count {:?} != sigma_verification_count {:?}", fold_count, sigma_count);
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
+    }
+
+    fn backend_id(&self) -> &str {
+        BACKEND_ID
+    }
+
+    fn vk_bytes(&self) -> &[u8] {
+        &self.verifier_key_bytes
+    }
+
+    fn compressed_proof_bytes<'a>(&self, proof: &'a CompressedProof) -> &'a [u8] {
+        &proof.0
+    }
+}
+
+// Impl for ExternalInputs3-based step circuits (prove_steps / verify_steps)
 impl<
         S: FCircuit<Fr, Params = (), ExternalInputs = ExternalInputs3<Fr>>
             + StepCircuit
@@ -986,9 +1134,6 @@ impl<
             + Debug,
     > SonobeCompressor<S>
 {
-    /// Independent external verification: deserializes the proof from raw bytes
-    /// and builds a fresh verifier from key bytes, providing a second verification
-    /// path that does not share state with the primary `verify` call.
     pub fn verify_external(
         &self,
         proof_bytes: &[u8],
@@ -1057,20 +1202,11 @@ impl<
         Ok(true)
     }
 
-    /// Prove with per-step external inputs.
-    ///
-    /// Unlike [`Self::prove`] which applies the same `public_inputs` for every
-    /// step, this method allows different external inputs per IVC step. Each
-    /// step i uses `steps[i]` as its `ExternalInputs3` value.
-    ///
-    /// The proof header stores `public_inputs_hash = Keccak256(concat(step_inputs))`
-    /// for the verifier to bind against.
     pub fn prove_steps(
         &self,
         acc: &[u8],
         steps: &[ExternalInputs3<Fr>],
     ) -> Result<CompressedProof, CompressorError> {
-        // F6.3: clear stale thread-local witness data from prior prove calls
         clear_cyclo_ring_data();
         clear_sigma_data();
 
@@ -1097,9 +1233,6 @@ impl<
 
         let mut nova = SonobeNova::<S>::init(&params, circuit, initial_state)
             .map_err(|_| CompressorError::Backend("sonobe init failed"))?;
-        // Reproducible folding RNG — bound to session epoch via srs_hash.
-        // Acceptable for research prototype; production should mix OsRng nonce.
-        // allow-seeded-rng: deterministic RNG from epoch-bound srs_hash
         let mut rng = ChaCha20Rng::from_seed(self.srs_hash);
 
         for (step_idx, ext_inputs) in steps.iter().enumerate() {
@@ -1114,7 +1247,6 @@ impl<
             .serialize_with_mode(&mut ivc_bytes, Compress::Yes)
             .map_err(|_| CompressorError::Backend("sonobe proof serialization failed"))?;
 
-        // Compute public_inputs_hash from all step inputs
         let mut steps_bytes = Vec::new();
         for step in steps {
             steps_bytes.extend_from_slice(&encode_triple((step.0, step.1, step.2)));
@@ -1138,10 +1270,6 @@ impl<
         Ok(CompressedProof(proof_bytes))
     }
 
-    /// Verify a proof produced by [`Self::prove_steps`].
-    ///
-    /// Reconstructs the expected `public_inputs_hash` from `steps` and checks
-    /// the proof header before delegating to Nova verification.
     pub fn verify_steps(
         &self,
         vk: &VerifierKey,
@@ -1201,6 +1329,226 @@ impl<
         };
 
         if let Err(e) = SonobeNova::<S>::verify(verifier, ivc_proof) { tracing::warn!("Nova::verify failed: {:?}", e);
+            return Ok(false);
+        }
+
+        if let Some((fold_count, verification_count)) = ring_check {
+            if fold_count != verification_count { tracing::warn!("fold_count {:?} != verification_count {:?}", fold_count, verification_count);
+                return Ok(false);
+            }
+        }
+
+        if let Some((fold_count, sigma_count)) = sigma_check {
+            if fold_count != sigma_count { tracing::warn!("fold_count {:?} != sigma_verification_count {:?}", fold_count, sigma_count);
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
+    }
+}
+
+// Impl for CycloFoldStepCircuit (ExternalInputs4 prove_steps / verify_steps).
+impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
+    pub fn verify_external(
+        &self,
+        proof_bytes: &[u8],
+        public_inputs: &[u8],
+    ) -> Result<bool, CompressorError> {
+        let parsed = parse_proof(proof_bytes)?;
+        if parsed.public_inputs_hash != normalized_hash(public_inputs)? {
+            return Ok(false);
+        }
+
+        let ivc_proof =
+            SonobeIvcProof::deserialize_with_mode(parsed.ivc_bytes, Compress::Yes, Validate::Yes)
+                .map_err(|_| CompressorError::InvalidProof)?;
+
+        if ivc_proof.z_0.len() != self.state_len || ivc_proof.z_i.len() != self.state_len {
+            return Ok(false);
+        }
+
+        if normalized_hash(&encode_quad((
+            ivc_proof.z_0[0],
+            ivc_proof.z_0[1],
+            ivc_proof.z_0[2],
+            ivc_proof.z_0[3],
+        )))? != parsed.acc_hash
+        {
+            return Ok(false);
+        }
+
+        let verifier = SonobeNova::<CycloFoldStepCircuit<Fr>>::vp_deserialize_with_mode(
+            self.verifier_key_bytes.as_slice(),
+            Compress::Yes,
+            Validate::Yes,
+            (),
+        )
+        .map_err(|_| CompressorError::Backend(
+            "sonobe external verifier key deserialization failed",
+        ))?;
+
+        let ring_check = if self.state_len >= 4 {
+            Some((ivc_proof.z_i[2], ivc_proof.z_i[3]))
+        } else {
+            None
+        };
+
+        let sigma_check = if self.state_len >= 5 {
+            Some((ivc_proof.z_i[2], ivc_proof.z_i[4]))
+        } else {
+            None
+        };
+
+        if let Err(e) = SonobeNova::<CycloFoldStepCircuit<Fr>>::verify(verifier, ivc_proof) { tracing::warn!("Nova::verify failed: {:?}", e);
+            return Ok(false);
+        }
+
+        if let Some((fold_count, verification_count)) = ring_check {
+            if fold_count != verification_count { tracing::warn!("fold_count {:?} != verification_count {:?}", fold_count, verification_count);
+                return Ok(false);
+            }
+        }
+
+        if let Some((fold_count, sigma_count)) = sigma_check {
+            if fold_count != sigma_count { tracing::warn!("fold_count {:?} != sigma_verification_count {:?}", fold_count, sigma_count);
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
+    }
+
+    pub fn prove_steps(
+        &self,
+        acc: &[u8],
+        steps: &[ExternalInputs4<Fr>],
+    ) -> Result<CompressedProof, CompressorError> {
+        clear_cyclo_ring_data();
+        clear_sigma_data();
+
+        assert_eq!(
+            steps.len(),
+            self.ivc_steps,
+            "steps.len() must equal ivc_steps ({})",
+            self.ivc_steps
+        );
+
+        let initial = decode_quad(acc)?;
+        let params = self.deserialize_params()?;
+        let circuit =
+            CycloFoldStepCircuit::<Fr>::new(())
+                .map_err(|_| CompressorError::Backend("sonobe circuit init failed"))?;
+        let state_len = circuit.state_len();
+
+        let mut initial_state = Vec::with_capacity(state_len);
+        initial_state.push(initial.0);
+        initial_state.push(initial.1);
+        initial_state.push(initial.2);
+        initial_state.push(initial.3);
+        for _ in 4..state_len {
+            initial_state.push(Fr::from(0u64));
+        }
+
+        let mut nova = SonobeNova::<CycloFoldStepCircuit<Fr>>::init(&params, circuit, initial_state)
+            .map_err(|_| CompressorError::Backend("sonobe init failed"))?;
+        let mut rng = ChaCha20Rng::from_seed(self.srs_hash);
+
+        for (step_idx, ext_inputs) in steps.iter().enumerate() {
+            nova.prove_step(&mut rng, *ext_inputs, None)
+                .map_err(|_| CompressorError::Backend("sonobe prove step failed"))?;
+            tracing::info!(step = step_idx, rss_kb = rss_kb(), "sonobe: prove_steps done");
+        }
+
+        let ivc_proof = nova.ivc_proof();
+        let mut ivc_bytes = Vec::new();
+        ivc_proof
+            .serialize_with_mode(&mut ivc_bytes, Compress::Yes)
+            .map_err(|_| CompressorError::Backend("sonobe proof serialization failed"))?;
+
+        let mut steps_bytes = Vec::new();
+        for step in steps {
+            steps_bytes.extend_from_slice(&encode_quad((step.0, step.1, step.2, step.3)));
+        }
+        let public_inputs_hash: [u8; 32] = Keccak256::digest(&steps_bytes).into();
+
+        let mut proof_bytes = Vec::with_capacity(76 + ivc_bytes.len());
+        proof_bytes.extend_from_slice(&PROOF_MAGIC);
+        proof_bytes.extend_from_slice(&PROOF_VERSION.to_be_bytes());
+        proof_bytes.extend_from_slice(&normalized_hash(acc)?);
+        proof_bytes.extend_from_slice(&public_inputs_hash);
+        #[allow(clippy::as_conversions)]
+        proof_bytes.extend_from_slice(&(ivc_bytes.len() as u32).to_be_bytes());
+        proof_bytes.extend_from_slice(&ivc_bytes);
+
+        tracing::info!(
+            ivc_bytes_len = ivc_bytes.len(),
+            rss_kb = rss_kb(),
+            "sonobe: prove_steps proof serialized"
+        );
+        Ok(CompressedProof(proof_bytes))
+    }
+
+    pub fn verify_steps(
+        &self,
+        vk: &VerifierKey,
+        proof: &CompressedProof,
+        steps: &[ExternalInputs4<Fr>],
+    ) -> Result<bool, CompressorError> {
+        if vk != &self.verifier_key {
+            return Ok(false);
+        }
+
+        let parsed = parse_proof(&proof.0)?;
+
+        let mut steps_bytes = Vec::new();
+        for step in steps {
+            steps_bytes.extend_from_slice(&encode_quad((step.0, step.1, step.2, step.3)));
+        }
+        let expected_hash: [u8; 32] = Keccak256::digest(&steps_bytes).into();
+        if parsed.public_inputs_hash != expected_hash {
+            return Ok(false);
+        }
+
+        let ivc_proof =
+            SonobeIvcProof::deserialize_with_mode(parsed.ivc_bytes, Compress::Yes, Validate::Yes)
+                .map_err(|_| CompressorError::InvalidProof)?;
+
+        if ivc_proof.z_0.len() != self.state_len || ivc_proof.z_i.len() != self.state_len {
+            return Ok(false);
+        }
+
+        if normalized_hash(&encode_quad((
+            ivc_proof.z_0[0],
+            ivc_proof.z_0[1],
+            ivc_proof.z_0[2],
+            ivc_proof.z_0[3],
+        )))? != parsed.acc_hash
+        {
+            return Ok(false);
+        }
+
+        let verifier = SonobeNova::<CycloFoldStepCircuit<Fr>>::vp_deserialize_with_mode(
+            self.verifier_key_bytes.as_slice(),
+            Compress::Yes,
+            Validate::Yes,
+            (),
+        )
+        .map_err(|_| CompressorError::Backend("sonobe verifier key deserialization failed"))?;
+
+        let ring_check = if self.state_len >= 4 {
+            Some((ivc_proof.z_i[2], ivc_proof.z_i[3]))
+        } else {
+            None
+        };
+
+        let sigma_check = if self.state_len >= 5 {
+            Some((ivc_proof.z_i[2], ivc_proof.z_i[4]))
+        } else {
+            None
+        };
+
+        if let Err(e) = SonobeNova::<CycloFoldStepCircuit<Fr>>::verify(verifier, ivc_proof) { tracing::warn!("Nova::verify failed: {:?}", e);
             return Ok(false);
         }
 
@@ -1615,19 +1963,20 @@ pub fn encode_triple(value: (Fr, Fr, Fr)) -> [u8; 96] {
     out
 }
 
-
-fn encode_quint(value: ExternalInputs5<Fr>) -> [u8; 160] {
-    let mut buf = [0u8; 160];
-    ark_serialize::CanonicalSerialize::serialize_uncompressed(&value.0, &mut buf[0..32]).unwrap();
-    ark_serialize::CanonicalSerialize::serialize_uncompressed(&value.1, &mut buf[32..64]).unwrap();
-    ark_serialize::CanonicalSerialize::serialize_uncompressed(&value.2, &mut buf[64..96]).unwrap();
-    ark_serialize::CanonicalSerialize::serialize_uncompressed(&value.3, &mut buf[96..128]).unwrap();
-    ark_serialize::CanonicalSerialize::serialize_uncompressed(&value.4, &mut buf[128..160]).unwrap();
-    buf
+/// Decode 128 bytes into a quadruple of Fr scalars.
+pub fn decode_quad(bytes: &[u8]) -> Result<(Fr, Fr, Fr, Fr), CompressorError> {
+    if bytes.len() < 128 {
+        return Err(CompressorError::InvalidInput);
+    }
+    let a = decode_scalar(&bytes[0..32])?;
+    let b = decode_scalar(&bytes[32..64])?;
+    let c = decode_scalar(&bytes[64..96])?;
+    let d = decode_scalar(&bytes[96..128])?;
+    Ok((a, b, c, d))
 }
 
-
-fn encode_quad(value: ExternalInputs4<Fr>) -> [u8; 128] {
+/// Encode a quadruple of Fr scalars into 128 bytes (G.16 hash-chain encoding).
+pub fn encode_quad(value: (Fr, Fr, Fr, Fr)) -> [u8; 128] {
     let mut out = [0u8; 128];
     let a = encode_scalar(value.0);
     let b = encode_scalar(value.1);
@@ -1639,6 +1988,18 @@ fn encode_quad(value: ExternalInputs4<Fr>) -> [u8; 128] {
     out[96..128].copy_from_slice(&d);
     out
 }
+
+
+fn encode_quint(value: ExternalInputs5<Fr>) -> [u8; 160] {
+    let mut buf = [0u8; 160];
+    ark_serialize::CanonicalSerialize::serialize_uncompressed(&value.0, &mut buf[0..32]).unwrap();
+    ark_serialize::CanonicalSerialize::serialize_uncompressed(&value.1, &mut buf[32..64]).unwrap();
+    ark_serialize::CanonicalSerialize::serialize_uncompressed(&value.2, &mut buf[64..96]).unwrap();
+    ark_serialize::CanonicalSerialize::serialize_uncompressed(&value.3, &mut buf[96..128]).unwrap();
+    ark_serialize::CanonicalSerialize::serialize_uncompressed(&value.4, &mut buf[128..160]).unwrap();
+    buf
+}
+
 
 fn encode_merkle_step(step: &C7MerkleExternalInputs<Fr>) -> Vec<u8> {
     let mut out = Vec::new();
@@ -1654,9 +2015,11 @@ fn encode_merkle_step(step: &C7MerkleExternalInputs<Fr>) -> Vec<u8> {
 }
 
 fn normalized_hash(bytes: &[u8]) -> Result<[u8; 32], CompressorError> {
-    let triple = decode_triple(bytes)?;
-    let canonical = encode_triple(triple);
-    Ok(Keccak256::digest(canonical).into())
+    // G.16: normalized_hash now accepts variable-length canonical encodings
+    // (96 bytes for triples from Merkle/C7 paths, 128 bytes for quads from
+    // the CycloFold hash-chain path). All callers pass already-canonical
+    // encodings from encode_triple/encode_quad, so we hash the raw bytes directly.
+    Ok(Keccak256::digest(bytes).into())
 }
 
 fn rss_kb() -> u64 {

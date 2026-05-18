@@ -58,11 +58,18 @@ pub struct PartyState {
 pub struct FhersBackend {
     _params: Params,
     bfv_params: Arc<BfvParameters>,
+    /// SECURITY: In multi-party production deployments, `party_states` must be
+    /// per-process. The current single-process prototype stores ALL parties' secret
+    /// keys in one map. See `party_secret_key_bytes()` for access-control notes.
     party_states: Arc<Mutex<HashMap<u32, PartyState>>>,
     threshold_n: Arc<Mutex<Option<usize>>>,
     threshold_t: Arc<Mutex<Option<usize>>>,
     /// Per-party committed smudging-noise polynomial bytes from DKG transcript (B.2).
     esm_noise_poly_map: Arc<Mutex<HashMap<u32, Vec<u8>>>>,
+    /// Debug-only: tracks which party_id this backend instance "owns" for
+    /// access-control auditing. Only checked in debug builds.
+    #[cfg(debug_assertions)]
+    owned_party_id: std::sync::Mutex<Option<u32>>,
 }
 
 impl Clone for FhersBackend {
@@ -74,6 +81,15 @@ impl Clone for FhersBackend {
             threshold_n: self.threshold_n.clone(),
             threshold_t: self.threshold_t.clone(),
             esm_noise_poly_map: self.esm_noise_poly_map.clone(),
+            #[cfg(debug_assertions)]
+            owned_party_id: {
+                let val = self
+                    .owned_party_id
+                    .lock()
+                    .ok()
+                    .and_then(|guard| *guard);
+                std::sync::Mutex::new(val)
+            },
         }
     }
 }
@@ -98,7 +114,28 @@ impl FhersBackend {
     /// Return the serialized secret-key coefficients for `party_id`.
     ///
     /// Each coefficient is written as 8 little-endian bytes.
+    ///
+    /// # Security
+    /// This method returns raw secret-key bytes. In the current single-process
+    /// prototype, this is acceptable. In production multi-party deployments, each
+    /// process must only have access to its own party's key material. Access control
+    /// is enforced via `#[cfg(debug_assertions)]` auditing.
     pub fn party_secret_key_bytes(&self, party_id: u32) -> Result<Vec<u8>, FheError> {
+        #[cfg(debug_assertions)]
+        {
+            let owned = self.owned_party_id.lock().map_err(|err| FheError::Backend {
+                reason: format!("owned_party_id lock poisoned: {err}"),
+            })?;
+            if let Some(owned_id) = *owned {
+                if party_id != owned_id {
+                    tracing::warn!(
+                        "party_secret_key_bytes: party_id={party_id} differs from owned_id={owned_id}. \
+                         This is only safe in prototype single-process deployments."
+                    );
+                }
+            }
+        }
+
         let (sk_poly_sum, _sk_poly_sum_poly, _esi_poly_sum) = self.party_state_data(party_id)?;
         let mut bytes = Vec::with_capacity(sk_poly_sum.len() * 8);
         for coeff in &sk_poly_sum {
@@ -168,6 +205,7 @@ impl FhersBackend {
     }
 
     /// Remove and return the stored state for `party_id`.
+    #[doc(hidden)]
     pub fn take_party_state(&self, party_id: u32) -> Result<PartyState, FheError> {
         let mut party_states = self.party_states.lock().map_err(|err| FheError::Backend {
             reason: err.to_string(),
@@ -598,6 +636,8 @@ impl FheBackend for FhersBackend {
             threshold_n: Arc::new(Mutex::new(None)),
             threshold_t: Arc::new(Mutex::new(None)),
             esm_noise_poly_map: Arc::new(Mutex::new(HashMap::new())),
+            #[cfg(debug_assertions)]
+            owned_party_id: std::sync::Mutex::new(None),
         })
     }
 
@@ -630,6 +670,14 @@ impl FheBackend for FhersBackend {
             reason: err.to_string(),
         })?;
         party_states.insert(party_id, party_state);
+
+        #[cfg(debug_assertions)]
+        {
+            let mut owned = self.owned_party_id.lock().map_err(|err| FheError::Backend {
+                reason: format!("owned_party_id lock poisoned: {err}"),
+            })?;
+            *owned = Some(party_id);
+        }
 
         Ok(KeygenShare {
             party_id,

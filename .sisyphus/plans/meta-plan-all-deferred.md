@@ -188,7 +188,7 @@ These are tracked in `pvthfhe-followon.md` (183 items, 9-18 months calendar):
 - [x] G.10: Add `assert(party_id != 0)` in Noir `decrypt_share` circuit. → demo-e2e, per-node
 - [x] G.11: Add duplicate `party_id` check in `FhersBackend::aggregate_decrypt` (matching mock backend). → demo-e2e, per-node, aggregator
 - [ ] G.12: Add cryptographic binding of shares to sender identity (signature, NIZK proof binding, or session-anchored MAC). → demo-e2e, per-node, aggregator
-- [ ] G.13: Restrict secret key access through `party_state` — add capability or per-party isolate. Audit all `party_secret_key_bytes()` callers. → per-node
+- [x] G.13: Restrict secret key access through `party_state` — add capability or per-party isolate. Audit all `party_secret_key_bytes()` callers. → per-node
 - [x] G.14: Fix Lagrange coefficient overflow for n > 35 in `compute_lagrange_coeffs_integer` — use BigInt or modular arithmetic. → demo-e2e, aggregator
 - [x] G.15: Return error instead of `i128::MAX` sentinel in `crt_reconstruct_coeffs` overflow path. → demo-e2e, aggregator
 - [ ] G.16: Design composed circuit or cross-circuit verifier challenge binding C7 decryption aggregation + CycloFold ring/sigma into single IVC chain. → demo-e2e, aggregator
@@ -237,7 +237,7 @@ These are tracked in `pvthfhe-followon.md` (183 items, 9-18 months calendar):
 ### G.C — FHE Backend & NIZK (Tier 1, ~3.5 days)
 - [x] G.11: Add duplicate party_id check in FhersBackend::aggregate_decrypt
 - [ ] G.12: Add cryptographic binding of shares to sender identity
-- [ ] G.13: Restrict secret key access through party_state
+- [x] G.13: Restrict secret key access through party_state
 - [x] G.14: Fix Lagrange coefficient overflow for n > 35
 - [x] G.15: Return error instead of i128::MAX sentinel
 

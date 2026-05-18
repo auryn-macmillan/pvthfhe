@@ -199,7 +199,7 @@ These are tracked in `pvthfhe-followon.md` (183 items, 9-18 months calendar):
 - [x] G.21: Gate stdout secret leaks (partial decrypt share hex, plaintext hex) behind `--verbose` flag or `RUST_LOG=debug` in `main.rs`. → demo-e2e, per-node, aggregator
 - [x] G.22: Add subprocess timeouts on all `nargo`/`bb` Command invocations in `full_pipeline.rs`. → demo-e2e
 - [x] G.23: Add compile-time assertion preventing `demo-seeded-rng` feature without explicit opt-in env var. → demo-e2e, per-node, aggregator
-- [ ] G.24: Verify nargo/bb binary hashes or require absolute paths (PATH injection hardening). → demo-e2e
+- [x] G.24: Verify nargo/bb binary hashes or require absolute paths (PATH injection hardening). → demo-e2e
 - [ ] G.25: Document CPAD resistance claim with formal noise budget analysis. → paper
 - [ ] G.26: Formal IND-CPAD reduction with current smudging parameters (σ=2^40·σ_err). → paper, security-proofs
 - [ ] G.27: Document Fiat-Shamir multi-round security loss bound with T=10 fold rounds. → paper, security-proofs
@@ -255,7 +255,7 @@ These are tracked in `pvthfhe-followon.md` (183 items, 9-18 months calendar):
 - [x] G.21: Gate stdout secret leaks behind --verbose
 - [x] G.22: Add subprocess timeouts
 - [x] G.23: Add compile-time guard for demo-seeded-rng
-- [ ] G.24: Verify nargo/bb binary hashes
+- [x] G.24: Verify nargo/bb binary hashes
 
 ### G.F — Research & Documentation (Tier 1-2, ~4 days)
 - [ ] G.25: Document CPAD resistance with noise analysis

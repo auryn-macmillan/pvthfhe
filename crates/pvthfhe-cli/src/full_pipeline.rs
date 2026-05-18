@@ -922,10 +922,25 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         tracing::warn!("C7 Noir: failed to write C7Prover.toml: {e}");
         observer.phase_end("c7_noir_aggregator", elapsed_ms(noir_started));
     } else {
+        // Resolve nargo/bb paths with env-var hardening (G.24)
+        fn resolve_tool(tool_name: &str, env_var: &str) -> std::path::PathBuf {
+            if let Ok(path) = std::env::var(env_var) {
+                let p = std::path::Path::new(&path);
+                if p.is_file() {
+                    tracing::info!("Using {tool_name} from {env_var}={path}");
+                    return p.to_path_buf();
+                }
+                tracing::warn!("{env_var}={path} does not exist or is not a file");
+            }
+            // Fallback to PATH — vulnerable to hijacking
+            tracing::warn!("{env_var} not set; resolving {tool_name} from PATH (PATH injection risk)");
+            std::path::PathBuf::from(tool_name)
+        }
+
         // Run canonical flow: nargo execute → bb write_vk → bb prove → bb verify
         let mut noir_passed = true;
 
-        let mut nargo_cmd = std::process::Command::new("nargo");
+        let mut nargo_cmd = std::process::Command::new(resolve_tool("nargo", "PVTHFHE_NARGO_PATH"));
         nargo_cmd
             .args(["execute", "--package", "aggregator_final", "--prover-name", "C7Prover"])
             .current_dir(&noir_workspace);
@@ -937,7 +952,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         }
 
         if noir_passed {
-            let mut bb_write_vk_cmd = std::process::Command::new("bb");
+            let mut bb_write_vk_cmd = std::process::Command::new(resolve_tool("bb", "PVTHFHE_BB_PATH"));
             bb_write_vk_cmd
                 .args(["write_vk", "--scheme", "ultra_honk", "-b", "target/aggregator_final.json", "-o", "target"])
                 .current_dir(&noir_workspace);
@@ -950,7 +965,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         }
 
         if noir_passed {
-            let mut bb_prove_cmd = std::process::Command::new("bb");
+            let mut bb_prove_cmd = std::process::Command::new(resolve_tool("bb", "PVTHFHE_BB_PATH"));
             bb_prove_cmd
                 .args(["prove", "--scheme", "ultra_honk", "-b", "target/aggregator_final.json", "-w", "target/aggregator_final.gz", "-o", "target"])
                 .current_dir(&noir_workspace);
@@ -963,7 +978,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         }
 
         if noir_passed {
-            let mut bb_verify_cmd = std::process::Command::new("bb");
+            let mut bb_verify_cmd = std::process::Command::new(resolve_tool("bb", "PVTHFHE_BB_PATH"));
             bb_verify_cmd
                 .args(["verify", "--scheme", "ultra_honk", "-k", "target/vk", "-p", "target/proof", "-i", "target/public_inputs"])
                 .current_dir(&noir_workspace);

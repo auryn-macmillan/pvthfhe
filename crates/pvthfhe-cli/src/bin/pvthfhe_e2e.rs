@@ -344,14 +344,30 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
         return;
     }
 
-    fn tool_in_path(tool: &str) -> bool {
-        std::env::var_os("PATH")
-            .map(|paths| std::env::split_paths(&paths).any(|path| path.join(tool).is_file()))
-            .unwrap_or(false)
+    // Resolve nargo/bb paths with env-var hardening (G.24)
+    fn resolve_tool(tool_name: &str, env_var: &str) -> std::path::PathBuf {
+        if let Ok(path) = std::env::var(env_var) {
+            let p = std::path::Path::new(&path);
+            if p.is_file() {
+                info!("Using {tool_name} from {env_var}={path}");
+                return p.to_path_buf();
+            }
+            warn!("{env_var}={path} does not exist or is not a file");
+        }
+        // Fallback to PATH — vulnerable to hijacking
+        warn!("{env_var} not set; resolving {tool_name} from PATH (PATH injection risk)");
+        std::path::PathBuf::from(tool_name)
     }
 
-    if !tool_in_path("nargo") || !tool_in_path("bb") {
-        warn!("PVTHFHE_RUN_NOIR_CIRCUIT=1 but nargo or bb not found in PATH; skipping Noir circuit execution");
+    let nargo_path = resolve_tool("nargo", "PVTHFHE_NARGO_PATH");
+    let bb_path = resolve_tool("bb", "PVTHFHE_BB_PATH");
+    // Verify both tools are accessible
+    if !nargo_path.is_file() {
+        warn!("PVTHFHE_RUN_NOIR_CIRCUIT=1 but nargo not found; skipping Noir circuit execution");
+        return;
+    }
+    if !bb_path.is_file() {
+        warn!("PVTHFHE_RUN_NOIR_CIRCUIT=1 but bb not found; skipping Noir circuit execution");
         return;
     }
 

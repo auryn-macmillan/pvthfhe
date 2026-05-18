@@ -1865,6 +1865,16 @@ pub fn build_c7_prover_toml(
     let participant_set_hash = Fr::from_be_bytes_mod_order(&ps_hash_bytes);
     let decrypt_nizk_hash_field = Fr::from_be_bytes_mod_order(decrypt_nizk_hash);
 
+    // PLACEHOLDER: keygen transcript hash from DKG ceremony output.
+    // The real value will be provided by the DKG ceremony; this is a
+    // deterministic placeholder until Interfold registry integration.
+    let keygen_transcript_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(
+        format!("keygen-{session_id}-n{n_participants}-t{threshold}").as_bytes()
+    ));
+    // PLACEHOLDER: session_nonce from Interfold registry (G.4 design decision).
+    // Filled when a committee is requested from the Interfold registry.
+    let session_nonce = Fr::from(0u64);
+
     let mut share_hashes = [Fr::from(0u64); 8];
     for (i, coeffs) in share_coeffs.iter().take(8).enumerate() {
         let mut share = [Fr::from(0u64); 8];
@@ -1874,6 +1884,34 @@ pub fn build_c7_prover_toml(
         share_hashes[i] = vector_hash_8(&share);
     }
     let combined_share_hash = combine_hashes_8(&share_hashes, n_participants);
+    #[cfg(feature = "sonobe-compressor")]
+    let d_commitment = {
+        use pvthfhe_compressor::witness::poseidon_sponge_hash_native;
+        poseidon_sponge_hash_native(&[
+            // Domain separator
+            Fr::from(6u64),
+            // Share commitment
+            combined_share_hash,
+            // DKG and committee identity
+            dkg_root,
+            participant_set_hash,
+            // Session binding (G.4 — Interfold nonce placeholder)
+            session_nonce,
+            Fr::from(1u64), // epoch
+            // Protocol parameters
+            Fr::from(n_participants as u64),
+            Fr::from(threshold as u64),
+            // Key material
+            aggregate_pk_hash,
+            // NIZK proof binding
+            decrypt_nizk_hash_field,
+            // Ciphertext provenance (G.13)
+            ciphertext_hash,
+            // Keygen transcript (from DKG ceremony)
+            keygen_transcript_hash,
+        ])
+    };
+    #[cfg(not(feature = "sonobe-compressor"))]
     let d_commitment = bind_8_with_domain_native(&[
         combined_share_hash,
         dkg_root,

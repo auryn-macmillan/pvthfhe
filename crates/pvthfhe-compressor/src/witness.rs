@@ -66,7 +66,19 @@ fn native_permute(state: &mut [Fr], params: &PoseidonParams<Fr>) {
     }
 }
 
-// ── hash_all_coeffs ──────────────────────────────────────────────────────
+// ── hash_all_coeffs / poseidon_sponge_hash_native ─────────────────────────
+
+/// Compute a Poseidon sponge hash over an arbitrary slice of field elements.
+///
+/// This is the generic native Poseidon sponge, suitable for commitment
+/// binding of arbitrary protocol fields. Absorbs all elements into the
+/// sponge and squeezes one field element. Matches the in-circuit
+/// `PoseidonSpongeVar` absorb-then-squeeze behaviour exactly.
+///
+/// Canonical BN254 Poseidon config: rate = 4, capacity = 1, t = 5.
+pub fn poseidon_sponge_hash_native(fields: &[Fr]) -> Fr {
+    hash_all_coeffs(fields)
+}
 
 /// Compute a Poseidon sponge hash of all share coefficients.
 ///

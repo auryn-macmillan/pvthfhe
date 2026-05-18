@@ -543,6 +543,18 @@ via Fiat-Shamir, admits cheating probability approximately $Q^{\mu} \cdot
 Instantiating with $\mu=10$ and the base soundness $(1/3)^{10}$ gives
 effective soundness $\approx Q^{10} \cdot (1/3)^{10}$.
 
+\subsection{Robust Secret Sharing}
+
+PVTHFHE's share reconstruction uses standard Lagrange interpolation over $t$ shares;
+if the recovered plaintext fails to decode correctly, the aggregator detects that at
+least one share is invalid. The current implementation cannot, however, identify
+\emph{which} party submitted the bad share, requiring the aggregator to retry with
+different share subsets. Cheater identification for $t < n/2$ is attainable through
+Verifiable Secret Sharing (VSS) or Robust Secret Sharing (RSS) protocols.
+Fehr and Yuan~\cite{fehr2019rss} give a nearly optimal RSS construction against
+rushing adversaries. We defer RSS to future work; misbehavior detection via retry
+with subset selection is sufficient for honest-majority protocols.
+
 \section{Implementation and Evaluation}
 
 \subsection{Benchmark Results}

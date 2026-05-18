@@ -203,7 +203,7 @@ These are tracked in `pvthfhe-followon.md` (183 items, 9-18 months calendar):
 - [x] G.25: Document CPAD resistance claim with formal noise budget analysis. → paper
 - [ ] G.26: Formal IND-CPAD reduction with current smudging parameters (σ=2^40·σ_err). → paper, security-proofs
 - [x] G.27: Document Fiat-Shamir multi-round security loss bound with T=10 fold rounds. → paper, security-proofs
-- [ ] G.28: Implement or document robust secret sharing (cheater identification for t < n/2) as deferred limitation. → per-node, aggregator
+- [x] G.28: Implement or document robust secret sharing (cheater identification for t < n/2) as deferred limitation. → per-node, aggregator
 - [x] G.29: Cross-reference all DOMAIN_* constants between Rust (`protocol_constants`) and Noir (`protocol_constants/src/lib.nr`). → demo-e2e
 - [ ] G.30: Enforce `fold_count`, `ring_verification_count`, `sigma_verification_count` mutual consistency with actual verification data present (not just counter equality). → demo-e2e, aggregator
 - [x] G.31: Verify empty set doesn't bypass C7 commitment check — ensure `c7_fold_witnesses` rejects empty C7WitnessSet. → demo-e2e
@@ -261,7 +261,7 @@ These are tracked in `pvthfhe-followon.md` (183 items, 9-18 months calendar):
 - [x] G.25: Document CPAD resistance with noise analysis
 - [ ] G.26: Formal IND-CPAD reduction
 - [x] G.27: Document Fiat-Shamir security loss bound
-- [ ] G.28: Implement or document robust secret sharing
+- [x] G.28: Implement or document robust secret sharing
 - [x] G.29: Cross-reference DOMAIN_* constants
 
 ---

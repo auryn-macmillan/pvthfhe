@@ -200,9 +200,9 @@ These are tracked in `pvthfhe-followon.md` (183 items, 9-18 months calendar):
 - [x] G.22: Add subprocess timeouts on all `nargo`/`bb` Command invocations in `full_pipeline.rs`. → demo-e2e
 - [x] G.23: Add compile-time assertion preventing `demo-seeded-rng` feature without explicit opt-in env var. → demo-e2e, per-node, aggregator
 - [x] G.24: Verify nargo/bb binary hashes or require absolute paths (PATH injection hardening). → demo-e2e
-- [ ] G.25: Document CPAD resistance claim with formal noise budget analysis. → paper
+- [x] G.25: Document CPAD resistance claim with formal noise budget analysis. → paper
 - [ ] G.26: Formal IND-CPAD reduction with current smudging parameters (σ=2^40·σ_err). → paper, security-proofs
-- [ ] G.27: Document Fiat-Shamir multi-round security loss bound with T=10 fold rounds. → paper, security-proofs
+- [x] G.27: Document Fiat-Shamir multi-round security loss bound with T=10 fold rounds. → paper, security-proofs
 - [ ] G.28: Implement or document robust secret sharing (cheater identification for t < n/2) as deferred limitation. → per-node, aggregator
 - [x] G.29: Cross-reference all DOMAIN_* constants between Rust (`protocol_constants`) and Noir (`protocol_constants/src/lib.nr`). → demo-e2e
 - [ ] G.30: Enforce `fold_count`, `ring_verification_count`, `sigma_verification_count` mutual consistency with actual verification data present (not just counter equality). → demo-e2e, aggregator
@@ -258,9 +258,9 @@ These are tracked in `pvthfhe-followon.md` (183 items, 9-18 months calendar):
 - [x] G.24: Verify nargo/bb binary hashes
 
 ### G.F — Research & Documentation (Tier 1-2, ~4 days)
-- [ ] G.25: Document CPAD resistance with noise analysis
+- [x] G.25: Document CPAD resistance with noise analysis
 - [ ] G.26: Formal IND-CPAD reduction
-- [ ] G.27: Document Fiat-Shamir security loss bound
+- [x] G.27: Document Fiat-Shamir security loss bound
 - [ ] G.28: Implement or document robust secret sharing
 - [x] G.29: Cross-reference DOMAIN_* constants
 

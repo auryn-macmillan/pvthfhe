@@ -505,6 +505,44 @@ from the security of its sub-protocols. The complete argument is structured as:
 P4 correctness + secrecy $\Rightarrow$ P1 inputs are well-formed $\Rightarrow$ P2 accumulation
 is sound $\Rightarrow$ P3 on-chain acceptance is valid.
 
+\subsection{Threshold Decryption and CPAD Resistance}
+
+Standard IND-CPA security is insufficient for threshold FHE because partial decryption
+shares $d_i = c_1 \cdot sk_i + e_{\text{smudge},i}$ leak information about secret key
+shares $sk_i$, effectively providing a decryption oracle. Checri et
+al.\ \cite{checri2024cpad} showed that chosen-plaintext attacks with decryption
+(IND-CPAD) are practical, recovering keys in under one hour on commodity hardware
+against TFHE-rs, OpenFHE, and Lattigo.
+
+PVTHFHE counters CPAD through \emph{noise flooding} as formalized by Boudgoust et
+al.\ \cite{boudgoust2023threshold}: each partial decryption share is additively masked
+with a fresh Gaussian noise polynomial $e_{\text{smudge}} \sim \mathcal{D}_{\mathbb{Z},
+\sigma_{\text{smudge}}}$ with standard deviation $\sigma_{\text{smudge}} = 2^{40}
+\cdot \sigma_{\text{err}} \approx 3.5 \times 10^{12}$. This $40$-bit statistical
+separation ensures that released shares are dominated by the smudging distribution
+rather than the sensitive $c_1 \cdot sk_i$ term, while retaining over $2^{105}$ bits
+of correctness slack even under conservative worst-case $512$-party accumulation.
+Smudging noise is produced via the \texttt{committed\_smudge\_pvss} mode in the NIZK
+adapter, binding each noise slot to the DKG transcript and enforcing one-time use
+through the on-chain \texttt{SessionRegistry}. A formal IND-CPAD reduction for
+PVTHFHE's specific parameter set is under active development.
+
+\subsection{Fiat-Shamir Security Analysis}
+
+The Cyclo scalar-challenge sigma protocol uses $T=10$ ternary-fold repetitions
+with challenge $ch \in \{-1,0,1\}$, yielding per-instance soundness error
+$(1/3)^{10} \approx 1.7 \times 10^{-5}$.
+The Fiat-Shamir transform uses a domain-separated Poseidon hash with protocol
+signature $\mathsf{DOMAIN\_CHALLENGE\_DERIVE}=3$ and statement binding.
+%
+Kloo{\ss}, Lehmann, and Rupp~\cite{klooss2023} proved that a $(2\mu+1)$-move
+interactive proof with cheating probability $\varepsilon$, when transformed
+via Fiat-Shamir, admits cheating probability approximately $Q^{\mu} \cdot
+\varepsilon$, where $Q$ is the random oracle query count.
+%
+Instantiating with $\mu=10$ and the base soundness $(1/3)^{10}$ gives
+effective soundness $\approx Q^{10} \cdot (1/3)^{10}$.
+
 \section{Implementation and Evaluation}
 
 \subsection{Benchmark Results}

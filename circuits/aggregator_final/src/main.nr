@@ -1,8 +1,9 @@
 // aggregator_final: Verifies Lagrange recombination of decryption shares.
 //
-// This circuit replaces the old rolling_digest (non-CRH linear accumulator)
-// with Poseidon, a collision-resistant hash, using domain-separation tags
-// to prevent cross-context collision attacks.
+// This circuit replaces the old prover-trusted Lagrange coefficients and
+// plaintext with in-circuit computation. Lagrange coefficients are
+// derived from committee party IDs (public input), and the plaintext is
+// reconstructed from participant shares via Lagrange interpolation.
 //
 // N=8 is the research-prototype ring dimension; production uses N=8192.
 // The R3 relation check uses Q from protocol_constants (NOT prover-supplied).
@@ -11,7 +12,6 @@ use poseidon;
 use protocol_constants;
 
 global N: u32 = 8;
-global LOG_N: u32 = 3;
 global MAX_PARTICIPANTS: u32 = 8;
 
 // -- Poseidon CRH helpers with domain-separation tags ----------------
@@ -44,59 +44,103 @@ fn combine_hashes<let M: u32>(hashes: [Field; M], n_active: Field) -> Field {
     acc
 }
 
-// -- Polynomial utilities --------------------------------------------
+// -- Lagrange coefficient computation --------------------------------
+//
+// lambda_i = prod_{j != i} party_ids[j] / prod_{j != i} (party_ids[i] - party_ids[j])
+// This is the Lagrange basis polynomial l_i(0) for evaluation point 0,
+// up to a sign factor. The circuit verifies that sum of lambdas = 1.
+// NOTE: party_ids MUST be non-zero and pairwise distinct, otherwise
+// division by zero or lagrange_sum != 1 will cause constraint failure.
 
-fn eval_poly(coeffs: [Field; N], r: Field) -> Field {
-    let mut result = 0;
-    for i in 0..N {
-        result = result * r + coeffs[N - 1 - i];
+fn lagrange_coeff_at(i: u32, party_ids: [Field; MAX_PARTICIPANTS], n: u32) -> Field {
+    let mut num = 1;
+    let mut den = 1;
+    for j in 0..MAX_PARTICIPANTS {
+        if (j as u32) < n {
+            if (j as u32) != i {
+                num = num * party_ids[j];
+                den = den * (party_ids[i] - party_ids[j]);
+            }
+        }
     }
-    result
-}
-
-fn r_pow_n(r: Field) -> Field {
-    let mut result = r;
-    for _ in 0..LOG_N {
-        result = result * result;
-    }
-    result
+    num / den
 }
 
 // -- Main circuit ----------------------------------------------------
 
 fn main(
     ciphertext_hash: pub Field,
-    plaintext_hash: pub Field,
     aggregate_pk_hash: pub Field,
+    decrypt_nizk_hash: pub Field,
     dkg_root: pub Field,
     epoch: pub Field,
     participant_set_hash: pub Field,
     d_commitment: pub Field,
     n_participants: pub Field,
     threshold: pub Field,
-    lagrange_coeffs: [Field; MAX_PARTICIPANTS],
+    committee_party_ids: pub [Field; MAX_PARTICIPANTS],
     participant_shares: [[Field; N]; MAX_PARTICIPANTS],
-    plaintext: [Field; N],
-    z_q: Field,
-) {
+) -> pub [Field; N] {
     assert(epoch as u64 > 0, "epoch must be positive");
-    assert(ciphertext_hash != plaintext_hash, "ciphertext and plaintext hash must differ");
     assert(participant_set_hash != 0, "participant set hash must be non-zero");
     assert(n_participants as u32 <= MAX_PARTICIPANTS, "n_participants exceeds MAX_PARTICIPANTS");
     assert(threshold as u32 > 0, "threshold must be positive");
     assert(threshold as u32 <= n_participants as u32, "threshold must not exceed n_participants");
 
+    let n = n_participants as u32;
+
+    // Party IDs must be non-zero (prevents prover from giving one party all weight)
+    for i in 0..MAX_PARTICIPANTS {
+        if (i as u32) < n {
+            assert(committee_party_ids[i] != 0, "party ID must be non-zero");
+        }
+    }
+
+    // --- Compute Lagrange coefficients from committee party IDs ---
+    let mut lagrange_coeffs = [0; MAX_PARTICIPANTS];
+    for i in 0..MAX_PARTICIPANTS {
+        if (i as u32) < n {
+            lagrange_coeffs[i] = lagrange_coeff_at(i, committee_party_ids, n);
+        }
+    }
+
+    // Verify Lagrange coefficients sum to 1 (catches zero or duplicate IDs)
+    let mut lagrange_sum = 0;
+    for i in 0..MAX_PARTICIPANTS {
+        if (i as u32) < n {
+            lagrange_sum = lagrange_sum + lagrange_coeffs[i];
+        }
+    }
+    assert(lagrange_sum == 1, "Lagrange coefficients must sum to 1");
+
+    // --- Hash each participant's share vector ---
     let mut share_hashes = [0; MAX_PARTICIPANTS];
     for i in 0..MAX_PARTICIPANTS {
-        if (i as u32) < (n_participants as u32) {
+        if (i as u32) < n {
             share_hashes[i] = vector_hash(participant_shares[i], protocol_constants::DOMAIN_VECTOR_MERKLE);
         }
     }
     let combined_share_hash = combine_hashes(share_hashes, n_participants);
 
-    let plaintext_check = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
-    assert(plaintext_check == plaintext_hash, "plaintext hash mismatch");
+    // --- Reconstruct plaintext from shares via Lagrange interpolation ---
+    let mut computed_plaintext = [0; N];
+    for j in 0..N {
+        let mut coeff = 0;
+        for i in 0..MAX_PARTICIPANTS {
+            if (i as u32) < n {
+                coeff = coeff + lagrange_coeffs[i] * participant_shares[i][j];
+            }
+        }
+        computed_plaintext[j] = coeff;
+    }
 
+    // Hash the computed plaintext (used for ciphertext distinction check)
+    let plaintext_hash = vector_hash(computed_plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
+
+    // Constrain ciphertext_hash: must differ from plaintext_hash
+    assert(ciphertext_hash != plaintext_hash, "ciphertext and plaintext hash must differ");
+
+    // --- Verify d_commitment binds all protocol parameters ---
     let d_commitment_computed = bind_8_with_domain([
         combined_share_hash,
         dkg_root,
@@ -104,44 +148,20 @@ fn main(
         epoch,
         n_participants,
         threshold,
-        0,
-        0,
+        aggregate_pk_hash,
+        decrypt_nizk_hash,
     ], protocol_constants::DOMAIN_AGGREGATOR_D_COMMIT);
     assert(d_commitment_computed == d_commitment, "d_commitment mismatch");
 
-    let r = bind_8_with_domain([
-        ciphertext_hash,
-        plaintext_hash,
-        aggregate_pk_hash,
-        dkg_root,
-        epoch,
-        participant_set_hash,
-        d_commitment,
-        0,
-    ], protocol_constants::DOMAIN_CHALLENGE_DERIVE);
-
-    let lhs = eval_poly(plaintext, r);
-    let mut rhs = 0;
-    let mut lagrange_sum = 0;
-    for i in 0..MAX_PARTICIPANTS {
-        if (i as u32) < (n_participants as u32) {
-            rhs = rhs + lagrange_coeffs[i] * eval_poly(participant_shares[i], r);
-            lagrange_sum = lagrange_sum + lagrange_coeffs[i];
-        }
-    }
-    assert(lagrange_sum == 1, "Lagrange coefficients must sum to 1");
-
-    let r_to_n_plus_one = r_pow_n(r) + 1;
-    assert(r_to_n_plus_one != 0, "r^n+1 must be non-zero (r is not a root)");
-    assert(rhs - lhs == protocol_constants::Q * z_q, "Lagrange recombination R3 violation");
-
     assert(aggregate_pk_hash != 0, "aggregate public key hash must be non-zero");
+
+    computed_plaintext
 }
 
 // -- Tests -----------------------------------------------------------
 
 fn make_zero_shares() -> [[Field; N]; MAX_PARTICIPANTS] {
-    let mut shares = [[0; N]; MAX_PARTICIPANTS];
+    let shares = [[0; N]; MAX_PARTICIPANTS];
     shares
 }
 
@@ -153,13 +173,14 @@ fn test_honest_lagrange_recombination() {
 
     let mut d = make_zero_shares();
     d[0] = [1, 0, 0, 0, 0, 0, 0, 0];
-    let plaintext = [3, 0, 0, 0, 0, 0, 0, 0];
-    let z_q = 0;
+    // d[1] and d[2] are all-zero vectors (simplified test data)
 
-    let lagrange_coeffs = [3, -3, 1, 0, 0, 0, 0, 0];
+    // Party IDs [1, 2, 3] -- Lagrange coeffs at x=0: [3, -3, 1]
+    let committee_party_ids = [1, 2, 3, 0, 0, 0, 0, 0];
 
     let ciphertext_hash = 42;
     let aggregate_pk_hash = 100;
+    let decrypt_nizk_hash = 500;
     let dkg_root = 200;
     let participant_set_hash = 300;
 
@@ -170,30 +191,38 @@ fn test_honest_lagrange_recombination() {
         }
     }
     let combined_share_hash = combine_hashes(share_hashes, n_participants);
-    let plaintext_hash = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
 
     let d_commitment = bind_8_with_domain([
         combined_share_hash,
         dkg_root, participant_set_hash, epoch,
         n_participants, threshold,
-        0, 0,
+        aggregate_pk_hash, decrypt_nizk_hash,
     ], protocol_constants::DOMAIN_AGGREGATOR_D_COMMIT);
 
-    main(
+    let plaintext = main(
         ciphertext_hash,
-        plaintext_hash,
         aggregate_pk_hash,
+        decrypt_nizk_hash,
         dkg_root,
         epoch,
         participant_set_hash,
         d_commitment,
         n_participants,
         threshold,
-        lagrange_coeffs,
+        committee_party_ids,
         d,
-        plaintext,
-        z_q,
     );
+
+    // Verify plaintext = [3, 0, 0, 0, 0, 0, 0, 0]
+    // (shares: d0=[1,0,...], d1=[0,...], d2=[0,...]; lambda=[3,-3,1])
+    assert(plaintext[0] == 3);
+    assert(plaintext[1] == 0);
+    assert(plaintext[2] == 0);
+    assert(plaintext[3] == 0);
+    assert(plaintext[4] == 0);
+    assert(plaintext[5] == 0);
+    assert(plaintext[6] == 0);
+    assert(plaintext[7] == 0);
 }
 
 #[test(should_fail)]
@@ -218,20 +247,20 @@ fn test_collision_domain_tag_separation() {
 }
 
 #[test(should_fail)]
-fn test_tamper_wrong_plaintext_hash() {
+fn test_tamper_zero_party_id() {
+    // Party ID 0 causes lambda_i = 0 for all i, so lagrange_sum = 0 != 1
     let n_participants = 3;
     let threshold = 2;
     let epoch = 1;
 
     let mut d = make_zero_shares();
     d[0] = [1, 0, 0, 0, 0, 0, 0, 0];
-    let plaintext = [3, 0, 0, 0, 0, 0, 0, 0];
-    let z_q = 0;
 
-    let lagrange_coeffs = [3, -3, 1, 0, 0, 0, 0, 0];
+    let committee_party_ids = [0, 2, 3, 0, 0, 0, 0, 0];
 
     let ciphertext_hash = 42;
     let aggregate_pk_hash = 100;
+    let decrypt_nizk_hash = 500;
     let dkg_root = 200;
     let participant_set_hash = 300;
 
@@ -243,47 +272,43 @@ fn test_tamper_wrong_plaintext_hash() {
     }
     let combined_share_hash = combine_hashes(share_hashes, n_participants);
 
-    let plaintext_hash = 99999;
-
     let d_commitment = bind_8_with_domain([
         combined_share_hash,
         dkg_root, participant_set_hash, epoch,
         n_participants, threshold,
-        0, 0,
+        aggregate_pk_hash, decrypt_nizk_hash,
     ], protocol_constants::DOMAIN_AGGREGATOR_D_COMMIT);
 
     main(
         ciphertext_hash,
-        plaintext_hash,
         aggregate_pk_hash,
+        decrypt_nizk_hash,
         dkg_root,
         epoch,
         participant_set_hash,
         d_commitment,
         n_participants,
         threshold,
-        lagrange_coeffs,
+        committee_party_ids,
         d,
-        plaintext,
-        z_q,
     );
 }
 
 #[test(should_fail)]
-fn test_tamper_relation_violation() {
+fn test_tamper_duplicate_party_ids() {
+    // Duplicate party IDs cause division by zero in Lagrange computation
     let n_participants = 3;
     let threshold = 2;
     let epoch = 1;
 
     let mut d = make_zero_shares();
     d[0] = [1, 0, 0, 0, 0, 0, 0, 0];
-    let plaintext = [0; 8];
-    let z_q = 0;
 
-    let lagrange_coeffs = [3, -3, 1, 0, 0, 0, 0, 0];
+    let committee_party_ids = [1, 1, 3, 0, 0, 0, 0, 0];
 
     let ciphertext_hash = 42;
     let aggregate_pk_hash = 100;
+    let decrypt_nizk_hash = 500;
     let dkg_root = 200;
     let participant_set_hash = 300;
 
@@ -294,47 +319,48 @@ fn test_tamper_relation_violation() {
         }
     }
     let combined_share_hash = combine_hashes(share_hashes, n_participants);
-    let plaintext_hash = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
 
     let d_commitment = bind_8_with_domain([
         combined_share_hash,
         dkg_root, participant_set_hash, epoch,
         n_participants, threshold,
-        0, 0,
+        aggregate_pk_hash, decrypt_nizk_hash,
     ], protocol_constants::DOMAIN_AGGREGATOR_D_COMMIT);
 
     main(
         ciphertext_hash,
-        plaintext_hash,
         aggregate_pk_hash,
+        decrypt_nizk_hash,
         dkg_root,
         epoch,
         participant_set_hash,
         d_commitment,
         n_participants,
         threshold,
-        lagrange_coeffs,
+        committee_party_ids,
         d,
-        plaintext,
-        z_q,
     );
 }
 
 #[test(should_fail)]
-fn test_tamper_wrong_q_relation() {
+fn test_ciphertext_equals_plaintext_hash() {
+    // ciphertext_hash must differ from plaintext_hash
     let n_participants = 3;
     let threshold = 2;
     let epoch = 1;
 
     let mut d = make_zero_shares();
     d[0] = [1, 0, 0, 0, 0, 0, 0, 0];
-    let plaintext = [3, 0, 0, 0, 0, 0, 0, 0];
-    let z_q = 1;
 
-    let lagrange_coeffs = [3, -3, 1, 0, 0, 0, 0, 0];
+    let committee_party_ids = [1, 2, 3, 0, 0, 0, 0, 0];
 
-    let ciphertext_hash = 42;
+    // Compute what plaintext would be to get its hash
+    let expected_plaintext = [3, 0, 0, 0, 0, 0, 0, 0];
+    let plaintext_hash = vector_hash(expected_plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
+    let ciphertext_hash = plaintext_hash;  // Should fail: ciphertext == plaintext hash
+
     let aggregate_pk_hash = 100;
+    let decrypt_nizk_hash = 500;
     let dkg_root = 200;
     let participant_set_hash = 300;
 
@@ -345,29 +371,26 @@ fn test_tamper_wrong_q_relation() {
         }
     }
     let combined_share_hash = combine_hashes(share_hashes, n_participants);
-    let plaintext_hash = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
 
     let d_commitment = bind_8_with_domain([
         combined_share_hash,
         dkg_root, participant_set_hash, epoch,
         n_participants, threshold,
-        0, 0,
+        aggregate_pk_hash, decrypt_nizk_hash,
     ], protocol_constants::DOMAIN_AGGREGATOR_D_COMMIT);
 
     main(
         ciphertext_hash,
-        plaintext_hash,
         aggregate_pk_hash,
+        decrypt_nizk_hash,
         dkg_root,
         epoch,
         participant_set_hash,
         d_commitment,
         n_participants,
         threshold,
-        lagrange_coeffs,
+        committee_party_ids,
         d,
-        plaintext,
-        z_q,
     );
 }
 
@@ -379,59 +402,47 @@ fn test_tamper_d_commitment_mismatch() {
 
     let mut d = make_zero_shares();
     d[0] = [1, 0, 0, 0, 0, 0, 0, 0];
-    let plaintext = [3, 0, 0, 0, 0, 0, 0, 0];
-    let z_q = 0;
 
-    let lagrange_coeffs = [3, -3, 1, 0, 0, 0, 0, 0];
+    let committee_party_ids = [1, 2, 3, 0, 0, 0, 0, 0];
 
     let ciphertext_hash = 42;
     let aggregate_pk_hash = 100;
+    let decrypt_nizk_hash = 500;
     let dkg_root = 200;
     let participant_set_hash = 300;
 
-    let mut share_hashes = [0; MAX_PARTICIPANTS];
-    for i in 0..MAX_PARTICIPANTS {
-        if (i as u32) < (n_participants as u32) {
-            share_hashes[i] = vector_hash(d[i], protocol_constants::DOMAIN_VECTOR_MERKLE);
-        }
-    }
-    let combined_share_hash = combine_hashes(share_hashes, n_participants);
-    let plaintext_hash = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
-
-    let d_commitment = 999;
+    let d_commitment = 999;  // Wrong commitment
 
     main(
         ciphertext_hash,
-        plaintext_hash,
         aggregate_pk_hash,
+        decrypt_nizk_hash,
         dkg_root,
         epoch,
         participant_set_hash,
         d_commitment,
         n_participants,
         threshold,
-        lagrange_coeffs,
+        committee_party_ids,
         d,
-        plaintext,
-        z_q,
     );
 }
 
 #[test(should_fail)]
-fn test_tamper_wrong_lagrange_sum() {
+fn test_tamper_wrong_threshold() {
+    // threshold > n_participants should fail
     let n_participants = 3;
-    let threshold = 2;
+    let threshold = 5;  // threshold exceeds n_participants
     let epoch = 1;
 
     let mut d = make_zero_shares();
     d[0] = [1, 0, 0, 0, 0, 0, 0, 0];
-    let plaintext = [3, 0, 0, 0, 0, 0, 0, 0];
-    let z_q = 0;
 
-    let lagrange_coeffs = [3, -3, 2, 0, 0, 0, 0, 0];
+    let committee_party_ids = [1, 2, 3, 0, 0, 0, 0, 0];
 
     let ciphertext_hash = 42;
     let aggregate_pk_hash = 100;
+    let decrypt_nizk_hash = 500;
     let dkg_root = 200;
     let participant_set_hash = 300;
 
@@ -442,28 +453,73 @@ fn test_tamper_wrong_lagrange_sum() {
         }
     }
     let combined_share_hash = combine_hashes(share_hashes, n_participants);
-    let plaintext_hash = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
 
     let d_commitment = bind_8_with_domain([
         combined_share_hash,
         dkg_root, participant_set_hash, epoch,
         n_participants, threshold,
-        0, 0,
+        aggregate_pk_hash, decrypt_nizk_hash,
     ], protocol_constants::DOMAIN_AGGREGATOR_D_COMMIT);
 
     main(
         ciphertext_hash,
-        plaintext_hash,
         aggregate_pk_hash,
+        decrypt_nizk_hash,
         dkg_root,
         epoch,
         participant_set_hash,
         d_commitment,
         n_participants,
         threshold,
-        lagrange_coeffs,
+        committee_party_ids,
         d,
-        plaintext,
-        z_q,
+    );
+}
+
+#[test(should_fail)]
+fn test_tamper_epoch_zero() {
+    // epoch must be positive
+    let n_participants = 3;
+    let threshold = 2;
+    let epoch = 0;
+
+    let mut d = make_zero_shares();
+    d[0] = [1, 0, 0, 0, 0, 0, 0, 0];
+
+    let committee_party_ids = [1, 2, 3, 0, 0, 0, 0, 0];
+
+    let ciphertext_hash = 42;
+    let aggregate_pk_hash = 100;
+    let decrypt_nizk_hash = 500;
+    let dkg_root = 200;
+    let participant_set_hash = 300;
+
+    let mut share_hashes = [0; MAX_PARTICIPANTS];
+    for i in 0..MAX_PARTICIPANTS {
+        if (i as u32) < (n_participants as u32) {
+            share_hashes[i] = vector_hash(d[i], protocol_constants::DOMAIN_VECTOR_MERKLE);
+        }
+    }
+    let combined_share_hash = combine_hashes(share_hashes, n_participants);
+
+    let d_commitment = bind_8_with_domain([
+        combined_share_hash,
+        dkg_root, participant_set_hash, epoch,
+        n_participants, threshold,
+        aggregate_pk_hash, decrypt_nizk_hash,
+    ], protocol_constants::DOMAIN_AGGREGATOR_D_COMMIT);
+
+    main(
+        ciphertext_hash,
+        aggregate_pk_hash,
+        decrypt_nizk_hash,
+        dkg_root,
+        epoch,
+        participant_set_hash,
+        d_commitment,
+        n_participants,
+        threshold,
+        committee_party_ids,
+        d,
     );
 }

@@ -5,7 +5,7 @@ transcript for cross-checking the Rust implementation's golden vector test.
 
 Wire format mirrors fiat_shamir.rs:
   new(session_id, participant_id):
-      hash <- SHA256(domain_sep_prefix + session_id + "/" + str(participant_id))
+      hash <- SHA256(domain_sep_prefix + hex(session_id) + "/" + str(participant_id))
   absorb(label, data):
       hash.update(u64_be(len(label)) + label + u64_be(len(data)) + data)
   challenge_bytes(label, n):
@@ -36,7 +36,7 @@ def u64be(n: int) -> bytes:
 class Transcript:
     def __init__(self, session_id: bytes, participant_id: int) -> None:
         self._h = hashlib.sha256()
-        domain = (DOMAIN_SEP_PREFIX + session_id.decode() + "/" + str(participant_id)).encode()
+        domain = (DOMAIN_SEP_PREFIX + session_id.hex() + "/" + str(participant_id)).encode()
         self._h.update(domain)
 
     def absorb(self, label: bytes, data: bytes) -> None:

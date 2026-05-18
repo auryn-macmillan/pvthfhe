@@ -1,7 +1,8 @@
 //! T11.5 side-channel audit tests.
 
 use pvthfhe_nizk::sigma::{
-    compute_d_rns, prove, verify, SigmaStatement, SigmaWitness, RLWE_N, RLWE_Q0, RLWE_Q1, RLWE_Q2,
+    compute_d_rns, prove, verify, verify_scalar, SigmaStatement, SigmaWitness, RLWE_N, RLWE_Q0,
+    RLWE_Q1, RLWE_Q2,
 };
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
@@ -68,8 +69,8 @@ fn sc_audit_pvss_commitment_comparison_is_ct() {
 }
 
 // sc_audit_verify_rejects_tampered_challenge
-// Verifies that a proof with a tampered challenge is rejected
-// regardless of which coefficient is modified.
+// Verifies that a proof with a tampered challenge is rejected.
+// With scalar challenge (ch ∈ {-1,0,1}), flip the sign to produce an invalid challenge.
 #[test]
 fn sc_audit_verify_rejects_tampered_challenge() -> Result<(), Box<dyn std::error::Error>> {
     let mut rng = ChaCha20Rng::seed_from_u64(0xA0D17);
@@ -82,21 +83,40 @@ fn sc_audit_verify_rejects_tampered_challenge() -> Result<(), Box<dyn std::error
     let pvss = [0u8; 32];
     let proof = prove(b"audit-session", 0, &stmt, &wit, &pvss, &mut rng)?;
 
-    // Tamper first coefficient of challenge
-    let mut tampered_first = proof.clone();
-    tampered_first.ch[0] ^= 1;
+    // Tamper challenge: flip sign (if non-zero) or set to 1 (if zero)
+    let mut tampered = proof.clone();
+    if tampered.ch != 0 {
+        tampered.ch = -tampered.ch;
+    } else {
+        tampered.ch = 1;
+    }
     assert!(
-        verify(b"audit-session", 0, &stmt, &tampered_first, &pvss).is_err(),
-        "challenge tampered in first coeff must be rejected"
+        verify(b"audit-session", 0, &stmt, &tampered, &pvss).is_err(),
+        "challenge tampered must be rejected"
     );
 
-    // Tamper last coefficient of challenge
-    let mut tampered_last = proof.clone();
-    tampered_last.ch[RLWE_N - 1] ^= 1;
+    Ok(())
+}
+
+#[test]
+fn scalar_sigma_roundtrip_uses_single_ternary_challenge() -> Result<(), Box<dyn std::error::Error>> {
+    let mut rng = ChaCha20Rng::seed_from_u64(0x5CA1A2);
+    let c_rns = sample_c_rns(&mut rng);
+    let s_i = sample_ternary(&mut rng);
+    let e_i = sample_error(&mut rng);
+    let d_rns = compute_d_rns(&c_rns, &s_i, &e_i)?;
+    let stmt = SigmaStatement { c_rns, d_rns };
+    let wit = SigmaWitness { s_i, e_i };
+    let pvss = [7u8; 32];
+
+    let proof = prove(b"scalar-session", 11, &stmt, &wit, &pvss, &mut rng)?;
+
     assert!(
-        verify(b"audit-session", 0, &stmt, &tampered_last, &pvss).is_err(),
-        "challenge tampered in last coeff must be rejected"
+        matches!(proof.ch, -1 | 0 | 1),
+        "scalar sigma challenge must be one ternary scalar"
     );
+    verify_scalar(b"scalar-session", 11, &stmt, &proof, &pvss)?;
+    verify(b"scalar-session", 11, &stmt, &proof, &pvss)?;
 
     Ok(())
 }

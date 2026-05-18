@@ -374,7 +374,7 @@ R11 runs in parallel with R0 (week 1–2). R10 runs in parallel with R6 (week 17
 
 ### R5.2 Real Sonobe step circuit · *fixes F48, F49, F50, F52*
 
-- [x] **RESEARCH**: CycloFoldStepCircuit encoding R4 fold relation. State arity = 3.
+- [x] **RESEARCH**: CycloFoldStepCircuit encoding R4 fold relation. State arity = 4 ([accumulated_hash, accumulated_norm, fold_count, ring_verification_count]; widened from 3 in M6).
 - [x] **RED step**: `step_circuit_relation.rs` + `ivc_steps_match_n.rs` — 3 tests GREEN.
 - [x] **RED SRS**: `srs_binding.rs` + `srs_committed_onchain.rs` — 4 tests GREEN (epoch-bound SRS).
 - [x] **GREEN**: `CycloFoldStepCircuit` replaces `ToyStepCircuit`. IVC_STEPS runtime. SRS from epoch hash via `srs_hash()`.

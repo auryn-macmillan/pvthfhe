@@ -17,6 +17,9 @@ fhe-traits = { package = "fhe-traits", git = "https://github.com/gnosisguild/fhe
 hex = "0.4"
 subtle = "2"
 zeroize = { version = "1", features = ["zeroize_derive"] }
+light-poseidon = "0.4"
+ark-bn254 = "0.5"
+ark-ff = "0.5"
 
 [dev-dependencies]
 

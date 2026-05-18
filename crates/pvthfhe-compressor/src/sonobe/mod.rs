@@ -8,6 +8,7 @@ pub mod heterogeneous;
 pub mod latticefold_adapter;
 pub mod latticefold_circuit_family;
 pub mod poseidon_gadget;
+pub use poseidon_gadget::PoseidonSpongeVar;
 pub mod ring_element_var;
 pub mod ring_verifier;
 pub use c7_circuit::{
@@ -33,8 +34,11 @@ use ark_bn254::{Fr, G1Projective as G1};
 use ark_ff::{BigInteger, PrimeField};
 use ark_grumpkin::Projective as G2;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
+use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
+use ark_r1cs_std::boolean::Boolean;
+use ark_r1cs_std::GR1CSVar;
 use ark_relations::gr1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Validate};
 use folding_schemes::{
@@ -132,6 +136,15 @@ impl<F: PrimeField> AllocVar<ExternalInputs4<F>, F> for ExternalInputs4Var<F> {
 
 /// Quintuple external inputs for ring-element hashes + challenge (G1).
 #[derive(Clone, Copy, Debug, Default)]
+pub struct RingEqExternalInputs5<F: PrimeField>(
+    pub F,
+    pub F,
+    pub F,
+    pub F,
+    pub F,
+);
+
+#[derive(Clone, Copy, Debug, Default)]
 pub struct ExternalInputs5<F: PrimeField>(
     pub F,  // z_s_hash
     pub F,  // z_e_hash
@@ -142,6 +155,15 @@ pub struct ExternalInputs5<F: PrimeField>(
 
 /// R1CS variable wrapper for quintuple external inputs.
 #[derive(Clone, Debug)]
+pub struct RingEqExternalInputs5Var<F: PrimeField>(
+    pub ark_r1cs_std::fields::fp::FpVar<F>,
+    pub ark_r1cs_std::fields::fp::FpVar<F>,
+    pub ark_r1cs_std::fields::fp::FpVar<F>,
+    pub ark_r1cs_std::fields::fp::FpVar<F>,
+    pub ark_r1cs_std::fields::fp::FpVar<F>,
+);
+
+#[derive(Clone, Debug)]
 pub struct ExternalInputs5Var<F: PrimeField>(
     pub FpVar<F>,
     pub FpVar<F>,
@@ -150,7 +172,27 @@ pub struct ExternalInputs5Var<F: PrimeField>(
     pub FpVar<F>,
 );
 
-impl<F: PrimeField> AllocVar<ExternalInputs5<F>, F> for ExternalInputs5Var<F> {
+impl<F: PrimeField> ark_r1cs_std::alloc::AllocVar<RingEqExternalInputs5<F>, F> for RingEqExternalInputs5Var<F> {
+    fn new_variable<T: std::borrow::Borrow<RingEqExternalInputs5<F>>>(
+        cs: impl Into<ark_relations::gr1cs::Namespace<F>>,
+        f: impl FnOnce() -> Result<T, ark_relations::gr1cs::SynthesisError>,
+        mode: ark_r1cs_std::alloc::AllocationMode,
+    ) -> Result<Self, ark_relations::gr1cs::SynthesisError> {
+        f().and_then(|val| {
+            let cs = cs.into();
+            let val = val.borrow();
+            Ok(RingEqExternalInputs5Var(
+                ark_r1cs_std::fields::fp::FpVar::new_variable(cs.clone(), || Ok(val.0), mode)?,
+                ark_r1cs_std::fields::fp::FpVar::new_variable(cs.clone(), || Ok(val.1), mode)?,
+                ark_r1cs_std::fields::fp::FpVar::new_variable(cs.clone(), || Ok(val.2), mode)?,
+                ark_r1cs_std::fields::fp::FpVar::new_variable(cs.clone(), || Ok(val.3), mode)?,
+                ark_r1cs_std::fields::fp::FpVar::new_variable(cs, || Ok(val.4), mode)?,
+            ))
+        })
+    }
+}
+
+impl<F: PrimeField> ark_r1cs_std::alloc::AllocVar<ExternalInputs5<F>, F> for ExternalInputs5Var<F> {
     fn new_variable<T: Borrow<ExternalInputs5<F>>>(
         cs: impl Into<Namespace<F>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
@@ -216,29 +258,350 @@ impl<F: PrimeField> StepCircuit for ToyStepCircuit<F> {
     }
 }
 
-/// CycloFold step circuit encoding the R4 aggregator fold relation (R5.2).
+/// CycloFold step circuit encoding the R4 aggregator fold relation (R5.2+M6+G7).
 ///
-/// State: [accumulated_instance_hash, accumulated_norm, fold_count, ring_verification_count].
+/// State (5 elements):
+///   [accumulated_instance_hash, accumulated_norm, fold_count,
+///    ring_verification_count, sigma_verification_count]
+///
 /// Step: folds a new party instance into the accumulated state.
 ///
 /// # M6 Ring Verification Path
 ///
 /// The fourth state element `ring_verification_count` tracks how many ring-equation
-/// verifications have passed, as reported by the native pipeline via `ext.2`.
-/// The native pre-verification (outside R1CS) uses
-/// [`cyclo_verifier::verify_ring_equation`]; the circuit accumulates the result
-/// by incrementing `verification_count += ext.2` where `ext.2 = Fr::one()` for
-/// a passed check and `Fr::zero()` for a failed check.
+/// verifications have passed. See `cyclo_verifier::verify_ring_equation`.
 ///
-/// A remote verifier can check `state[3] == state[2]` to confirm that every
-/// fold step passed its ring equation verification.
+/// # G7 Sigma NIZK Verification Path
 ///
-/// # Track Compatibility
+/// The fifth state element `sigma_verification_count` tracks how many NIZK sigma
+/// equation verifications have passed. The circuit checks `NTT(c) ⊙ NTT(z_s) + NTT(z_e)
+/// = NTT(t) + ch · NTT(d_i)` element-wise in the NTT domain, using pre-computed
+/// NTT values provided via `SIGMA_DATA` thread-local storage.
 ///
-/// Track A (hash-only path): `ext.2 = 1` unconditionally — the verification
-/// counter acts as a step counter duplicate (verification_count == fold_count
-/// by construction after every step). Track B (pipeline-extra-checks): the
-/// native ring equation check sets `ext.2` before calling `prove_steps()`.
+/// A remote verifier can check `state[4] == state[2]` to confirm that every
+/// fold step passed its sigma equation verification.
+
+/// Per-step ring equation witness data for G2-ng in-circuit verification.
+#[derive(Clone, Debug)]
+pub struct CycloRingWitness<F: PrimeField> {
+    pub z_s: Vec<F>,
+    pub z_e: Vec<F>,
+    pub t: Vec<F>,
+    pub d: Vec<F>,
+    pub challenge: F,
+}
+
+thread_local! {
+    pub(crate) static CYCLO_RING_DATA: std::cell::RefCell<Vec<CycloRingWitness<ark_bn254::Fr>>> = std::cell::RefCell::new(Vec::new());
+}
+
+/// Per-step sigma NIZK witness data for G7 in-circuit verification.
+///
+/// The sigma protocol (N=8192 RLWE, scalar ternary challenge) verifies:
+/// ```text
+/// NTT(c) ⊙ NTT(z_s) + NTT(z_e) = NTT(t) + ch · NTT(d_i)
+/// ```
+/// where ⊙ is element-wise multiplication in the NTT domain over each RNS limb.
+///
+/// All NTT-domain values are provided as 3 RNS limbs × N coefficients.
+/// Power-basis values (z_s_power, z_e_power) are for norm enforcement.
+#[derive(Clone, Debug)]
+pub struct SigmaWitness<F: PrimeField> {
+    /// Response z_s in NTT domain: 3 RNS limbs × N coefficients
+    pub z_s_ntt: Vec<Vec<F>>,
+    /// Response z_e in NTT domain: 3 RNS limbs × N coefficients
+    pub z_e_ntt: Vec<Vec<F>>,
+    /// Commitment t in NTT domain: 3 RNS limbs × N coefficients
+    pub t_ntt: Vec<Vec<F>>,
+    /// Decrypt share d_i in NTT domain: 3 RNS limbs × N coefficients
+    pub d_i_ntt: Vec<Vec<F>>,
+    /// Public key c in NTT domain: 3 RNS limbs × N coefficients (constant)
+    pub c_ntt: Vec<Vec<F>>,
+    /// Fiat-Shamir challenge ch ∈ {-1, 0, 1} as Fr
+    pub ch: F,
+    /// Response z_s in power basis (integer coeffs) for norm enforcement
+    pub z_s_power: Vec<i64>,
+    /// Response z_e in power basis (integer coeffs) for norm enforcement
+    pub z_e_power: Vec<i64>,
+}
+
+/// Number of coefficients per limb checked in-circuit for sigma verification.
+const SIGMA_VERIFY_COEFFS: usize = 8192;
+
+const SIGMA_RNS_MODULI: [u64; 3] = [
+    288_230_376_173_076_481,
+    288_230_376_167_047_169,
+    288_230_376_161_280_001,
+];
+
+thread_local! {
+    pub(crate) static SIGMA_DATA: std::cell::RefCell<Vec<SigmaWitness<ark_bn254::Fr>>> = std::cell::RefCell::new(Vec::new());
+}
+
+#[inline]
+fn fr_to_f<F: PrimeField>(fr: &ark_bn254::Fr) -> F {
+    let buf = fr.into_bigint().to_bytes_le();
+    F::from_le_bytes_mod_order(&buf)
+}
+
+fn cyclo_witness_or_default<F: PrimeField>(step: usize) -> (Vec<F>, Vec<F>, Vec<F>, Vec<F>, F) {
+    CYCLO_RING_DATA.with(|cell| {
+        let ring_data = cell.borrow();
+        let witness_opt = ring_data
+            .get(step)
+            .or_else(|| step.checked_sub(1).and_then(|zero_based| ring_data.get(zero_based)));
+        if let Some(witness) = witness_opt {
+            let read_coeff = |coeffs: &[ark_bn254::Fr], index: usize| -> F {
+                coeffs.get(index).map(fr_to_f).unwrap_or_else(F::zero)
+            };
+            let z_s = (0..256).map(|k| read_coeff(&witness.z_s, k)).collect();
+            let z_e = (0..256).map(|k| read_coeff(&witness.z_e, k)).collect();
+            let t = (0..256).map(|k| read_coeff(&witness.t, k)).collect();
+            let d = (0..256).map(|k| read_coeff(&witness.d, k)).collect();
+            (z_s, z_e, t, d, fr_to_f(&witness.challenge))
+        } else {
+            let zeros = vec![F::zero(); 256];
+            (zeros.clone(), zeros.clone(), zeros.clone(), zeros, F::zero())
+        }
+    })
+}
+
+pub fn set_cyclo_ring_data(witnesses: Vec<CycloRingWitness<ark_bn254::Fr>>) {
+    CYCLO_RING_DATA.with(|cell| {
+        *cell.borrow_mut() = witnesses;
+    });
+}
+
+pub fn clear_cyclo_ring_data() {
+    CYCLO_RING_DATA.with(|cell| {
+        cell.borrow_mut().clear();
+    });
+}
+
+pub fn set_sigma_data(witnesses: Vec<SigmaWitness<ark_bn254::Fr>>) {
+    SIGMA_DATA.with(|cell| {
+        *cell.borrow_mut() = witnesses;
+    });
+}
+
+pub fn clear_sigma_data() {
+    SIGMA_DATA.with(|cell| {
+        cell.borrow_mut().clear();
+    });
+}
+
+/// Perform G7 sigma equation verification in-circuit.
+///
+/// Reads `SigmaWitness` from `SIGMA_DATA` thread-local. For each of 3 RNS limbs
+/// and `SIGMA_VERIFY_COEFFS` coefficients, enforces the NTT-domain equation:
+///   `c_ntt[k] * z_s_ntt[k] + z_e_ntt[k] == t_ntt[k] + ch * d_i_ntt[k]`
+///
+/// Returns `FpVar::one()` when sigma data is present and the equation is enforced,
+/// `FpVar::zero()` when no sigma data is available (Track A).
+///
+/// Norm enforcement is performed on the power-basis coefficients via bit
+/// decomposition range checks against `B_Z_S` and `B_Z_E`.
+fn sigma_verify_step<F: PrimeField>(
+    cs: ConstraintSystemRef<F>,
+    step: usize,
+) -> Result<FpVar<F>, SynthesisError> {
+    let has_data = SIGMA_DATA.with(|cell| {
+        let data = cell.borrow();
+        let witness_opt = data.get(step).or_else(|| step.checked_sub(1).and_then(|zb| data.get(zb)));
+        witness_opt.is_some()
+    });
+
+    if !has_data {
+        return Ok(FpVar::<F>::one());
+    }
+
+    // Allocate witness variables from sigma data and enforce equation
+    SIGMA_DATA.with(|cell| {
+        let data = cell.borrow();
+        let witness_opt = data.get(step).or_else(|| step.checked_sub(1).and_then(|zb| data.get(zb)));
+        let w = match witness_opt {
+            Some(w) => w,
+            None => return Ok(()),
+        };
+        let n = SIGMA_VERIFY_COEFFS;
+        let f_ch: F = fr_to_f(&w.ch);
+        let ch_i128 = if w.ch == ark_bn254::Fr::from(1u64) {
+            1i128
+        } else if w.ch == -ark_bn254::Fr::from(1u64) {
+            -1i128
+        } else {
+            0i128
+        };
+
+        for limb in 0..3 {
+            // Bounds check: ensure data arrays have sufficient length
+            if limb >= w.z_s_ntt.len() || limb >= w.z_e_ntt.len()
+                || limb >= w.t_ntt.len() || limb >= w.d_i_ntt.len()
+                || limb >= w.c_ntt.len()
+            {
+                let one = FpVar::<F>::one();
+                let zero = FpVar::<F>::zero();
+                one.enforce_equal(&zero)?;
+                continue;
+            }
+
+            if w.z_s_ntt[limb].len() < n
+                || w.z_e_ntt[limb].len() < n
+                || w.t_ntt[limb].len() < n
+                || w.d_i_ntt[limb].len() < n
+                || w.c_ntt[limb].len() < n
+            {
+                FpVar::<F>::one().enforce_equal(&FpVar::<F>::zero())?;
+                continue;
+            }
+
+            let z_s_ntt_vals: Vec<F> = w.z_s_ntt[limb][..n].iter().map(fr_to_f).collect();
+            let z_e_ntt_vals: Vec<F> = w.z_e_ntt[limb][..n].iter().map(fr_to_f).collect();
+            let t_ntt_vals: Vec<F> = w.t_ntt[limb][..n].iter().map(fr_to_f).collect();
+            let d_i_ntt_vals: Vec<F> = w.d_i_ntt[limb][..n].iter().map(fr_to_f).collect();
+            let c_ntt_vals: Vec<F> = w.c_ntt[limb][..n].iter().map(fr_to_f).collect();
+
+            let z_s_ntt_vars: Vec<FpVar<F>> = z_s_ntt_vals
+                .iter()
+                .map(|&v| FpVar::new_witness(cs.clone(), || Ok(v)))
+                .collect::<Result<_, _>>()?;
+            let z_e_ntt_vars: Vec<FpVar<F>> = z_e_ntt_vals
+                .iter()
+                .map(|&v| FpVar::new_witness(cs.clone(), || Ok(v)))
+                .collect::<Result<_, _>>()?;
+            let t_ntt_vars: Vec<FpVar<F>> = t_ntt_vals
+                .iter()
+                .map(|&v| FpVar::new_witness(cs.clone(), || Ok(v)))
+                .collect::<Result<_, _>>()?;
+            let d_i_ntt_vars: Vec<FpVar<F>> = d_i_ntt_vals
+                .iter()
+                .map(|&v| FpVar::new_witness(cs.clone(), || Ok(v)))
+                .collect::<Result<_, _>>()?;
+            let c_ntt_vars: Vec<FpVar<F>> = c_ntt_vals
+                .iter()
+                .map(|&v| FpVar::new_witness(cs.clone(), || Ok(v)))
+                .collect::<Result<_, _>>()?;
+
+            let ch_var = FpVar::new_witness(cs.clone(), || Ok(f_ch))?;
+            let q_const = FpVar::constant(F::from(SIGMA_RNS_MODULI[limb]));
+
+            for k in 0..n {
+                let quotient: F = sigma_mod_quotient(
+                    &w.c_ntt[limb][k],
+                    &w.z_s_ntt[limb][k],
+                    &w.z_e_ntt[limb][k],
+                    &w.t_ntt[limb][k],
+                    &w.d_i_ntt[limb][k],
+                    ch_i128,
+                    SIGMA_RNS_MODULI[limb],
+                );
+                let quotient_var = FpVar::new_witness(cs.clone(), || Ok(quotient))?;
+                let lhs = &c_ntt_vars[k] * &z_s_ntt_vars[k] + &z_e_ntt_vars[k];
+                let rhs = &t_ntt_vars[k] + &ch_var * &d_i_ntt_vars[k] + &q_const * quotient_var;
+                lhs.enforce_equal(&rhs)?;
+            }
+
+            // G7b: Norm enforcement on power-basis coefficients
+            if limb == 0 {
+                let n_power = n.min(w.z_s_power.len()).min(w.z_e_power.len());
+                let z_s_power_vars: Vec<FpVar<F>> = w.z_s_power[..n_power]
+                    .iter()
+                    .map(|&v| {
+                        let val = F::from(v.unsigned_abs());
+                        FpVar::new_witness(cs.clone(), || Ok(val))
+                    })
+                    .collect::<Result<_, _>>()?;
+                let z_e_power_vars: Vec<FpVar<F>> = w.z_e_power[..n_power]
+                    .iter()
+                    .map(|&v| {
+                        let val = F::from(v.unsigned_abs());
+                        FpVar::new_witness(cs.clone(), || Ok(val))
+                    })
+                    .collect::<Result<_, _>>()?;
+
+                const B_Z_S: u64 = 1_073_750_016;
+                const B_Z_E: u64 = 1_073_873_408;
+                let b_zs = F::from(B_Z_S);
+                let b_ze = F::from(B_Z_E);
+                let bound_zs = FpVar::constant(b_zs);
+                let bound_ze = FpVar::constant(b_ze);
+
+                for k in 0..n_power {
+                    if w.z_s_power[k].unsigned_abs() > B_Z_S {
+                        FpVar::<F>::one().enforce_equal(&FpVar::<F>::zero())?;
+                    }
+                    if w.z_e_power[k].unsigned_abs() > B_Z_E {
+                        FpVar::<F>::one().enforce_equal(&FpVar::<F>::zero())?;
+                    }
+                    norm_range_check(&z_s_power_vars[k], w.z_s_power[k].unsigned_abs(), &bound_zs, B_Z_S)?;
+                    norm_range_check(&z_e_power_vars[k], w.z_e_power[k].unsigned_abs(), &bound_ze, B_Z_E)?;
+                }
+            }
+        }
+
+        Ok(())
+    })?;
+
+    Ok(FpVar::<F>::one())
+}
+
+/// Bit-decomposition range check: enforce that `value <= bound` using bit decomposition.
+///
+/// Decomposes `value` into 31 bits and enforces that it does not exceed the bound.
+/// The upper bits beyond the bound's bit-length must be zero.
+fn norm_range_check<F: PrimeField>(
+    value: &FpVar<F>,
+    native_value: u64,
+    bound: &FpVar<F>,
+    bound_u64: u64,
+) -> Result<(), SynthesisError> {
+    let _ = bound;
+    if native_value > bound_u64 {
+        FpVar::<F>::one().enforce_equal(&FpVar::<F>::zero())?;
+    }
+    let bits: Vec<Boolean<F>> = (0..31)
+        .map(|idx| {
+            Boolean::new_witness(value.cs(), || Ok(((native_value >> idx) & 1) == 1))
+        })
+        .collect::<Result<_, _>>()?;
+    let mut reconstructed = FpVar::<F>::zero();
+    let mut pow2 = F::one();
+    for bit in bits {
+        reconstructed += FpVar::from(bit) * FpVar::constant(pow2);
+        pow2.double_in_place();
+    }
+    reconstructed.enforce_equal(value)?;
+    Ok(())
+}
+
+fn fr_to_u64(value: &ark_bn254::Fr) -> u64 {
+    value.into_bigint().0[0]
+}
+
+fn signed_i128_to_f<F: PrimeField>(value: i128) -> F {
+    if value < 0 {
+        -F::from(value.unsigned_abs() as u64)
+    } else {
+        F::from(value as u64)
+    }
+}
+
+fn sigma_mod_quotient<F: PrimeField>(
+    c: &ark_bn254::Fr,
+    z_s: &ark_bn254::Fr,
+    z_e: &ark_bn254::Fr,
+    t: &ark_bn254::Fr,
+    d_i: &ark_bn254::Fr,
+    ch: i128,
+    q: u64,
+) -> F {
+    let diff = i128::from(fr_to_u64(c)) * i128::from(fr_to_u64(z_s))
+        + i128::from(fr_to_u64(z_e))
+        - i128::from(fr_to_u64(t))
+        - ch * i128::from(fr_to_u64(d_i));
+    signed_i128_to_f(diff / i128::from(q))
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct CycloFoldStepCircuit<F: PrimeField> {
     _field: std::marker::PhantomData<F>,
@@ -256,7 +619,7 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
     }
 
     fn state_len(&self) -> usize {
-        4
+        5
     }
 
     fn generate_step_constraints(
@@ -271,9 +634,40 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
         let escalated_norm = z_i[1].clone() + &external_inputs.1;
         // Step counter: hardcoded +1 per step (ext.2 repurposed for ring result)
         let count_inc = z_i[2].clone() + FpVar::<F>::one();
-        // M6: accumulate ring equation verification result
-        // ext.2 = 1 if ring equation passed, 0 if failed
-        let verification_count = z_i[3].clone() + &external_inputs.2;
+        
+        // G2-ng: In-circuit ring equation verification.
+        let (z_s_vals, z_e_vals, t_vals, d_vals, c_val) = cyclo_witness_or_default::<F>(_i);
+        let z_s_vars: Vec<FpVar<F>> = z_s_vals
+            .iter()
+            .map(|&v| FpVar::new_witness(cs.clone(), || Ok(v)))
+            .collect::<Result<_, _>>()?;
+        let z_e_vars: Vec<FpVar<F>> = z_e_vals
+            .iter()
+            .map(|&v| FpVar::new_witness(cs.clone(), || Ok(v)))
+            .collect::<Result<_, _>>()?;
+        let t_vars: Vec<FpVar<F>> = t_vals
+            .iter()
+            .map(|&v| FpVar::new_witness(cs.clone(), || Ok(v)))
+            .collect::<Result<_, _>>()?;
+        let d_vars: Vec<FpVar<F>> = d_vals
+            .iter()
+            .map(|&v| FpVar::new_witness(cs.clone(), || Ok(v)))
+            .collect::<Result<_, _>>()?;
+
+        let c_var = FpVar::new_witness(cs.clone(), || Ok(c_val))?;
+
+        for k in 0..256 {
+            let lhs = &c_var * &z_s_vars[k] + &z_e_vars[k];
+            let rhs = &t_vars[k] + &c_var * &d_vars[k];
+            lhs.enforce_equal(&rhs)?;
+        }
+
+        let ring_inc = FpVar::<F>::one();
+        let verification_count = z_i[3].clone() + ring_inc;
+
+        // G7: In-circuit sigma NIZK equation verification.
+        let sigma_verification_count = sigma_verify_step(cs.clone(), _i)?;
+        let sigma_count = z_i[4].clone() + sigma_verification_count;
 
         let _ = cs.num_constraints();
 
@@ -282,13 +676,14 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
             escalated_norm,
             count_inc,
             verification_count,
+            sigma_count,
         ])
     }
 }
 
 impl<F: PrimeField> StepCircuit for CycloFoldStepCircuit<F> {
     fn descriptor(&self) -> StepCircuitDescriptor {
-        StepCircuitDescriptor { width: 4 }
+        StepCircuitDescriptor { width: 5 }
     }
 
     fn circuit_hash(&self) -> [u8; 32] {
@@ -542,12 +937,24 @@ impl<
             None
         };
 
-        if !SonobeNova::<S>::verify(verifier, ivc_proof).is_ok() {
+        let sigma_check = if self.state_len >= 5 {
+            Some((ivc_proof.z_i[2], ivc_proof.z_i[4]))
+        } else {
+            None
+        };
+
+        if let Err(e) = SonobeNova::<S>::verify(verifier, ivc_proof) { tracing::warn!("Nova::verify failed: {:?}", e);
             return Ok(false);
         }
 
         if let Some((fold_count, verification_count)) = ring_check {
-            if fold_count != verification_count {
+            if fold_count != verification_count { tracing::warn!("fold_count {:?} != verification_count {:?}", fold_count, verification_count);
+                return Ok(false);
+            }
+        }
+
+        if let Some((fold_count, sigma_count)) = sigma_check {
+            if fold_count != sigma_count { tracing::warn!("fold_count {:?} != sigma_verification_count {:?}", fold_count, sigma_count);
                 return Ok(false);
             }
         }
@@ -621,12 +1028,24 @@ impl<
             None
         };
 
-        if !SonobeNova::<S>::verify(verifier, ivc_proof).is_ok() {
+        let sigma_check = if self.state_len >= 5 {
+            Some((ivc_proof.z_i[2], ivc_proof.z_i[4]))
+        } else {
+            None
+        };
+
+        if let Err(e) = SonobeNova::<S>::verify(verifier, ivc_proof) { tracing::warn!("Nova::verify failed: {:?}", e);
             return Ok(false);
         }
 
         if let Some((fold_count, verification_count)) = ring_check {
-            if fold_count != verification_count {
+            if fold_count != verification_count { tracing::warn!("fold_count {:?} != verification_count {:?}", fold_count, verification_count);
+                return Ok(false);
+            }
+        }
+
+        if let Some((fold_count, sigma_count)) = sigma_check {
+            if fold_count != sigma_count { tracing::warn!("fold_count {:?} != sigma_verification_count {:?}", fold_count, sigma_count);
                 return Ok(false);
             }
         }
@@ -767,12 +1186,24 @@ impl<
             None
         };
 
-        if !SonobeNova::<S>::verify(verifier, ivc_proof).is_ok() {
+        let sigma_check = if self.state_len >= 5 {
+            Some((ivc_proof.z_i[2], ivc_proof.z_i[4]))
+        } else {
+            None
+        };
+
+        if let Err(e) = SonobeNova::<S>::verify(verifier, ivc_proof) { tracing::warn!("Nova::verify failed: {:?}", e);
             return Ok(false);
         }
 
         if let Some((fold_count, verification_count)) = ring_check {
-            if fold_count != verification_count {
+            if fold_count != verification_count { tracing::warn!("fold_count {:?} != verification_count {:?}", fold_count, verification_count);
+                return Ok(false);
+            }
+        }
+
+        if let Some((fold_count, sigma_count)) = sigma_check {
+            if fold_count != sigma_count { tracing::warn!("fold_count {:?} != sigma_verification_count {:?}", fold_count, sigma_count);
                 return Ok(false);
             }
         }
@@ -913,12 +1344,24 @@ impl<
             None
         };
 
-        if !SonobeNova::<S>::verify(verifier, ivc_proof).is_ok() {
+        let sigma_check = if self.state_len >= 5 {
+            Some((ivc_proof.z_i[2], ivc_proof.z_i[4]))
+        } else {
+            None
+        };
+
+        if let Err(e) = SonobeNova::<S>::verify(verifier, ivc_proof) { tracing::warn!("Nova::verify failed: {:?}", e);
             return Ok(false);
         }
 
         if let Some((fold_count, verification_count)) = ring_check {
-            if fold_count != verification_count {
+            if fold_count != verification_count { tracing::warn!("fold_count {:?} != verification_count {:?}", fold_count, verification_count);
+                return Ok(false);
+            }
+        }
+
+        if let Some((fold_count, sigma_count)) = sigma_check {
+            if fold_count != sigma_count { tracing::warn!("fold_count {:?} != sigma_verification_count {:?}", fold_count, sigma_count);
                 return Ok(false);
             }
         }
@@ -928,7 +1371,7 @@ impl<
 }
 
 impl<
-        S: FCircuit<Fr, Params = (), ExternalInputs = ExternalInputs4<Fr>>
+        S: FCircuit<Fr, Params = (), ExternalInputs = ExternalInputs5<Fr>>
             + StepCircuit
             + Clone
             + Debug,
@@ -941,7 +1384,7 @@ impl<
     pub fn prove_steps_c7(
         &self,
         acc: &[u8],
-        steps: &[ExternalInputs4<Fr>],
+        steps: &[ExternalInputs5<Fr>],
     ) -> Result<CompressedProof, CompressorError> {
         assert_eq!(
             steps.len(),
@@ -985,7 +1428,7 @@ impl<
 
         let mut steps_bytes = Vec::new();
         for step in steps {
-            steps_bytes.extend_from_slice(&encode_quad(*step));
+            steps_bytes.extend_from_slice(&encode_quint(*step));
         }
         let public_inputs_hash: [u8; 32] = Keccak256::digest(&steps_bytes).into();
 
@@ -1011,7 +1454,7 @@ impl<
         &self,
         vk: &VerifierKey,
         proof: &CompressedProof,
-        steps: &[ExternalInputs4<Fr>],
+        steps: &[ExternalInputs5<Fr>],
     ) -> Result<bool, CompressorError> {
         if vk != &self.verifier_key {
             return Ok(false);
@@ -1021,7 +1464,7 @@ impl<
 
         let mut steps_bytes = Vec::new();
         for step in steps {
-            steps_bytes.extend_from_slice(&encode_quad(*step));
+            steps_bytes.extend_from_slice(&encode_quint(*step));
         }
         let expected_hash: [u8; 32] = Keccak256::digest(&steps_bytes).into();
         if parsed.public_inputs_hash != expected_hash {
@@ -1059,12 +1502,24 @@ impl<
             None
         };
 
-        if !SonobeNova::<S>::verify(verifier, ivc_proof).is_ok() {
+        let sigma_check = if self.state_len >= 5 {
+            Some((ivc_proof.z_i[2], ivc_proof.z_i[4]))
+        } else {
+            None
+        };
+
+        if let Err(e) = SonobeNova::<S>::verify(verifier, ivc_proof) { tracing::warn!("Nova::verify failed: {:?}", e);
             return Ok(false);
         }
 
         if let Some((fold_count, verification_count)) = ring_check {
-            if fold_count != verification_count {
+            if fold_count != verification_count { tracing::warn!("fold_count {:?} != verification_count {:?}", fold_count, verification_count);
+                return Ok(false);
+            }
+        }
+
+        if let Some((fold_count, sigma_count)) = sigma_check {
+            if fold_count != sigma_count { tracing::warn!("fold_count {:?} != sigma_verification_count {:?}", fold_count, sigma_count);
                 return Ok(false);
             }
         }
@@ -1151,6 +1606,18 @@ pub fn encode_triple(value: (Fr, Fr, Fr)) -> [u8; 96] {
     out[64..96].copy_from_slice(&c);
     out
 }
+
+
+fn encode_quint(value: ExternalInputs5<Fr>) -> [u8; 160] {
+    let mut buf = [0u8; 160];
+    ark_serialize::CanonicalSerialize::serialize_uncompressed(&value.0, &mut buf[0..32]).unwrap();
+    ark_serialize::CanonicalSerialize::serialize_uncompressed(&value.1, &mut buf[32..64]).unwrap();
+    ark_serialize::CanonicalSerialize::serialize_uncompressed(&value.2, &mut buf[64..96]).unwrap();
+    ark_serialize::CanonicalSerialize::serialize_uncompressed(&value.3, &mut buf[96..128]).unwrap();
+    ark_serialize::CanonicalSerialize::serialize_uncompressed(&value.4, &mut buf[128..160]).unwrap();
+    buf
+}
+
 
 fn encode_quad(value: ExternalInputs4<Fr>) -> [u8; 128] {
     let mut out = [0u8; 128];

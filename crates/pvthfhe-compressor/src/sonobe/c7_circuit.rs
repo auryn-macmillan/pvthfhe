@@ -19,7 +19,7 @@ use std::cell::RefCell;
 
 use pvthfhe_domain_tags::Tag;
 
-use super::{ExternalInputs4, ExternalInputs4Var, SonobeCompressor};
+use super::{ExternalInputs5, ExternalInputs5Var, PoseidonSpongeVar, SonobeCompressor};
 use crate::{CompressedProof, CompressorError, StepCircuit, StepCircuitDescriptor};
 use crate::witness::C7WitnessSet;
 
@@ -84,8 +84,9 @@ pub fn clear_c7_step_data() {
 /// Per-step external inputs:
 ///   ext.0 = participant share evaluation   d_i(r)
 ///   ext.1 = Lagrange coefficient           λ_i
-///   ext.2 = participant hash               commitment to the share (merkle_root)
+///   ext.2 = coeff_commitment               Poseidon sponge hash of share coefficients
 ///   ext.3 = dkg_root_hash                  aggregate PK binding (G4)
+///   ext.4 = challenge point r              derived from commitment + dkg_root_hash
 ///
 /// # G2: In-circuit share evaluation verification
 ///
@@ -95,8 +96,8 @@ pub fn clear_c7_step_data() {
 ///
 /// # G4: Aggregate PK binding (deferred)
 ///
-/// The C7 circuit binds each share to its Merkle root (ext.2, the participant hash),
-/// ensuring every folded share belongs to the committed Merkle tree. The aggregate
+/// The C7 circuit binds each share to its coefficient commitment (ext.2),
+/// ensuring every folded share belongs to the committed set. The aggregate
 /// public key binding — mapping `dkg_root_hash → agg_pk_hash` — is verified off-circuit
 /// (e.g., via SHA-256 of the DKG transcript). Full in-circuit PK binding (G4) is
 /// deferred to a follow-up; for M1, off-circuit verification suffices.
@@ -107,8 +108,8 @@ pub struct C7DecryptAggregationCircuit<F: PrimeField> {
 
 impl<F: PrimeField> FCircuit<F> for C7DecryptAggregationCircuit<F> {
     type Params = ();
-    type ExternalInputs = ExternalInputs4<F>;
-    type ExternalInputsVar = ExternalInputs4Var<F>;
+    type ExternalInputs = ExternalInputs5<F>;
+    type ExternalInputsVar = ExternalInputs5Var<F>;
 
     fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
         Ok(Self {
@@ -138,7 +139,7 @@ impl<F: PrimeField> FCircuit<F> for C7DecryptAggregationCircuit<F> {
         // coefficients default to zero — the constraint system structure
         // is preserved but witness values are zero.
 
-        let eval = C7_STEP_DATA.with(|cell| {
+        let (eval, coeff_vars, r_pow_vars) = C7_STEP_DATA.with(|cell| {
             let data_ref = cell.borrow();
             let data_opt: Option<(Vec<Vec<u8>>, Vec<u8>)> =
                 data_ref.as_ref().map(|d| (d.coeffs.clone(), d.challenge_r.clone()));
@@ -161,13 +162,9 @@ impl<F: PrimeField> FCircuit<F> for C7DecryptAggregationCircuit<F> {
                         current *= r_f;
                     }
 
-                    // Evaluate: eval = Σ coeffs[j] * r^{N_COEFFS-1-j}
-                    // Matches Horner's method in eval_poly_bn254:
-                    //   result = 0; for c in coeffs { result = result*r + c }
-                    // which computes c₀·r^{N-1} + c₁·r^{N-2} + ... + c_{N-1}·r⁰
-                    let mut eval_acc = FpVar::<F>::constant(F::zero());
+                    // Create coefficient witnesses
+                    let mut coeff_vars: Vec<FpVar<F>> = Vec::with_capacity(N_COEFFS);
                     for j in 0..N_COEFFS {
-                        let power_idx = N_COEFFS - 1 - j;
                         let coeff_val = if j * 32 + 32 <= coeffs_bytes.len() {
                             F::from_le_bytes_mod_order(
                                 &coeffs_bytes[j * 32..(j + 1) * 32],
@@ -176,24 +173,80 @@ impl<F: PrimeField> FCircuit<F> for C7DecryptAggregationCircuit<F> {
                             F::zero()
                         };
                         let coeff_var = FpVar::<F>::new_witness(cs.clone(), || Ok(coeff_val))?;
-                        let r_pow_var = FpVar::<F>::new_witness(cs.clone(), || Ok(r_pow_vals[power_idx]))?;
-                        eval_acc += &coeff_var * &r_pow_var;
+                        coeff_vars.push(coeff_var);
                     }
-                    Ok(eval_acc)
+
+                    // Create r-power witnesses
+                    let mut r_pow_vars: Vec<FpVar<F>> = Vec::with_capacity(N_COEFFS);
+                    for j in 0..N_COEFFS {
+                        let r_pow_var = FpVar::<F>::new_witness(cs.clone(), || Ok(r_pow_vals[j]))?;
+                        r_pow_vars.push(r_pow_var);
+                    }
+
+                    // Evaluate: eval = Σ coeffs[j] * r^{N_COEFFS-1-j}
+                    // Matches Horner's method in eval_poly_bn254:
+                    //   result = 0; for c in coeffs { result = result*r + c }
+                    // which computes c₀·r^{N-1} + c₁·r^{N-2} + ... + c_{N-1}·r⁰
+                    let mut eval_acc = FpVar::<F>::constant(F::zero());
+                    for j in 0..N_COEFFS {
+                        let power_idx = N_COEFFS - 1 - j;
+                        eval_acc += &coeff_vars[j] * &r_pow_vars[power_idx];
+                    }
+
+                    Ok((eval_acc, coeff_vars, r_pow_vars))
                 }
                 None => {
-                    let mut eval_acc = FpVar::<F>::constant(F::zero());
-                    for _ in 0..N_COEFFS {
-                        let coeff_var =
-                            FpVar::<F>::new_witness(cs.clone(), || Ok(F::zero()))?;
-                        let r_pow_var =
-                            FpVar::<F>::new_witness(cs.clone(), || Ok(F::zero()))?;
-                        eval_acc += &coeff_var * &r_pow_var;
+                    let mut r_pow_vals = Vec::with_capacity(N_COEFFS);
+                    r_pow_vals.push(F::one());
+                    for _ in 1..N_COEFFS {
+                        r_pow_vals.push(F::zero());
                     }
-                    Ok(eval_acc)
+
+                    let mut coeff_vars: Vec<FpVar<F>> = Vec::with_capacity(N_COEFFS);
+                    for _ in 0..N_COEFFS {
+                        coeff_vars.push(
+                            FpVar::<F>::new_witness(cs.clone(), || Ok(F::zero()))?
+                        );
+                    }
+
+                    let mut r_pow_vars: Vec<FpVar<F>> = Vec::with_capacity(N_COEFFS);
+                    for j in 0..N_COEFFS {
+                        r_pow_vars.push(
+                            FpVar::<F>::new_witness(cs.clone(), || Ok(r_pow_vals[j]))?
+                        );
+                    }
+
+                    let mut eval_acc = FpVar::<F>::constant(F::zero());
+                    for j in 0..N_COEFFS {
+                        let power_idx = N_COEFFS - 1 - j;
+                        eval_acc += &coeff_vars[j] * &r_pow_vars[power_idx];
+                    }
+
+                    Ok((eval_acc, coeff_vars, r_pow_vars))
                 }
             }
         })?;
+
+        // ── P1.7: r-power correctness constraints ──
+        let r_var = external_inputs.4.clone();
+
+        r_pow_vars[0].enforce_equal(&FpVar::<F>::one())?;
+
+        for j in 0..(N_COEFFS - 1) {
+            r_pow_vars[j + 1].enforce_equal(&(&r_pow_vars[j] * &r_var))?;
+        }
+
+        // ── P1.6: In-circuit commitment opening ──
+        let mut sponge = PoseidonSpongeVar::new();
+        sponge.absorb(&coeff_vars)?;
+        let computed_commitment = sponge.squeeze_one()?;
+        computed_commitment.enforce_equal(&external_inputs.2)?;
+
+        // ── P1.8: Challenge derivation in circuit ──
+        let mut r_sponge = PoseidonSpongeVar::new();
+        r_sponge.absorb(&[computed_commitment.clone(), external_inputs.3.clone()])?;
+        let computed_r = r_sponge.squeeze_one()?;
+        computed_r.enforce_equal(&external_inputs.4)?;
 
         // G2: Enforce that computed evaluation matches claimed external input
         eval.enforce_equal(&external_inputs.0)?;
@@ -224,10 +277,10 @@ impl<F: PrimeField> StepCircuit for C7DecryptAggregationCircuit<F> {
 /// Fold a set of C7 witnesses through Nova IVC using per-step external inputs.
 ///
 /// This function:
-/// 1. Verifies all Merkle proofs off-circuit (SECURITY: must pass!)
+/// 1. Verifies all coefficient commitments off-circuit (SECURITY: must pass!)
 /// 2. Sets up thread-local coefficient data for in-circuit G2 verification
 /// 3. Builds initial Nova state `[0, 0, 0]`
-/// 4. Creates per-step `ExternalInputs4` from `(share_eval, lagrange_coeff, merkle_root, dkg_root_hash)`
+/// 4. Creates per-step `ExternalInputs5` from `(share_eval, lagrange_coeff, coeff_commitment, dkg_root_hash, r)`
 /// 5. Calls `compressor.prove_steps_c7()` with the per-step inputs
 /// 6. Clears thread-local data
 /// 7. Returns the compressed proof
@@ -238,23 +291,31 @@ pub fn c7_fold_witnesses(
     dkg_root_hash: ark_bn254::Fr,
 ) -> Result<CompressedProof, CompressorError> {
     use ark_bn254::Fr;
+    use crate::poly_eval::eval_poly_bn254;
+    use crate::witness::hash_all_coeffs;
 
-    if !witnesses.verify_merkle_proofs() {
+    if !witnesses.verify_commitments() {
         return Err(CompressorError::InvalidProof);
     }
 
-    // G2: Set up thread-local coefficient data for in-circuit evaluation
     let coeffs: Vec<Vec<Fr>> = witnesses
         .participants
         .iter()
         .map(|w| w.coeffs.clone())
         .collect();
-    set_c7_step_data(coeffs, witnesses.challenge_r);
 
-    let steps: Vec<ExternalInputs4<Fr>> = witnesses
+    let derived_r = hash_all_coeffs(&[witnesses.participants[0].coeff_commitment, dkg_root_hash]);
+
+    set_c7_step_data(coeffs.clone(), derived_r);
+
+    let steps: Vec<ExternalInputs5<Fr>> = witnesses
         .participants
         .iter()
-        .map(|w| ExternalInputs4(w.share_eval, w.lagrange_coeff, w.merkle_root, dkg_root_hash))
+        .enumerate()
+        .map(|(i, w)| {
+            let share_eval = eval_poly_bn254(&coeffs[i], derived_r);
+            ExternalInputs5(share_eval, w.lagrange_coeff, w.coeff_commitment, dkg_root_hash, derived_r)
+        })
         .collect();
 
     let result = compressor.prove_steps_c7(acc, &steps);

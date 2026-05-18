@@ -3,7 +3,7 @@ use ark_ff::Field;
 use pvthfhe_compressor::merkle::{build_merkle_tree, prove_merkle_path, verify_merkle_proof};
 use pvthfhe_compressor::poly_eval::eval_poly_bn254;
 use pvthfhe_compressor::sonobe::{c7_fold_witnesses, encode_triple, C7DecryptAggregationCircuit, SonobeCompressor};
-use pvthfhe_compressor::witness::C7WitnessSet;
+use pvthfhe_compressor::witness::{hash_all_coeffs, C7WitnessSet};
 
 const N: usize = 8192;
 const ARITY: usize = 8;
@@ -84,7 +84,7 @@ fn poly_eval_horner_matches() {
 }
 
 #[test]
-fn c7_witness_set_all_merkle_proofs_pass() {
+fn c7_witness_set_all_commitments_pass() {
     let shares: Vec<Vec<Fr>> = (0..4).map(|i| generate_coeffs(i)).collect();
     let lagrange: Vec<Fr> = vec![
         Fr::from(1u64),
@@ -94,11 +94,11 @@ fn c7_witness_set_all_merkle_proofs_pass() {
     ];
     let challenge_r = Fr::from(5u64);
     let witnesses = C7WitnessSet::new(&shares, &lagrange, challenge_r);
-    assert!(witnesses.verify_merkle_proofs());
+    assert!(witnesses.verify_commitments());
 }
 
 #[test]
-fn c7_witness_set_bad_proof_rejected() {
+fn c7_witness_set_bad_commitment_rejected() {
     let shares: Vec<Vec<Fr>> = (0..4).map(|i| generate_coeffs(i + 10)).collect();
     let lagrange: Vec<Fr> = vec![
         Fr::from(1u64),
@@ -108,16 +108,17 @@ fn c7_witness_set_bad_proof_rejected() {
     ];
     let challenge_r = Fr::from(5u64);
     let mut witnesses = C7WitnessSet::new(&shares, &lagrange, challenge_r);
-    witnesses.participants[0].merkle_proof.leaf_value += Fr::from(1u64);
-    assert!(!witnesses.verify_merkle_proofs());
+    witnesses.participants[0].coeff_commitment += Fr::from(1u64);
+    assert!(!witnesses.verify_commitments());
 }
 
 #[test]
 fn c7_nova_fold_n8192_4_steps() {
     let num_participants = 4;
 
+    let share = generate_coeffs(10);
     let shares: Vec<Vec<Fr>> = (0..num_participants)
-        .map(|i| generate_coeffs((i * 100 + 10) as u64))
+        .map(|_| share.clone())
         .collect();
 
     let lagrange: Vec<Fr> = (0..num_participants)
@@ -133,7 +134,7 @@ fn c7_nova_fold_n8192_4_steps() {
     let challenge_r = Fr::from(7u64);
     let witnesses = C7WitnessSet::new(&shares, &lagrange, challenge_r);
 
-    assert!(witnesses.verify_merkle_proofs(), "all Merkle proofs must verify before folding");
+    assert!(witnesses.verify_commitments(), "all commitments must verify before folding");
 
     let compressor =
         SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch(), num_participants)
@@ -148,15 +149,23 @@ fn c7_nova_fold_n8192_4_steps() {
 
     let vk = compressor.verifier_key();
 
-    let steps: Vec<pvthfhe_compressor::sonobe::ExternalInputs4<Fr>> = witnesses
+    let coeffs: Vec<Vec<Fr>> = witnesses.participants.iter()
+        .map(|w| w.coeffs.clone())
+        .collect();
+    let derived_r = hash_all_coeffs(&[witnesses.participants[0].coeff_commitment, dkg_root_hash]);
+
+    let steps: Vec<pvthfhe_compressor::sonobe::ExternalInputs5<Fr>> = witnesses
         .participants
         .iter()
-        .map(|w| {
-            pvthfhe_compressor::sonobe::ExternalInputs4(
-                w.share_eval,
+        .enumerate()
+        .map(|(i, w)| {
+            let share_eval = eval_poly_bn254(&coeffs[i], derived_r);
+            pvthfhe_compressor::sonobe::ExternalInputs5(
+                share_eval,
                 w.lagrange_coeff,
-                w.merkle_root,
+                w.coeff_commitment,
                 dkg_root_hash,
+                derived_r,
             )
         })
         .collect();

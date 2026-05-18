@@ -4,8 +4,9 @@ use ark_bn254::Fr;
 use folding_schemes::frontend::FCircuit;
 use pvthfhe_compressor::sonobe::{
     clear_c7_step_data, encode_triple, set_c7_step_data, C7DecryptAggregationCircuit,
-    ExternalInputs4, SonobeCompressor, ToyStepCircuit,
+    ExternalInputs5, SonobeCompressor, ToyStepCircuit,
 };
+use pvthfhe_compressor::witness::hash_all_coeffs;
 use pvthfhe_compressor::StepCircuit;
 
 const N_COEFFS: usize = 8192;
@@ -74,26 +75,26 @@ fn c7_descriptor_width_is_three() {
     assert_eq!(circuit.descriptor().width, 3);
 }
 
-/// Test 6: full roundtrip prove/verify with 4 steps (G4-widened).
-/// G2 update: sets up thread-local coefficient data so the in-circuit
-/// evaluation check `eval == ext.0` passes (r=0 trivial evaluation).
 #[test]
 fn c7_roundtrip_prove_verify() {
+    clear_c7_step_data();
     let ext_0 = Fr::from(42u64);
     let num_steps = 4;
 
-    // Pre-build compressor (sets up constraint system with default zero witnesses)
     let compressor = SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch(), num_steps)
         .expect("construct C7 sonobe compressor");
 
-    // G2: Set up thread-local coefficient data before proving.
-    // With r=0, r^0=1, r^j=0 for j>0, so coeff[0]=ext_0 suffices.
     let coeffs = build_trivial_coeffs(num_steps, ext_0);
-    set_c7_step_data(coeffs, Fr::from(0u64));
+
+    let commitment = hash_all_coeffs(&coeffs[0]);
+    let derived_r = hash_all_coeffs(&[commitment, Fr::from(0u64)]);
+    eprintln!("commitment={commitment:?}, derived_r={derived_r:?}");
+
+    set_c7_step_data(coeffs, derived_r);
 
     let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
-    let steps: Vec<ExternalInputs4<Fr>> = vec![
-        ExternalInputs4(ext_0, Fr::from(1u64), Fr::from(100u64), Fr::from(0u64));
+    let steps: Vec<ExternalInputs5<Fr>> = vec![
+        ExternalInputs5(ext_0, Fr::from(1u64), commitment, Fr::from(0u64), derived_r);
         num_steps
     ];
     let proof = compressor
@@ -103,10 +104,11 @@ fn c7_roundtrip_prove_verify() {
     clear_c7_step_data();
 
     let vk = compressor.verifier_key();
-
-    // G4: backend_id checked via verifier key field
+    eprintln!("vk.backend_id={}", vk.backend_id);
     assert_eq!(vk.backend_id, "sonobe-nova-bn254-grumpkin");
-    assert!(compressor
-        .verify_steps_c7(&vk, &proof, &steps)
-        .expect("verify C7 ivc"));
+
+    let verify_result = compressor.verify_steps_c7(&vk, &proof, &steps);
+    eprintln!("verify_result={verify_result:?}");
+
+    assert!(verify_result.expect("verify C7 ivc"));
 }

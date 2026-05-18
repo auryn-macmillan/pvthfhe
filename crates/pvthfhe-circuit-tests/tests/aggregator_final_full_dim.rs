@@ -7,7 +7,7 @@ use std::{
 
 use pvthfhe_circuit_tests::{bb, nargo};
 
-const EXPECTED_PUBLIC_INPUTS: usize = 7;
+const EXPECTED_PUBLIC_INPUTS: usize = 8;
 
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")

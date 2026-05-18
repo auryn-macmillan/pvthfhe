@@ -134,51 +134,60 @@ fn mismatched_pvss_commitment_produces_verification_failed() {
 }
 
 /// Differential test: prove with two different pvss_commitment values for identical (s_i, e_i).
+///
+/// With scalar ternary challenge (ch ∈ {-1,0,1}), collisions are possible (~33%
+/// probability). This test runs 20 trials with different seeds and verifies that
+/// at least half of trials produce different challenges.
 #[test]
 fn different_pvss_commitments_produce_different_challenges() {
-    let mut rng = ChaCha20Rng::seed_from_u64(0xC4D1FF01);
-
-    let c_rns: Vec<u64> = {
-        let moduli = [RLWE_Q0, RLWE_Q1, RLWE_Q2];
-        let mut out = vec![0u64; RLWE_N * 3];
-        for (limb, &q) in moduli.iter().enumerate() {
-            let threshold = u64::MAX - (u64::MAX % q);
-            for j in 0..RLWE_N {
-                loop {
-                    let v = rng.next_u64();
-                    if v < threshold {
-                        out[limb * RLWE_N + j] = v % q;
-                        break;
+    let mut diff_count = 0usize;
+    for seed in 0..20u64 {
+        let mut rng = ChaCha20Rng::seed_from_u64(0xC4D1FF01 ^ seed);
+        let c_rns: Vec<u64> = {
+            let moduli = [RLWE_Q0, RLWE_Q1, RLWE_Q2];
+            let mut out = vec![0u64; RLWE_N * 3];
+            for (limb, &q) in moduli.iter().enumerate() {
+                let threshold = u64::MAX - (u64::MAX % q);
+                for j in 0..RLWE_N {
+                    loop {
+                        let v = rng.next_u64();
+                        if v < threshold {
+                            out[limb * RLWE_N + j] = v % q;
+                            break;
+                        }
                     }
                 }
             }
+            out
+        };
+        let s_i = sample_ternary(&mut rng);
+        let e_i = sample_error(&mut rng).expect("error sample");
+        let d_rns = compute_d_rns(&c_rns, &s_i, &e_i).expect("compute_d_rns");
+
+        let stmt = SigmaStatement { c_rns, d_rns };
+        let wit = SigmaWitness {
+            s_i: s_i.clone(),
+            e_i: e_i.clone(),
+        };
+
+        let mut rng_a = ChaCha20Rng::seed_from_u64(0xC4D1FF02 ^ seed);
+        let mut rng_b = ChaCha20Rng::seed_from_u64(0xC4D1FF02 ^ seed);
+
+        let commit_a = [0u8; 32];
+        let commit_b = [1u8; 32];
+
+        let proof_a = sigma_prove(b"c4-diff", 1, &stmt, &wit, &commit_a, &mut rng_a)
+            .expect("sigma prove a");
+        let proof_b = sigma_prove(b"c4-diff", 1, &stmt, &wit, &commit_b, &mut rng_b)
+            .expect("sigma prove b");
+
+        if proof_a.ch != proof_b.ch {
+            diff_count += 1;
         }
-        out
-    };
-    let s_i = sample_ternary(&mut rng);
-    let e_i = sample_error(&mut rng).expect("error sample");
-    let d_rns = compute_d_rns(&c_rns, &s_i, &e_i).expect("compute_d_rns");
-
-    let stmt = SigmaStatement { c_rns, d_rns };
-    let wit = SigmaWitness {
-        s_i: s_i.clone(),
-        e_i: e_i.clone(),
-    };
-
-    let mut rng_a = ChaCha20Rng::seed_from_u64(0xC4D1FF02);
-    let mut rng_b = ChaCha20Rng::seed_from_u64(0xC4D1FF02);
-
-    let commit_a = [0u8; 32];
-    let commit_b = [1u8; 32];
-
-    let proof_a =
-        sigma_prove(b"c4-diff", 1, &stmt, &wit, &commit_a, &mut rng_a).expect("sigma prove a");
-    let proof_b =
-        sigma_prove(b"c4-diff", 1, &stmt, &wit, &commit_b, &mut rng_b).expect("sigma prove b");
-
-    assert_ne!(
-        proof_a.ch, proof_b.ch,
-        "same (s_i, e_i) with different pvss_commitments must produce different challenges"
+    }
+    assert!(
+        diff_count >= 10,
+        "only {diff_count}/20 trials produced different challenges with different pvss_commitments (expected ≥10 for ternary challenge)"
     );
 }
 
@@ -193,13 +202,18 @@ const SIGMA_Z_E_DATA_OFFSET: usize =
 fn scenario_01_tampered_ajtai_commitment() -> Result<(), NizkError> {
     let adapter = CycloNizkAdapter;
     let (stmt, mut proof) = make_valid_proof(0x4E38_0001, "n8-session", 1)?;
-    for b in proof.proof_bytes[34..42].iter_mut() {
-        *b ^= 0xFF;
+    // Tamper with first t_rns coefficient value in sigma section (guaranteed
+    // to break algebraic verification equation).
+    let sigma_start = sigma_section_offset("n8-session");
+    // Layout: d_rns count(4) | d_rns values(24576*8) | t_rns count(4) | t_rns values
+    let t_rns_first_val = sigma_start + 4 + RLWE_N * 3 * 8 + 4;
+    if t_rns_first_val + 7 < proof.proof_bytes.len() {
+        proof.proof_bytes[t_rns_first_val] ^= 0xFF;
     }
     match adapter.verify(&stmt, &proof) {
         Err(NizkError::VerificationFailed(_)) => Ok(()),
         _ => Err(NizkError::VerificationFailed(
-            "scenario_01: expected VerificationFailed",
+            "scenario_01: expected VerificationFailed for tampered t_rns",
         )),
     }
 }
@@ -237,7 +251,7 @@ fn scenario_04_tampered_version_byte() -> Result<(), NizkError> {
     let adapter = CycloNizkAdapter;
     let (stmt, mut proof) = make_valid_proof(0x4E38_0004, "n8-session", 1)?;
     proof.proof_bytes[0] = 0x00;
-    proof.proof_bytes[1] = 0x02;
+    proof.proof_bytes[1] = 0x01;
     match adapter.verify(&stmt, &proof) {
         Err(NizkError::InvalidProof("unsupported proof version")) => Ok(()),
         _ => Err(NizkError::VerificationFailed(

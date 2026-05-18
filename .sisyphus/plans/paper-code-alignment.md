@@ -19,19 +19,9 @@ Plus a deep review of the `paper/claims-table.md` (22 formal claims) against cod
 ## Batch A — Fix paper header staleness (blocks all other batches)
 
 ### A.1 — Update paper header surrogate claims (lines 3-8)
-- [ ] **File**: `paper/main.tex` lines 3-8
-- [ ] **Change**: Replace the stale header comment:
-  ```
-  % no on-chain cryptographic verification — verifier accepts any proof bytes
-  % Noir circuits are tautological surrogates (assert(x == x) — no real constraints)
-  ```
-  With current reality:
-  ```
-  % Lattice-native BFV sigma protocol (v4) with per-share NIZK verification
-  % Sonobe Nova IVC with CycloFoldStepCircuit; committed-smudge decryption
-  % Research prototype — do not use for The Interfold or any production deployment
-  ```
-- [ ] **Gate**: Paper header reflects current code reality; "do not use for The Interfold" warning preserved
+- [x] **File**: `paper/main.tex` lines 3-8
+- [x] **Change**: Replace the stale header comment with current reality (BFV sigma v4, Sonobe Nova IVC, G2 in-circuit Poseidon, real HonkVerifier.sol)
+- [x] **Gate**: Paper header reflects current code reality; "do not use for The Interfold" warning preserved
 
 ### A.2 — Update architecture section (§1, lines 40-49) to reflect current state
 - [ ] **File**: `paper/main.tex` lines 40-49
@@ -206,9 +196,9 @@ All batches are independent except C depends on A (benchmarks may need architect
 
 ## Acceptance criteria
 
-- [ ] Paper header no longer claims "verifier accepts any proof bytes"
+- [x] Paper header no longer claims "verifier accepts any proof bytes"
 - [ ] Architecture section mentions bfv_sigma.rs, committed smudge, two-track DKG
-- [ ] Claims table has provenance column (SURROGATE / TARGET / BOTH)
+- [x] Claims table has provenance column (SURROGATE / TARGET / BOTH)
 - [ ] P2-T1/T3/T5 and P3-T1/T2/T5 marked as SURROGATE
 - [ ] P1 criticality footnote present in claims table
 - [ ] P1 benchmark figures regenerated with current code

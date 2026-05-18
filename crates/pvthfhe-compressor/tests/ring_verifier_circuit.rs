@@ -18,8 +18,8 @@ use ark_relations::gr1cs::ConstraintSystem;
 use folding_schemes::frontend::FCircuit;
 use pvthfhe_compressor::sonobe::poseidon_gadget::hash256_native;
 use pvthfhe_compressor::sonobe::ring_verifier::RingVerifierCircuit;
-use pvthfhe_compressor::sonobe::ExternalInputs5;
-use pvthfhe_compressor::sonobe::ExternalInputs5Var;
+use pvthfhe_compressor::sonobe::RingEqExternalInputs5;
+use pvthfhe_compressor::sonobe::RingEqExternalInputs5Var;
 
 /// Build honest ring elements for N=256 where c=1 equation holds.
 /// zs[k] + ze[k] == t[k] + d[k] for all k.
@@ -94,8 +94,8 @@ fn run_ring_verifier(
     hashes: (Fr, Fr, Fr, Fr),
 ) -> bool {
     let cs = ConstraintSystem::<Fr>::new_ref();
-    let ext = ExternalInputs5(hashes.0, hashes.1, hashes.2, hashes.3, challenge);
-    let ext_var = ExternalInputs5Var::new_witness(cs.clone(), || Ok(ext)).unwrap();
+    let ext = RingEqExternalInputs5(hashes.0, hashes.1, hashes.2, hashes.3, challenge);
+    let ext_var = RingEqExternalInputs5Var::new_witness(cs.clone(), || Ok(ext)).unwrap();
 
     let mut ring_coeffs = Vec::with_capacity(1024);
     ring_coeffs.extend_from_slice(zs);

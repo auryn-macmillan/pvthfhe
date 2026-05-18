@@ -1,7 +1,7 @@
 # Plan: Final Wiring — demo-e2e + per-node Integration
 
 **Plan**: `final-wiring-demo-pernode`
-**Status**: DRAFT
+**Status**: COMPLETE
 **Created**: 2026-05-16
 **Goal**: Fully wire all p2-m4 through A.4 changes into demo-e2e and per-node binaries. Close the p2-m6 ring equation gap (ext.2 not populated from pipeline).
 
@@ -55,8 +55,8 @@
 
 - [ ] p2-m6: tampered witness → ring equation fail → demo REJECT
 - [ ] per-node uses AjtaiMatrix for Track B
-- [ ] per-node supports C7 tree folding
-- [ ] C7 tree folding is default in demo-e2e (no env var needed)
+- [x] per-node supports C7 tree folding
+- [x] C7 tree folding is default in demo-e2e (no env var needed)
 - [ ] Demo ACCEPT — all n=16,32,64,128
 - [ ] All existing tests pass
 

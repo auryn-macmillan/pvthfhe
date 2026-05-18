@@ -525,7 +525,7 @@ fn test_encode_algebraic_proof(d_rns: &[u64], proof: &SigmaProof) -> Vec<u8> {
     test_encode_u64_vec(&mut out, &proof.t_rns);
     test_encode_i64_vec(&mut out, &proof.z_s);
     test_encode_i64_vec(&mut out, &proof.z_e);
-    test_encode_i64_vec(&mut out, &proof.ch);
+    test_encode_i64_vec(&mut out, &[proof.ch]);
     out
 }
 

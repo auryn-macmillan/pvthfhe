@@ -22,3 +22,16 @@ When using `git stash` to test pre-existing behavior, a `git stash pop` conflict
 - Poseidon configuration: t=5 (rate=4, capacity=1), full_rounds=8, partial_rounds=60, alpha=5. Three permutations per hash8 call (~900 R1CS constraints total).
 - The `REPRODUCING.md` expected runtimes table (1.5-188ms) is marked as stale stub data — not representative of target Architecture B.
 - The existing `per_node` binary at n=500 would show ~42.7s total but only measures per-party work, not Nova IVC folding.
+
+### Fix 1: build_c7_prover_toml Noir circuit mismatch (2026-05-18)
+- The Noir `aggregator_final` circuit was updated (G-LAGRANGE fix) to require `committee_party_ids` instead of `lagrange_coeffs`, and to compute `plaintext`/`plaintext_hash` internally rather than taking them as inputs.
+- `build_c7_prover_toml` in `full_pipeline.rs` was still generating the old TOML format with `lagrange_coeffs`, `plaintext_hash`, `plaintext`, and `z_q` fields.
+- Fix: Replaced `lagrange_coeffs: &[Fr]` param with `committee_party_ids: &[u32]`, removed old fields from TOML output, added `committee_party_ids` array.
+- Updated both callers: `full_pipeline.rs` (demo-e2e Noir phase) and `pvthfhe_e2e.rs`.
+- Added `committee_party_ids: Vec<u32>` to `PipelineReport` for the e2e caller.
+
+### Fix 2: C7 tree folding in per_aggregator (2026-05-18)
+- The `per_aggregator` benchmark used flat Sonobe Nova folding (`prove_steps_c7`) which was 50s at n=16 (7.1s/step).
+- The demo-e2e pipeline uses `CompressionTree::build` (MicroNova heterogeneous IVC) with tree folding achieving 3.6s at n=16 (31x faster).
+- Fix: Replaced flat Nova with `CompressionTree::build` using dummy leaf hashes. Kept flat Nova as fallback.
+- Required imports: `ark_ff::{BigInteger, PrimeField}`, `pvthfhe_compressor::micronova::tree::CompressionTree`.

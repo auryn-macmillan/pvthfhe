@@ -23,8 +23,9 @@ Levels 1..d-1 (internal): FoldVerifierCircuit   — verify two children fold cor
 Level d (root):      TerminalVerifierCircuit — verify final accumulator
 ```
 
-All circuits share:
+The heterogeneous IVC circuits (P1VerifierCircuit, FoldVerifierCircuit, TerminalVerifierCircuit) share:
 - `state_len = 3` ([hash, norm, fold_count])
+  - *Note: CycloFoldStepCircuit (Track A/B, line 156) has state_len=4 with `ring_verification_count`; it is not part of this 3-element family.*
 - External inputs width = 3 (encoded as `ExternalInputs3<Fr>`)
 - Same BN254/Grumpkin curve cycle
 

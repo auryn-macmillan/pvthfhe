@@ -3,7 +3,7 @@
 //! # Proof byte layout (spec §3.4 + SPEC EXTENSION for sigma_proof_bytes)
 //!
 //! ```text
-//! version                  : u16 BE = 0x0001
+//! version                  : u16 BE = 0x0002
 //! ccs_instance_id          : 32 bytes
 //!                            = SHA256(session_id || participant_id u16 BE
 //!                                     || q u64 BE || degree u64 BE
@@ -19,7 +19,7 @@
 //!   t_rns                  : u32 BE count + count × u64 LE
 //!   z_s                    : u32 BE count + count × i64 LE
 //!   z_e                    : u32 BE count + count × i64 LE
-//!   ch                     : u32 BE count + count × i64 LE
+//!   ch                     : 32 bytes (sign-extended ternary scalar: -1, 0, or 1)
 //! cyclo_accumulator_bytes  : u32 BE length=0 (Phase-2 placeholder)
 //! ```
 //!
@@ -42,7 +42,7 @@ use rand_core::{RngCore, SeedableRng};
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 
-const PROOF_VERSION: u16 = 0x0001;
+const PROOF_VERSION: u16 = 0x0002;
 
 /// Maximum allowed proof byte length (prevents heap-exhaustion from crafted proof).
 const MAX_PROOF_BYTES: usize = 1_048_576; // 1 MiB
@@ -86,7 +86,7 @@ impl NizkAdapter for CycloNizkAdapter {
 
         let d_rns = sigma::compute_d_rns(&c_rns, &s_i, &e_i)?;
 
-        let ajtai_commitment = compute_ajtai_commitment(&ccs_id, &s_i)?;
+        let ajtai_commitment = compute_ajtai_commitment(&derive_epoch_crs_seed(stmt.epoch, stmt.session_id.as_bytes()), &s_i)?;
         let ajtai_bytes = serialize_ajtai_commitment(&ajtai_commitment);
 
         let sigma_binding = ajtai_sigma_session_binding(stmt.session_id.as_bytes(), &ajtai_bytes);
@@ -183,7 +183,7 @@ impl NizkAdapter for CycloNizkAdapter {
         let sigma_binding =
             ajtai_sigma_session_binding(stmt.session_id.as_bytes(), &ajtai_commitment_bytes);
 
-        sigma::verify(
+        sigma::verify_scalar(
             &sigma_binding,
             u32::from(stmt.participant_id),
             &sigma_stmt,
@@ -216,6 +216,80 @@ impl NizkAdapter for CycloNizkAdapter {
         }
         Ok(())
     }
+}
+
+/// Public extraction of sigma proof internals from opaque proof bytes.
+///
+/// Returns `(d_rns, SigmaProof { t_rns, z_s, z_e, ch })` by parsing
+/// the sigma section from the encoded proof.
+pub fn extract_sigma_proof(
+    proof_bytes: &[u8],
+) -> Result<(Vec<u64>, sigma::SigmaProof), NizkError> {
+    let mut cur = Cursor::new(proof_bytes);
+
+    let version = cur.read_u16()?;
+    if version != PROOF_VERSION {
+        return Err(NizkError::InvalidProof("unsupported proof version"));
+    }
+
+    cur.skip(32)?; // ccs_instance_id
+    cur.skip(26_624)?; // ajtai_commitment
+
+    let _sid = cur.read_len_prefixed_bytes()?;
+    let _pid = cur.read_u16()?;
+    let _commitment: [u8; 32] = cur
+        .read_exact(32)?
+        .try_into()
+        .map_err(|_| NizkError::InvalidProof("bad sha256_binding commitment"))?;
+
+    let sigma_section_len = usize::try_from(cur.read_u32()?)
+        .map_err(|_| NizkError::InvalidProof("sigma_section_len overflow"))?;
+    let sigma_section = cur.read_exact(sigma_section_len)?.to_vec();
+
+    decode_sigma_section(&sigma_section)
+}
+
+/// Public extraction of the full sigma verifier input from opaque proof bytes.
+///
+/// Returns `(c_rns, d_rns, SigmaProof)` where `c_rns` is the deterministic
+/// statement polynomial derived from the encoded CCS instance id and `d_rns`
+/// is the proof-embedded decrypt-share polynomial used by the sigma verifier.
+pub fn extract_sigma_statement_and_proof(
+    stmt: &NizkStatement,
+    proof_bytes: &[u8],
+) -> Result<(Vec<u64>, Vec<u64>, sigma::SigmaProof), NizkError> {
+    validate_statement(stmt)?;
+    let mut cur = Cursor::new(proof_bytes);
+
+    let version = cur.read_u16()?;
+    if version != PROOF_VERSION {
+        return Err(NizkError::InvalidProof("unsupported proof version"));
+    }
+
+    let ccs_id: [u8; 32] = cur
+        .read_exact(32)?
+        .try_into()
+        .map_err(|_| NizkError::InvalidProof("bad ccs_instance_id"))?;
+    let expected_ccs_id = compute_ccs_instance_id(stmt)?;
+    if ccs_id != expected_ccs_id {
+        return Err(NizkError::VerificationFailed("ccs_instance_id mismatch"));
+    }
+
+    cur.skip(26_624)?; // ajtai_commitment
+    let _sid = cur.read_len_prefixed_bytes()?;
+    let _pid = cur.read_u16()?;
+    let _commitment: [u8; 32] = cur
+        .read_exact(32)?
+        .try_into()
+        .map_err(|_| NizkError::InvalidProof("bad sha256_binding commitment"))?;
+
+    let sigma_section_len = usize::try_from(cur.read_u32()?)
+        .map_err(|_| NizkError::InvalidProof("sigma_section_len overflow"))?;
+    let sigma_section = cur.read_exact(sigma_section_len)?.to_vec();
+    let (d_rns, sigma_proof) = decode_sigma_section(&sigma_section)?;
+    let c_rns = expand_c_rns(&ccs_id)?;
+
+    Ok((c_rns, d_rns, sigma_proof))
 }
 
 fn validate_statement(stmt: &NizkStatement) -> Result<(), NizkError> {
@@ -334,9 +408,17 @@ fn serialize_ajtai_commitment(ajtai: &AjtaiCommitment) -> Vec<u8> {
     out
 }
 
-fn compute_ajtai_commitment(ccs_id: &[u8; 32], s_i: &[i64]) -> Result<AjtaiCommitment, NizkError> {
+fn derive_epoch_crs_seed(epoch: u64, session_id: &[u8]) -> [u8; 32] {
+    let mut h = Sha256::new();
+    h.update(epoch.to_be_bytes());
+    h.update(b"pvthfhe-ajtai-crs/v1");
+    h.update(session_id);
+    h.finalize().into()
+}
+
+fn compute_ajtai_commitment(crs_seed: &[u8; 32], s_i: &[i64]) -> Result<AjtaiCommitment, NizkError> {
     let params = AjtaiParams::default();
-    let matrix = AjtaiMatrix::from_seed(*ccs_id, &params, AJTAI_M)?; // allow-seeded-rng: CCS matrix seeded from canonical instance id
+    let matrix = AjtaiMatrix::from_seed(*crs_seed, &params, AJTAI_M)?; // allow-seeded-rng: CRS seed is epoch-bound
     let witness_rq: Vec<Rq> = s_i
         .chunks(PHI)
         .map(|chunk| {
@@ -396,7 +478,7 @@ fn encode_proof(
     encode_u64s_le(&mut sigma_section, &sigma_proof.t_rns);
     encode_i64s_le(&mut sigma_section, &sigma_proof.z_s);
     encode_i64s_le(&mut sigma_section, &sigma_proof.z_e);
-    encode_i64s_le(&mut sigma_section, &sigma_proof.ch);
+    encode_ch_ternary_32(&mut sigma_section, sigma_proof.ch)?;
 
     let sigma_len = u32::try_from(sigma_section.len())
         .map_err(|_| NizkError::InvalidInput("sigma section too large"))?;
@@ -415,7 +497,7 @@ fn decode_sigma_section(bytes: &[u8]) -> Result<(Vec<u64>, sigma::SigmaProof), N
     let t_rns = cur.read_u64s()?;
     let z_s = cur.read_i64s()?;
     let z_e = cur.read_i64s()?;
-    let ch = cur.read_i64s()?;
+    let ch = cur.read_ch_ternary_32()?;
     cur.finish()?;
     Ok((
         d_rns,
@@ -426,6 +508,18 @@ fn decode_sigma_section(bytes: &[u8]) -> Result<(Vec<u64>, sigma::SigmaProof), N
             ch,
         },
     ))
+}
+
+fn encode_ch_ternary_32(out: &mut Vec<u8>, ch: i64) -> Result<(), NizkError> {
+    let fill = match ch {
+        -1 => 0xff,
+        0 | 1 => 0x00,
+        _ => return Err(NizkError::InvalidInput("challenge must be -1, 0, or 1")),
+    };
+    let mut encoded = [fill; 32];
+    encoded[..8].copy_from_slice(&ch.to_le_bytes());
+    out.extend_from_slice(&encoded);
+    Ok(())
 }
 
 struct Cursor<'a> {
@@ -504,6 +598,23 @@ impl<'a> Cursor<'a> {
             out.push(i64::from_le_bytes(b));
         }
         Ok(out)
+    }
+
+    fn read_ch_ternary_32(&mut self) -> Result<i64, NizkError> {
+        let bytes = self.read_exact(32)?;
+        let low: [u8; 8] = bytes[..8]
+            .try_into()
+            .map_err(|_| NizkError::InvalidProof("bad challenge scalar"))?;
+        let ch = i64::from_le_bytes(low);
+        let expected_fill = match ch {
+            -1 => 0xff,
+            0 | 1 => 0x00,
+            _ => return Err(NizkError::InvalidProof("challenge must be -1, 0, or 1")),
+        };
+        if bytes[8..].iter().any(|&b| b != expected_fill) {
+            return Err(NizkError::InvalidProof("non-canonical challenge scalar"));
+        }
+        Ok(ch)
     }
 
     fn finish(self) -> Result<(), NizkError> {

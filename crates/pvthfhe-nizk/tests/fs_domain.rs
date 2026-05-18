@@ -83,6 +83,6 @@ fn test_golden_vector() {
     let got = hex::encode(out);
     // Value computed by bench/scripts/fs_golden_ref.py — do not change without
     // updating the Python reference script and re-verifying.
-    let expected = "b012abf2c80da2bffa22b01322ab65695ab0685c0deb810e49277d23f4aa6fcd";
+    let expected = "6ab7962f9291d3acba847740b9acf00d16bc48827128581069042ed3d35d5440";
     assert_eq!(got, expected, "golden vector mismatch");
 }

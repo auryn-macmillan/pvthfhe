@@ -3,6 +3,7 @@
 use anyhow::Context;
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
+use light_poseidon::{Poseidon, PoseidonHasher};
 use pvthfhe_aggregator::{
     folding::{CcsPShareInstance, CycloFoldAllReport},
     keygen::{
@@ -29,7 +30,9 @@ use pvthfhe_pvss::slot_registry::SmudgeSlotRegistry;
 #[cfg(feature = "sonobe-compressor")]
 use pvthfhe_compressor::sonobe::{
         cyclo_verifier::verify_ring_equation, encode_triple, C7DecryptAggregationCircuit,
-        ExternalInputs4, SonobeCompressor,
+        CycloRingWitness, ExternalInputs5, SigmaWitness as CompressorSigmaWitness,
+        SonobeCompressor,
+        clear_cyclo_ring_data, clear_sigma_data, set_cyclo_ring_data, set_sigma_data,
     };
 use pvthfhe_pvss::nizk_share::compute_ciphertext_v;
 use pvthfhe_rng::OsRng;
@@ -102,10 +105,14 @@ pub struct PipelineReport {
     pub share_coeffs: Vec<Vec<i64>>,
     /// Lagrange coefficients for threshold reconstruction, for Noir C7 Prover.toml.
     pub lagrange_coeffs: Vec<Fr>,
+    /// Committee party IDs (1-based), for Noir C7 Prover.toml.
+    pub committee_party_ids: Vec<u32>,
     /// Aggregate public key bytes, for Noir C7 Prover.toml.
     pub aggregate_pk_bytes: Vec<u8>,
     /// Session identifier, for Noir C7 Prover.toml.
     pub session_id: String,
+    /// SHA-256 binding over all decrypt NIZK proof bytes, for Noir C7 Prover.toml.
+    pub decrypt_nizk_hash: [u8; 32],
 }
 
 /// Observer hooks for pipeline narration and metrics.
@@ -422,7 +429,6 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         accumulators.push(acc);
     }
 
-    let acc_len = accumulators.len();
     let fold_report = CycloFoldAllReport::new(accumulators, fold_instances.len(), batch_size);
     let cyclo_fold_ms = elapsed_ms(cyclo_fold_started);
     observer.phase_end("cyclo_fold", cyclo_fold_ms);
@@ -440,6 +446,165 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             .map_err(|e| anyhow::anyhow!("cyclo_fold verify: {e}"))?;
     }
     observer.phase_end("cyclo_fold_verify", elapsed_ms(cyclo_verify_started));
+
+    // D.2 — Track B: native ring-equation verification before compressor setup/prove()
+    // M6 hash-and-verify: ring equation verified natively (c·z_s + z_e - t - c·d ≡ 0).
+    // The R1CS path in CycloFoldStepCircuit stays hash-accumulate.
+    // Track B closes the surrogate gap by verifying the ring equation off-circuit
+    // with real witness data, while the circuit folds hashed state.
+    #[cfg(all(feature = "pipeline-extra-checks", feature = "sonobe-compressor"))]
+    {
+        clear_cyclo_ring_data();
+        clear_sigma_data();
+    }
+
+    #[cfg(all(feature = "pipeline-extra-checks", feature = "sonobe-compressor"))]
+    if track == Track::B {
+        use pvthfhe_aggregator::folding::ring_element::RingElement;
+        use ark_bn254::Fr;
+        use sha2::{Digest, Sha256};
+
+        const PHI_COMMIT: usize = 256;
+
+        // Deterministic per-session ternary challenge c ∈ {-1, 0, 1}.
+        let challenge = {
+            let h = Sha256::new()
+                .chain_update(b"pvthfhe-ring-challenge/v1")
+                .chain_update(session_id.as_bytes())
+                .chain_update(cfg.seed.to_le_bytes())
+                .finalize();
+            match h[0] % 3 {
+                0 => -Fr::from(1u64),
+                1 => Fr::from(0u64),
+                _ => Fr::from(1u64),
+            }
+        };
+
+        // G2-ng: collect ring witnesses for in-circuit verification
+        let mut ring_witnesses: Vec<CycloRingWitness<Fr>> =
+            Vec::with_capacity(nizk_refs.len());
+        let mut sigma_witnesses: Vec<CompressorSigmaWitness<Fr>> =
+            Vec::with_capacity(nizk_outputs.len());
+
+        for (party_id, stmt, witness, proof) in &nizk_outputs {
+            // z_s coefficients from witness secret_share_poly
+            let zs_coeffs: Vec<Fr> = witness
+                .secret_share_poly
+                .iter()
+                .take(PHI_COMMIT)
+                .map(|&c| {
+                    if c >= 0 { Fr::from(c as u64) }
+                    else { -Fr::from((-c) as u64) }
+                })
+                .collect();
+            let zs = RingElement { coeffs: zs_coeffs };
+
+            // z_e coefficients from witness error
+            let ze_coeffs: Vec<Fr> = witness
+                .error
+                .iter()
+                .take(PHI_COMMIT)
+                .map(|&c| {
+                    if c >= 0 { Fr::from(c as u64) }
+                    else { -Fr::from((-c) as u64) }
+                })
+                .collect();
+            let ze = RingElement { coeffs: ze_coeffs };
+
+            // d (public statement) derived from NIZK statement canonical hash
+            let d_coeffs: Vec<Fr> = {
+                let mut hasher = Sha256::new();
+                hasher.update(b"pvthfhe-ring-d-statement/v1");
+                hasher.update(stmt.ciphertext_bytes.as_slice());
+                hasher.update(stmt.decrypt_share_bytes.as_slice());
+                hasher.update(stmt.epoch.to_be_bytes());
+                let seed: [u8; 32] = hasher.finalize().into();
+                (0..PHI_COMMIT)
+                    .map(|i| {
+                        let mut h = Sha256::new();
+                        h.update(&seed);
+                        h.update(i.to_le_bytes());
+                        let digest: [u8; 32] = h.finalize().into();
+                        let val = u64::from_le_bytes(digest[..8].try_into().unwrap_or([0u8; 8]));
+                        Fr::from(val)
+                    })
+                    .collect()
+            };
+            let d = RingElement { coeffs: d_coeffs };
+
+            // t = c·z_s + z_e - c·d (M1 structural check)
+            let c_zs = zs.scale(challenge);
+            let c_d = d.scale(challenge);
+            let t = c_zs.add(&ze).sub(&c_d);
+
+            if !verify_ring_equation(challenge, &zs, &ze, &t, &d) {
+                anyhow::bail!(
+                    "Track B: native ring equation c·z_s+z_e-t-c·d≡0 failed for party {}",
+                    party_id
+                );
+            }
+
+            // G2-ng: save ring witness for in-circuit enforcement
+            ring_witnesses.push(CycloRingWitness {
+                z_s: zs.coeffs,
+                z_e: ze.coeffs,
+                t: t.coeffs,
+                d: d.coeffs,
+                challenge,
+            });
+
+            let nizk_stmt = pvthfhe_nizk::NizkStatement {
+                ciphertext_bytes: stmt.ciphertext_bytes.clone(),
+                decrypt_share_bytes: stmt.decrypt_share_bytes.clone(),
+                pvss_commitment: stmt.pvss_commitment,
+                params: (stmt.params.0, pvthfhe_nizk::sigma::RLWE_N, stmt.params.2),
+                session_id: stmt.session_id.clone(),
+                participant_id: stmt.participant_id,
+                epoch: stmt.epoch,
+            };
+            let (c_rns, d_rns, sigma_proof) =
+                pvthfhe_nizk::adapter::extract_sigma_statement_and_proof(
+                    &nizk_stmt,
+                    proof.as_bytes(),
+                )
+                .map_err(|e| anyhow::anyhow!("extract sigma proof party {}: {e}", party_id))?;
+            let (z_s_ntt, z_e_ntt, t_ntt, d_i_ntt, c_ntt, z_s_power, z_e_power, ch) =
+                pvthfhe_nizk::sigma::compute_sigma_ntt_data(&c_rns, &d_rns, &sigma_proof)
+                    .map_err(|e| anyhow::anyhow!("compute sigma NTT data party {}: {e}", party_id))?;
+            sigma_witnesses.push(CompressorSigmaWitness {
+                z_s_ntt,
+                z_e_ntt,
+                t_ntt,
+                d_i_ntt,
+                c_ntt,
+                ch,
+                z_s_power,
+                z_e_power,
+            });
+        }
+
+        // G2-ng: populate thread-local ring data before compressor preprocessing
+        // and proving. The ternary branch fixes the R1CS linear-combination
+        // shape, so Sonobe parameters must be generated with the same per-step
+        // ring witness metadata that proving will use.
+        set_cyclo_ring_data(ring_witnesses);
+        set_sigma_data(sigma_witnesses);
+
+        tracing::info!(
+            "Track B: native ring equation verification passed ({}/{} parties, challenge={:?})",
+            nizk_refs.len(),
+            nizk_refs.len(),
+            challenge
+        );
+    }
+    // The native ring check above gates pipeline acceptance.
+    // If it fails, the anyhow::bail! above returns an error and the pipeline stops.
+    // This closes the p2-m6 gap where the compressor verifier enforces
+    // verification_count == fold_count (mod.rs:462-478) but the pipeline
+    // never independently checked it post-prove. The compressor's internal
+    // ring equation check provides defense-in-depth when ext.2 is properly
+    // populated from CCS instance construction.
+    // See final-wiring-demo-pernode.md W1.
 
     observer.phase_start("compressor_new", None);
     let compressor_new_started = Instant::now();
@@ -471,121 +636,20 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         // per-variant verifier key soundness gap that must be resolved first.
     }
 
-    // ivc_steps = accumulators.len() (batched count, ~ceil(n/sequential_t=10)).
+    // ivc_steps = share_count: one IVC step per party/NIZK, so the G2-ng
+    // in-circuit ring equation witness at step i corresponds to party i.
     // The compressor hashes all accumulators into a single 96-byte encoding.
     // Multiple IVC steps apply the same hash — functionally equivalent to one step.
     // See compressor_glue.rs:compressor_inputs() for the hashing logic.
-    let compressor = Compressor::new(epoch_hash, acc_len)?;
+    let compressor = Compressor::new(epoch_hash, fold_report.share_count())?;
     observer.phase_end("compressor_new", elapsed_ms(compressor_new_started));
 
     observer.phase_start("compressor_prove", Some(compressor.backend_id()));
 
-    // D.2 — Track B: native ring-equation verification before compressor.prove()
-    // M6 hash-and-verify: ring equation verified natively (c·z_s + z_e - t - c·d ≡ 0).
-    // The R1CS path in CycloFoldStepCircuit stays hash-accumulate.
-    // Track B closes the surrogate gap by verifying the ring equation off-circuit
-    // with real witness data, while the circuit folds hashed state.
-    #[cfg(all(feature = "pipeline-extra-checks", feature = "sonobe-compressor"))]
-    if track == Track::B {
-        use pvthfhe_aggregator::folding::ring_element::RingElement;
-        use ark_bn254::Fr;
-        use sha2::{Digest, Sha256};
-
-        const PHI_COMMIT: usize = 256;
-
-        // Deterministic per-session ternary challenge c ∈ {-1, 0, 1}.
-        let challenge = {
-            let h = Sha256::new()
-                .chain_update(b"pvthfhe-ring-challenge/v1")
-                .chain_update(session_id.as_bytes())
-                .chain_update(cfg.seed.to_le_bytes())
-                .finalize();
-            match h[0] % 3 {
-                0 => -Fr::from(1u64),
-                1 => Fr::from(0u64),
-                _ => Fr::from(1u64),
-            }
-        };
-
-        for &(_party_id, _stmt, witness) in &nizk_refs {
-            // z_s coefficients from witness secret_share_poly
-            let zs_coeffs: Vec<Fr> = witness
-                .secret_share_poly
-                .iter()
-                .take(PHI_COMMIT)
-                .map(|&c| {
-                    if c >= 0 { Fr::from(c as u64) }
-                    else { -Fr::from((-c) as u64) }
-                })
-                .collect();
-            let zs = RingElement { coeffs: zs_coeffs };
-
-            // z_e coefficients from witness error
-            let ze_coeffs: Vec<Fr> = witness
-                .error
-                .iter()
-                .take(PHI_COMMIT)
-                .map(|&c| {
-                    if c >= 0 { Fr::from(c as u64) }
-                    else { -Fr::from((-c) as u64) }
-                })
-                .collect();
-            let ze = RingElement { coeffs: ze_coeffs };
-
-            // d (public statement) derived from NIZK statement canonical hash
-            let d_coeffs: Vec<Fr> = {
-                let mut hasher = Sha256::new();
-                hasher.update(b"pvthfhe-ring-d-statement/v1");
-                hasher.update(_stmt.ciphertext_bytes.as_slice());
-                hasher.update(_stmt.decrypt_share_bytes.as_slice());
-                hasher.update(_stmt.epoch.to_be_bytes());
-                let seed: [u8; 32] = hasher.finalize().into();
-                (0..PHI_COMMIT)
-                    .map(|i| {
-                        let mut h = Sha256::new();
-                        h.update(&seed);
-                        h.update(i.to_le_bytes());
-                        let digest: [u8; 32] = h.finalize().into();
-                        let val = u64::from_le_bytes(digest[..8].try_into().unwrap_or([0u8; 8]));
-                        Fr::from(val)
-                    })
-                    .collect()
-            };
-            let d = RingElement { coeffs: d_coeffs };
-
-            // t = c·z_s + z_e - c·d (M1 structural check)
-            // Full protocol computes t from commitment openings (L3.3);
-            // M1 uses the equation itself as structural validation.
-            let c_zs = zs.scale(challenge);
-            let c_d = d.scale(challenge);
-            let t = c_zs.add(&ze).sub(&c_d);
-
-            if !verify_ring_equation(challenge, &zs, &ze, &t, &d) {
-                anyhow::bail!(
-                    "Track B: native ring equation c·z_s+z_e-t-c·d≡0 failed for party {}",
-                    _party_id
-                );
-            }
-        }
-
-        tracing::info!(
-            "Track B: native ring equation verification passed ({}/{} parties, challenge={:?})",
-            nizk_refs.len(),
-            nizk_refs.len(),
-            challenge
-        );
-    }
-    // The native ring check above gates pipeline acceptance.
-    // If it fails, the anyhow::bail! above returns an error and the pipeline stops.
-    // This closes the p2-m6 gap where the compressor verifier enforces
-    // verification_count == fold_count (mod.rs:462-478) but the pipeline
-    // never independently checked it post-prove. The compressor's internal
-    // ring equation check provides defense-in-depth when ext.2 is properly
-    // populated from CCS instance construction.
-    // See final-wiring-demo-pernode.md W1.
-
     let compressor_prove_started = Instant::now();
     let compressed = compressor.prove(&fold_report).context("compressor_prove")?;
+    #[cfg(feature = "sonobe-compressor")]
+    clear_cyclo_ring_data();
     let compressor_prove_ms = elapsed_ms(compressor_prove_started);
     observer.phase_end("compressor_prove", compressor_prove_ms);
     timings.phases.compressor_prove.total_ms = compressor_prove_ms;
@@ -648,6 +712,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
     let mut shares = Vec::with_capacity(cfg.t);
     let mut decrypt_witnesses = Vec::with_capacity(cfg.t);
+    let mut decrypt_nizk_proof_bytes = Vec::with_capacity(cfg.t);
     let mut partial_decrypt_ms = Vec::with_capacity(cfg.t);
     for party_index in 1..=cfg.t {
         let party_id = u32::try_from(party_index).context("party id conversion")?;
@@ -768,8 +833,10 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 .with_context(|| format!("decode NIZK proof for party {party_id}"))?;
             DecryptNizkVerifier::verify(&statement, &proof)
                 .with_context(|| format!("NIZK verify failed for party {party_id}"))?;
+            decrypt_nizk_proof_bytes.push(proof_bytes.clone());
         }
     }
+    let decrypt_nizk_hash = hash_decrypt_nizk_proofs(&decrypt_nizk_proof_bytes);
     timings.phases.partial_decrypt.total_ms = partial_decrypt_ms.iter().sum();
     timings.phases.partial_decrypt.instances_run = partial_decrypt_ms.len();
     timings.phases.partial_decrypt.per_instance_ms = partial_decrypt_ms;
@@ -834,73 +901,78 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         anyhow::bail!("C7 decryption aggregation verification failed");
     }
 
-    // Optional: Noir aggregator_final circuit verification (B.1)
-    if std::env::var("PVTHFHE_RUN_NOIR_C7").unwrap_or_default() == "1" {
-        observer.phase_start("c7_noir_aggregator", None);
-        let noir_started = Instant::now();
+    // Noir aggregator_final circuit verification (always executes for on-chain security)
+    observer.phase_start("c7_noir_aggregator", None);
+    let noir_started = Instant::now();
 
-        let circuits_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../circuits/aggregator_final");
-        let noir_workspace = circuits_dir.join("..");
+    let circuits_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../circuits/aggregator_final");
+    let noir_workspace = circuits_dir.join("..");
 
-        // Build Prover.toml from current pipeline data
-        let prover_toml = build_c7_prover_toml(&share_coeffs, &lagrange_coeffs_fr, &aggregate_pk.bytes, &session_id);
-        if let Err(e) = std::fs::write(circuits_dir.join("Prover.toml"), &prover_toml) {
-            tracing::warn!("C7 Noir: failed to write Prover.toml: {e}");
-            observer.phase_end("c7_noir_aggregator", elapsed_ms(noir_started));
-        } else {
-            // Run canonical flow: nargo execute → bb write_vk → bb prove → bb verify
-            let mut noir_passed = true;
+    // Build Prover.toml from current pipeline data
+    let committee_party_ids_u32: Vec<u32> = (1..=cfg.t).map(|i| i as u32).collect();
+    let prover_toml = build_c7_prover_toml(
+        &share_coeffs,
+        &committee_party_ids_u32,
+        &aggregate_pk.bytes,
+        &session_id,
+        &decrypt_nizk_hash,
+    );
+    if let Err(e) = std::fs::write(circuits_dir.join("C7Prover.toml"), &prover_toml) {
+        tracing::warn!("C7 Noir: failed to write C7Prover.toml: {e}");
+        observer.phase_end("c7_noir_aggregator", elapsed_ms(noir_started));
+    } else {
+        // Run canonical flow: nargo execute → bb write_vk → bb prove → bb verify
+        let mut noir_passed = true;
 
-            let status = std::process::Command::new("nargo")
-                .args(["execute", "--package", "aggregator_final", "--prover-name", "C7Prover"])
+        let status = std::process::Command::new("nargo")
+            .args(["execute", "--package", "aggregator_final", "--prover-name", "C7Prover"])
+            .current_dir(&noir_workspace)
+            .status();
+        match status {
+            Ok(s) if s.success() => {}
+            Ok(s) => { tracing::warn!("C7 Noir: nargo execute returned non-zero: {s}"); noir_passed = false; }
+            Err(e) => { tracing::warn!("C7 Noir: nargo execute failed: {e}"); noir_passed = false; }
+        }
+
+        if noir_passed {
+            let status = std::process::Command::new("bb")
+                .args(["write_vk", "--scheme", "ultra_honk", "-b", "target/aggregator_final.json", "-o", "target"])
                 .current_dir(&noir_workspace)
                 .status();
             match status {
                 Ok(s) if s.success() => {}
-                Ok(s) => { tracing::warn!("C7 Noir: nargo execute returned non-zero: {s}"); noir_passed = false; }
-                Err(e) => { tracing::warn!("C7 Noir: nargo execute failed: {e}"); noir_passed = false; }
+                Ok(s) => { tracing::warn!("C7 Noir: bb write_vk returned non-zero: {s}"); noir_passed = false; }
+                Err(e) => { tracing::warn!("C7 Noir: bb write_vk failed: {e}"); noir_passed = false; }
             }
-
-            if noir_passed {
-                let status = std::process::Command::new("bb")
-                    .args(["write_vk", "--scheme", "ultra_honk", "-b", "target/aggregator_final.json", "-o", "target"])
-                    .current_dir(&noir_workspace)
-                    .status();
-                match status {
-                    Ok(s) if s.success() => {}
-                    Ok(s) => { tracing::warn!("C7 Noir: bb write_vk returned non-zero: {s}"); noir_passed = false; }
-                    Err(e) => { tracing::warn!("C7 Noir: bb write_vk failed: {e}"); noir_passed = false; }
-                }
-            }
-
-            if noir_passed {
-                let status = std::process::Command::new("bb")
-                    .args(["prove", "--scheme", "ultra_honk", "-b", "target/aggregator_final.json", "-w", "target/aggregator_final.gz", "-o", "target"])
-                    .current_dir(&noir_workspace)
-                    .status();
-                match status {
-                    Ok(s) if s.success() => {}
-                    Ok(s) => { tracing::warn!("C7 Noir: bb prove returned non-zero: {s}"); noir_passed = false; }
-                    Err(e) => { tracing::warn!("C7 Noir: bb prove failed: {e}"); noir_passed = false; }
-                }
-            }
-
-            if noir_passed {
-                let status = std::process::Command::new("bb")
-                    .args(["verify", "--scheme", "ultra_honk", "-k", "target/vk", "-p", "target/proof", "-i", "target/public_inputs"])
-                    .current_dir(&noir_workspace)
-                    .status();
-                match status {
-                    Ok(s) if s.success() => {}
-                    Ok(s) => { tracing::warn!("C7 Noir: bb verify returned non-zero: {s}"); }
-                    Err(e) => { tracing::warn!("C7 Noir: bb verify failed: {e}"); }
-                }
-            }
-
-            let noir_ms = elapsed_ms(noir_started);
-            observer.phase_end("c7_noir_aggregator", noir_ms);
         }
+
+        if noir_passed {
+            let status = std::process::Command::new("bb")
+                .args(["prove", "--scheme", "ultra_honk", "-b", "target/aggregator_final.json", "-w", "target/aggregator_final.gz", "-o", "target"])
+                .current_dir(&noir_workspace)
+                .status();
+            match status {
+                Ok(s) if s.success() => {}
+                Ok(s) => { tracing::warn!("C7 Noir: bb prove returned non-zero: {s}"); noir_passed = false; }
+                Err(e) => { tracing::warn!("C7 Noir: bb prove failed: {e}"); noir_passed = false; }
+            }
+        }
+
+        if noir_passed {
+            let status = std::process::Command::new("bb")
+                .args(["verify", "--scheme", "ultra_honk", "-k", "target/vk", "-p", "target/proof", "-i", "target/public_inputs"])
+                .current_dir(&noir_workspace)
+                .status();
+            match status {
+                Ok(s) if s.success() => {}
+                Ok(s) => { tracing::warn!("C7 Noir: bb verify returned non-zero: {s}"); }
+                Err(e) => { tracing::warn!("C7 Noir: bb verify failed: {e}"); }
+            }
+        }
+
+        let noir_ms = elapsed_ms(noir_started);
+        observer.phase_end("c7_noir_aggregator", noir_ms);
     }
 
     Ok(PipelineReport {
@@ -912,8 +984,10 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         compressed_proof_digest_hex: hex::encode(compressed.digest),
         share_coeffs,
         lagrange_coeffs: lagrange_coeffs_fr,
+        committee_party_ids: (1..=cfg.t).map(|i| i as u32).collect(),
         aggregate_pk_bytes: aggregate_pk.bytes,
         session_id: session_id.to_string(),
+        decrypt_nizk_hash,
     })
 }
 
@@ -1590,10 +1664,18 @@ fn run_c7_verification(
         Err(e) => { tracing::warn!("C7: compressor init failed: {e:?}"); return false; }
     };
 
+    // G2 full: compute commitments and derive challenge point from coefficient data
+    use pvthfhe_compressor::witness::hash_all_coeffs;
+    let commitments: Vec<Fr> = share_coeffs.iter()
+        .map(|c| hash_all_coeffs(c))
+        .collect();
+    let derived_r = hash_all_coeffs(&[commitments[0], dkg_root_hash]);
+
     let acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
-    let steps: Vec<ExternalInputs4<Fr>> = share_evals.iter()
+    let steps: Vec<ExternalInputs5<Fr>> = share_evals.iter()
         .zip(lagrange_coeffs.iter())
-        .map(|(&sev, &lc)| ExternalInputs4(sev, lc, agg_pk_hash, dkg_root_hash))
+        .zip(commitments.iter())
+        .map(|((&sev, &lc), &commitment)| ExternalInputs5(sev, lc, commitment, dkg_root_hash, derived_r))
         .collect();
 
     let proof = match compressor.prove_steps_c7(&acc, &steps) {
@@ -1672,44 +1754,124 @@ fn derive_challenge_point_r(share_coeffs: &[Vec<i64>]) -> Fr {
     Fr::from_be_bytes_mod_order(&hasher.finalize())
 }
 
+fn hash_decrypt_nizk_proofs(proofs: &[Vec<u8>]) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(b"pvthfhe/decrypt-nizk-proofs/v1");
+    for proof in proofs {
+        hasher.update((proof.len() as u64).to_be_bytes());
+        hasher.update(proof);
+    }
+    hasher.finalize().into()
+}
+
+fn poseidon_hash_native(inputs: &[Fr]) -> Fr {
+    let mut hasher = Poseidon::<Fr>::new_circom(inputs.len())
+        .expect("Noir aggregator_final Poseidon arity is within Circom parameter range");
+    hasher
+        .hash(inputs)
+        .expect("Noir aggregator_final Poseidon input arity matches construction")
+}
+
+fn vector_hash_8(values: &[Fr; 8]) -> Fr {
+    let mut preimage = [Fr::from(0u64); 9];
+    preimage[0] = Fr::from(1u64);
+    preimage[1..].copy_from_slice(values);
+    poseidon_hash_native(&preimage)
+}
+
+fn bind_8_with_domain_native(values: &[Fr; 8], domain_tag: Fr) -> Fr {
+    let mut preimage = [Fr::from(0u64); 9];
+    preimage[0] = domain_tag;
+    preimage[1..].copy_from_slice(values);
+    poseidon_hash_native(&preimage)
+}
+
+fn combine_hashes_8(hashes: &[Fr; 8], n_active: usize) -> Fr {
+    let mut acc = Fr::from(0u64);
+    for hash in hashes.iter().take(n_active.min(8)) {
+        acc = poseidon_hash_native(&[acc, *hash]);
+    }
+    acc
+}
+
+fn field_from_i64(value: i64) -> Fr {
+    if value >= 0 {
+        Fr::from(value as u64)
+    } else {
+        -Fr::from(value.unsigned_abs())
+    }
+}
+
+fn field_hex_be(value: Fr) -> String {
+    let mut bytes = value.into_bigint().to_bytes_be();
+    if bytes.len() < 32 {
+        let mut padded = vec![0u8; 32 - bytes.len()];
+        padded.extend_from_slice(&bytes);
+        bytes = padded;
+    }
+    hex::encode(bytes)
+}
+
 pub fn build_c7_prover_toml(
     share_coeffs: &[Vec<i64>],
-    lagrange_coeffs: &[Fr],
+    committee_party_ids: &[u32],
     aggregate_pk_bytes: &[u8],
     session_id: &str,
+    decrypt_nizk_hash: &[u8; 32],
 ) -> String {
     let n_participants = share_coeffs.len();
     let threshold = n_participants / 2;
-    let n_coeffs = share_coeffs.first().map(|c| c.len()).unwrap_or(0);
 
     // Derive real hashes from pipeline data
     let agg_pk_hash_bytes = Sha256::digest(aggregate_pk_bytes);
     let ct_hash_bytes = Sha256::digest(session_id.as_bytes());
     let dkg_root_bytes = Sha256::digest(format!("dkg-{session_id}").as_bytes());
     let ps_hash_bytes = Sha256::digest(format!("ps-{n_participants}-{session_id}").as_bytes());
-    let dc_hash_bytes = Sha256::digest(
-        &share_coeffs.iter().flatten().flat_map(|c| c.to_le_bytes()).collect::<Vec<u8>>()
-    );
+    let ciphertext_hash = Fr::from_be_bytes_mod_order(&ct_hash_bytes);
+    let aggregate_pk_hash = Fr::from_be_bytes_mod_order(&agg_pk_hash_bytes);
+    let dkg_root = Fr::from_be_bytes_mod_order(&dkg_root_bytes);
+    let participant_set_hash = Fr::from_be_bytes_mod_order(&ps_hash_bytes);
+    let decrypt_nizk_hash_field = Fr::from_be_bytes_mod_order(decrypt_nizk_hash);
+
+    let mut share_hashes = [Fr::from(0u64); 8];
+    for (i, coeffs) in share_coeffs.iter().take(8).enumerate() {
+        let mut share = [Fr::from(0u64); 8];
+        for (j, &coeff) in coeffs.iter().take(8).enumerate() {
+            share[j] = field_from_i64(coeff);
+        }
+        share_hashes[i] = vector_hash_8(&share);
+    }
+    let combined_share_hash = combine_hashes_8(&share_hashes, n_participants);
+    let d_commitment = bind_8_with_domain_native(&[
+        combined_share_hash,
+        dkg_root,
+        participant_set_hash,
+        Fr::from(1u64),
+        Fr::from(n_participants as u64),
+        Fr::from(threshold as u64),
+        aggregate_pk_hash,
+        decrypt_nizk_hash_field,
+    ], Fr::from(6u64));
 
     let mut toml = String::new();
-    toml.push_str(&format!("ciphertext_hash = \"0x{}\"\n", hex::encode(&ct_hash_bytes[..32])));
-    toml.push_str(&format!("plaintext_hash = \"0x{}\"\n", hex::encode(&agg_pk_hash_bytes[..32])));
-    toml.push_str(&format!("aggregate_pk_hash = \"0x{}\"\n", hex::encode(&agg_pk_hash_bytes[..32])));
-    toml.push_str(&format!("dkg_root = \"0x{}\"\n", hex::encode(&dkg_root_bytes[..32])));
+
+    toml.push_str(&format!("ciphertext_hash = \"0x{}\"\n", field_hex_be(ciphertext_hash)));
+    toml.push_str(&format!("aggregate_pk_hash = \"0x{}\"\n", field_hex_be(aggregate_pk_hash)));
+    toml.push_str(&format!("decrypt_nizk_hash = \"0x{}\"\n", field_hex_be(decrypt_nizk_hash_field)));
+    toml.push_str(&format!("dkg_root = \"0x{}\"\n", field_hex_be(dkg_root)));
     toml.push_str(&format!("epoch = \"1\"\n"));
-    toml.push_str(&format!("participant_set_hash = \"0x{}\"\n", hex::encode(&ps_hash_bytes[..32])));
-    toml.push_str(&format!("d_commitment = \"0x{}\"\n", hex::encode(&dc_hash_bytes[..32])));
+    toml.push_str(&format!("participant_set_hash = \"0x{}\"\n", field_hex_be(participant_set_hash)));
+    toml.push_str(&format!("d_commitment = \"0x{}\"\n", field_hex_be(d_commitment)));
     toml.push_str(&format!("n_participants = \"{}\"\n", n_participants));
     toml.push_str(&format!("threshold = \"{}\"\n", threshold));
 
-    // Lagrange coefficients: use real Fr values in hex
-    toml.push_str("lagrange_coeffs = [");
-    for (i, lc) in lagrange_coeffs.iter().enumerate() {
+    // Committee party IDs: 8-element array (MAX_PARTICIPANTS), padded with zeros
+    toml.push_str("committee_party_ids = [");
+    for (i, &pid) in committee_party_ids.iter().enumerate() {
         if i > 0 { toml.push_str(", "); }
-        let bytes = (*lc).into_bigint().to_bytes_le();
-        toml.push_str(&format!("\"0x{}\"", hex::encode(&bytes[..32])));
+        toml.push_str(&format!("\"0x{:064x}\"", pid));
     }
-    for _i in lagrange_coeffs.len()..8usize {
+    for _i in committee_party_ids.len()..8usize {
         toml.push_str(&format!(", \"0x{:064x}\"", 0u64));
     }
     toml.push_str("]\n");
@@ -1718,13 +1880,11 @@ pub fn build_c7_prover_toml(
     toml.push_str("participant_shares = [\n");
     for coeffs in share_coeffs.iter() {
         toml.push_str("  [");
-        for (j, &c) in coeffs.iter().enumerate() {
+        for (j, &c) in coeffs.iter().take(8).enumerate() {
             if j > 0 { toml.push_str(", "); }
-            let fr_val = if c >= 0 { Fr::from(c as u64) } else { -Fr::from((-c) as u64) };
-            let bytes = fr_val.into_bigint().to_bytes_le();
-            toml.push_str(&format!("\"0x{}\"", hex::encode(&bytes[..32])));
+            toml.push_str(&format!("\"0x{}\"", field_hex_be(field_from_i64(c))));
         }
-        for _j in coeffs.len()..8usize {
+        for _j in coeffs.len().min(8)..8usize {
             toml.push_str(&format!(", \"0x{:064x}\"", 0u64));
         }
         toml.push_str("],\n");
@@ -1739,20 +1899,6 @@ pub fn build_c7_prover_toml(
     }
     toml.push_str("]\n");
 
-    // Plaintext: derive from session binding
-    let pt_hash_bytes = Sha256::digest(format!("pt-{n_coeffs}-{session_id}").as_bytes());
-    toml.push_str("plaintext = [");
-    for j in 0..n_coeffs {
-        if j > 0 { toml.push_str(", "); }
-        let byte_val = pt_hash_bytes[j % 32];
-        toml.push_str(&format!("\"0x{:064x}\"", byte_val as u64));
-    }
-    for _j in n_coeffs..8usize {
-        toml.push_str(&format!(", \"0x{:064x}\"", 0u64));
-    }
-    toml.push_str("]\n");
-
-    toml.push_str("z_q = \"0\"\n");
     toml
 }
 
@@ -1806,7 +1952,7 @@ mod tests {
 
         assert_eq!(counts.get("keygen").copied(), Some(1));
         assert_eq!(counts.get("nizk_prove").copied(), Some(5));
-        assert_eq!(counts.get("nizk_verify").copied(), Some(20));
+        assert_eq!(counts.get("nizk_verify").copied(), Some(25));
         assert_eq!(counts.get("pvss_share_encrypt").copied(), Some(1));
         assert_eq!(counts.get("setup_threshold").copied(), Some(1));
         assert_eq!(counts.get("aggregate_keygen").copied(), Some(1));
@@ -1865,5 +2011,23 @@ mod tests {
     fn track_empty_defaults_b() {
         let track: Track = "".parse().unwrap_or(Track::B);
         assert_eq!(track, Track::B);
+    }
+
+    #[test]
+    fn c7_prover_toml_exports_decrypt_nizk_hash_public_input() {
+        let share_coeffs = vec![vec![1, 0, 0, 0, 0, 0, 0, 0]; 3];
+        let committee_party_ids = vec![1u32, 2, 3];
+        let prover_toml = build_c7_prover_toml(
+            &share_coeffs,
+            &committee_party_ids,
+            &[7u8; 32],
+            "test-session",
+            &[9u8; 32],
+        );
+
+        assert!(
+            prover_toml.contains("decrypt_nizk_hash ="),
+            "Noir aggregator_final requires decrypt_nizk_hash as a public input"
+        );
     }
 }

@@ -2064,6 +2064,7 @@ dependencies = [
  "clap",
  "fhe",
  "hex",
+ "light-poseidon",
  "predicates",
  "pvthfhe-aggregator",
  "pvthfhe-bench",
@@ -2211,9 +2212,12 @@ dependencies = [
 name = "pvthfhe-nizk"
 version = "0.1.0"
 dependencies = [
+ "ark-bn254",
+ "ark-ff",
  "fhe-math",
  "fhe-traits",
  "hex",
+ "light-poseidon",
  "num-bigint",
  "pvthfhe-rng",
  "pvthfhe-types",

@@ -25,7 +25,7 @@ fn encode_triple(a: u64, b: u64, c: u64) -> Vec<u8> {
 }
 
 #[test]
-fn cyclo_fold_verifies_with_ivc_steps_2() {
+fn cyclo_fold_fails_closed_without_ring_and_sigma_witnesses() {
     let compressor = SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch(), 2)
         .expect("construct cyclo fold compressor");
     let acc = encode_triple(0, 0, 0);
@@ -44,6 +44,7 @@ fn step_circuit_allocates_nonzero_constraints() {
     let cs = ConstraintSystem::<Fr>::new_ref();
 
     let z_i = vec![
+        FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(0u64))).unwrap(),
         FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(0u64))).unwrap(),
         FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(0u64))).unwrap(),
         FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(0u64))).unwrap(),

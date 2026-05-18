@@ -37,3 +37,38 @@ soundness, and T4 documents the projected gas (39,687) with measurement methodol
 
 Updated the meta-plan checkbox for `p3-m5-security-proofs` in
 `.sisyphus/plans/meta-plan-all-deferred.md` from `- [ ]` to `[-]`.
+
+## 2026-05-17 — Measured values after real HonkVerifier and G2 full
+
+Updated all three P3-M5 theorem documents with measured values after p3-m3 completed:
+
+### T4-gas-bound.md
+- Status changed from "DOCUMENTED — measurements deferred to post-p3-m3" to "MEASURED"
+- "Baseline Projection" section replaced with "Measured Gas" section
+- Measured gas: 1,885,528 (real UltraHonk proof, evm-no-zk target, N=65536 LOG_N=16, 7776 bytes)
+- "Conservative Gas Decomposition (Projected)" replaced with "Measured Gas (Real UltraHonk Proof)"
+- Deferral Rationale replaced with "Measurement Status" noting remaining deferred items
+- Margin: ~2.65× under 5,000,000 gas budget
+
+### T1-ultrahonk-soundness.md
+- Status changed to "MEASURED"
+- Deferral Rationale replaced with "Measurement Status"
+- Notes: Noir aggregator_final circuit (639K constraints, G2 full in-circuit Poseidon) compiles and produces real UltraHonk proofs; `test_real_proof_accepts()` PASSES; VK hash confirmed
+- Remaining: concrete ε_uh not computed, circuit audit needed, KZG ceremony risk not drafted
+
+### T2-micronova-preservation.md
+- Status updated to note G2 full in-circuit Poseidon implemented (639K constraints/step); MicroNova compression layer remains deferred
+- Deferral Rationale replaced with "Measurement Status"
+- Notes: MicroNova compression layer not yet implemented (pipeline goes directly from aggregator_final to UltraHonk)
+
+### Other docs updated
+- `claims-table.md`: P3-A-T1, P3-A-T4, C7 rows updated with measured values
+- `ultrahonk-deploy.md`: status changed from DEFERRED to VERIFIED (local); gas measured
+- `gas-optimization.md`: baseline table updated with measured 1,885,528; dependencies/sequencing updated
+
+### Key values recorded
+- Real UltraHonk verifier gas: 1,885,528
+- Circuit: N=65536 LOG_N=16, 639K constraints
+- Proof size: 7776 bytes (243 field elements, evm-no-zk)
+- BB version: 5.0.0-nightly.20260517
+- VK hash: 229bbce7633ca5ca124e329721f8185718aa95dcd5d76d1440b863edf516a465

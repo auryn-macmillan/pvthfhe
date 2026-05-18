@@ -393,14 +393,18 @@ fn time_c7_tree_folding(t: usize, seed: u64, _pk_hash: &[u8; 32]) -> anyhow::Res
 fn time_c7_flat_folding(t: usize, seed: u64) -> anyhow::Result<()> {
     use ark_bn254::Fr;
     use ark_ff::Zero;
-    use pvthfhe_compressor::sonobe::{encode_triple, C7DecryptAggregationCircuit, ExternalInputs4, SonobeCompressor};
+    use pvthfhe_compressor::sonobe::{encode_triple, C7DecryptAggregationCircuit, ExternalInputs5, SonobeCompressor};
+    use pvthfhe_compressor::witness::hash_all_coeffs;
 
     let epoch: [u8; 32] = Sha256::digest(seed.to_be_bytes()).into();
     let compressor = SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch, t)
         .map_err(|e| anyhow::anyhow!("C7 compressor init: {e:?}"))?;
     let acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
-    let steps: Vec<ExternalInputs4<Fr>> = (0..t)
-        .map(|i| ExternalInputs4(Fr::from((42 + i) as u64), Fr::from(1u64), Fr::from(0u64), Fr::from(0u64)))
+    // Compute valid commitment for the default all-zero coefficients
+    let coeff_commitment = hash_all_coeffs(&vec![Fr::zero(); 8192]);
+    let derived_r = hash_all_coeffs(&[coeff_commitment, Fr::zero()]);
+    let steps: Vec<ExternalInputs5<Fr>> = (0..t)
+        .map(|i| ExternalInputs5(Fr::from((42 + i) as u64), Fr::from(1u64), coeff_commitment, Fr::zero(), derived_r))
         .collect();
     let _proof = compressor
         .prove_steps_c7(&acc, &steps)

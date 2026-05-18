@@ -33,6 +33,7 @@ use std::{
 };
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
+use num_bigint::BigUint;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Smudging noise standard deviation per coefficient.
@@ -1549,6 +1550,131 @@ impl FhersBackend {
         Ok((decoded, plaintext_poly_bytes))
     }
 
+    /// Aggregate decrypt returning the raw pre-scaling Lagrange-interpolated
+    /// result polynomial (coefficients in [0, Q) domain, before the
+    /// `Scaler::new` step).
+    ///
+    /// Returns `(raw_result_poly_bytes, decoded_plaintext_bytes)` where:
+    /// - `raw_result_poly_bytes` is the protobuf-serialized Lagrange
+    ///   reconstruction `Σ λ_i·d_i` of the share polynomials (mod Q, not
+    ///   scaled).  This equals the C7 circuit accumulator `z0` before
+    ///   scaling and is needed for G3 full in-circuit plaintext binding.
+    /// - `decoded_plaintext_bytes` is the final decoded plaintext (identical
+    ///   to [`aggregate_decrypt`](Self::aggregate_decrypt) output).
+    ///
+    /// The raw result polynomial bytes use the same encoding as decrypt-share
+    /// polynomials and are compatible with [`poly_coeffs_from_bytes`].
+    pub fn aggregate_decrypt_raw_result_poly(
+        &self,
+        ct: &Ciphertext,
+        shares: &[DecryptShare],
+        threshold: usize,
+        _session_id: &[u8],
+    ) -> Result<(Vec<u8>, Vec<u8>), FheError> {
+        let (n, configured_threshold) = self.threshold_params()?;
+        if shares.len() < configured_threshold {
+            return Err(FheError::InsufficientShares {
+                have: shares.len(),
+                need: configured_threshold,
+            });
+        }
+        if threshold != configured_threshold {
+            return Err(FheError::Backend {
+                reason: format!(
+                    "threshold mismatch: requested {threshold}, configured {configured_threshold}"
+                ),
+            });
+        }
+
+        for share in shares {
+            if share.party_id == 0 || share.party_id as usize > n {
+                return Err(FheError::MalformedDecryptShare {
+                    party_id: share.party_id,
+                });
+            }
+        }
+
+        let ciphertext = BfvCiphertext::from_bytes(&ct.bytes, &self.bfv_params)
+            .map_err(|_| FheError::MalformedCiphertext)?;
+        let ciphertext = Arc::new(ciphertext);
+        let ctx = self
+            .bfv_params
+            .ctx_at_level(0)
+            .map_err(|err| FheError::Backend {
+                reason: err.to_string(),
+            })?;
+
+        let effective_shares = shares
+            .iter()
+            .map(|share| {
+                let decoded = wire::decode_decrypt_share(share.bytes.as_slice()).map_err(|_| {
+                    FheError::MalformedDecryptShare {
+                        party_id: share.party_id,
+                    }
+                })?;
+                let poly =
+                    Poly::from_bytes(decoded.d_share_poly.as_slice(), &ctx).map_err(|err| {
+                        FheError::Backend {
+                            reason: err.to_string(),
+                        }
+                    })?;
+                Ok((share.party_id as usize, poly))
+            })
+            .collect::<Result<Vec<_>, FheError>>()?;
+        let (party_ids, share_polys): (Vec<_>, Vec<_>) = effective_shares.into_iter().unzip();
+
+        let lagrange_coeffs = Self::compute_lagrange_coeffs_integer(&party_ids);
+
+        let raw_result_poly = {
+            let first_poly = &share_polys[0];
+            let first_lambda = lagrange_coeffs[0];
+            let mut acc = if first_lambda >= 0 {
+                first_poly * &BigUint::from(first_lambda as u64)
+            } else {
+                let abs_val = (-first_lambda) as u64;
+                -(first_poly * &BigUint::from(abs_val))
+            };
+
+            for (lambda, poly) in lagrange_coeffs[1..]
+                .iter()
+                .zip(share_polys[1..].iter())
+            {
+                let term = if *lambda >= 0 {
+                    poly * &BigUint::from(*lambda as u64)
+                } else {
+                    let abs_val = (-*lambda) as u64;
+                    -(poly * &BigUint::from(abs_val))
+                };
+                acc = &acc + &term;
+            }
+            acc
+        };
+
+        let raw_result_poly_bytes = raw_result_poly.to_bytes();
+
+        let share_manager = ShareManager::new(
+            n,
+            self.shamir_threshold(n, configured_threshold),
+            self.bfv_params.clone(),
+        );
+
+        let plaintext = share_manager
+            .decrypt_from_shares(share_polys, party_ids, ciphertext)
+            .map_err(|err| FheError::Backend {
+                reason: err.to_string(),
+            })?;
+
+        let slots = Vec::<u64>::try_decode(&plaintext, Encoding::poly()).map_err(|err| {
+            FheError::Backend {
+                reason: err.to_string(),
+            }
+        })?;
+
+        let decoded_plaintext = decode_plaintext_slots(&slots)?;
+
+        Ok((raw_result_poly_bytes, decoded_plaintext))
+    }
+
     /// Compute integer Lagrange coefficients for the given 1-based party IDs.
     ///
     /// λ_i = Π_{j≠i} (0 - x_j) / Π_{j≠i} (x_i - x_j) for evaluation at 0.
@@ -1633,5 +1759,78 @@ variance = 10
 
         assert_eq!(crp_a, crp_b);
         assert_ne!(crp_a, crp_other);
+    }
+
+    #[test]
+    fn test_aggregate_decrypt_raw_result_poly_roundtrip() {
+        let backend = FhersBackend::load_params(TEST_PARAMS_TOML).expect("load params");
+        let mut rng = StdRng::seed_from_u64(99);
+        let plaintext = b"verify G3 raw poly";
+
+        let n: usize = 5;
+        let t: usize = 2;
+
+        let session_id: [u8; 32] = {
+            let mut id = [0u8; 32];
+            rng.fill_bytes(&mut id);
+            id
+        };
+
+        let share1 = backend
+            .keygen_share_with_session(&session_id, 1, &mut rng)
+            .expect("keygen_share(1)");
+        let share2 = backend
+            .keygen_share_with_session(&session_id, 2, &mut rng)
+            .expect("keygen_share(2)");
+        let share3 = backend
+            .keygen_share_with_session(&session_id, 3, &mut rng)
+            .expect("keygen_share(3)");
+        let share4 = backend
+            .keygen_share_with_session(&session_id, 4, &mut rng)
+            .expect("keygen_share(4)");
+        let share5 = backend
+            .keygen_share_with_session(&session_id, 5, &mut rng)
+            .expect("keygen_share(5)");
+        let pk = backend
+            .aggregate_keygen(&[share1, share2, share3, share4, share5])
+            .expect("aggregate_keygen");
+        let ct = backend
+            .encrypt(&pk, plaintext, &mut rng)
+            .expect("encrypt");
+        backend.setup_threshold(n, t).expect("setup_threshold");
+        let ds1 = backend
+            .partial_decrypt(&ct, 1, &mut rng)
+            .expect("partial_decrypt(1)");
+        let ds2 = backend
+            .partial_decrypt(&ct, 2, &mut rng)
+            .expect("partial_decrypt(2)");
+
+        let (raw_poly_bytes, decoded) = backend
+            .aggregate_decrypt_raw_result_poly(&ct, &[ds1, ds2], t, &[])
+            .expect("aggregate_decrypt_raw_result_poly");
+
+        assert_eq!(decoded, plaintext.as_ref(), "decoded plaintext must match");
+
+        let ctx = backend
+            .bfv_params
+            .ctx_at_level(0)
+            .expect("ctx_at_level");
+        let raw_poly = Poly::from_bytes(&raw_poly_bytes, &ctx)
+            .expect("raw result poly deserialize");
+        assert!(
+            !raw_poly_bytes.is_empty(),
+            "raw result poly bytes must not be empty"
+        );
+
+        let coeffs = backend
+            .poly_coeffs_from_bytes(&raw_poly_bytes)
+            .expect("poly_coeffs_from_bytes on raw poly");
+        assert_eq!(
+            coeffs.len(),
+            24576,
+            "raw result poly should have 8192 coeffs × 3 moduli = 24576 residues"
+        );
+
+        let _ = raw_poly;
     }
 }

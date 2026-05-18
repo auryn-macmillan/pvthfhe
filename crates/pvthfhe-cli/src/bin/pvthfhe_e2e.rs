@@ -21,8 +21,9 @@ use {
     pvthfhe_compressor::{
         sonobe::{
             encode_triple, hash8_native, C7DecryptAggregationCircuit, C7MerkleExternalInputs,
-            C7MerkleStepCircuit, ExternalInputs4, MerkleWitnessData, SonobeCompressor,
+            C7MerkleStepCircuit, ExternalInputs5, MerkleWitnessData, SonobeCompressor,
         },
+        witness::hash_all_coeffs,
     },
     sha2::{Digest, Sha256},
 };
@@ -358,9 +359,10 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
     let prover_toml_path = repo_root.join("circuits/aggregator_final/Prover.toml");
     let prover_toml_data = build_c7_prover_toml(
         &report.share_coeffs,
-        &report.lagrange_coeffs,
+        &report.committee_party_ids,
         &report.aggregate_pk_bytes,
         &report.session_id,
+        &report.decrypt_nizk_hash,
     );
     if let Err(e) = std::fs::write(&prover_toml_path, &prover_toml_data) {
         warn!(phase = "noir_aggregator_final", error = %e, "Noir aggregator_final: failed to write Prover.toml");
@@ -391,8 +393,10 @@ fn run_c7_sonobe_optional(n: usize, seed: u64) -> (f64, bool) {
     let compressor = SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch_hash, n)
         .expect("C7 sonobe compressor construction failed");
     let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
-    let steps: Vec<ExternalInputs4<Fr>> = vec![
-        ExternalInputs4(Fr::from(1u64), Fr::from(1u64), Fr::from(1u64), Fr::from(0u64));
+    let coeff_commitment = hash_all_coeffs(&vec![Fr::from(0u64); 8192]);
+    let derived_r = hash_all_coeffs(&[coeff_commitment, Fr::from(0u64)]);
+    let steps: Vec<ExternalInputs5<Fr>> = vec![
+        ExternalInputs5(Fr::from(1u64), Fr::from(1u64), coeff_commitment, Fr::from(0u64), derived_r);
         n
     ];
     let proof = compressor

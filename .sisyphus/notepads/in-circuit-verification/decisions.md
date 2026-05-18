@@ -25,3 +25,23 @@ polynomial bytes are needed for future G3 closure.
 ## Decision 5: Dynamic CRT invariants
 Instead of hardcoding M_j^{-1} mod q_j values (which are error-prone), compute
 them dynamically at function entry using the existing `egcd_i128` method.
+
+## Decision 6: G3 approach — Nova finalization step (2026-05-17)
+
+Chose to add one extra Nova IVC step after share folding, dedicated to plaintext binding. This avoids:
+- Non-uniform steps (Nova requires identical constraint structure per step)
+- State widening (stays at 3 elements)
+- External input changes (reuses ExternalInputs5)
+
+The plaintext finalization step passes state through unchanged and enforces `z0 == plaintext(r)`. Plaintext coefficients arrive via the same thread-local mechanism as share coefficients (G2).
+
+## Decision 7: Required FHE backend API extension
+
+The current `aggregate_decrypt_with_poly` returns SCALED plaintext (coefficients in [0, t) post-Scaler). G3 needs PRE-SCALING result polynomial (coefficients in [0, Q)). Must add `aggregate_decrypt_raw_poly` or modify `aggregate_decrypt_with_poly` to also return the pre-scaling `Poly`.
+
+Alternative considered: use the scaled plaintext and account for noise bound. Rejected — noise tolerance is not exact-equality, cannot be expressed as clean R1CS equality constraint.
+
+## Decision 8: r-powers reuse
+
+The r-power constraint chain (P1.7) is already computed in every step. The plaintext step reuses these via the shared `C7_STEP_DATA` thread-local. No need to double-constrain r-powers — they're already verified against external input `ext.4` (r).
+

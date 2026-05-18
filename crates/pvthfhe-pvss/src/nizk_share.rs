@@ -35,7 +35,6 @@ use rand_chacha::ChaCha20Rng;
 use rand_core::RngCore;
 use sha2::{Digest, Sha256};
 use std::sync::{Arc, OnceLock};
-use subtle::ConstantTimeEq;
 
 use crate::PvssError;
 
@@ -640,7 +639,7 @@ fn encode_algebraic_proof(d_rns: &[u64], proof: &sigma::SigmaProof) -> Vec<u8> {
     encode_algebraic_u64_vec(&mut out, &proof.t_rns);
     encode_algebraic_i64_vec(&mut out, &proof.z_s);
     encode_algebraic_i64_vec(&mut out, &proof.z_e);
-    encode_algebraic_i64_vec(&mut out, &proof.ch);
+    encode_algebraic_i64_vec(&mut out, &[proof.ch]);
     out
 }
 
@@ -718,7 +717,8 @@ fn decode_algebraic_proof(bytes: &[u8]) -> Result<(Vec<u64>, sigma::SigmaProof),
     let t_rns = decode_algebraic_u64_vec(bytes, &mut offset)?;
     let z_s = decode_algebraic_i64_vec(bytes, &mut offset)?;
     let z_e = decode_algebraic_i64_vec(bytes, &mut offset)?;
-    let ch = decode_algebraic_i64_vec(bytes, &mut offset)?;
+    let ch_vec = decode_algebraic_i64_vec(bytes, &mut offset)?;
+    let ch = ch_vec.first().copied().unwrap_or(0);
     Ok((
         d_rns,
         sigma::SigmaProof {
@@ -1114,96 +1114,18 @@ fn verify_algebraic_relation(
         c_rns,
         d_rns: d_rns.clone(),
     };
-    // Verify challenge — constant-time comparison
-    let expected_ch = {
-        let mut ts = Transcript::new(
-            stmt.session_id.as_slice(),
-            u32::try_from(stmt.recipient_index).unwrap_or(0),
-        );
-        let t_bytes: Vec<u8> = sigma_proof
-            .t_rns
-            .iter()
-            .flat_map(|x| x.to_le_bytes())
-            .collect();
-        ts.absorb(b"t_rns", &t_bytes);
-        let c_bytes: Vec<u8> = sigma_stmt
-            .c_rns
-            .iter()
-            .flat_map(|x| x.to_le_bytes())
-            .collect();
-        ts.absorb(b"c_rns", &c_bytes);
-        let d_bytes: Vec<u8> = sigma_stmt
-            .d_rns
-            .iter()
-            .flat_map(|x| x.to_le_bytes())
-            .collect();
-        ts.absorb(b"d_rns", &d_bytes);
-        // NOTE: Uses SHA256(d_rns) as pvss_commitment in Fiat-Shamir — circular binding.
-        // The d_rns is in the proof, making the challenge self-referential.
-        // Defense-in-depth: the overall ShareNizkVerifier includes additional layers
-        // (D2 binding, BFV proof, relation binding) that independently bind to the
-        // real statement. See round6-adversarial-remediation F5.
-        let pvss_commitment = test_digest_sigma_d(&d_rns);
-        ts.absorb(b"pvss_commitment", &pvss_commitment);
-        let mut raw = [0u8; sigma::RLWE_N / 8];
-        ts.challenge_bytes(b"binary_challenge", &mut raw);
-        let mut bits = Vec::with_capacity(sigma::RLWE_N);
-        'outer: for byte in &raw {
-            for bit_pos in 0..8u32 {
-                if bits.len() < sigma::RLWE_N {
-                    bits.push(i64::from((byte >> bit_pos) & 1u8));
-                } else {
-                    break 'outer;
-                }
-            }
-        }
-        bits
-    };
-    let expected_ch_bytes: Vec<u8> = expected_ch.iter().flat_map(|x| x.to_le_bytes()).collect();
-    let proof_ch_bytes: Vec<u8> = sigma_proof.ch.iter().flat_map(|x| x.to_le_bytes()).collect();
-    if !bool::from(
-        expected_ch_bytes
-            .as_slice()
-            .ct_eq(proof_ch_bytes.as_slice()),
-    ) {
-        eprintln!("[NIZK-VERIFY] FAIL: algebraic sigma challenge mismatch");
-        return Err(PvssError::LatticeBindingVerificationFailed);
-    }
-
-    // Check norm bounds
-    let max_zs = sigma_proof.z_s.iter().map(|x| x.abs()).max().unwrap_or(0);
-    if max_zs > sigma::B_Z_S {
-        eprintln!("[NIZK-VERIFY] FAIL: algebraic z_s norm bound exceeded");
-        return Err(PvssError::LatticeBindingVerificationFailed);
-    }
-    let max_ze = sigma_proof.z_e.iter().map(|x| x.abs()).max().unwrap_or(0);
-    if max_ze > sigma::B_Z_E {
-        eprintln!("[NIZK-VERIFY] FAIL: algebraic z_e norm bound exceeded");
-        return Err(PvssError::LatticeBindingVerificationFailed);
-    }
-
-    // ── Algebraic equation: c*z_s + z_e == t + ch*d_i (mod Q) ──
-    let ctx = get_rlwe_context()?;
-    let z_s_rns = sigma::int_poly_to_rns(&sigma_proof.z_s, ctx)
-        .map_err(|_| PvssError::LatticeBindingVerificationFailed)?;
-    let z_e_rns = sigma::int_poly_to_rns(&sigma_proof.z_e, ctx)
-        .map_err(|_| PvssError::LatticeBindingVerificationFailed)?;
-    let c_zs_rns = sigma::poly_mul_rq(&sigma_stmt.c_rns, &z_s_rns, ctx)
-        .map_err(|_| PvssError::LatticeBindingVerificationFailed)?;
-    let lhs_rns = sigma::rns_add(&c_zs_rns, &z_e_rns, ctx)
-        .map_err(|_| PvssError::LatticeBindingVerificationFailed)?;
-
-    let ch_rns = sigma::int_poly_to_rns(&sigma_proof.ch, ctx)
-        .map_err(|_| PvssError::LatticeBindingVerificationFailed)?;
-    let ch_di_rns = sigma::poly_mul_rq(&ch_rns, &sigma_stmt.d_rns, ctx)
-        .map_err(|_| PvssError::LatticeBindingVerificationFailed)?;
-    let rhs_rns = sigma::rns_add(&sigma_proof.t_rns, &ch_di_rns, ctx)
-        .map_err(|_| PvssError::LatticeBindingVerificationFailed)?;
-
-    if lhs_rns != rhs_rns {
-        eprintln!("[NIZK-VERIFY] FAIL: algebraic equation c*z_s + z_e != t + ch*d_i");
-        return Err(PvssError::LatticeBindingVerificationFailed);
-    }
+    let pvss_commitment = test_digest_sigma_d(&d_rns);
+    sigma::verify_scalar(
+        stmt.session_id.as_slice(),
+        u32::try_from(stmt.recipient_index).unwrap_or(0),
+        &sigma_stmt,
+        &sigma_proof,
+        &pvss_commitment,
+    )
+    .map_err(|_| {
+        eprintln!("[NIZK-VERIFY] FAIL: algebraic scalar sigma verification failed");
+        PvssError::LatticeBindingVerificationFailed
+    })?;
 
     Ok(())
 }

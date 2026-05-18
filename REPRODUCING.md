@@ -21,7 +21,7 @@ Reproducibility requires the exact toolchain versions used during development:
 
 - **`fhe`**: `gnosisguild/fhe.rs` rev `5f24d0b62a7329b789db07a065b68accd614a47b`
 - **`fhe-traits`**: `gnosisguild/fhe.rs` rev `5f24d0b62a7329b789db07a065b68accd614a47b`
-- **`fhe-math`**: `gnosisguild/fhe.rs` rev `5f24d0b62a7329b789db07a065b68accd614a47b`
+- **`fhe-math`**: `gnosisguild/fhe.rs` rev `5f24d0b62a7329b789db07a065b68accd614a47b` — provides the iterative Cooley-Tukey (power-of-two) Number Theoretic Transform (NTT) used by Cyclo folding ring arithmetic (`crates/pvthfhe-cyclo/src/ring.rs`) and FHE backend `decrypt_from_shares`.
 - **`e3-trbfv`**: intentionally not pinned in F1; plan A3 currently prefers direct composition of `fhe::mbfv` + `fhe::trbfv`, and `fhe::trbfv` is present at the locked `fhe.rs` rev above.
 
 ## Hardware Fingerprint
@@ -57,13 +57,37 @@ just reproduce-bench
 
 *\*Note: Verifier gas is constant due to the use of a surrogate UltraHonk verifier. Real UltraHonk verification costs are estimated between 200k and 500k gas.*
 
-## Reproducing On-Chain Verification
+### Regenerating the On-Chain Verifier
 
-To verify the gas costs and correctness of the Solidity verifier:
+The HonkVerifier.sol is generated from the Noir `aggregator_final` circuit:
 
 ```bash
-just verify-onchain
+# 1. Execute the Noir circuit
+(cd circuits && nargo execute --package aggregator_final --prover-name Prover_re)
+
+# 2. Generate VK with keccak oracle hash (required for EVM-compatible 1888-byte VK)
+bb write_vk --scheme ultra_honk --oracle_hash keccak \
+  -b circuits/target/aggregator_final.json -o circuits/aggregator_final/target/
+
+# 3. Generate Solidity verifier (post-process to fix EVM stack overflow)
+bb write_solidity_verifier -k circuits/aggregator_final/target/vk \
+  -o /tmp/raw_honk.sol -t evm-no-zk
+python3 .sisyphus/scripts/split-honk-vk.py \
+  /tmp/raw_honk.sol contracts/src/generated/HonkVerifier.sol
+
+# 4. Build and test
+forge build --root contracts
+forge test --root contracts
 ```
+
+> Note: `--oracle_hash keccak` is required to produce 1888-byte VKs compatible with
+> `bb write_solidity_verifier`. Without it, VKs are 3680 bytes and the generator rejects them.
+> The `split-honk-vk.py` script rewrites the single massive struct literal into sequential
+> assignments to avoid exceeding the EVM's 16-slot stack limit (116 G1 points).
+>
+> The Noir `aggregator_final` circuit now always executes in the pipeline (no env var gate).
+> Its `d_commitment` binds `aggregate_pk_hash` and `decrypt_nizk_hash` — properties previously
+> verified only in deletable Rust code are now enforced on-chain through the UltraHonk proof.
 
 ## Scaling Methodology
 

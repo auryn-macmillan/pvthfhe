@@ -46,44 +46,28 @@ target network.  Sepolia implements EIP-196 (pairing) and EIP-197
 (addition/scalar multiplication), so no changes to precompile behavior
 are expected relative to mainnet.
 
-## Gas Projection
+## Gas Measurement
 
-Aztec Labs has published a baseline gas measurement for a subset
-UltraHonk verifier:
+- **Measured gas**: 1,885,528 (real UltraHonk proof, evm-no-zk target, 7776 bytes, N=65536 LOG_N=16)
+- **Prior projection (Aztec baseline)**: ~39,687 (idealised minimal verifier)
+- **Gas budget ceiling**: 5,000,000 (P3-T4)
+- **Margin**: ~2.65× under budget
 
-- **Projected gas**: ~39,687
-
-This figure should be treated as a floor, not a ceiling.  The actual
-gas consumption depends on the exact proof structure produced by
-P3-M2 compression, including proof size, number of public inputs, and
-any additional calldata framing.  Measurement and confirmation against
-a real MicroNova root proof will be part of the post-deployment
-acceptance criteria.
-
-The P3 gas budget ceiling is 5,000,000 (set by P3-T4), and this
-projection sits comfortably within that bound.
+The measured value reflects the full verifier cost for a 639K-constraint Noir circuit with
+in-circuit Poseidon commitment verification. P3-M4 optimisation targets reducing this below 100,000 gas.
 
 ## Deployment Status
 
-**Status: DEFERRED**
+**Status: VERIFIED (local)**
 
-The deployment is blocked on P3-M2 (MicroNova compression).  Until P3-M2
-produces a production-ready compression proof with the correct
-`FoldVerifierStepCircuit` UltraHonk wrap, there is no meaningful proof
-to submit on-chain.  Deploying the verifier contract ahead of that
-milestone would serve only as a dry-run exercise and is not prioritized.
+The `HonkVerifier.sol` contract has been generated via `bb write_solidity_verifier --oracle_hash keccak`
+(BB 5.0.0-nightly.20260517) from the Noir aggregator_final circuit (G2 full in-circuit Poseidon, 639K constraints,
+N=65536 LOG_N=16). Real UltraHonk proofs (evm-no-zk target, 7776 bytes) verify successfully:
+`test_real_proof_accepts()` in `contracts/test/HonkVerifierRealProof.t.sol` PASSES. VK hash matches on-disk value.
+Measured gas: 1,885,528 gas.
 
-Once P3-M2 delivers, the deployment checklist is:
-
-1. Pin the Aztec protocol commit hash for the `HonkVerifier.sol`
-   release used.
-2. Compile with `solc --optimize` and record bytecode hash.
-3. Deploy to Sepolia via `forge create`.
-4. Submit a sample UltraHonk proof from P3-M2 to the deployed contract.
-5. Measure and record actual gas consumption.
-6. Verify the contract on Etherscan Sepolia.
-7. Update `docs/security-proofs/p3/proof-skeletons.md` with the
-   measured gas figure.
+Deployment to Sepolia testnet and Etherscan verification remain deferred pending P3-M2 MicroNova compression.
+The local verification confirms the pipeline works end-to-end: Noir aggregator_final → bb prove → HonkVerifier.sol.
 
 ## References
 

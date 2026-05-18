@@ -91,6 +91,46 @@ just e2e-real
 - P4 Ring-LWE secrecy is deferred to a full RLWE proof (current: Shamir-only simulation).
 - BB CLI and Noir are required for circuit proofs but optional for Rust-only bench.
 
+## UltraHonk Solidity Verifier Generation
+
+The on-chain verifier (`HonkVerifier.sol`, 2,220 lines) is generated from the Noir
+`aggregator_final` circuit via the canonical BB flow:
+
+```bash
+# 1. Execute the Noir circuit
+(cd circuits && nargo execute --package aggregator_final --prover-name Prover_re)
+
+# 2. Generate VK with keccak oracle hash (required for EVM-compatible 1888-byte VK)
+bb write_vk --scheme ultra_honk --oracle_hash keccak \
+  -b circuits/target/aggregator_final.json -o circuits/aggregator_final/target/
+
+# 3. Generate Solidity verifier (post-process to fix EVM stack overflow)
+bb write_solidity_verifier -k circuits/aggregator_final/target/vk \
+  -o /tmp/raw_honk.sol -t evm-no-zk
+python3 .sisyphus/scripts/split-honk-vk.py \
+  /tmp/raw_honk.sol contracts/src/generated/HonkVerifier.sol
+
+# 4. Build and test
+forge build --root contracts
+forge test --root contracts
+```
+
+The `split-honk-vk.py` script rewrites the single massive struct literal
+(116 G1 points) into sequential per-field assignments, avoiding the EVM's
+16-slot stack limit.
+
+### C7 Verification Variants
+
+The C7 decryption aggregation layer supports three in-circuit verification paths,
+selectable via environment variables:
+
+| Variable | Effect |
+|----------|--------|
+| (default) | G2 full: Poseidon sponge in-circuit commitment verification (\texttt{C7DecryptAggregationCircuit}, $\sim$639K constraints/step) |
+| `PVTHFHE_RUN_C7_MERKLE=1` | C7 Phase 3: in-circuit Merkle-tree verification (\texttt{C7MerkleStepCircuit}, depth-5, N=8192, $\sim$6,500 constraints/step) |
+| `PVTHFHE_RUN_NOIR_C7=1` | Noir aggregator\_final circuit as additional C7 phase |
+| `PVTHFHE_COMPRESSOR=micronova` | MicroNova heterogeneous IVC compressor (replaces Sonobe Nova) |
+
 ## License
 
 MIT. See `LICENSE`.

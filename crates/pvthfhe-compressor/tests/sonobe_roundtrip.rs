@@ -82,16 +82,14 @@ fn sonobe_rejects_truncated_proof_bytes_without_panicking() {
 }
 
 #[test]
-fn m6_verifier_rejects_when_ring_equation_failed() {
-    // Use CycloFoldStepCircuit (state_len=4) where ext.2 is ring verification result.
+fn m6_track_a_no_longer_trusts_ext2_zero() {
+    // Use CycloFoldStepCircuit (state_len=5). In Track A (no ring data), ext.2 is
+    // intentionally ignored and verification_count increments unconditionally.
     let compressor = SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch(), 3)
         .expect("construct cyclo fold compressor");
 
-    // ext.2 = 0 simulates a failed ring equation.
-    // The circuit will compute: fold_count = 3 (hardcoded +1 per step),
-    // verification_count = 0 (0 + 0 + 0). Verifier must reject.
     let acc = encode_triple_scalar(5, 0, 0);
-    let public_inputs = encode_triple_scalar(7, 1, 0); // ext.2 = 0 = FAILED
+    let public_inputs = encode_triple_scalar(7, 1, 0);
 
     let proof = compressor
         .prove(&acc, &public_inputs)
@@ -100,8 +98,8 @@ fn m6_verifier_rejects_when_ring_equation_failed() {
 
     let result = compressor.verify(&vk, &proof, &public_inputs);
     assert!(
-        matches!(result, Ok(false) | Err(_)),
-        "M6: verifier must reject when ring equation failed (ext.2=0)"
+        matches!(result, Ok(false)),
+        "G7: CycloFold verification must fail closed when in-circuit witnesses are absent"
     );
 }
 
@@ -122,16 +120,15 @@ fn m6_verifier_accepts_when_ring_equation_passed() {
 
     let result = compressor.verify(&vk, &proof, &public_inputs);
     assert!(
-        matches!(result, Ok(true)),
-        "M6: verifier must accept when all ring equations passed (ext.2=1)"
+        matches!(result, Ok(false)),
+        "G7: ext.2 alone must not satisfy ring/sigma verification counts"
     );
 }
 
 #[test]
-fn m6_verifier_rejects_mixed_ring_results_via_steps() {
-    // Use prove_steps for per-step external inputs.
-    // Step 0: ext.2=1 (passed), step 1: ext.2=0 (failed), step 2: ext.2=1 (passed)
-    // fold_count=3, verification_count=2 → verifier must reject.
+fn m6_track_a_ignores_mixed_ext2_via_steps() {
+    // Use prove_steps for per-step external inputs. With no ring data, ext.2 is
+    // ignored and the verification counter is a duplicate step counter.
     let compressor = SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch(), 3)
         .expect("construct cyclo fold compressor");
 
@@ -149,7 +146,7 @@ fn m6_verifier_rejects_mixed_ring_results_via_steps() {
 
     let result = compressor.verify_steps(&vk, &proof, &steps);
     assert!(
-        matches!(result, Ok(false) | Err(_)),
-        "M6: verifier must reject when some ring equations failed (verification_count=2 != fold_count=3)"
+        matches!(result, Ok(false)),
+        "G7: mixed ext.2 values cannot replace in-circuit ring/sigma witnesses"
     );
 }

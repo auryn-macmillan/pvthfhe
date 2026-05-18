@@ -12,7 +12,7 @@ use sha3::{Digest, Keccak256};
 use pvthfhe_domain_tags::Tag;
 
 use super::poseidon_gadget::hash256;
-use super::{ExternalInputs5, ExternalInputs5Var};
+use super::{RingEqExternalInputs5, RingEqExternalInputs5Var};
 use crate::{StepCircuit, StepCircuitDescriptor};
 
 #[derive(Clone, Debug)]
@@ -30,8 +30,8 @@ impl<F: PrimeField> RingVerifierCircuit<F> {
 
 impl<F: PrimeField> FCircuit<F> for RingVerifierCircuit<F> {
     type Params = (F, Vec<F>);
-    type ExternalInputs = ExternalInputs5<F>;
-    type ExternalInputsVar = ExternalInputs5Var<F>;
+    type ExternalInputs = RingEqExternalInputs5<F>;
+    type ExternalInputsVar = RingEqExternalInputs5Var<F>;
 
     fn new(params: Self::Params) -> Result<Self, folding_schemes::Error> {
         let (challenge, ring_coeffs) = params;

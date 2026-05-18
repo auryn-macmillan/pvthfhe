@@ -11,6 +11,7 @@
 
 use anyhow::Context;
 use ark_bn254::Fr;
+use ark_ff::{BigInteger, PrimeField};
 use clap::Parser;
 use pvthfhe_aggregator::keygen::simulator::{KeygenResult, KeygenSimulator};
 use pvthfhe_fhe::fhers::FhersBackend;
@@ -23,7 +24,7 @@ use std::time::Instant;
 use {
     pvthfhe_compressor::sonobe::{
         encode_triple, C7DecryptAggregationCircuit, CycloFoldStepCircuit,
-        ExternalInputs3, ExternalInputs4, SonobeCompressor,
+        ExternalInputs3, ExternalInputs5, SonobeCompressor,
     },
 };
 
@@ -169,34 +170,78 @@ fn main() -> anyhow::Result<()> {
         .context("aggregate_decrypt")?;
     let aggregate_ms = elapsed_ms(t1);
 
-    // 3. C7: t Nova steps for Lagrange folding
+    // 3. C7: tree folding for Lagrange aggregation (MicroNova CompressionTree)
     #[cfg(feature = "sonobe-compressor")]
-    let c7_ms = {
+    let (c7_ms, c7_tree_depth, c7_leaves) = {
         let t2 = Instant::now();
-        let c7_compressor =
-            SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(
-                epoch_hash,
-                args.threshold,
-            )
-            .map_err(|e| anyhow::anyhow!("C7 compressor init: {e:?}"))?;
-        let c7_acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
-        let c7_steps: Vec<ExternalInputs4<Fr>> = (0..args.threshold)
+
+        // Build leaf hashes from dummy data — no per-leaf C7 Nova proving.
+        // CompressionTree::build handles Nova proving internally via MicroNovaCompressor.
+        // Dummy data matches real pipeline: share_eval, lagrange_coeff, agg_pk_hash.
+        let dummy_agg_pk_hash = Fr::from(42u64);
+        use rayon::prelude::*;
+        let leaf_hashes: Vec<[u8; 32]> = (0..args.threshold)
+            .into_par_iter()
             .map(|i| {
-                ExternalInputs4(
-                    Fr::from((42 + i) as u64),
-                    Fr::from(1u64),
-                    Fr::from(0u64),
-                    Fr::from(0u64),
-                )
+                let mut hasher = Sha256::new();
+                hasher.update(&Fr::from((42 + i) as u64).into_bigint().to_bytes_le());
+                hasher.update(&Fr::from(1u64).into_bigint().to_bytes_le());
+                hasher.update(&dummy_agg_pk_hash.into_bigint().to_bytes_le());
+                hasher.finalize().into()
             })
             .collect();
-        let _c7_result = c7_compressor
-            .prove_steps_c7(&c7_acc, &c7_steps)
-            .map_err(|e| anyhow::anyhow!("C7 prove_steps: {e:?}"))?;
-        elapsed_ms(t2)
+
+        // Pad leaf count to next power of two (CompressionTree requires power-of-2).
+        let padded_len = leaf_hashes.len().next_power_of_two();
+        let mut padded_hashes = leaf_hashes;
+        while padded_hashes.len() < padded_len {
+            padded_hashes.push([0u8; 32]);
+        }
+
+        let (depth, leaves) = match pvthfhe_compressor::micronova::tree::CompressionTree::build(&padded_hashes) {
+            Ok(tree) => (tree.depth, padded_len),
+            Err(e) => {
+                eprintln!("C7 tree build failed: {e:?}, falling back to flat Nova");
+                (0, padded_len)
+            }
+        };
+
+        let ms = elapsed_ms(t2);
+
+        if depth == 0 {
+            // Fallback: flat Nova IVC sequential folding
+            let t2b = Instant::now();
+            use pvthfhe_compressor::witness::hash_all_coeffs;
+            let coeff_commitment = hash_all_coeffs(&vec![Fr::from(0u64); 8192]);
+            let derived_r = hash_all_coeffs(&[coeff_commitment, Fr::from(0u64)]);
+            let c7_compressor =
+                SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(
+                    epoch_hash,
+                    args.threshold,
+                )
+                .map_err(|e| anyhow::anyhow!("C7 compressor init: {e:?}"))?;
+            let c7_acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
+            let c7_steps: Vec<ExternalInputs5<Fr>> = (0..args.threshold)
+                .map(|i| {
+                    ExternalInputs5(
+                        Fr::from((42 + i) as u64),
+                        Fr::from(1u64),
+                        coeff_commitment,
+                        Fr::from(0u64),
+                        derived_r,
+                    )
+                })
+                .collect();
+            let _c7_result = c7_compressor
+                .prove_steps_c7(&c7_acc, &c7_steps)
+                .map_err(|e| anyhow::anyhow!("C7 prove_steps: {e:?}"))?;
+            (ms + elapsed_ms(t2b), 0usize, leaves)
+        } else {
+            (ms, depth, leaves)
+        }
     };
     #[cfg(not(feature = "sonobe-compressor"))]
-    let c7_ms = 0.0;
+    let (c7_ms, c7_tree_depth, c7_leaves) = (0.0, 0usize, 0usize);
 
     // Report
     let total_ms = compressor_ms + aggregate_ms + c7_ms;
@@ -213,11 +258,20 @@ fn main() -> anyhow::Result<()> {
         aggregate_ms / 1000.0,
         args.threshold,
     );
-    println!(
-        "  c7:              {:.1}s  ({} Nova steps)",
-        c7_ms / 1000.0,
-        args.threshold,
-    );
+    if c7_tree_depth > 0 {
+        println!(
+            "  c7:              {:.1}s  (tree depth={}, {} leaves)",
+            c7_ms / 1000.0,
+            c7_tree_depth,
+            c7_leaves,
+        );
+    } else {
+        println!(
+            "  c7:              {:.1}s  ({} Nova steps)",
+            c7_ms / 1000.0,
+            args.threshold,
+        );
+    }
     println!("  total:           {:.1}s", total_ms / 1000.0);
 
     Ok(())

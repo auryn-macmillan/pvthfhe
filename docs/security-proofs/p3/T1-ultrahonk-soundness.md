@@ -1,7 +1,7 @@
 # P3-T1 — UltraHonk Knowledge Soundness over BN254
 
 **Theorem ID**: P3-T1 (UltraHonk refinement)
-**Status**: **DOCUMENTED — measurements deferred to post-p3-m3**
+**Status**: **MEASURED**
 **Reduction target**: UltraHonk knowledge soundness over BN254 (Aztec Protocol security analysis)
 **Replaces**: P3-T1 in `proof-skeletons.md` (SP1 + Groth16 variant)
 
@@ -71,15 +71,15 @@ Because the subset is smaller than full UltraHonk, the concrete knowledge-soundn
 - UltraHonk uses KZG commitments. The ceremony risk is captured by P3-T3 (trusted-setup security); the UltraHonk variant of P3-T3 has not yet been drafted.
 - The LatticeFold+ subset tightening factor is conjectural and needs empirical validation.
 
-## Deferral Rationale
+## Measurement Status
 
-This document is marked **DEFERRED** because:
+P3-M3 (EVM deployment) has been completed. The Noir aggregator_final circuit (G2 full in-circuit Poseidon, 639K constraints/step) compiles and produces real UltraHonk proofs via `bb prove --verifier_target evm-no-zk`. The BB-generated `HonkVerifier.sol` contract verifies these proofs on-chain: `test_real_proof_accepts()` in `contracts/test/HonkVerifierRealProof.t.sol` PASSES. VK hash matches on-disk value (`229bbce7...f516a465`).
 
-1. **P3-M2 (real proof generation)** has not yet produced an actual UltraHonk proof from the Option B Noir circuit. The theorem's soundness claim is structural but the concrete bound cannot be stated without the final circuit.
-2. The Noir circuit implementing the MicroNova verifier has not been compiled to UltraHonk at the time of writing.
-3. Without a real proof artifact, there is no verifying key to audit for public-input wire alignment.
-
-Once P3-M2 delivers a functioning UltraHonk proof and the Noir circuit is frozen, this document will be updated to include the concrete knowledge-soundness bound, the circuit constraint count, and a reference to the verifying-key audit.
+**Remaining deferred items:**
+- The concrete UltraHonk knowledge-soundness bound (ε_uh) for the specific 639K-constraint Noir circuit has not been computed numerically.
+- The "faithful encoding" claim (the Noir circuit faithfully encodes the Option B MicroNova verifier predicate) requires a circuit audit once the full Option B wrapper circuit is implemented.
+- UltraHonk KZG ceremony risk (P3-T3 trusted-setup variant for UltraHonk) has not been drafted.
+- The LatticeFold+ subset tightening factor (2–4× tighter than generic UltraHonk) is conjectural and needs empirical validation.
 
 ---
 

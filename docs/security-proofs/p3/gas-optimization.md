@@ -1,7 +1,7 @@
 # P3-M4: Gas Optimization Plan
 
 **Module**: P3-M4
-**Status**: DOCUMENTED — requires p3-m3 deployment
+**Status**: DOCUMENTED — p3-m3 complete; unoptimised verifier measured at 1,885,528 gas; optimisation deferred
 **Last Updated**: 2026-05-14
 **Depends On**: P3-M3 (EVM deploy with real HonkVerifier)
 **Related Theorem**: P3-T4 (Gas-bound theorem for on-chain verification)
@@ -16,13 +16,14 @@ The on-chain verifier must stay under 100,000 gas per proof submission. This doc
 
 | Metric | Value | Source |
 |--------|-------|--------|
-| Baseline (Aztec UltraHonk) | ~39,687 gas | Aztec HonkVerifier.sol reference |
-| Current placeholder (not real) | ~3,000,000 gas | `HonkVerifier.sol` stub (keccak256 placeholder) |
-| Target ceiling | <100,000 gas | P3-M4 acceptance criteria |
-| Proof size bound | ≤14 KB | P3-T4 theorem assumption |
-| Public inputs | 200 bytes (fixed) | P2→P3 bundle boundary |
+| Measured (real UltraHonk, unoptimised) | 1,885,528 gas | `test_real_proof_accepts()` via Forge (`HonkVerifierRealProof.t.sol`) |
+| Baseline (Aztec UltraHonk, idealised) | ~39,687 gas | Aztec HonkVerifier.sol reference |
+| Target ceiling (post-optimisation) | <100,000 gas | P3-M4 acceptance criteria |
+| Hard budget | ≤5,000,000 gas | P3-T4 theorem ceiling |
+| Proof size (measured) | 7,776 bytes | Real UltraHonk proof (evm-no-zk, N=65536 LOG_N=16) |
+| Public inputs | 224 bytes (7 bytes32) | Aggregator_final public inputs |
 
-The 100,000 gas target accounts for LatticeFold+ specific additions layered on top of a standard UltraHonk verifier. The baseline represents a vanilla Honk verifier without LatticeFold+ customizations. We accept some overhead for our domain-specific constraints while staying well under the T4-mandated ceiling of 5,000,000 gas.
+The measured 1,885,528 gas reflects the unoptimised verifier for a 639K-constraint Noir circuit with full Poseidon in-circuit. The 100,000 gas target is the P3-M4 post-optimisation goal, requiring stripping of unused UltraHonk features (lookups, RAM/ROM) and inlining scalar multiplications. The 5,000,000 gas hard ceiling (P3-T4) is satisfied with ~2.65× margin.
 
 ## 3. Optimization Opportunities
 
@@ -99,17 +100,17 @@ After each optimization round, re-run the same 100-proof suite. Any regression a
 
 | Dependency | Status | Impact |
 |-----------|--------|--------|
-| P3-M3 (EVM deploy) | PENDING | Gate: cannot measure until real verifier is deployed |
-| P3-T4 (gas-bound theorem) | SKELETON | Sets the hard ceiling and security rationale |
-| `bb write_solidity_verifier` | BLOCKED | BB 5.0.0-nightly.20260324 produces wrong VK shape; needs upgrade |
+| P3-M3 (EVM deploy) | COMPLETE (local) | Real HonkVerifier.sol generated and verified; 1,885,528 gas measured |
+| P3-T4 (gas-bound theorem) | MEASURED | Hard ceiling 5,000,000 confirmed; ~2.65× margin |
+| `bb write_solidity_verifier` | RESOLVED | BB 5.0.0-nightly.20260517 produces correct VK shape with --oracle_hash keccak |
 
 ### Sequencing
 
-1. P3-M3 completes: real HonkVerifier deployed
-2. Profile baseline with Foundry gas report (P3-M4.1)
-3. Apply optimizations in order: strip lookups → inline scalarmul → pairing strategy (P3-M4.2)
-4. Re-measure against 100-proof baseline (P3-M4.3)
-5. Document final numbers and update `p3-micronova-target.md` (P3-M4.4)
+1. P3-M3 complete: real HonkVerifier generated and verified locally (1,885,528 gas) ✅
+2. Profile baseline with Foundry gas report (P3-M4.1) ✅ (single proof measured)
+3. Apply optimizations in order: strip lookups → inline scalarmul → pairing strategy (P3-M4.2) — **deferred**
+4. Re-measure against 100-proof baseline (P3-M4.3) — **deferred**
+5. Document final numbers and update `p3-micronova-target.md` (P3-M4.4) — **deferred**
 
 ## 6. Risk Register
 

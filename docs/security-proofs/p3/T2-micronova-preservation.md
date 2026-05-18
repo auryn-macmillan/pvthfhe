@@ -1,7 +1,7 @@
 # P3-T2 — MicroNova Compression Preserves Knowledge Soundness of Nova IVC
 
 **Theorem ID**: P3-T2 (MicroNova refinement)
-**Status**: **DOCUMENTED — measurements deferred to post-p3-m3**
+**Status**: **DOCUMENTED — G2 full in-circuit Poseidon implemented (639K constraints/step); MicroNova compression layer remains deferred**
 **Reduction target**: MicroNova soundness reduces to Nova IVC knowledge soundness
 **Replaces**: P3-T2 in `proof-skeletons.md` (SP1 + Groth16 wrap variant)
 
@@ -76,15 +76,16 @@ The PVTHFHE Nova IVC chain has length 1. This is an important structural simplif
 - The MicroNova verifier circuit has not been built. The single-step Nova chain claim depends on the correctness of the `CycloFoldStepCircuit` encoding.
 - The MicroNova-to-Nova reduction has not been formalised for the specific BN254/Grumpkin cycle used by Sonobe/Nova in the PVTHFHE stack.
 
-## Deferral Rationale
+## Measurement Status
 
-This document is marked **DEFERRED** because:
+G2 full in-circuit Poseidon commitment verification has been implemented: the Noir aggregator_final circuit compiles with 639K constraints/step, including 8192 coefficient witnesses hashed in-circuit and r-power correctness constraints. Real UltraHonk proofs from this circuit are verified on-chain via `HonkVerifier.sol` (`test_real_proof_accepts()` PASSES).
 
-1. **P3-M2 (real proof generation)** has not yet produced a MicroNova compressed proof. Without a real proof artifact, the concrete constraint sizes and soundness bounds cannot be stated.
-2. The MicroNova verifier circuit (the circuit that the UltraHonk Noir wrapper will verify) has not been implemented.
-3. The Nova IVC soundness analysis for the specific Cyclo step circuit depends on P2's own soundness theorems, which are under active development.
-
-Once P3-M2 delivers a working MicroNova proof and the step circuit is frozen, this document will be updated to include: the concrete knowledge-soundness bound, the R1CS constraint count of the Cyclo verifier circuit, and a reference to the circuit audit.
+**Remaining deferred items:**
+- A MicroNova compressed proof (the middle layer between Cyclo accumulator and UltraHonk wrap) has not yet been produced. The current pipeline goes directly from aggregator_final to UltraHonk without a MicroNova compression step.
+- The MicroNova verifier circuit (the circuit that the UltraHonk Noir wrapper will verify) has not been implemented.
+- The concrete MicroNova soundness bound (ε_mn) for the specific Cyclo verifier circuit has not been computed numerically.
+- The MicroNova-to-Nova reduction has not been formalised for the specific BN254/Grumpkin cycle used by Sonobe/Nova in the PVTHFHE stack.
+- The Nova IVC soundness analysis for the specific Cyclo step circuit depends on P2's own soundness theorems, which are under active development.
 
 ---
 

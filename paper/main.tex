@@ -2,6 +2,8 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Lattice-native BFV sigma protocol (v4) with per-share NIZK verification
 % Sonobe Nova IVC with CycloFoldStepCircuit; committed-smudge decryption
+% G2 full in-circuit Poseidon commitment verification (639K constraints/step)
+% Real UltraHonk Solidity verifier generated and compiling (N=65536, 28 G1 points)
 % Research prototype — do not use for The Interfold or any production deployment
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Paper strategy: UNIFIED (see .sisyphus/design/p2/paper-strategy-decision.md, C.D.5 APPROVE)
@@ -204,6 +206,35 @@ witness folding.  The Cyclo CCS represents the RLWE decryption relation
 in coefficient form with infinity-norm witness bounding ($B_e = 17$,
 $|C| = 2^{16}$ challenge space).
 
+\paragraph{C7 In-Circuit Commitment Verification (G2 Full).}
+The C7 decryption aggregation circuit (\texttt{C7DecryptAggregationCircuit})
+folds per-participant Lagrange recombination evaluations.  Following the
+G2 full upgrade (plan \texttt{g2-full-in-circuit-poseidon.md}, status DONE),
+the circuit now verifies three properties entirely in R1CS constraints
+without trusting any external witness data:
+\begin{enumerate}
+  \item \textbf{Commitment Opening.} The 8192 coefficient witnesses are
+    hashed by a Poseidon sponge in-circuit ($\sim$614K constraints) and
+    enforced equal to the external commitment hash (ext.2).  This replaces
+    the previous off-circuit Merkle-tree verification that only checked a
+    single leaf.
+  \item \textbf{Challenge-Point Correctness.} The evaluation powers
+    $r^0, r^1, \dots, r^{8191}$ are constrained consecutively
+    ($r^0 = 1$, $r^{j+1} = r^j \cdot r$), adding 8,191
+    multiply-enforce-equal constraints per step.  The challenge $r$ itself
+    is derived in-circuit as $\operatorname{Poseidon}(\mathit{coeff\_commitment}
+    \;\|\; \mathit{dkg\_root\_hash})$.
+  \item \textbf{Complete Trust Closure.} Together, these constraints ensure
+    that the aggregation result binds to the committed polynomial
+    coefficients with no trust gap: a malicious prover cannot substitute
+    coefficients, choose a favorable challenge point, or provide mismatched
+    powers.
+\end{enumerate}
+The G2 full circuit uses $\sim$639K constraints per step (was $\sim$8K for
+the bare evaluation); at $t = 64$ the total is $\sim$41M constraints,
+well within Nova's practical range.  The per-aggregator C7 phase
+completes in 2.8~s at $n=10, t=4$ in the end-to-end demo.
+
 \begin{theorem}[P2-A-T1: Sonobe Folding Completeness (Track A)]
 \label{thm:p2a-t1}
 Honest P1 proofs with valid frozen P1 NIZK witnesses fold into an
@@ -326,10 +357,18 @@ the protocol offers two tracks at this layer:
   \texttt{TRUSTED\_SIGNER} (5{,}273~gas, $O(1)$ in $n$).  All theorems
   PROVED per advisor verdict.
 
-\item[Track B (Theoretical target, \S\ref{sec:p3-trackb}):]
-  UltraHonk + MicroNova on-chain verification of the LatticeFold+
-  terminal accumulator ($\approx 39{,}687$~gas projected).  Proof
-  skeletons; deferred to \texttt{p3-micronova-target.md}.
+\item[Track B (On-chain UltraHonk, \S\ref{sec:p3-trackb}):]
+  UltraHonk + MicroNova on-chain verification of the Sonobe Nova terminal
+  accumulator.  \textbf{Status: VERIFIED locally.}  A real UltraHonk proof
+  (7{,}776 bytes, N=65{,}536, LOG\_N=16) from the Noir
+  \texttt{aggregator\_final} circuit was verified on Foundry at
+  1{,}885{,}528~gas using a generated \texttt{HonkVerifier.sol} (2{,}220
+  lines).  VK generation uses \texttt{bb write\_vk --oracle\_hash keccak}
+  for EVM-compatible 1{,}888-byte VKs.  A post-processing script
+  (\texttt{split-honk-vk.py}) rewrites the single massive struct literal
+  into sequential assignments to avoid EVM stack overflow (116~G1 points).
+  Sepolia deploy pending.  See \texttt{contracts/test/HonkVerifierRealProof.t.sol}
+  for the gas measurement.
 \end{description}
 
 % ===================================================================

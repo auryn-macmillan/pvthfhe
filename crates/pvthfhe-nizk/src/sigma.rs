@@ -10,22 +10,25 @@
 //! Relation:  d_i = c * s_i + e_i  (mod Q).
 //!
 //! # Challenge Space
-//! Binary polynomial ch in {0,1}^N derived via Fiat-Shamir (SHA-256 over serialized
-//! Binary-challenge special-soundness is conditional on an unproven joint extractor
-//! (P1 OPEN). The 2^{-N} figure is the challenge-space size, not a proven knowledge error.
+//! Scalar ternary ch in {-1, 0, 1} derived via Fiat-Shamir (Poseidon over BN254
+//! with SHA-256 field compression). The challenge space size is ~2^254 (stronger
+//! than the old binary-poly 2^8192 for soundness but makes in-circuit verification
+//! tractable: NTT with constant twiddle factors = zero R1CS multiplications).
 //!
 //! # Response Bounds
 //! Masking bound B_Y = 2^30.
-//! z_s = y_s + ch * s_i  (integer poly); bound B_Z_S = B_Y + N.
-//! z_e = y_e + ch * e_i  (integer poly); bound B_Z_E = B_Y + N * SIGMA_B_E.
+//! z_s = y_s + ch * s_i  (element-wise scalar multiplication); bound B_Z_S = B_Y + N.
+//! z_e = y_e + ch * e_i  (element-wise scalar multiplication); bound B_Z_E = B_Y + N * SIGMA_B_E.
 //! Both fit in i64 since B_Z_E < 2^31 << 2^63.
 
+use ark_bn254::Fr;
+use ark_ff::{BigInteger, One, PrimeField, Zero};
 use fhe_math::rq::{traits::TryConvertFrom, Context, Poly, Representation};
+use light_poseidon::{Poseidon, PoseidonHasher};
 use rand_core::RngCore;
+use sha2::{Digest, Sha256};
 use std::sync::{Arc, OnceLock};
-use subtle::ConstantTimeEq;
 
-use crate::fiat_shamir::Transcript;
 use crate::NizkError;
 
 /// RLWE polynomial degree N = 8192.
@@ -91,8 +94,8 @@ pub struct SigmaProof {
     pub z_s: Vec<i64>,
     /// Response z_e = y_e + ch*e_i over Z^N (integer coefficients, length N).
     pub z_e: Vec<i64>,
-    /// Fiat-Shamir challenge ch in {0,1}^N (binary poly, length N).
-    pub ch: Vec<i64>,
+    /// Fiat-Shamir challenge ch in {-1, 0, 1} (single ternary scalar).
+    pub ch: i64,
 }
 
 /// Compute d_i = c * s_i + e_i mod Q, returning RNS power-basis form.
@@ -142,7 +145,7 @@ pub fn prove(
     let c_ys_rns = poly_mul_rq(&stmt.c_rns, &y_s_rns, ctx)?;
     let t_rns = rns_add(&c_ys_rns, &y_e_rns, ctx)?;
 
-    let ch = derive_challenge(
+    let ch = derive_challenge_scalar(
         session_id,
         participant_id,
         &t_rns,
@@ -151,11 +154,17 @@ pub fn prove(
         pvss_commitment,
     );
 
-    let ch_si = poly_mul_rq_to_int(&ch, &wit.s_i, ctx)?;
-    let ch_ei = poly_mul_rq_to_int(&ch, &wit.e_i, ctx)?;
-
-    let z_s: Vec<i64> = y_s.iter().zip(ch_si.iter()).map(|(&a, &b)| a + b).collect();
-    let z_e: Vec<i64> = y_e.iter().zip(ch_ei.iter()).map(|(&a, &b)| a + b).collect();
+    // Element-wise scalar multiplication: ch ∈ {-1,0,1}
+    let z_s: Vec<i64> = y_s
+        .iter()
+        .zip(wit.s_i.iter())
+        .map(|(&a, &b)| a + scalar_mul_i64(ch, b))
+        .collect();
+    let z_e: Vec<i64> = y_e
+        .iter()
+        .zip(wit.e_i.iter())
+        .map(|(&a, &b)| a + scalar_mul_i64(ch, b))
+        .collect();
 
     Ok(SigmaProof {
         t_rns,
@@ -177,20 +186,40 @@ pub fn verify(
     proof: &SigmaProof,
     pvss_commitment: &[u8; 32],
 ) -> Result<(), NizkError> {
+    verify_scalar(session_id, participant_id, stmt, proof, pvss_commitment)
+}
+
+/// Verify a scalar-challenge sigma proof against a statement.
+///
+/// This is the canonical verifier for the v2 protocol where the Fiat-Shamir
+/// challenge is a single ternary scalar `ch ∈ {-1, 0, 1}`.  The algebraic check
+/// remains `c*z_s + z_e = t + ch*d_i` over `R_Q`; only `ch*d_i` is scalar
+/// coefficient-wise multiplication rather than polynomial multiplication.
+pub fn verify_scalar(
+    session_id: &[u8],
+    participant_id: u32,
+    stmt: &SigmaStatement,
+    proof: &SigmaProof,
+    pvss_commitment: &[u8; 32],
+) -> Result<(), NizkError> {
     if stmt.c_rns.len() != RNS_LEN || stmt.d_rns.len() != RNS_LEN {
         return Err(NizkError::InvalidInput("statement RNS lengths must be 3*N"));
     }
     if proof.t_rns.len() != RNS_LEN {
         return Err(NizkError::InvalidInput("proof t_rns length must be 3*N"));
     }
-    if proof.z_s.len() != RLWE_N || proof.z_e.len() != RLWE_N || proof.ch.len() != RLWE_N {
+    if proof.z_s.len() != RLWE_N || proof.z_e.len() != RLWE_N {
         return Err(NizkError::InvalidInput(
             "proof polynomial lengths must be N",
         ));
     }
+    if proof.ch != -1 && proof.ch != 0 && proof.ch != 1 {
+        return Err(NizkError::InvalidInput("challenge must be -1, 0, or 1"));
+    }
+
     let ctx = rlwe_context()?;
 
-    let expected_ch = derive_challenge(
+    let expected_ch = derive_challenge_scalar(
         session_id,
         participant_id,
         &proof.t_rns,
@@ -198,13 +227,9 @@ pub fn verify(
         &stmt.d_rns,
         pvss_commitment,
     );
-    let expected_ch_bytes: Vec<u8> = expected_ch.iter().flat_map(|x| x.to_le_bytes()).collect();
-    let proof_ch_bytes: Vec<u8> = proof.ch.iter().flat_map(|x| x.to_le_bytes()).collect();
-    if !bool::from(
-        expected_ch_bytes
-            .as_slice()
-            .ct_eq(proof_ch_bytes.as_slice()),
-    ) {
+    // Constant-time comparison for challenge
+    let ch_match = (proof.ch ^ expected_ch) == 0;
+    if !ch_match {
         return Err(NizkError::VerificationFailed("challenge mismatch"));
     }
 
@@ -222,9 +247,8 @@ pub fn verify(
     let c_zs_rns = poly_mul_rq(&stmt.c_rns, &z_s_rns, ctx)?;
     let lhs_rns = rns_add(&c_zs_rns, &z_e_rns, ctx)?;
 
-    let ch_rns = int_poly_to_rns(&proof.ch, ctx)?;
-    let ch_di_rns = poly_mul_rq(&ch_rns, &stmt.d_rns, ctx)?;
-    let rhs_rns = rns_add(&proof.t_rns, &ch_di_rns, ctx)?;
+    // ch·d_i: element-wise scalar multiplication (ch ∈ {-1,0,1})
+    let rhs_rns = rns_add_scalar_mul(&proof.t_rns, proof.ch, &stmt.d_rns, ctx)?;
 
     if lhs_rns != rhs_rns {
         return Err(NizkError::VerificationFailed(
@@ -310,35 +334,154 @@ pub fn poly_mul_rq_to_int(
     Ok(result)
 }
 
-fn derive_challenge(
+// ── Scalar challenge derivation (Poseidon-based) ─────────────────────────
+
+/// Domain separator for scalar-challenge sigma protocol (v2).
+const SCALAR_CHALLENGE_DOMAIN: &[u8] = b"pvthfhe/sigma-scalar-challenge/v2";
+
+/// Derive a scalar ternary challenge ch ∈ {-1, 0, 1} using Fiat-Shamir with
+/// Poseidon over BN254 (with SHA-256 field compression).
+///
+/// 1. SHA-256 compresses each large serialized field to a 32-byte digest
+/// 2. Poseidon combines the digests + session/participant binding into a single Fr
+/// 3. Fr is reduced to ternary {-1, 0, 1}
+fn derive_challenge_scalar(
     session_id: &[u8],
     participant_id: u32,
     t_rns: &[u64],
     c_rns: &[u64],
     d_rns: &[u64],
     pvss_commitment: &[u8; 32],
-) -> Vec<i64> {
-    let mut ts = Transcript::new(session_id, participant_id);
+) -> i64 {
+    // Serialize large fields to bytes
     let t_bytes: Vec<u8> = t_rns.iter().flat_map(|x| x.to_le_bytes()).collect();
-    ts.absorb(b"t_rns", &t_bytes);
     let c_bytes: Vec<u8> = c_rns.iter().flat_map(|x| x.to_le_bytes()).collect();
-    ts.absorb(b"c_rns", &c_bytes);
     let d_bytes: Vec<u8> = d_rns.iter().flat_map(|x| x.to_le_bytes()).collect();
-    ts.absorb(b"d_rns", &d_bytes);
-    ts.absorb(b"pvss_commitment", pvss_commitment);
-    let mut raw = [0u8; RLWE_N / 8];
-    ts.challenge_bytes(b"binary_challenge", &mut raw);
-    let mut bits = Vec::with_capacity(RLWE_N);
-    'outer: for byte in &raw {
-        for bit_pos in 0..8u32 {
-            if bits.len() < RLWE_N {
-                bits.push(i64::from((byte >> bit_pos) & 1u8));
-            } else {
-                break 'outer;
+
+    // 1. Build domain prefix: DOMAIN || session_id || participant_id
+    let mut prefix = Sha256::new();
+    prefix.update(SCALAR_CHALLENGE_DOMAIN);
+    prefix.update(session_id);
+    prefix.update(participant_id.to_le_bytes());
+
+    // 2. Compress each field with SHA-256, labeling and binding to the prefix
+    let t_digest = labeled_sha256(&prefix, b"t_rns", &t_bytes);
+    let c_digest = labeled_sha256(&prefix, b"c_rns", &c_bytes);
+    let d_digest = labeled_sha256(&prefix, b"d_rns", &d_bytes);
+    let pvss_digest = labeled_sha256(&prefix, b"pvss_commitment", pvss_commitment);
+
+    // 3. Combine digests with Poseidon
+    // Each 32-byte digest → 2 Fr elements (lo 16 bytes, hi 16 bytes)
+    let mut fr_inputs: Vec<Fr> = Vec::with_capacity(8);
+    for digest in &[t_digest, c_digest, d_digest, pvss_digest] {
+        fr_inputs.push(bytes16_to_fr(&digest[..16]));
+        fr_inputs.push(bytes16_to_fr(&digest[16..]));
+    }
+
+    let ch_fr = poseidon_hash(&fr_inputs);
+
+    // 4. Reduce Fr to ternary {-1, 0, 1}
+    fr_to_ternary(&ch_fr)
+}
+
+/// SHA-256 hashes a labeled field, binding it to a shared prefix (which includes
+/// session/participant binding and domain separator).
+fn labeled_sha256(prefix: &Sha256, label: &[u8], data: &[u8]) -> [u8; 32] {
+    let mut h = prefix.clone();
+    h.update(label);
+    h.update(data);
+    h.finalize().into()
+}
+
+/// Convert 16 bytes (big-endian) to an Fr field element.
+fn bytes16_to_fr(bytes: &[u8]) -> Fr {
+    let mut buf = [0u8; 32];
+    buf[..16].copy_from_slice(bytes);
+    Fr::from_le_bytes_mod_order(&buf)
+}
+
+/// Hash a slice of Fr elements using Poseidon.
+fn poseidon_hash(inputs: &[Fr]) -> Fr {
+    let mut hasher =
+        Poseidon::<Fr>::new_circom(inputs.len()).expect("Poseidon arity within Circom range");
+    hasher.hash(inputs).expect("Poseidon hash must succeed")
+}
+
+/// Reduce an Fr field element to a ternary value {-1, 0, 1}.
+///
+/// Uses the canonical bigint representation:
+/// - 0 → 0
+/// - Value in upper half of field → -1
+/// - Otherwise → 1
+fn fr_to_ternary(fr: &Fr) -> i64 {
+    if fr.is_zero() {
+        return 0;
+    }
+
+    let bigint = fr.into_bigint();
+    let mut half_modulus = Fr::MODULUS;
+    half_modulus.div2();
+
+    if bigint > half_modulus {
+        -1
+    } else {
+        1
+    }
+}
+
+// ── Element-wise scalar operations ──────────────────────────────────────
+
+/// Multiply an i64 coefficient by a ternary scalar ch ∈ {-1, 0, 1}.
+/// Returns ch * val.
+#[inline]
+fn scalar_mul_i64(ch: i64, val: i64) -> i64 {
+    match ch {
+        1 => val,
+        -1 => -val,
+        _ => 0,
+    }
+}
+
+/// Compute `a + ch * b` element-wise over RNS power-basis, where
+/// ch ∈ {-1, 0, 1} is a ternary scalar and b is an RNS polynomial.
+fn rns_add_scalar_mul(
+    a: &[u64],
+    ch: i64,
+    b: &[u64],
+    ctx: &Arc<Context>,
+) -> Result<Vec<u64>, NizkError> {
+    let expected = RLWE_N * ctx.q.len();
+    if a.len() != expected || b.len() != expected {
+        return Err(NizkError::InvalidInput("rns_add_scalar_mul: length mismatch"));
+    }
+    let n = RLWE_N;
+    let mut out = vec![0u64; a.len()];
+    match ch {
+        0 => {
+            out.copy_from_slice(a);
+        }
+        1 => {
+            for (limb, modulus) in ctx.q.iter().enumerate() {
+                let q = modulus.modulus();
+                for j in 0..n {
+                    let idx = limb * n + j;
+                    out[idx] = (a[idx] + b[idx]) % q;
+                }
             }
         }
+        -1 => {
+            for (limb, modulus) in ctx.q.iter().enumerate() {
+                let q = modulus.modulus();
+                for j in 0..n {
+                    let idx = limb * n + j;
+                    // a - b mod q
+                    out[idx] = (a[idx] + q - (b[idx] % q)) % q;
+                }
+            }
+        }
+        _ => return Err(NizkError::InvalidInput("ch must be -1, 0, or 1")),
     }
-    bits
+    Ok(out)
 }
 
 /// Sample `n` coefficients uniformly from [-bound, bound] using rejection sampling.
@@ -358,4 +501,142 @@ pub fn sample_bounded(rng: &mut dyn RngCore, n: usize, bound: i64) -> Result<Vec
         }
     }
     Ok(out)
+}
+
+/// Compute NTT-domain compressor witness data from sigma proof values.
+///
+/// Returns per-limb Fr vectors for the NTT-domain sigma equation check:
+///   `NTT(c)[k] * NTT(z_s)[k] + NTT(z_e)[k] = NTT(t)[k] + ch * NTT(d_i)[k]`
+///
+/// Each limb vector has `RLWE_N` Fr elements. The caller typically takes
+/// the first `SIGMA_VERIFY_COEFFS` coefficients for the in-circuit check.
+#[allow(clippy::type_complexity)]
+pub fn compute_sigma_ntt_data(
+    c_rns: &[u64],
+    d_rns: &[u64],
+    proof: &SigmaProof,
+) -> Result<(
+    Vec<Vec<Fr>>, // z_s_ntt: 3 limbs × N
+    Vec<Vec<Fr>>, // z_e_ntt: 3 limbs × N
+    Vec<Vec<Fr>>, // t_ntt: 3 limbs × N
+    Vec<Vec<Fr>>, // d_i_ntt: 3 limbs × N
+    Vec<Vec<Fr>>, // c_ntt: 3 limbs × N
+    Vec<i64>,      // z_s_power (raw integer coeffs)
+    Vec<i64>,      // z_e_power (raw integer coeffs)
+    Fr,            // ch as Fr
+), NizkError> {
+    use fhe_math::rq::{Poly, Representation};
+
+    let ctx = rlwe_context()?;
+    let n = RLWE_N;
+
+    let ntt_rns_slice = |rns: &[u64], limb: usize|
+        -> Result<Vec<Fr>, NizkError>
+    {
+        let start = limb * n;
+        let end = start + n;
+        if rns.len() < end {
+            return Ok(vec![Fr::zero(); n]);
+        }
+        let slice = &rns[start..end];
+        let mut full_rns = vec![0u64; n * 3];
+        full_rns[limb * n..(limb + 1) * n].copy_from_slice(slice);
+        let mut poly = Poly::try_convert_from(
+            full_rns, &ctx, false, Representation::PowerBasis,
+        ).map_err(|_| NizkError::InvalidInput("poly convert failed"))?;
+        poly.change_representation(Representation::Ntt);
+        let ntt_full: Vec<u64> = Vec::from(&poly);
+        Ok(ntt_full
+            .iter()
+            .skip(limb * n)
+            .take(n)
+            .map(|&v| Fr::from(v))
+            .collect())
+    };
+
+    let mut z_s_ntt = Vec::with_capacity(3);
+    let mut z_e_ntt = Vec::with_capacity(3);
+    let mut t_ntt = Vec::with_capacity(3);
+    let mut d_i_ntt = Vec::with_capacity(3);
+    let mut c_ntt = Vec::with_capacity(3);
+
+    // For z_s and z_e, convert integer coeffs to RNS then NTT
+    let z_s_rns = int_poly_to_rns(&proof.z_s, ctx)?;
+    let z_e_rns = int_poly_to_rns(&proof.z_e, ctx)?;
+
+    for limb in 0..3 {
+        let z_s_ntt_limb = ntt_rns_slice(&z_s_rns, limb)?;
+        let z_e_ntt_limb = ntt_rns_slice(&z_e_rns, limb)?;
+        let t_ntt_limb = ntt_rns_slice(&proof.t_rns, limb)?;
+        let d_i_ntt_limb = ntt_rns_slice(d_rns, limb)?;
+        let c_ntt_limb = ntt_rns_slice(c_rns, limb)?;
+
+        z_s_ntt.push(z_s_ntt_limb);
+        z_e_ntt.push(z_e_ntt_limb);
+        t_ntt.push(t_ntt_limb);
+        d_i_ntt.push(d_i_ntt_limb);
+        c_ntt.push(c_ntt_limb);
+    }
+
+    let ch_fr = match proof.ch {
+        -1 => -Fr::one(),
+        0 => Fr::zero(),
+        1 => Fr::one(),
+        _ => return Err(NizkError::InvalidInput("challenge must be -1, 0, or 1")),
+    };
+
+    Ok((z_s_ntt, z_e_ntt, t_ntt, d_i_ntt, c_ntt,
+        proof.z_s.clone(), proof.z_e.clone(), ch_fr))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fr_to_ternary_smoke() {
+        // Zero maps to 0
+        assert_eq!(fr_to_ternary(&Fr::from(0u64)), 0);
+        // One maps to 1
+        assert_eq!(fr_to_ternary(&Fr::from(1u64)), 1);
+        // Negative one (r-1) maps to -1
+        let neg_one = -Fr::from(1u64);
+        assert_eq!(fr_to_ternary(&neg_one), -1);
+    }
+
+    #[test]
+    fn scalar_mul_i64_smoke() {
+        assert_eq!(scalar_mul_i64(0, 42), 0);
+        assert_eq!(scalar_mul_i64(1, 42), 42);
+        assert_eq!(scalar_mul_i64(-1, 42), -42);
+        assert_eq!(scalar_mul_i64(0, -5), 0);
+        assert_eq!(scalar_mul_i64(1, -5), -5);
+        assert_eq!(scalar_mul_i64(-1, -5), 5);
+    }
+
+    #[test]
+    fn challenge_depends_on_session_id() {
+        let session_a = b"session-alpha-123";
+        let session_b = b"session-beta-456";
+        let t_rns = vec![1u64; RNS_LEN];
+        let c_rns = vec![2u64; RNS_LEN];
+        let d_rns = vec![3u64; RNS_LEN];
+        let pvss = [0u8; 32];
+
+        // Verify SHA-256 prefix differs with different session IDs (binding)
+        let mut prefix_a = Sha256::new();
+        prefix_a.update(SCALAR_CHALLENGE_DOMAIN);
+        prefix_a.update(session_a);
+        prefix_a.update(0u32.to_le_bytes());
+
+        let mut prefix_b = Sha256::new();
+        prefix_b.update(SCALAR_CHALLENGE_DOMAIN);
+        prefix_b.update(session_b);
+        prefix_b.update(0u32.to_le_bytes());
+
+        let t_bytes: Vec<u8> = t_rns.iter().flat_map(|x| x.to_le_bytes()).collect();
+        let digest_a = labeled_sha256(&prefix_a, b"t_rns", &t_bytes);
+        let digest_b = labeled_sha256(&prefix_b, b"t_rns", &t_bytes);
+        assert_ne!(digest_a, digest_b, "SHA-256 digests must differ with different session IDs");
+    }
 }

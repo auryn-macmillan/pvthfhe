@@ -1,23 +1,119 @@
 //! Witness generation pipeline for C7 decryption aggregation.
 //!
-//! Builds Merkle trees over share coefficients, generates proofs,
-//! computes polynomial evaluations, and verifies Merkle proofs
+//! Uses Poseidon sponge hashing for share coefficient commitments,
+//! computes polynomial evaluations, and verifies commitments
 //! off-circuit before Nova folding.
 
 use ark_bn254::Fr;
+use ark_ff::{Field, Zero};
 
-use crate::merkle::{build_merkle_tree, prove_merkle_path, verify_merkle_proof, MerkleProof};
 use crate::poly_eval::eval_poly_bn254;
+use crate::sonobe::poseidon_gadget::PoseidonParams;
+
+// ── Native Poseidon permutation (duplicated from poseidon_gadget.rs) ────
+// These match the private native helpers in poseidon_gadget.rs exactly.
+// Duplicated here because P1.1 must not modify poseidon_gadget.rs.
+
+fn native_ark(state: &mut [Fr], rk: &[Fr]) {
+    for (s, k) in state.iter_mut().zip(rk.iter()) {
+        *s += k;
+    }
+}
+
+fn native_full_sbox(state: &mut [Fr]) {
+    let alpha = [5u64];
+    for s in state.iter_mut() {
+        *s = s.pow(alpha);
+    }
+}
+
+fn native_partial_sbox(state: &mut [Fr]) {
+    state[0] = state[0].pow([5u64]);
+}
+
+fn native_mix(state: &mut [Fr], mds: &[Vec<Fr>]) {
+    let t = state.len();
+    let mut new_state = vec![Fr::zero(); t];
+    for i in 0..t {
+        for j in 0..t {
+            new_state[i] += mds[i][j] * state[j];
+        }
+    }
+    state.clone_from_slice(&new_state);
+}
+
+fn native_permute(state: &mut [Fr], params: &PoseidonParams<Fr>) {
+    let full_rounds_half = params.full_rounds / 2;
+
+    for r in 0..full_rounds_half {
+        native_ark(state, &params.ark[r]);
+        native_full_sbox(state);
+        native_mix(state, &params.mds);
+    }
+
+    for r in 0..params.partial_rounds {
+        let idx = full_rounds_half + r;
+        native_ark(state, &params.ark[idx]);
+        native_partial_sbox(state);
+        native_mix(state, &params.mds);
+    }
+
+    for r in 0..full_rounds_half {
+        let idx = full_rounds_half + params.partial_rounds + r;
+        native_ark(state, &params.ark[idx]);
+        native_full_sbox(state);
+        native_mix(state, &params.mds);
+    }
+}
+
+// ── hash_all_coeffs ──────────────────────────────────────────────────────
+
+/// Compute a Poseidon sponge hash of all share coefficients.
+///
+/// Absorbs every element in `coeffs` into a Poseidon sponge and squeezes
+/// one field element.  This matches the in-circuit `PoseidonSpongeVar`
+/// absorb-then-squeeze behaviour exactly: rate = 4, capacity = 1, t = 5
+/// (canonical BN254 Poseidon config).
+///
+/// This is the native counterpart of the in-circuit commitment opening
+/// (G2a) that will replace the current Merkle-tree commitment.
+pub fn hash_all_coeffs(coeffs: &[Fr]) -> Fr {
+    let params = PoseidonParams::<Fr>::canonical();
+    let capacity = params.capacity;
+    let rate = params.rate;
+    let mut state = vec![Fr::zero(); params.t];
+
+    let mut offset = 0;
+    while offset < coeffs.len() {
+        let remaining = coeffs.len() - offset;
+        let space = rate;
+
+        if remaining <= space {
+            for (i, input) in coeffs[offset..].iter().enumerate() {
+                state[capacity + i] += input;
+            }
+            offset = coeffs.len();
+        } else {
+            for i in 0..space {
+                state[capacity + i] += coeffs[offset + i];
+            }
+            offset += space;
+            native_permute(&mut state, &params);
+        }
+    }
+
+    // Squeeze: permute then return first rate element (state[capacity])
+    native_permute(&mut state, &params);
+    state[capacity]
+}
 
 /// A single participant's C7 witness.
 #[derive(Clone, Debug)]
 pub struct C7Witness {
-    /// Merkle root committing to the participant's share coefficients.
-    pub merkle_root: Fr,
+    /// Poseidon sponge hash of all 8192 share coefficients.
+    pub coeff_commitment: Fr,
     /// Polynomial evaluation d_i(r) = Σ coeffs[j] * r^{N-1-j}.
     pub share_eval: Fr,
-    /// Merkle proof binding the evaluation to the root.
-    pub merkle_proof: MerkleProof,
     /// Lagrange coefficient λ_i for this participant.
     pub lagrange_coeff: Fr,
     /// Share polynomial coefficients (N=8192 field elements).
@@ -40,9 +136,8 @@ impl C7WitnessSet {
     /// and a challenge point.
     ///
     /// For each participant:
-    /// 1. Build an 8-ary Merkle tree over their share coefficients.
-    /// 2. Evaluate the share polynomial at `challenge_r`.
-    /// 3. Generate a Merkle proof for leaf index 0 (or any representative index).
+    /// 1. Commits to their share coefficients via Poseidon sponge hash.
+    /// 2. Evaluates the share polynomial at `challenge_r`.
     ///
     /// # Arguments
     /// * `shares` - For each participant, a Vec of N=8192 share coefficients.
@@ -62,19 +157,15 @@ impl C7WitnessSet {
             "shares and lagrange_coeffs must have same length"
         );
 
-        const ARITY: usize = 8;
-
         let mut participants = Vec::with_capacity(shares.len());
 
         for (i, coeffs) in shares.iter().enumerate() {
-            let (tree, merkle_root) = build_merkle_tree(coeffs, ARITY);
+            let coeff_commitment = hash_all_coeffs(coeffs);
             let share_eval = eval_poly_bn254(coeffs, challenge_r);
-            let merkle_proof = prove_merkle_path(&tree, 0, ARITY);
 
             participants.push(C7Witness {
-                merkle_root,
+                coeff_commitment,
                 share_eval,
-                merkle_proof,
                 lagrange_coeff: lagrange_coeffs[i],
                 coeffs: coeffs.clone(),
             });
@@ -86,14 +177,14 @@ impl C7WitnessSet {
         }
     }
 
-    /// Verify all Merkle proofs in the witness set.
+    /// Verify all coefficient commitments in the witness set.
     ///
-    /// Returns `true` if every participant's Merkle proof is valid.
+    /// Returns `true` if every participant's `coeff_commitment` matches
+    /// the Poseidon sponge hash of their `coeffs`.
     /// Must be called before Nova folding to ensure input integrity.
-    pub fn verify_merkle_proofs(&self) -> bool {
-        const ARITY: usize = 8;
+    pub fn verify_commitments(&self) -> bool {
         for witness in &self.participants {
-            if !verify_merkle_proof(&witness.merkle_proof, ARITY) {
+            if hash_all_coeffs(&witness.coeffs) != witness.coeff_commitment {
                 return false;
             }
         }
@@ -117,11 +208,19 @@ impl C7WitnessSet {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sonobe::poseidon_gadget::PoseidonSpongeVar;
+    use ark_r1cs_std::alloc::AllocVar;
+    use ark_r1cs_std::fields::fp::FpVar;
+    use ark_r1cs_std::GR1CSVar;
+    use ark_relations::gr1cs::ConstraintSystem;
+
+    /// Number of share polynomial coefficients (must match c7_circuit.rs:27).
+    const N_COEFFS: usize = 8192;
 
     #[test]
     fn witness_set_empty_shares() {
         let set = C7WitnessSet::new(&[], &[], Fr::from(42u64));
-        assert!(set.verify_merkle_proofs());
+        assert!(set.verify_commitments());
     }
 
     #[test]
@@ -132,7 +231,60 @@ mod tests {
             &[Fr::from(1u64)],
             Fr::from(3u64),
         );
-        assert!(set.verify_merkle_proofs());
+        assert!(set.verify_commitments());
         assert!(set.verify_lagrange_sum());
+    }
+
+    #[test]
+    fn witness_set_bad_commitment_rejected() {
+        let coeffs: Vec<Fr> = (0..8).map(|i| Fr::from(i as u64)).collect();
+        let mut set = C7WitnessSet::new(
+            &[coeffs],
+            &[Fr::from(1u64)],
+            Fr::from(3u64),
+        );
+        set.participants[0].coeff_commitment += Fr::from(1u64);
+        assert!(!set.verify_commitments());
+    }
+
+    #[test]
+    fn test_hash_all_coeffs_deterministic() {
+        let coeffs: Vec<Fr> = (0..N_COEFFS).map(|i| Fr::from(i as u64)).collect();
+        let h1 = hash_all_coeffs(&coeffs);
+        let h2 = hash_all_coeffs(&coeffs);
+        assert_eq!(h1, h2, "hash_all_coeffs must be deterministic");
+
+        let coeffs2: Vec<Fr> = (1..=N_COEFFS).map(|i| Fr::from(i as u64)).collect();
+        let h3 = hash_all_coeffs(&coeffs2);
+        assert_ne!(h1, h3, "different inputs must produce different hashes");
+    }
+
+    #[test]
+    fn test_hash_all_coeffs_matches_circuit() {
+        // Use a modest size — sponge absorb/squeeze logic is identical at any size.
+        let n = 16;
+        let coeffs: Vec<Fr> = (0..n).map(|i| Fr::from(i as u64)).collect();
+
+        let native_result = hash_all_coeffs(&coeffs);
+
+        let cs = ConstraintSystem::<Fr>::new_ref();
+        let mut sponge = PoseidonSpongeVar::new();
+        let input_vars: Vec<FpVar<Fr>> = coeffs
+            .iter()
+            .map(|v| FpVar::new_witness(cs.clone(), || Ok(*v)).unwrap())
+            .collect();
+
+        sponge.absorb(&input_vars).unwrap();
+        let circuit_result = sponge.squeeze_one().unwrap();
+
+        assert_eq!(
+            circuit_result.value().unwrap(),
+            native_result,
+            "circuit PoseidonSpongeVar result must match native hash_all_coeffs"
+        );
+        assert!(
+            cs.is_satisfied().unwrap(),
+            "constraint system must be satisfied"
+        );
     }
 }

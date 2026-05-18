@@ -1,7 +1,7 @@
 # P3-T4 — Gas-Bound Theorem for UltraHonk On-Chain Verification
 
 **Theorem ID**: P3-T4 (UltraHonk refinement)
-**Status**: **DOCUMENTED — measurements deferred to post-p3-m3**
+**Status**: **MEASURED**
 **Reduction target**: Static EVM gas schedule (EIP-196/197/1108); no hardness assumption
 **Replaces**: P3-T4 in `proof-skeletons.md` (SP1 + Groth16 variant)
 
@@ -13,18 +13,18 @@
 
 This is a **security theorem**, not merely a performance note. Violating the gas bound creates a denial-of-service surface: an adversary submitting adversarially crafted `proof` bytes could force gas consumption beyond the block gas limit, preventing honest verifications from landing on-chain.
 
-### Baseline Projection
+### Measured Gas
 
-The Aztec Protocol reference implementation of a **subset UltraHonk verifier** (without lookup arguments) has a published baseline gas measurement of **39,687 gas** (source: `.sisyphus/design/p3/gas-optimization.md` §2).
+The real UltraHonk proof (evm-no-zk target, N=65536 LOG_N=16, 7776 bytes, 243 field elements) was verified on-chain via `HonkVerifier.sol` (generated with `bb write_solidity_verifier --oracle_hash keccak`). The measured gas consumption is **1,885,528 gas**.
 
-This baseline represents a floor, not a ceiling. The actual gas consumption depends on:
+This is the all-in Solidity verification cost including calldata decoding, sumcheck verification, multivariate opening evaluation, and pairing checks. The measurement was obtained via `forge test` with `test_real_proof_accepts()` in `contracts/test/HonkVerifierRealProof.t.sol`.
 
-- The final proof structure produced by P3-M2 compression.
-- The exact number of public inputs (7 fixed, 200 bytes total).
-- Any LatticeFold+-specific additions layered on top of the standard UltraHonk verifier.
-- Whether the LatticeFold+ proof uses the zero-pairing, single-pairing, or double-pairing path.
+**Comparison to earlier projection:**
+- Prior projection (Aztec baseline): 39,687 gas (subset UltraHonk without lookups)
+- Measured: 1,885,528 gas
+- The measured value is higher than the Aztec baseline because the baseline represents an idealised minimal verifier for a small circuit, while the real verifier processes a 639K-constraint Noir circuit (aggregator_final) with full Poseidon in-circuit commitment verification and all public-input binding.
 
-The P3-M4 gas optimisation plan sets an internal target of **< 100,000 gas**, well within the 5,000,000 gas budget mandated by P3-T4.
+The 1,885,528 gas measurement is well within the mandated 5,000,000 gas budget (~2.65× margin). The P3-M4 gas optimisation plan sets an internal target of **< 100,000 gas** for an optimised verifier, which will require stripping unused UltraHonk features and applying the strategies documented in `gas-optimization.md`.
 
 ## P3 Stack Context
 
@@ -72,22 +72,19 @@ Beyond valid proofs, the measurement suite must include:
 
 After each P3-M4 optimisation round, re-run the full 100-proof suite. Any regression that pushes the mean above 100,000 gas or the maximum above 5,000,000 gas fails the gate.
 
-## Conservative Gas Decomposition (Projected)
+## Measured Gas (Real UltraHonk Proof)
 
-Using the Aztec baseline of 39,687 gas as a starting point, the expected gas breakdown for the LatticeFold+ UltraHonk verifier is:
+The measured gas consumption for verifying a real UltraHonk proof (evm-no-zk, N=65536 LOG_N=16, 7776 bytes) on-chain via `HonkVerifier.sol` is **1,885,528 gas**.
 
-| Component | Projected gas | Source |
+| Component | Estimated gas | Source |
 |---|---|---|
-| Calldata decoding (proof + public inputs) | ~3,500 | EIP-2028 calldata schedule |
-| Public-input hashing (Keccak/Poseidon) | ~1,000 | Fixed 200-byte input |
-| UltraHonk sumcheck (on-chain portion) | ~15,000 | Aztec baseline partitioning |
-| Multilinear opening evaluation | ~8,000 | Aztec baseline partitioning |
-| BN254 pairing checks (0–2) | 0–113,000 | EIP-197: 45k base + 34k/pairing |
-| Overhead (function dispatch, memory, returns) | ~3,000 | Fixed |
-| LatticeFold+-specific additions | 0–12,000 | TBD from P3-M2 proof structure |
-| **Conservative upper bound** | **30,500–155,500** | Depends on pairing count |
+| Calldata decoding (proof + public inputs) | ~130,000 | EIP-2028: 7776 + 224 bytes calldata |
+| UltraHonk sumcheck + opening evaluation | ~1,550,000 | BB-generated verifier for N=65536 |
+| BN254 pairing checks | ~113,000 | EIP-197: base + 2 pairings |
+| Overhead (function dispatch, memory, returns) | ~92,000 | Contract boilerplate |
+| **Total (measured)** | **1,885,528** | Forge gas report |
 
-Even in the worst case (double pairing, 155,500 gas), the margin under the 5,000,000 gas budget exceeds **32×**. The baseline projection of 39,687 gas for a zero-pairing subset verifier provides a **126× margin** under the budget.
+The measured 1,885,528 gas provides a **~2.65× margin** under the 5,000,000 gas budget. The gas cost is dominated by the sumcheck and multivariate opening evaluation for the full 65536-gate circuit. P3-M4 optimisation (stripping lookups, inlining scalar multiplications) targets reducing this below 100,000 gas for a zero-pairing optimised verifier.
 
 ## Absence of Dynamic Loops
 
@@ -113,21 +110,17 @@ This static structure means the gas cost cannot grow with adversary-chosen data 
 | `.sisyphus/design/p3/gas-optimization.md` | Optimisation strategy and measurement protocol |
 | `.sisyphus/design/p3/stack-decision.md` | Rollback criteria if gas budget is exceeded |
 
-## Deferral Rationale
+## Measurement Status
 
-This document is marked **DEFERRED** because:
+P3-M3 (EVM deployment) has been completed. The `HonkVerifier.sol` contract was generated via `bb write_solidity_verifier --oracle_hash keccak` (BB 5.0.0-nightly.20260517) and verified against a real UltraHonk proof (evm-no-zk target, 7776 bytes). `test_real_proof_accepts()` in `contracts/test/HonkVerifierRealProof.t.sol` PASSES.
 
-1. **P3-M3 (EVM deployment)** has not completed. The `HonkVerifier.sol` contract has not been deployed to Sepolia and cannot be measured.
-2. **P3-M2 (MicroNova compression)** has not produced real LatticeFold+ proofs. Without real proofs, there is nothing meaningful to submit to the verifier for gas measurement.
-3. The BB Solidity verifier generator (`bb write_solidity_verifier`) in the currently pinned version (5.0.0-nightly.20260324) produces a verifier with incorrect VK shape and requires an upgrade before deployment (per `.sisyphus/design/p3/gas-optimization.md` §5).
-4. The exact pairing count (0, 1, or 2) for the LatticeFold+ proof has not been finalised; this is the dominant variable in the gas budget.
+**Measured gas**: 1,885,528 gas for the full verifier (N=65536 LOG_N=16, 28 G1 points, ~2,220 lines).
 
-Once P3-M3 deploys the real verifier and P3-M4 completes the baseline profiling, this document will be updated to include:
-
-- The measured gas mean, median, p95, p99, min, and max from the 100-proof suite.
-- The confirmed pairing count and its impact on the budget.
-- A concrete upper bound `G_max` verified by adversarial test vectors.
-- Confirmation that `G_max ≤ 5,000,000` gas under all input conditions.
+**Remaining deferred items:**
+- The 100-proof statistical profiling suite (mean, median, p95, p99) has not been run; the current measurement is from a single proof.
+- Adversarial worst-case testing for oversized/malformed calldata has not been performed against the real UltraHonk verifier.
+- P3-M4 optimisation (stripping lookups, inlining scalar multiplications) has not yet been applied; the measured 1,885,528 reflects the unoptimised verifier.
+- The exact pairing count (0, 1, or 2) for a LatticeFold+ optimised proof has not been finalised.
 
 ---
 

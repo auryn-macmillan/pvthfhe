@@ -1,4 +1,16 @@
-//! LatticeFold+ tree circuit family for heterogeneous IVC.
+//! ## Status: DEFERRED (G.18, security review finding D.3)
+//!
+//! Both circuit variants (leaf ring-equation verifier and internal fold verifier)
+//! produce structurally identical constraints: pure state accumulation with
+//! **zero R1CS multiplication gates**. This is a placeholder — leaves and internal
+//! nodes are indistinguishable under the constraint system.
+//!
+//! Real constraints would:
+//! 1. Leaf verifier: enforce P1 ring equation `c·z_s + z_e == t + c·d` over witness data
+//! 2. Internal verifier: enforce that parent hash correctly commits to child hashes
+//! 3. Distinguish leaf from internal via different constraint shapes within Gaussian IVC
+//!
+//! Deferred pending composite IVC architecture (G.16).
 //!
 //! Implements [`HeterogeneousCircuitFamily`] for a complete binary tree
 //! with `depth` levels above the leaves. Each node in the tree is an IVC step:
@@ -104,6 +116,8 @@ impl<F: PrimeField> HeterogeneousCircuitFamily<F> for LatticeFoldTreeCircuitFami
         // systems (same constraint count and variable shape) for Nova IVC to
         // accept heterogeneous dispatch. All operations are linear combinations —
         // no multiplications — so both variants have 0 R1CS multiplication gates.
+        // PLACEHOLDER — both variants produce identical 0-R1CS-mult constraints.
+        // Real leaf/internal distinction deferred (see G.18).
         match circuit_idx {
             0 => {
                 // Leaf: accumulate leaf data into state.

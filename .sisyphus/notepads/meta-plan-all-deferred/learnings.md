@@ -41,3 +41,19 @@ The `FoldVerifierStepCircuit` in `crates/pvthfhe-compressor/src/sonobe/fold_veri
 - Added prominent `## Status: DEFERRED (G.17, security review finding D.2)` doc comment at the top of the file listing the four requirements for real fold verification.
 - Added `// PLACEHOLDER` comment above the degenerate constraints in `generate_step_constraints` explicitly noting they provide "ZERO actual verification."
 - No code logic changes. The placeholder constraints remain so the circuit compiles and can be folded.
+
+## G.18: LatticeFoldTreeCircuitFamily DEFERRED documentation (2026-05-18)
+
+### What was done
+Added prominent DEFERRED documentation to `crates/pvthfhe-compressor/src/sonobe/latticefold_circuit_family.rs`:
+- File-level doc comment now starts with `## Status: DEFERRED (G.18, security review finding D.3)` explaining that both circuit variants produce identical 0-R1CS-mult constraints (degenerate placeholders).
+- Listed the three real constraints needed: (1) P1 ring equation enforcement over witness data, (2) parent hash commits to child hashes, (3) distinct constraint shapes for leaf vs internal within Gaussian IVC.
+- Added inline `// PLACEHOLDER` comment above the `match circuit_idx` block in `generate_step_constraints`.
+
+### Verification
+- `cargo check -p pvthfhe-compressor` passes.
+- No code logic changed, no tests removed.
+- File grew from 176 to 190 lines (14 lines of doc comments added).
+
+### Pattern
+Same DEFERRED documentation pattern as G.17 — prominently mark degenerate placeholder code at both file level and call site so future developers don't mistake it for a real implementation.

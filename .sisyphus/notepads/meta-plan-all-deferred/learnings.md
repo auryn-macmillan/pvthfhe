@@ -31,3 +31,13 @@
 - Key: `fehr2019rss`
 - Volume: LNCS 11477 (EUROCRYPT 2019, Part II)
 - DOI: 10.1007/978-3-030-17656-3_6
+
+## G.17: FoldVerifierStepCircuit deferred documentation (2026-05-18)
+
+### Why deferred
+The `FoldVerifierStepCircuit` in `crates/pvthfhe-compressor/src/sonobe/fold_verifier_circuit.rs` has only degenerate constraints (counter increments). Security review finding D.2 flagged that left/right accumulator hashes are received as external inputs but never verified against any folding relation. Real fold verification requires verifying Nova accumulation of CycloFold proofs, checking accumulator hash consistency, and enforcing the Nova recurrence relation. This awaits the Interfold/composite IVC design phase (G.16).
+
+### What was done
+- Added prominent `## Status: DEFERRED (G.17, security review finding D.2)` doc comment at the top of the file listing the four requirements for real fold verification.
+- Added `// PLACEHOLDER` comment above the degenerate constraints in `generate_step_constraints` explicitly noting they provide "ZERO actual verification."
+- No code logic changes. The placeholder constraints remain so the circuit compiles and can be folded.

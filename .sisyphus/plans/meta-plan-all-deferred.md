@@ -192,7 +192,7 @@ These are tracked in `pvthfhe-followon.md` (183 items, 9-18 months calendar):
 - [x] G.14: Fix Lagrange coefficient overflow for n > 35 in `compute_lagrange_coeffs_integer` — use BigInt or modular arithmetic. → demo-e2e, aggregator
 - [x] G.15: Return error instead of `i128::MAX` sentinel in `crt_reconstruct_coeffs` overflow path. → demo-e2e, aggregator
 - [ ] G.16: Design composed circuit or cross-circuit verifier challenge binding C7 decryption aggregation + CycloFold ring/sigma into single IVC chain. → demo-e2e, aggregator
-- [ ] G.17: Implement real fold verification in FoldVerifierStepCircuit or document as deferred and remove placeholder constraints. → demo-e2e, aggregator
+- [x] G.17: Implement real fold verification in FoldVerifierStepCircuit or document as deferred and remove placeholder constraints. → demo-e2e, aggregator
 - [ ] G.18: Add real tree-family constraints to LatticeFoldTreeCircuitFamily (distinguish leaf from internal node). → demo-e2e, aggregator
 - [x] G.19: Enforce Merkle `leaf_index` in-circuit in C7MerkleStepCircuit — use leaf_index to determine correct sibling ordering. → demo-e2e, aggregator
 - [ ] G.20: Add prover randomness or verifier challenge to C7 challenge derivation (currently fully deterministic from public info). → demo-e2e, aggregator
@@ -243,7 +243,7 @@ These are tracked in `pvthfhe-followon.md` (183 items, 9-18 months calendar):
 
 ### G.D — Compressor & Folding (Tier 1, ~11 days)
 - [ ] G.16: Compose C7 + CycloFold into single IVC chain
-- [ ] G.17: Implement real fold verification or document deferred
+- [x] G.17: Implement real fold verification or document deferred
 - [ ] G.18: Add real LatticeFoldTreeCircuitFamily constraints
 - [x] G.19: Enforce Merkle leaf_index in-circuit
 - [ ] G.20: Add prover randomness to C7 challenge derivation

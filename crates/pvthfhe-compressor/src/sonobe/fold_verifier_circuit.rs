@@ -1,8 +1,19 @@
-//! P3 LatticeFold+ terminal verifier step circuit for Sonobe Nova IVC.
+//! FoldVerifierStepCircuit — Nova step circuit for verifying compressed proofs.
 //!
-//! Each step verifies one LatticeFold+ folding step: given two accumulator
-//! hashes (left, right) and the expected parent hash, the circuit tracks
-//! that each claimed fold step has been witnessed.
+//! ## Status: DEFERRED (G.17, security review finding D.2)
+//!
+//! The current implementation is a **placeholder** — constraints only increment
+//! state counters (`z[0] += 1`, `z[1] += ext.2`, `z[2] += 1`). Left/right accumulator
+//! hashes are received as external inputs but **never verified** against any
+//! folding relation.
+//!
+//! Real fold verification requires:
+//! 1. Verify that external_inputs represent valid Nova accumulation of CycloFold proofs
+//! 2. Check left/right accumulator hash consistency
+//! 3. Enforce the Nova recurrence relation: H(z_i, w_i) = H(z_{i-1}, w_{i-1})
+//! 4. Cross-circuit binding: the compressed C7 proof + CycloFold proof compose correctly
+//!
+//! This is deferred to the Interfold/composite IVC design phase (G.16).
 //!
 //! Recursive compression pipeline (compress_latticefold_tree) deferred to P3-M2.
 
@@ -61,6 +72,10 @@ impl<F: PrimeField> FCircuit<F> for FoldVerifierStepCircuit<F> {
         z_i: Vec<FpVar<F>>,
         external_inputs: Self::ExternalInputsVar,
     ) -> Result<Vec<FpVar<F>>, SynthesisError> {
+        // PLACEHOLDER — real fold verification is deferred (see G.17 / security review D.2).
+        // These counter-only constraints ensure the circuit compiles and can be folded,
+        // but provide ZERO actual verification of left/right accumulator hashes.
+
         // z'[0] = z[0] + 1                              (verified_count += 1)
         let verified_count = z_i[0].clone() + FpVar::constant(F::from(1u64));
 

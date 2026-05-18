@@ -4,6 +4,19 @@
 
 #![warn(missing_docs)]
 
+// Security: demo-seeded-rng MUST NOT be used without explicit opt-in.
+// See Cargo.toml line 79: "Must NOT be enabled in release/production builds."
+#[cfg(feature = "demo-seeded-rng")]
+const _: () = {
+    match option_env!("PVTHFHE_I_UNDERSTAND_INSECURE_RNG") {
+        Some(_) => {}
+        None => panic!(
+            "demo-seeded-rng uses predictable RNG — this is INSECURE.\n\
+             Set PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 to override."
+        ),
+    }
+};
+
 use anyhow::Context;
 use clap::{Parser, Subcommand};
 #[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]

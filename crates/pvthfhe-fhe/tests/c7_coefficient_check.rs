@@ -66,7 +66,7 @@ fn crt_reconstruct_known_values() {
     // All residues = 1 (every coefficient is 1 modulo every modulus)
     let residues: Vec<i64> = vec![1i64; n_coeffs * n_moduli];
 
-    let reconstructed = backend.crt_reconstruct_coeffs(&residues);
+    let reconstructed = backend.crt_reconstruct_coeffs(&residues).expect("CRT reconstruct");
     assert_eq!(reconstructed.len(), n_coeffs,
         "CRT should produce one integer per coefficient");
 

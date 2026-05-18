@@ -33,7 +33,8 @@ use std::{
 };
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
-use num_bigint::BigUint;
+use num_bigint::{BigInt, BigUint};
+use num_traits::ToPrimitive;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Smudging noise standard deviation per coefficient.
@@ -1366,7 +1367,7 @@ impl FhersBackend {
     /// 24 576 residues (8192 coefficients × 3 moduli, modulus-major layout:
     /// all coefficients for q₀, then all for q₁, then all for q₂).
     /// This method reconstructs them into 8 192 i128 integers via CRT.
-    pub fn crt_reconstruct_coeffs(&self, residues: &[i64]) -> Vec<i128> {
+    pub fn crt_reconstruct_coeffs(&self, residues: &[i64]) -> Result<Vec<i128>, FheError> {
         use num_bigint::BigInt;
         use num_traits::ToPrimitive;
 
@@ -1411,14 +1412,15 @@ impl FhersBackend {
                     * m_inv[j];
                 val_big = (&val_big + term) % &q_big;
             }
-            // Convert back to i128; since Q ≈ 2^174 > i128::MAX, this may truncate.
-            // The caller is responsible for using a type that fits.
+            // Convert back to i128; since Q ≈ 2^174 > i128::MAX, this may overflow.
             match val_big.to_i128() {
                 Some(v) => coeffs.push(v),
-                None => coeffs.push(i128::MAX), // overflow sentinel
+                None => return Err(FheError::Backend {
+                    reason: format!("CRT coefficient exceeds i128 range at index {i}"),
+                }),
             }
         }
-        coeffs
+        Ok(coeffs)
     }
 
     fn egcd_i128(a: i128, b: i128) -> (i128, i128, i128) {
@@ -1641,7 +1643,7 @@ impl FhersBackend {
             .collect::<Result<Vec<_>, FheError>>()?;
         let (party_ids, share_polys): (Vec<_>, Vec<_>) = effective_shares.into_iter().unzip();
 
-        let lagrange_coeffs = Self::compute_lagrange_coeffs_integer(&party_ids);
+        let lagrange_coeffs = Self::compute_lagrange_coeffs_integer(&party_ids)?;
 
         let raw_result_poly = {
             let first_poly = &share_polys[0];
@@ -1696,25 +1698,44 @@ impl FhersBackend {
     /// Compute integer Lagrange coefficients for the given 1-based party IDs.
     ///
     /// λ_i = Π_{j≠i} (0 - x_j) / Π_{j≠i} (x_i - x_j) for evaluation at 0.
-    fn compute_lagrange_coeffs_integer(party_ids: &[usize]) -> Vec<i64> {
+    ///
+    /// Uses [`BigInt`] internally to avoid overflow for n up to 64.
+    /// For n > 64, the resulting coefficients may exceed i64 range; an error is returned.
+    fn compute_lagrange_coeffs_integer(party_ids: &[usize]) -> Result<Vec<i64>, FheError> {
         let n = party_ids.len();
+
+        // With party IDs in {1..n}, the numerator product grows as ~n!.
+        // Beyond n=64, the Lagrange coefficients can exceed i64::MAX,
+        // so we conservatively reject larger n.
+        if n > 64 {
+            return Err(FheError::InvalidParams {
+                reason: format!(
+                    "Lagrange coefficient overflow: n={n} exceeds safe bound of 64"
+                ),
+            });
+        }
+
         let mut coeffs = Vec::with_capacity(n);
         for i in 0..n {
-            let xi = party_ids[i] as i128;
-            let mut num: i128 = 1;
-            let mut den: i128 = 1;
+            let xi = BigInt::from(party_ids[i] as i64);
+            let mut num = BigInt::from(1);
+            let mut den = BigInt::from(1);
             for j in 0..n {
                 if i != j {
-                    let xj = party_ids[j] as i128;
-                    num *= -xj;
-                    den *= xi - xj;
+                    let xj = BigInt::from(party_ids[j] as i64);
+                    num *= -&xj;
+                    den *= &xi - &xj;
                 }
             }
-            // SAFETY: For party IDs {1..10}, Lagrange coefficients are small integers
-            // (< 10! ≈ 3.6e6). The division (num/den) fits in i64 for these parameters.
-            coeffs.push((num / den) as i64);
+            // Exact integer division: for 1-based integer nodes {1..n},
+            // the Lagrange coefficient λ_i is always an integer.
+            let result = num / den;
+            let coeff_i64 = result.to_i64().ok_or_else(|| FheError::Backend {
+                reason: format!("Lagrange coefficient overflow: result does not fit in i64"),
+            })?;
+            coeffs.push(coeff_i64);
         }
-        coeffs
+        Ok(coeffs)
     }
 }
 

@@ -839,6 +839,10 @@ impl<
     > ProofCompressor for SonobeCompressor<S>
 {
     fn prove(&self, acc: &[u8], public_inputs: &[u8]) -> Result<CompressedProof, CompressorError> {
+        // F6.3: clear stale thread-local witness data from prior prove calls
+        clear_cyclo_ring_data();
+        clear_sigma_data();
+
         let initial = decode_triple(acc)?;
         let delta = decode_triple(public_inputs)?;
         let params = self.deserialize_params()?;
@@ -1066,6 +1070,10 @@ impl<
         acc: &[u8],
         steps: &[ExternalInputs3<Fr>],
     ) -> Result<CompressedProof, CompressorError> {
+        // F6.3: clear stale thread-local witness data from prior prove calls
+        clear_cyclo_ring_data();
+        clear_sigma_data();
+
         assert_eq!(
             steps.len(),
             self.ivc_steps,

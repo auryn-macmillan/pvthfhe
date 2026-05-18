@@ -925,10 +925,11 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         // Run canonical flow: nargo execute → bb write_vk → bb prove → bb verify
         let mut noir_passed = true;
 
-        let status = std::process::Command::new("nargo")
+        let mut nargo_cmd = std::process::Command::new("nargo");
+        nargo_cmd
             .args(["execute", "--package", "aggregator_final", "--prover-name", "C7Prover"])
-            .current_dir(&noir_workspace)
-            .status();
+            .current_dir(&noir_workspace);
+        let status = run_with_timeout(&mut nargo_cmd, 120);
         match status {
             Ok(s) if s.success() => {}
             Ok(s) => { tracing::warn!("C7 Noir: nargo execute returned non-zero: {s}"); noir_passed = false; }
@@ -936,10 +937,11 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         }
 
         if noir_passed {
-            let status = std::process::Command::new("bb")
+            let mut bb_write_vk_cmd = std::process::Command::new("bb");
+            bb_write_vk_cmd
                 .args(["write_vk", "--scheme", "ultra_honk", "-b", "target/aggregator_final.json", "-o", "target"])
-                .current_dir(&noir_workspace)
-                .status();
+                .current_dir(&noir_workspace);
+            let status = run_with_timeout(&mut bb_write_vk_cmd, 120);
             match status {
                 Ok(s) if s.success() => {}
                 Ok(s) => { tracing::warn!("C7 Noir: bb write_vk returned non-zero: {s}"); noir_passed = false; }
@@ -948,10 +950,11 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         }
 
         if noir_passed {
-            let status = std::process::Command::new("bb")
+            let mut bb_prove_cmd = std::process::Command::new("bb");
+            bb_prove_cmd
                 .args(["prove", "--scheme", "ultra_honk", "-b", "target/aggregator_final.json", "-w", "target/aggregator_final.gz", "-o", "target"])
-                .current_dir(&noir_workspace)
-                .status();
+                .current_dir(&noir_workspace);
+            let status = run_with_timeout(&mut bb_prove_cmd, 120);
             match status {
                 Ok(s) if s.success() => {}
                 Ok(s) => { tracing::warn!("C7 Noir: bb prove returned non-zero: {s}"); noir_passed = false; }
@@ -960,14 +963,15 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         }
 
         if noir_passed {
-            let status = std::process::Command::new("bb")
+            let mut bb_verify_cmd = std::process::Command::new("bb");
+            bb_verify_cmd
                 .args(["verify", "--scheme", "ultra_honk", "-k", "target/vk", "-p", "target/proof", "-i", "target/public_inputs"])
-                .current_dir(&noir_workspace)
-                .status();
+                .current_dir(&noir_workspace);
+            let status = run_with_timeout(&mut bb_verify_cmd, 120);
             match status {
                 Ok(s) if s.success() => {}
                 Ok(s) => { tracing::warn!("C7 Noir: bb verify returned non-zero: {s}"); }
-                Err(e) => { tracing::warn!("C7 Noir: bb verify failed: {e}"); }
+                Err(e) => { tracing::warn!("C7 Noir: bb verify failed: {e}"); noir_passed = false; }
             }
         }
 
@@ -1900,6 +1904,32 @@ pub fn build_c7_prover_toml(
     toml.push_str("]\n");
 
     toml
+}
+
+/// Run a Command with a timeout, returning the ExitStatus.
+/// Spawns the child in a background thread and waits with `recv_timeout`.
+fn run_with_timeout(
+    cmd: &mut std::process::Command,
+    timeout_secs: u64,
+) -> std::io::Result<std::process::ExitStatus> {
+    let mut child = cmd.spawn()?;
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let result = child.wait();
+        let _ = tx.send(result);
+    });
+    match rx.recv_timeout(std::time::Duration::from_secs(timeout_secs)) {
+        Ok(Ok(status)) => Ok(status),
+        Ok(Err(e)) => Err(e),
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Err(std::io::Error::new(
+            std::io::ErrorKind::TimedOut,
+            format!("timed out after {timeout_secs}s"),
+        )),
+        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "process wait thread disconnected",
+        )),
+    }
 }
 
 #[cfg(test)]

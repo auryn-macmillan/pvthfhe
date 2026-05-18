@@ -1,8 +1,8 @@
 # Meta-Plan: All Remaining Incomplete Work
 
 **Plan**: `meta-plan-all-deferred`
-**Status**: READY
-**Updated**: 2026-05-17 (refreshed after G2 full, p3-m3 partial unblock, deep-audit sweep)
+**Status**: READY (updated with Phase G — 32 security review findings)
+**Updated**: 2026-05-18 (Phase G added after 7-agent parallel security audit)
 **Goal**: Single source of truth for all genuinely incomplete work across the project.
 
 ---
@@ -176,9 +176,93 @@ These are tracked in `pvthfhe-followon.md` (183 items, 9-18 months calendar):
 - [x] D.1: Paper fully synced (all 12 alignment-plan criteria done)
 - [x] D.2: REPRODUCING.md covers all C7 variants
 - [-] E.1-E.4: Gate resolution phases Ω2-Ω5 complete (DEFERRED — requires human oracle reviewers, external cryptographers, adversarial dress rehearsal; not automatable)
+- [ ] G.1: Canonicalize d_commitment hash function (Poseidon `bind_8_with_domain_native` domain 6) across pipeline, e2e test, and witness_gen. Remove SHA-256 and rolling_digest variants. → demo-e2e, aggregator
+- [ ] G.2: Extend d_commitment to bind ALL protocol steps: keygen_transcript_hash, all_nizk_proofs_hash, fold_accumulator_hash, compressed_proof_digest, ciphertext_hash. Reorder fields to match pipeline step sequence. → demo-e2e, aggregator
+- [ ] G.3: Add end-to-end d_commitment verification in `run_full_pipeline()` — post-pipeline assertion in PipelineReport comparing computed d_commitment to Noir-verified value. → demo-e2e
+- [ ] G.4: Fix d_commitment circular binding — verifier must supply d_commitment or bind to independently verifiable data (e.g., decrypt_share proofs commit to individual d_i hashes). → demo-e2e, aggregator
+- [ ] G.5: Absorb d_commitment into all Fiat-Shamir challenge derivations (NIZK sigma protocol + C7 circuit). → demo-e2e
+- [ ] G.6: Constrain `participant_shares` witness in Noir `aggregator_final` circuit — verify each share against individual decrypt_share proofs or require verifier-published combined_share_hash. → demo-e2e, aggregator
+- [ ] G.7: Bind `committee_party_ids` to `participant_set_hash` in Noir circuit: `vector_hash(committee_party_ids[0..n], DOMAIN) == participant_set_hash`. → demo-e2e, aggregator
+- [ ] G.8: Enforce `threshold` in Noir interpolation — exactly t shares used, or n-t shares are zero. → demo-e2e, aggregator
+- [x] G.9: Delete `circuits/share_wf/src/main.nr` from disk (already removed from workspace). If circuit needed, add `pk_hash` constraint. → demo-e2e
+- [x] G.10: Add `assert(party_id != 0)` in Noir `decrypt_share` circuit. → demo-e2e, per-node
+- [x] G.11: Add duplicate `party_id` check in `FhersBackend::aggregate_decrypt` (matching mock backend). → demo-e2e, per-node, aggregator
+- [ ] G.12: Add cryptographic binding of shares to sender identity (signature, NIZK proof binding, or session-anchored MAC). → demo-e2e, per-node, aggregator
+- [ ] G.13: Restrict secret key access through `party_state` — add capability or per-party isolate. Audit all `party_secret_key_bytes()` callers. → per-node
+- [ ] G.14: Fix Lagrange coefficient overflow for n > 35 in `compute_lagrange_coeffs_integer` — use BigInt or modular arithmetic. → demo-e2e, aggregator
+- [ ] G.15: Return error instead of `i128::MAX` sentinel in `crt_reconstruct_coeffs` overflow path. → demo-e2e, aggregator
+- [ ] G.16: Design composed circuit or cross-circuit verifier challenge binding C7 decryption aggregation + CycloFold ring/sigma into single IVC chain. → demo-e2e, aggregator
+- [ ] G.17: Implement real fold verification in FoldVerifierStepCircuit or document as deferred and remove placeholder constraints. → demo-e2e, aggregator
+- [ ] G.18: Add real tree-family constraints to LatticeFoldTreeCircuitFamily (distinguish leaf from internal node). → demo-e2e, aggregator
+- [ ] G.19: Enforce Merkle `leaf_index` in-circuit in C7MerkleStepCircuit — use leaf_index to determine correct sibling ordering. → demo-e2e, aggregator
+- [ ] G.20: Add prover randomness or verifier challenge to C7 challenge derivation (currently fully deterministic from public info). → demo-e2e, aggregator
+- [x] G.21: Gate stdout secret leaks (partial decrypt share hex, plaintext hex) behind `--verbose` flag or `RUST_LOG=debug` in `main.rs`. → demo-e2e, per-node, aggregator
+- [ ] G.22: Add subprocess timeouts on all `nargo`/`bb` Command invocations in `full_pipeline.rs`. → demo-e2e
+- [ ] G.23: Add compile-time assertion preventing `demo-seeded-rng` feature without explicit opt-in env var. → demo-e2e, per-node, aggregator
+- [ ] G.24: Verify nargo/bb binary hashes or require absolute paths (PATH injection hardening). → demo-e2e
+- [ ] G.25: Document CPAD resistance claim with formal noise budget analysis. → paper
+- [ ] G.26: Formal IND-CPAD reduction with current smudging parameters (σ=2^40·σ_err). → paper, security-proofs
+- [ ] G.27: Document Fiat-Shamir multi-round security loss bound with T=10 fold rounds. → paper, security-proofs
+- [ ] G.28: Implement or document robust secret sharing (cheater identification for t < n/2) as deferred limitation. → per-node, aggregator
+- [ ] G.29: Cross-reference all DOMAIN_* constants between Rust (`protocol_constants`) and Noir (`protocol_constants/src/lib.nr`). → demo-e2e
+- [ ] G.30: Enforce `fold_count`, `ring_verification_count`, `sigma_verification_count` mutual consistency with actual verification data present (not just counter equality). → demo-e2e, aggregator
+- [x] G.31: Verify empty set doesn't bypass C7 commitment check — ensure `c7_fold_witnesses` rejects empty C7WitnessSet. → demo-e2e
+- [ ] G.32: Clear thread-local ring/sigma data at start of `prove()` and `prove_steps()` to prevent stale witness leakage between runs. → demo-e2e, aggregator
 - [x] `just demo-e2e` ACCEPT at every level
 - [x] `just paper-gate` PASSES
 - [x] All existing tests pass (`cargo test --workspace`, `forge test`, `just phase1-gate`, `just phase2-gate`, `just phase3-gate`)
+
+---
+
+## 🟣 Phase G — Security Review Remediation (May 18, 2026)
+
+**Source**: `.sisyphus/notepads/security-review-may-18/security-review.md`
+**Scope**: 32 actionable findings from 7 parallel audit agents across paper, implementation, and plans.
+**Included in**: All findings include `just demo-e2e`, `just per-node`, and/or `just per-aggregator` coverage as indicated.
+
+### G.A — Hash Chain & Protocol Binding (Tier 0, ~4 days)
+- [ ] G.1: Canonicalize d_commitment hash function (Poseidon `bind_8_with_domain_native` domain 6)
+- [ ] G.2: Extend d_commitment to bind ALL protocol steps
+- [ ] G.3: Add end-to-end d_commitment verification
+- [ ] G.4: Fix d_commitment circular binding
+- [ ] G.5: Absorb d_commitment into Fiat-Shamir challenges
+
+### G.B — Noir Circuit Soundness (Tier 0-1, ~4.5 days)
+- [ ] G.6: Constrain participant_shares witness in Noir circuit
+- [ ] G.7: Bind committee_party_ids to participant_set_hash
+- [ ] G.8: Enforce threshold in interpolation
+- [x] G.9: Delete share_wf file or add pk_hash constraint
+- [x] G.10: Add party_id != 0 check in decrypt_share
+
+### G.C — FHE Backend & NIZK (Tier 1, ~3.5 days)
+- [x] G.11: Add duplicate party_id check in FhersBackend::aggregate_decrypt
+- [ ] G.12: Add cryptographic binding of shares to sender identity
+- [ ] G.13: Restrict secret key access through party_state
+- [ ] G.14: Fix Lagrange coefficient overflow for n > 35
+- [ ] G.15: Return error instead of i128::MAX sentinel
+
+### G.D — Compressor & Folding (Tier 1, ~11 days)
+- [ ] G.16: Compose C7 + CycloFold into single IVC chain
+- [ ] G.17: Implement real fold verification or document deferred
+- [ ] G.18: Add real LatticeFoldTreeCircuitFamily constraints
+- [ ] G.19: Enforce Merkle leaf_index in-circuit
+- [ ] G.20: Add prover randomness to C7 challenge derivation
+- [ ] G.30: Enforce counter consistency with actual verification data
+- [x] G.31: Reject empty C7WitnessSet in commitment check
+- [ ] G.32: Clear thread-local data at prove start
+
+### G.E — CLI & Infrastructure (Tier 1-2, ~1.25 days)
+- [x] G.21: Gate stdout secret leaks behind --verbose
+- [ ] G.22: Add subprocess timeouts
+- [ ] G.23: Add compile-time guard for demo-seeded-rng
+- [ ] G.24: Verify nargo/bb binary hashes
+
+### G.F — Research & Documentation (Tier 1-2, ~4 days)
+- [ ] G.25: Document CPAD resistance with noise analysis
+- [ ] G.26: Formal IND-CPAD reduction
+- [ ] G.27: Document Fiat-Shamir security loss bound
+- [ ] G.28: Implement or document robust secret sharing
+- [ ] G.29: Cross-reference DOMAIN_* constants
 
 ---
 
@@ -191,6 +275,7 @@ These are tracked in `pvthfhe-followon.md` (183 items, 9-18 months calendar):
 | C — On-chain | Deploy + gas + docs | ~1-2 weeks |
 | D — Paper | Remaining alignment batches | ~1 week |
 | E — Gates | Oracle reviews + dress rehearsal + freeze | ~3-4 weeks |
-| **Total** | | **~7-11 weeks** |
+| **G — Security Review** | **32 items (May 18 audit)** | **~28 days** |
+| **Total** | | **~11-15 weeks** |
 
 Phase F (research: P1-P4 open problems, `pvthfhe-followon.md`) is 9-18 months and excluded from this estimate.

@@ -76,6 +76,7 @@ fn main(
     z_q: Field,
 ) {
     assert(epoch as u64 > 0, "epoch must be positive");
+    assert(party_id != 0, "party_id must be non-zero");
     for i in 0..N {
         let sk = sk_i[i];
         assert(sk * (sk - 1) * (sk + 1) == 0, "sk_i must be in {-1, 0, 1}");

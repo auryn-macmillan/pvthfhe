@@ -294,6 +294,10 @@ pub fn c7_fold_witnesses(
     use crate::poly_eval::eval_poly_bn254;
     use crate::witness::hash_all_coeffs;
 
+    if witnesses.participants.is_empty() {
+        return Err(CompressorError::InvalidProof);
+    }
+
     if !witnesses.verify_commitments() {
         return Err(CompressorError::InvalidProof);
     }

@@ -229,7 +229,11 @@ fn r8_partial_decrypt(party_id: u32, ciphertext_hex: &str) -> anyhow::Result<()>
         .partial_decrypt(&ct, party_id, &mut rng)
         .with_context(|| format!("partial_decrypt party {party_id}"))?;
     let share_hex = hex::encode(share.bytes.as_slice());
-    println!("partial-decrypt: party_id={party_id} share_hex={share_hex}");
+    if tracing::enabled!(tracing::Level::DEBUG) {
+        println!("partial-decrypt: party_id={party_id} share_hex={share_hex}");
+    } else {
+        println!("partial-decrypt: party_id={party_id} (share hidden, set RUST_LOG=pvthfhe_cli=debug to show)");
+    }
     Ok(())
 }
 
@@ -274,7 +278,11 @@ fn r8_aggregate(ciphertext_hex: &str, shares_hex: &str, threshold: usize) -> any
         .aggregate_decrypt(&ct, &shares, threshold, b"")
         .context("aggregate_decrypt")?;
     let plaintext_hex = hex::encode(&plaintext);
-    println!("aggregate: plaintext_hex={plaintext_hex}");
+    if tracing::enabled!(tracing::Level::DEBUG) {
+        println!("aggregate: plaintext_hex={plaintext_hex}");
+    } else {
+        println!("aggregate: (plaintext hidden, set RUST_LOG=pvthfhe_cli=debug to show)");
+    }
     Ok(())
 }
 

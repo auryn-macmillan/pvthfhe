@@ -1204,6 +1204,12 @@ impl FheBackend for FhersBackend {
                 });
             }
         }
+        let mut seen = std::collections::HashSet::new();
+        for share in shares {
+            if !seen.insert(share.party_id) {
+                return Err(FheError::MalformedDecryptShare { party_id: share.party_id });
+            }
+        }
 
         let ciphertext = BfvCiphertext::from_bytes(&ct.bytes, &self.bfv_params)
             .map_err(|_| FheError::MalformedCiphertext)?;
@@ -1462,6 +1468,12 @@ impl FhersBackend {
                 });
             }
         }
+        let mut seen = std::collections::HashSet::new();
+        for share in shares {
+            if !seen.insert(share.party_id) {
+                return Err(FheError::MalformedDecryptShare { party_id: share.party_id });
+            }
+        }
 
         let ciphertext = BfvCiphertext::from_bytes(&ct.bytes, &self.bfv_params)
             .map_err(|_| FheError::MalformedCiphertext)?;
@@ -1591,6 +1603,12 @@ impl FhersBackend {
                 return Err(FheError::MalformedDecryptShare {
                     party_id: share.party_id,
                 });
+            }
+        }
+        let mut seen = std::collections::HashSet::new();
+        for share in shares {
+            if !seen.insert(share.party_id) {
+                return Err(FheError::MalformedDecryptShare { party_id: share.party_id });
             }
         }
 

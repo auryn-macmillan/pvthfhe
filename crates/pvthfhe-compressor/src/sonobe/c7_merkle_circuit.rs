@@ -16,6 +16,7 @@ use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
+use ark_r1cs_std::GR1CSVar;
 use ark_relations::gr1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use folding_schemes::frontend::FCircuit;
 use sha3::{Digest, Keccak256};
@@ -142,7 +143,7 @@ pub fn merkle_external_inputs_width(depth: usize, arity: usize) -> usize {
 /// This is deferred to a follow-up.
 fn verify_merkle_path<F: PrimeField>(
     leaf_value: &FpVar<F>,
-    _leaf_index: &FpVar<F>,
+    leaf_index: &FpVar<F>,
     siblings: &[FpVar<F>],
     depth: usize,
     arity: usize,
@@ -156,25 +157,103 @@ fn verify_merkle_path<F: PrimeField>(
         return Err(SynthesisError::AssignmentMissing);
     }
 
-    // G5: The leaf_index parameter is accepted but not enforced for now.
-    // The current witness generation (witness.rs:68) always proves leaf at
-    // position 0. Full position-aware Merkle verification (placing leaf/current
-    // at the correct position based on index % arity per level) is deferred.
-    // See merkle.rs:87-109 for native position-aware logic.
+    // 4.1 Bit-decompose leaf_index: 3 bits per level for arity=8.
+    // Create `depth * 3` bit witnesses; each is Boolean and the weighted
+    // sum must equal leaf_index.
+    let bits_count = depth * 3;
+    let mut bits = Vec::with_capacity(bits_count);
 
+    for i in 0..bits_count {
+        let b = FpVar::<F>::new_witness(cs.clone(), || {
+            let idx = leaf_index.value()?;
+            let limb0 = idx.into_bigint().as_ref()[0];
+            let bit = if (limb0 >> i) & 1 == 1 { F::ONE } else { F::ZERO };
+            Ok(bit)
+        })?;
+        bits.push(b);
+    }
+
+    // Boolean constraints: b_i * (1 - b_i) == 0
+    let one = FpVar::<F>::one();
+    let zero = FpVar::<F>::zero();
+    for b in &bits {
+        let not_b = one.clone() - b.clone();
+        let prod = b.clone() * not_b;
+        prod.enforce_equal(&zero)?;
+    }
+
+    // Sum constraint: Σ b_i * 2^i == leaf_index
+    let mut sum = FpVar::<F>::zero();
+    for i in 0..bits_count {
+        sum = sum + bits[i].clone() * FpVar::constant(F::from(1u64 << i));
+    }
+    sum.enforce_equal(leaf_index)?;
+
+    // Per-level loop: extract 3 bits, compute position indicators,
+    // allocate input witnesses with prover-computed correct placement,
+    // constrain current at indicated position, then hash.
     let mut current = leaf_value.clone();
 
     for level in 0..depth {
-        let start = level * siblings_per_level;
-        let end = start + siblings_per_level;
-        let level_siblings = &siblings[start..end];
+        // 4.2 Extract 3 bits and compute 8 position indicators is_pos[j].
+        let b0 = bits[level * 3].clone();
+        let b1 = bits[level * 3 + 1].clone();
+        let b2 = bits[level * 3 + 2].clone();
 
-        let mut inputs: Vec<FpVar<F>> = Vec::with_capacity(arity);
-        inputs.push(current.clone());
-        for sib in level_siblings {
-            inputs.push(sib.clone());
+        let mut is_pos = Vec::with_capacity(arity);
+        for j in 0u8..(arity as u8) {
+            let j0 = (j & 1) != 0;
+            let j1 = (j & 2) != 0;
+            let j2 = (j & 4) != 0;
+
+            let t0 = if j0 { b0.clone() } else { one.clone() - b0.clone() };
+            let t1 = if j1 { b1.clone() } else { one.clone() - b1.clone() };
+            let t2 = if j2 { b2.clone() } else { one.clone() - b2.clone() };
+
+            let mid = t0 * t1;
+            is_pos.push(mid * t2);
         }
 
+        // 4.3 Allocate 8 input witness variables per level.
+        // The prover reads the concrete values of current, leaf_index,
+        // and siblings to compute the correct input ordering.
+        let mut inputs = Vec::with_capacity(arity);
+        for j in 0..arity {
+            let inp = FpVar::<F>::new_witness(cs.clone(), || {
+                let curr_val = current.value()?;
+                let idx_val = leaf_index.value()?;
+                let idx_u64 = idx_val.into_bigint().as_ref()[0];
+
+                let shifted = idx_u64 >> (level * 3);
+                let position = (shifted & 7) as usize;
+
+                let sib_start = level * siblings_per_level;
+                let mut input_vals = vec![F::ZERO; arity];
+                let mut sib_idx = 0;
+                for k in 0..arity {
+                    if k == position {
+                        input_vals[k] = curr_val;
+                    } else {
+                        let sib = siblings[sib_start + sib_idx].value()?;
+                        input_vals[k] = sib;
+                        sib_idx += 1;
+                    }
+                }
+                Ok(input_vals[j])
+            })?;
+            inputs.push(inp);
+        }
+
+        // 4.4 Constrain current at the position indicated by is_pos.
+        // For the single position j where is_pos[j]==1 this forces
+        // inputs[j]==current; elsewhere it's vacuously true.
+        for j in 0..arity {
+            let diff = inputs[j].clone() - current.clone();
+            let prod = is_pos[j].clone() * diff;
+            prod.enforce_equal(&zero)?;
+        }
+
+        // 4.5 Hash the arity inputs and chain to next level.
         current = hash8(cs.clone(), &inputs)?;
     }
 
@@ -277,10 +356,10 @@ impl<F: PrimeField> StepCircuit for C7MerkleStepCircuit<F> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::poseidon_gadget::hash8_native;
     use ark_bn254::Fr;
     use ark_r1cs_std::alloc::AllocVar;
     use ark_relations::gr1cs::ConstraintSystem;
+    use crate::merkle::{build_merkle_tree, prove_merkle_path, verify_merkle_proof};
 
     #[test]
     fn merkle_circuit_descriptor_width_depth5() {
@@ -298,50 +377,85 @@ mod tests {
         assert_eq!(merkle_external_inputs_width(1, 2), 6);
     }
 
-    /// G5: leaf_index is no longer constrained to 0.
-    /// The circuit should accept a non-zero leaf_index without constraint
-    /// violation. Full position-aware Merkle verification is deferred;
-    /// witness generation still uses leaf_index=0.
+    /// Position-aware Merkle verification: the circuit uses leaf_index bits
+    /// to place the current node at the correct position within each level's
+    /// hash input. A proof with leaf_index=5 must pass when all inputs match,
+    /// and must be rejected when the prover uses a wrong leaf_index.
     #[test]
     fn merkle_nonzero_leaf_index_accepted() {
-        let cs = ConstraintSystem::<Fr>::new_ref();
         let depth = 1;
         let arity = 8;
-        let siblings_count = depth * (arity - 1); // 7
 
-        let zero = || Ok(Fr::from(0u64));
-        let leaf_index = FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(5u64))).unwrap();
-        let leaf_value = FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(1u64))).unwrap();
-        let siblings: Vec<FpVar<Fr>> = (0..siblings_count)
-            .map(|_| FpVar::<Fr>::new_witness(cs.clone(), zero).unwrap())
-            .collect();
+        // Build a 8-leaf Merkle tree with distinct leaf values.
+        let leaves: Vec<Fr> = (0..8).map(|i| Fr::from(i as u64 + 100)).collect();
+        let (tree, _root) = build_merkle_tree(&leaves, arity);
 
-        // Compute the merkle root matching leaf_value (1) + siblings (all zeros)
-        // with leaf at position 0 (current in-circuit ordering).
-        let root_native = {
-            let mut inputs = vec![Fr::from(1u64)];
-            for _ in 0..7 {
-                inputs.push(Fr::from(0u64));
-            }
-            hash8_native(&inputs)
-        };
-        let merkle_root = FpVar::<Fr>::new_witness(cs.clone(), || Ok(root_native)).unwrap();
+        let leaf_index = 5usize;
+        let proof = prove_merkle_path(&tree, leaf_index, arity);
+        assert!(verify_merkle_proof(&proof, arity), "native proof must be valid");
 
-        let result = verify_merkle_path(
-            &leaf_value,
-            &leaf_index,
-            &siblings,
-            depth,
-            arity,
-            &merkle_root,
-            cs.clone(),
-        );
+        // Flatten level-siblings into a flat list for the circuit.
+        let flat_siblings: Vec<Fr> = proof.siblings.iter().flatten().copied().collect();
 
-        // G5: non-zero leaf_index is accepted (no longer constrained to 0).
-        assert!(result.is_ok(), "non-zero leaf_index must be accepted");
-        assert!(
-            cs.is_satisfied().unwrap(),
-            "constraint system must be satisfied with non-zero leaf_index"
-        );
+        // Test 1: correct leaf_index=5 must produce a satisfied system.
+        {
+            let cs = ConstraintSystem::<Fr>::new_ref();
+            let leaf_index_var =
+                FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(leaf_index as u64))).unwrap();
+            let leaf_value_var =
+                FpVar::<Fr>::new_witness(cs.clone(), || Ok(proof.leaf_value)).unwrap();
+            let siblings_vars: Vec<FpVar<Fr>> = flat_siblings
+                .iter()
+                .map(|v| FpVar::<Fr>::new_witness(cs.clone(), || Ok(*v)).unwrap())
+                .collect();
+            let merkle_root_var =
+                FpVar::<Fr>::new_witness(cs.clone(), || Ok(proof.root)).unwrap();
+
+            let result = verify_merkle_path(
+                &leaf_value_var,
+                &leaf_index_var,
+                &siblings_vars,
+                depth,
+                arity,
+                &merkle_root_var,
+                cs.clone(),
+            );
+            assert!(result.is_ok(), "verify_merkle_path must succeed with correct leaf_index=5");
+            assert!(
+                cs.is_satisfied().unwrap(),
+                "constraint system must be satisfied with correct leaf_index=5"
+            );
+        }
+
+        // Test 2: wrong leaf_index=0 must produce an unsatisfied system,
+        // because the root was computed with current at position 5, not 0.
+        {
+            let cs = ConstraintSystem::<Fr>::new_ref();
+            let leaf_index_var =
+                FpVar::<Fr>::new_witness(cs.clone(), || Ok(Fr::from(0u64))).unwrap();
+            let leaf_value_var =
+                FpVar::<Fr>::new_witness(cs.clone(), || Ok(proof.leaf_value)).unwrap();
+            let siblings_vars: Vec<FpVar<Fr>> = flat_siblings
+                .iter()
+                .map(|v| FpVar::<Fr>::new_witness(cs.clone(), || Ok(*v)).unwrap())
+                .collect();
+            let merkle_root_var =
+                FpVar::<Fr>::new_witness(cs.clone(), || Ok(proof.root)).unwrap();
+
+            let _ = verify_merkle_path(
+                &leaf_value_var,
+                &leaf_index_var,
+                &siblings_vars,
+                depth,
+                arity,
+                &merkle_root_var,
+                cs.clone(),
+            );
+
+            assert!(
+                !cs.is_satisfied().unwrap(),
+                "constraint system must be UNSATISFIED with wrong leaf_index=0"
+            );
+        }
     }
 }

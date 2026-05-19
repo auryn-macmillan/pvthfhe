@@ -2188,9 +2188,12 @@ pub fn build_c7_prover_toml(
     }
     toml.push_str("]\n");
 
-    // Participant shares: use real coefficient values converted to Fr
+    // Participant shares: only threshold+1 are non-zero (Noir circuit asserts
+    // share_non_zero_count == threshold + 1). Remaining shares are zero-padded.
+    let active_count = (threshold + 1).min(share_coeffs.len());
     toml.push_str("participant_shares = [\n");
-    for coeffs in share_coeffs.iter() {
+    for i in 0..active_count {
+        let coeffs = &share_coeffs[i];
         toml.push_str("  [");
         for (j, &c) in coeffs.iter().take(8).enumerate() {
             if j > 0 { toml.push_str(", "); }
@@ -2201,7 +2204,8 @@ pub fn build_c7_prover_toml(
         }
         toml.push_str("],\n");
     }
-    for _i in share_coeffs.len()..8usize {
+    // Zero-pad remaining slots up to MAX_PARTICIPANTS
+    for _i in active_count..8usize {
         toml.push_str("  [");
         for j in 0..8usize {
             if j > 0 { toml.push_str(", "); }

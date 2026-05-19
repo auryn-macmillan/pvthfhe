@@ -1056,8 +1056,11 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         combined_share_hash,
         Fr::from(0u64),
     );
+    let mut noir_passed = true;
+
     if let Err(e) = std::fs::write(circuits_dir.join("C7Prover.toml"), &prover_toml) {
         tracing::warn!("C7 Noir: failed to write C7Prover.toml: {e}");
+        noir_passed = false;
         observer.phase_end("c7_noir_aggregator", elapsed_ms(noir_started));
     } else {
         // Resolve nargo/bb paths with env-var hardening (G.24)
@@ -1076,7 +1079,6 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         }
 
         // Run canonical flow: nargo execute → bb write_vk → bb prove → bb verify
-        let mut noir_passed = true;
 
         let mut nargo_cmd = std::process::Command::new(resolve_tool("nargo", "PVTHFHE_NARGO_PATH"));
         nargo_cmd
@@ -1085,8 +1087,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         let status = run_with_timeout(&mut nargo_cmd, 120);
         match status {
             Ok(s) if s.success() => {}
-            Ok(s) => { tracing::warn!("C7 Noir: nargo execute returned non-zero: {s}"); noir_passed = false; }
-            Err(e) => { tracing::warn!("C7 Noir: nargo execute failed: {e}"); noir_passed = false; }
+            Ok(s) => { tracing::error!("C7 Noir: nargo execute returned non-zero: circuit verification FAILED ({s})"); noir_passed = false; }
+            Err(e) => { tracing::error!("C7 Noir: nargo execute failed: circuit verification FAILED ({e})"); noir_passed = false; }
         }
 
         if noir_passed {
@@ -1143,7 +1145,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     Ok(PipelineReport {
         timings,
         plaintext_roundtrip_ok,
-        all_verifications_passed: true,
+        all_verifications_passed: noir_passed,
         aggregate_pk_hash_hex,
         ciphertext_hash_hex,
         compressed_proof_digest_hex: hex::encode(compressed.digest),
@@ -2014,11 +2016,20 @@ pub fn build_c7_prover_toml(
     let agg_pk_hash_bytes = Sha256::digest(aggregate_pk_bytes);
     let ct_hash_bytes = Sha256::digest(session_id.as_bytes());
     let dkg_root_bytes = Sha256::digest(format!("dkg-{session_id}").as_bytes());
-    let ps_hash_bytes = Sha256::digest(format!("ps-{n_participants}-{session_id}").as_bytes());
     let ciphertext_hash = Fr::from_be_bytes_mod_order(&ct_hash_bytes);
     let aggregate_pk_hash = Fr::from_be_bytes_mod_order(&agg_pk_hash_bytes);
     let dkg_root = Fr::from_be_bytes_mod_order(&dkg_root_bytes);
-    let participant_set_hash = Fr::from_be_bytes_mod_order(&ps_hash_bytes);
+    // G.7: participant_set_hash must use Poseidon to match Noir circuit computation.
+    // The circuit computes: vector_hash(committee_party_ids, DOMAIN_VECTOR_MERKLE)
+    // DOMAIN_VECTOR_MERKLE = 1 (protocol_constants/src/lib.nr:11)
+    let participant_set_hash = {
+        let mut inputs = Vec::with_capacity(committee_party_ids.len() + 1);
+        inputs.push(Fr::from(1u64));
+        for &id in committee_party_ids {
+            inputs.push(Fr::from(id as u64));
+        }
+        poseidon_hash_native(&inputs)
+    };
     let decrypt_nizk_hash_field = Fr::from_be_bytes_mod_order(decrypt_nizk_hash);
 
     // PLACEHOLDER: keygen transcript hash from DKG ceremony output.

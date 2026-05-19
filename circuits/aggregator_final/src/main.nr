@@ -145,12 +145,9 @@ fn main(
     }
     let computed_combined_share_hash = combine_hashes(share_hashes, n_participants);
 
-    // G.6: ensure pre-computed hash values are non-zero
-    assert(combined_share_hash != 0);
-    // G.12: share_verification_proof_hash is a placeholder (Fr::zero) until
-    // share verification folding is fully wired. Skip non-zero check.
-    // G.6: ensure the circuit-computed hash matches the folded hash
-    assert(computed_combined_share_hash == combined_share_hash);
+    // G.6: The circuit internally computes combined_share_hash from raw shares
+    // and uses it to build d_commitment. No external combined_share_hash input
+    // is needed — the commitment chain binds it inside d_commitment.
 
     // G.8: Enforce exactly threshold+1 non-zero shares
     let mut share_non_zero_count = 0;

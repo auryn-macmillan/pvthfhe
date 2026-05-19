@@ -1653,6 +1653,44 @@ impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
         result
     }
 
+    /// Prove n Ajtai commitment verification steps from a witness set.
+    pub fn prove_steps_ajtai(
+        &self,
+        acc: &[u8],
+        witnesses: &crate::witness::AjtaiCommitmentWitnessSet,
+    ) -> Result<CompressedProof, CompressorError> {
+        use crate::sonobe::ajtai_commitment_circuit::{set_ajtai_witness_data, clear_ajtai_witness_data};
+
+        if !witnesses.verify_commitments() {
+            return Err(CompressorError::InvalidProof);
+        }
+
+        let steps: Vec<ExternalInputs4<Fr>> = witnesses
+            .witnesses
+            .iter()
+            .map(|w| {
+                ExternalInputs4(
+                    w.expected_commitment_hash,
+                    Fr::from_be_bytes_mod_order(&w.matrix_seed[..16]),
+                    Fr::from_be_bytes_mod_order(&w.matrix_seed[16..]),
+                    Fr::from(1u64),
+                )
+            })
+            .collect();
+
+        let coeffs_data: Vec<Vec<Fr>> = witnesses
+            .witnesses
+            .iter()
+            .map(|w| w.coeffs.clone())
+            .collect();
+        set_ajtai_witness_data(coeffs_data);
+
+        let result = self.prove_steps(acc, &steps);
+
+        clear_ajtai_witness_data();
+        result
+    }
+
     pub fn verify_steps(
         &self,
         vk: &VerifierKey,

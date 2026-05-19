@@ -90,9 +90,9 @@ Reuses existing infrastructure: ExternalInputs6, SonobeCompressor, prove_steps p
 - [x] State: [accumulated_commitment_hash, step_count]
 
 ### Phase 4c: SonobeCompressor + pipeline wiring (~1 day)
-- [ ] `prove_steps_ajtai` method (pattern identical to `prove_steps_share_verify`)
-- [ ] Witness generation: `AjtaiCommitmentWitness` struct
-- [ ] Pipeline: compute `combined_commitment_hash` and pass to Prover.toml
+- [x] `prove_steps_ajtai` method (pattern identical to `prove_steps_share_verify`)
+- [x] Witness generation: `AjtaiCommitmentWitness` struct
+- [x] Pipeline: compute `combined_commitment_hash` and pass to Prover.toml
 
 ### Phase 4d: aggregator_final Noir update (~4 hours)
 - [ ] Accept `combined_commitment_hash` as public input

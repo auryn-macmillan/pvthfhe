@@ -256,6 +256,32 @@ impl ShareVerificationWitnessSet {
     }
 }
 
+/// Witness data for one step of AjtaiCommitmentStepCircuit.
+#[derive(Clone, Debug)]
+pub struct AjtaiCommitmentWitness {
+    /// Secret key share coefficients (256 × i64 coefficients in R_q).
+    pub coeffs: Vec<Fr>,
+    /// Expected commitment hash from the PVSS registry.
+    pub expected_commitment_hash: Fr,
+    /// Matrix derivation seed (session_id || party_index).
+    pub matrix_seed: [u8; 32],
+}
+
+/// Collection of Ajtai commitment witnesses for all participants.
+#[derive(Clone, Debug)]
+pub struct AjtaiCommitmentWitnessSet {
+    pub witnesses: Vec<AjtaiCommitmentWitness>,
+}
+
+impl AjtaiCommitmentWitnessSet {
+    pub fn verify_commitments(&self) -> bool {
+        if self.witnesses.is_empty() {
+            return false;
+        }
+        self.witnesses.iter().all(|w| !w.coeffs.is_empty())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

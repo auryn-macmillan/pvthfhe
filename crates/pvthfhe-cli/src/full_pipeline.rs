@@ -1054,6 +1054,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         &share_sig_rs,
         &share_sig_ss,
         combined_share_hash,
+        Fr::from(0u64),
     );
     if let Err(e) = std::fs::write(circuits_dir.join("C7Prover.toml"), &prover_toml) {
         tracing::warn!("C7 Noir: failed to write C7Prover.toml: {e}");
@@ -2004,6 +2005,7 @@ pub fn build_c7_prover_toml(
     share_sig_rs: &[Fr],          // G.12: Per-party Schnorr signature R-points
     share_sig_ss: &[Fr],          // G.12: Per-party Schnorr signature s-values
     combined_share_hash: Fr,      // G.12: Combined share hash from Nova-folded ShareVerificationStepCircuit
+    share_verification_proof_hash: Fr,  // G.12: Hash of Nova-folded ShareVerificationStepCircuit proof
 ) -> String {
     let n_participants = share_coeffs.len();
     let threshold = n_participants / 2;
@@ -2076,6 +2078,7 @@ pub fn build_c7_prover_toml(
     toml.push_str(&format!("epoch = \"1\"\n"));
     toml.push_str(&format!("participant_set_hash = \"0x{}\"\n", field_hex_be(participant_set_hash)));
     toml.push_str(&format!("combined_share_hash = \"0x{}\"\n", field_hex_be(combined_share_hash)));
+    toml.push_str(&format!("share_verification_proof_hash = \"0x{}\"\n", field_hex_be(share_verification_proof_hash)));
     toml.push_str(&format!("d_commitment = \"0x{}\"\n", field_hex_be(d_commitment)));
     toml.push_str(&format!("n_participants = \"{}\"\n", n_participants));
     toml.push_str(&format!("threshold = \"{}\"\n", threshold));
@@ -2293,6 +2296,7 @@ mod tests {
             &[],
             &[],
             &[],
+            Fr::from(0u64),
             Fr::from(0u64),
         );
 

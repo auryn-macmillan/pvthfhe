@@ -147,7 +147,7 @@ fn main(
 
     // G.6: The circuit internally computes combined_share_hash from raw shares
     // and uses it to build d_commitment. No external combined_share_hash input
-    // is needed — the commitment chain binds it inside d_commitment.
+    // is needed -- the commitment chain binds it inside d_commitment.
 
     // G.8: Enforce exactly threshold+1 non-zero shares
     let mut share_non_zero_count = 0;

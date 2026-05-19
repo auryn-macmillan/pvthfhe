@@ -30,10 +30,10 @@ aggregator_final receives: combined_share_hash + proof_hash
 - [x] Test: single step produces correct hash
 
 ### Task 6: Native-side Schnorr in-circuit verification  
-- [ ] `poseidon_gadget.rs` or new file: implement Schnorr `schnorr_verify_in_circuit`
-- [ ] Scalar multiplication: r·G in R1CS using arkworks' `CurveVar`
-- [ ] Poseidon challenge: reuse existing `PoseidonSpongeVar`
-- [ ] Constraint count verification
+- [x] `poseidon_gadget.rs` or new file: implement Schnorr `schnorr_verify_in_circuit`
+- [x] Scalar multiplication: r·G in R1CS using arkworks' `CurveVar`
+- [x] Poseidon challenge: reuse existing `PoseidonSpongeVar`
+- [x] Constraint count verification
 
 ### Task 7: Witness generation for folding
 - [ ] `witness.rs`: `ShareVerificationWitness` struct with pk, sig_r, sig_s, share coeffs

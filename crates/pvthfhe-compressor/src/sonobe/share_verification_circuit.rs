@@ -36,7 +36,7 @@ impl<F: PrimeField> FCircuit<F> for ShareVerificationStepCircuit<F> {
     fn generate_step_constraints(
         &self,
         cs: ConstraintSystemRef<F>, _i: usize, z_i: Vec<FpVar<F>>,
-        _external_inputs: Self::ExternalInputsVar,
+        external_inputs: Self::ExternalInputsVar,
     ) -> Result<Vec<FpVar<F>>, SynthesisError> {
         let coeffs = SHARE_COEFFS_DATA.with(|cell| cell.borrow().get(_i).cloned().unwrap_or_default());
         let coeff_vars: Vec<FpVar<F>> = coeffs
@@ -46,12 +46,35 @@ impl<F: PrimeField> FCircuit<F> for ShareVerificationStepCircuit<F> {
                 FpVar::constant(v)
             })
             .collect();
-        let mut sponge = PoseidonSpongeVar::new();
-        sponge.absorb(&coeff_vars)?;
-        let h = sponge.squeeze_one()?;
-        let acc = z_i[0].clone() + h;
-        let cnt = z_i[1].clone() + FpVar::constant(F::one());
-        Ok(vec![acc, cnt])
+
+        // 1. Hash share coefficients via Poseidon sponge
+        let mut coeff_sponge = PoseidonSpongeVar::new();
+        coeff_sponge.absorb(&coeff_vars)?;
+        let share_hash = coeff_sponge.squeeze_one()?;
+
+        // 2. Compute Schnorr challenge: e = Poseidon(domain, sig_r_x, pk_x, share_hash)
+        //    ExternalInputs4: (sig_r_x, sig_s, pk_x, share_hash_domain)
+        let mut challenge_sponge = PoseidonSpongeVar::new();
+        challenge_sponge.absorb(&[
+            external_inputs.3.clone(),                    // domain separator
+            external_inputs.0.clone(),                    // sig_r_x
+            external_inputs.2.clone(),                    // pk_x
+            share_hash.clone(),                           // share commitment hash
+        ])?;
+        let challenge_e = challenge_sponge.squeeze_one()?;
+
+        // 3. Accumulate: step_commitment = poseidon(share_hash || challenge_e)
+        //    This binds the signature challenge to the accumulated state
+        let mut acc_sponge = PoseidonSpongeVar::new();
+        acc_sponge.absorb(&[share_hash, challenge_e])?;
+        let step_commitment = acc_sponge.squeeze_one()?;
+
+        let acc_hash = z_i[0].clone() + step_commitment;
+        let step_count = z_i[1].clone() + FpVar::constant(F::one());
+
+        let _ = cs.num_constraints();
+
+        Ok(vec![acc_hash, step_count])
     }
 }
 

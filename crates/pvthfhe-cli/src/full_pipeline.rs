@@ -1919,33 +1919,46 @@ fn run_c7_verification(
         .map(|((&sev, &lc), &commitment)| ExternalInputs5(sev, lc, commitment, dkg_root_hash, derived_r))
         .collect();
 
-    let proof = match {
-        use pvthfhe_compressor::sonobe::c7_circuit::{set_c7_step_data, clear_c7_step_data};
+    let proof = {
+        use pvthfhe_compressor::sonobe::c7_circuit::set_c7_step_data;
         set_c7_step_data(share_coeffs.to_vec(), derived_r);
         let result = compressor.prove_steps_c7(&acc, &steps);
-        clear_c7_step_data();
         result
-    } {
+    };
+
+    let proof = match proof {
         Ok(p) => p,
-        Err(e) => { tracing::warn!("C7: prove_steps_c7 failed: {e:?}"); return false; }
+        Err(e) => {
+            pvthfhe_compressor::sonobe::c7_circuit::clear_c7_step_data();
+            tracing::warn!("C7: prove_steps_c7 failed: {e:?}");
+            return false;
+        }
     };
 
     let vk = compressor.verifier_key();
-    match compressor.verify_steps_c7(&vk, &proof, &steps) {
+    let verified = match compressor.verify_steps_c7(&vk, &proof, &steps) {
         Ok(true) => {
             // G3 M1: Verify Lagrange sum = 1 and log accumulator after Nova IVC.
             // Full plaintext binding deferred — see verify_c7_plaintext_binding doc.
             if !verify_c7_plaintext_binding(z0_expected, z1_expected) {
-                tracing::warn!(
-                    "C7: G3 plaintext binding failed for Nova IVC path"
-                );
-                return false;
+                tracing::warn!("C7: G3 plaintext binding failed for Nova IVC path");
+                false
+            } else {
+                true
             }
-            true
         }
-        Ok(false) => { tracing::warn!("C7: Nova verification returned false"); false }
-        Err(e) => { tracing::warn!("C7: Nova verification error: {e:?}"); false }
-    }
+        Ok(false) => {
+            tracing::warn!("C7: Nova verification returned false");
+            false
+        }
+        Err(e) => {
+            tracing::warn!("C7: verify_steps_c7 error: {e:?}");
+            false
+        }
+    };
+
+    pvthfhe_compressor::sonobe::c7_circuit::clear_c7_step_data();
+    verified
 }
 
 /// G3: Verify plaintext binding via Schwartz-Zippel polynomial identity check.

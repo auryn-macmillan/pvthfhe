@@ -2177,13 +2177,13 @@ pub fn build_c7_prover_toml(
     toml.push_str(&format!("n_participants = \"{}\"\n", n_participants));
     toml.push_str(&format!("threshold = \"{}\"\n", threshold));
 
-    // Committee party IDs: 8-element array (MAX_PARTICIPANTS), padded with zeros
+    // Committee party IDs: exactly MAX_PARTICIPANTS=8, padded with zeros
     toml.push_str("committee_party_ids = [");
-    for (i, &pid) in committee_party_ids.iter().enumerate() {
+    for (i, &pid) in committee_party_ids.iter().take(8).enumerate() {
         if i > 0 { toml.push_str(", "); }
         toml.push_str(&format!("\"0x{:064x}\"", pid));
     }
-    for _i in committee_party_ids.len()..8usize {
+    for _i in committee_party_ids.len().min(8)..8usize {
         toml.push_str(&format!(", \"0x{:064x}\"", 0u64));
     }
     toml.push_str("]\n");

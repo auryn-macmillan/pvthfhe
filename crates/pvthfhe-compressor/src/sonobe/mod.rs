@@ -11,7 +11,9 @@ pub mod poseidon_gadget;
 pub use poseidon_gadget::PoseidonSpongeVar;
 pub mod ring_element_var;
 pub mod ring_verifier;
+pub mod ajtai_commitment_circuit;
 pub mod share_verification_circuit;
+pub use ajtai_commitment_circuit::{clear_ajtai_witness_data, set_ajtai_witness_data, AjtaiCommitmentStepCircuit};
 pub use c7_circuit::{
     c7_fold_witnesses, clear_c7_step_data, set_c7_step_data, C7DecryptAggregationCircuit,
 };

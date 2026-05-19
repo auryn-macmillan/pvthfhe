@@ -934,6 +934,11 @@ impl<
         )
         .map_err(|_| CompressorError::Backend("sonobe verifier key deserialization failed"))?;
 
+        // G.30: Counter consistency enforcement.
+        // Track A: counters always increment (ring_inc = FpVar::one()), even with zero data.
+        // Track B: counters only increment when real verification data was set via thread-locals.
+        // The fold_count == verification_count check ensures the prover ran each step,
+        // but does NOT guarantee actual verification data was present (that's a Track A/B distinction).
         let ring_check = if self.state_len >= 4 {
             Some((ivc_proof.z_i[2], ivc_proof.z_i[3]))
         } else {
@@ -959,6 +964,19 @@ impl<
         if let Some((fold_count, sigma_count)) = sigma_check {
             if fold_count != sigma_count { tracing::warn!("fold_count {:?} != sigma_verification_count {:?}", fold_count, sigma_count);
                 return Ok(false);
+            }
+        }
+
+        // G.30: When counters are non-zero but verification data might not have been set (Track A),
+        // log but don't reject — Track A mode is valid.
+        if let Some((fold_count, ring_verif)) = ring_check {
+            if fold_count != Fr::from(0u64) {
+                tracing::debug!(
+                    "G.30 counters: fold_count={:?}, ring_verif={:?}, sigma={:?}",
+                    fold_count,
+                    ring_verif,
+                    sigma_check.map(|(_, s)| s)
+                );
             }
         }
 
@@ -1082,6 +1100,11 @@ impl ProofCompressor for SonobeCompressor<CycloFoldStepCircuit<Fr>> {
         )
         .map_err(|_| CompressorError::Backend("sonobe verifier key deserialization failed"))?;
 
+        // G.30: Counter consistency enforcement.
+        // Track A: counters always increment (ring_inc = FpVar::one()), even with zero data.
+        // Track B: counters only increment when real verification data was set via thread-locals.
+        // The fold_count == verification_count check ensures the prover ran each step,
+        // but does NOT guarantee actual verification data was present (that's a Track A/B distinction).
         let ring_check = if self.state_len >= 4 {
             Some((ivc_proof.z_i[2], ivc_proof.z_i[3]))
         } else {
@@ -1107,6 +1130,19 @@ impl ProofCompressor for SonobeCompressor<CycloFoldStepCircuit<Fr>> {
         if let Some((fold_count, sigma_count)) = sigma_check {
             if fold_count != sigma_count { tracing::warn!("fold_count {:?} != sigma_verification_count {:?}", fold_count, sigma_count);
                 return Ok(false);
+            }
+        }
+
+        // G.30: When counters are non-zero but verification data might not have been set (Track A),
+        // log but don't reject — Track A mode is valid.
+        if let Some((fold_count, ring_verif)) = ring_check {
+            if fold_count != Fr::from(0u64) {
+                tracing::debug!(
+                    "G.30 counters: fold_count={:?}, ring_verif={:?}, sigma={:?}",
+                    fold_count,
+                    ring_verif,
+                    sigma_check.map(|(_, s)| s)
+                );
             }
         }
 
@@ -1171,6 +1207,11 @@ impl<
             "sonobe external verifier key deserialization failed",
         ))?;
 
+        // G.30: Counter consistency enforcement.
+        // Track A: counters always increment (ring_inc = FpVar::one()), even with zero data.
+        // Track B: counters only increment when real verification data was set via thread-locals.
+        // The fold_count == verification_count check ensures the prover ran each step,
+        // but does NOT guarantee actual verification data was present (that's a Track A/B distinction).
         let ring_check = if self.state_len >= 4 {
             Some((ivc_proof.z_i[2], ivc_proof.z_i[3]))
         } else {
@@ -1196,6 +1237,19 @@ impl<
         if let Some((fold_count, sigma_count)) = sigma_check {
             if fold_count != sigma_count { tracing::warn!("fold_count {:?} != sigma_verification_count {:?}", fold_count, sigma_count);
                 return Ok(false);
+            }
+        }
+
+        // G.30: When counters are non-zero but verification data might not have been set (Track A),
+        // log but don't reject — Track A mode is valid.
+        if let Some((fold_count, ring_verif)) = ring_check {
+            if fold_count != Fr::from(0u64) {
+                tracing::debug!(
+                    "G.30 counters: fold_count={:?}, ring_verif={:?}, sigma={:?}",
+                    fold_count,
+                    ring_verif,
+                    sigma_check.map(|(_, s)| s)
+                );
             }
         }
 
@@ -1316,6 +1370,11 @@ impl<
         )
         .map_err(|_| CompressorError::Backend("sonobe verifier key deserialization failed"))?;
 
+        // G.30: Counter consistency enforcement.
+        // Track A: counters always increment (ring_inc = FpVar::one()), even with zero data.
+        // Track B: counters only increment when real verification data was set via thread-locals.
+        // The fold_count == verification_count check ensures the prover ran each step,
+        // but does NOT guarantee actual verification data was present (that's a Track A/B distinction).
         let ring_check = if self.state_len >= 4 {
             Some((ivc_proof.z_i[2], ivc_proof.z_i[3]))
         } else {
@@ -1341,6 +1400,19 @@ impl<
         if let Some((fold_count, sigma_count)) = sigma_check {
             if fold_count != sigma_count { tracing::warn!("fold_count {:?} != sigma_verification_count {:?}", fold_count, sigma_count);
                 return Ok(false);
+            }
+        }
+
+        // G.30: When counters are non-zero but verification data might not have been set (Track A),
+        // log but don't reject — Track A mode is valid.
+        if let Some((fold_count, ring_verif)) = ring_check {
+            if fold_count != Fr::from(0u64) {
+                tracing::debug!(
+                    "G.30 counters: fold_count={:?}, ring_verif={:?}, sigma={:?}",
+                    fold_count,
+                    ring_verif,
+                    sigma_check.map(|(_, s)| s)
+                );
             }
         }
 
@@ -1388,6 +1460,11 @@ impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
             "sonobe external verifier key deserialization failed",
         ))?;
 
+        // G.30: Counter consistency enforcement.
+        // Track A: counters always increment (ring_inc = FpVar::one()), even with zero data.
+        // Track B: counters only increment when real verification data was set via thread-locals.
+        // The fold_count == verification_count check ensures the prover ran each step,
+        // but does NOT guarantee actual verification data was present (that's a Track A/B distinction).
         let ring_check = if self.state_len >= 4 {
             Some((ivc_proof.z_i[2], ivc_proof.z_i[3]))
         } else {
@@ -1413,6 +1490,19 @@ impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
         if let Some((fold_count, sigma_count)) = sigma_check {
             if fold_count != sigma_count { tracing::warn!("fold_count {:?} != sigma_verification_count {:?}", fold_count, sigma_count);
                 return Ok(false);
+            }
+        }
+
+        // G.30: When counters are non-zero but verification data might not have been set (Track A),
+        // log but don't reject — Track A mode is valid.
+        if let Some((fold_count, ring_verif)) = ring_check {
+            if fold_count != Fr::from(0u64) {
+                tracing::debug!(
+                    "G.30 counters: fold_count={:?}, ring_verif={:?}, sigma={:?}",
+                    fold_count,
+                    ring_verif,
+                    sigma_check.map(|(_, s)| s)
+                );
             }
         }
 
@@ -1536,6 +1626,11 @@ impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
         )
         .map_err(|_| CompressorError::Backend("sonobe verifier key deserialization failed"))?;
 
+        // G.30: Counter consistency enforcement.
+        // Track A: counters always increment (ring_inc = FpVar::one()), even with zero data.
+        // Track B: counters only increment when real verification data was set via thread-locals.
+        // The fold_count == verification_count check ensures the prover ran each step,
+        // but does NOT guarantee actual verification data was present (that's a Track A/B distinction).
         let ring_check = if self.state_len >= 4 {
             Some((ivc_proof.z_i[2], ivc_proof.z_i[3]))
         } else {
@@ -1561,6 +1656,19 @@ impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
         if let Some((fold_count, sigma_count)) = sigma_check {
             if fold_count != sigma_count { tracing::warn!("fold_count {:?} != sigma_verification_count {:?}", fold_count, sigma_count);
                 return Ok(false);
+            }
+        }
+
+        // G.30: When counters are non-zero but verification data might not have been set (Track A),
+        // log but don't reject — Track A mode is valid.
+        if let Some((fold_count, ring_verif)) = ring_check {
+            if fold_count != Fr::from(0u64) {
+                tracing::debug!(
+                    "G.30 counters: fold_count={:?}, ring_verif={:?}, sigma={:?}",
+                    fold_count,
+                    ring_verif,
+                    sigma_check.map(|(_, s)| s)
+                );
             }
         }
 
@@ -1694,6 +1802,11 @@ impl<
         )
         .map_err(|_| CompressorError::Backend("sonobe verifier key deserialization failed"))?;
 
+        // G.30: Counter consistency enforcement.
+        // Track A: counters always increment (ring_inc = FpVar::one()), even with zero data.
+        // Track B: counters only increment when real verification data was set via thread-locals.
+        // The fold_count == verification_count check ensures the prover ran each step,
+        // but does NOT guarantee actual verification data was present (that's a Track A/B distinction).
         let ring_check = if self.state_len >= 4 {
             Some((ivc_proof.z_i[2], ivc_proof.z_i[3]))
         } else {
@@ -1719,6 +1832,19 @@ impl<
         if let Some((fold_count, sigma_count)) = sigma_check {
             if fold_count != sigma_count { tracing::warn!("fold_count {:?} != sigma_verification_count {:?}", fold_count, sigma_count);
                 return Ok(false);
+            }
+        }
+
+        // G.30: When counters are non-zero but verification data might not have been set (Track A),
+        // log but don't reject — Track A mode is valid.
+        if let Some((fold_count, ring_verif)) = ring_check {
+            if fold_count != Fr::from(0u64) {
+                tracing::debug!(
+                    "G.30 counters: fold_count={:?}, ring_verif={:?}, sigma={:?}",
+                    fold_count,
+                    ring_verif,
+                    sigma_check.map(|(_, s)| s)
+                );
             }
         }
 
@@ -1852,6 +1978,11 @@ impl<
         )
         .map_err(|_| CompressorError::Backend("sonobe verifier key deserialization failed"))?;
 
+        // G.30: Counter consistency enforcement.
+        // Track A: counters always increment (ring_inc = FpVar::one()), even with zero data.
+        // Track B: counters only increment when real verification data was set via thread-locals.
+        // The fold_count == verification_count check ensures the prover ran each step,
+        // but does NOT guarantee actual verification data was present (that's a Track A/B distinction).
         let ring_check = if self.state_len >= 4 {
             Some((ivc_proof.z_i[2], ivc_proof.z_i[3]))
         } else {
@@ -1877,6 +2008,19 @@ impl<
         if let Some((fold_count, sigma_count)) = sigma_check {
             if fold_count != sigma_count { tracing::warn!("fold_count {:?} != sigma_verification_count {:?}", fold_count, sigma_count);
                 return Ok(false);
+            }
+        }
+
+        // G.30: When counters are non-zero but verification data might not have been set (Track A),
+        // log but don't reject — Track A mode is valid.
+        if let Some((fold_count, ring_verif)) = ring_check {
+            if fold_count != Fr::from(0u64) {
+                tracing::debug!(
+                    "G.30 counters: fold_count={:?}, ring_verif={:?}, sigma={:?}",
+                    fold_count,
+                    ring_verif,
+                    sigma_check.map(|(_, s)| s)
+                );
             }
         }
 

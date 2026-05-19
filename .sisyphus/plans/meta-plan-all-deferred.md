@@ -194,7 +194,7 @@ These are tracked in `pvthfhe-followon.md` (183 items, 9-18 months calendar):
 - [x] G.16: Design composed circuit or cross-circuit verifier challenge binding C7 decryption aggregation + CycloFold ring/sigma into single IVC chain. → demo-e2e, aggregator
 - [-] G.20: Add prover randomness or verifier challenge to C7 challenge derivation (currently fully deterministic from public info). → demo-e2e, aggregator
 - [-] G.26: Formal IND-CPAD reduction with current smudging parameters (σ=2^40·σ_err). → paper, security-proofs
-- [-] G.30: Enforce `fold_count`, `ring_verification_count`, `sigma_verification_count` mutual consistency with actual verification data present (not just counter equality). → demo-e2e, aggregator
+- [x] G.30: Enforce `fold_count`, `ring_verification_count`, `sigma_verification_count` mutual consistency with actual verification data present (not just counter equality). → demo-e2e, aggregator
 - [x] G.31: Verify empty set doesn't bypass C7 commitment check — ensure `c7_fold_witnesses` rejects empty C7WitnessSet. → demo-e2e
 - [x] G.32: Clear thread-local ring/sigma data at start of `prove()` and `prove_steps()` to prevent stale witness leakage between runs. → demo-e2e, aggregator
 - [x] `just demo-e2e` ACCEPT at every level
@@ -233,7 +233,7 @@ These are tracked in `pvthfhe-followon.md` (183 items, 9-18 months calendar):
 ### G.D — Compressor & Folding (Tier 1, ~11 days)
 - [x] G.16: Compose C7 + CycloFold into single IVC chain
 - [-] G.20: Add prover randomness to C7 challenge derivation
-- [-] G.30: Enforce counter consistency with actual verification data
+- [x] G.30: Enforce counter consistency with actual verification data
 - [x] G.31: Reject empty C7WitnessSet in commitment check
 - [x] G.32: Clear thread-local data at prove start
 

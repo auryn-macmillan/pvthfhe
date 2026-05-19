@@ -31,10 +31,10 @@
 - [x] Pass `party_pk_i` through to `PipelineReport` as new field
 
 ### Task 4: Update Prover.toml generation
-- [ ] `build_c7_prover_toml` now accepts `party_public_keys: &[Fr]` and `share_signatures: &[(AffinePoint, Fr)]` (or serialized)
-- [ ] Write public keys as Prover.toml inputs
-- [ ] Write signatures as Prover.toml witness inputs (private)
-- [ ] Update all callers
+- [x] `build_c7_prover_toml` now accepts `party_public_keys: &[Fr]` and `share_signatures: &[(AffinePoint, Fr)]` (or serialized)
+- [x] Write public keys as Prover.toml inputs
+- [x] Write signatures as Prover.toml witness inputs (private)
+- [x] Update all callers
 
 ## Constraint Budget Preview (for Phase 2 — circuit)
 - Each Schnorr verify: 1 scalar mult (256 doubles + 256 adds) + 1 Poseidon hash (8K constraints) ~= 3K constraints

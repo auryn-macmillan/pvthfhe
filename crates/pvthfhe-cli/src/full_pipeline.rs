@@ -975,6 +975,9 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         &session_id,
         &decrypt_nizk_hash,
         session_nonce,
+        &party_signing_pks,
+        &share_sig_rs,
+        &share_sig_ss,
     );
     if let Err(e) = std::fs::write(circuits_dir.join("C7Prover.toml"), &prover_toml) {
         tracing::warn!("C7 Noir: failed to write C7Prover.toml: {e}");
@@ -1918,6 +1921,9 @@ pub fn build_c7_prover_toml(
     session_id: &str,
     decrypt_nizk_hash: &[u8; 32],
     session_nonce: Fr,  // G.4: Interfold E3 random seed
+    party_signing_pks: &[Fr],    // G.12: Per-party Schnorr signing public keys
+    share_sig_rs: &[Fr],          // G.12: Per-party Schnorr signature R-points
+    share_sig_ss: &[Fr],          // G.12: Per-party Schnorr signature s-values
 ) -> String {
     let n_participants = share_coeffs.len();
     let threshold = n_participants / 2;
@@ -2032,6 +2038,30 @@ pub fn build_c7_prover_toml(
             toml.push_str(&format!("\"0x{:064x}\"", 0u64));
         }
         toml.push_str("],\n");
+    }
+    toml.push_str("]\n");
+
+    // G.12: Schnorr signing public keys (public inputs to Noir circuit)
+    toml.push_str("party_signing_pks = [");
+    for (i, pk) in party_signing_pks.iter().enumerate() {
+        if i > 0 { toml.push_str(", "); }
+        toml.push_str(&format!("\"0x{}\"", field_hex_be(*pk)));
+    }
+    toml.push_str("]\n");
+
+    // G.12: Schnorr signature R-points (private witness inputs)
+    toml.push_str("share_sig_rs = [");
+    for (i, r) in share_sig_rs.iter().enumerate() {
+        if i > 0 { toml.push_str(", "); }
+        toml.push_str(&format!("\"0x{}\"", field_hex_be(*r)));
+    }
+    toml.push_str("]\n");
+
+    // G.12: Schnorr signature s-values (private witness inputs)
+    toml.push_str("share_sig_ss = [");
+    for (i, s) in share_sig_ss.iter().enumerate() {
+        if i > 0 { toml.push_str(", "); }
+        toml.push_str(&format!("\"0x{}\"", field_hex_be(*s)));
     }
     toml.push_str("]\n");
 
@@ -2187,6 +2217,9 @@ mod tests {
             "test-session",
             &[9u8; 32],
             session_nonce,
+            &[],
+            &[],
+            &[],
         );
 
         assert!(

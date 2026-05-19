@@ -36,10 +36,10 @@ aggregator_final receives: combined_share_hash + proof_hash
 - [x] Constraint count verification
 
 ### Task 7: Witness generation for folding
-- [ ] `witness.rs`: `ShareVerificationWitness` struct with pk, sig_r, sig_s, share coeffs
-- [ ] `ShareVerificationWitnessSet`: collection of per-party witnesses
-- [ ] Witness-to-ExternalInputs conversion
-- [ ] `verify_commitments` for witness integrity
+- [x] `witness.rs`: `ShareVerificationWitness` struct with pk, sig_r, sig_s, share coeffs
+- [x] `ShareVerificationWitnessSet`: collection of per-party witnesses
+- [x] Witness-to-ExternalInputs conversion
+- [x] `verify_commitments` for witness integrity
 
 ### Task 8: SonobeCompressor prove/verify integration
 - [ ] `mod.rs`: add `ShareVerificationStepCircuit` to `SonobeCompressor` generic impls

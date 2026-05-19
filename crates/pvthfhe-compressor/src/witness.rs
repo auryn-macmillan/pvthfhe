@@ -141,6 +141,10 @@ pub struct C7WitnessSet {
     pub participants: Vec<C7Witness>,
     /// Challenge point r used for polynomial evaluation.
     pub challenge_r: Fr,
+    /// G.20: Prover randomness to prevent precomputation attacks.
+    /// Included in native challenge derivation; in-circuit verification
+    /// awaits ExternalInputs enlargement (deferred to G.12).
+    pub prover_nonce: Fr,
 }
 
 impl C7WitnessSet {
@@ -155,6 +159,7 @@ impl C7WitnessSet {
     /// * `shares` - For each participant, a Vec of N=8192 share coefficients.
     /// * `lagrange_coeffs` - Lagrange coefficient λ_i for each participant.
     /// * `challenge_r` - Challenge point for polynomial evaluation.
+    /// * `prover_nonce` - G.20: Prover randomness in challenge derivation.
     ///
     /// # Panics
     /// Panics if `shares.len() != lagrange_coeffs.len()`.
@@ -162,6 +167,7 @@ impl C7WitnessSet {
         shares: &[Vec<Fr>],
         lagrange_coeffs: &[Fr],
         challenge_r: Fr,
+        prover_nonce: Fr,
     ) -> Self {
         assert_eq!(
             shares.len(),
@@ -186,6 +192,7 @@ impl C7WitnessSet {
         Self {
             participants,
             challenge_r,
+            prover_nonce,
         }
     }
 
@@ -217,6 +224,34 @@ impl C7WitnessSet {
     }
 }
 
+/// Witness data for one step of ShareVerificationStepCircuit.
+#[derive(Clone, Debug)]
+pub struct ShareVerificationWitness {
+    /// Share coefficient values.
+    pub coeffs: Vec<Fr>,
+    /// Signature R-point x-coordinate as Fr.
+    pub sig_r_x: Fr,
+    /// Signature scalar s.
+    pub sig_s: Fr,
+    /// Signing public key x-coordinate as Fr.
+    pub pk_x: Fr,
+}
+
+/// Collection of share verification witnesses for all participants.
+#[derive(Clone, Debug)]
+pub struct ShareVerificationWitnessSet {
+    pub witnesses: Vec<ShareVerificationWitness>,
+}
+
+impl ShareVerificationWitnessSet {
+    pub fn verify_commitments(&self) -> bool {
+        if self.witnesses.is_empty() {
+            return false;
+        }
+        self.witnesses.iter().all(|w| !w.coeffs.is_empty())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -231,7 +266,7 @@ mod tests {
 
     #[test]
     fn witness_set_empty_shares() {
-        let set = C7WitnessSet::new(&[], &[], Fr::from(42u64));
+        let set = C7WitnessSet::new(&[], &[], Fr::from(42u64), Fr::from(0u64));
         assert!(set.verify_commitments());
     }
 
@@ -242,6 +277,7 @@ mod tests {
             &[coeffs],
             &[Fr::from(1u64)],
             Fr::from(3u64),
+            Fr::from(7u64),
         );
         assert!(set.verify_commitments());
         assert!(set.verify_lagrange_sum());
@@ -254,6 +290,7 @@ mod tests {
             &[coeffs],
             &[Fr::from(1u64)],
             Fr::from(3u64),
+            Fr::from(7u64),
         );
         set.participants[0].coeff_commitment += Fr::from(1u64);
         assert!(!set.verify_commitments());

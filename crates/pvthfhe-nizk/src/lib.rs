@@ -20,6 +20,7 @@ pub mod bfv_sigma;
 pub mod fiat_shamir;
 pub mod hash_bridge;
 pub mod sigma;
+pub mod schnorr;
 
 use thiserror::Error;
 use zeroize::{Zeroize, ZeroizeOnDrop};

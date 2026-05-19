@@ -12,7 +12,7 @@ use poseidon;
 use protocol_constants;
 
 global N: u32 = 8;
-global MAX_PARTICIPANTS: u32 = 8;
+global MAX_PARTICIPANTS: u32 = 128;
 
 // -- Poseidon CRH helpers with domain-separation tags ----------------
 
@@ -107,12 +107,12 @@ fn main(
         }
     }
     // Hash the full array (zeros for unused slots are consistent)
-    let mut ps_hash_inputs = [0; 9];
+    let mut ps_hash_inputs = [0; MAX_PARTICIPANTS + 1];
     ps_hash_inputs[0] = protocol_constants::DOMAIN_VECTOR_MERKLE;
     for i in 0..MAX_PARTICIPANTS {
         ps_hash_inputs[i + 1] = committee_party_ids[i];
     }
-    let computed_participant_set_hash = poseidon::poseidon::bn254::hash_9(ps_hash_inputs);
+    let computed_participant_set_hash = poseidon::poseidon::bn254::sponge(ps_hash_inputs);
     assert(computed_participant_set_hash == participant_set_hash,
         "committee_party_ids must hash to participant_set_hash");
 
@@ -211,18 +211,21 @@ fn test_honest_lagrange_recombination() {
     d[2] = [1, 0, 0, 0, 0, 0, 0, 0];
 
     // Party IDs [1, 2, 3] -- Lagrange coeffs at x=0: [3, -3, 1]
-    let committee_party_ids = [1, 2, 3, 0, 0, 0, 0, 0];
+    let mut committee_party_ids = [0; MAX_PARTICIPANTS];
+    committee_party_ids[0] = 1;
+    committee_party_ids[1] = 2;
+    committee_party_ids[2] = 3;
 
     let ciphertext_hash = 42;
     let aggregate_pk_hash = 100;
     let decrypt_nizk_hash = 500;
     let dkg_root = 200;
-    let mut ps_hash_inputs = [0; 9];
+    let mut ps_hash_inputs = [0; MAX_PARTICIPANTS + 1];
     ps_hash_inputs[0] = protocol_constants::DOMAIN_VECTOR_MERKLE;
     for i in 0..MAX_PARTICIPANTS {
         ps_hash_inputs[i + 1] = committee_party_ids[i];
     }
-    let participant_set_hash = poseidon::poseidon::bn254::hash_9(ps_hash_inputs);
+    let participant_set_hash = poseidon::poseidon::bn254::sponge(ps_hash_inputs);
 
     let mut share_hashes = [0; MAX_PARTICIPANTS];
     for i in 0..MAX_PARTICIPANTS {
@@ -290,7 +293,10 @@ fn test_tamper_zero_party_id() {
     let mut d = make_zero_shares();
     d[0] = [1, 0, 0, 0, 0, 0, 0, 0];
 
-    let committee_party_ids = [0, 2, 3, 0, 0, 0, 0, 0];
+    let mut committee_party_ids = [0; MAX_PARTICIPANTS];
+    committee_party_ids[0] = 0;
+    committee_party_ids[1] = 2;
+    committee_party_ids[2] = 3;
 
     let ciphertext_hash = 42;
     let aggregate_pk_hash = 100;
@@ -332,18 +338,21 @@ fn test_tamper_duplicate_party_ids() {
     let mut d = make_zero_shares();
     d[0] = [1, 0, 0, 0, 0, 0, 0, 0];
 
-    let committee_party_ids = [1, 1, 3, 0, 0, 0, 0, 0];
+    let mut committee_party_ids = [0; MAX_PARTICIPANTS];
+    committee_party_ids[0] = 1;
+    committee_party_ids[1] = 1;
+    committee_party_ids[2] = 3;
 
     let ciphertext_hash = 42;
     let aggregate_pk_hash = 100;
     let decrypt_nizk_hash = 500;
     let dkg_root = 200;
-    let mut ps_hash_inputs = [0; 9];
+    let mut ps_hash_inputs = [0; MAX_PARTICIPANTS + 1];
     ps_hash_inputs[0] = protocol_constants::DOMAIN_VECTOR_MERKLE;
     for i in 0..MAX_PARTICIPANTS {
         ps_hash_inputs[i + 1] = committee_party_ids[i];
     }
-    let participant_set_hash = poseidon::poseidon::bn254::hash_9(ps_hash_inputs);
+    let participant_set_hash = poseidon::poseidon::bn254::sponge(ps_hash_inputs);
 
     let mut share_hashes = [0; MAX_PARTICIPANTS];
     for i in 0..MAX_PARTICIPANTS {
@@ -381,7 +390,10 @@ fn test_ciphertext_equals_plaintext_hash() {
     d[1] = [1, 0, 0, 0, 0, 0, 0, 0];
     d[2] = [1, 0, 0, 0, 0, 0, 0, 0];
 
-    let committee_party_ids = [1, 2, 3, 0, 0, 0, 0, 0];
+    let mut committee_party_ids = [0; MAX_PARTICIPANTS];
+    committee_party_ids[0] = 1;
+    committee_party_ids[1] = 2;
+    committee_party_ids[2] = 3;
 
     // Compute what plaintext would be to get its hash
     let expected_plaintext = [1, 0, 0, 0, 0, 0, 0, 0];
@@ -391,12 +403,12 @@ fn test_ciphertext_equals_plaintext_hash() {
     let aggregate_pk_hash = 100;
     let decrypt_nizk_hash = 500;
     let dkg_root = 200;
-    let mut ps_hash_inputs = [0; 9];
+    let mut ps_hash_inputs = [0; MAX_PARTICIPANTS + 1];
     ps_hash_inputs[0] = protocol_constants::DOMAIN_VECTOR_MERKLE;
     for i in 0..MAX_PARTICIPANTS {
         ps_hash_inputs[i + 1] = committee_party_ids[i];
     }
-    let participant_set_hash = poseidon::poseidon::bn254::hash_9(ps_hash_inputs);
+    let participant_set_hash = poseidon::poseidon::bn254::sponge(ps_hash_inputs);
 
     let mut share_hashes = [0; MAX_PARTICIPANTS];
     for i in 0..MAX_PARTICIPANTS {
@@ -432,7 +444,10 @@ fn test_tamper_wrong_threshold() {
     let mut d = make_zero_shares();
     d[0] = [1, 0, 0, 0, 0, 0, 0, 0];
 
-    let committee_party_ids = [1, 2, 3, 0, 0, 0, 0, 0];
+    let mut committee_party_ids = [0; MAX_PARTICIPANTS];
+    committee_party_ids[0] = 1;
+    committee_party_ids[1] = 2;
+    committee_party_ids[2] = 3;
 
     let ciphertext_hash = 42;
     let aggregate_pk_hash = 100;
@@ -474,7 +489,10 @@ fn test_tamper_epoch_zero() {
     let mut d = make_zero_shares();
     d[0] = [1, 0, 0, 0, 0, 0, 0, 0];
 
-    let committee_party_ids = [1, 2, 3, 0, 0, 0, 0, 0];
+    let mut committee_party_ids = [0; MAX_PARTICIPANTS];
+    committee_party_ids[0] = 1;
+    committee_party_ids[1] = 2;
+    committee_party_ids[2] = 3;
 
     let ciphertext_hash = 42;
     let aggregate_pk_hash = 100;

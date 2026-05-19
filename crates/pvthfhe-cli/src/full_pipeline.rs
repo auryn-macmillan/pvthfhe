@@ -55,6 +55,10 @@ use crate::{
 
 const DEMO_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 131072\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
 
+/// Matches Noir circuit's MAX_PARTICIPANTS constant at
+/// `circuits/aggregator_final/src/main.nr:15`.
+const NOIR_MAX_PARTICIPANTS: usize = 128;
+
 /// Pipeline track selector.
 ///
 /// Track A: Sonobe Nova hash-then-fold (current behavior, unchanged).
@@ -894,10 +898,10 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     // Derive challenge point r from share coefficient data (deterministic)
     let c7_r = derive_challenge_point_r(&share_coeffs);
 
-    // Noir prototype MAX_PARTICIPANTS=8: skip for n>8 (deferred to production Nova folding)
-    let c7_passed = if share_coeffs.len() > 8 {
+    // Skip Noir verification if n exceeds in-circuit MAX_PARTICIPANTS
+    let c7_passed = if share_coeffs.len() > NOIR_MAX_PARTICIPANTS {
         observer.phase_start("c7_noir_aggregator", None);
-        tracing::info!("C7 Noir: skipped (n={} > MAX_PARTICIPANTS=8, deferred to Nova folding)", share_coeffs.len());
+        tracing::info!("C7 Noir: skipped (n={} > MAX_PARTICIPANTS={}, deferred to Nova folding)", share_coeffs.len(), NOIR_MAX_PARTICIPANTS);
         observer.phase_end("c7_noir_aggregator", 0.0);
         true
     } else {
@@ -2110,17 +2114,15 @@ pub fn build_c7_prover_toml(
     // The circuit computes: vector_hash(committee_party_ids, DOMAIN_VECTOR_MERKLE)
     // DOMAIN_VECTOR_MERKLE = 1 (protocol_constants/src/lib.nr:11)
     let participant_set_hash = {
-        let mut inputs = Vec::with_capacity(9);
+        let mut inputs = Vec::with_capacity(NOIR_MAX_PARTICIPANTS + 1);
         inputs.push(Fr::from(1u64));
-        for &id in committee_party_ids.iter().take(8) {
+        for &id in committee_party_ids.iter().take(NOIR_MAX_PARTICIPANTS) {
             inputs.push(Fr::from(id as u64));
         }
-        while inputs.len() < 9 {
+        while inputs.len() < NOIR_MAX_PARTICIPANTS + 1 {
             inputs.push(Fr::from(0u64));
         }
-        let mut hasher = Poseidon::<Fr>::new_circom(9)
-            .expect("light_poseidon arity 9");
-        hasher.hash(&inputs).expect("light_poseidon hash")
+        poseidon_sponge_native_noir(&inputs)
     };
     let decrypt_nizk_hash_field = Fr::from_be_bytes_mod_order(decrypt_nizk_hash);
 
@@ -2186,13 +2188,13 @@ pub fn build_c7_prover_toml(
     toml.push_str(&format!("n_participants = \"{}\"\n", n_participants));
     toml.push_str(&format!("threshold = \"{}\"\n", threshold));
 
-    // Committee party IDs: exactly MAX_PARTICIPANTS=8, padded with zeros
+    // Committee party IDs: exactly MAX_PARTICIPANTS, padded with zeros
     toml.push_str("committee_party_ids = [");
-    for (i, &pid) in committee_party_ids.iter().take(8).enumerate() {
+    for (i, &pid) in committee_party_ids.iter().take(NOIR_MAX_PARTICIPANTS).enumerate() {
         if i > 0 { toml.push_str(", "); }
         toml.push_str(&format!("\"0x{:064x}\"", pid));
     }
-    for _i in committee_party_ids.len().min(8)..8usize {
+    for _i in committee_party_ids.len().min(NOIR_MAX_PARTICIPANTS)..NOIR_MAX_PARTICIPANTS {
         toml.push_str(&format!(", \"0x{:064x}\"", 0u64));
     }
     toml.push_str("]\n");
@@ -2214,7 +2216,7 @@ pub fn build_c7_prover_toml(
         toml.push_str("],\n");
     }
     // Zero-pad remaining slots up to MAX_PARTICIPANTS
-    for _i in active_count..8usize {
+    for _i in active_count..NOIR_MAX_PARTICIPANTS {
         toml.push_str("  [");
         for j in 0..8usize {
             if j > 0 { toml.push_str(", "); }

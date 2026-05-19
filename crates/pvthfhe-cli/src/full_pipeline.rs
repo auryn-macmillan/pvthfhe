@@ -38,7 +38,7 @@ use pvthfhe_compressor::sonobe::{
     };
 #[cfg(feature = "sonobe-compressor")]
 use pvthfhe_compressor::witness::{ShareVerificationWitness, ShareVerificationWitnessSet};
-use pvthfhe_pvss::nizk_share::compute_ciphertext_v;
+use pvthfhe_pvss::nizk_share::{compute_ciphertext_v, compute_share_commitment};
 use pvthfhe_nizk::schnorr;
 use pvthfhe_rng::OsRng;
 use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes, Secret};
@@ -141,6 +141,9 @@ pub struct PipelineReport {
     pub share_sig_ss: Vec<Fr>,
     /// G.12: Combined share hash from Nova-folded ShareVerificationStepCircuit.
     pub combined_share_hash: Fr,
+    /// Per-party secret key commitments (Ajtai D2 hash of sk_i).
+    /// Used to verify that NIZK proofs use the party's actual DKG secret key share.
+    pub sk_commitments: Vec<[u8; 32]>,
 }
 
 /// Observer hooks for pipeline narration and metrics.
@@ -221,6 +224,21 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
     let session_id = keygen_session_id(&transcript.round3_aggregate.aggregate_pk, cfg.t, cfg.seed);
 
+    // G.SHARE-PROVENANCE: compute per-party secret key commitments
+    let mut sk_commitments: Vec<[u8; 32]> = Vec::with_capacity(cfg.n);
+    for party_idx in 0..cfg.n {
+        let backend_party_id = u32::try_from(party_idx + 1).context("party_id conversion")?;
+        let sk_bytes = backend
+            .party_secret_key_bytes(backend_party_id)
+            .context("party_secret_key_bytes")?;
+        let sk_commit = compute_share_commitment(
+            session_id.as_bytes(),
+            party_idx,
+            &sk_bytes,
+        );
+        sk_commitments.push(sk_commit);
+    }
+
     #[cfg(feature = "pipeline-extra-checks")]
     {
         observer.phase_start("verify_recipient_dkg_aggregation", None);
@@ -247,6 +265,20 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     timings.phases.nizk_prove.total_ms = nizk_prove_per_instance_ms.iter().sum();
     timings.phases.nizk_prove.instances_run = nizk_prove_per_instance_ms.len();
     timings.phases.nizk_prove.per_instance_ms = nizk_prove_per_instance_ms;
+
+    // G.SHARE-PROVENANCE: verify NIZK pvss_commitment matches registered sk_commitment
+    for (_party_id, statement, _witness, _proof) in &nizk_outputs {
+        let party_index = statement.participant_id as usize;
+        if party_index > 0 && party_index <= sk_commitments.len() {
+            let registered = sk_commitments[party_index - 1];
+            if statement.pvss_commitment != registered {
+                anyhow::bail!(
+                    "share provenance check failed for party {party_index}: \
+                     pvss_commitment mismatch with registered sk_commitment"
+                );
+            }
+        }
+    }
 
     use rayon::prelude::*;
     let mut nizk_verify_total_ms = 0.0;
@@ -1176,6 +1208,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         share_sig_rys,
         share_sig_ss,
         combined_share_hash,
+        sk_commitments,
     })
 }
 

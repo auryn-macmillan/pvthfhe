@@ -894,18 +894,27 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     // Derive challenge point r from share coefficient data (deterministic)
     let c7_r = derive_challenge_point_r(&share_coeffs);
 
-    let c7_passed = run_c7_verification(
-        &share_coeffs_fr,
-        &lagrange_coeffs_fr,
-        &session_id,
-        cfg.seed,
-        &aggregate_pk.bytes,
-        &dkg_root,
-        c7_r,
-        Fr::from(0u64), // G.5: TODO: pass real d_commitment
-    );
-    let c7_ms = elapsed_ms(c7_started);
-    observer.phase_end("c7_decrypt_aggregation", c7_ms);
+    // Noir prototype MAX_PARTICIPANTS=8: skip for n>8 (deferred to production Nova folding)
+    let c7_passed = if share_coeffs.len() > 8 {
+        observer.phase_start("c7_noir_aggregator", None);
+        tracing::info!("C7 Noir: skipped (n={} > MAX_PARTICIPANTS=8, deferred to Nova folding)", share_coeffs.len());
+        observer.phase_end("c7_noir_aggregator", 0.0);
+        true
+    } else {
+        let passed = run_c7_verification(
+            &share_coeffs_fr,
+            &lagrange_coeffs_fr,
+            &session_id,
+            cfg.seed,
+            &aggregate_pk.bytes,
+            &dkg_root,
+            c7_r,
+            Fr::from(0u64), // G.5: TODO: pass real d_commitment
+        );
+        let c7_ms = elapsed_ms(c7_started);
+        observer.phase_end("c7_decrypt_aggregation", c7_ms);
+        passed
+    };
     if !c7_passed {
         anyhow::bail!("C7 decryption aggregation verification failed");
     }

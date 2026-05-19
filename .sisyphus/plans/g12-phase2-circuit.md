@@ -42,10 +42,10 @@ aggregator_final receives: combined_share_hash + proof_hash
 - [x] `verify_commitments` for witness integrity
 
 ### Task 8: SonobeCompressor prove/verify integration
-- [ ] `mod.rs`: add `ShareVerificationStepCircuit` to `SonobeCompressor` generic impls
-- [ ] `prove_steps` support for ShareVerification step arrays
-- [ ] `verify` path accepts compressed proof
-- [ ] Track compatibility: `prove_steps_share_verify` function
+- [x] `mod.rs`: add `ShareVerificationStepCircuit` to `SonobeCompressor` generic impls
+- [x] `prove_steps` support for ShareVerification step arrays
+- [x] `verify` path accepts compressed proof
+- [x] Track compatibility: `prove_steps_share_verify` function
 
 ### Task 9: Pipeline wiring (full_pipeline.rs)
 - [ ] After Schnorr signing (Phase 1.3), build `ShareVerificationWitnessSet`

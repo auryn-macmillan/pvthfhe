@@ -1581,6 +1581,39 @@ impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
         Ok(CompressedProof(proof_bytes))
     }
 
+    /// Prove share verification steps from a witness set.
+    ///
+    /// Converts witness data into `ExternalInputs4` entries and sets
+    /// per-step thread-local coefficient data before delegating to
+    /// [`Self::prove_steps`].
+    pub fn prove_steps_share_verify(
+        &self,
+        acc: &[u8],
+        witnesses: &crate::witness::ShareVerificationWitnessSet,
+    ) -> Result<CompressedProof, CompressorError> {
+        if !witnesses.verify_commitments() {
+            return Err(CompressorError::InvalidProof);
+        }
+
+        let steps: Vec<ExternalInputs4<Fr>> = witnesses
+            .witnesses
+            .iter()
+            .map(|w| ExternalInputs4(w.sig_r_x, w.sig_s, w.pk_x, Fr::from(1u64)))
+            .collect();
+
+        let coeffs_data: Vec<Vec<Fr>> = witnesses
+            .witnesses
+            .iter()
+            .map(|w| w.coeffs.clone())
+            .collect();
+        set_share_coeffs_data(coeffs_data);
+
+        let result = self.prove_steps(acc, &steps);
+
+        clear_share_coeffs_data();
+        result
+    }
+
     pub fn verify_steps(
         &self,
         vk: &VerifierKey,

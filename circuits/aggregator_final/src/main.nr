@@ -107,7 +107,12 @@ fn main(
         }
     }
     // Hash the full array (zeros for unused slots are consistent)
-    let computed_participant_set_hash = vector_hash(committee_party_ids, protocol_constants::DOMAIN_VECTOR_MERKLE);
+    let mut ps_hash_inputs = [0; 9];
+    ps_hash_inputs[0] = protocol_constants::DOMAIN_VECTOR_MERKLE;
+    for i in 0..MAX_PARTICIPANTS {
+        ps_hash_inputs[i + 1] = committee_party_ids[i];
+    }
+    let computed_participant_set_hash = poseidon::poseidon::bn254::hash_9(ps_hash_inputs);
     assert(computed_participant_set_hash == participant_set_hash,
         "committee_party_ids must hash to participant_set_hash");
 
@@ -224,7 +229,12 @@ fn test_honest_lagrange_recombination() {
     let aggregate_pk_hash = 100;
     let decrypt_nizk_hash = 500;
     let dkg_root = 200;
-    let participant_set_hash = vector_hash(committee_party_ids, protocol_constants::DOMAIN_VECTOR_MERKLE);
+    let mut ps_hash_inputs = [0; 9];
+    ps_hash_inputs[0] = protocol_constants::DOMAIN_VECTOR_MERKLE;
+    for i in 0..MAX_PARTICIPANTS {
+        ps_hash_inputs[i + 1] = committee_party_ids[i];
+    }
+    let participant_set_hash = poseidon::poseidon::bn254::hash_9(ps_hash_inputs);
 
     let mut share_hashes = [0; MAX_PARTICIPANTS];
     for i in 0..MAX_PARTICIPANTS {
@@ -356,7 +366,12 @@ fn test_tamper_duplicate_party_ids() {
     let aggregate_pk_hash = 100;
     let decrypt_nizk_hash = 500;
     let dkg_root = 200;
-    let participant_set_hash = vector_hash(committee_party_ids, protocol_constants::DOMAIN_VECTOR_MERKLE);
+    let mut ps_hash_inputs = [0; 9];
+    ps_hash_inputs[0] = protocol_constants::DOMAIN_VECTOR_MERKLE;
+    for i in 0..MAX_PARTICIPANTS {
+        ps_hash_inputs[i + 1] = committee_party_ids[i];
+    }
+    let participant_set_hash = poseidon::poseidon::bn254::hash_9(ps_hash_inputs);
 
     let mut share_hashes = [0; MAX_PARTICIPANTS];
     for i in 0..MAX_PARTICIPANTS {
@@ -412,7 +427,12 @@ fn test_ciphertext_equals_plaintext_hash() {
     let aggregate_pk_hash = 100;
     let decrypt_nizk_hash = 500;
     let dkg_root = 200;
-    let participant_set_hash = vector_hash(committee_party_ids, protocol_constants::DOMAIN_VECTOR_MERKLE);
+    let mut ps_hash_inputs = [0; 9];
+    ps_hash_inputs[0] = protocol_constants::DOMAIN_VECTOR_MERKLE;
+    for i in 0..MAX_PARTICIPANTS {
+        ps_hash_inputs[i + 1] = committee_party_ids[i];
+    }
+    let participant_set_hash = poseidon::poseidon::bn254::hash_9(ps_hash_inputs);
 
     let mut share_hashes = [0; MAX_PARTICIPANTS];
     for i in 0..MAX_PARTICIPANTS {
@@ -463,7 +483,12 @@ fn test_tamper_d_commitment_mismatch() {
     let aggregate_pk_hash = 100;
     let decrypt_nizk_hash = 500;
     let dkg_root = 200;
-    let participant_set_hash = vector_hash(committee_party_ids, protocol_constants::DOMAIN_VECTOR_MERKLE);
+    let mut ps_hash_inputs = [0; 9];
+    ps_hash_inputs[0] = protocol_constants::DOMAIN_VECTOR_MERKLE;
+    for i in 0..MAX_PARTICIPANTS {
+        ps_hash_inputs[i + 1] = committee_party_ids[i];
+    }
+    let participant_set_hash = poseidon::poseidon::bn254::hash_9(ps_hash_inputs);
 
     let mut share_hashes = [0; MAX_PARTICIPANTS];
     for i in 0..MAX_PARTICIPANTS {

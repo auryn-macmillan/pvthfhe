@@ -2101,12 +2101,17 @@ pub fn build_c7_prover_toml(
     // The circuit computes: vector_hash(committee_party_ids, DOMAIN_VECTOR_MERKLE)
     // DOMAIN_VECTOR_MERKLE = 1 (protocol_constants/src/lib.nr:11)
     let participant_set_hash = {
-        let mut inputs = Vec::with_capacity(committee_party_ids.len() + 1);
+        let mut inputs = Vec::with_capacity(9);
         inputs.push(Fr::from(1u64));
-        for &id in committee_party_ids {
+        for &id in committee_party_ids.iter().take(8) {
             inputs.push(Fr::from(id as u64));
         }
-        poseidon_sponge_native_noir(&inputs)
+        while inputs.len() < 9 {
+            inputs.push(Fr::from(0u64));
+        }
+        let mut hasher = Poseidon::<Fr>::new_circom(9)
+            .expect("light_poseidon arity 9");
+        hasher.hash(&inputs).expect("light_poseidon hash")
     };
     let decrypt_nizk_hash_field = Fr::from_be_bytes_mod_order(decrypt_nizk_hash);
 

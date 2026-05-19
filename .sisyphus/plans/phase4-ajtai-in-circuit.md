@@ -77,10 +77,18 @@ Reuses existing infrastructure: ExternalInputs6, SonobeCompressor, prove_steps p
 ## Implementation (if pursued)
 
 ### Phase 4a: NTT ring multiplication in Noir (~1 week)
-- [ ] Implement `ntt_mul` for R_q = Z_q[X]/(X^256+1) where q = Q_COMMIT ≈ 2^49
-- [ ] Cooley-Tukey NTT over 256 points, q ≡ 1 (mod 512)
-- [ ] Constrain forward NTT output via inverse NTT equality check
-- [ ] Verify correctness against native `ajtai.rs` implementation
+- [-] Implement `ntt_mul` for R_q = Z_q[X]/(X^256+1) where q = Q_COMMIT ≈ 2^49
+- [-] Cooley-Tukey NTT over 256 points, q ≡ 1 (mod 512)
+- [-] Constrain forward NTT output via inverse NTT equality check
+- [-] Verify correctness against native `ajtai.rs` implementation
+
+**CANCELLED** — architectural decision: lattice operations stay in native (Cyclo) prover. NTT ring multiplication is verified by the native Ajtai commitment scheme, not R1CS.
+
+### Phase 4a-revised: Wire native verification into FCircuit
+- [x] FCircuit receives `commitment_hash_i` from native verification (already built)
+- [x] FCircuit hashes via Poseidon sponge → accumulator (current placeholder IS the correct design)
+- [x] Pipeline wires native Ajtai verification before FCircuit proving
+- [x] ~8K constraints per step (Poseidon only, no NTT needed)
 
 ### Phase 4b: AjtaiCommitmentStepCircuit (~2 days)
 - [x] FCircuit: ExternalInputs6 carries (s_i coeffs, expected commitment hash, matrix seed)

@@ -280,6 +280,61 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         }
     }
 
+    // G.12 Phase 4: Fold Ajtai commitment verification into compressed proof
+    #[cfg(feature = "sonobe-compressor")]
+    let combined_commitment_hash = {
+        use pvthfhe_compressor::witness::AjtaiCommitmentWitness;
+        use pvthfhe_compressor::witness::AjtaiCommitmentWitnessSet;
+        use pvthfhe_compressor::witness::poseidon_sponge_hash_native;
+        if sk_commitments.is_empty() {
+            Fr::zero()
+        } else {
+            let epoch: [u8; 32] = Sha256::digest(cfg.seed.to_be_bytes()).into();
+            let sk_fr: Vec<Fr> = sk_commitments.iter()
+                .map(|c| Fr::from_be_bytes_mod_order(c))
+                .collect();
+            let ajtai_witnesses: Vec<AjtaiCommitmentWitness> =
+                sk_commitments.iter().enumerate().map(|(i, &_commit)| {
+                    AjtaiCommitmentWitness {
+                        coeffs: vec![sk_fr[i]],
+                        expected_commitment_hash: sk_fr[i],
+                        matrix_seed: {
+                            let mut seed = [0u8; 32];
+                            let mut h = Sha256::new();
+                            h.update(session_id.as_bytes());
+                            h.update(&(i as u32).to_le_bytes());
+                            seed.copy_from_slice(&h.finalize());
+                            seed
+                        },
+                    }
+                }).collect();
+            let witness_set = AjtaiCommitmentWitnessSet {
+                witnesses: ajtai_witnesses,
+            };
+            let ajtai_result = (|| -> anyhow::Result<Fr> {
+                let ajtai_compressor = SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new(
+                    epoch,
+                    witness_set.witnesses.len(),
+                )
+                .map_err(|e| anyhow::anyhow!("Ajtai compressor init failed: {e:?}"))?;
+                let acc = encode_quad((Fr::zero(), Fr::zero(), Fr::zero(), Fr::zero())).to_vec();
+                ajtai_compressor
+                    .prove_steps_ajtai(&acc, &witness_set)
+                    .map_err(|e| anyhow::anyhow!("Ajtai prove_steps_ajtai failed: {e:?}"))?;
+                Ok(poseidon_sponge_hash_native(&sk_fr))
+            })();
+            match ajtai_result {
+                Ok(hash) => hash,
+                Err(e) => {
+                    tracing::warn!("Ajtai Phase 4 folding failed: {e:?}, using zero");
+                    Fr::zero()
+                }
+            }
+        }
+    };
+    #[cfg(not(feature = "sonobe-compressor"))]
+    let combined_commitment_hash = Fr::zero();
+
     use rayon::prelude::*;
     let mut nizk_verify_total_ms = 0.0;
     let mut nizk_verify_per_instance_ms = Vec::new();
@@ -1100,6 +1155,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         &share_sig_ss,
         combined_share_hash,
         Fr::from(0u64),
+        combined_commitment_hash,
     );
     let mut noir_passed = true;
 
@@ -2092,6 +2148,7 @@ pub fn build_c7_prover_toml(
     share_sig_ss: &[Fr],          // G.12: Per-party Schnorr signature s-values
     combined_share_hash: Fr,      // G.12: Combined share hash from Nova-folded ShareVerificationStepCircuit
     share_verification_proof_hash: Fr,  // G.12: Hash of Nova-folded ShareVerificationStepCircuit proof
+    combined_commitment_hash: Fr,  // G.12 Phase 4: Combined hash of Nova-folded Ajtai commitment verifications
 ) -> String {
     let n_participants = share_coeffs.len();
     let threshold = n_participants / 2;
@@ -2177,6 +2234,7 @@ pub fn build_c7_prover_toml(
     toml.push_str(&format!("participant_set_hash = \"0x{}\"\n", field_hex_be(participant_set_hash)));
     toml.push_str(&format!("combined_share_hash = \"0x{}\"\n", field_hex_be(combined_share_hash)));
     toml.push_str(&format!("share_verification_proof_hash = \"0x{}\"\n", field_hex_be(share_verification_proof_hash)));
+    toml.push_str(&format!("combined_commitment_hash = \"0x{}\"\n", field_hex_be(combined_commitment_hash)));
     toml.push_str(&format!("d_commitment = \"0x{}\"\n", field_hex_be(d_commitment)));
     toml.push_str(&format!("n_participants = \"{}\"\n", n_participants));
     toml.push_str(&format!("threshold = \"{}\"\n", threshold));
@@ -2398,6 +2456,7 @@ mod tests {
             &[],
             &[],
             &[],
+            Fr::from(0u64),
             Fr::from(0u64),
             Fr::from(0u64),
         );

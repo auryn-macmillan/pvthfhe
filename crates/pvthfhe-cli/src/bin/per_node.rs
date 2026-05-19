@@ -186,6 +186,7 @@ fn main() -> anyhow::Result<()> {
         let ta = Instant::now();
         let epoch_hash: [u8; 32] = Sha256::digest(args.seed.to_be_bytes()).into();
         let _ajtai_commitment = compute_ajtai_matrix_commitment(&sk_bytes, &epoch_hash)?;
+        tracing::debug!("Ajtai commitment: {:?}", hex::encode(&_ajtai_commitment[..8]));
         elapsed_ms(ta)
     } else {
         0.0

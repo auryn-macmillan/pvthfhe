@@ -11,6 +11,7 @@ pub mod poseidon_gadget;
 pub use poseidon_gadget::PoseidonSpongeVar;
 pub mod ring_element_var;
 pub mod ring_verifier;
+pub mod share_verification_circuit;
 pub use c7_circuit::{
     c7_fold_witnesses, clear_c7_step_data, set_c7_step_data, C7DecryptAggregationCircuit,
 };
@@ -24,6 +25,7 @@ pub use latticefold_adapter::*;
 pub use latticefold_circuit_family::LatticeFoldTreeCircuitFamily;
 pub use poseidon_gadget::hash8_native;
 pub use ring_verifier::RingVerifierCircuit;
+pub use share_verification_circuit::{clear_share_coeffs_data,set_share_coeffs_data,ShareVerificationStepCircuit};
 
 use std::fmt::Debug;
 use std::fs;

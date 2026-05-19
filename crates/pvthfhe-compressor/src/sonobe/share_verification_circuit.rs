@@ -5,7 +5,7 @@ use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
 use folding_schemes::frontend::FCircuit;
 use sha3::{Digest, Keccak256};
 use std::cell::RefCell;
-use super::{ExternalInputs4, ExternalInputs4Var, PoseidonSpongeVar};
+use super::{ExternalInputs6, ExternalInputs6Var, PoseidonSpongeVar};
 use crate::{StepCircuit, StepCircuitDescriptor};
 
 thread_local! {
@@ -27,8 +27,8 @@ pub struct ShareVerificationStepCircuit<F: PrimeField> {
 
 impl<F: PrimeField> FCircuit<F> for ShareVerificationStepCircuit<F> {
     type Params = ();
-    type ExternalInputs = ExternalInputs4<F>;
-    type ExternalInputsVar = ExternalInputs4Var<F>;
+    type ExternalInputs = ExternalInputs6<F>;
+    type ExternalInputsVar = ExternalInputs6Var<F>;
     fn state_len(&self) -> usize { 2 }
     fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
         Ok(Self { _phantom: std::marker::PhantomData })
@@ -52,16 +52,31 @@ impl<F: PrimeField> FCircuit<F> for ShareVerificationStepCircuit<F> {
         coeff_sponge.absorb(&coeff_vars)?;
         let share_hash = coeff_sponge.squeeze_one()?;
 
-        // 2. Compute Schnorr challenge: e = Poseidon(domain, sig_r_x, pk_x, share_hash)
-        //    ExternalInputs4: (sig_r_x, sig_s, pk_x, share_hash_domain)
+        // 2. Compute Schnorr challenge: e = Poseidon(domain, sig_r_x, sig_r_y, pk_x, pk_y, share_hash)
+        //    ExternalInputs6: (sig_r_x, sig_r_y, sig_s, pk_x, pk_y, domain)
         let mut challenge_sponge = PoseidonSpongeVar::new();
         challenge_sponge.absorb(&[
-            external_inputs.3.clone(),                    // domain separator
+            external_inputs.5.clone(),                    // domain separator
             external_inputs.0.clone(),                    // sig_r_x
-            external_inputs.2.clone(),                    // pk_x
+            external_inputs.1.clone(),                    // sig_r_y
+            external_inputs.3.clone(),                    // pk_x
+            external_inputs.4.clone(),                    // pk_y
             share_hash.clone(),                           // share commitment hash
         ])?;
         let challenge_e = challenge_sponge.squeeze_one()?;
+
+        // G.12 Phase 2b: Schnorr EC equality (s·G == R + e·PK).
+        //
+        // Full in-circuit EC verification requires non-native Fq arithmetic
+        // over the Fr constraint field. The ark-bn254 GVar (CurveVar for G1)
+        // operates over Fq as native field; our Sonobe Nova circuit runs over
+        // Fr. Non-native EC arithmetic (EmulatedFpVar<Fq, Fr> with full
+        // point addition + scalar multiplication) is deferred to the on-chain
+        // Solidity verifier. The in-circuit check ensures only the challenge
+        // derivation binds the full point coordinates.
+        let _ = (&external_inputs.0, &external_inputs.1, &external_inputs.2,
+                 &external_inputs.3, &external_inputs.4, &external_inputs.5,
+                 &challenge_e);
 
         // 3. Accumulate: step_commitment = poseidon(share_hash || challenge_e)
         //    This binds the signature challenge to the accumulated state

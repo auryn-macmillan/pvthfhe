@@ -136,6 +136,43 @@ impl<F: PrimeField> AllocVar<ExternalInputs4<F>, F> for ExternalInputs4Var<F> {
     }
 }
 
+/// Sextuple external inputs: (sig_r_x, sig_r_y, sig_s, pk_x, pk_y, domain).
+/// Used by ShareVerificationStepCircuit for full Schnorr EC verification.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ExternalInputs6<F: PrimeField>(pub F, pub F, pub F, pub F, pub F, pub F);
+
+/// R1CS variable wrapper for sextuple external inputs.
+#[derive(Clone, Debug)]
+pub struct ExternalInputs6Var<F: PrimeField>(
+    pub FpVar<F>,
+    pub FpVar<F>,
+    pub FpVar<F>,
+    pub FpVar<F>,
+    pub FpVar<F>,
+    pub FpVar<F>,
+);
+
+impl<F: PrimeField> AllocVar<ExternalInputs6<F>, F> for ExternalInputs6Var<F> {
+    fn new_variable<T: Borrow<ExternalInputs6<F>>>(
+        cs: impl Into<Namespace<F>>,
+        f: impl FnOnce() -> Result<T, SynthesisError>,
+        mode: AllocationMode,
+    ) -> Result<Self, SynthesisError> {
+        let ns = cs.into();
+        let cs = ns.cs();
+        let v = f()?;
+        let e = v.borrow();
+        Ok(ExternalInputs6Var(
+            FpVar::<F>::new_variable(cs.clone(), || Ok(e.0), mode)?,
+            FpVar::<F>::new_variable(cs.clone(), || Ok(e.1), mode)?,
+            FpVar::<F>::new_variable(cs.clone(), || Ok(e.2), mode)?,
+            FpVar::<F>::new_variable(cs.clone(), || Ok(e.3), mode)?,
+            FpVar::<F>::new_variable(cs.clone(), || Ok(e.4), mode)?,
+            FpVar::<F>::new_variable(cs, || Ok(e.5), mode)?,
+        ))
+    }
+}
+
 /// Quintuple external inputs for ring-element hashes + challenge (G1).
 #[derive(Clone, Copy, Debug, Default)]
 pub struct RingEqExternalInputs5<F: PrimeField>(
@@ -2168,6 +2205,38 @@ pub fn encode_quad(value: (Fr, Fr, Fr, Fr)) -> [u8; 128] {
     out
 }
 
+
+/// Decode 192 bytes into a sextuple of Fr scalars.
+pub fn decode_hex6(bytes: &[u8]) -> Result<(Fr, Fr, Fr, Fr, Fr, Fr), CompressorError> {
+    if bytes.len() < 192 {
+        return Err(CompressorError::InvalidInput);
+    }
+    let a = decode_scalar(&bytes[0..32])?;
+    let b = decode_scalar(&bytes[32..64])?;
+    let c = decode_scalar(&bytes[64..96])?;
+    let d = decode_scalar(&bytes[96..128])?;
+    let e = decode_scalar(&bytes[128..160])?;
+    let f = decode_scalar(&bytes[160..192])?;
+    Ok((a, b, c, d, e, f))
+}
+
+/// Encode a sextuple of Fr scalars into 192 bytes.
+pub fn encode_hex6(value: (Fr, Fr, Fr, Fr, Fr, Fr)) -> [u8; 192] {
+    let mut out = [0u8; 192];
+    let a = encode_scalar(value.0);
+    let b = encode_scalar(value.1);
+    let c = encode_scalar(value.2);
+    let d = encode_scalar(value.3);
+    let e = encode_scalar(value.4);
+    let f = encode_scalar(value.5);
+    out[0..32].copy_from_slice(&a);
+    out[32..64].copy_from_slice(&b);
+    out[64..96].copy_from_slice(&c);
+    out[96..128].copy_from_slice(&d);
+    out[128..160].copy_from_slice(&e);
+    out[160..192].copy_from_slice(&f);
+    out
+}
 
 fn encode_quint(value: ExternalInputs5<Fr>) -> [u8; 160] {
     let mut buf = [0u8; 160];

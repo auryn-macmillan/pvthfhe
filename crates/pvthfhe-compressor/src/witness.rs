@@ -231,10 +231,14 @@ pub struct ShareVerificationWitness {
     pub coeffs: Vec<Fr>,
     /// Signature R-point x-coordinate as Fr.
     pub sig_r_x: Fr,
+    /// Signature R-point y-coordinate as Fr.
+    pub sig_r_y: Fr,
     /// Signature scalar s.
     pub sig_s: Fr,
     /// Signing public key x-coordinate as Fr.
     pub pk_x: Fr,
+    /// Signing public key y-coordinate as Fr.
+    pub pk_y: Fr,
 }
 
 /// Collection of share verification witnesses for all participants.

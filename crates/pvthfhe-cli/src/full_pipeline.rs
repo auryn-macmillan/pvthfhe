@@ -127,8 +127,12 @@ pub struct PipelineReport {
     pub d_commitment_verified: Option<bool>,
     /// G.12: Per-party Schnorr signing public keys (G1Affine x-coordinate as Fr).
     pub party_signing_pks: Vec<Fr>,
+    /// G.12: Per-party Schnorr signing public keys (G1Affine y-coordinate as Fr).
+    pub party_signing_pkys: Vec<Fr>,
     /// G.12: Per-party Schnorr signature R-points (G1Affine x-coordinate as Fr).
     pub share_sig_rs: Vec<Fr>,
+    /// G.12: Per-party Schnorr signature R-points (G1Affine y-coordinate as Fr).
+    pub share_sig_rys: Vec<Fr>,
     /// G.12: Per-party Schnorr signature s-values.
     pub share_sig_ss: Vec<Fr>,
     /// G.12: Combined share hash from Nova-folded ShareVerificationStepCircuit.
@@ -826,7 +830,9 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     // stored in PipelineReport for downstream Noir circuit verification.
     let mut rng = rand::thread_rng();
     let mut party_signing_pks: Vec<Fr> = Vec::with_capacity(share_coeffs.len());
+    let mut party_signing_pkys: Vec<Fr> = Vec::with_capacity(share_coeffs.len());
     let mut share_sig_rs: Vec<Fr> = Vec::with_capacity(share_coeffs.len());
+    let mut share_sig_rys: Vec<Fr> = Vec::with_capacity(share_coeffs.len());
     let mut share_sig_ss: Vec<Fr> = Vec::with_capacity(share_coeffs.len());
     for coeffs in &share_coeffs {
         let (sk, pk) = schnorr::generate_signing_keypair(&mut rng);
@@ -839,14 +845,20 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         let share_hash_bytes = sha256_bytes(&coeff_bytes);
         let share_hash = Fr::from_le_bytes_mod_order(&share_hash_bytes);
         let (sig_r, sig_s) = schnorr::schnorr_sign(sk, share_hash, &mut rng);
-        // Serialize pk as x-coordinate Fr (compatible with Noir in-circuit verification)
+        // Serialize pk as Fr coordinates (compatible with Noir in-circuit verification)
         let pk_fr =
             Fr::from_le_bytes_mod_order(&pk.x().unwrap().into_bigint().to_bytes_le());
+        let pk_y_fr =
+            Fr::from_le_bytes_mod_order(&pk.y().unwrap().into_bigint().to_bytes_le());
         party_signing_pks.push(pk_fr);
-        // Serialize sig_r as x-coordinate Fr
+        party_signing_pkys.push(pk_y_fr);
+        // Serialize sig_r as Fr coordinates
         let sig_r_fr =
             Fr::from_le_bytes_mod_order(&sig_r.x().unwrap().into_bigint().to_bytes_le());
+        let sig_r_y_fr =
+            Fr::from_le_bytes_mod_order(&sig_r.y().unwrap().into_bigint().to_bytes_le());
         share_sig_rs.push(sig_r_fr);
+        share_sig_rys.push(sig_r_y_fr);
         share_sig_ss.push(sig_s);
     }
 
@@ -861,8 +873,10 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             sv_witnesses.push(ShareVerificationWitness {
                 coeffs: coeffs_fr,
                 sig_r_x: share_sig_rs[i],
+                sig_r_y: share_sig_rys[i],
                 sig_s: share_sig_ss[i],
                 pk_x: party_signing_pks[i],
+                pk_y: party_signing_pkys[i],
             });
         }
         ShareVerificationWitnessSet {
@@ -1141,7 +1155,9 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         session_nonce,
         d_commitment_verified,
         party_signing_pks,
+        party_signing_pkys,
         share_sig_rs,
+        share_sig_rys,
         share_sig_ss,
         combined_share_hash,
     })

@@ -1803,48 +1803,8 @@ fn run_c7_verification(
     // G4: Compute dkg_root_hash for C7 external input binding
     let dkg_root_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(dkg_root_bytes));
 
-    // ── MicroNova tree folding (default, O(log t) steps) ──
-    // Falls back to flat sequential folding if tree build fails.
-    {
-        use pvthfhe_compressor::micronova::tree::CompressionTree;
-
-        // Build leaf hashes from share evaluations + Lagrange coefficients.
-        let mut leaf_hashes: Vec<[u8; 32]> = Vec::new();
-        for (&sev, &lc) in share_evals.iter().zip(lagrange_coeffs.iter()) {
-            let mut hasher = Sha256::new();
-            hasher.update(&sev.into_bigint().to_bytes_le());
-            hasher.update(&lc.into_bigint().to_bytes_le());
-            hasher.update(&agg_pk_hash.into_bigint().to_bytes_le());
-            leaf_hashes.push(hasher.finalize().into());
-        }
-
-        // Pad leaf count to next power of two (CompressionTree requires power-of-2).
-        let padded_len = leaf_hashes.len().next_power_of_two();
-        while leaf_hashes.len() < padded_len {
-            leaf_hashes.push([0u8; 32]);
-        }
-
-        match CompressionTree::build(&leaf_hashes) {
-            Ok(tree) => {
-                tracing::info!("C7 tree: depth={}", tree.depth);
-
-                // G3 M1: Verify Lagrange sum = 1 and log accumulator.
-                // Full plaintext binding (Schwartz-Zippel) deferred — see fn doc.
-                if !verify_c7_plaintext_binding(z0_expected, z1_expected) {
-                    tracing::warn!(
-                        "C7: G3 native check failed for Micronova tree path"
-                    );
-                    return false;
-                }
-                return true;
-            }
-            Err(e) => {
-                tracing::warn!("C7 tree: build failed: {e:?}, falling back to flat path");
-            }
-        }
-    }
-
-    // Fallback: Nova IVC flat sequential folding (if tree build fails)
+    // ── Nova IVC flat sequential folding (primary C7 verification) ──
+    // Tree folding deferred until real LatticeFoldTreeCircuitFamily constraints exist (G.18).
     let epoch = Sha256::digest(
         [session_id.as_bytes(), &seed.to_be_bytes()].concat()
     ).into();

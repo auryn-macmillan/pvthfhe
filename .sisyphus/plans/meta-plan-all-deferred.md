@@ -181,9 +181,9 @@ These are tracked in `pvthfhe-followon.md` (183 items, 9-18 months calendar):
 - [x] G.3: Add end-to-end d_commitment verification in `run_full_pipeline()` — post-pipeline assertion in PipelineReport comparing computed d_commitment to Noir-verified value. → demo-e2e
 - [x] G.4: Fix d_commitment circular binding — verifier must supply d_commitment or bind to independently verifiable data (e.g., decrypt_share proofs commit to individual d_i hashes). → demo-e2e, aggregator
 - [x] G.5: Absorb d_commitment into all Fiat-Shamir challenge derivations (NIZK sigma protocol + C7 circuit). → demo-e2e
-- [-] G.6: Constrain `participant_shares` witness in Noir `aggregator_final` circuit — verify each share against individual decrypt_share proofs or require verifier-published combined_share_hash. → demo-e2e, aggregator
-- [-] G.7: Bind `committee_party_ids` to `participant_set_hash` in Noir circuit: `vector_hash(committee_party_ids[0..n], DOMAIN) == participant_set_hash`. → demo-e2e, aggregator
-- [-] G.8: Enforce `threshold` in Noir interpolation — exactly t shares used, or n-t shares are zero. → demo-e2e, aggregator
+- [x] G.6: Constrain `participant_shares` witness in Noir `aggregator_final` circuit — verify each share against individual decrypt_share proofs or require verifier-published combined_share_hash. → demo-e2e, aggregator
+- [x] G.7: Bind `committee_party_ids` to `participant_set_hash` in Noir circuit: `vector_hash(committee_party_ids[0..n], DOMAIN) == participant_set_hash`. → demo-e2e, aggregator
+- [x] G.8: Enforce `threshold` in Noir interpolation — exactly t shares used, or n-t shares are zero. → demo-e2e, aggregator
 - [x] G.9: Delete `circuits/share_wf/src/main.nr` from disk (already removed from workspace). If circuit needed, add `pk_hash` constraint. → demo-e2e
 - [x] G.10: Add `assert(party_id != 0)` in Noir `decrypt_share` circuit. → demo-e2e, per-node
 - [x] G.11: Add duplicate `party_id` check in `FhersBackend::aggregate_decrypt` (matching mock backend). → demo-e2e, per-node, aggregator
@@ -217,9 +217,9 @@ These are tracked in `pvthfhe-followon.md` (183 items, 9-18 months calendar):
 - [x] G.5: Absorb d_commitment into Fiat-Shamir challenges
 
 ### G.B — Noir Circuit Soundness (Tier 0-1, ~4.5 days)
-- [-] G.6: Constrain participant_shares witness in Noir circuit
-- [-] G.7: Bind committee_party_ids to participant_set_hash
-- [-] G.8: Enforce threshold in interpolation
+- [x] G.6: Constrain participant_shares witness in Noir circuit
+- [x] G.7: Bind committee_party_ids to participant_set_hash
+- [x] G.8: Enforce threshold in interpolation
 - [x] G.9: Delete share_wf file or add pk_hash constraint
 - [x] G.10: Add party_id != 0 check in decrypt_share
 

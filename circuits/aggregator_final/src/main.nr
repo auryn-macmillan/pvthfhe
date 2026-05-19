@@ -99,6 +99,18 @@ fn main(
         }
     }
 
+    // G.7: Bind committee_party_ids to participant_set_hash
+    // Ensure unused committee_party_ids slots are zero
+    for i in 0..MAX_PARTICIPANTS {
+        if (i as u32) >= n {
+            assert(committee_party_ids[i] == 0, "unused party_id must be zero");
+        }
+    }
+    // Hash the full array (zeros for unused slots are consistent)
+    let computed_participant_set_hash = vector_hash(committee_party_ids, protocol_constants::DOMAIN_VECTOR_MERKLE);
+    assert(computed_participant_set_hash == participant_set_hash,
+        "committee_party_ids must hash to participant_set_hash");
+
     // --- Compute Lagrange coefficients from committee party IDs ---
     let mut lagrange_coeffs = [0; MAX_PARTICIPANTS];
     for i in 0..MAX_PARTICIPANTS {
@@ -133,6 +145,23 @@ fn main(
     assert(share_verification_proof_hash != 0);
     // G.6: ensure the circuit-computed hash matches the folded hash
     assert(computed_combined_share_hash == combined_share_hash);
+
+    // G.8: Enforce exactly threshold+1 non-zero shares
+    let mut share_non_zero_count = 0;
+    for i in 0..MAX_PARTICIPANTS {
+        if (i as u32) < n {
+            if participant_shares[i][0] != 0 {
+                share_non_zero_count = share_non_zero_count + 1;
+            } else {
+                // All elements must be zero if first element is zero
+                for j in 1..N {
+                    assert(participant_shares[i][j] == 0, "zero-first share must be all zeros");
+                }
+            }
+        }
+    }
+    assert(share_non_zero_count == threshold + 1,
+        "exactly threshold+1 shares must be non-zero");
 
     // --- Reconstruct plaintext from shares via Lagrange interpolation ---
     let mut computed_plaintext = [0; N];
@@ -185,7 +214,8 @@ fn test_honest_lagrange_recombination() {
 
     let mut d = make_zero_shares();
     d[0] = [1, 0, 0, 0, 0, 0, 0, 0];
-    // d[1] and d[2] are all-zero vectors (simplified test data)
+    d[1] = [1, 0, 0, 0, 0, 0, 0, 0];
+    d[2] = [1, 0, 0, 0, 0, 0, 0, 0];
 
     // Party IDs [1, 2, 3] -- Lagrange coeffs at x=0: [3, -3, 1]
     let committee_party_ids = [1, 2, 3, 0, 0, 0, 0, 0];
@@ -194,7 +224,7 @@ fn test_honest_lagrange_recombination() {
     let aggregate_pk_hash = 100;
     let decrypt_nizk_hash = 500;
     let dkg_root = 200;
-    let participant_set_hash = 300;
+    let participant_set_hash = vector_hash(committee_party_ids, protocol_constants::DOMAIN_VECTOR_MERKLE);
 
     let mut share_hashes = [0; MAX_PARTICIPANTS];
     for i in 0..MAX_PARTICIPANTS {
@@ -227,9 +257,9 @@ fn test_honest_lagrange_recombination() {
         d,
     );
 
-    // Verify plaintext = [3, 0, 0, 0, 0, 0, 0, 0]
-    // (shares: d0=[1,0,...], d1=[0,...], d2=[0,...]; lambda=[3,-3,1])
-    assert(plaintext[0] == 3);
+    // Verify plaintext = [1, 0, 0, 0, 0, 0, 0, 0]
+    // (shares: d0=[1,0,...], d1=[1,0,...], d2=[1,0,...]; lambda=[3,-3,1])
+    assert(plaintext[0] == 1);
     assert(plaintext[1] == 0);
     assert(plaintext[2] == 0);
     assert(plaintext[3] == 0);
@@ -326,7 +356,7 @@ fn test_tamper_duplicate_party_ids() {
     let aggregate_pk_hash = 100;
     let decrypt_nizk_hash = 500;
     let dkg_root = 200;
-    let participant_set_hash = 300;
+    let participant_set_hash = vector_hash(committee_party_ids, protocol_constants::DOMAIN_VECTOR_MERKLE);
 
     let mut share_hashes = [0; MAX_PARTICIPANTS];
     for i in 0..MAX_PARTICIPANTS {
@@ -369,18 +399,20 @@ fn test_ciphertext_equals_plaintext_hash() {
 
     let mut d = make_zero_shares();
     d[0] = [1, 0, 0, 0, 0, 0, 0, 0];
+    d[1] = [1, 0, 0, 0, 0, 0, 0, 0];
+    d[2] = [1, 0, 0, 0, 0, 0, 0, 0];
 
     let committee_party_ids = [1, 2, 3, 0, 0, 0, 0, 0];
 
     // Compute what plaintext would be to get its hash
-    let expected_plaintext = [3, 0, 0, 0, 0, 0, 0, 0];
+    let expected_plaintext = [1, 0, 0, 0, 0, 0, 0, 0];
     let plaintext_hash = vector_hash(expected_plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
     let ciphertext_hash = plaintext_hash;  // Should fail: ciphertext == plaintext hash
 
     let aggregate_pk_hash = 100;
     let decrypt_nizk_hash = 500;
     let dkg_root = 200;
-    let participant_set_hash = 300;
+    let participant_set_hash = vector_hash(committee_party_ids, protocol_constants::DOMAIN_VECTOR_MERKLE);
 
     let mut share_hashes = [0; MAX_PARTICIPANTS];
     for i in 0..MAX_PARTICIPANTS {
@@ -422,6 +454,8 @@ fn test_tamper_d_commitment_mismatch() {
 
     let mut d = make_zero_shares();
     d[0] = [1, 0, 0, 0, 0, 0, 0, 0];
+    d[1] = [1, 0, 0, 0, 0, 0, 0, 0];
+    d[2] = [1, 0, 0, 0, 0, 0, 0, 0];
 
     let committee_party_ids = [1, 2, 3, 0, 0, 0, 0, 0];
 
@@ -429,7 +463,7 @@ fn test_tamper_d_commitment_mismatch() {
     let aggregate_pk_hash = 100;
     let decrypt_nizk_hash = 500;
     let dkg_root = 200;
-    let participant_set_hash = 300;
+    let participant_set_hash = vector_hash(committee_party_ids, protocol_constants::DOMAIN_VECTOR_MERKLE);
 
     let mut share_hashes = [0; MAX_PARTICIPANTS];
     for i in 0..MAX_PARTICIPANTS {

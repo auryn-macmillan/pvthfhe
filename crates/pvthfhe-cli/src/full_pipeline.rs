@@ -1919,7 +1919,13 @@ fn run_c7_verification(
         .map(|((&sev, &lc), &commitment)| ExternalInputs5(sev, lc, commitment, dkg_root_hash, derived_r))
         .collect();
 
-    let proof = match compressor.prove_steps_c7(&acc, &steps) {
+    let proof = match {
+        use pvthfhe_compressor::sonobe::c7_circuit::{set_c7_step_data, clear_c7_step_data};
+        set_c7_step_data(share_coeffs.to_vec(), derived_r);
+        let result = compressor.prove_steps_c7(&acc, &steps);
+        clear_c7_step_data();
+        result
+    } {
         Ok(p) => p,
         Err(e) => { tracing::warn!("C7: prove_steps_c7 failed: {e:?}"); return false; }
     };

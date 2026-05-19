@@ -76,6 +76,9 @@ fn main(
     epoch: pub Field,
     participant_set_hash: pub Field,
     d_commitment: pub Field,
+    // G.12 Phase 2: pre-computed combined share hash from folded Schnorr verification
+    combined_share_hash: pub Field,
+    share_verification_proof_hash: pub Field,
     n_participants: pub Field,
     threshold: pub Field,
     committee_party_ids: pub [Field; MAX_PARTICIPANTS],
@@ -113,6 +116,9 @@ fn main(
     }
     assert(lagrange_sum == 1, "Lagrange coefficients must sum to 1");
 
+    // Phase 2 deprecation: per-share hashing is now done by the folded
+    // ShareVerificationStepCircuit. The combined_share_hash is received
+    // as a public input. This code is kept for backward compatibility.
     // --- Hash each participant's share vector ---
     let mut share_hashes = [0; MAX_PARTICIPANTS];
     for i in 0..MAX_PARTICIPANTS {
@@ -120,7 +126,13 @@ fn main(
             share_hashes[i] = vector_hash(participant_shares[i], protocol_constants::DOMAIN_VECTOR_MERKLE);
         }
     }
-    let combined_share_hash = combine_hashes(share_hashes, n_participants);
+    let computed_combined_share_hash = combine_hashes(share_hashes, n_participants);
+
+    // G.6: ensure pre-computed hash values are non-zero
+    assert(combined_share_hash != 0);
+    assert(share_verification_proof_hash != 0);
+    // G.6: ensure the circuit-computed hash matches the folded hash
+    assert(computed_combined_share_hash == combined_share_hash);
 
     // --- Reconstruct plaintext from shares via Lagrange interpolation ---
     let mut computed_plaintext = [0; N];
@@ -142,7 +154,7 @@ fn main(
 
     // --- Verify d_commitment binds all protocol parameters ---
     let d_commitment_computed = bind_8_with_domain([
-        combined_share_hash,
+        computed_combined_share_hash,
         dkg_root,
         participant_set_hash,
         epoch,
@@ -207,6 +219,8 @@ fn test_honest_lagrange_recombination() {
         epoch,
         participant_set_hash,
         d_commitment,
+        combined_share_hash,
+        1, // share_verification_proof_hash (dummy for test)
         n_participants,
         threshold,
         committee_party_ids,
@@ -287,6 +301,8 @@ fn test_tamper_zero_party_id() {
         epoch,
         participant_set_hash,
         d_commitment,
+        combined_share_hash,
+        1, // share_verification_proof_hash (dummy for test)
         n_participants,
         threshold,
         committee_party_ids,
@@ -335,6 +351,8 @@ fn test_tamper_duplicate_party_ids() {
         epoch,
         participant_set_hash,
         d_commitment,
+        combined_share_hash,
+        1, // share_verification_proof_hash (dummy for test)
         n_participants,
         threshold,
         committee_party_ids,
@@ -387,6 +405,8 @@ fn test_ciphertext_equals_plaintext_hash() {
         epoch,
         participant_set_hash,
         d_commitment,
+        combined_share_hash,
+        1, // share_verification_proof_hash (dummy for test)
         n_participants,
         threshold,
         committee_party_ids,
@@ -411,6 +431,14 @@ fn test_tamper_d_commitment_mismatch() {
     let dkg_root = 200;
     let participant_set_hash = 300;
 
+    let mut share_hashes = [0; MAX_PARTICIPANTS];
+    for i in 0..MAX_PARTICIPANTS {
+        if (i as u32) < (n_participants as u32) {
+            share_hashes[i] = vector_hash(d[i], protocol_constants::DOMAIN_VECTOR_MERKLE);
+        }
+    }
+    let combined_share_hash = combine_hashes(share_hashes, n_participants);
+
     let d_commitment = 999;  // Wrong commitment
 
     main(
@@ -421,6 +449,8 @@ fn test_tamper_d_commitment_mismatch() {
         epoch,
         participant_set_hash,
         d_commitment,
+        combined_share_hash,
+        1, // share_verification_proof_hash (dummy for test)
         n_participants,
         threshold,
         committee_party_ids,
@@ -469,6 +499,8 @@ fn test_tamper_wrong_threshold() {
         epoch,
         participant_set_hash,
         d_commitment,
+        combined_share_hash,
+        1, // share_verification_proof_hash (dummy for test)
         n_participants,
         threshold,
         committee_party_ids,
@@ -517,6 +549,8 @@ fn test_tamper_epoch_zero() {
         epoch,
         participant_set_hash,
         d_commitment,
+        combined_share_hash,
+        1, // share_verification_proof_hash (dummy for test)
         n_participants,
         threshold,
         committee_party_ids,

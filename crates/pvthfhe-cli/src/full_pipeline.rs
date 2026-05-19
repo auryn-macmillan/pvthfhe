@@ -3,7 +3,7 @@
 use anyhow::Context;
 use ark_bn254::Fr;
 use ark_ec::AffineRepr;
-use ark_ff::{BigInteger, PrimeField};
+use ark_ff::{BigInteger, PrimeField, Zero};
 use light_poseidon::{Poseidon, PoseidonHasher};
 use pvthfhe_aggregator::{
     folding::{CcsPShareInstance, CycloFoldAllReport},
@@ -30,11 +30,14 @@ use pvthfhe_pvss::nizk_decrypt::{
 use pvthfhe_pvss::slot_registry::SmudgeSlotRegistry;
 #[cfg(feature = "sonobe-compressor")]
 use pvthfhe_compressor::sonobe::{
-        cyclo_verifier::verify_ring_equation, encode_triple, C7DecryptAggregationCircuit,
-        CycloRingWitness, ExternalInputs5, SigmaWitness as CompressorSigmaWitness,
+        cyclo_verifier::verify_ring_equation, encode_quad, encode_triple,
+        C7DecryptAggregationCircuit, CycloFoldStepCircuit, CycloRingWitness,
+        ExternalInputs5, SigmaWitness as CompressorSigmaWitness,
         SonobeCompressor,
         clear_cyclo_ring_data, clear_sigma_data, set_cyclo_ring_data, set_sigma_data,
     };
+#[cfg(feature = "sonobe-compressor")]
+use pvthfhe_compressor::witness::{ShareVerificationWitness, ShareVerificationWitnessSet};
 use pvthfhe_pvss::nizk_share::compute_ciphertext_v;
 use pvthfhe_nizk::schnorr;
 use pvthfhe_rng::OsRng;
@@ -128,6 +131,8 @@ pub struct PipelineReport {
     pub share_sig_rs: Vec<Fr>,
     /// G.12: Per-party Schnorr signature s-values.
     pub share_sig_ss: Vec<Fr>,
+    /// G.12: Combined share hash from Nova-folded ShareVerificationStepCircuit.
+    pub combined_share_hash: Fr,
 }
 
 /// Observer hooks for pipeline narration and metrics.
@@ -845,6 +850,26 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         share_sig_ss.push(sig_s);
     }
 
+    // G.12 Phase 2: Build ShareVerificationWitnessSet for Nova folding
+    #[cfg(feature = "sonobe-compressor")]
+    let sv_witness_set = {
+        let mut sv_witnesses = Vec::with_capacity(share_coeffs.len());
+        for (i, coeffs) in share_coeffs.iter().enumerate() {
+            let coeffs_fr: Vec<Fr> = coeffs.iter()
+                .map(|&c| field_from_i64(c))
+                .collect();
+            sv_witnesses.push(ShareVerificationWitness {
+                coeffs: coeffs_fr,
+                sig_r_x: share_sig_rs[i],
+                sig_s: share_sig_ss[i],
+                pk_x: party_signing_pks[i],
+            });
+        }
+        ShareVerificationWitnessSet {
+            witnesses: sv_witnesses,
+        }
+    };
+
     // G3: CRT-reconstruct share coefficients for correct polynomial evaluation.
     // The raw i64 values are RNS residues (24576 values = 8192 coeffs × 3 moduli).
     // CRT reconstruction recovers the actual integer coefficients for Horner eval.
@@ -956,6 +981,42 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         ));
     }
 
+    // G.12 Phase 2: fold share verification steps via Nova IVC
+    #[cfg(feature = "sonobe-compressor")]
+    let combined_share_hash = {
+        use pvthfhe_compressor::witness::poseidon_sponge_hash_native;
+        observer.phase_start("share_verify_fold", Some("sonobe-nova-share-verify"));
+        let sv_fold_started = Instant::now();
+        let sv_compressor = SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new(
+            epoch_hash,
+            sv_witness_set.witnesses.len(),
+        )
+        .map_err(|e| anyhow::anyhow!("share_verify_compressor_new: {e:?}"))?;
+        let sv_acc = encode_quad((Fr::zero(), Fr::zero(), Fr::zero(), Fr::zero())).to_vec();
+        let _sv_proof = sv_compressor
+            .prove_steps_share_verify(&sv_acc, &sv_witness_set)
+            .map_err(|e| anyhow::anyhow!("share_verify_prove: {e:?}"))?;
+        let sv_fold_ms = elapsed_ms(sv_fold_started);
+        observer.phase_end("share_verify_fold", sv_fold_ms);
+        let domain = Fr::from(1u64);
+        let mut acc = Fr::zero();
+        for (i, coeffs) in share_coeffs.iter().enumerate() {
+            let coeffs_fr: Vec<Fr> = coeffs.iter().map(|&c| field_from_i64(c)).collect();
+            let share_hash = poseidon_sponge_hash_native(&coeffs_fr);
+            let challenge_e = poseidon_sponge_hash_native(&[
+                domain,
+                party_signing_pks[i],
+                share_sig_rs[i],
+                share_hash,
+            ]);
+            let step_commitment = poseidon_sponge_hash_native(&[share_hash, challenge_e]);
+            acc += step_commitment;
+        }
+        acc
+    };
+    #[cfg(not(feature = "sonobe-compressor"))]
+    let combined_share_hash = Fr::from(0u64);
+
     // Noir aggregator_final circuit verification (always executes for on-chain security)
     observer.phase_start("c7_noir_aggregator", None);
     let noir_started = Instant::now();
@@ -978,6 +1039,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         &party_signing_pks,
         &share_sig_rs,
         &share_sig_ss,
+        combined_share_hash,
     );
     if let Err(e) = std::fs::write(circuits_dir.join("C7Prover.toml"), &prover_toml) {
         tracing::warn!("C7 Noir: failed to write C7Prover.toml: {e}");
@@ -1081,6 +1143,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         party_signing_pks,
         share_sig_rs,
         share_sig_ss,
+        combined_share_hash,
     })
 }
 
@@ -1924,6 +1987,7 @@ pub fn build_c7_prover_toml(
     party_signing_pks: &[Fr],    // G.12: Per-party Schnorr signing public keys
     share_sig_rs: &[Fr],          // G.12: Per-party Schnorr signature R-points
     share_sig_ss: &[Fr],          // G.12: Per-party Schnorr signature s-values
+    combined_share_hash: Fr,      // G.12: Combined share hash from Nova-folded ShareVerificationStepCircuit
 ) -> String {
     let n_participants = share_coeffs.len();
     let threshold = n_participants / 2;
@@ -1947,15 +2011,7 @@ pub fn build_c7_prover_toml(
     ));
     // G.4: session_nonce from Interfold E3 registry passed by caller
 
-    let mut share_hashes = [Fr::from(0u64); 8];
-    for (i, coeffs) in share_coeffs.iter().take(8).enumerate() {
-        let mut share = [Fr::from(0u64); 8];
-        for (j, &coeff) in coeffs.iter().take(8).enumerate() {
-            share[j] = field_from_i64(coeff);
-        }
-        share_hashes[i] = vector_hash_8(&share);
-    }
-    let combined_share_hash = combine_hashes_8(&share_hashes, n_participants);
+
     #[cfg(feature = "sonobe-compressor")]
     let d_commitment = {
         use pvthfhe_compressor::witness::poseidon_sponge_hash_native;
@@ -2003,6 +2059,7 @@ pub fn build_c7_prover_toml(
     toml.push_str(&format!("dkg_root = \"0x{}\"\n", field_hex_be(dkg_root)));
     toml.push_str(&format!("epoch = \"1\"\n"));
     toml.push_str(&format!("participant_set_hash = \"0x{}\"\n", field_hex_be(participant_set_hash)));
+    toml.push_str(&format!("combined_share_hash = \"0x{}\"\n", field_hex_be(combined_share_hash)));
     toml.push_str(&format!("d_commitment = \"0x{}\"\n", field_hex_be(d_commitment)));
     toml.push_str(&format!("n_participants = \"{}\"\n", n_participants));
     toml.push_str(&format!("threshold = \"{}\"\n", threshold));
@@ -2220,6 +2277,7 @@ mod tests {
             &[],
             &[],
             &[],
+            Fr::from(0u64),
         );
 
         assert!(

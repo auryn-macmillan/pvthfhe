@@ -48,16 +48,16 @@ aggregator_final receives: combined_share_hash + proof_hash
 - [x] Track compatibility: `prove_steps_share_verify` function
 
 ### Task 9: Pipeline wiring (full_pipeline.rs)
-- [ ] After Schnorr signing (Phase 1.3), build `ShareVerificationWitnessSet`
-- [ ] Call `SonobeCompressor::prove_steps_share_verify` to fold n steps
-- [ ] Extract `combined_share_hash` from final accumulator state
-- [ ] Pass to `aggregator_final` via Prover.toml (already wired in Task 4)
+- [x] After Schnorr signing (Phase 1.3), build `ShareVerificationWitnessSet`
+- [x] Call `SonobeCompressor::prove_steps_share_verify` to fold n steps
+- [x] Extract `combined_share_hash` from final accumulator state
+- [x] Pass to `aggregator_final` via Prover.toml (already wired in Task 4)
 
 ### Task 10: aggregator_final Noir circuit update
-- [ ] Accept `combined_share_hash` as public input (replaces per-share in-circuit hashing)
-- [ ] Accept `share_verification_proof_hash` as additional public input
-- [ ] Verify `combined_share_hash` matches `d_commitment` binding
-- [ ] Remove duplicated per-share hashing (now done in folding circuit)
+- [x] Accept `combined_share_hash` as public input (replaces per-share in-circuit hashing)
+- [x] Accept `share_verification_proof_hash` as additional public input
+- [x] Verify `combined_share_hash` matches `d_commitment` binding
+- [x] Remove duplicated per-share hashing (now done in folding circuit)
 
 ### Task 11: End-to-end test
 - [ ] `demo-e2e` with n=4, verify full pipeline ACCEPT

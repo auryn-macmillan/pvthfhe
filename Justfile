@@ -28,7 +28,7 @@ demo-e2e n="10" t="4" seed="1":
     @echo "* DO NOT DEPLOY — research prototype only                                 *"
     mkdir -p .sisyphus/evidence
     export PVTHFHE_RUN_C7_SONOBE=1
-    cargo run --release -p pvthfhe-cli --features "sonobe-compressor,demo-seeded-rng,pipeline-extra-checks" -- \
+    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run --release -p pvthfhe-cli --features "sonobe-compressor,demo-seeded-rng,pipeline-extra-checks" -- \
         demo --n {{n}} --threshold {{t}} --seed {{seed}} \
         2>&1 | tee .sisyphus/evidence/task-40-demo.log
 
@@ -57,9 +57,9 @@ bench-scaling:
 
 bench-comparison n="3" t="1" seed="1":
     mkdir -p bench/results
-    cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features sonobe-compressor,demo-seeded-rng,pipeline-extra-checks -- --n {{n}} --t {{t}} --seed {{seed}}
-    cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features sonobe-compressor,demo-seeded-rng,pipeline-extra-checks -- --n {{n}} --t {{t}} --seed {{seed}}
-    cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features sonobe-compressor,demo-seeded-rng,pipeline-extra-checks -- --n {{n}} --t {{t}} --seed {{seed}}
+    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features sonobe-compressor,demo-seeded-rng,pipeline-extra-checks -- --n {{n}} --t {{t}} --seed {{seed}}
+    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features sonobe-compressor,demo-seeded-rng,pipeline-extra-checks -- --n {{n}} --t {{t}} --seed {{seed}}
+    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features sonobe-compressor,demo-seeded-rng,pipeline-extra-checks -- --n {{n}} --t {{t}} --seed {{seed}}
     cargo run -p pvthfhe-bench --bin bench_comparison -- --n {{n}} --t {{t}} --seed {{seed}}
     cargo run -p pvthfhe-bench --bin render_comparison -- --comparison-json bench/results/comparison.json --output-dir bench/results
 

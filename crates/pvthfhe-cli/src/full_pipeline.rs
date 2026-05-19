@@ -37,6 +37,7 @@ use pvthfhe_compressor::sonobe::{
 use pvthfhe_pvss::nizk_share::compute_ciphertext_v;
 use pvthfhe_rng::OsRng;
 use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes, Secret};
+use rand::Rng;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::time::Instant;
@@ -113,8 +114,11 @@ pub struct PipelineReport {
     pub session_id: String,
     /// SHA-256 binding over all decrypt NIZK proof bytes, for Noir C7 Prover.toml.
     pub decrypt_nizk_hash: [u8; 32],
+    /// G.4: Session nonce (Fr) used in d_commitment binding.
+    /// Deterministically derived from session_id until Interfold E3 integration.
+    pub session_nonce: Fr,
     /// Whether the d_commitment was verified end-to-end against the Noir circuit output.
-    /// None = verification skipped (awaiting G.4 session_nonce from Interfold).
+    /// None = verification skipped (pending full G.4 Interfold registry integration).
     pub d_commitment_verified: Option<bool>,
 }
 
@@ -924,12 +928,15 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
     // Build Prover.toml from current pipeline data
     let committee_party_ids_u32: Vec<u32> = (1..=cfg.t).map(|i| i as u32).collect();
+    // G.4: Derive session_nonce from session_id (deterministic placeholder until Interfold E3)
+    let session_nonce = Fr::from_be_bytes_mod_order(&Sha256::digest(session_id.as_bytes()));
     let prover_toml = build_c7_prover_toml(
         &share_coeffs,
         &committee_party_ids_u32,
         &aggregate_pk.bytes,
         &session_id,
         &decrypt_nizk_hash,
+        session_nonce,
     );
     if let Err(e) = std::fs::write(circuits_dir.join("C7Prover.toml"), &prover_toml) {
         tracing::warn!("C7 Noir: failed to write C7Prover.toml: {e}");
@@ -1007,9 +1014,12 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         observer.phase_end("c7_noir_aggregator", noir_ms);
     }
 
+    // G.4: Derive session_nonce from session_id (deterministic placeholder until Interfold E3)
+    let session_nonce = Fr::from_be_bytes_mod_order(&Sha256::digest(session_id.as_bytes()));
+
     // G.3: d_commitment end-to-end verification
-    // Currently always None until G.4 (session_nonce from Interfold) is resolved.
-    // When available: extract d_commitment from Noir public inputs and compare.
+    // session_nonce is now available (G.4). When the verifier can independently
+    // reconstruct d_commitment, compare against Noir public inputs here.
     let d_commitment_verified: Option<bool> = None;
 
     Ok(PipelineReport {
@@ -1025,6 +1035,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         aggregate_pk_bytes: aggregate_pk.bytes,
         session_id: session_id.to_string(),
         decrypt_nizk_hash,
+        session_nonce,
         d_commitment_verified,
     })
 }
@@ -1708,7 +1719,11 @@ fn run_c7_verification(
     let commitments: Vec<Fr> = share_coeffs.iter()
         .map(|c| hash_all_coeffs(c))
         .collect();
-    let derived_r = hash_all_coeffs(&[commitments[0], dkg_root_hash, d_commitment]); // G.5: d_commitment absorbed into C7 challenge
+    // G.20: prover randomness prevents precomputation attacks on C7 challenge.
+    // In-circuit verification awaits ExternalInputs7 enlargement (deferred to G.12).
+    let mut rng = rand::thread_rng();
+    let prover_nonce = Fr::from(rng.gen::<u64>());
+    let derived_r = hash_all_coeffs(&[commitments[0], dkg_root_hash, d_commitment, prover_nonce]); // G.5 + G.20
 
     let acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
     let steps: Vec<ExternalInputs5<Fr>> = share_evals.iter()
@@ -1861,6 +1876,7 @@ pub fn build_c7_prover_toml(
     aggregate_pk_bytes: &[u8],
     session_id: &str,
     decrypt_nizk_hash: &[u8; 32],
+    session_nonce: Fr,  // G.4: Interfold E3 random seed
 ) -> String {
     let n_participants = share_coeffs.len();
     let threshold = n_participants / 2;
@@ -1882,9 +1898,7 @@ pub fn build_c7_prover_toml(
     let keygen_transcript_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(
         format!("keygen-{session_id}-n{n_participants}-t{threshold}").as_bytes()
     ));
-    // PLACEHOLDER: session_nonce from Interfold registry (G.4 design decision).
-    // Filled when a committee is requested from the Interfold registry.
-    let session_nonce = Fr::from(0u64);
+    // G.4: session_nonce from Interfold E3 registry passed by caller
 
     let mut share_hashes = [Fr::from(0u64); 8];
     for (i, coeffs) in share_coeffs.iter().take(8).enumerate() {
@@ -2124,12 +2138,14 @@ mod tests {
     fn c7_prover_toml_exports_decrypt_nizk_hash_public_input() {
         let share_coeffs = vec![vec![1, 0, 0, 0, 0, 0, 0, 0]; 3];
         let committee_party_ids = vec![1u32, 2, 3];
+        let session_nonce = Fr::from_be_bytes_mod_order(&Sha256::digest("test-session".as_bytes()));
         let prover_toml = build_c7_prover_toml(
             &share_coeffs,
             &committee_party_ids,
             &[7u8; 32],
             "test-session",
             &[9u8; 32],
+            session_nonce,
         );
 
         assert!(

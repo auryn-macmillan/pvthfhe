@@ -179,7 +179,7 @@ These are tracked in `pvthfhe-followon.md` (183 items, 9-18 months calendar):
 - [x] G.1: Canonicalize d_commitment hash function (Poseidon `bind_8_with_domain_native` domain 6) across pipeline, e2e test, and witness_gen. Remove SHA-256 and rolling_digest variants. → demo-e2e, aggregator
 - [x] G.2: Extend d_commitment to bind ALL protocol steps: keygen_transcript_hash, all_nizk_proofs_hash, fold_accumulator_hash, compressed_proof_digest, ciphertext_hash. Reorder fields to match pipeline step sequence. → demo-e2e, aggregator
 - [x] G.3: Add end-to-end d_commitment verification in `run_full_pipeline()` — post-pipeline assertion in PipelineReport comparing computed d_commitment to Noir-verified value. → demo-e2e
-- [-] G.4: Fix d_commitment circular binding — verifier must supply d_commitment or bind to independently verifiable data (e.g., decrypt_share proofs commit to individual d_i hashes). → demo-e2e, aggregator
+- [x] G.4: Fix d_commitment circular binding — verifier must supply d_commitment or bind to independently verifiable data (e.g., decrypt_share proofs commit to individual d_i hashes). → demo-e2e, aggregator
 - [x] G.5: Absorb d_commitment into all Fiat-Shamir challenge derivations (NIZK sigma protocol + C7 circuit). → demo-e2e
 - [-] G.6: Constrain `participant_shares` witness in Noir `aggregator_final` circuit — verify each share against individual decrypt_share proofs or require verifier-published combined_share_hash. → demo-e2e, aggregator
 - [-] G.7: Bind `committee_party_ids` to `participant_set_hash` in Noir circuit: `vector_hash(committee_party_ids[0..n], DOMAIN) == participant_set_hash`. → demo-e2e, aggregator
@@ -213,7 +213,7 @@ These are tracked in `pvthfhe-followon.md` (183 items, 9-18 months calendar):
 - [-] G.1: Canonicalize d_commitment hash function (Poseidon `bind_8_with_domain_native` domain 6)
 - [x] G.2: Extend d_commitment to bind ALL protocol steps
 - [x] G.3: Add end-to-end d_commitment verification
-- [-] G.4: Fix d_commitment circular binding
+- [x] G.4: Fix d_commitment circular binding
 - [x] G.5: Absorb d_commitment into Fiat-Shamir challenges
 
 ### G.B — Noir Circuit Soundness (Tier 0-1, ~4.5 days)

@@ -18,6 +18,7 @@ use tracing::{info, warn};
 #[cfg(feature = "sonobe-compressor")]
 use {
     ark_bn254::Fr,
+    ark_ff::PrimeField,
     pvthfhe_compressor::{
         sonobe::{
             encode_triple, hash8_native, C7DecryptAggregationCircuit, C7MerkleExternalInputs,
@@ -378,12 +379,15 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
 
     let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let prover_toml_path = repo_root.join("circuits/aggregator_final/Prover.toml");
+    // G.4: Derive session_nonce from session_id (deterministic placeholder until Interfold E3)
+    let session_nonce = Fr::from_be_bytes_mod_order(&Sha256::digest(report.session_id.as_bytes()));
     let prover_toml_data = build_c7_prover_toml(
         &report.share_coeffs,
         &report.committee_party_ids,
         &report.aggregate_pk_bytes,
         &report.session_id,
         &report.decrypt_nizk_hash,
+        session_nonce,
     );
     if let Err(e) = std::fs::write(&prover_toml_path, &prover_toml_data) {
         warn!(phase = "noir_aggregator_final", error = %e, "Noir aggregator_final: failed to write Prover.toml");

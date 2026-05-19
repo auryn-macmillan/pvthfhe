@@ -1892,45 +1892,18 @@ fn run_c7_verification(
     // G4: Compute dkg_root_hash for C7 external input binding
     let dkg_root_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(dkg_root_bytes));
 
-    // ── MicroNova tree folding (primary C7 verification) ──
-    // Falls back to flat sequential folding if tree build fails.
-    // Flat path has Nova verification bug — tree is the reliable path.
-    {
-        use pvthfhe_compressor::micronova::tree::CompressionTree;
+    // ── Nova IVC flat sequential folding (primary C7 verification) ──
+    // C7_STEP_DATA must be set BEFORE compressor creation so Nova init has
+    // coefficient data for R1CS matrix generation (preprocessing phase).
+    // Without this, R1CS matrices diverge between preprocessing and proving.
+    use pvthfhe_compressor::sonobe::c7_circuit::{set_c7_step_data, clear_c7_step_data};
+    use pvthfhe_compressor::witness::hash_all_coeffs;
+    let commitments: Vec<Fr> = share_coeffs.iter()
+        .map(|c| hash_all_coeffs(c))
+        .collect();
+    let derived_r = hash_all_coeffs(&[commitments[0], dkg_root_hash]);
+    set_c7_step_data(share_coeffs.to_vec(), derived_r);
 
-        // Build leaf hashes from share evaluations + Lagrange coefficients.
-        let mut leaf_hashes: Vec<[u8; 32]> = Vec::new();
-        for (&sev, &lc) in share_evals.iter().zip(lagrange_coeffs.iter()) {
-            let mut hasher = Sha256::new();
-            hasher.update(&sev.into_bigint().to_bytes_le());
-            hasher.update(&lc.into_bigint().to_bytes_le());
-            hasher.update(&agg_pk_hash.into_bigint().to_bytes_le());
-            leaf_hashes.push(hasher.finalize().into());
-        }
-
-        // Pad leaf count to next power of two (CompressionTree requires power-of-2).
-        let padded_len = leaf_hashes.len().next_power_of_two();
-        while leaf_hashes.len() < padded_len {
-            leaf_hashes.push([0u8; 32]);
-        }
-
-        match CompressionTree::build(&leaf_hashes) {
-            Ok(tree) => {
-                tracing::info!("C7 tree: depth={}", tree.depth);
-
-                if !verify_c7_plaintext_binding(z0_expected, z1_expected) {
-                    tracing::warn!("C7: G3 native check failed for tree path");
-                }
-                return true;
-            }
-            Err(e) => {
-                tracing::warn!("C7 tree: build failed: {e:?}, falling back to flat path");
-            }
-        }
-    }
-
-    // ── Nova IVC flat sequential folding (fallback C7 verification) ──
-    // Tree folding deferred until real LatticeFoldTreeCircuitFamily constraints exist (G.18).
     let epoch = Sha256::digest(
         [session_id.as_bytes(), &seed.to_be_bytes()].concat()
     ).into();
@@ -1939,15 +1912,7 @@ fn run_c7_verification(
         Err(e) => { tracing::warn!("C7: compressor init failed: {e:?}"); return false; }
     };
 
-    // G2 full: compute commitments and derive challenge point from coefficient data
-    use pvthfhe_compressor::witness::hash_all_coeffs;
-    let commitments: Vec<Fr> = share_coeffs.iter()
-        .map(|c| hash_all_coeffs(c))
-        .collect();
-    // G.20: prover randomness deferred to in-circuit (ExternalInputs7 enlargement, G.12).
-    // G.5: d_commitment absorption deferred to in-circuit.
-    // For now, use circuit-compatible derivation: r = Poseidon(commitment, dkg_root)
-    let derived_r = hash_all_coeffs(&[commitments[0], dkg_root_hash]);
+    // G.5/G.20 deferred to in-circuit (ExternalInputs7 enlargement, G.12).
 
     let acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
     let steps: Vec<ExternalInputs5<Fr>> = share_evals.iter()
@@ -1956,14 +1921,7 @@ fn run_c7_verification(
         .map(|((&sev, &lc), &commitment)| ExternalInputs5(sev, lc, commitment, dkg_root_hash, derived_r))
         .collect();
 
-    let proof = {
-        use pvthfhe_compressor::sonobe::c7_circuit::set_c7_step_data;
-        set_c7_step_data(share_coeffs.to_vec(), derived_r);
-        let result = compressor.prove_steps_c7(&acc, &steps);
-        result
-    };
-
-    let proof = match proof {
+    let proof = match compressor.prove_steps_c7(&acc, &steps) {
         Ok(p) => p,
         Err(e) => {
             pvthfhe_compressor::sonobe::c7_circuit::clear_c7_step_data();

@@ -3,6 +3,6 @@
   "started_at": "2026-05-18T19:22:16.380Z",
   "session_ids": ["ses_1e864f9f1ffecXRmG0OjbjoCa3"],
   "plan_name": "meta-plan-all-deferred",
-  "status": "blocked",
-  "blocked_reason": "14 remaining Phase G tasks require architectural design before coding: d_commitment redesign (G.1-G.5), Noir circuit constraints (G.6-G.8), share sender binding (G.12), compressor IVC composition (G.16,G.20,G.30), and formal IND-CPAD reduction (G.26). Self-contained fixes and documentation completed (18/32)."
+  "status": "active",
+  "progress": "25/32 Phase G complete. 7 remaining (G.6-G.8 Noir R1CS, G.12 Schnorr, G.26 IND-CPAD) require architectural design."
 }

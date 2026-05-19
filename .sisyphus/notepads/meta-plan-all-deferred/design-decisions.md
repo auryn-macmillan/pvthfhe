@@ -1,37 +1,78 @@
-# G.1-G.5: d_commitment Hash Chain — Design Decisions
+# G.12 — Schnorr Signatures — Design Decisions
 
 **Status**: DESIGN COMPLETE (2026-05-18)
-**Next**: Implementation (estimate: ~4 days)
+**Next**: Implementation (estimate: ~2 days)
 
 ## Decisions
 
-| # | Question | Decision | Rationale |
-|---|----------|----------|-----------|
-| (1) | Scope of d_commitment | **Full**: bind all 10+ pipeline steps | Covers keygen, NIZK proofs, fold accumulators, compressed proof, ciphertext, plaintext |
-| (2) | Circular binding fix | **Hybrid**: Interfold issues session nonce; prover must absorb it into d_commitment | Breaks circularity without 2-phase protocol; nonce is generated up-front when committee is requested |
-| (3) | Share verification in Noir | **Schnorr signatures over BN254** verified in-circuit (~3K constraints/sig); combined_share_hash bound to d_commitment | Cheap in-circuit; signatures bind shares to party_ids registered at keygen |
-| (5) | Share-to-sender binding | **Schnorr signatures** per share, verified in Noir circuit | ~3K constraints per sig × n=128 = ~384K, fits compressor budget |
-| (4) | Threshold enforcement | **Exactly t+1 shares**, random selection in e2e demo | Circuit asserts `count(used) == t+1` |
-| (6) | C7 + CycloFold composition | **Hash chain**: separate circuits, CycloFold absorbs `hash(C7_final_state)` as external input | ~1-2 days; on-chain verifier checks both proofs, cryptographically chained |
-| (7) | IND-CPAD | **Heuristic argument**: document noise flooding bound, cite literature, note formal reduction as future work | ~2-3 hours |
+| # | Question | Decision |
+|---|----------|----------|
+| Q1 | Keypair origin | **Independent generation**, registered on-chain before proof submission |
+| Q2 | Verification location | **In Noir circuit** (`aggregator_final`), ~3K constraints/sig. Signatures are private witness inputs; public keys are public inputs. |
 
-## Implementation Order
+## Implementation Plan
 
-1. G.16 — Hash chain between C7 and CycloFold (prerequisite for G.30)
-2. G.1 — Canonicalize d_commitment hash (POSISEON bind_8_with_domain_native, domain 6)
-3. G.4 — Add session_nonce absorption (Interfold placeholder until registry exists)
-4. G.2 — Extend d_commitment field set to all pipeline steps
-5. G.3/G.5 — End-to-end verification + Fiat-Shamir absorption
-6. G.6/G.7/G.8 — Noir circuit constraints (party_ids binding, threshold enforcement, share sig verification)
-7. G.12 — Schnorr signature infrastructure (keygen registration + per-share signing)
-8. G.20 — Prover randomness / verifier challenge in C7 challenge derivation
-9. G.30 — Counter consistency enforcement
-10. G.26 — IND-CPAD heuristic documentation
+### Phase 1: Native Infrastructure
+1. Add `generate_signing_keypair() -> (Fr, AffinePoint)` to keygen module
+2. Add `schnorr_sign(sk: Fr, message_hash: Fr) -> SchnorrSignature` 
+3. Add `schnorr_verify(pk: AffinePoint, sig: SchnorrSignature, message_hash: Fr) -> bool`
+4. Wire per-party signing into the pipeline: `sig_i = schnorr_sign(sk_i, poseidon(d_i_hash, session_nonce))`
+5. Store `party_pk_i` in the DKG transcript or pipeline config
 
-## Prerequisite for G.12 (Signatures)
+### Phase 2: Circuit
+6. Add `SchnorrVerifierVar` gadget: verifies `R = s*G - e*PK` where `e = Poseidon(R, PK, message)`
+7. In `aggregator_final/src/main.nr`: for each share, verify signature
+8. Pass `party_pk_i` as additional public inputs (32 bytes per party)
+9. Pass `signature_i` as private witness inputs
 
-Before G.12 can be implemented:
-- Each party needs a BN254 keypair registered during keygen
-- The aggregator needs to verify signatures before accepting shares
-- The Noir circuit needs Schnorr verification gadget (~3K constraints)
-- `party_pk_hash` must be added to d_commitment (as part of pipeline binding in G.2)
+### Phase 3: Pipeline Integration
+10. Update `build_c7_prover_toml` to include `party_pk_i` and `signature_i`
+11. Update `PipelineReport` to include signature verification status
+
+## Circuit Constraint Budget
+- ~3,000 constraints per Schnorr verification (1 scalar mult + Poseidon hash)
+- For n=128: ~384,000 constraints — fits within compressor budget
+
+# G.6-G.8 — Noir Circuit Constraints — Design Decisions
+
+**Status**: DESIGN COMPLETE (2026-05-18)
+**Next**: Implementation (estimate: ~3 days, depends on G.12)
+
+## Decisions
+
+| # | Question | Decision |
+|---|----------|----------|
+| Q3 | Share verification method | **Full in-circuit**: compute per-share hashes, verify Schnorr sigs, reconstruct `combined_share_hash` |
+| Q4 | Committee binding | **In-circuit Poseidon**: circuit computes `Poseidon(committee_party_ids)` and constrains `== participant_set_hash` |
+
+## Implementation Plan
+
+### G.6: Participant Share Constraints
+1. For each `d_i` in `participant_shares`: circuit computes `hash_i = Poseidon(d_i)` 
+2. Circuit reconstructs `combined_share_hash = Poseidon(hash_0, hash_1, ..., hash_{t-1})`  
+3. Circuit verifies `combined_share_hash` is bound in `d_commitment` (already done)
+4. Circuit verifies `Schnorr_verify(sig_i, pk_i, hash_i || session_nonce)` for each share
+5. This is ~10K constraints per share (8K Poseidon + 3K Schnorr)
+
+### G.7: Committee Binding
+1. Circuit receives `committee_party_ids: [Field; n]` as witness
+2. Circuit computes `computed_ps_hash = Poseidon(committee_party_ids[0..n], DOMAIN_COMMITTEE)`
+3. Circuit constrains `computed_ps_hash == participant_set_hash` (public input)
+4. Removes the current `assert(participant_set_hash != 0)` placeholder (line 85)
+
+### G.8: Threshold Enforcement
+1. Circuit receives `threshold: Field` as public input
+2. Circuit counts how many shares are non-zero: `used_count = sum_i is_nonzero(d_i)`
+3. Circuit constrains `used_count == threshold + 1`
+
+## ExternalInputs Changes Required
+Current `aggregator_final` inputs: `participant_shares`, `committee_party_ids`, `participant_set_hash`, `d_commitment`, `ciphertext_hash`, `aggregate_pk_hash`, `threshold`, `epoch`
+
+New inputs for G.6-G.8 + G.12:
+- `party_public_keys: [Field; n]` (public) — per-party Schnorr verification keys
+- `share_signatures: [SchnorrSignature; n]` (private witness) — one per share
+
+## Dependency Chain
+```
+G.12 (Schnorr infra) → G.6 (share hashes + sig verify) → G.7 (committee binding) → G.8 (threshold)
+```

@@ -22,13 +22,13 @@
 - [x] Test: verify that pk == sk * G
 
 ### Task 3: Wire into pipeline
-- [ ] In `crates/pvthfhe-cli/src/full_pipeline.rs`:
+- [x] In `crates/pvthfhe-cli/src/full_pipeline.rs`:
   - Generate signing keypairs for all `n` parties
   - For each party, compute `share_hash = poseidon_sponge_commit(&share_coeffs_i)`
   - Compute `message = poseidon(&[share_hash, session_nonce])`
   - Sign: `sig_i = schnorr_sign(sk_i, message)`
   - Store `party_pk_i` and `sig_i` in pipeline state
-- [ ] Pass `party_pk_i` through to `PipelineReport` as new field
+- [x] Pass `party_pk_i` through to `PipelineReport` as new field
 
 ### Task 4: Update Prover.toml generation
 - [ ] `build_c7_prover_toml` now accepts `party_public_keys: &[Fr]` and `share_signatures: &[(AffinePoint, Fr)]` (or serialized)

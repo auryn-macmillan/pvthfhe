@@ -2,6 +2,7 @@
 
 use anyhow::Context;
 use ark_bn254::Fr;
+use ark_ec::AffineRepr;
 use ark_ff::{BigInteger, PrimeField};
 use light_poseidon::{Poseidon, PoseidonHasher};
 use pvthfhe_aggregator::{
@@ -35,6 +36,7 @@ use pvthfhe_compressor::sonobe::{
         clear_cyclo_ring_data, clear_sigma_data, set_cyclo_ring_data, set_sigma_data,
     };
 use pvthfhe_pvss::nizk_share::compute_ciphertext_v;
+use pvthfhe_nizk::schnorr;
 use pvthfhe_rng::OsRng;
 use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes, Secret};
 use rand::Rng;
@@ -120,6 +122,12 @@ pub struct PipelineReport {
     /// Whether the d_commitment was verified end-to-end against the Noir circuit output.
     /// None = verification skipped (pending full G.4 Interfold registry integration).
     pub d_commitment_verified: Option<bool>,
+    /// G.12: Per-party Schnorr signing public keys (G1Affine x-coordinate as Fr).
+    pub party_signing_pks: Vec<Fr>,
+    /// G.12: Per-party Schnorr signature R-points (G1Affine x-coordinate as Fr).
+    pub share_sig_rs: Vec<Fr>,
+    /// G.12: Per-party Schnorr signature s-values.
+    pub share_sig_ss: Vec<Fr>,
 }
 
 /// Observer hooks for pipeline narration and metrics.
@@ -807,6 +815,36 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         share_coeffs.push(coeffs);
     }
 
+    // G.12: Generate Schnorr signing keypairs and sign each share.
+    // Each party signs a SHA-256 hash of their share coefficients, binding
+    // the decrypt share to the party's identity. Keypairs and signatures are
+    // stored in PipelineReport for downstream Noir circuit verification.
+    let mut rng = rand::thread_rng();
+    let mut party_signing_pks: Vec<Fr> = Vec::with_capacity(share_coeffs.len());
+    let mut share_sig_rs: Vec<Fr> = Vec::with_capacity(share_coeffs.len());
+    let mut share_sig_ss: Vec<Fr> = Vec::with_capacity(share_coeffs.len());
+    for coeffs in &share_coeffs {
+        let (sk, pk) = schnorr::generate_signing_keypair(&mut rng);
+        // Hash share coefficients: serialize i64s as little-endian bytes → SHA-256 → Fr
+        let mut coeff_bytes: Vec<u8> =
+            Vec::with_capacity(coeffs.len() * std::mem::size_of::<i64>());
+        for &c in coeffs {
+            coeff_bytes.extend_from_slice(&c.to_le_bytes());
+        }
+        let share_hash_bytes = sha256_bytes(&coeff_bytes);
+        let share_hash = Fr::from_le_bytes_mod_order(&share_hash_bytes);
+        let (sig_r, sig_s) = schnorr::schnorr_sign(sk, share_hash, &mut rng);
+        // Serialize pk as x-coordinate Fr (compatible with Noir in-circuit verification)
+        let pk_fr =
+            Fr::from_le_bytes_mod_order(&pk.x().unwrap().into_bigint().to_bytes_le());
+        party_signing_pks.push(pk_fr);
+        // Serialize sig_r as x-coordinate Fr
+        let sig_r_fr =
+            Fr::from_le_bytes_mod_order(&sig_r.x().unwrap().into_bigint().to_bytes_le());
+        share_sig_rs.push(sig_r_fr);
+        share_sig_ss.push(sig_s);
+    }
+
     // G3: CRT-reconstruct share coefficients for correct polynomial evaluation.
     // The raw i64 values are RNS residues (24576 values = 8192 coeffs × 3 moduli).
     // CRT reconstruction recovers the actual integer coefficients for Horner eval.
@@ -1037,6 +1075,9 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         decrypt_nizk_hash,
         session_nonce,
         d_commitment_verified,
+        party_signing_pks,
+        share_sig_rs,
+        share_sig_ss,
     })
 }
 

@@ -152,6 +152,7 @@ pub fn prove(
         &stmt.c_rns,
         &stmt.d_rns,
         pvss_commitment,
+        &[0u8; 32], // G.5: TODO: pass real d_commitment
     );
 
     // Element-wise scalar multiplication: ch ∈ {-1,0,1}
@@ -226,6 +227,7 @@ pub fn verify_scalar(
         &stmt.c_rns,
         &stmt.d_rns,
         pvss_commitment,
+        &[0u8; 32], // G.5: TODO: pass real d_commitment
     );
     // Constant-time comparison for challenge
     let ch_match = (proof.ch ^ expected_ch) == 0;
@@ -352,6 +354,7 @@ fn derive_challenge_scalar(
     c_rns: &[u64],
     d_rns: &[u64],
     pvss_commitment: &[u8; 32],
+    d_commitment: &[u8; 32],
 ) -> i64 {
     // Serialize large fields to bytes
     let t_bytes: Vec<u8> = t_rns.iter().flat_map(|x| x.to_le_bytes()).collect();
@@ -369,11 +372,12 @@ fn derive_challenge_scalar(
     let c_digest = labeled_sha256(&prefix, b"c_rns", &c_bytes);
     let d_digest = labeled_sha256(&prefix, b"d_rns", &d_bytes);
     let pvss_digest = labeled_sha256(&prefix, b"pvss_commitment", pvss_commitment);
+    let dcomm_digest = labeled_sha256(&prefix, b"d_commitment", d_commitment);
 
     // 3. Combine digests with Poseidon
     // Each 32-byte digest → 2 Fr elements (lo 16 bytes, hi 16 bytes)
-    let mut fr_inputs: Vec<Fr> = Vec::with_capacity(8);
-    for digest in &[t_digest, c_digest, d_digest, pvss_digest] {
+    let mut fr_inputs: Vec<Fr> = Vec::with_capacity(10);
+    for digest in &[t_digest, c_digest, d_digest, pvss_digest, dcomm_digest] {
         fr_inputs.push(bytes16_to_fr(&digest[..16]));
         fr_inputs.push(bytes16_to_fr(&digest[16..]));
     }

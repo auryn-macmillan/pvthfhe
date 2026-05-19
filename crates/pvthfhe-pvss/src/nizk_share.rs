@@ -826,7 +826,7 @@ fn encode_bfv_encryption_proof_from_witness(
 
     // --- Produce sigma proof ---
     let mut proof_rng = ChaCha20Rng::from_rng(&mut OsRng).expect("OsRng available"); // allow-seeded-rng: (removed — now uses OsRng)
-    let binding_data = bfv_sigma_binding_data(stmt);
+    let binding_data = bfv_sigma_binding_data(stmt, &[0u8; 32]); // G.5: TODO: pass real d_commitment
     let proof = bfv_sigma::prove(&bfv_stmt, &bfv_wit, &binding_data, &mut proof_rng)
         .map_err(|_| PvssError::InvalidShare)?;
 
@@ -951,16 +951,16 @@ pub fn verify_bfv_encryption_proof(
     let bfv_proof = decode_bfv_sigma_proof(&bfv_encryption_proof[offset..])
         .map_err(|_| PvssError::BfvEncryptionProofFailed)?;
 
-    let binding_data = bfv_sigma_binding_data(stmt);
+    let binding_data = bfv_sigma_binding_data(stmt, &[0u8; 32]); // G.5: TODO: pass real d_commitment
     bfv_sigma::verify(&bfv_stmt, &bfv_proof, &binding_data).map_err(|_| {
         eprintln!("[NIZK-VERIFY] FAIL: bfv_sigma::verify failed");
         PvssError::BfvEncryptionProofFailed
     })
 }
 
-fn bfv_sigma_binding_data(stmt: &ShareNizkStatement) -> Vec<u8> {
+fn bfv_sigma_binding_data(stmt: &ShareNizkStatement, d_commitment: &[u8; 32]) -> Vec<u8> {
     let mut h = Sha256::new();
-    h.update(b"pvthfhe-share-bfv-sigma-binding-v4");
+    h.update(b"pvthfhe-share-bfv-sigma-binding-v5");
     h.update(stmt.session_id.as_slice());
     h.update(stmt.dealer_index.to_be_bytes());
     h.update(stmt.recipient_index.to_be_bytes());
@@ -969,6 +969,7 @@ fn bfv_sigma_binding_data(stmt: &ShareNizkStatement) -> Vec<u8> {
     h.update(stmt.ciphertext_u.as_slice());
     h.update(stmt.ciphertext_v.as_slice());
     h.update(stmt.share_commitment.as_slice());
+    h.update(d_commitment);
     h.finalize().to_vec()
 }
 

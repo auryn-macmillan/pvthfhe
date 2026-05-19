@@ -144,7 +144,7 @@ fn c7_nova_fold_n8192_4_steps() {
 
     let dkg_root_hash = Fr::from(42u64);
 
-    let proof = c7_fold_witnesses(&compressor, &witnesses, &acc, dkg_root_hash)
+    let proof = c7_fold_witnesses(&compressor, &witnesses, &acc, dkg_root_hash, Fr::from(0u64)) // G.5: TODO: pass real d_commitment
         .expect("c7_fold_witnesses");
 
     let vk = compressor.verifier_key();
@@ -152,7 +152,7 @@ fn c7_nova_fold_n8192_4_steps() {
     let coeffs: Vec<Vec<Fr>> = witnesses.participants.iter()
         .map(|w| w.coeffs.clone())
         .collect();
-    let derived_r = hash_all_coeffs(&[witnesses.participants[0].coeff_commitment, dkg_root_hash]);
+    let derived_r = hash_all_coeffs(&[witnesses.participants[0].coeff_commitment, dkg_root_hash, Fr::from(0u64)]); // G.5: TODO: pass real d_commitment
 
     let steps: Vec<pvthfhe_compressor::sonobe::ExternalInputs5<Fr>> = witnesses
         .participants

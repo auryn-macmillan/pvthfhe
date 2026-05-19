@@ -243,6 +243,8 @@ impl<F: PrimeField> FCircuit<F> for C7DecryptAggregationCircuit<F> {
         computed_commitment.enforce_equal(&external_inputs.2)?;
 
         // ── P1.8: Challenge derivation in circuit ──
+        // G.5: d_commitment should be absorbed here for full Fiat-Shamir binding.
+        // Requires extending ExternalInputs5 to include d_commitment (todo).
         let mut r_sponge = PoseidonSpongeVar::new();
         r_sponge.absorb(&[computed_commitment.clone(), external_inputs.3.clone()])?;
         let computed_r = r_sponge.squeeze_one()?;
@@ -289,6 +291,7 @@ pub fn c7_fold_witnesses(
     witnesses: &C7WitnessSet,
     acc: &[u8],
     dkg_root_hash: ark_bn254::Fr,
+    d_commitment: ark_bn254::Fr,
 ) -> Result<CompressedProof, CompressorError> {
     use ark_bn254::Fr;
     use crate::poly_eval::eval_poly_bn254;
@@ -308,7 +311,7 @@ pub fn c7_fold_witnesses(
         .map(|w| w.coeffs.clone())
         .collect();
 
-    let derived_r = hash_all_coeffs(&[witnesses.participants[0].coeff_commitment, dkg_root_hash]);
+    let derived_r = hash_all_coeffs(&[witnesses.participants[0].coeff_commitment, dkg_root_hash, d_commitment]);
 
     set_c7_step_data(coeffs.clone(), derived_r);
 

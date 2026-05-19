@@ -818,6 +818,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         &aggregate_pk.bytes,
         &dkg_root,
         c7_r,
+        Fr::from(0u64), // G.5: TODO: pass real d_commitment
     );
     let c7_ms = elapsed_ms(c7_started);
     observer.phase_end("c7_decrypt_aggregation", c7_ms);
@@ -1601,6 +1602,7 @@ fn run_c7_verification(
     aggregate_pk_bytes: &[u8],
     dkg_root_bytes: &[u8],
     r: Fr,
+    d_commitment: Fr,
 ) -> bool {
     use ark_bn254::Fr;
     use ark_ff::Zero;
@@ -1697,7 +1699,7 @@ fn run_c7_verification(
     let commitments: Vec<Fr> = share_coeffs.iter()
         .map(|c| hash_all_coeffs(c))
         .collect();
-    let derived_r = hash_all_coeffs(&[commitments[0], dkg_root_hash]);
+    let derived_r = hash_all_coeffs(&[commitments[0], dkg_root_hash, d_commitment]); // G.5: d_commitment absorbed into C7 challenge
 
     let acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
     let steps: Vec<ExternalInputs5<Fr>> = share_evals.iter()

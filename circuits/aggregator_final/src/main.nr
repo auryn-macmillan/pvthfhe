@@ -90,7 +90,7 @@ fn main(
     assert(threshold as u32 > 0, "threshold must be positive");
     assert(threshold as u32 <= n_participants as u32, "threshold must not exceed n_participants");
 
-    let n = n_participants as u32;
+    let n = if (n_participants as u32) < MAX_PARTICIPANTS { n_participants as u32 } else { MAX_PARTICIPANTS };
 
     // Party IDs must be non-zero (prevents prover from giving one party all weight)
     for i in 0..MAX_PARTICIPANTS {

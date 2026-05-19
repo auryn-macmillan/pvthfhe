@@ -3,7 +3,7 @@
 use anyhow::Context;
 use ark_bn254::Fr;
 use ark_ec::AffineRepr;
-use ark_ff::{BigInteger, PrimeField, Zero};
+use ark_ff::{BigInteger, Field, PrimeField, Zero};
 use light_poseidon::{Poseidon, PoseidonHasher};
 use pvthfhe_aggregator::{
     folding::{CcsPShareInstance, CycloFoldAllReport},
@@ -1978,6 +1978,84 @@ fn combine_hashes_8(hashes: &[Fr; 8], n_active: usize) -> Fr {
     acc
 }
 
+fn native_poseidon_permute(state: &mut [Fr], params: &light_poseidon::PoseidonParameters<Fr>) {
+    let width = params.width;
+    let half_full = params.full_rounds / 2;
+    let alpha = params.alpha;
+
+    for round in 0..half_full {
+        for i in 0..width {
+            state[i] += params.ark[round * width + i];
+        }
+        for s in state.iter_mut() {
+            *s = s.pow([alpha]);
+        }
+        let mut new_state = vec![Fr::zero(); width];
+        for i in 0..width {
+            for j in 0..width {
+                new_state[i] += params.mds[i][j] * state[j];
+            }
+        }
+        state.clone_from_slice(&new_state);
+    }
+
+    for round in 0..params.partial_rounds {
+        for i in 0..width {
+            state[i] += params.ark[(half_full + round) * width + i];
+        }
+        state[0] = state[0].pow([alpha]);
+        let mut new_state = vec![Fr::zero(); width];
+        for i in 0..width {
+            for j in 0..width {
+                new_state[i] += params.mds[i][j] * state[j];
+            }
+        }
+        state.clone_from_slice(&new_state);
+    }
+
+    for round in 0..half_full {
+        for i in 0..width {
+            state[i] += params.ark[(half_full + params.partial_rounds + round) * width + i];
+        }
+        for s in state.iter_mut() {
+            *s = s.pow([alpha]);
+        }
+        let mut new_state = vec![Fr::zero(); width];
+        for i in 0..width {
+            for j in 0..width {
+                new_state[i] += params.mds[i][j] * state[j];
+            }
+        }
+        state.clone_from_slice(&new_state);
+    }
+}
+
+fn poseidon_sponge_native_noir(inputs: &[Fr]) -> Fr {
+    const RATE: usize = 4;
+    const CAPACITY: usize = 1;
+    const T: usize = RATE + CAPACITY;
+
+    let params = light_poseidon::parameters::bn254_x5::get_poseidon_parameters::<Fr>(T as u8)
+        .expect("Poseidon t=5 BN254 x5 params exist");
+
+    let mut state = vec![Fr::zero(); T];
+    let mut i: usize = 0;
+
+    for &input in inputs {
+        state[CAPACITY + i] += input;
+        i += 1;
+        if i == RATE {
+            native_poseidon_permute(&mut state, &params);
+            i = 0;
+        }
+    }
+    if i != 0 {
+        native_poseidon_permute(&mut state, &params);
+    }
+
+    state[CAPACITY]
+}
+
 fn field_from_i64(value: i64) -> Fr {
     if value >= 0 {
         Fr::from(value as u64)
@@ -2028,7 +2106,7 @@ pub fn build_c7_prover_toml(
         for &id in committee_party_ids {
             inputs.push(Fr::from(id as u64));
         }
-        poseidon_hash_native(&inputs)
+        poseidon_sponge_native_noir(&inputs)
     };
     let decrypt_nizk_hash_field = Fr::from_be_bytes_mod_order(decrypt_nizk_hash);
 

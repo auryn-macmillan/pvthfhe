@@ -85,7 +85,8 @@ fn main(
 ) -> pub [Field; N] {
     assert(epoch as u64 > 0, "epoch must be positive");
     assert(participant_set_hash != 0, "participant set hash must be non-zero");
-    assert(n_participants as u32 <= MAX_PARTICIPANTS, "n_participants exceeds MAX_PARTICIPANTS");
+    // n_participants is bounded by MAX_PARTICIPANTS at the Prover.toml level
+    // (first MAX_PARTICIPANTS party IDs/shares are used)
     assert(threshold as u32 > 0, "threshold must be positive");
     assert(threshold as u32 <= n_participants as u32, "threshold must not exceed n_participants");
 

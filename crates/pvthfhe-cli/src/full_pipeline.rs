@@ -1907,11 +1907,10 @@ fn run_c7_verification(
     let commitments: Vec<Fr> = share_coeffs.iter()
         .map(|c| hash_all_coeffs(c))
         .collect();
-    // G.20: prover randomness prevents precomputation attacks on C7 challenge.
-    // In-circuit verification awaits ExternalInputs7 enlargement (deferred to G.12).
-    let mut rng = rand::thread_rng();
-    let prover_nonce = Fr::from(rng.gen::<u64>());
-    let derived_r = hash_all_coeffs(&[commitments[0], dkg_root_hash, d_commitment, prover_nonce]); // G.5 + G.20
+    // G.20: prover randomness deferred to in-circuit (ExternalInputs7 enlargement, G.12).
+    // G.5: d_commitment absorption deferred to in-circuit.
+    // For now, use circuit-compatible derivation: r = Poseidon(commitment, dkg_root)
+    let derived_r = hash_all_coeffs(&[commitments[0], dkg_root_hash]);
 
     let acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
     let steps: Vec<ExternalInputs5<Fr>> = share_evals.iter()

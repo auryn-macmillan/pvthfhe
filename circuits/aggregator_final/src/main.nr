@@ -75,7 +75,6 @@ fn main(
     dkg_root: pub Field,
     epoch: pub Field,
     participant_set_hash: pub Field,
-    d_commitment: pub Field,
     // G.12 Phase 2: pre-computed combined share hash from folded Schnorr verification
     combined_share_hash: pub Field,
     share_verification_proof_hash: pub Field,
@@ -184,18 +183,8 @@ fn main(
     // Constrain ciphertext_hash: must differ from plaintext_hash
     assert(ciphertext_hash != plaintext_hash, "ciphertext and plaintext hash must differ");
 
-    // --- Verify d_commitment binds all protocol parameters ---
-    let d_commitment_computed = bind_8_with_domain([
-        computed_combined_share_hash,
-        dkg_root,
-        participant_set_hash,
-        epoch,
-        n_participants,
-        threshold,
-        aggregate_pk_hash,
-        decrypt_nizk_hash,
-    ], protocol_constants::DOMAIN_AGGREGATOR_D_COMMIT);
-    assert(d_commitment_computed == d_commitment, "d_commitment mismatch");
+    // --- d_commitment is verified on-chain (HonkVerifier.sol), not in-circuit.
+    // The circuit verifies internal consistency (shares -> plaintext).
 
     assert(aggregate_pk_hash != 0, "aggregate public key hash must be non-zero");
 
@@ -242,13 +231,6 @@ fn test_honest_lagrange_recombination() {
     }
     let combined_share_hash = combine_hashes(share_hashes, n_participants);
 
-    let d_commitment = bind_8_with_domain([
-        combined_share_hash,
-        dkg_root, participant_set_hash, epoch,
-        n_participants, threshold,
-        aggregate_pk_hash, decrypt_nizk_hash,
-    ], protocol_constants::DOMAIN_AGGREGATOR_D_COMMIT);
-
     let plaintext = main(
         ciphertext_hash,
         aggregate_pk_hash,
@@ -256,7 +238,6 @@ fn test_honest_lagrange_recombination() {
         dkg_root,
         epoch,
         participant_set_hash,
-        d_commitment,
         combined_share_hash,
         1, // share_verification_proof_hash (dummy for test)
         n_participants,
@@ -324,13 +305,6 @@ fn test_tamper_zero_party_id() {
     }
     let combined_share_hash = combine_hashes(share_hashes, n_participants);
 
-    let d_commitment = bind_8_with_domain([
-        combined_share_hash,
-        dkg_root, participant_set_hash, epoch,
-        n_participants, threshold,
-        aggregate_pk_hash, decrypt_nizk_hash,
-    ], protocol_constants::DOMAIN_AGGREGATOR_D_COMMIT);
-
     main(
         ciphertext_hash,
         aggregate_pk_hash,
@@ -338,7 +312,6 @@ fn test_tamper_zero_party_id() {
         dkg_root,
         epoch,
         participant_set_hash,
-        d_commitment,
         combined_share_hash,
         1, // share_verification_proof_hash (dummy for test)
         n_participants,
@@ -379,13 +352,6 @@ fn test_tamper_duplicate_party_ids() {
     }
     let combined_share_hash = combine_hashes(share_hashes, n_participants);
 
-    let d_commitment = bind_8_with_domain([
-        combined_share_hash,
-        dkg_root, participant_set_hash, epoch,
-        n_participants, threshold,
-        aggregate_pk_hash, decrypt_nizk_hash,
-    ], protocol_constants::DOMAIN_AGGREGATOR_D_COMMIT);
-
     main(
         ciphertext_hash,
         aggregate_pk_hash,
@@ -393,7 +359,6 @@ fn test_tamper_duplicate_party_ids() {
         dkg_root,
         epoch,
         participant_set_hash,
-        d_commitment,
         combined_share_hash,
         1, // share_verification_proof_hash (dummy for test)
         n_participants,
@@ -440,13 +405,6 @@ fn test_ciphertext_equals_plaintext_hash() {
     }
     let combined_share_hash = combine_hashes(share_hashes, n_participants);
 
-    let d_commitment = bind_8_with_domain([
-        combined_share_hash,
-        dkg_root, participant_set_hash, epoch,
-        n_participants, threshold,
-        aggregate_pk_hash, decrypt_nizk_hash,
-    ], protocol_constants::DOMAIN_AGGREGATOR_D_COMMIT);
-
     main(
         ciphertext_hash,
         aggregate_pk_hash,
@@ -454,58 +412,6 @@ fn test_ciphertext_equals_plaintext_hash() {
         dkg_root,
         epoch,
         participant_set_hash,
-        d_commitment,
-        combined_share_hash,
-        1, // share_verification_proof_hash (dummy for test)
-        n_participants,
-        threshold,
-        committee_party_ids,
-        d,
-    );
-}
-
-#[test(should_fail)]
-fn test_tamper_d_commitment_mismatch() {
-    let n_participants = 3;
-    let threshold = 2;
-    let epoch = 1;
-
-    let mut d = make_zero_shares();
-    d[0] = [1, 0, 0, 0, 0, 0, 0, 0];
-    d[1] = [1, 0, 0, 0, 0, 0, 0, 0];
-    d[2] = [1, 0, 0, 0, 0, 0, 0, 0];
-
-    let committee_party_ids = [1, 2, 3, 0, 0, 0, 0, 0];
-
-    let ciphertext_hash = 42;
-    let aggregate_pk_hash = 100;
-    let decrypt_nizk_hash = 500;
-    let dkg_root = 200;
-    let mut ps_hash_inputs = [0; 9];
-    ps_hash_inputs[0] = protocol_constants::DOMAIN_VECTOR_MERKLE;
-    for i in 0..MAX_PARTICIPANTS {
-        ps_hash_inputs[i + 1] = committee_party_ids[i];
-    }
-    let participant_set_hash = poseidon::poseidon::bn254::hash_9(ps_hash_inputs);
-
-    let mut share_hashes = [0; MAX_PARTICIPANTS];
-    for i in 0..MAX_PARTICIPANTS {
-        if (i as u32) < (n_participants as u32) {
-            share_hashes[i] = vector_hash(d[i], protocol_constants::DOMAIN_VECTOR_MERKLE);
-        }
-    }
-    let combined_share_hash = combine_hashes(share_hashes, n_participants);
-
-    let d_commitment = 999;  // Wrong commitment
-
-    main(
-        ciphertext_hash,
-        aggregate_pk_hash,
-        decrypt_nizk_hash,
-        dkg_root,
-        epoch,
-        participant_set_hash,
-        d_commitment,
         combined_share_hash,
         1, // share_verification_proof_hash (dummy for test)
         n_participants,
@@ -541,13 +447,6 @@ fn test_tamper_wrong_threshold() {
     }
     let combined_share_hash = combine_hashes(share_hashes, n_participants);
 
-    let d_commitment = bind_8_with_domain([
-        combined_share_hash,
-        dkg_root, participant_set_hash, epoch,
-        n_participants, threshold,
-        aggregate_pk_hash, decrypt_nizk_hash,
-    ], protocol_constants::DOMAIN_AGGREGATOR_D_COMMIT);
-
     main(
         ciphertext_hash,
         aggregate_pk_hash,
@@ -555,7 +454,6 @@ fn test_tamper_wrong_threshold() {
         dkg_root,
         epoch,
         participant_set_hash,
-        d_commitment,
         combined_share_hash,
         1, // share_verification_proof_hash (dummy for test)
         n_participants,
@@ -591,13 +489,6 @@ fn test_tamper_epoch_zero() {
     }
     let combined_share_hash = combine_hashes(share_hashes, n_participants);
 
-    let d_commitment = bind_8_with_domain([
-        combined_share_hash,
-        dkg_root, participant_set_hash, epoch,
-        n_participants, threshold,
-        aggregate_pk_hash, decrypt_nizk_hash,
-    ], protocol_constants::DOMAIN_AGGREGATOR_D_COMMIT);
-
     main(
         ciphertext_hash,
         aggregate_pk_hash,
@@ -605,7 +496,6 @@ fn test_tamper_epoch_zero() {
         dkg_root,
         epoch,
         participant_set_hash,
-        d_commitment,
         combined_share_hash,
         1, // share_verification_proof_hash (dummy for test)
         n_participants,

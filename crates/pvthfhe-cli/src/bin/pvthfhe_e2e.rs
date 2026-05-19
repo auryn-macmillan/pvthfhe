@@ -224,6 +224,11 @@ impl BenchObserver {
         let noir_aggregator_final_start = Instant::now();
         info!(phase = "noir_aggregator_final", proof_digest = %report.compressed_proof_digest_hex, "phase start");
         run_noir_aggregator_final_optional(&report);
+        match report.d_commitment_verified {
+            Some(true) => info!("d_commitment: verified ✓"),
+            Some(false) => warn!("d_commitment: MISMATCH ✗"),
+            None => info!("d_commitment: not verified (awaiting G.4)"),
+        }
         println!("noir_aggregator_final");
         self.timings.phases.noir_aggregator_final.total_ms =
             noir_aggregator_final_start.elapsed().as_secs_f64() * 1_000.0;

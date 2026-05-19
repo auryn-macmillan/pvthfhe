@@ -113,6 +113,9 @@ pub struct PipelineReport {
     pub session_id: String,
     /// SHA-256 binding over all decrypt NIZK proof bytes, for Noir C7 Prover.toml.
     pub decrypt_nizk_hash: [u8; 32],
+    /// Whether the d_commitment was verified end-to-end against the Noir circuit output.
+    /// None = verification skipped (awaiting G.4 session_nonce from Interfold).
+    pub d_commitment_verified: Option<bool>,
 }
 
 /// Observer hooks for pipeline narration and metrics.
@@ -1004,6 +1007,11 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         observer.phase_end("c7_noir_aggregator", noir_ms);
     }
 
+    // G.3: d_commitment end-to-end verification
+    // Currently always None until G.4 (session_nonce from Interfold) is resolved.
+    // When available: extract d_commitment from Noir public inputs and compare.
+    let d_commitment_verified: Option<bool> = None;
+
     Ok(PipelineReport {
         timings,
         plaintext_roundtrip_ok,
@@ -1017,6 +1025,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         aggregate_pk_bytes: aggregate_pk.bytes,
         session_id: session_id.to_string(),
         decrypt_nizk_hash,
+        d_commitment_verified,
     })
 }
 

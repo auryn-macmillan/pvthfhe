@@ -24,7 +24,7 @@ use std::time::Instant;
 use {
     pvthfhe_compressor::sonobe::{
         encode_triple, C7DecryptAggregationCircuit, CycloFoldStepCircuit,
-        ExternalInputs4, ExternalInputs5, SonobeCompressor,
+        ExternalInputs3, ExternalInputs4, ExternalInputs5, SonobeCompressor,
     },
 };
 
@@ -289,8 +289,8 @@ fn time_micronova_compressor(epoch_hash: [u8; 32], batch_count: usize) -> anyhow
     let depth = (batch_count as f64).log2().ceil() as usize;
     let compressor = MicroNovaCompressor::new(depth, epoch_hash);
     let total_steps = compressor.total_steps();
-    let steps: Vec<ExternalInputs4<Fr>> = (0..total_steps)
-        .map(|i| ExternalInputs4(Fr::from((i + 1) as u64), Fr::from(1u64), Fr::from(1u64), Fr::from(0u64)))
+    let steps: Vec<ExternalInputs3<Fr>> = (0..total_steps)
+        .map(|i| ExternalInputs3(Fr::from((i + 1) as u64), Fr::from(1u64), Fr::from(1u64)))
         .collect();
     let _proof = compressor
         .prove_tree(&steps)

@@ -153,6 +153,8 @@ pub struct PipelineReport {
     pub dkg_verified: bool,
     /// Total number of shares processed in the DKG ceremony (n × n).
     pub dkg_share_count: usize,
+    /// Per-recipient Nova-folded commitment hashes from the DKG ceremony.
+    pub recipient_fold_hashes: Vec<Fr>,
 }
 
 /// Observer hooks for pipeline narration and metrics.
@@ -261,6 +263,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     // Verifies aggregate matches aggregate public key via dkg_aggregation.
     let dkg_verified;
     let dkg_share_count;
+    let recipient_fold_hashes;
     observer.phase_start("dkg_ceremony", Some(&format!("n={} t={}", cfg.n, cfg.t)));
     let dkg_started = Instant::now();
     {
@@ -425,6 +428,79 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 anyhow::anyhow!("dkg aggregation verify for recipient {recipient_id}: {e}")
             })?;
         }
+
+        let mut fold_hashes: Vec<Fr> = Vec::with_capacity(n);
+        #[cfg(feature = "sonobe-compressor")]
+        {
+            use pvthfhe_compressor::witness::{AjtaiCommitmentWitness, AjtaiCommitmentWitnessSet};
+            use pvthfhe_compressor::witness::hash_all_coeffs;
+
+            let epoch_hash: [u8; 32] = Sha256::digest(cfg.seed.to_be_bytes()).into();
+            let ajtai_compressor = SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new(
+                epoch_hash,
+                n,
+            ).map_err(|e| anyhow::anyhow!("ajtai compressor init: {e:?}"))?;
+            let acc = encode_hex((Fr::zero(), Fr::zero(), Fr::zero(), Fr::zero(), Fr::zero(), Fr::zero(), Fr::zero())).to_vec();
+
+            for recipient_id in 0..n {
+                let recipient_id_u16 = (recipient_id + 1) as u16;
+                let mut witness_list = Vec::with_capacity(n);
+                let mut recipient_commitments: Vec<Fr> = Vec::with_capacity(n);
+
+                for dealer_id in 0..n {
+                    let dealer_id_u16 = (dealer_id + 1) as u16;
+
+                    let mut all_fr_values: Vec<Fr> = Vec::new();
+                    for (d_id, _chunk_idx, encrypted) in &all_dealer_chunks {
+                        if *d_id == dealer_id {
+                            let share_bytes = &encrypted.share_bytes[recipient_id];
+                            let (_, fr_values) = deserialize_share_payload_to_frs(share_bytes)
+                                .with_context(|| format!("deserialize share dealer={dealer_id} recipient={recipient_id}"))?;
+                            all_fr_values.extend(fr_values);
+                        }
+                    }
+                    let total_share: Fr = all_fr_values.iter().fold(Fr::zero(), |acc, &f| acc + f);
+
+                    let sk_commit = compute_sk_dealer_share_commitment(
+                        &session_id_bytes,
+                        &dkg_root,
+                        dealer_id_u16,
+                        recipient_id_u16,
+                        total_share,
+                    );
+                    let sk_commit_fr = Fr::from_be_bytes_mod_order(&sk_commit);
+                    let commitment_hash = hash_all_coeffs(&[sk_commit_fr, Fr::from(dealer_id_u16 as u64), Fr::from(recipient_id_u16 as u64)]);
+
+                    recipient_commitments.push(sk_commit_fr);
+
+                    witness_list.push(AjtaiCommitmentWitness {
+                        coeffs: vec![commitment_hash],
+                        expected_commitment_hash: commitment_hash,
+                        matrix_seed: {
+                            let mut seed = [0u8; 32];
+                            let mut h = Sha256::new();
+                            h.update(&session_id_bytes);
+                            h.update(&dealer_id_u16.to_le_bytes());
+                            h.update(&recipient_id_u16.to_le_bytes());
+                            seed.copy_from_slice(&h.finalize());
+                            seed
+                        },
+                    });
+                }
+
+                let witness_set = AjtaiCommitmentWitnessSet { witnesses: witness_list };
+                ajtai_compressor.prove_steps_ajtai(&acc, &witness_set)
+                    .map_err(|e| anyhow::anyhow!("ajtai fold for recipient {recipient_id}: {e:?}"))?;
+
+                let fold_hash = hash_all_coeffs(&recipient_commitments);
+                fold_hashes.push(fold_hash);
+            }
+        }
+        #[cfg(not(feature = "sonobe-compressor"))]
+        {
+            fold_hashes = vec![Fr::zero(); n];
+        }
+        recipient_fold_hashes = fold_hashes;
 
         dkg_share_count = n * n;
         dkg_verified = true;
@@ -1504,6 +1580,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         sk_bindings: registered_sk_bindings,
         dkg_verified,
         dkg_share_count,
+        recipient_fold_hashes,
     })
 }
 

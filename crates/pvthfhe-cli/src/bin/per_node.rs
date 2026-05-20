@@ -149,17 +149,48 @@ fn main() -> anyhow::Result<()> {
     // 3b. DKG ceremony: Shamir-split key + PVSS-encrypt shares for all recipients
     let adapter = LatticePvssBfvAdapter::new().context("dkg pvss adapter init")?;
     let ta_dkg = Instant::now();
+    let dkg_session_id = format!("per-node-dkg-{}", args.seed).as_bytes().to_vec();
+    let dkg_root: Vec<u8> = {
+        let mut h = Sha256::new();
+        h.update(b"per-node-dkg-root/v1");
+        h.update(&dkg_session_id);
+        h.finalize().to_vec()
+    };
     let dkg_ctx = PvssContext {
         n: args.n,
         t: args.threshold,
-        session_id: b"per-node-dkg".to_vec(),
+        session_id: dkg_session_id,
         epoch: 0,
-        dkg_root: session_id.to_vec(),
-        dealer_index: 0,
+        dkg_root,
+        dealer_index: 1,
     };
-    let recipient_pks: Vec<Vec<u8>> = (0..n_recipients)
-        .map(|i| vec![i as u8; 32])
-        .collect();
+    let all_keygen_shares: Vec<pvthfhe_fhe::KeygenShare> = {
+        let mut shares = Vec::with_capacity(args.n);
+        shares.push(pvthfhe_fhe::KeygenShare {
+            party_id,
+            bytes: keygen_share.bytes.clone(),
+        });
+        for pid in 2..=args.n as u32 {
+            let mut rng = StdRng::seed_from_u64(args.seed ^ pid as u64);
+            let ks = backend
+                .keygen_share_with_session(&session_id, pid, &mut rng)
+                .context("keygen share for recipient pk")?;
+            shares.push(pvthfhe_fhe::KeygenShare {
+                party_id: pid,
+                bytes: ks.bytes.clone(),
+            });
+        }
+        shares
+    };
+    let recipient_pks: Vec<Vec<u8>> = all_keygen_shares
+        .iter()
+        .map(|ks| {
+            backend
+                .aggregate_keygen(&[ks.clone()])
+                .map(|pk| pk.bytes)
+                .context("aggregate keygen for recipient pk")
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?;
     let dkg_chunk_size = 4000;
     if sk_bytes.len() <= dkg_chunk_size {
         adapter.deal(&sk_bytes, &recipient_pks, &dkg_ctx)

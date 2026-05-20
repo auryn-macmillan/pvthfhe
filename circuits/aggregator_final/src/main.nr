@@ -94,6 +94,15 @@ fn main(
     assert(threshold as u32 <= n_participants as u32, "threshold must not exceed n_participants");
 
     let n = if (n_participants as u32) < MAX_PARTICIPANTS { n_participants as u32 } else { MAX_PARTICIPANTS };
+    // But Lagrange requires distinct non-zero IDs. Cap n to the count of
+    // non-zero committee_party_ids (zeros are padding from Prover.toml).
+    let mut n_nonzero = 0;
+    for i in 0..MAX_PARTICIPANTS {
+        if committee_party_ids[i] != 0 {
+            n_nonzero = n_nonzero + 1;
+        }
+    }
+    let n = if n_nonzero < n { n_nonzero } else { n };
 
     // Party IDs must be non-zero (prevents prover from giving one party all weight)
     for i in 0..MAX_PARTICIPANTS {

@@ -204,11 +204,7 @@ fn main() -> anyhow::Result<()> {
     #[cfg(feature = "sonobe-compressor")]
     let c7_ms = {
         let t5 = Instant::now();
-        if args.use_c7_tree {
-            time_c7_tree_folding(args.threshold, args.seed, &sha256_bytes(&sk_bytes))?;
-        } else {
-            time_c7_flat_folding(args.threshold, args.seed)?;
-        }
+        time_c7_tree_folding(args.threshold, args.seed, &sha256_bytes(&sk_bytes))?;
         elapsed_ms(t5)
     };
     #[cfg(not(feature = "sonobe-compressor"))]
@@ -371,58 +367,6 @@ fn compute_ajtai_matrix_commitment(
 }
 
 #[cfg(feature = "sonobe-compressor")]
-fn time_c7_tree_folding(t: usize, seed: u64, _pk_hash: &[u8; 32]) -> anyhow::Result<()> {
-    use pvthfhe_compressor::micronova::tree::CompressionTree;
-
-    let leaf_count = t.next_power_of_two().max(2);
-    let leaf_hashes: Vec<[u8; 32]> = (0..leaf_count)
-        .map(|i| {
-            let mut h = Sha256::new();
-            h.update(b"per-node-c7-leaf/v1");
-            h.update(seed.to_be_bytes());
-            h.update((i as u64).to_be_bytes());
-            h.finalize().into()
-        })
-        .collect();
-
-    let _tree = CompressionTree::build(&leaf_hashes)
-        .map_err(|e| anyhow::anyhow!("C7 tree build failed: {e:?}"))?;
-    Ok(())
-}
-
-#[cfg(feature = "sonobe-compressor")]
-fn time_c7_flat_folding(t: usize, seed: u64) -> anyhow::Result<()> {
-    use ark_bn254::Fr;
-    use ark_ff::Zero;
-    use pvthfhe_compressor::sonobe::{encode_triple, C7DecryptAggregationCircuit, ExternalInputs5, SonobeCompressor};
-    use pvthfhe_compressor::witness::hash_all_coeffs;
-
-    let epoch: [u8; 32] = Sha256::digest(seed.to_be_bytes()).into();
-    let compressor = SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch, t)
-        .map_err(|e| anyhow::anyhow!("C7 compressor init: {e:?}"))?;
-    let acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
-    // Compute valid commitment for the default all-zero coefficients
-    let coeff_commitment = hash_all_coeffs(&vec![Fr::zero(); 8192]);
-    let derived_r = hash_all_coeffs(&[coeff_commitment, Fr::zero()]);
-    let steps: Vec<ExternalInputs5<Fr>> = (0..t)
-        .map(|i| ExternalInputs5(Fr::from((42 + i) as u64), Fr::from(1u64), coeff_commitment, Fr::zero(), derived_r))
-        .collect();
-    let _proof = compressor
-        .prove_steps_c7(&acc, &steps)
-        .map_err(|e| anyhow::anyhow!("C7 prove_steps: {e:?}"))?;
-    Ok(())
-}
-
-#[cfg(not(feature = "sonobe-compressor"))]
-fn time_c7_tree_folding(_t: usize, _seed: u64, _pk_hash: &[u8; 32]) -> anyhow::Result<()> {
-    Ok(())
-}
-
-#[cfg(not(feature = "sonobe-compressor"))]
-fn time_c7_flat_folding(_t: usize, _seed: u64) -> anyhow::Result<()> {
-    Ok(())
-}
-
 /// Derive a ternary witness polynomial (-1, 0, 1) from secret key bytes.
 fn secret_key_to_ternary_poly(bytes: &[u8], seed: u64) -> Vec<i64> {
     let mut hasher = Sha256::new();
@@ -438,6 +382,36 @@ fn secret_key_to_ternary_poly(bytes: &[u8], seed: u64) -> Vec<i64> {
         poly.push((v % 3) as i64 - 1);
     }
     poly
+}
+
+#[cfg(feature = "sonobe-compressor")]
+fn time_c7_tree_folding(t: usize, _seed: u64, _pk_hash: &[u8; 32]) -> anyhow::Result<()> {
+    use ark_bn254::Fr;
+    use pvthfhe_compressor::micronova::tree::CompressionTree;
+    use pvthfhe_compressor::sonobe::encode_scalar;
+    use pvthfhe_compressor::witness::hash_all_coeffs;
+
+    let leaf_count = t.next_power_of_two().max(1);
+    let mut leaf_hashes: Vec<[u8; 32]> = Vec::with_capacity(leaf_count);
+    for i in 0..t {
+        let sev = Fr::from((42 + i) as u64);
+        let lc = Fr::from(1u64);
+        let leaf_fr = hash_all_coeffs(&[sev, lc]);
+        let mut bytes = [0u8; 32];
+        bytes.copy_from_slice(&encode_scalar(leaf_fr));
+        leaf_hashes.push(bytes);
+    }
+    while leaf_hashes.len() < leaf_count {
+        leaf_hashes.push([0u8; 32]);
+    }
+    CompressionTree::build(&leaf_hashes)
+        .map_err(|e| anyhow::anyhow!("C7 tree build: {e:?}"))?;
+    Ok(())
+}
+
+#[cfg(not(feature = "sonobe-compressor"))]
+fn time_c7_tree_folding(_t: usize, _seed: u64, _pk_hash: &[u8; 32]) -> anyhow::Result<()> {
+    Ok(())
 }
 
 /// Derive a small-norm error polynomial for NIZK witness.

@@ -2190,7 +2190,7 @@ fn decode_scalar(bytes: &[u8]) -> Result<Fr, CompressorError> {
     Ok(Fr::from_le_bytes_mod_order(bytes))
 }
 
-fn encode_scalar(value: Fr) -> Vec<u8> {
+pub fn encode_scalar(value: Fr) -> Vec<u8> {
     let mut bytes = value.into_bigint().to_bytes_le();
     bytes.resize(32, 0);
     bytes

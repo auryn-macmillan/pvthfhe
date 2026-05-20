@@ -81,6 +81,9 @@ fn main(
     // G.12 Phase 4: combined hash of Nova-folded Ajtai commitment verifications.
     // Verified on-chain by HonkVerifier.sol, not constrained in-circuit.
     combined_commitment_hash: pub Field,
+    // Share provenance: combined Poseidon hash of all registered sk_commitments.
+    // Allows on-chain verifier to confirm each NIZK proof used the correct secret key.
+    combined_sk_commitment_hash: pub Field,
     dkg_root: pub Field,
     epoch: pub Field,
     participant_set_hash: pub Field,
@@ -258,6 +261,7 @@ fn test_honest_lagrange_recombination() {
         aggregate_pk_hash,
         decrypt_nizk_hash,
         0,
+        0,
         dkg_root,
         epoch,
         participant_set_hash,
@@ -336,6 +340,7 @@ fn test_tamper_zero_party_id() {
         aggregate_pk_hash,
         decrypt_nizk_hash,
         0,
+        0,
         dkg_root,
         epoch,
         participant_set_hash,
@@ -386,6 +391,7 @@ fn test_tamper_duplicate_party_ids() {
         ciphertext_hash,
         aggregate_pk_hash,
         decrypt_nizk_hash,
+        0,
         0,
         dkg_root,
         epoch,
@@ -444,6 +450,7 @@ fn test_ciphertext_equals_plaintext_hash() {
         aggregate_pk_hash,
         decrypt_nizk_hash,
         0,
+        0,
         dkg_root,
         epoch,
         participant_set_hash,
@@ -490,6 +497,7 @@ fn test_tamper_wrong_threshold() {
         aggregate_pk_hash,
         decrypt_nizk_hash,
         0,
+        0,
         dkg_root,
         epoch,
         participant_set_hash,
@@ -535,6 +543,7 @@ fn test_tamper_epoch_zero() {
         ciphertext_hash,
         aggregate_pk_hash,
         decrypt_nizk_hash,
+        0,
         0,
         dkg_root,
         epoch,

@@ -335,6 +335,16 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     #[cfg(not(feature = "sonobe-compressor"))]
     let combined_commitment_hash = Fr::zero();
 
+    let combined_sk_commitment_hash = if sk_commitments.is_empty() {
+        Fr::zero()
+    } else {
+        use pvthfhe_compressor::witness::poseidon_sponge_hash_native;
+        let sk_fr: Vec<Fr> = sk_commitments.iter()
+            .map(|c| Fr::from_be_bytes_mod_order(c))
+            .collect();
+        poseidon_sponge_hash_native(&sk_fr)
+    };
+
     use rayon::prelude::*;
     let mut nizk_verify_total_ms = 0.0;
     let mut nizk_verify_per_instance_ms = Vec::new();
@@ -1156,6 +1166,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         combined_share_hash,
         Fr::from(0u64),
         combined_commitment_hash,
+        combined_sk_commitment_hash,
     );
     let mut noir_passed = true;
 
@@ -2140,6 +2151,7 @@ pub fn build_c7_prover_toml(
     combined_share_hash: Fr,      // G.12: Combined share hash from Nova-folded ShareVerificationStepCircuit
     share_verification_proof_hash: Fr,  // G.12: Hash of Nova-folded ShareVerificationStepCircuit proof
     combined_commitment_hash: Fr,  // G.12 Phase 4: Combined hash of Nova-folded Ajtai commitment verifications
+    combined_sk_commitment_hash: Fr,  // G.12 Phase 4: Combined Poseidon hash of all registered sk_commitments
 ) -> String {
     let n_participants = committee_party_ids.len();
     let threshold = n_participants - 1;
@@ -2226,6 +2238,7 @@ pub fn build_c7_prover_toml(
     toml.push_str(&format!("combined_share_hash = \"0x{}\"\n", field_hex_be(combined_share_hash)));
     toml.push_str(&format!("share_verification_proof_hash = \"0x{}\"\n", field_hex_be(share_verification_proof_hash)));
     toml.push_str(&format!("combined_commitment_hash = \"0x{}\"\n", field_hex_be(combined_commitment_hash)));
+    toml.push_str(&format!("combined_sk_commitment_hash = \"0x{}\"\n", field_hex_be(combined_sk_commitment_hash)));
     toml.push_str(&format!("d_commitment = \"0x{}\"\n", field_hex_be(d_commitment)));
     toml.push_str(&format!("n_participants = \"{}\"\n", n_participants));
     toml.push_str(&format!("threshold = \"{}\"\n", threshold));

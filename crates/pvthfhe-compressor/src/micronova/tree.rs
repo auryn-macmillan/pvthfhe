@@ -6,11 +6,11 @@
 //! nodes contribute their hashes to the accumulator.
 
 use ark_bn254::Fr;
-use ark_ff::{PrimeField, Zero};
-use sha2::{Digest, Sha256};
+use ark_ff::{BigInteger, PrimeField, Zero};
 
 use crate::micronova::compressor::MicroNovaCompressor;
 use crate::sonobe::ExternalInputs3;
+use crate::witness::hash_all_coeffs;
 use crate::{CompressedProof, CompressorError};
 
 /// Compression tree: bottom-up folding verification.
@@ -26,10 +26,18 @@ pub struct CompressionTree {
     pub root_proof: CompressedProof,
 }
 
+fn fr_to_bytes_be(value: Fr) -> [u8; 32] {
+    let mut bytes = [0u8; 32];
+    let be = value.into_bigint().to_bytes_be();
+    let start = 32usize.saturating_sub(be.len());
+    bytes[start..].copy_from_slice(&be);
+    bytes
+}
+
 impl CompressionTree {
     /// Build a compression tree from leaf accumulator hashes.
     ///
-    /// Each leaf is a 32-byte hash. Pairs are hashed together with SHA-256
+    /// Each leaf is a 32-byte hash. Pairs are hashed together with native Poseidon
     /// bottom-up to compute internal node hashes. The full tree (leaves +
     /// internal nodes in level order) is then folded through a single
     /// heterogeneous IVC chain via [`MicroNovaCompressor::prove_tree`].
@@ -53,11 +61,10 @@ impl CompressionTree {
             let current = levels.last().unwrap();
             let mut next = Vec::with_capacity(current.len() / 2);
             for pair in current.chunks(2) {
-                let mut hasher = Sha256::new();
-                hasher.update(&pair[0]);
-                hasher.update(&pair[1]);
-                let parent: [u8; 32] = hasher.finalize().into();
-                next.push(parent);
+                let left_fr = Fr::from_be_bytes_mod_order(&pair[0]);
+                let right_fr = Fr::from_be_bytes_mod_order(&pair[1]);
+                let parent_fr = hash_all_coeffs(&[left_fr, right_fr]);
+                next.push(fr_to_bytes_be(parent_fr));
             }
             levels.push(next);
         }

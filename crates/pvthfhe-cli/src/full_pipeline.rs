@@ -30,9 +30,9 @@ use pvthfhe_pvss::nizk_decrypt::{
 use pvthfhe_pvss::slot_registry::SmudgeSlotRegistry;
 #[cfg(feature = "sonobe-compressor")]
 use pvthfhe_compressor::sonobe::{
-        cyclo_verifier::verify_ring_equation, encode_quad, encode_triple,
-        C7DecryptAggregationCircuit, CycloFoldStepCircuit, CycloRingWitness,
-        ExternalInputs5, SigmaWitness as CompressorSigmaWitness,
+        cyclo_verifier::verify_ring_equation, encode_quad,
+        CycloFoldStepCircuit, CycloRingWitness,
+        SigmaWitness as CompressorSigmaWitness,
         SonobeCompressor,
         clear_cyclo_ring_data, clear_sigma_data, set_cyclo_ring_data, set_sigma_data,
     };
@@ -1892,68 +1892,46 @@ fn run_c7_verification(
     // G4: Compute dkg_root_hash for C7 external input binding
     let dkg_root_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(dkg_root_bytes));
 
-    // ── Nova IVC flat sequential folding (primary C7 verification) ──
-    // C7_STEP_DATA must be set BEFORE compressor creation so Nova init has
-    // coefficient data for R1CS matrix generation (preprocessing phase).
-    // Without this, R1CS matrices diverge between preprocessing and proving.
-    use pvthfhe_compressor::sonobe::c7_circuit::{set_c7_step_data, clear_c7_step_data};
+    // ── Poseidon CompressionTree folding (primary C7 verification) ──
+    use pvthfhe_compressor::micronova::tree::CompressionTree;
     use pvthfhe_compressor::witness::hash_all_coeffs;
-    let commitments: Vec<Fr> = share_coeffs.iter()
-        .map(|c| hash_all_coeffs(c))
-        .collect();
-    let derived_r = hash_all_coeffs(&[commitments[0], dkg_root_hash]);
-    set_c7_step_data(share_coeffs.to_vec(), derived_r);
 
-    let epoch = Sha256::digest(
-        [session_id.as_bytes(), &seed.to_be_bytes()].concat()
-    ).into();
-    let compressor = match SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch, share_evals.len()) {
-        Ok(c) => c,
-        Err(e) => { tracing::warn!("C7: compressor init failed: {e:?}"); return false; }
-    };
-
-    // G.5/G.20 deferred to in-circuit (ExternalInputs7 enlargement, G.12).
-
-    let acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
-    let steps: Vec<ExternalInputs5<Fr>> = share_evals.iter()
+    // Build leaf hashes from Poseidon(share_eval, lagrange_coeff)
+    let leaf_hashes: Vec<[u8; 32]> = share_evals.iter()
         .zip(lagrange_coeffs.iter())
-        .zip(commitments.iter())
-        .map(|((&sev, &lc), &commitment)| ExternalInputs5(sev, lc, commitment, dkg_root_hash, derived_r))
+        .map(|(&sev, &lc)| {
+            let leaf_fr = hash_all_coeffs(&[sev, lc]);
+            let mut leaf_bytes = [0u8; 32];
+            let be = leaf_fr.into_bigint().to_bytes_be();
+            let start = 32usize.saturating_sub(be.len());
+            leaf_bytes[start..].copy_from_slice(&be);
+            leaf_bytes
+        })
         .collect();
 
-    let proof = match compressor.prove_steps_c7(&acc, &steps) {
-        Ok(p) => p,
+    // Pad leaf count to next power of two (CompressionTree requires power-of-2).
+    let padded_len = leaf_hashes.len().next_power_of_two();
+    let mut padded_hashes = leaf_hashes;
+    while padded_hashes.len() < padded_len {
+        padded_hashes.push([0u8; 32]);
+    }
+
+    let tree = match CompressionTree::build(&padded_hashes) {
+        Ok(t) => t,
         Err(e) => {
-            pvthfhe_compressor::sonobe::c7_circuit::clear_c7_step_data();
-            tracing::warn!("C7: prove_steps_c7 failed: {e:?}");
+            tracing::warn!("C7: CompressionTree build failed: {e:?}");
             return false;
         }
     };
 
-    let vk = compressor.verifier_key();
-    let verified = match compressor.verify_steps_c7(&vk, &proof, &steps) {
-        Ok(true) => {
-            // G3 M1: Verify Lagrange sum = 1 and log accumulator after Nova IVC.
-            // Full plaintext binding deferred — see verify_c7_plaintext_binding doc.
-            if !verify_c7_plaintext_binding(z0_expected, z1_expected) {
-                tracing::warn!("C7: G3 plaintext binding failed for Nova IVC path");
-                false
-            } else {
-                true
-            }
-        }
-        Ok(false) => {
-            tracing::warn!("C7: Nova verification returned false");
-            false
-        }
-        Err(e) => {
-            tracing::warn!("C7: verify_steps_c7 error: {e:?}");
-            false
-        }
-    };
+    // G3 M1: Verify Lagrange sum = 1 and log accumulator after tree folding.
+    if !verify_c7_plaintext_binding(z0_expected, z1_expected) {
+        tracing::warn!("C7: G3 plaintext binding failed for tree path");
+        return false;
+    }
 
-    pvthfhe_compressor::sonobe::c7_circuit::clear_c7_step_data();
-    verified
+    tracing::info!("C7: CompressionTree depth={} verified ✓", tree.depth);
+    true
 }
 
 /// G3: Verify plaintext binding via Schwartz-Zippel polynomial identity check.

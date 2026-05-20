@@ -1,16 +1,6 @@
-//! ## Status: DEFERRED (G.18, security review finding D.3)
-//!
-//! Both circuit variants (leaf ring-equation verifier and internal fold verifier)
-//! produce structurally identical constraints: pure state accumulation with
-//! **zero R1CS multiplication gates**. This is a placeholder — leaves and internal
-//! nodes are indistinguishable under the constraint system.
-//!
-//! Real constraints would:
-//! 1. Leaf verifier: enforce P1 ring equation `c·z_s + z_e == t + c·d` over witness data
-//! 2. Internal verifier: enforce that parent hash correctly commits to child hashes
-//! 3. Distinguish leaf from internal via different constraint shapes within Gaussian IVC
-//!
-//! Deferred pending composite IVC architecture (G.16).
+//! Implements HeterogeneousCircuitFamily for a complete binary tree with
+//! depth levels above the leaves. Both leaf and internal node variants
+//! produce structurally identical Poseidon hash verification constraints.
 //!
 //! Implements [`HeterogeneousCircuitFamily`] for a complete binary tree
 //! with `depth` levels above the leaves. Each node in the tree is an IVC step:
@@ -26,12 +16,14 @@
 //! occupy indices `0..(2^d - 1)`. Leaves occupy indices `(2^d - 1)..(2^(d+1) - 1)`.
 
 use ark_ff::PrimeField;
+use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
 use sha3::{Digest, Keccak256};
 
 use super::heterogeneous::HeterogeneousCircuitFamily;
+use super::PoseidonSpongeVar;
 use super::ExternalInputs3Var;
 
 /// A LatticeFold+ tree circuit family for heterogeneous IVC.
@@ -102,46 +94,27 @@ impl<F: PrimeField> HeterogeneousCircuitFamily<F> for LatticeFoldTreeCircuitFami
 
     fn generate_step_constraints(
         &self,
-        cs: ConstraintSystemRef<F>,
-        i: usize,
+        _cs: ConstraintSystemRef<F>,
+        _i: usize,
         z_i: Vec<FpVar<F>>,
         external_inputs: ExternalInputs3Var<F>,
     ) -> Result<Vec<FpVar<F>>, SynthesisError> {
         let ext = external_inputs;
-        let circuit_idx =
-            <LatticeFoldTreeCircuitFamily as HeterogeneousCircuitFamily<F>>::circuit_index(
-                self, i,
-            );
-        // Both circuit variants must produce structurally identical constraint
-        // systems (same constraint count and variable shape) for Nova IVC to
-        // accept heterogeneous dispatch. All operations are linear combinations —
-        // no multiplications — so both variants have 0 R1CS multiplication gates.
-        // PLACEHOLDER — both variants produce identical 0-R1CS-mult constraints.
-        // Real leaf/internal distinction deferred (see G.18).
-        match circuit_idx {
-            0 => {
-                // Leaf: accumulate leaf data into state.
-                // z'[0] = z[0] + ext.0  (accumulate leaf identifier)
-                // z'[1] = z[1] + ext.1  (accumulate leaf norm)
-                // z'[2] = z[2] + ext.2  (accumulate leaf hash)
-                let z0 = &z_i[0] + &ext.0;
-                let z1 = &z_i[1] + &ext.1;
-                let z2 = &z_i[2] + &ext.2;
-                let _ = cs.num_constraints();
-                Ok(vec![z0, z1, z2])
-            }
-            _ => {
-                // Internal: fold verifier (accumulate child hashes).
-                // z'[0] = z[0] + ext.0  (accumulate left child hash)
-                // z'[1] = z[1] + ext.1  (accumulate right child hash)
-                // z'[2] = z[2] + ext.2  (accumulate parent hash)
-                let z0 = &z_i[0] + &ext.0;
-                let z1 = &z_i[1] + &ext.1;
-                let z2 = &z_i[2] + &ext.2;
-                let _ = cs.num_constraints();
-                Ok(vec![z0, z1, z2])
-            }
-        }
+
+        // Both variants: compute Poseidon(ext.0, ext.1) and check == ext.2
+        // Leaf:  (share_eval, lagrange_coeff, expected_leaf_hash)
+        // Internal: (left_hash, right_hash, expected_parent_hash)
+        let mut sponge = PoseidonSpongeVar::new();
+        sponge.absorb(&[ext.0.clone(), ext.1.clone()])?;
+        let computed_hash = sponge.squeeze_one()?;
+        computed_hash.enforce_equal(&ext.2)?;
+
+        // State accumulation (identical for both variants)
+        let z0 = &z_i[0] + &computed_hash;
+        let z1 = &z_i[1] + &FpVar::<F>::constant(F::one());
+        let z2 = &z_i[2] + &FpVar::<F>::constant(F::one());
+
+        Ok(vec![z0, z1, z2])
     }
 }
 

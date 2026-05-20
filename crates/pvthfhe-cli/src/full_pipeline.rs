@@ -149,6 +149,10 @@ pub struct PipelineReport {
     /// Per-party secret key bindings (SHA-256 over d_rns || participant_id || session_id).
     /// Computed from the proof-embedded d_rns and checked against the DKG registry.
     pub sk_bindings: Vec<[u8; 32]>,
+    /// Whether the DKG ceremony (dealer→recipient PVSS) passed all verifications.
+    pub dkg_verified: bool,
+    /// Total number of shares processed in the DKG ceremony (n × n).
+    pub dkg_share_count: usize,
 }
 
 /// Observer hooks for pipeline narration and metrics.
@@ -235,6 +239,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
     // G.SHARE-PROVENANCE: compute per-party secret key commitments
     let mut sk_commitments: Vec<[u8; 32]> = Vec::with_capacity(cfg.n);
+    let mut party_sk_bytes: Vec<Vec<u8>> = Vec::with_capacity(cfg.n);
     for party_idx in 0..cfg.n {
         let backend_party_id = u32::try_from(party_idx + 1).context("party_id conversion")?;
         let sk_bytes = backend
@@ -246,16 +251,185 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             &sk_bytes,
         );
         sk_commitments.push(sk_commit);
+        party_sk_bytes.push(sk_bytes);
     }
 
-    #[cfg(feature = "pipeline-extra-checks")]
+    // ── DKG Ceremony (dealer → recipient share distribution, d=n) ──
+    // Each party is both dealer and recipient.
+    // Dealer splits their secret key via Shamir, encrypts shares for each recipient.
+    // Recipient verifies each share, aggregates to reconstruct their final key.
+    // Verifies aggregate matches aggregate public key via dkg_aggregation.
+    let dkg_verified;
+    let dkg_share_count;
+    observer.phase_start("dkg_ceremony", Some(&format!("n={} t={}", cfg.n, cfg.t)));
+    let dkg_started = Instant::now();
     {
-        observer.phase_start("verify_recipient_dkg_aggregation", None);
-        let dkg_verify_started = Instant::now();
-        verify_all_recipient_dkg_aggregations(&transcript, &session_id, cfg.n)?;
-        let dkg_verify_ms = elapsed_ms(dkg_verify_started);
-        observer.phase_end("verify_recipient_dkg_aggregation", dkg_verify_ms);
+        use pvthfhe_pvss::{
+            LatticePvssBfvAdapter, PvssAdapter, PvssContext, EncryptedShares,
+        };
+        use pvthfhe_pvss::dkg_aggregation::{
+            verify_recipient_dkg_aggregation, RecipientDkgAggregationStatement,
+            DealerDkgShare,
+            compute_sk_dealer_share_commitment, compute_esm_dealer_share_commitment,
+            compute_sk_aggregate_commitment, compute_esm_aggregate_commitment,
+        };
+
+        let n = cfg.n;
+        let t = cfg.t;
+        let dkg_session_id = format!("dkg-{}", hex::encode(&cfg.seed.to_be_bytes()));
+        let dkg_root = transcript.dkg_root.to_vec();
+        let session_id_bytes = dkg_session_id.as_bytes().to_vec();
+
+        let recipient_pks: Vec<Vec<u8>> = transcript
+            .round1_messages
+            .iter()
+            .map(|message| {
+                backend
+                    .aggregate_keygen(&[KeygenShare {
+                        party_id: message.party_id,
+                        bytes: ProtocolBytes(message.pk_i.bytes.clone()),
+                    }])
+                    .map(|pk| pk.bytes)
+                    .with_context(|| {
+                        format!("derive recipient pk for party {}", message.party_id)
+                    })
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+
+        let adapter = LatticePvssBfvAdapter::new()
+            .map_err(|e| anyhow::anyhow!("dkg pvss adapter init: {e}"))?;
+
+        // Phase 1: Each dealer splits their secret key and encrypts shares
+        // Chunk key to stay within BFV plaintext capacity (~16KB; 4KB leaves headroom).
+        const DKG_CHUNK_SIZE: usize = 4000;
+        let mut all_dealer_chunks: Vec<(usize, usize, EncryptedShares)> = Vec::new();
+
+        for dealer_id in 0..n {
+            let sk_bytes = &party_sk_bytes[dealer_id];
+            let num_chunks = (sk_bytes.len() + DKG_CHUNK_SIZE - 1) / DKG_CHUNK_SIZE;
+
+            for chunk_idx in 0..num_chunks {
+                let start = chunk_idx * DKG_CHUNK_SIZE;
+                let end = (start + DKG_CHUNK_SIZE).min(sk_bytes.len());
+                let chunk = &sk_bytes[start..end];
+
+                let ctx = PvssContext {
+                    n,
+                    t,
+                    session_id: session_id_bytes.clone(),
+                    epoch: 0,
+                    dkg_root: dkg_root.clone(),
+                    dealer_index: dealer_id,
+                };
+                let encrypted = adapter
+                    .deal(chunk, &recipient_pks, &ctx)
+                    .map_err(|e| {
+                        anyhow::anyhow!("dkg deal dealer={dealer_id} chunk={chunk_idx}: {e}")
+                    })?;
+
+                adapter
+                    .verify_shares(&encrypted, &ctx)
+                    .map_err(|e| {
+                        anyhow::anyhow!("dkg verify_shares dealer={dealer_id} chunk={chunk_idx}: {e}")
+                    })?;
+
+                all_dealer_chunks.push((dealer_id, chunk_idx, encrypted));
+            }
+        }
+
+        // Phase 2: Each recipient aggregates shares from all dealers and verifies
+        let max_n_u16 = u16::try_from(n).context("n exceeds u16")?;
+        let accepted_dealer_ids: Vec<u16> = (1..=max_n_u16).collect();
+        let smudge_slot_indices = vec![1u16];
+
+        for recipient_id in 0..n {
+            let recipient_id_u16 = (recipient_id + 1) as u16;
+            let mut dealer_inputs = Vec::with_capacity(n);
+
+            for dealer_id in 0..n {
+                let dealer_id_u16 = (dealer_id + 1) as u16;
+
+                let mut all_fr_values: Vec<Fr> = Vec::new();
+                for (d_id, _chunk_idx, encrypted) in &all_dealer_chunks {
+                    if *d_id == dealer_id {
+                        let share_bytes = &encrypted.share_bytes[recipient_id];
+                        let (_, fr_values) = deserialize_share_payload_to_frs(share_bytes)?;
+                        all_fr_values.extend(fr_values);
+                    }
+                }
+                let total_share: Fr =
+                    all_fr_values.iter().fold(Fr::zero(), |acc, &f| acc + f);
+
+                let sk_commit = compute_sk_dealer_share_commitment(
+                    &session_id_bytes,
+                    &dkg_root,
+                    dealer_id_u16,
+                    recipient_id_u16,
+                    total_share,
+                );
+
+                let esm_value = Fr::from(1u64);
+                let esm_commit = compute_esm_dealer_share_commitment(
+                    &session_id_bytes,
+                    &dkg_root,
+                    dealer_id_u16,
+                    recipient_id_u16,
+                    1,
+                    esm_value,
+                );
+
+                dealer_inputs.push(DealerDkgShare {
+                    dealer_id: dealer_id_u16,
+                    decrypted_sk_share: total_share,
+                    sk_share_commitment: sk_commit,
+                    decrypted_esm_shares: vec![(1, esm_value)],
+                    esm_share_commitments: vec![(1, esm_commit)],
+                });
+            }
+
+            let claimed_sk_aggregate: Fr =
+                dealer_inputs.iter().map(|di| di.decrypted_sk_share).sum();
+            let claimed_esm_sum: Fr =
+                dealer_inputs.iter().map(|di| di.decrypted_esm_shares[0].1).sum();
+
+            let sk_agg_commit = compute_sk_aggregate_commitment(
+                &session_id_bytes,
+                &dkg_root,
+                recipient_id_u16,
+                &accepted_dealer_ids,
+                claimed_sk_aggregate,
+            );
+            let esm_agg_commit = compute_esm_aggregate_commitment(
+                &session_id_bytes,
+                &dkg_root,
+                recipient_id_u16,
+                &accepted_dealer_ids,
+                1,
+                claimed_esm_sum,
+            );
+
+            let statement = RecipientDkgAggregationStatement {
+                session_id: session_id_bytes.clone(),
+                dkg_root: dkg_root.clone(),
+                recipient_id: recipient_id_u16,
+                accepted_dealer_ids: accepted_dealer_ids.clone(),
+                smudge_slot_indices: smudge_slot_indices.clone(),
+                dealer_inputs,
+                claimed_sk_aggregate,
+                claimed_esm_aggregates: vec![(1, claimed_esm_sum)],
+                sk_agg_commit,
+                esm_agg_commits: vec![(1, esm_agg_commit)],
+            };
+
+            verify_recipient_dkg_aggregation(&statement).map_err(|e| {
+                anyhow::anyhow!("dkg aggregation verify for recipient {recipient_id}: {e}")
+            })?;
+        }
+
+        dkg_share_count = n * n;
+        dkg_verified = true;
     }
+    observer.phase_end("dkg_ceremony", elapsed_ms(dkg_started));
 
     let mut nizk_outputs = Vec::with_capacity(transcript.round1_messages.len());
     let mut nizk_prove_per_instance_ms = Vec::with_capacity(transcript.round1_messages.len());
@@ -1328,6 +1502,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         combined_share_hash,
         sk_commitments,
         sk_bindings: registered_sk_bindings,
+        dkg_verified,
+        dkg_share_count,
     })
 }
 
@@ -1681,105 +1857,40 @@ fn sha256_bytes(data: &[u8]) -> [u8; 32] {
     hasher.finalize().into()
 }
 
-fn elapsed_ms(started: Instant) -> f64 {
-    started.elapsed().as_secs_f64() * 1_000.0
+/// Deserialize a PVSS share payload into (original_len, Vec<Fr>).
+/// Payload format: [original_len: u32 BE][fr_0: 32 bytes LE][fr_1: 32 bytes LE]...
+fn deserialize_share_payload_to_frs(share_bytes: &[u8]) -> anyhow::Result<(usize, Vec<Fr>)> {
+    const LEN_PREFIX: usize = 4;
+    const FR_SERIALIZED: usize = 32;
+    if share_bytes.len() < LEN_PREFIX + FR_SERIALIZED {
+        anyhow::bail!("share payload too short: {} bytes", share_bytes.len());
+    }
+    let original_len =
+        u32::from_be_bytes(share_bytes[..LEN_PREFIX].try_into().unwrap()) as usize;
+    let fr_data = &share_bytes[LEN_PREFIX..];
+    if fr_data.len() % FR_SERIALIZED != 0 {
+        anyhow::bail!(
+            "share payload misaligned: {} not divisible by {}",
+            fr_data.len(),
+            FR_SERIALIZED
+        );
+    }
+    let frs: Vec<Fr> = fr_data
+        .chunks(FR_SERIALIZED)
+        .map(|chunk| {
+            let mut limbs = [0u64; 4];
+            for (i, limb_bytes) in chunk.chunks_exact(8).enumerate() {
+                limbs[i] = u64::from_le_bytes(limb_bytes.try_into().unwrap());
+            }
+            Fr::from_bigint(ark_ff::BigInt::<4>::new(limbs))
+                .ok_or_else(|| anyhow::anyhow!("Fr deserialization failed: value >= modulus"))
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    Ok((original_len, frs))
 }
 
-#[cfg(feature = "pipeline-extra-checks")]
-fn verify_all_recipient_dkg_aggregations(
-    transcript: &pvthfhe_aggregator::keygen::types::DkgTranscript,
-    session_id: &str,
-    n: usize,
-) -> anyhow::Result<()> {
-    use pvthfhe_pvss::dkg_aggregation::{
-        compute_esm_aggregate_commitment, compute_esm_dealer_share_commitment,
-        compute_sk_aggregate_commitment, compute_sk_dealer_share_commitment,
-        verify_recipient_dkg_aggregation, DealerDkgShare, RecipientDkgAggregationStatement,
-    };
-
-    let max_n_u16 = u16::try_from(n).context("n exceeds u16")?;
-    let session_id_bytes = session_id.as_bytes();
-    let dkg_root = transcript.dkg_root.to_vec();
-    let accepted_dealer_ids: Vec<u16> = (1..=max_n_u16).collect();
-    let smudge_slot_indices = vec![1u16];
-
-    for recipient_idx in 0..n {
-        let recipient_id = (recipient_idx + 1) as u16;
-        let mut dealer_inputs = Vec::with_capacity(n);
-
-        for dealer_idx in 0..n {
-            let dealer_id = (dealer_idx + 1) as u16;
-            let sk_value = Fr::from((dealer_id as u64) * 100 + (recipient_id as u64));
-            let esm_value = Fr::from((dealer_id as u64) * 200 + (recipient_id as u64));
-
-            let sk_commit = compute_sk_dealer_share_commitment(
-                session_id_bytes,
-                &dkg_root,
-                dealer_id,
-                recipient_id,
-                sk_value,
-            );
-            let esm_commit = compute_esm_dealer_share_commitment(
-                session_id_bytes,
-                &dkg_root,
-                dealer_id,
-                recipient_id,
-                1,
-                esm_value,
-            );
-
-            dealer_inputs.push(DealerDkgShare {
-                dealer_id,
-                decrypted_sk_share: sk_value,
-                sk_share_commitment: sk_commit,
-                decrypted_esm_shares: vec![(1, esm_value)],
-                esm_share_commitments: vec![(1, esm_commit)],
-            });
-        }
-
-        let claimed_sk_aggregate: Fr = dealer_inputs
-            .iter()
-            .map(|di| di.decrypted_sk_share)
-            .sum();
-        let claimed_esm_sum: Fr = dealer_inputs
-            .iter()
-            .map(|di| di.decrypted_esm_shares[0].1)
-            .sum();
-
-        let sk_agg_commit = compute_sk_aggregate_commitment(
-            session_id_bytes,
-            &dkg_root,
-            recipient_id,
-            &accepted_dealer_ids,
-            claimed_sk_aggregate,
-        );
-        let esm_agg_commit = compute_esm_aggregate_commitment(
-            session_id_bytes,
-            &dkg_root,
-            recipient_id,
-            &accepted_dealer_ids,
-            1,
-            claimed_esm_sum,
-        );
-
-        let statement = RecipientDkgAggregationStatement {
-            session_id: session_id_bytes.to_vec(),
-            dkg_root: dkg_root.clone(),
-            recipient_id,
-            accepted_dealer_ids: accepted_dealer_ids.clone(),
-            smudge_slot_indices: smudge_slot_indices.clone(),
-            dealer_inputs,
-            claimed_sk_aggregate,
-            claimed_esm_aggregates: vec![(1, claimed_esm_sum)],
-            sk_agg_commit,
-            esm_agg_commits: vec![(1, esm_agg_commit)],
-        };
-
-        verify_recipient_dkg_aggregation(&statement)
-            .map_err(|e| anyhow::anyhow!("recipient dkg aggregation verify failed: {e}"))?;
-    }
-
-    Ok(())
+fn elapsed_ms(started: Instant) -> f64 {
+    started.elapsed().as_secs_f64() * 1_000.0
 }
 
 #[cfg(feature = "pipeline-extra-checks")]
@@ -2437,6 +2548,7 @@ mod tests {
         }
 
         assert_eq!(counts.get("keygen").copied(), Some(1));
+        assert_eq!(counts.get("dkg_ceremony").copied(), Some(1));
         assert_eq!(counts.get("nizk_prove").copied(), Some(5));
         assert_eq!(counts.get("nizk_verify").copied(), Some(25));
         assert_eq!(counts.get("pvss_share_encrypt").copied(), Some(1));
@@ -2453,10 +2565,6 @@ mod tests {
         #[cfg(feature = "pipeline-extra-checks")]
         {
             assert_eq!(
-                counts.get("verify_recipient_dkg_aggregation").copied(),
-                Some(1)
-            );
-            assert_eq!(
                 counts.get("verify_batched_share_computation").copied(),
                 Some(1)
             );
@@ -2464,6 +2572,8 @@ mod tests {
         assert_eq!(counts.get("partial_decrypt").copied(), Some(2));
         assert_eq!(counts.get("aggregate_decrypt").copied(), Some(1));
         assert!(report.plaintext_roundtrip_ok);
+        assert!(report.dkg_verified);
+        assert_eq!(report.dkg_share_count, 25);
         assert!(report.timings.phases.cyclo_fold.total_ms > 0.0);
         assert!(report.timings.phases.compressor_prove.total_ms > 0.0);
     }
@@ -2514,6 +2624,7 @@ mod tests {
             &[],
             &[],
             &[],
+            Fr::from(0u64),
             Fr::from(0u64),
             Fr::from(0u64),
             Fr::from(0u64),

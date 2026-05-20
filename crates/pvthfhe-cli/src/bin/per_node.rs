@@ -14,6 +14,7 @@ use clap::Parser;
 use pvthfhe_fhe::fhers::FhersBackend;
 use pvthfhe_fhe::real_nizk::{LatticeNizk, NizkStatement, NizkWitness, RealNizkAdapter};
 use pvthfhe_fhe::FheBackend;
+use pvthfhe_pvss::{LatticePvssBfvAdapter, PvssAdapter, PvssContext};
 use pvthfhe_rng::OsRng;
 use rand::rngs::StdRng;
 use rand_core::{RngCore, SeedableRng};
@@ -145,6 +146,35 @@ fn main() -> anyhow::Result<()> {
     let encrypt_one_ms = elapsed_ms(t2);
     let encrypt_total_ms = encrypt_one_ms * (n_recipients as f64);
 
+    // 3b. DKG ceremony: Shamir-split key + PVSS-encrypt shares for all recipients
+    let adapter = LatticePvssBfvAdapter::new().context("dkg pvss adapter init")?;
+    let ta_dkg = Instant::now();
+    let dkg_ctx = PvssContext {
+        n: args.n,
+        t: args.threshold,
+        session_id: b"per-node-dkg".to_vec(),
+        epoch: 0,
+        dkg_root: session_id.to_vec(),
+        dealer_index: 0,
+    };
+    let recipient_pks: Vec<Vec<u8>> = (0..n_recipients)
+        .map(|i| vec![i as u8; 32])
+        .collect();
+    let dkg_chunk_size = 4000;
+    if sk_bytes.len() <= dkg_chunk_size {
+        adapter.deal(&sk_bytes, &recipient_pks, &dkg_ctx)
+            .map_err(|e| anyhow::anyhow!("dkg deal: {e:?}"))?;
+    } else {
+        for chunk_idx in 0..((sk_bytes.len() + dkg_chunk_size - 1) / dkg_chunk_size) {
+            let start = chunk_idx * dkg_chunk_size;
+            let end = (start + dkg_chunk_size).min(sk_bytes.len());
+            let chunk = &sk_bytes[start..end];
+            adapter.deal(chunk, &recipient_pks, &dkg_ctx)
+                .map_err(|e| anyhow::anyhow!("dkg deal chunk={chunk_idx}: {e:?}"))?;
+        }
+    }
+    let dkg_ms = elapsed_ms(ta_dkg);
+
     // 4. NIZK prove ONE proof, extrapolate x(n-1)
     let t3 = Instant::now();
     let nizk_stmt = NizkStatement {
@@ -211,8 +241,8 @@ fn main() -> anyhow::Result<()> {
     let c7_ms = 0.0;
 
     // Report
-    let total_ms = keygen_ms + shamir_ms + encrypt_total_ms + nizk_total_ms + nizk_verify_ms
-        + ajtai_ms + c7_ms;
+    let total_ms = keygen_ms + shamir_ms + encrypt_total_ms + dkg_ms + nizk_total_ms
+        + nizk_verify_ms + ajtai_ms + c7_ms;
     let per_share_ms = if n_recipients > 0 {
         shamir_ms / (n_recipients as f64)
     } else {
@@ -241,6 +271,10 @@ fn main() -> anyhow::Result<()> {
         encrypt_total_ms / 1000.0,
         encrypt_one_ms,
         n_recipients,
+    );
+    println!(
+        "  dkg_ceremony:   {:.1}s  (Shamir split + PVSS encrypt x{n_recipients})",
+        dkg_ms / 1000.0,
     );
     println!(
         "  nizk_prove:     {:.1}s  ({:.1}ms per proof x {})",

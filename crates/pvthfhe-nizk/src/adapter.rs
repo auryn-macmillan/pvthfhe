@@ -104,7 +104,6 @@ impl NizkAdapter for CycloNizkAdapter {
             u32::from(stmt.participant_id),
             &sigma_stmt,
             &sigma_wit,
-            &stmt.pvss_commitment,
             rng,
         )?;
 
@@ -188,7 +187,6 @@ impl NizkAdapter for CycloNizkAdapter {
             u32::from(stmt.participant_id),
             &sigma_stmt,
             &sigma_proof,
-            &stmt.pvss_commitment,
         )?;
 
         if !bool::from(encoded_commitment.ct_eq(&stmt.pvss_commitment)) {

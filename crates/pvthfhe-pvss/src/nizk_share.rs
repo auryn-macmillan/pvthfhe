@@ -573,12 +573,6 @@ fn build_algebraic_proof(stmt: &ShareNizkStatement, witness: &ShareNizkWitness) 
         u32::try_from(stmt.recipient_index).unwrap_or(0),
         &sigma_stmt,
         &sigma_witness,
-        // NOTE: Uses SHA256(d_rns) as pvss_commitment in Fiat-Shamir — circular binding.
-        // The d_rns is in the proof, making the challenge self-referential.
-        // Defense-in-depth: the overall ShareNizkVerifier includes additional layers
-        // (D2 binding, BFV proof, relation binding) that independently bind to the
-        // real statement. See round6-adversarial-remediation F5.
-        &test_digest_sigma_d(&d_rns),
         &mut proof_rng,
     );
 
@@ -622,15 +616,6 @@ fn derive_share_sigma_c_rns(session_id: &[u8], recipient_index: usize) -> Vec<u6
         }
     }
     out
-}
-
-fn test_digest_sigma_d(d_rns: &[u64]) -> [u8; DIGEST_LEN] {
-    let mut h = Sha256::new();
-    h.update(b"pvthfhe-share-sigma-d-commitment-v1");
-    for value in d_rns {
-        h.update(value.to_le_bytes());
-    }
-    h.finalize().into()
 }
 
 fn encode_algebraic_proof(d_rns: &[u64], proof: &sigma::SigmaProof) -> Vec<u8> {
@@ -1115,13 +1100,11 @@ fn verify_algebraic_relation(
         c_rns,
         d_rns: d_rns.clone(),
     };
-    let pvss_commitment = test_digest_sigma_d(&d_rns);
     sigma::verify_scalar(
         stmt.session_id.as_slice(),
         u32::try_from(stmt.recipient_index).unwrap_or(0),
         &sigma_stmt,
         &sigma_proof,
-        &pvss_commitment,
     )
     .map_err(|_| {
         eprintln!("[NIZK-VERIFY] FAIL: algebraic scalar sigma verification failed");

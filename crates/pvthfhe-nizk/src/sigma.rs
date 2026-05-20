@@ -124,7 +124,6 @@ pub fn prove(
     participant_id: u32,
     stmt: &SigmaStatement,
     wit: &SigmaWitness,
-    pvss_commitment: &[u8; 32],
     rng: &mut dyn RngCore,
 ) -> Result<SigmaProof, NizkError> {
     if stmt.c_rns.len() != RNS_LEN || stmt.d_rns.len() != RNS_LEN {
@@ -151,7 +150,6 @@ pub fn prove(
         &t_rns,
         &stmt.c_rns,
         &stmt.d_rns,
-        pvss_commitment,
         &[0u8; 32], // G.5: TODO: pass real d_commitment
     );
 
@@ -185,9 +183,8 @@ pub fn verify(
     participant_id: u32,
     stmt: &SigmaStatement,
     proof: &SigmaProof,
-    pvss_commitment: &[u8; 32],
 ) -> Result<(), NizkError> {
-    verify_scalar(session_id, participant_id, stmt, proof, pvss_commitment)
+    verify_scalar(session_id, participant_id, stmt, proof)
 }
 
 /// Verify a scalar-challenge sigma proof against a statement.
@@ -201,7 +198,6 @@ pub fn verify_scalar(
     participant_id: u32,
     stmt: &SigmaStatement,
     proof: &SigmaProof,
-    pvss_commitment: &[u8; 32],
 ) -> Result<(), NizkError> {
     if stmt.c_rns.len() != RNS_LEN || stmt.d_rns.len() != RNS_LEN {
         return Err(NizkError::InvalidInput("statement RNS lengths must be 3*N"));
@@ -226,7 +222,6 @@ pub fn verify_scalar(
         &proof.t_rns,
         &stmt.c_rns,
         &stmt.d_rns,
-        pvss_commitment,
         &[0u8; 32], // G.5: TODO: pass real d_commitment
     );
     // Constant-time comparison for challenge
@@ -259,6 +254,27 @@ pub fn verify_scalar(
     }
 
     Ok(())
+}
+
+/// Compute the secret-key binding hash that links a NIZK proof to a party's
+/// registered secret key share via the deterministic share polynomial `d_rns`.
+///
+/// `sk_binding = Sha256(d_rns || participant_id || session_id)`, domain-separated
+/// with `"pvthfhe-sk-binding/v1"`.  The verifier can reconstruct this hash from
+/// the proof-embedded `d_rns` and check it against the DKG registry.
+pub fn compute_sk_binding(
+    d_rns: &[u64],
+    participant_id: u32,
+    session_id: &[u8],
+) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(b"pvthfhe-sk-binding/v1");
+    for limb in d_rns {
+        hasher.update(&limb.to_le_bytes());
+    }
+    hasher.update(&participant_id.to_le_bytes());
+    hasher.update(session_id);
+    hasher.finalize().into()
 }
 
 /// Convert integer polynomial coefficients to RNS power-basis representation.
@@ -353,7 +369,6 @@ fn derive_challenge_scalar(
     t_rns: &[u64],
     c_rns: &[u64],
     d_rns: &[u64],
-    pvss_commitment: &[u8; 32],
     d_commitment: &[u8; 32],
 ) -> i64 {
     // Serialize large fields to bytes
@@ -371,13 +386,12 @@ fn derive_challenge_scalar(
     let t_digest = labeled_sha256(&prefix, b"t_rns", &t_bytes);
     let c_digest = labeled_sha256(&prefix, b"c_rns", &c_bytes);
     let d_digest = labeled_sha256(&prefix, b"d_rns", &d_bytes);
-    let pvss_digest = labeled_sha256(&prefix, b"pvss_commitment", pvss_commitment);
     let dcomm_digest = labeled_sha256(&prefix, b"d_commitment", d_commitment);
 
     // 3. Combine digests with Poseidon
     // Each 32-byte digest → 2 Fr elements (lo 16 bytes, hi 16 bytes)
-    let mut fr_inputs: Vec<Fr> = Vec::with_capacity(10);
-    for digest in &[t_digest, c_digest, d_digest, pvss_digest, dcomm_digest] {
+    let mut fr_inputs: Vec<Fr> = Vec::with_capacity(8);
+    for digest in &[t_digest, c_digest, d_digest, dcomm_digest] {
         fr_inputs.push(bytes16_to_fr(&digest[..16]));
         fr_inputs.push(bytes16_to_fr(&digest[16..]));
     }

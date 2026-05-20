@@ -454,7 +454,6 @@ fn forge_algebraic_proof_for_statement(stmt: &ShareNizkStatement, share: &[u8]) 
         u32::try_from(stmt.recipient_index).expect("recipient index fits u32"),
         &sigma_stmt,
         &sigma_witness,
-        &test_digest_sigma_d(&d_rns),
         &mut proof_rng,
     )
     .expect("sigma prove");
@@ -493,15 +492,6 @@ fn test_share_sigma_c_rns(session_id: &[u8], recipient_index: usize) -> Vec<u64>
         }
     }
     out
-}
-
-fn test_digest_sigma_d(d_rns: &[u64]) -> [u8; DIGEST_LEN] {
-    let mut h = Sha256::new();
-    h.update(b"pvthfhe-share-sigma-d-commitment-v1");
-    for value in d_rns {
-        h.update(value.to_le_bytes());
-    }
-    h.finalize().into()
 }
 
 fn test_share_sigma_session_binding(stmt: &ShareNizkStatement) -> Vec<u8> {
@@ -684,7 +674,6 @@ fn forge_valid_algebraic_proof(
         u32::try_from(stmt.recipient_index).expect("recipient index fits u32"),
         &sigma_stmt,
         &sigma_witness,
-        &test_digest_sigma_d(&d_rns),
         &mut proof_rng,
     )
     .expect("sigma prove");

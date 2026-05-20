@@ -51,6 +51,7 @@ fn pvss_adapter_is_trait_object_safe() {
         ciphertexts: vec![vec![1, 2, 3]],
         share_bytes: vec![vec![7, 8]],
         proofs: vec![vec![4, 5, 6]],
+        parity_proof: None,
         backend_id: adapter.backend_id().to_owned(),
     };
     let decrypted_shares = vec![pvthfhe_pvss::DecryptedShare {

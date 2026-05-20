@@ -10,7 +10,7 @@ use {
     ark_bn254::Fr,
     ark_ff::PrimeField,
     pvthfhe_compressor::{
-        sonobe::{encode_quad, CycloFoldStepCircuit, SonobeCompressor},
+        sonobe::{encode_hex, encode_quad, CycloFoldStepCircuit, SonobeCompressor},
         CompressedProof as SonobeProof, ProofCompressor, VerifierKey,
     },
 };
@@ -191,11 +191,14 @@ pub fn compressor_inputs(
     let acc_commitment_hash: [u8; 32] = acc_hasher.finalize().into();
     let public_io_hash: [u8; 32] = public_hasher.finalize().into();
 
-    let acc = encode_quad((
+    let acc = encode_hex((
         Fr::from_le_bytes_mod_order(&acc_commitment_hash),
         Fr::from(total_norm),
         Fr::from(0u64), // initial fold count (IVC step circuit increments internally)
         Fr::from(0u64), // initial c7_final_hash is zero for the accumulator
+        Fr::from(0u64), // initial sigma_verification_count
+        Fr::from(0u64), // initial z_s_sq_sum_acc
+        Fr::from(0u64), // initial z_e_sq_sum_acc
     ))
     .to_vec();
     let public_inputs = encode_quad((

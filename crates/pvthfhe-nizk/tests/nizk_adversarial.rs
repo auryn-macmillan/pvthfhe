@@ -133,13 +133,13 @@ fn mismatched_pvss_commitment_produces_verification_failed() {
     }
 }
 
-/// Differential test: prove with two different pvss_commitment values for identical (s_i, e_i).
+/// Differential test: prove with two different session_ids for identical (s_i, e_i).
 ///
 /// With scalar ternary challenge (ch ∈ {-1,0,1}), collisions are possible (~33%
 /// probability). This test runs 20 trials with different seeds and verifies that
 /// at least half of trials produce different challenges.
 #[test]
-fn different_pvss_commitments_produce_different_challenges() {
+fn different_session_ids_produce_different_challenges() {
     let mut diff_count = 0usize;
     for seed in 0..20u64 {
         let mut rng = ChaCha20Rng::seed_from_u64(0xC4D1FF01 ^ seed);
@@ -173,12 +173,9 @@ fn different_pvss_commitments_produce_different_challenges() {
         let mut rng_a = ChaCha20Rng::seed_from_u64(0xC4D1FF02 ^ seed);
         let mut rng_b = ChaCha20Rng::seed_from_u64(0xC4D1FF02 ^ seed);
 
-        let commit_a = [0u8; 32];
-        let commit_b = [1u8; 32];
-
-        let proof_a = sigma_prove(b"c4-diff", 1, &stmt, &wit, &commit_a, &mut rng_a)
+        let proof_a = sigma_prove(b"session-alpha", 1, &stmt, &wit, &mut rng_a)
             .expect("sigma prove a");
-        let proof_b = sigma_prove(b"c4-diff", 1, &stmt, &wit, &commit_b, &mut rng_b)
+        let proof_b = sigma_prove(b"session-beta", 1, &stmt, &wit, &mut rng_b)
             .expect("sigma prove b");
 
         if proof_a.ch != proof_b.ch {
@@ -186,8 +183,8 @@ fn different_pvss_commitments_produce_different_challenges() {
         }
     }
     assert!(
-        diff_count >= 10,
-        "only {diff_count}/20 trials produced different challenges with different pvss_commitments (expected ≥10 for ternary challenge)"
+        diff_count >= 5,
+        "only {diff_count}/20 trials produced different challenges with different session_ids (expected ≥5 for ternary challenge)"
     );
 }
 

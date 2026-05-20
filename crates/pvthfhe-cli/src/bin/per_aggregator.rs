@@ -23,7 +23,7 @@ use std::time::Instant;
 #[cfg(feature = "sonobe-compressor")]
 use {
     pvthfhe_compressor::sonobe::{
-        encode_triple, C7DecryptAggregationCircuit, CycloFoldStepCircuit,
+        encode_quad, encode_triple, C7DecryptAggregationCircuit, CycloFoldStepCircuit,
         ExternalInputs3, ExternalInputs4, ExternalInputs5, SonobeCompressor,
     },
 };
@@ -139,7 +139,7 @@ fn main() -> anyhow::Result<()> {
             let compressor =
                 SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, batch_count)
                     .map_err(|e| anyhow::anyhow!("compressor init: {e:?}"))?;
-            let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
+            let acc = encode_quad((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
             let steps: Vec<ExternalInputs4<Fr>> = (0..batch_count)
                 .map(|i| {
                     ExternalInputs4(

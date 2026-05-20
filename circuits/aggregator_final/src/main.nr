@@ -78,6 +78,7 @@ fn main(
     ciphertext_hash: pub Field,
     aggregate_pk_hash: pub Field,
     decrypt_nizk_hash: pub Field,
+    dkg_transcript_hash: pub Field,
     // G.12 Phase 4: combined hash of Nova-folded Ajtai commitment verifications.
     // Verified on-chain by HonkVerifier.sol, not constrained in-circuit.
     combined_commitment_hash: pub Field,
@@ -210,6 +211,14 @@ fn main(
 
     assert(aggregate_pk_hash != 0, "aggregate public key hash must be non-zero");
 
+    // G7: decrypt_nizk_hash must be non-zero. On-chain verifier MUST check
+    // against the DKG-registered decrypt NIZK proof hash to prevent garbage proofs.
+    assert(decrypt_nizk_hash != 0, "decrypt_nizk_hash must be non-zero");
+
+    // DKG key aggregation: transcript hash must be non-zero.
+    // On-chain verifier checks against DKG ceremony output.
+    assert(dkg_transcript_hash != 0);
+
     computed_plaintext
 }
 
@@ -260,6 +269,7 @@ fn test_honest_lagrange_recombination() {
         ciphertext_hash,
         aggregate_pk_hash,
         decrypt_nizk_hash,
+        999,
         0,
         0,
         dkg_root,
@@ -339,6 +349,7 @@ fn test_tamper_zero_party_id() {
         ciphertext_hash,
         aggregate_pk_hash,
         decrypt_nizk_hash,
+        999,
         0,
         0,
         dkg_root,
@@ -391,6 +402,7 @@ fn test_tamper_duplicate_party_ids() {
         ciphertext_hash,
         aggregate_pk_hash,
         decrypt_nizk_hash,
+        999,
         0,
         0,
         dkg_root,
@@ -449,6 +461,7 @@ fn test_ciphertext_equals_plaintext_hash() {
         ciphertext_hash,
         aggregate_pk_hash,
         decrypt_nizk_hash,
+        999,
         0,
         0,
         dkg_root,
@@ -496,6 +509,7 @@ fn test_tamper_wrong_threshold() {
         ciphertext_hash,
         aggregate_pk_hash,
         decrypt_nizk_hash,
+        999,
         0,
         0,
         dkg_root,
@@ -543,6 +557,7 @@ fn test_tamper_epoch_zero() {
         ciphertext_hash,
         aggregate_pk_hash,
         decrypt_nizk_hash,
+        999,
         0,
         0,
         dkg_root,

@@ -379,6 +379,19 @@ thread_local! {
     pub(crate) static SIGMA_DATA: std::cell::RefCell<Vec<SigmaWitness<ark_bn254::Fr>>> = std::cell::RefCell::new(Vec::new());
 }
 
+thread_local! {
+    /// Per-step sigma response data for CycloFoldStepCircuit norm enforcement (G7b).
+    pub static SIGMA_RESPONSE_DATA: std::cell::RefCell<Vec<(Vec<i64>, Vec<i64>)>> = std::cell::RefCell::new(Vec::new());
+}
+
+pub fn set_sigma_response_data(responses: Vec<(Vec<i64>, Vec<i64>)>) {
+    SIGMA_RESPONSE_DATA.with(|cell| *cell.borrow_mut() = responses);
+}
+
+pub fn clear_sigma_response_data() {
+    SIGMA_RESPONSE_DATA.with(|cell| cell.borrow_mut().clear());
+}
+
 #[inline]
 fn fr_to_f<F: PrimeField>(fr: &ark_bn254::Fr) -> F {
     let buf = fr.into_bigint().to_bytes_le();
@@ -660,7 +673,7 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
     }
 
     fn state_len(&self) -> usize {
-        5
+        7
     }
 
     fn generate_step_constraints(
@@ -704,12 +717,30 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
             lhs.enforce_equal(&rhs)?;
         }
 
+        // DEPRECATED: Track A compatibility mode. Track B is the production path.
+        // Track A always sets ring_inc = 1 and skips ring equation verification.
+        // Remove when Track A is fully deleted.
         let ring_inc = FpVar::<F>::one();
         let verification_count = z_i[3].clone() + ring_inc;
 
         // G7: In-circuit sigma NIZK equation verification.
         let sigma_verification_count = sigma_verify_step(cs.clone(), _i)?;
         let sigma_count = z_i[4].clone() + sigma_verification_count;
+
+        // G7b: Compute squared L2 norms of z_s and z_e for norm enforcement.
+        let (z_s_sq, z_e_sq) = SIGMA_RESPONSE_DATA.with(|cell| {
+            let data = cell.borrow();
+            if let Some((ref z_s, ref z_e)) = data.get(_i) {
+                let s_sq: F = z_s.iter().map(|&x| F::from((x as i128 * x as i128) as u64)).sum();
+                let e_sq: F = z_e.iter().map(|&x| F::from((x as i128 * x as i128) as u64)).sum();
+                (FpVar::constant(s_sq), FpVar::constant(e_sq))
+            } else {
+                (FpVar::constant(F::zero()), FpVar::constant(F::zero()))
+            }
+        });
+
+        let z_s_sq_acc = z_i[5].clone() + z_s_sq;
+        let z_e_sq_acc = z_i[6].clone() + z_e_sq;
 
         let _ = cs.num_constraints();
 
@@ -719,13 +750,15 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
             count_inc,
             verification_count,
             sigma_count,
+            z_s_sq_acc,
+            z_e_sq_acc,
         ])
     }
 }
 
 impl<F: PrimeField> StepCircuit for CycloFoldStepCircuit<F> {
     fn descriptor(&self) -> StepCircuitDescriptor {
-        StepCircuitDescriptor { width: 5 }
+        StepCircuitDescriptor { width: 7 }
     }
 
     fn circuit_hash(&self) -> [u8; 32] {
@@ -1045,8 +1078,9 @@ impl ProofCompressor for SonobeCompressor<CycloFoldStepCircuit<Fr>> {
         // F6.3: clear stale thread-local witness data from prior prove calls
         clear_cyclo_ring_data();
         clear_sigma_data();
+        clear_sigma_response_data();
 
-        let initial = decode_quad(acc)?;
+        let initial = decode_hex(acc)?;
         let delta = decode_quad(public_inputs)?;
         let params = self.deserialize_params()?;
         let circuit =
@@ -1059,9 +1093,9 @@ impl ProofCompressor for SonobeCompressor<CycloFoldStepCircuit<Fr>> {
         initial_state.push(initial.1);
         initial_state.push(initial.2);
         initial_state.push(initial.3);
-        for _ in 4..state_len {
-            initial_state.push(Fr::from(0u64));
-        }
+        initial_state.push(initial.4);
+        initial_state.push(initial.5);
+        initial_state.push(initial.6);
 
         let mut nova = SonobeNova::<CycloFoldStepCircuit<Fr>>::init(&params, circuit, initial_state)
             .map_err(|_| CompressorError::Backend("sonobe init failed"))?;
@@ -1123,11 +1157,14 @@ impl ProofCompressor for SonobeCompressor<CycloFoldStepCircuit<Fr>> {
             return Ok(false);
         }
 
-        if normalized_hash(&encode_quad((
+        if normalized_hash(&encode_hex((
             ivc_proof.z_0[0],
             ivc_proof.z_0[1],
             ivc_proof.z_0[2],
             ivc_proof.z_0[3],
+            ivc_proof.z_0[4],
+            ivc_proof.z_0[5],
+            ivc_proof.z_0[6],
         )))? != parsed.acc_hash
         {
             return Ok(false);
@@ -1481,11 +1518,14 @@ impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
             return Ok(false);
         }
 
-        if normalized_hash(&encode_quad((
+        if normalized_hash(&encode_hex((
             ivc_proof.z_0[0],
             ivc_proof.z_0[1],
             ivc_proof.z_0[2],
             ivc_proof.z_0[3],
+            ivc_proof.z_0[4],
+            ivc_proof.z_0[5],
+            ivc_proof.z_0[6],
         )))? != parsed.acc_hash
         {
             return Ok(false);
@@ -1557,6 +1597,7 @@ impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
     ) -> Result<CompressedProof, CompressorError> {
         clear_cyclo_ring_data();
         clear_sigma_data();
+        clear_sigma_response_data();
 
         assert_eq!(
             steps.len(),
@@ -1565,7 +1606,7 @@ impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
             self.ivc_steps
         );
 
-        let initial = decode_quad(acc)?;
+        let initial = decode_hex(acc)?;
         let params = self.deserialize_params()?;
         let circuit =
             CycloFoldStepCircuit::<Fr>::new(())
@@ -1577,9 +1618,9 @@ impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
         initial_state.push(initial.1);
         initial_state.push(initial.2);
         initial_state.push(initial.3);
-        for _ in 4..state_len {
-            initial_state.push(Fr::from(0u64));
-        }
+        initial_state.push(initial.4);
+        initial_state.push(initial.5);
+        initial_state.push(initial.6);
 
         let mut nova = SonobeNova::<CycloFoldStepCircuit<Fr>>::init(&params, circuit, initial_state)
             .map_err(|_| CompressorError::Backend("sonobe init failed"))?;
@@ -1720,11 +1761,14 @@ impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
             return Ok(false);
         }
 
-        if normalized_hash(&encode_quad((
+        if normalized_hash(&encode_hex((
             ivc_proof.z_0[0],
             ivc_proof.z_0[1],
             ivc_proof.z_0[2],
             ivc_proof.z_0[3],
+            ivc_proof.z_0[4],
+            ivc_proof.z_0[5],
+            ivc_proof.z_0[6],
         )))? != parsed.acc_hash
         {
             return Ok(false);
@@ -2275,6 +2319,39 @@ pub fn encode_hex6(value: (Fr, Fr, Fr, Fr, Fr, Fr)) -> [u8; 192] {
     out[96..128].copy_from_slice(&d);
     out[128..160].copy_from_slice(&e);
     out[160..192].copy_from_slice(&f);
+    out
+}
+
+pub fn decode_hex(bytes: &[u8]) -> Result<(Fr, Fr, Fr, Fr, Fr, Fr, Fr), CompressorError> {
+    if bytes.len() < 224 {
+        return Err(CompressorError::InvalidInput);
+    }
+    let a = decode_scalar(&bytes[0..32])?;
+    let b = decode_scalar(&bytes[32..64])?;
+    let c = decode_scalar(&bytes[64..96])?;
+    let d = decode_scalar(&bytes[96..128])?;
+    let e = decode_scalar(&bytes[128..160])?;
+    let f = decode_scalar(&bytes[160..192])?;
+    let g = decode_scalar(&bytes[192..224])?;
+    Ok((a, b, c, d, e, f, g))
+}
+
+pub fn encode_hex(value: (Fr, Fr, Fr, Fr, Fr, Fr, Fr)) -> [u8; 224] {
+    let mut out = [0u8; 224];
+    let a = encode_scalar(value.0);
+    let b = encode_scalar(value.1);
+    let c = encode_scalar(value.2);
+    let d = encode_scalar(value.3);
+    let e = encode_scalar(value.4);
+    let f = encode_scalar(value.5);
+    let g = encode_scalar(value.6);
+    out[0..32].copy_from_slice(&a);
+    out[32..64].copy_from_slice(&b);
+    out[64..96].copy_from_slice(&c);
+    out[96..128].copy_from_slice(&d);
+    out[128..160].copy_from_slice(&e);
+    out[160..192].copy_from_slice(&f);
+    out[192..224].copy_from_slice(&g);
     out
 }
 

@@ -30,7 +30,7 @@ use pvthfhe_pvss::nizk_decrypt::{
 use pvthfhe_pvss::slot_registry::SmudgeSlotRegistry;
 #[cfg(feature = "sonobe-compressor")]
 use pvthfhe_compressor::sonobe::{
-        cyclo_verifier::verify_ring_equation, encode_quad,
+    cyclo_verifier::verify_ring_equation, encode_hex,
         CycloFoldStepCircuit, CycloRingWitness,
         SigmaWitness as CompressorSigmaWitness,
         SonobeCompressor,
@@ -40,6 +40,8 @@ use pvthfhe_compressor::sonobe::{
 use pvthfhe_compressor::witness::{ShareVerificationWitness, ShareVerificationWitnessSet};
 use pvthfhe_pvss::nizk_share::{compute_ciphertext_v, compute_share_commitment};
 use pvthfhe_nizk::schnorr;
+use pvthfhe_nizk::sigma::compute_sk_binding;
+use pvthfhe_nizk::adapter::extract_sigma_proof;
 use pvthfhe_rng::OsRng;
 use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes, Secret};
 use rand::Rng;
@@ -144,6 +146,9 @@ pub struct PipelineReport {
     /// Per-party secret key commitments (Ajtai D2 hash of sk_i).
     /// Used to verify that NIZK proofs use the party's actual DKG secret key share.
     pub sk_commitments: Vec<[u8; 32]>,
+    /// Per-party secret key bindings (SHA-256 over d_rns || participant_id || session_id).
+    /// Computed from the proof-embedded d_rns and checked against the DKG registry.
+    pub sk_bindings: Vec<[u8; 32]>,
 }
 
 /// Observer hooks for pipeline narration and metrics.
@@ -170,6 +175,10 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         .unwrap_or(Track::B);
     #[cfg(not(feature = "pipeline-extra-checks"))]
     let track = Track::A;
+
+    if track == Track::A {
+        tracing::warn!("Track A ring/sigma verification is DEPRECATED. Use Track B.");
+    }
 
     if cfg.t == 0 || cfg.t > cfg.n {
         anyhow::bail!(
@@ -266,6 +275,22 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     timings.phases.nizk_prove.instances_run = nizk_prove_per_instance_ms.len();
     timings.phases.nizk_prove.per_instance_ms = nizk_prove_per_instance_ms;
 
+    // G.SHARE-PROVENANCE: register per-party sk_bindings from proof-embedded d_rns
+    let mut registered_sk_bindings: Vec<[u8; 32]> = vec![[0u8; 32]; cfg.n];
+    for (_party_id, statement, _witness, proof) in &nizk_outputs {
+        let party_idx = u32::from(statement.participant_id) as usize;
+        if party_idx > 0 && party_idx <= cfg.n {
+            let (d_rns, _) = extract_sigma_proof(&proof.proof_bytes)
+                .with_context(|| format!("extract sigma proof for party {party_idx}"))?;
+            let binding = compute_sk_binding(
+                &d_rns,
+                u32::from(statement.participant_id),
+                session_id.as_bytes(),
+            );
+            registered_sk_bindings[party_idx - 1] = binding;
+        }
+    }
+
     // G.SHARE-PROVENANCE: verify NIZK pvss_commitment matches registered sk_commitment
     for (_party_id, statement, _witness, _proof) in &nizk_outputs {
         let party_index = statement.participant_id as usize;
@@ -317,7 +342,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                     witness_set.witnesses.len(),
                 )
                 .map_err(|e| anyhow::anyhow!("Ajtai compressor init failed: {e:?}"))?;
-                let acc = encode_quad((Fr::zero(), Fr::zero(), Fr::zero(), Fr::zero())).to_vec();
+                let acc = encode_hex((Fr::zero(), Fr::zero(), Fr::zero(), Fr::zero(), Fr::zero(), Fr::zero(), Fr::zero())).to_vec();
                 ajtai_compressor
                     .prove_steps_ajtai(&acc, &witness_set)
                     .map_err(|e| anyhow::anyhow!("Ajtai prove_steps_ajtai failed: {e:?}"))?;
@@ -371,6 +396,29 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     timings.phases.nizk_verify.total_ms = nizk_verify_total_ms;
     timings.phases.nizk_verify.instances_run = nizk_verify_per_instance_ms.len();
     timings.phases.nizk_verify.per_instance_ms = nizk_verify_per_instance_ms;
+
+    // G.SHARE-PROVENANCE: verify nizk proof binds to registered sk_binding
+    for (_party_id, statement, _witness, proof) in &nizk_outputs {
+        let party_idx = u32::from(statement.participant_id) as usize;
+        if party_idx > 0 && party_idx <= registered_sk_bindings.len() {
+            let (d_rns, _) = extract_sigma_proof(&proof.proof_bytes)
+                .with_context(|| {
+                    format!("extract sigma proof for share provenance check party {party_idx}")
+                })?;
+            let binding = compute_sk_binding(
+                &d_rns,
+                u32::from(statement.participant_id),
+                session_id.as_bytes(),
+            );
+            let expected = registered_sk_bindings[party_idx - 1];
+            if binding != expected {
+                anyhow::bail!(
+                    "share provenance FAILED for party {party_idx}: \
+                     sk_binding mismatch (proof does not bind to registered secret key share)"
+                );
+            }
+        }
+    }
 
     observer.phase_start("pvss_share_encrypt", Some(PVSS_BACKEND_ID));
     let pvss_started = Instant::now();
@@ -1116,7 +1164,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             sv_witness_set.witnesses.len(),
         )
         .map_err(|e| anyhow::anyhow!("share_verify_compressor_new: {e:?}"))?;
-        let sv_acc = encode_quad((Fr::zero(), Fr::zero(), Fr::zero(), Fr::zero())).to_vec();
+        let sv_acc = encode_hex((Fr::zero(), Fr::zero(), Fr::zero(), Fr::zero(), Fr::zero(), Fr::zero(), Fr::zero())).to_vec();
         let _sv_proof = sv_compressor
             .prove_steps_share_verify(&sv_acc, &sv_witness_set)
             .map_err(|e| anyhow::anyhow!("share_verify_prove: {e:?}"))?;
@@ -1167,6 +1215,9 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         Fr::from(0u64),
         combined_commitment_hash,
         combined_sk_commitment_hash,
+        Fr::from_be_bytes_mod_order(&Sha256::digest(
+            format!("dkg-transcript-{session_id}").as_bytes()
+        )),
     );
     let mut noir_passed = true;
 
@@ -1276,6 +1327,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         share_sig_ss,
         combined_share_hash,
         sk_commitments,
+        sk_bindings: registered_sk_bindings,
     })
 }
 
@@ -2152,6 +2204,7 @@ pub fn build_c7_prover_toml(
     share_verification_proof_hash: Fr,  // G.12: Hash of Nova-folded ShareVerificationStepCircuit proof
     combined_commitment_hash: Fr,  // G.12 Phase 4: Combined hash of Nova-folded Ajtai commitment verifications
     combined_sk_commitment_hash: Fr,  // G.12 Phase 4: Combined Poseidon hash of all registered sk_commitments
+    dkg_transcript_hash: Fr,
 ) -> String {
     let n_participants = committee_party_ids.len();
     let threshold = n_participants - 1;
@@ -2239,6 +2292,7 @@ pub fn build_c7_prover_toml(
     toml.push_str(&format!("share_verification_proof_hash = \"0x{}\"\n", field_hex_be(share_verification_proof_hash)));
     toml.push_str(&format!("combined_commitment_hash = \"0x{}\"\n", field_hex_be(combined_commitment_hash)));
     toml.push_str(&format!("combined_sk_commitment_hash = \"0x{}\"\n", field_hex_be(combined_sk_commitment_hash)));
+    toml.push_str(&format!("dkg_transcript_hash = \"0x{}\"\n", field_hex_be(dkg_transcript_hash)));
     toml.push_str(&format!("d_commitment = \"0x{}\"\n", field_hex_be(d_commitment)));
     toml.push_str(&format!("n_participants = \"{}\"\n", n_participants));
     toml.push_str(&format!("threshold = \"{}\"\n", threshold));
@@ -2460,6 +2514,7 @@ mod tests {
             &[],
             &[],
             &[],
+            Fr::from(0u64),
             Fr::from(0u64),
             Fr::from(0u64),
             Fr::from(0u64),

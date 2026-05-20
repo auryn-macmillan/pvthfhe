@@ -1140,7 +1140,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let noir_workspace = circuits_dir.join("..");
 
     // Build Prover.toml from current pipeline data
-    let committee_party_ids_u32: Vec<u32> = (1..=cfg.t).map(|i| i as u32).collect();
+    let committee_party_ids_u32: Vec<u32> = (1..=share_coeffs.len()).map(|i| i as u32).collect();
     // G.4: Derive session_nonce from session_id (deterministic placeholder until Interfold E3)
     let session_nonce = Fr::from_be_bytes_mod_order(&Sha256::digest(session_id.as_bytes()));
     let prover_toml = build_c7_prover_toml(
@@ -1252,7 +1252,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         compressed_proof_digest_hex: hex::encode(compressed.digest),
         share_coeffs,
         lagrange_coeffs: lagrange_coeffs_fr,
-        committee_party_ids: (1..=cfg.t).map(|i| i as u32).collect(),
+        committee_party_ids: (1..=cfg.n).map(|i| i as u32).collect(),
         aggregate_pk_bytes: aggregate_pk.bytes,
         session_id: session_id.to_string(),
         decrypt_nizk_hash,
@@ -2141,8 +2141,8 @@ pub fn build_c7_prover_toml(
     share_verification_proof_hash: Fr,  // G.12: Hash of Nova-folded ShareVerificationStepCircuit proof
     combined_commitment_hash: Fr,  // G.12 Phase 4: Combined hash of Nova-folded Ajtai commitment verifications
 ) -> String {
-    let n_participants = share_coeffs.len();
-    let threshold = n_participants / 2;
+    let n_participants = committee_party_ids.len();
+    let threshold = n_participants - 1;
 
     // Derive real hashes from pipeline data
     let agg_pk_hash_bytes = Sha256::digest(aggregate_pk_bytes);

@@ -63,7 +63,13 @@ fn lagrange_coeff_at(i: u32, party_ids: [Field; MAX_PARTICIPANTS], n: u32) -> Fi
             }
         }
     }
-    num / den
+    let lambda = num / den;
+    // Sign correction: l_i(0) = (-1)^{n-1} * prod x_j / prod (x_i - x_j)
+    if (n % 2 == 0) {
+        -lambda
+    } else {
+        lambda
+    }
 }
 
 // -- Main circuit ----------------------------------------------------

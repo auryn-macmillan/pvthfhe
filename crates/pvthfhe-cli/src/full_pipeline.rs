@@ -270,7 +270,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let dkg_started = Instant::now();
     {
         use pvthfhe_pvss::{
-            LatticePvssBfvAdapter, PvssAdapter, PvssContext, EncryptedShares,
+            LatticePvssBfvAdapter, PvssAdapter, PvssContext,
         };
         use pvthfhe_pvss::dkg_aggregation::{
             verify_recipient_dkg_aggregation, RecipientDkgAggregationStatement,
@@ -304,10 +304,10 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         let adapter = LatticePvssBfvAdapter::new()
             .map_err(|e| anyhow::anyhow!("dkg pvss adapter init: {e}"))?;
 
-        // Phase 1: Each dealer splits their secret key and encrypts shares
+        // Phase 1: Each dealer splits their secret key and encrypts shares.
         // Chunk key to stay within BFV plaintext capacity (~16KB; 4KB leaves headroom).
         const DKG_CHUNK_SIZE: usize = 4000;
-        let mut all_dealer_chunks: Vec<(usize, usize, EncryptedShares)> = Vec::new();
+        let mut dealer_recipient_total_shares: Vec<Vec<Fr>> = vec![vec![Fr::zero(); n]; n];
 
         for dealer_id in 0..n {
             let sk_bytes = &party_sk_bytes[dealer_id];
@@ -338,7 +338,13 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                         anyhow::anyhow!("dkg verify_shares dealer={dealer_id} chunk={chunk_idx}: {e}")
                     })?;
 
-                all_dealer_chunks.push((dealer_id, chunk_idx, encrypted));
+                for recipient_id in 0..n {
+                    let share_bytes = &encrypted.share_bytes[recipient_id];
+                    let (_, fr_values) = deserialize_share_payload_to_frs(share_bytes)
+                        .with_context(|| format!("deserialize share dealer={dealer_id} chunk={chunk_idx} recipient={recipient_id}"))?;
+                    let chunk_total: Fr = fr_values.iter().fold(Fr::zero(), |acc, &f| acc + f);
+                    dealer_recipient_total_shares[dealer_id][recipient_id] += chunk_total;
+                }
             }
         }
 
@@ -353,17 +359,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
             for dealer_id in 0..n {
                 let dealer_id_u16 = (dealer_id + 1) as u16;
-
-                let mut all_fr_values: Vec<Fr> = Vec::new();
-                for (d_id, _chunk_idx, encrypted) in &all_dealer_chunks {
-                    if *d_id == dealer_id {
-                        let share_bytes = &encrypted.share_bytes[recipient_id];
-                        let (_, fr_values) = deserialize_share_payload_to_frs(share_bytes)?;
-                        all_fr_values.extend(fr_values);
-                    }
-                }
-                let total_share: Fr =
-                    all_fr_values.iter().fold(Fr::zero(), |acc, &f| acc + f);
+                let total_share = dealer_recipient_total_shares[dealer_id][recipient_id];
 
                 let sk_commit = compute_sk_dealer_share_commitment(
                     &session_id_bytes,
@@ -452,17 +448,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
                 for dealer_id in 0..n {
                     let dealer_id_u16 = (dealer_id + 1) as u16;
-
-                    let mut all_fr_values: Vec<Fr> = Vec::new();
-                    for (d_id, _chunk_idx, encrypted) in &all_dealer_chunks {
-                        if *d_id == dealer_id {
-                            let share_bytes = &encrypted.share_bytes[recipient_id];
-                            let (_, fr_values) = deserialize_share_payload_to_frs(share_bytes)
-                                .with_context(|| format!("deserialize share dealer={dealer_id} recipient={recipient_id}"))?;
-                            all_fr_values.extend(fr_values);
-                        }
-                    }
-                    let total_share: Fr = all_fr_values.iter().fold(Fr::zero(), |acc, &f| acc + f);
+                    let total_share = dealer_recipient_total_shares[dealer_id][recipient_id];
 
                     let sk_commit = compute_sk_dealer_share_commitment(
                         &session_id_bytes,

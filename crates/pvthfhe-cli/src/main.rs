@@ -370,6 +370,18 @@ fn run_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
     println!("decrypt_ms={decrypt_ms}");
     println!("threshold={threshold}");
     println!("n={n}");
+    let fold_hashes_str: Vec<String> = report
+        .recipient_fold_hashes
+        .iter()
+        .map(|h| h.to_string())
+        .collect();
+    println!("recipient_fold_hashes=[{}]", fold_hashes_str.join(", "));
+    let parity_hashes_str: Vec<String> = report
+        .recipient_parity_proof_hashes
+        .iter()
+        .map(|h| h.to_string())
+        .collect();
+    println!("recipient_parity_proof_hashes=[{}]", parity_hashes_str.join(", "));
     if report.all_verifications_passed {
         println!("verify: ACCEPT");
         info!("demo complete: ACCEPT");

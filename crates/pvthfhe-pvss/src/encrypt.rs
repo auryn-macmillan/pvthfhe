@@ -210,8 +210,13 @@ impl PvssAdapter for LatticePvssBfvAdapter {
             }
         }
 
-        // Serialize each party's vector of Fr elements into a single byte blob.
-        // Format: [ original_len: u32 BE ][ fr_0: 32 bytes ][ fr_1: 32 bytes ]...
+        let chunk_shares: Vec<Vec<Fr>> = (0..num_chunks)
+            .map(|chunk| party_shares.iter().map(|ps| ps[chunk]).collect())
+            .collect();
+
+        let parity_proof_bytes = crate::parity::prove_parity(&chunk_shares, ctx.n, ctx.t)
+            .map(|pp| crate::parity::serialize_parity_proof(&pp));
+
         let all_share_bytes: Vec<Vec<u8>> = party_shares
             .iter()
             .map(|shares| serialize_share_payload(shares, secret.len()))
@@ -230,7 +235,7 @@ impl PvssAdapter for LatticePvssBfvAdapter {
             };
             let mut randomness = [0u8; 32];
             OsRng.fill_bytes(&mut randomness);
-            let mut enc_rng = rand_chacha::ChaCha20Rng::from_seed(randomness); // allow-seeded-rng: deterministic re-encryption from witness seed
+            let mut enc_rng = rand_chacha::ChaCha20Rng::from_seed(randomness);
             let ciphertext_u = self
                 .backend
                 .encrypt(&recipient_pk, share_bytes, &mut enc_rng)
@@ -264,6 +269,7 @@ impl PvssAdapter for LatticePvssBfvAdapter {
             ciphertexts,
             share_bytes: all_share_bytes.clone(),
             proofs,
+            parity_proof: parity_proof_bytes,
             backend_id: BACKEND_ID.to_owned(),
         })
     }
@@ -302,9 +308,29 @@ impl PvssAdapter for LatticePvssBfvAdapter {
             ShareNizkVerifier::verify(self.backend.as_ref(), &statement, &proof)?;
         }
 
-        // R10 hardening: cross-share Reed-Solomon parity check is now unconditional.
-        // This closes the share-poisoning attack where individually-valid shares
-        // reconstruct garbage. See round10-adversarial-remediation F1/F2.
+        if let Some(ref pp_bytes) = shares.parity_proof {
+            let proof = crate::parity::deserialize_parity_proof(pp_bytes)
+                .ok_or_else(|| PvssError::ShareVerification("parity proof deserialization failed".into()))?;
+            for (party_idx, payload) in shares.share_bytes.iter().enumerate() {
+                let fr_data = &payload[4..];
+                let mut share_frs = Vec::new();
+                for chunk in fr_data.chunks(32) {
+                    let arr: &[u8; 32] = chunk.try_into().map_err(|_| {
+                        PvssError::ShareVerification("share chunk misaligned".into())
+                    })?;
+                    let fr = bytes32_to_fr(arr)
+                        .ok_or_else(|| PvssError::ShareVerification("share Fr out of range".into()))?;
+                    share_frs.push(fr);
+                }
+                let idx = party_idx + 1;
+                if !crate::parity::verify_parity(&share_frs, idx, &proof) {
+                    return Err(PvssError::ShareVerification(format!(
+                        "parity proof: share {idx} not on RS codeword"
+                    )));
+                }
+            }
+        }
+
         if !shares.share_bytes.is_empty() {
             verify_share_rs_consistency(&shares.share_bytes, ctx.t)
                 .map_err(|e| PvssError::ShareVerification(format!(

@@ -23,7 +23,7 @@ use std::time::Instant;
 #[cfg(feature = "sonobe-compressor")]
 use {
     pvthfhe_compressor::sonobe::{
-        encode_quad, encode_triple, C7DecryptAggregationCircuit, CycloFoldStepCircuit,
+        encode_hex, encode_triple, C7DecryptAggregationCircuit, CycloFoldStepCircuit,
         ExternalInputs3, ExternalInputs4, ExternalInputs5, SonobeCompressor,
     },
 };
@@ -139,7 +139,7 @@ fn main() -> anyhow::Result<()> {
             let compressor =
                 SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, batch_count)
                     .map_err(|e| anyhow::anyhow!("compressor init: {e:?}"))?;
-            let acc = encode_quad((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
+            let acc = encode_hex((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64), Fr::from(0u64), Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
             let steps: Vec<ExternalInputs4<Fr>> = (0..batch_count)
                 .map(|i| {
                     ExternalInputs4(
@@ -244,8 +244,43 @@ fn main() -> anyhow::Result<()> {
     #[cfg(not(feature = "sonobe-compressor"))]
     let (c7_ms, c7_tree_depth, c7_leaves) = (0.0, 0usize, 0usize);
 
+    // 4. Ajtai DKG fold: fold all recipient verifications into one proof
+    #[cfg(feature = "sonobe-compressor")]
+    let ajtai_dkg_fold_ms = {
+        let t3 = Instant::now();
+        use pvthfhe_compressor::witness::{AjtaiCommitmentWitness, AjtaiCommitmentWitnessSet};
+        use pvthfhe_compressor::witness::hash_all_coeffs;
+        let dummy_commitment = hash_all_coeffs(&[Fr::from(42u64)]);
+        let witnesses: Vec<AjtaiCommitmentWitness> = (0..args.n)
+            .map(|i| {
+                let seed = {
+                    let mut s = [0u8; 32];
+                    s[..8].copy_from_slice(&(i as u64).to_le_bytes());
+                    s
+                };
+                AjtaiCommitmentWitness {
+                    coeffs: vec![Fr::from((i + 1) as u64)],
+                    expected_commitment_hash: dummy_commitment,
+                    matrix_seed: seed,
+                    parity_proof_hash: dummy_commitment,
+                }
+            })
+            .collect();
+        let witness_set = AjtaiCommitmentWitnessSet { witnesses };
+        let ajtai_compressor =
+            SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, args.n)
+                .map_err(|e| anyhow::anyhow!("ajtai compressor init: {e:?}"))?;
+        let acc = encode_hex((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64), Fr::from(0u64), Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
+        ajtai_compressor
+            .prove_steps_ajtai(&acc, &witness_set)
+            .map_err(|e| anyhow::anyhow!("ajtai prove_steps_ajtai: {e:?}"))?;
+        elapsed_ms(t3)
+    };
+    #[cfg(not(feature = "sonobe-compressor"))]
+    let ajtai_dkg_fold_ms = 0.0;
+
     // Report
-    let total_ms = compressor_ms + aggregate_ms + c7_ms;
+    let total_ms = compressor_ms + aggregate_ms + c7_ms + ajtai_dkg_fold_ms;
 
     println!("aggregator n={} t={}", args.n, args.threshold);
     println!(
@@ -258,6 +293,11 @@ fn main() -> anyhow::Result<()> {
         "  aggregate_decrypt: {:.1}s  ({} NTT operations)",
         aggregate_ms / 1000.0,
         args.threshold,
+    );
+    println!(
+        "  ajtai_dkg_fold:  {:.1}s  ({} recipient verifications folded)",
+        ajtai_dkg_fold_ms / 1000.0,
+        args.n,
     );
     if c7_tree_depth > 0 {
         println!(

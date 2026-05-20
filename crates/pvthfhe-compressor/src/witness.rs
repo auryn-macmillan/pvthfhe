@@ -263,8 +263,8 @@ pub struct AjtaiCommitmentWitness {
     pub coeffs: Vec<Fr>,
     /// Expected commitment hash from the PVSS registry.
     pub expected_commitment_hash: Fr,
-    /// Matrix derivation seed (session_id || party_index).
     pub matrix_seed: [u8; 32],
+    pub parity_proof_hash: Fr,
 }
 
 /// Collection of Ajtai commitment witnesses for all participants.

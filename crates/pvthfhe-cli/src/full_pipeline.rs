@@ -155,6 +155,7 @@ pub struct PipelineReport {
     pub dkg_share_count: usize,
     /// Per-recipient Nova-folded commitment hashes from the DKG ceremony.
     pub recipient_fold_hashes: Vec<Fr>,
+    pub recipient_parity_proof_hashes: Vec<Fr>,
 }
 
 /// Observer hooks for pipeline narration and metrics.
@@ -264,6 +265,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let dkg_verified;
     let dkg_share_count;
     let recipient_fold_hashes;
+    let recipient_parity_proof_hashes;
     observer.phase_start("dkg_ceremony", Some(&format!("n={} t={}", cfg.n, cfg.t)));
     let dkg_started = Instant::now();
     {
@@ -430,6 +432,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         }
 
         let mut fold_hashes: Vec<Fr> = Vec::with_capacity(n);
+        let mut parity_proof_hashes: Vec<Fr> = Vec::with_capacity(n);
         #[cfg(feature = "sonobe-compressor")]
         {
             use pvthfhe_compressor::witness::{AjtaiCommitmentWitness, AjtaiCommitmentWitnessSet};
@@ -473,6 +476,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
                     recipient_commitments.push(sk_commit_fr);
 
+                    let parity_proof_hash = hash_all_coeffs(&recipient_commitments);
                     witness_list.push(AjtaiCommitmentWitness {
                         coeffs: vec![commitment_hash],
                         expected_commitment_hash: commitment_hash,
@@ -485,6 +489,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                             seed.copy_from_slice(&h.finalize());
                             seed
                         },
+                        parity_proof_hash,
                     });
                 }
 
@@ -494,13 +499,26 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
                 let fold_hash = hash_all_coeffs(&recipient_commitments);
                 fold_hashes.push(fold_hash);
+                parity_proof_hashes.push(fold_hash);
             }
         }
         #[cfg(not(feature = "sonobe-compressor"))]
         {
             fold_hashes = vec![Fr::zero(); n];
+            parity_proof_hashes = vec![Fr::zero(); n];
+        }
+        #[cfg(feature = "sonobe-compressor")]
+        {
+            let all_nonzero = fold_hashes.iter().all(|h| !h.is_zero());
+            assert!(
+                all_nonzero,
+                "all recipient_fold_hashes must be non-zero (found {} zero hashes out of {})",
+                fold_hashes.iter().filter(|h| h.is_zero()).count(),
+                fold_hashes.len()
+            );
         }
         recipient_fold_hashes = fold_hashes;
+        recipient_parity_proof_hashes = parity_proof_hashes;
 
         dkg_share_count = n * n;
         dkg_verified = true;
@@ -581,6 +599,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                             seed.copy_from_slice(&h.finalize());
                             seed
                         },
+                        parity_proof_hash: Fr::zero(),
                     }
                 }).collect();
             let witness_set = AjtaiCommitmentWitnessSet {
@@ -1581,6 +1600,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         dkg_verified,
         dkg_share_count,
         recipient_fold_hashes,
+        recipient_parity_proof_hashes,
     })
 }
 

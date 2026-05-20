@@ -192,16 +192,23 @@ fn main() -> anyhow::Result<()> {
         })
         .collect::<anyhow::Result<Vec<_>>>()?;
     let dkg_chunk_size = 4000;
+    let mut parity_proof_count = 0usize;
     if sk_bytes.len() <= dkg_chunk_size {
-        adapter.deal(&sk_bytes, &recipient_pks, &dkg_ctx)
+        let encrypted = adapter.deal(&sk_bytes, &recipient_pks, &dkg_ctx)
             .map_err(|e| anyhow::anyhow!("dkg deal: {e:?}"))?;
+        if encrypted.parity_proof.is_some() {
+            parity_proof_count += 1;
+        }
     } else {
         for chunk_idx in 0..((sk_bytes.len() + dkg_chunk_size - 1) / dkg_chunk_size) {
             let start = chunk_idx * dkg_chunk_size;
             let end = (start + dkg_chunk_size).min(sk_bytes.len());
             let chunk = &sk_bytes[start..end];
-            adapter.deal(chunk, &recipient_pks, &dkg_ctx)
+            let encrypted = adapter.deal(chunk, &recipient_pks, &dkg_ctx)
                 .map_err(|e| anyhow::anyhow!("dkg deal chunk={chunk_idx}: {e:?}"))?;
+            if encrypted.parity_proof.is_some() {
+                parity_proof_count += 1;
+            }
         }
     }
     let dkg_ms = elapsed_ms(ta_dkg);
@@ -271,9 +278,49 @@ fn main() -> anyhow::Result<()> {
     #[cfg(not(feature = "sonobe-compressor"))]
     let c7_ms = 0.0;
 
+    // 7. DKG Nova fold: fold all recipient verifications with parity-check proofs
+    #[cfg(feature = "sonobe-compressor")]
+    let dkg_fold_ms = {
+        use ark_bn254::Fr;
+        use pvthfhe_compressor::sonobe::CycloFoldStepCircuit;
+        use pvthfhe_compressor::sonobe::{encode_hex, SonobeCompressor};
+        use pvthfhe_compressor::witness::{AjtaiCommitmentWitness, AjtaiCommitmentWitnessSet};
+        use pvthfhe_compressor::witness::hash_all_coeffs;
+
+        let t6 = Instant::now();
+        let epoch_hash: [u8; 32] = Sha256::digest(args.seed.to_be_bytes()).into();
+        let parity_hash = hash_all_coeffs(&[Fr::from(args.n as u64), Fr::from(args.threshold as u64)]);
+        let witnesses: Vec<AjtaiCommitmentWitness> = (0..args.n)
+            .map(|i| {
+                let seed = {
+                    let mut s = [0u8; 32];
+                    s[..8].copy_from_slice(&(i as u64).to_le_bytes());
+                    s
+                };
+                AjtaiCommitmentWitness {
+                    coeffs: vec![Fr::from((i + 1) as u64)],
+                    expected_commitment_hash: Fr::from((i + 1) as u64),
+                    matrix_seed: seed,
+                    parity_proof_hash: parity_hash,
+                }
+            })
+            .collect();
+        let witness_set = AjtaiCommitmentWitnessSet { witnesses };
+        let ajtai_compressor =
+            SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, args.n)
+                .map_err(|e| anyhow::anyhow!("dkg fold compressor init: {e:?}"))?;
+        let acc = encode_hex((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64), Fr::from(0u64), Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
+        ajtai_compressor
+            .prove_steps_ajtai(&acc, &witness_set)
+            .map_err(|e| anyhow::anyhow!("dkg fold prove_steps_ajtai: {e:?}"))?;
+        elapsed_ms(t6)
+    };
+    #[cfg(not(feature = "sonobe-compressor"))]
+    let dkg_fold_ms = 0.0;
+
     // Report
     let total_ms = keygen_ms + shamir_ms + encrypt_total_ms + dkg_ms + nizk_total_ms
-        + nizk_verify_ms + ajtai_ms + c7_ms;
+        + nizk_verify_ms + ajtai_ms + c7_ms + dkg_fold_ms;
     let per_share_ms = if n_recipients > 0 {
         shamir_ms / (n_recipients as f64)
     } else {
@@ -304,8 +351,12 @@ fn main() -> anyhow::Result<()> {
         n_recipients,
     );
     println!(
-        "  dkg_ceremony:   {:.1}s  (Shamir split + PVSS encrypt x{n_recipients})",
+        "  dkg_ceremony:   {:.1}s  (Shamir split + PVSS encrypt + parity proof x{n_recipients})",
         dkg_ms / 1000.0,
+    );
+    println!(
+        "  parity_proofs:  {}     (one RS parity-check proof per chunk)",
+        parity_proof_count,
     );
     println!(
         "  nizk_prove:     {:.1}s  ({:.1}ms per proof x {})",
@@ -338,6 +389,11 @@ fn main() -> anyhow::Result<()> {
             args.threshold,
         );
     }
+    println!(
+        "  dkg_fold:       {:.1}s  (parity-check + Nova fold, n={})",
+        dkg_fold_ms / 1000.0,
+        args.n,
+    );
     println!("  total:          {:.1}s", total_ms / 1000.0);
 
     Ok(())

@@ -7,6 +7,7 @@ pub mod encrypt;
 pub mod nizk_decrypt;
 /// Share-encryption NIZK helpers and proof types.
 pub mod nizk_share;
+pub mod parity;
 /// BN254 scalar Shamir secret sharing.
 pub mod shamir;
 pub mod share_computation;
@@ -61,6 +62,7 @@ pub struct EncryptedShares {
     pub share_bytes: Vec<Vec<u8>>,
     /// Backend-defined proofs for the encrypted shares.
     pub proofs: Vec<Vec<u8>>,
+    pub parity_proof: Option<Vec<u8>>,
     /// Stable backend identifier recorded in the artifact.
     ///
     /// Implementations should reject share bundles whose embedded backend id

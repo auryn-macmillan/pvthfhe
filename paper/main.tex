@@ -47,7 +47,7 @@ verification cost.
 The current prototype implements: a lattice-native BFV sigma protocol (\texttt{bfv\_sigma.rs},
 533 loc) proving BFV encryption correctness over RNS with binary challenges and masking bound
 $2^{30}$; committed-smudge decryption via \texttt{partial\_decrypt\_committed\_smudge}; a
-two-track DKG with \texttt{FoldTrackKind::Sk} and \texttt{FoldTrackKind::ESm} share tracks;
+single canonical DKG path (Track A deprecated) with \texttt{FoldTrackKind::Sk} and \texttt{FoldTrackKind::ESm} share tracks;
 proof format version~4 (\texttt{PROOF\_VERSION = 4}) with per-share NIZK verification;
 \texttt{verify\_shares} enabled in the demo path (no longer compiled out); D.2 batched
 share-encryption proof covering sk+esm tracks with independent commitments via
@@ -175,7 +175,7 @@ into two parallel tracks at this layer:
 \begin{description}
 \item[Track A (Concrete, \S\ref{sec:p2-tracka}):]
   Sonobe Nova IVC with CycloFoldStepCircuit accumulates SHA-256 hash-chain
-  state over three $\mathbb{F}_r$ scalars.  This track is fully implemented and benchmarked; theorems P2-A-T1 and P2-A-T3 are
+  state over three $\mathbb{F}_r$ scalars.  This track is fully implemented and benchmarked (DEPRECATED --- Track~B is the sole production path); theorems P2-A-T1 and P2-A-T3 are
   PROVED, P2-A-T2 is PENDING-NOVA-PROOF, P2-A-T4 is CONDITIONAL, and
   P2-A-T5 is PARTIAL (2/6).
 
@@ -194,7 +194,7 @@ Both tracks share the same P4 (PVSS key generation, \S\ref{sec:p4}) and
 P1 (lattice NIZK, \S\ref{sec:p1}) front-end.
 
 % ===================================================================
-\subsection{Track A: Sonobe Nova IVC (Concrete)}
+\subsection{Track A: Sonobe Nova IVC (Concrete) \textbf{[DEPRECATED]}}
 \label{sec:p2-tracka}
 
 The concrete P2 path uses the \texttt{cyclo\_fold\_nova} crate, which
@@ -266,8 +266,7 @@ The accumulator commitment is binding under SHA-256 collision resistance
 for the current surrogate; a linear lattice commitment replacement is
 required for RingSIS/M-SIS binding.
 \textbf{Status: CONDITIONAL} (\texttt{docs/security-proofs/p2/T4.md},
-VERDICT: PROVED-WITH-CITATION pending norm enforcement and lattice-commitment
-replacement).
+VERDICT: PROVED-WITH-CITATION --- VERIFIED: norm enforcement implemented via CycloFoldStepCircuit state\_len=7 (G7b: $z_s$\_sq\_acc, $z_e$\_sq\_acc norm accumulators). Lattice-commitment replacement remains open).
 \end{theorem}
 
 \begin{theorem}[P2-A-T5: Sonobe On-chain Compatibility (Track A)]
@@ -552,8 +551,7 @@ least one share is invalid. The current implementation cannot, however, identify
 different share subsets. Cheater identification for $t < n/2$ is attainable through
 Verifiable Secret Sharing (VSS) or Robust Secret Sharing (RSS) protocols.
 Fehr and Yuan~\cite{fehr2019rss} give a nearly optimal RSS construction against
-rushing adversaries. We defer RSS to future work; misbehavior detection via retry
-with subset selection is sufficient for honest-majority protocols.
+rushing adversaries. We have implemented Reed--Solomon parity-check proofs (\texttt{parity.rs}) that validate all $n$ shares are evaluations of a single degree-$t$ polynomial. Combined with Nova-folded DKG verification, this achieves $O(1)$ per-recipient DKG verification, a concrete step toward robust secret sharing.
 
 \section{Implementation and Evaluation}
 
@@ -597,7 +595,9 @@ for arbitrary protocol embedding.
 
 \section{Conclusion}
 
-We have presented PVTHFHE, a research prototype for private-verifiable threshold FHE targeting $O(n)$ per-party setup and $O(\text{polylog}\, n)$ verification. P2 uses a Sonobe Nova IVC surrogate (CycloFoldStepCircuit proving hash-state accumulation, not Ajtai fold). P3 uses the ecrecover/ECDSA attestation surrogate for on-chain acceptance. Post-remediation (4 audit rounds including R4): BFV sigma v4 with per-share NIZK verification; committed-smudge decryption; two-track sk/e\_sm DKG enabled; P1 masking seeds upgraded to OsRng; D.2 batched share-encryption proof covering both sk and e\_sm tracks with independent commitments; D.3 domain separation preventing cross-track replay; E.1/E.2 pipeline verifier wiring; F.2 smudge-slot freshness enforcement; G.1 aggregator\_final Noir circuit (N=8, 8 adversarial tests pass) verifying Lagrange recombination via canonical nargo$\to$bb$\to$ultra\_honk flow. Sub-protocols have formal security proof drafts and the implementation is validated via benchmarks.
+We have presented PVTHFHE, a research prototype for private-verifiable threshold FHE targeting $O(n)$ per-party setup and $O(\text{polylog}\, n)$ verification. P2 uses a Sonobe Nova IVC surrogate (CycloFoldStepCircuit proving hash-state accumulation, not Ajtai fold). P3 uses the ecrecover/ECDSA attestation surrogate (legacy --- Track~A deprecated; Track~B sole production path) for on-chain acceptance. Post-remediation (4 audit rounds including R4): BFV sigma v4 with per-share NIZK verification; committed-smudge decryption; two-track sk/e\_sm DKG enabled; P1 masking seeds upgraded to OsRng; D.2 batched share-encryption proof covering both sk and e\_sm tracks with independent commitments; D.3 domain separation preventing cross-track replay; E.1/E.2 pipeline verifier wiring; F.2 smudge-slot freshness enforcement; G.1 aggregator\_final Noir circuit (N=8, 8 adversarial tests pass) verifying Lagrange recombination via canonical nargo$\to$bb$\to$ultra\_honk flow. Sub-protocols have formal security proof drafts and the implementation is validated via benchmarks.
+
+Recent improvements (May 2026) include: (i)~G7b norm enforcement in the CycloFoldStepCircuit (state expanded to 7 fields with $z_s$ and $z_e$ squared L2 norm accumulators); (ii)~parity-check proofs for Reed--Solomon share verification ($O(1)$ per recipient); (iii)~Nova-folded DKG verification via \texttt{AjtaiCommitmentStepCircuit}; (iv)~share provenance binding (\texttt{sk\_commitments} + \texttt{combined\_sk\_commitment\_hash} as Noir public input); (v)~real PVSS DKG ceremony replacing simulation; and (vi)~Track~A deprecated in favor of Track~B as the sole production path.
 
 \bibliographystyle{splncs04}
 \bibliography{bib}

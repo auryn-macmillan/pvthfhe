@@ -2,14 +2,14 @@
 
 > ⚠️  **DO NOT DEPLOY — RESEARCH PROTOTYPE ONLY**
 >
-- on-chain verification: UltraHonk verifier (Track A: ECDSA/ecrecover attestation; Track B: MicroNova target)
+- on-chain verification: UltraHonk verifier (Track A: DEPRECATED — Sonobe hash-then-fold. Track B: Default production path — norm enforcement, tree-based C7, on-chain UltraHonk)
 - Noir circuits: real aggregation and wrapping logic
 - **do not use for The Interfold or any production deployment**
 >
 > See [SECURITY-ADVISORY-001.md](SECURITY-ADVISORY-001.md) and [SECURITY.md](SECURITY.md) for details.
 > See `SECURITY.md` and `WARNING.md` for the canonical list of surrogates.
 
-PVTHFHE targets **Architecture B** (Lattice PVSS + LatticeFold+ + MicroNova). In the current prototype, Sonobe substitutes MicroNova as the primary proof compressor due to performance considerations (see the N3a NoGo path). This change is contained within a bounded migration surface to preserve the path toward the target architecture.
+PVTHFHE targets **Architecture B** (Lattice PVSS + LatticeFold+ + MicroNova). In the current prototype, Sonobe substitutes MicroNova as the primary proof compressor due to performance considerations (see the N3a NoGo path). The primary C7 verification path now uses a tree-based CompressionTree (Poseidon R1CS) rather than flat Nova folding. This change is contained within a bounded migration surface to preserve the path toward the target architecture.
 
 ## High-Level Intuition
 
@@ -94,7 +94,7 @@ Each protocol step produces verifiable artifacts. A third-party verifier with on
 | BFV encryption relation | BfvSigmaProof | **Partial** (R4 fix) | Plaintext domain `|z_m_i| < t/2` enforced since `5dee0f8`; full BFV containment D.1-deferred |
 | Cyclo folding | Fold accumulator | **Yes** (conditional) | `verify_fold()` recomputes accumulator deterministically; soundness conditional on P1/P2 |
 | Sonobe compressor | Compressed proof | **Yes** | Dual verification path (in-process + external re-parse from bytes) |
-| Aggregate decrypt | Plaintext | **Partial** (C7 prototype) | Sonobe C7DecryptAggregationCircuit (N=8 prototype via Nova IVC; Phase 2 N=8192 off-circuit Merkle verification complete; Phase 3 in-circuit Merkle verification with Poseidon placeholder). Complementary Noir aggregator_final path exists (N=8, standalone verification). |
+| Aggregate decrypt | Plaintext | **Partial** (C7 prototype) | Sonobe C7DecryptAggregationCircuit (N=8 prototype via Nova IVC; Phase 2 N=8192 off-circuit Merkle verification complete; Phase 3 in-circuit Merkle verification with real Poseidon R1CS (`poseidon_gadget.rs`, ~900 constraints per hash8)). Complementary Noir aggregator_final path exists (N=8, standalone verification). |
 | On-chain verify | UltraHonk proof | **No** (not run by demo) | Requires separate `bench-comparison` invocation |
 
 Key R4 improvements:
@@ -110,7 +110,7 @@ The current implementation uses Sonobe substitution for the folding and compress
 - **P2**: LatticeFold+ folding substituted by off-chain Sonobe. E.1/E.2 pipeline verifier wiring covers batched Shamir share-computation and DKG aggregation relations.
 - **P3**: MicroNova SNARK compression substituted by off-chain Sonobe + on-chain commitment topology. G.1 aggregator_final Noir circuit (N=8, 8 adversarial tests pass) verifies Lagrange recombination of decryption shares.
 - **C6**: CommittedSmudge mode enforces DKG-bound smudging; F.2 smudge-slot freshness enforced via public SlotRegistry.
-- **C7**: Sonobe C7DecryptAggregationCircuit (N=8 via Nova IVC, P1.3-P1.5) folds per-participant Lagrange recombination into Nova accumulator. Complementary Noir aggregator_final path (N=8) provides standalone verification. Phase 2 N=8192 off-circuit Merkle verification complete (8-ary Keccak256 Merkle tree, 9 RED tests pass). Phase 3 C7MerkleStepCircuit adds in-circuit Merkle verification with Poseidon placeholder (linear-combination check); full Poseidon R1CS deferred to Phase B.
+- **C7**: Sonobe C7DecryptAggregationCircuit (N=8 via Nova IVC, P1.3-P1.5) folds per-participant Lagrange recombination into Nova accumulator. Complementary Noir aggregator_final path (N=8) provides standalone verification. Phase 2 N=8192 off-circuit Merkle verification complete (8-ary Keccak256 Merkle tree, 9 RED tests pass). Phase 3 C7MerkleStepCircuit adds in-circuit Merkle verification with Poseidon placeholder (linear-combination check); Phase B: Real Poseidon R1CS in-circuit. `C7MerkleStepCircuit` at depth-5 (N=8192) uses real Poseidon hashing (~900 constraints per hash8).
 
 ### End-to-End Verifiability Chain
 
@@ -137,8 +137,6 @@ is planned (see `crates/pvthfhe-cli/src/main.rs` — `Commands::Verify`).
 
 | Step | Verifier | Public-Input-Only? |
 |------|----------|--------------------|
-| Share computation (Shamir validity) | `share_computation::verify_share_computation` | ✅ Yes |
-| DKG aggregation (commitment consistency) | `dkg_aggregation::verify_dkg_aggregation` | ✅ Yes |
 | On-chain Solidity verification | `contracts/` UltraHonk verifier | ✅ Yes |
 
 These verifiers exist and accept only public inputs, but are not called from
@@ -164,40 +162,41 @@ These verifiers exist and accept only public inputs, but are not called from
 ### Folding and On-Chain Status
 
 This section documents the current implementation status of the folding and on-chain
-verification layers across the two architectural tracks (Track A: Sonobe substitute;
-Track B: LatticeFold+/MicroNova target).
+verification layers. Track A (Sonobe hash-then-fold) is DEPRECATED. Track B (norm enforcement,
+tree-based C7, on-chain UltraHonk) is the default production path.
 
-| Component | Target Track | Status | Details |
+| Component | Track | Status | Details |
 |-----------|-------|--------|---------|
-| **P2 — LatticeFold+** | B | Research-blocked | Depends on unresolved Lemma 9 / Cyclo RLWE folding theorem. No implementation exists; Sonobe Nova substitutes in Track A. |
-| **P3 — MicroNova** | B | Deferred | Target architecture only. Sonobe Nova IVC with CycloFoldStepCircuit substitutes in Track A (see `spec-real-p2p3.md` §5.1). |
-| **Sonobe Nova / ecrecover** | A | Benchmarkable | Real CCS satisfiability with epoch-bound SRS. Phase timings (`cyclo_fold`, `compressor_prove`, `compressor_verify`) are populated in the benchmark pipeline. |
-| **Noir aggregator_final circuit** | A | Optional / benchmark-gated | Noir circuit (`circuits/aggregator_final`) runs the canonical nargo+bb flow when `PVTHFHE_RUN_NOIR_CIRCUIT=1` is set and nargo/bb are in PATH. Phase timing (`noir_aggregator_final`) is recorded in `e2e_timings.json`. Not required for the default benchmark. |
-| **LatticeFold+ / MicroNova / UltraHonk** | B | Target only | No implementation. This track represents the aspirational architecture with lattice-native folding and on-chain SNARK verification. All current benchmarks use the Track A Sonobe substitute. |
-| **On-chain verifier** | N/A | Compiles, not run | The Solidity UltraHonk verifier compiles (`contracts/`) but is not invoked during the demo or benchmark. The `onchain_verify` phase in the benchmark is a timing-only marker. A separate `bench-comparison` invocation is required for on-chain verification measurement. |
+| **P2 — LatticeFold+** | B | Research-blocked | Depends on unresolved Lemma 9 / Cyclo RLWE folding theorem. No implementation exists; Sonobe Nova substitutes in Track B. |
+| **P3 — MicroNova** | B | Deferred | Target architecture only. Sonobe Nova IVC with CycloFoldStepCircuit substitutes in Track B (see `spec-real-p2p3.md` §5.1). |
+| **Sonobe Nova norm-enforced** | B | Benchmarkable | G7b norm enforcement with state_len=7, z_s_sq_acc/z_e_sq_acc accumulators. Phase timings (`cyclo_fold`, `compressor_prove`, `compressor_verify`) are populated in the benchmark pipeline. |
+| **Noir aggregator_final circuit** | B | Benchmark-gated | Noir circuit (`circuits/aggregator_final`) runs the canonical nargo+bb flow when `PVTHFHE_RUN_NOIR_CIRCUIT=1` is set. Phase timing is recorded in `e2e_timings.json`. Uses MAX_PARTICIPANTS=128. |
+| **On-chain verifier** | B | Compiles, not run | The Solidity UltraHonk verifier compiles (`contracts/`) but is not invoked during the demo. The `onchain_verify` phase in the benchmark is a timing-only marker. A separate `bench-comparison` invocation is required for on-chain verification measurement. |
+| **Track A — Sonobe hash-then-fold** | A | DEPRECATED | The original Track A path (hash-accumulate compression, ecrecover attestation) is deprecated. All new development targets Track B only. |
 
-Note: runtime `PVTHFHE_TRACK` flag uses a different naming convention (A = Sonobe surrogate, B = norm-enforced Sonobe).
+Note: runtime `PVTHFHE_TRACK` flag: A = DEPRECATED Sonobe hash-then-fold, B = norm-enforced production path (default).
 
 #### Track Summary
 
-- **Track A (Active)**: Sonobe Nova folding + Sonobe IVC compression + Noir UltraHonk circuit proofs. All phases are benchmarkable and timed in the e2e pipeline. This is the current implementation path.
-- **Track B (Target)**: LatticeFold+ native RLWE folding + MicroNova IVC + on-chain UltraHonk verification. This track is the architectural target but has no implementation; it is blocked on resolution of open problems P2 and P3.
+- **Track A (DEPRECATED)**: Sonobe Nova folding + hash-accumulate compression + ecrecover attestation. This track is deprecated and no longer the target path.
+- **Track B (Default Production)**: Norm-enforced Sonobe Nova folding + tree-based C7 verification + Noir UltraHonk circuit proofs + on-chain UltraHonk. This is the sole production path. All new development targets Track B only.
 
-The migration surface from Track A to Track B is bounded: the `Compressor` trait and
-`CycloFoldStepCircuit` are designed to accept a lattice-native fold step once P2 is
-resolved, without changing the pipeline topology or on-chain verifier interface.
+The migration from Track A to Track B is complete: the pipeline uses G7b norm enforcement,
+tree-based CompressionTree (Poseidon R1CS), and on-chain UltraHonk as the sole production path.
 
 ## Track Selection
 
 The end-to-end demo (`just demo-e2e`) supports two architectural tracks, selected at
 runtime via the `PVTHFHE_TRACK` environment variable:
 
-- **Default: Track B — norm-enforced Sonobe Nova path. The architectural LatticeFold+/MicroNova target is deferred (P2 OPEN).** Activated by default or with
+- **Default: Track B — norm-enforced Sonobe Nova path with tree-based C7 and on-chain
+  UltraHonk. This is the sole production path.** Activated by default or with
   `PVTHFHE_TRACK=B`.
-- **Track A (Sonobe Nova/hash-then-fold)** — the current Sonobe-substitute path with
-  hash-accumulate compression. Activated with `PVTHFHE_TRACK=A` or
-  `just demo-e2e-track-a`.
-- Both tracks pass `just demo-e2e` and produce valid pipeline outputs.
+- **Track A (DEPRECATED — Sonobe Nova/hash-then-fold)** — the deprecated Track A
+  path with hash-accumulate compression. Retained only for legacy comparison.
+  Activated with `PVTHFHE_TRACK=A` or `just demo-e2e-track-a`.
+- Track B is the default and recommended path. Track A passes `just demo-e2e` for
+  legacy validation only.
 
 ## MicroNova Heterogeneous IVC
 
@@ -209,6 +208,34 @@ Same SonobeCompressor handles the full tree via
 HeterogeneousStepCircuit<LatticeFoldTreeCircuitFamily>.
 
 See `.sisyphus/plans/micronova-heterogeneous-ivc.md` for full design.
+
+### Tree-Based C7 Verification
+
+The primary C7 verification path uses a tree-based CompressionTree (Poseidon R1CS)
+rather than flat Nova folding:
+
+- **Leaf nodes**: `state += share_eval * lagrange_coeff` — each leaf accumulates one
+  Lagrange-weighted decryption share evaluation into the running state.
+- **Internal nodes**: `parent = Poseidon(left, right)` — Poseidon R1CS hashing
+  (~900 constraints per hash8) combines child accumulators up the tree.
+- **Depth**: configurable; depth-5 supports N=8192 participants.
+- **Circuit**: `C7MerkleStepCircuit` implements the full tree step in R1CS, providing
+  in-circuit verifiable C7 aggregation.
+
+This replaces the Phase 2 off-circuit Merkle verification with fully constrained
+in-circuit Merkle proofs.
+
+### Per-Node / Per-Aggregator Scaling
+
+Scaling simulation binaries (`pvthfhe-per-node`, `pvthfhe-per-aggregator`) benchmark
+per-party and per-aggregator costs across participant counts (N=128 to 8192). These
+binaries validate the O(n) per-party / O(polylog n) verifier cost targets:
+
+- `pvthfhe-per-node`: measures per-party DKG, NIZK proving, and partial decryption costs.
+- `pvthfhe-per-aggregator`: measures aggregator folding, compression, and on-chain
+  verification costs.
+
+Results are published under `bench/results/`. See `REPRODUCING.md` for run instructions.
 
 ### Performance Ceiling
 

@@ -574,8 +574,9 @@ fn sigma_verify_step<F: PrimeField>(
                     })
                     .collect::<Result<_, _>>()?;
 
-                const B_Z_S: u64 = 1_073_750_016;
-                const B_Z_E: u64 = 1_073_873_408;
+                // P1-tight: B_Z_S/E synced with sigma.rs rejection sampling
+                const B_Z_S: u64 = 131_072;
+                const B_Z_E: u64 = 131_072;
                 let b_zs = F::from(B_Z_S);
                 let b_ze = F::from(B_Z_E);
                 let bound_zs = FpVar::constant(b_zs);

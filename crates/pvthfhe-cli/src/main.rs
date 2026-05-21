@@ -92,9 +92,9 @@ enum Commands {
         #[arg(long)]
         threshold: usize,
     },
-    /// Verify a final SNARK (stub — prints usage).
+    /// Verify a compressed proof.
     Verify {
-        /// Hex-encoded proof bytes.
+        /// Path to proof file.
         #[arg(long)]
         proof: String,
     },
@@ -161,15 +161,30 @@ fn main() -> anyhow::Result<()> {
             r8_aggregate(&ciphertext, &shares, threshold)?;
         }
         Commands::Verify { proof } => {
-            // Planned: --verify-only mode will read public artifacts (aggregate_pk,
-            // ciphertext, compressed_proof, dkg transcript) from disk and run all
-            // NIZK verifications + fold verification + compressor verification
-            // without requiring secret key material, then print verify: ACCEPT/REJECT.
-            // This enables a third-party verifier role with only public data.
-            // Dependencies: share_computation verifier (batch D.2), dkg_aggregation
-            // verifier (batch D.2), and artifact serialization (TBD).
-            info!(proof = %proof, "verify stub — real HonkVerifier not yet integrated");
-            println!("verify: proof={proof} (stub)");
+            let proof_bytes = std::fs::read(&proof)
+                .context("failed to read proof file")?;
+
+            #[cfg(feature = "sonobe-compressor")]
+            {
+                use pvthfhe_compressor::{CompressedProof, ProofCompressor};
+                use pvthfhe_compressor::sonobe::{
+                    CycloFoldStepCircuit, SonobeCompressor,
+                };
+                let compressor = SonobeCompressor::<CycloFoldStepCircuit<ark_bn254::Fr>>::new(
+                    [0u8; 32], 1,
+                ).map_err(|e| anyhow::anyhow!("compressor init: {e:?}"))?;
+                let vk = compressor.verifier_key();
+                let compressed_proof = CompressedProof(proof_bytes);
+                match compressor.verify(&vk, &compressed_proof, &[]) {
+                    Ok(true) => println!("verify: ACCEPT"),
+                    Ok(false) => println!("verify: REJECT"),
+                    Err(e) => println!("verify: ERROR ({e:?})"),
+                }
+            }
+            #[cfg(not(feature = "sonobe-compressor"))]
+            {
+                println!("verify: UNSUPPORTED (sonobe-compressor feature required)");
+            }
         }
         Commands::Demo { n, threshold, seed } => {
             run_demo(n, threshold.unwrap_or(n / 2 + 1), seed)?;

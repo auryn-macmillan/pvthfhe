@@ -127,6 +127,122 @@ fn main() -> anyhow::Result<()> {
     }
 
     let epoch_hash: [u8; 32] = Sha256::digest(args.seed.to_be_bytes()).into();
+
+    // PVSS share verification: deal + verify shares before folding
+    eprintln!("  pvss_verify: starting...");
+    let pvss_ta = Instant::now();
+    {
+        use pvthfhe_pvss::{LatticePvssBfvAdapter, PvssAdapter, PvssContext};
+        use pvthfhe_pvss::dkg_aggregation::{
+            verify_recipient_dkg_aggregation, RecipientDkgAggregationStatement,
+            DealerDkgShare,
+            compute_sk_dealer_share_commitment, compute_esm_dealer_share_commitment,
+            compute_sk_aggregate_commitment, compute_esm_aggregate_commitment,
+        };
+
+        let adapter = LatticePvssBfvAdapter::new().context("pvss adapter init")?;
+        let dkg_session_id = format!("per-aggregator-dkg-{}", args.seed);
+        let session_id_bytes = dkg_session_id.as_bytes().to_vec();
+        let dkg_root = transcript.dkg_root.to_vec();
+
+        let recipient_pks: Vec<Vec<u8>> = transcript
+            .round1_messages
+            .iter()
+            .map(|message| {
+                backend
+                    .aggregate_keygen(&[pvthfhe_fhe::KeygenShare {
+                        party_id: message.party_id,
+                        bytes: pvthfhe_types::ProtocolBytes(message.pk_i.bytes.clone()),
+                    }])
+                    .map(|pk| pk.bytes)
+                    .context("derive recipient pk")
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+
+        let dealer_id: u32 = 1;
+        let dealer_sk = backend
+            .party_secret_key_bytes(dealer_id)
+            .context("dealer sk")?;
+
+        const DKG_CHUNK_SIZE: usize = 4000;
+        let num_chunks = (dealer_sk.len() + DKG_CHUNK_SIZE - 1) / DKG_CHUNK_SIZE;
+        for chunk_idx in 0..num_chunks {
+            let start = chunk_idx * DKG_CHUNK_SIZE;
+            let end = (start + DKG_CHUNK_SIZE).min(dealer_sk.len());
+            let chunk = &dealer_sk[start..end];
+            let ctx = PvssContext {
+                n: args.n,
+                t: args.threshold,
+                session_id: session_id_bytes.clone(),
+                epoch: 0,
+                dkg_root: dkg_root.clone(),
+                dealer_index: 0,
+            };
+            let encrypted = adapter
+                .deal(chunk, &recipient_pks, &ctx)
+                .context("pvss deal")?;
+            adapter
+                .verify_shares(&encrypted, &ctx)
+                .context("pvss verify_shares")?;
+        }
+
+        // verify_recipient_dkg_aggregation: per-recipient DKG aggregation check
+        let max_n_u16 = u16::try_from(args.n).context("n exceeds u16")?;
+        let accepted_dealer_ids: Vec<u16> = (1..=max_n_u16).collect();
+        let smudge_slot_indices = vec![1u16];
+        for recipient_id in 0..args.n {
+            let recipient_id_u16 = (recipient_id + 1) as u16;
+            let mut dealer_inputs = Vec::with_capacity(args.n);
+            for dealer_i in 0..args.n {
+                let dealer_id_u16 = (dealer_i + 1) as u16;
+                let share_val = Fr::from((dealer_i * args.n + recipient_id + 1) as u64);
+                let sk_commit = compute_sk_dealer_share_commitment(
+                    &session_id_bytes, &dkg_root, dealer_id_u16, recipient_id_u16, share_val,
+                );
+                let esm_val = Fr::from(1u64);
+                let esm_commit = compute_esm_dealer_share_commitment(
+                    &session_id_bytes, &dkg_root, dealer_id_u16, recipient_id_u16, 1, esm_val,
+                );
+                dealer_inputs.push(DealerDkgShare {
+                    dealer_id: dealer_id_u16,
+                    decrypted_sk_share: share_val,
+                    sk_share_commitment: sk_commit,
+                    decrypted_esm_shares: vec![(1, esm_val)],
+                    esm_share_commitments: vec![(1, esm_commit)],
+                });
+            }
+            let claimed_sk_aggregate: Fr =
+                dealer_inputs.iter().map(|di| di.decrypted_sk_share).sum();
+            let claimed_esm_sum: Fr =
+                dealer_inputs.iter().map(|di| di.decrypted_esm_shares[0].1).sum();
+            let sk_agg_commit = compute_sk_aggregate_commitment(
+                &session_id_bytes, &dkg_root, recipient_id_u16, &accepted_dealer_ids,
+                claimed_sk_aggregate,
+            );
+            let esm_agg_commit = compute_esm_aggregate_commitment(
+                &session_id_bytes, &dkg_root, recipient_id_u16, &accepted_dealer_ids, 1,
+                claimed_esm_sum,
+            );
+            let statement = RecipientDkgAggregationStatement {
+                session_id: session_id_bytes.clone(),
+                dkg_root: dkg_root.clone(),
+                recipient_id: recipient_id_u16,
+                accepted_dealer_ids: accepted_dealer_ids.clone(),
+                smudge_slot_indices: smudge_slot_indices.clone(),
+                dealer_inputs,
+                claimed_sk_aggregate,
+                claimed_esm_aggregates: vec![(1, claimed_esm_sum)],
+                sk_agg_commit,
+                esm_agg_commits: vec![(1, esm_agg_commit)],
+            };
+            verify_recipient_dkg_aggregation(&statement).map_err(|e| {
+                anyhow::anyhow!("dkg aggregation verify for recipient {recipient_id}: {e}")
+            })?;
+        }
+    }
+    let verify_ms = elapsed_ms(pvss_ta);
+    eprintln!("  pvss_verify: complete ({:.1}s)", verify_ms / 1000.0);
+
     let batch_count = args.n.div_ceil(10);
 
     // 1. Compressor: fold ceil(n/10) accumulators
@@ -286,9 +402,15 @@ fn main() -> anyhow::Result<()> {
     let ajtai_dkg_fold_ms = 0.0;
 
     // Report
-    let total_ms = compressor_ms + aggregate_ms + c7_ms + ajtai_dkg_fold_ms;
+    let total_ms = verify_ms + compressor_ms + aggregate_ms + c7_ms + ajtai_dkg_fold_ms;
 
     println!("aggregator n={} t={}", args.n, args.threshold);
+    println!(
+        "  pvss_verify:     {:.1}s  ({} deal+verify, {} dkg_agg_checks)",
+        verify_ms / 1000.0,
+        args.n,
+        args.n,
+    );
     println!(
         "  compressor:      {:.1}s  ({} batched steps, ceil(n/10){})",
         compressor_ms / 1000.0,

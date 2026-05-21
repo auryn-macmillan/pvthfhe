@@ -79,18 +79,10 @@ fn main(
     aggregate_pk_hash: pub Field,
     decrypt_nizk_hash: pub Field,
     dkg_transcript_hash: pub Field,
-    // G.12 Phase 4: combined hash of Nova-folded Ajtai commitment verifications.
-    // Verified on-chain by HonkVerifier.sol, not constrained in-circuit.
-    combined_commitment_hash: pub Field,
-    // Share provenance: combined Poseidon hash of all registered sk_commitments.
-    // Allows on-chain verifier to confirm each NIZK proof used the correct secret key.
-    combined_sk_commitment_hash: pub Field,
-    dkg_root: pub Field,
     epoch: pub Field,
     participant_set_hash: pub Field,
     // G.12 Phase 2: pre-computed combined share hash from folded Schnorr verification
     combined_share_hash: pub Field,
-    share_verification_proof_hash: pub Field,
     n_participants: pub Field,
     threshold: pub Field,
     committee_party_ids: pub [Field; MAX_PARTICIPANTS],
@@ -166,10 +158,10 @@ fn main(
         }
     }
     let computed_combined_share_hash = combine_hashes(share_hashes, n_participants);
-
-    // G.6: The circuit internally computes combined_share_hash from raw shares
-    // and uses it to build d_commitment. No external combined_share_hash input
-    // is needed -- the commitment chain binds it inside d_commitment.
+    // Verify that the pre-computed combined_share_hash matches what the
+    // circuit computes from raw shares. This replaces the dead pass-through.
+    assert(computed_combined_share_hash == combined_share_hash,
+        "combined_share_hash mismatch");
 
     // G.8: Enforce exactly threshold+1 non-zero shares
     let mut share_non_zero_count = 0;
@@ -249,7 +241,6 @@ fn test_honest_lagrange_recombination() {
     let ciphertext_hash = 42;
     let aggregate_pk_hash = 100;
     let decrypt_nizk_hash = 500;
-    let dkg_root = 200;
     let mut ps_hash_inputs = [0; MAX_PARTICIPANTS + 1];
     ps_hash_inputs[0] = protocol_constants::DOMAIN_VECTOR_MERKLE;
     for i in 0..MAX_PARTICIPANTS {
@@ -270,13 +261,9 @@ fn test_honest_lagrange_recombination() {
         aggregate_pk_hash,
         decrypt_nizk_hash,
         999,
-        0,
-        0,
-        dkg_root,
         epoch,
         participant_set_hash,
         combined_share_hash,
-        1, // share_verification_proof_hash (dummy for test)
         n_participants,
         threshold,
         committee_party_ids,
@@ -334,7 +321,6 @@ fn test_tamper_zero_party_id() {
     let ciphertext_hash = 42;
     let aggregate_pk_hash = 100;
     let decrypt_nizk_hash = 500;
-    let dkg_root = 200;
     let participant_set_hash = 300;
 
     let mut share_hashes = [0; MAX_PARTICIPANTS];
@@ -350,13 +336,9 @@ fn test_tamper_zero_party_id() {
         aggregate_pk_hash,
         decrypt_nizk_hash,
         999,
-        0,
-        0,
-        dkg_root,
         epoch,
         participant_set_hash,
         combined_share_hash,
-        1, // share_verification_proof_hash (dummy for test)
         n_participants,
         threshold,
         committee_party_ids,
@@ -382,7 +364,6 @@ fn test_tamper_duplicate_party_ids() {
     let ciphertext_hash = 42;
     let aggregate_pk_hash = 100;
     let decrypt_nizk_hash = 500;
-    let dkg_root = 200;
     let mut ps_hash_inputs = [0; MAX_PARTICIPANTS + 1];
     ps_hash_inputs[0] = protocol_constants::DOMAIN_VECTOR_MERKLE;
     for i in 0..MAX_PARTICIPANTS {
@@ -403,13 +384,9 @@ fn test_tamper_duplicate_party_ids() {
         aggregate_pk_hash,
         decrypt_nizk_hash,
         999,
-        0,
-        0,
-        dkg_root,
         epoch,
         participant_set_hash,
         combined_share_hash,
-        1, // share_verification_proof_hash (dummy for test)
         n_participants,
         threshold,
         committee_party_ids,
@@ -441,7 +418,6 @@ fn test_ciphertext_equals_plaintext_hash() {
 
     let aggregate_pk_hash = 100;
     let decrypt_nizk_hash = 500;
-    let dkg_root = 200;
     let mut ps_hash_inputs = [0; MAX_PARTICIPANTS + 1];
     ps_hash_inputs[0] = protocol_constants::DOMAIN_VECTOR_MERKLE;
     for i in 0..MAX_PARTICIPANTS {
@@ -462,13 +438,9 @@ fn test_ciphertext_equals_plaintext_hash() {
         aggregate_pk_hash,
         decrypt_nizk_hash,
         999,
-        0,
-        0,
-        dkg_root,
         epoch,
         participant_set_hash,
         combined_share_hash,
-        1, // share_verification_proof_hash (dummy for test)
         n_participants,
         threshold,
         committee_party_ids,
@@ -494,7 +466,6 @@ fn test_tamper_wrong_threshold() {
     let ciphertext_hash = 42;
     let aggregate_pk_hash = 100;
     let decrypt_nizk_hash = 500;
-    let dkg_root = 200;
     let participant_set_hash = 300;
 
     let mut share_hashes = [0; MAX_PARTICIPANTS];
@@ -510,13 +481,9 @@ fn test_tamper_wrong_threshold() {
         aggregate_pk_hash,
         decrypt_nizk_hash,
         999,
-        0,
-        0,
-        dkg_root,
         epoch,
         participant_set_hash,
         combined_share_hash,
-        1, // share_verification_proof_hash (dummy for test)
         n_participants,
         threshold,
         committee_party_ids,
@@ -542,7 +509,6 @@ fn test_tamper_epoch_zero() {
     let ciphertext_hash = 42;
     let aggregate_pk_hash = 100;
     let decrypt_nizk_hash = 500;
-    let dkg_root = 200;
     let participant_set_hash = 300;
 
     let mut share_hashes = [0; MAX_PARTICIPANTS];
@@ -558,13 +524,9 @@ fn test_tamper_epoch_zero() {
         aggregate_pk_hash,
         decrypt_nizk_hash,
         999,
-        0,
-        0,
-        dkg_root,
         epoch,
         participant_set_hash,
         combined_share_hash,
-        1, // share_verification_proof_hash (dummy for test)
         n_participants,
         threshold,
         committee_party_ids,

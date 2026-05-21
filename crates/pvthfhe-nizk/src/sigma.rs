@@ -85,6 +85,60 @@ pub fn compute_jl_projection(w: &[i64], seed: [u8; 32], m: usize) -> Vec<i64> {
     projection
 }
 
+/// Compute raw (unscaled) JL projection sums for in-circuit comparison.
+///
+/// Returns Σ sign · w[j] per dimension — integer arithmetic, no scaling.
+/// The circuit verifies these raw sums match its own matrix-vector product,
+/// avoiding floating-point in the field.
+pub fn compute_raw_jl_sum(w: &[i64], seed: [u8; 32], m: usize) -> Vec<i64> {
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
+
+    if w.is_empty() { return vec![0i64; m]; }
+
+    let mut rng = StdRng::from_seed(seed);
+    let mut projection = vec![0i64; m];
+
+    for i in 0..m {
+        let mut sum: i64 = 0;
+        for j in 0..w.len() {
+            let r: f64 = rng.gen();
+            if r < 1.0 / 6.0 {
+                sum += w[j];
+            } else if r < 2.0 / 6.0 {
+                sum -= w[j];
+            }
+        }
+        projection[i] = sum;
+    }
+    projection
+}
+
+/// Compute sparse JL matrix entry lists from seed.
+///
+/// Returns `m` lists, each containing `(column_index, is_positive)` pairs
+/// representing the non-zero entries of the Achlioptas sparse JL matrix Π.
+/// Uses the SAME deterministic RNG as `compute_raw_jl_sum` so that the
+/// same entry lists can be passed alongside raw sums into the circuit
+/// for in-circuit projection verification without regenerating entries.
+pub fn compute_jl_entries(seed: [u8; 32], m: usize, n: usize) -> Vec<Vec<(usize, bool)>> {
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
+    let mut rng = StdRng::from_seed(seed);
+    let mut entries = vec![Vec::new(); m];
+    for k in 0..m {
+        for j in 0..n {
+            let r: f64 = rng.gen();
+            if r < 1.0 / 6.0 {
+                entries[k].push((j, true));
+            } else if r < 2.0 / 6.0 {
+                entries[k].push((j, false));
+            }
+        }
+    }
+    entries
+}
+
 /// Compute L2 squared norm of a vector.
 pub fn l2_squared(v: &[i64]) -> i128 {
     v.iter().map(|&x| (x as i128) * (x as i128)).sum()

@@ -1373,7 +1373,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     // G7b-laBRADOR: collect JL projection data for CycloFoldStepCircuit norm enforcement.
     #[cfg(feature = "sonobe-compressor")]
     {
-        use pvthfhe_nizk::sigma::{compute_jl_projection, JL_PROJECTION_DIM};
+        use pvthfhe_nizk::sigma::{compute_jl_entries, compute_raw_jl_sum, JL_PROJECTION_DIM};
         use pvthfhe_nizk::adapter::extract_sigma_statement_and_proof;
 
         let mut responses = Vec::new();
@@ -1397,9 +1397,10 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             let (_, _, sigma_proof) =
                 extract_sigma_statement_and_proof(&nizk_stmt, proof.as_bytes())
                     .map_err(|e| anyhow::anyhow!("extract sigma proof for JL projection: {e}"))?;
-            let p_s = compute_jl_projection(&sigma_proof.z_s, seed, JL_PROJECTION_DIM);
-            let p_e = compute_jl_projection(&sigma_proof.z_e, seed, JL_PROJECTION_DIM);
-            responses.push((sigma_proof.z_s.clone(), sigma_proof.z_e.clone(), p_s, p_e));
+            let p_s = compute_raw_jl_sum(&sigma_proof.z_s, seed, JL_PROJECTION_DIM);
+            let p_e = compute_raw_jl_sum(&sigma_proof.z_e, seed, JL_PROJECTION_DIM);
+            let jl_entries = compute_jl_entries(seed, JL_PROJECTION_DIM, sigma_proof.z_s.len());
+            responses.push((sigma_proof.z_s.clone(), sigma_proof.z_e.clone(), p_s, p_e, jl_entries));
         }
         set_sigma_response_data(responses);
     }

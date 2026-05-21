@@ -381,11 +381,11 @@ thread_local! {
 
 thread_local! {
     /// Per-step sigma response data for CycloFoldStepCircuit norm enforcement (G7b-laBRADOR).
-    /// Each entry: (z_s_coeffs, z_e_coeffs, p_s_proj, p_e_proj)
-    pub static SIGMA_RESPONSE_DATA: std::cell::RefCell<Vec<(Vec<i64>, Vec<i64>, Vec<i64>, Vec<i64>)>> = std::cell::RefCell::new(Vec::new());
+    /// Each entry: (z_s_coeffs, z_e_coeffs, p_s_proj, p_e_proj, jl_entries)
+    pub static SIGMA_RESPONSE_DATA: std::cell::RefCell<Vec<(Vec<i64>, Vec<i64>, Vec<i64>, Vec<i64>, Vec<Vec<(usize, bool)>>)>> = std::cell::RefCell::new(Vec::new());
 }
 
-pub fn set_sigma_response_data(responses: Vec<(Vec<i64>, Vec<i64>, Vec<i64>, Vec<i64>)>) {
+pub fn set_sigma_response_data(responses: Vec<(Vec<i64>, Vec<i64>, Vec<i64>, Vec<i64>, Vec<Vec<(usize, bool)>>)>) {
     SIGMA_RESPONSE_DATA.with(|cell| *cell.borrow_mut() = responses);
 }
 
@@ -591,6 +591,67 @@ fn sigma_verify_step<F: PrimeField>(
                     norm_range_check(&z_s_power_vars[k], w.z_s_power[k].unsigned_abs(), &bound_zs, B_Z_S)?;
                     norm_range_check(&z_e_power_vars[k], w.z_e_power[k].unsigned_abs(), &bound_ze, B_Z_E)?;
                 }
+
+                // G7b-laBRADOR: JL projection constraint.
+                let (p_s_vec, p_e_vec, jl_entries) = SIGMA_RESPONSE_DATA.with(|cell| {
+                    let data = cell.borrow();
+                    if let Some((_, _, ref p_s, ref p_e, ref entries)) = data.get(step) {
+                        (p_s.clone(), p_e.clone(), entries.clone())
+                    } else {
+                        (vec![], vec![], vec![])
+                    }
+                });
+
+                if !p_s_vec.is_empty() && !p_e_vec.is_empty() && !jl_entries.is_empty() {
+                    let z_s_signed: Vec<FpVar<F>> = w.z_s_power[..n_power]
+                        .iter()
+                        .map(|&v| {
+                            let f = if v < 0 {
+                                -F::from((-v) as u64)
+                            } else {
+                                F::from(v as u64)
+                            };
+                            FpVar::new_witness(cs.clone(), || Ok(f))
+                        })
+                        .collect::<Result<_, _>>()?;
+                    let z_e_signed: Vec<FpVar<F>> = w.z_e_power[..n_power]
+                        .iter()
+                        .map(|&v| {
+                            let f = if v < 0 {
+                                -F::from((-v) as u64)
+                            } else {
+                                F::from(v as u64)
+                            };
+                            FpVar::new_witness(cs.clone(), || Ok(f))
+                        })
+                        .collect::<Result<_, _>>()?;
+
+                    let bound = jl_entries.len().min(p_s_vec.len()).min(p_e_vec.len());
+                    for k in 0..bound {
+                        let mut raw_sum_s = FpVar::<F>::zero();
+                        let mut raw_sum_e = FpVar::<F>::zero();
+                        for &(j, sign) in &jl_entries[k] {
+                            if j < n_power {
+                                if sign {
+                                    raw_sum_s += z_s_signed[j].clone();
+                                    raw_sum_e += z_e_signed[j].clone();
+                                } else {
+                                    raw_sum_s -= z_s_signed[j].clone();
+                                    raw_sum_e -= z_e_signed[j].clone();
+                                }
+                            }
+                        }
+
+                        let expected_s = signed_i128_to_f::<F>(p_s_vec[k] as i128);
+                        let expected_e = signed_i128_to_f::<F>(p_e_vec[k] as i128);
+                        let expected_s_var =
+                            FpVar::new_witness(cs.clone(), || Ok(expected_s))?;
+                        let expected_e_var =
+                            FpVar::new_witness(cs.clone(), || Ok(expected_e))?;
+                        raw_sum_s.enforce_equal(&expected_s_var)?;
+                        raw_sum_e.enforce_equal(&expected_e_var)?;
+                    }
+                }
             }
         }
 
@@ -737,7 +798,7 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
         // (sparse JL matrix × N witness elements) — deferred to follow-up.
         let (z_s_proj_acc, z_e_proj_acc) = SIGMA_RESPONSE_DATA.with(|cell| {
             let data = cell.borrow();
-            if let Some((_, _, ref p_s, ref p_e)) = data.get(_i) {
+            if let Some((_, _, ref p_s, ref p_e, ..)) = data.get(_i) {
                 let p_s_vars: Vec<FpVar<F>> = p_s.iter()
                     .map(|&p| FpVar::new_witness(cs.clone(), || Ok(F::from(p.unsigned_abs()))).unwrap())
                     .collect();

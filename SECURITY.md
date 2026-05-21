@@ -109,6 +109,8 @@ trust model assumes:
 
 G7b norm enforcement is now implemented in CycloFoldStepCircuit with state_len=7, using z_s_sq_acc and z_e_sq_acc accumulators to track norm growth across fold steps. This provides defense-in-depth against unbounded norm growth in the Cyclo folding path.
 
+**Upgrade path**: The current R1CS L2-accumulation approach is functional but imposes Ω(N) constraints per fold step. Labrador (Fenzi et al. 2023) provides sub-linear lattice ZKPs for norm bounds via rejection-sampling compressed proofs, with projected O(log N) constraint cost. Documented as the recommended production upgrade in `.sisyphus/notepads/labrador-norm-proofs.md`. Deferred to T4 (post P2 resolution).
+
 ### Parity-Check Proofs
 
 Parity-check proofs provide RS polynomial verification with O(1) per-recipient DKG verification cost. Instead of verifying n separate NIZK proofs per party, the verifier checks a single parity proof that all n encrypted shares lie on the same degree-≤t polynomial.

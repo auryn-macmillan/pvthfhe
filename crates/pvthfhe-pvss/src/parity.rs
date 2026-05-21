@@ -1,11 +1,28 @@
 use ark_bn254::Fr;
 use ark_ff::{AdditiveGroup, BigInteger, Field, PrimeField, Zero};
+use sha2::{Digest, Sha256};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ParityProof {
     pub chunk_coefficients: Vec<Vec<Fr>>,
     pub n: usize,
     pub t: usize,
+    pub norm_witness_hash: [u8; 32],
+    pub encryption_validity_hash: [u8; 32],
+}
+
+pub fn hash_norm_witness(data: &[u8]) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(b"pvthfhe-norm-witness-v1");
+    hasher.update(data);
+    hasher.finalize().into()
+}
+
+pub fn hash_encryption_validity(data: &[u8]) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(b"pvthfhe-encryption-validity-v1");
+    hasher.update(data);
+    hasher.finalize().into()
 }
 
 pub fn generate_parity_matrix(n: usize, t: usize) -> Vec<Vec<Fr>> {
@@ -109,6 +126,8 @@ pub fn prove_parity(
     chunk_shares: &[Vec<Fr>],
     n: usize,
     t: usize,
+    norm_witness_data: &[u8],
+    encryption_validity_data: &[u8],
 ) -> Option<ParityProof> {
     let h = generate_parity_matrix(n, t);
     for shares in chunk_shares {
@@ -127,6 +146,8 @@ pub fn prove_parity(
         chunk_coefficients: chunk_coeffs,
         n,
         t,
+        norm_witness_hash: hash_norm_witness(norm_witness_data),
+        encryption_validity_hash: hash_encryption_validity(encryption_validity_data),
     })
 }
 
@@ -134,11 +155,19 @@ pub fn verify_parity(
     share_frs: &[Fr],
     index_i: usize,
     proof: &ParityProof,
+    expected_norm_witness_hash: [u8; 32],
+    expected_encryption_validity_hash: [u8; 32],
 ) -> bool {
     if share_frs.len() != proof.chunk_coefficients.len() {
         return false;
     }
     if index_i == 0 || index_i > proof.n {
+        return false;
+    }
+    if proof.norm_witness_hash != expected_norm_witness_hash {
+        return false;
+    }
+    if proof.encryption_validity_hash != expected_encryption_validity_hash {
         return false;
     }
     let x = Fr::from(index_i as u64);
@@ -167,11 +196,13 @@ pub fn serialize_parity_proof(proof: &ParityProof) -> Vec<u8> {
             out.extend_from_slice(&bytes);
         }
     }
+    out.extend_from_slice(&proof.norm_witness_hash);
+    out.extend_from_slice(&proof.encryption_validity_hash);
     out
 }
 
 pub fn deserialize_parity_proof(bytes: &[u8]) -> Option<ParityProof> {
-    if bytes.len() < 12 {
+    if bytes.len() < 76 {
         return None;
     }
     let num_chunks = u32::from_be_bytes(bytes[..4].try_into().ok()?) as usize;
@@ -200,10 +231,18 @@ pub fn deserialize_parity_proof(bytes: &[u8]) -> Option<ParityProof> {
         }
         chunk_coeffs.push(coeffs);
     }
+    if offset + 64 > bytes.len() {
+        return None;
+    }
+    let norm_witness_hash: [u8; 32] = bytes[offset..offset + 32].try_into().ok()?;
+    offset += 32;
+    let encryption_validity_hash: [u8; 32] = bytes[offset..offset + 32].try_into().ok()?;
     Some(ParityProof {
         chunk_coefficients: chunk_coeffs,
         n,
         t,
+        norm_witness_hash,
+        encryption_validity_hash,
     })
 }
 
@@ -270,21 +309,23 @@ mod tests {
             chunk_shares.push(shares.iter().map(|(_, y)| *y).collect());
         }
 
-        let proof = prove_parity(&chunk_shares, n, t).expect("prove_parity");
+        let empty_norm = hash_norm_witness(&[]);
+        let empty_enc = hash_encryption_validity(&[]);
+        let proof = prove_parity(&chunk_shares, n, t, &[], &[]).expect("prove_parity");
 
         for recipient in 1..=n {
             let mut share_frs = Vec::with_capacity(num_chunks);
             for chunk in &chunk_shares {
                 share_frs.push(chunk[recipient - 1]);
             }
-            assert!(verify_parity(&share_frs, recipient, &proof));
+            assert!(verify_parity(&share_frs, recipient, &proof, empty_norm, empty_enc));
         }
 
         let mut bad_frs = Vec::with_capacity(num_chunks);
         for chunk in &chunk_shares {
             bad_frs.push(chunk[0] + Fr::ONE);
         }
-        assert!(!verify_parity(&bad_frs, 1, &proof));
+        assert!(!verify_parity(&bad_frs, 1, &proof, empty_norm, empty_enc));
     }
 
     #[test]
@@ -295,10 +336,12 @@ mod tests {
         let shares = shamir::split(&secret, n, t, &mut rng).expect("split");
         let values: Vec<Fr> = shares.iter().map(|(_, y)| *y).collect();
 
-        let proof = prove_parity(&[values.clone()], n, t).expect("prove_parity");
+        let empty_norm = hash_norm_witness(&[]);
+        let empty_enc = hash_encryption_validity(&[]);
+        let proof = prove_parity(&[values.clone()], n, t, &[], &[]).expect("prove_parity");
 
         for i in 1..=n {
-            assert!(verify_parity(&[values[i - 1]], i, &proof));
+            assert!(verify_parity(&[values[i - 1]], i, &proof, empty_norm, empty_enc));
         }
     }
 
@@ -313,7 +356,7 @@ mod tests {
             let shares = shamir::split(&secret, n, t, &mut rng).expect("split");
             chunk_shares.push(shares.iter().map(|(_, y)| *y).collect());
         }
-        let proof = prove_parity(&chunk_shares, n, t).expect("prove");
+        let proof = prove_parity(&chunk_shares, n, t, &[], &[]).expect("prove");
 
         let serialized = serialize_parity_proof(&proof);
         let deserialized = deserialize_parity_proof(&serialized).expect("deserialize");
@@ -331,7 +374,77 @@ mod tests {
         assert!(h.is_empty());
         assert!(check_parity(&values, &h));
 
-        let proof = prove_parity(&[values.clone()], 3, 2).expect("prove vacuous");
-        assert!(verify_parity(&[values[0]], 1, &proof));
+        let empty_norm = hash_norm_witness(&[]);
+        let empty_enc = hash_encryption_validity(&[]);
+        let proof = prove_parity(&[values.clone()], 3, 2, &[], &[]).expect("prove vacuous");
+        assert!(verify_parity(&[values[0]], 1, &proof, empty_norm, empty_enc));
+    }
+
+    #[test]
+    fn parity_extended() {
+        let mut rng = thread_rng();
+        let (n, t) = (10, 4);
+        let num_chunks = 3;
+
+        let mut chunk_shares: Vec<Vec<Fr>> = Vec::with_capacity(num_chunks);
+        for _ in 0..num_chunks {
+            let secret = Fr::rand(&mut rng);
+            let shares = shamir::split(&secret, n, t, &mut rng).expect("split");
+            chunk_shares.push(shares.iter().map(|(_, y)| *y).collect());
+        }
+
+        let norm_witness = b"test-norm-witness-data-for-binding";
+        let enc_validity = b"test-encryption-validity-data";
+
+        let proof = prove_parity(&chunk_shares, n, t, norm_witness, enc_validity)
+            .expect("prove_parity");
+
+        let expected_norm = hash_norm_witness(norm_witness);
+        let expected_enc = hash_encryption_validity(enc_validity);
+
+        assert_eq!(proof.norm_witness_hash, expected_norm);
+        assert_eq!(proof.encryption_validity_hash, expected_enc);
+
+        for recipient in 1..=n {
+            let mut share_frs = Vec::with_capacity(num_chunks);
+            for chunk in &chunk_shares {
+                share_frs.push(chunk[recipient - 1]);
+            }
+            assert!(verify_parity(&share_frs, recipient, &proof, expected_norm, expected_enc));
+        }
+
+        // Wrong norm witness hash
+        let wrong_norm = [0u8; 32];
+        assert!(!verify_parity(
+            &[chunk_shares[0][0]],
+            1,
+            &proof,
+            wrong_norm,
+            expected_enc,
+        ));
+
+        // Wrong encryption validity hash
+        let wrong_enc = [0u8; 32];
+        assert!(!verify_parity(
+            &[chunk_shares[0][0]],
+            1,
+            &proof,
+            expected_norm,
+            wrong_enc,
+        ));
+
+        // Both wrong
+        assert!(!verify_parity(
+            &[chunk_shares[0][0]],
+            1,
+            &proof,
+            wrong_norm,
+            wrong_enc,
+        ));
+
+        // Serialization roundtrip preserves hashes
+        let serialized = serialize_parity_proof(&proof);
+        let deserialized = deserialize_parity_proof(&serialized).expect("deserialize");
+        assert_eq!(proof, deserialized);
     }
 }

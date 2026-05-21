@@ -310,6 +310,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         const DKG_CHUNK_SIZE: usize = 4000;
         let mut dealer_recipient_total_shares: Vec<Vec<Fr>> = vec![vec![Fr::zero(); n]; n];
 
+        observer.phase_start("dkg_deal", Some(&format!("n={} dealers", n)));
+        let dkg_deal_started = Instant::now();
         for dealer_id in 0..n {
             let sk_bytes = &party_sk_bytes[dealer_id];
             let num_chunks = (sk_bytes.len() + DKG_CHUNK_SIZE - 1) / DKG_CHUNK_SIZE;
@@ -348,8 +350,11 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 }
             }
         }
+        observer.phase_end("dkg_deal", elapsed_ms(dkg_deal_started));
 
         // Phase 2: Each recipient aggregates shares from all dealers and verifies
+        observer.phase_start("dkg_aggregate", Some(&format!("n={} recipients", n)));
+        let dkg_agg_started = Instant::now();
         let max_n_u16 = u16::try_from(n).context("n exceeds u16")?;
         let accepted_dealer_ids: Vec<u16> = (1..=max_n_u16).collect();
         let smudge_slot_indices = vec![1u16];
@@ -427,6 +432,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 anyhow::anyhow!("dkg aggregation verify for recipient {recipient_id}: {e}")
             })?;
         }
+        observer.phase_end("dkg_aggregate", elapsed_ms(dkg_agg_started));
 
         let mut fold_hashes: Vec<Fr> = Vec::with_capacity(n);
         let mut parity_proof_hashes: Vec<Fr> = Vec::with_capacity(n);
@@ -2668,6 +2674,8 @@ mod tests {
 
         assert_eq!(counts.get("keygen").copied(), Some(1));
         assert_eq!(counts.get("dkg_ceremony").copied(), Some(1));
+        assert_eq!(counts.get("dkg_deal").copied(), Some(1));
+        assert_eq!(counts.get("dkg_aggregate").copied(), Some(1));
         assert_eq!(counts.get("nizk_prove").copied(), Some(5));
         assert_eq!(counts.get("nizk_verify").copied(), Some(25));
         assert_eq!(counts.get("pvss_share_encrypt").copied(), Some(1));

@@ -112,7 +112,7 @@ enum Commands {
     },
 }
 
-const SAFE_DEFAULT_TRACING_FILTER: &str = "pvthfhe_cli=info,pvthfhe_compressor=info,pvthfhe_fhe=info,pvthfhe_lattice_pvss=info,pvthfhe_aggregator=info,pvthfhe_pvss=info,pvthfhe_bench=info,sonobe=info";
+const SAFE_DEFAULT_TRACING_FILTER: &str = "pvthfhe_cli=info,pvthfhe_compressor=warn,pvthfhe_fhe=info,pvthfhe_lattice_pvss=info,pvthfhe_aggregator=info,pvthfhe_pvss=info,pvthfhe_bench=info,sonobe=warn";
 
 fn build_env_filter() -> tracing_subscriber::EnvFilter {
     match std::env::var("RUST_LOG") {
@@ -348,6 +348,8 @@ fn run_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
     };
     let keygen_ms = report.timings.phases.keygen.total_ms;
     let aggregate_keygen_ms = observer.aggregate_keygen_ms.unwrap_or(0.0);
+    let dkg_deal_ms = observer.dkg_deal_ms.unwrap_or(0.0);
+    let dkg_aggregate_ms = observer.dkg_aggregate_ms.unwrap_or(0.0);
     let encrypt_ms = observer.encrypt_ms.unwrap_or(0.0);
     let partial_decrypt_ms = report.timings.phases.partial_decrypt.total_ms;
     let aggregate_decrypt_ms = report.timings.phases.aggregate_decrypt.total_ms;
@@ -363,6 +365,8 @@ fn run_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
     );
     println!("keygen_ms={keygen_ms}");
     println!("aggregate_keygen_ms={aggregate_keygen_ms}");
+    println!("dkg_deal_ms={dkg_deal_ms}");
+    println!("dkg_aggregate_ms={dkg_aggregate_ms}");
     println!("encrypt_ms={encrypt_ms}");
     println!("share_encryption_proof_ms={share_encryption_proof_ms}");
     println!("partial_decrypt_ms={partial_decrypt_ms}");
@@ -403,6 +407,8 @@ fn run_demo(_n: usize, _threshold: usize, _seed: u64) -> anyhow::Result<()> {
 #[derive(Default)]
 struct DemoObserver {
     keygen_announced: bool,
+    dkg_deal_announced: bool,
+    dkg_aggregate_announced: bool,
     nizk_prove_announced: bool,
     nizk_verify_announced: bool,
     pvss_announced: bool,
@@ -414,12 +420,14 @@ struct DemoObserver {
     setup_threshold_announced: bool,
     aggregate_keygen_ms: Option<f64>,
     encrypt_ms: Option<f64>,
+    dkg_deal_ms: Option<f64>,
+    dkg_aggregate_ms: Option<f64>,
     pvss_backend_id: Option<String>,
 }
 
 #[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]
 impl DemoObserver {
-    const STEP_COUNT: usize = 10;
+    const STEP_COUNT: usize = 13;
 
     fn pvss_backend_id(&self) -> &str {
         self.pvss_backend_id.as_deref().unwrap_or(PVSS_BACKEND_ID)
@@ -444,43 +452,51 @@ impl PipelineObserver for DemoObserver {
                 self.keygen_announced = true;
                 Self::print_step(1, "keygen", detail);
             }
+            "dkg_deal" if !self.dkg_deal_announced => {
+                self.dkg_deal_announced = true;
+                Self::print_step(2, "dkg_deal", detail);
+            }
+            "dkg_aggregate" if !self.dkg_aggregate_announced => {
+                self.dkg_aggregate_announced = true;
+                Self::print_step(3, "dkg_aggregate", detail);
+            }
             "nizk_prove" if !self.nizk_prove_announced => {
                 self.nizk_prove_announced = true;
-                Self::print_step(2, "nizk_prove", detail);
+                Self::print_step(4, "nizk_prove", detail);
             }
             "nizk_verify" if !self.nizk_verify_announced => {
                 self.nizk_verify_announced = true;
-                Self::print_step(3, "nizk_verify", detail);
+                Self::print_step(5, "nizk_verify", detail);
             }
             "pvss_share_encrypt" if !self.pvss_announced => {
                 self.pvss_announced = true;
-                Self::print_step(4, "pvss_share_encrypt", detail);
+                Self::print_step(6, "pvss_share_encrypt", detail);
             }
             "cyclo_fold" if !self.cyclo_fold_announced => {
                 self.cyclo_fold_announced = true;
-                Self::print_step(5, "cyclo_fold", detail);
+                Self::print_step(7, "cyclo_fold", detail);
             }
             "compressor_prove" if !self.compressor_prove_announced => {
                 self.compressor_prove_announced = true;
-                Self::print_step(6, "compressor_prove", detail);
+                Self::print_step(8, "compressor_prove", detail);
             }
             "compressor_verify" if !self.compressor_verify_announced => {
                 self.compressor_verify_announced = true;
-                Self::print_step(7, "compressor_verify", detail);
+                Self::print_step(9, "compressor_verify", detail);
             }
             "partial_decrypt" if !self.partial_decrypt_announced => {
                 self.partial_decrypt_announced = true;
-                Self::print_step(8, "partial_decrypt", detail);
+                Self::print_step(10, "partial_decrypt", detail);
             }
             "aggregate_decrypt" if !self.aggregate_decrypt_announced => {
                 self.aggregate_decrypt_announced = true;
-                Self::print_step(9, "aggregate_decrypt", detail);
+                Self::print_step(11, "aggregate_decrypt", detail);
             }
             "c7_decrypt_aggregation" => {
-                Self::print_step(10, "c7_decrypt_aggregation", detail);
+                Self::print_step(12, "c7_decrypt_aggregation", detail);
             }
             "c7_noir_aggregator" => {
-                Self::print_step(11, "c7_noir_aggregator", detail);
+                Self::print_step(13, "c7_noir_aggregator", detail);
             }
             "setup_threshold" if !self.setup_threshold_announced => {
                 self.setup_threshold_announced = true;
@@ -494,6 +510,14 @@ impl PipelineObserver for DemoObserver {
         match name {
             "aggregate_keygen" => self.aggregate_keygen_ms = Some(ms),
             "encrypt" => self.encrypt_ms = Some(ms),
+            "dkg_deal" => {
+                self.dkg_deal_ms = Some(ms);
+                println!("{name}: complete ({ms:.3} ms)");
+            }
+            "dkg_aggregate" => {
+                self.dkg_aggregate_ms = Some(ms);
+                println!("{name}: complete ({ms:.3} ms)");
+            }
             "keygen" | "pvss_share_encrypt" | "cyclo_fold" | "compressor_prove"
             | "compressor_verify" | "partial_decrypt" | "aggregate_decrypt"
             | "c7_decrypt_aggregation" | "c7_noir_aggregator" | "setup_threshold" => {

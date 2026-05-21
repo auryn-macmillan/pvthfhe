@@ -130,6 +130,7 @@ fn main() -> anyhow::Result<()> {
     let batch_count = args.n.div_ceil(10);
 
     // 1. Compressor: fold ceil(n/10) accumulators
+    eprintln!("  compressor: starting... (n={}, t={})", args.n, args.threshold);
     #[cfg(feature = "sonobe-compressor")]
     let compressor_ms = {
         let t0 = Instant::now();
@@ -158,9 +159,11 @@ fn main() -> anyhow::Result<()> {
     };
     #[cfg(not(feature = "sonobe-compressor"))]
     let compressor_ms = 0.0;
+    eprintln!("  compressor: complete ({:.1}s)", compressor_ms / 1000.0);
 
     // 2. Aggregate decrypt: NTT over t shares
     let t1 = Instant::now();
+    eprintln!("  aggregate_decrypt: starting... (t={})", args.threshold);
     let _recovered = backend
         .aggregate_decrypt(
             &ciphertext,
@@ -170,8 +173,10 @@ fn main() -> anyhow::Result<()> {
         )
         .context("aggregate_decrypt")?;
     let aggregate_ms = elapsed_ms(t1);
+    eprintln!("  aggregate_decrypt: complete ({:.1}s)", aggregate_ms / 1000.0);
 
     // 3. C7: tree folding for Lagrange aggregation (MicroNova CompressionTree)
+    eprintln!("  c7: starting... (t={})", args.threshold);
     #[cfg(feature = "sonobe-compressor")]
     let (c7_ms, c7_tree_depth, c7_leaves) = {
         let t2 = Instant::now();
@@ -243,6 +248,7 @@ fn main() -> anyhow::Result<()> {
     };
     #[cfg(not(feature = "sonobe-compressor"))]
     let (c7_ms, c7_tree_depth, c7_leaves) = (0.0, 0usize, 0usize);
+    eprintln!("  c7: complete ({:.1}s)", c7_ms / 1000.0);
 
     // 4. Ajtai DKG fold: fold all recipient verifications into one proof
     #[cfg(feature = "sonobe-compressor")]

@@ -91,6 +91,7 @@ fn main() -> anyhow::Result<()> {
 
     // 1. Backend init + keygen for ONE party
     let t0 = Instant::now();
+    eprintln!("  keygen: starting... (n={}, t={})", args.n, args.threshold);
     let backend = FhersBackend::load_params(DEMO_PARAMS_TOML).context("backend init")?;
 
     let session_id: [u8; 32] = {
@@ -107,9 +108,11 @@ fn main() -> anyhow::Result<()> {
         .keygen_share_with_session(&session_id, party_id, &mut keygen_rng)
         .context("keygen share")?;
     let keygen_ms = elapsed_ms(t0);
+    eprintln!("  keygen: complete ({:.1}s)", keygen_ms / 1000.0);
 
     // 2. Shamir split: one party splits own key into n-1 shares
     let t1 = Instant::now();
+    eprintln!("  shamir_split: starting... (n={})", args.n);
     let sk_bytes = backend
         .party_secret_key_bytes(party_id)
         .context("get secret key")?;
@@ -129,9 +132,11 @@ fn main() -> anyhow::Result<()> {
         .generate_secret_shares_from_poly(sk_poly, &mut shamir_rng)
         .map_err(|e| anyhow::anyhow!("generate shares: {e}"))?;
     let shamir_ms = elapsed_ms(t1);
+    eprintln!("  shamir_split: complete ({:.1}s)", shamir_ms / 1000.0);
 
     // 3. Encrypt ONE share, extrapolate x(n-1)
     let t2 = Instant::now();
+    eprintln!("  encrypt: starting... (n_recipients={})", n_recipients);
     let plaintext = vec![0x42u8; 32];
     let pk = backend
         .aggregate_keygen(&[pvthfhe_fhe::KeygenShare {
@@ -145,10 +150,12 @@ fn main() -> anyhow::Result<()> {
         .context("encrypt one share")?;
     let encrypt_one_ms = elapsed_ms(t2);
     let encrypt_total_ms = encrypt_one_ms * (n_recipients as f64);
+    eprintln!("  encrypt: complete ({:.1}s)", encrypt_total_ms / 1000.0);
 
     // 3b. DKG ceremony: Shamir-split key + PVSS-encrypt shares for all recipients
     let adapter = LatticePvssBfvAdapter::new().context("dkg pvss adapter init")?;
     let ta_dkg = Instant::now();
+    eprintln!("  dkg_ceremony: starting... (n={})", args.n);
     let dkg_session_id = format!("per-node-dkg-{}", args.seed).as_bytes().to_vec();
     let dkg_root: Vec<u8> = {
         let mut h = Sha256::new();
@@ -212,9 +219,11 @@ fn main() -> anyhow::Result<()> {
         }
     }
     let dkg_ms = elapsed_ms(ta_dkg);
+    eprintln!("  dkg_ceremony: complete ({:.1}s)", dkg_ms / 1000.0);
 
     // 4. NIZK prove ONE proof, extrapolate x(n-1)
     let t3 = Instant::now();
+    eprintln!("  nizk_prove: starting... (n_recipients={})", n_recipients);
     let nizk_stmt = NizkStatement {
         ciphertext_bytes: encrypted.bytes.clone(),
         decrypt_share_bytes: vec![0u8; 32],
@@ -248,6 +257,7 @@ fn main() -> anyhow::Result<()> {
         .context("nizk prove")?;
     let nizk_one_ms = elapsed_ms(t3);
     let nizk_total_ms = nizk_one_ms * (n_recipients as f64);
+    eprintln!("  nizk_prove: complete ({:.1}s)", nizk_total_ms / 1000.0);
 
     // 4b. Track B: AjtaiMatrix commitment timing (one commit)
     let ajtai_ms = if track == Track::B {
@@ -262,13 +272,16 @@ fn main() -> anyhow::Result<()> {
 
     // 5. NIZK verify t-1 proofs (full measurement)
     let t4 = Instant::now();
+    eprintln!("  nizk_verify: starting... (proofs={})", args.threshold.saturating_sub(1));
     for _ in 0..args.threshold.saturating_sub(1) {
         RealNizkAdapter::verify(&nizk_stmt, &nizk_proof)
             .context("nizk verify")?;
     }
     let nizk_verify_ms = elapsed_ms(t4);
+    eprintln!("  nizk_verify: complete ({:.1}s)", nizk_verify_ms / 1000.0);
 
     // 6. C7: tree vs flat folding timing
+    eprintln!("  c7_tree: starting... (t={})", args.threshold);
     #[cfg(feature = "sonobe-compressor")]
     let c7_ms = {
         let t5 = Instant::now();
@@ -277,8 +290,10 @@ fn main() -> anyhow::Result<()> {
     };
     #[cfg(not(feature = "sonobe-compressor"))]
     let c7_ms = 0.0;
+    eprintln!("  c7_tree: complete ({:.1}s)", c7_ms / 1000.0);
 
     // 7. DKG Nova fold: fold all recipient verifications with parity-check proofs
+    eprintln!("  dkg_fold: starting... (n={})", args.n);
     #[cfg(feature = "sonobe-compressor")]
     let dkg_fold_ms = {
         use ark_bn254::Fr;
@@ -317,6 +332,7 @@ fn main() -> anyhow::Result<()> {
     };
     #[cfg(not(feature = "sonobe-compressor"))]
     let dkg_fold_ms = 0.0;
+    eprintln!("  dkg_fold: complete ({:.1}s)", dkg_fold_ms / 1000.0);
 
     // Report
     let total_ms = keygen_ms + shamir_ms + encrypt_total_ms + dkg_ms + nizk_total_ms

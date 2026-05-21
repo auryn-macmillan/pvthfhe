@@ -53,9 +53,8 @@ pub const B_Z_S: i64 = B_Y + N_I64;
 /// Johnson-Lindenstrauss projection dimension.
 pub const JL_PROJECTION_DIM: usize = 64;
 
-/// Compute sparse JL projection p = Π·w for LaBRADOR-style norm enforcement.
-/// Uses Achlioptas sparse ±1/√m entries — only ~1/3 of rows are non-zero.
-/// Deterministic: seed determines all random positions.
+/// WIP: compute JL projection p = Π·w. Not currently constrained in-circuit.
+/// The per-coefficient norm_range_check is the primary norm enforcement.
 pub fn compute_jl_projection(w: &[i64], seed: [u8; 32], m: usize) -> Vec<i64> {
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
@@ -63,7 +62,7 @@ pub fn compute_jl_projection(w: &[i64], seed: [u8; 32], m: usize) -> Vec<i64> {
     if w.is_empty() { return vec![0i64; m]; }
 
     let n = w.len();
-    let inv_sqrt_m = 1.0 / (m as f64).sqrt();
+    let inv_sqrt_m = (3.0 / (m as f64)).sqrt(); // Achlioptas ±√(3/m)
     let scaler = 1_000_000i64; // fixed-point scaling to keep integer arithmetic
 
     let mut rng = StdRng::from_seed(seed);
@@ -71,7 +70,7 @@ pub fn compute_jl_projection(w: &[i64], seed: [u8; 32], m: usize) -> Vec<i64> {
 
     for i in 0..m {
         let mut sum: f64 = 0.0;
-        // Achlioptas sparse: each entry is ±1/√m with prob 1/6 each, or 0 with prob 2/3
+        // Achlioptas sparse: each entry is ±√(3/m) with prob 1/6 each, or 0 with prob 2/3
         for j in 0..n {
             let r: f64 = rng.gen(); // random in [0,1)
             if r < 1.0 / 6.0 {

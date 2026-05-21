@@ -728,10 +728,13 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
         let sigma_verification_count = sigma_verify_step(cs.clone(), _i)?;
         let sigma_count = z_i[4].clone() + sigma_verification_count;
 
-        // G7b-laBRADOR: LaBRADOR-style JL projection norm enforcement.
-        // Replaces per-coefficient L∞ range check (~524K constraints) with O(m) projection check.
-        // The projected values p_s, p_e are provided as witnesses from SIGMA_RESPONSE_DATA.
-        // Soundness: with m=64, ‖w‖₂ > √(2m)·β ⇒ Pr[‖Π·w‖₂ ≤ √(m/2)·β] ≤ 2^{-32}.
+        // G7b-laBRADOR (WIP): LaBRADOR-style JL projection norm accumulation.
+        // NOTE: This is work-in-progress. The projected values are NOT currently
+        // constrained to z_s/z_e via in-circuit matrix multiplication (deferred).
+        // The per-coefficient norm_range_check at lines 558-592 is the primary
+        // norm enforcement. state[5]/state[6] accumulation is passive tracking.
+        // Full in-circuit projection constraint requires ~175K additional constraints
+        // (sparse JL matrix × N witness elements) — deferred to follow-up.
         let (z_s_proj_acc, z_e_proj_acc) = SIGMA_RESPONSE_DATA.with(|cell| {
             let data = cell.borrow();
             if let Some((_, _, ref p_s, ref p_e)) = data.get(_i) {

@@ -71,3 +71,37 @@ Ajtai D2 used for witness binding only. Folding (SHA-256), C7 (Poseidon), Noir (
 
 - [ ] Ensure all removal/addition tasks above work in: demo-e2e, per-node, per-aggregator
 - [ ] QA: all 3 binaries at n=16 ACCEPT
+
+### Tier 5 — CycloFold final state → Noir public inputs (CLOSES GAP C7)
+
+The Nova-folded CycloFold proof's final 7-field state (hash, fold_count, ring_verif_count, sigma_verif_count, z_s_norm_acc, z_e_norm_acc, norm) is never bound to the Noir `aggregator_final` public inputs. A malicious aggregator can skip Nova entirely.
+
+- [ ] Add `cyclo_hash`, `cyclo_fold_count`, `cyclo_ring_count`, `cyclo_sigma_count`, `cyclo_norm_zs`, `cyclo_norm_ze`, `cyclo_norm_acc` as Noir `pub Field` inputs
+- [ ] Extract these from the compressed CycloFold proof's accumulator state in the pipeline
+- [ ] Write to `C7Prover.toml` via `build_c7_prover_toml`
+- [ ] Noir circuit verifies: counters are non-zero (proof must have folded >0 steps)
+- [ ] Noir circuit verifies: `cyclo_norm_zs ≤ STEPS × 8192 × B_Z_S²` (accumulated norm within bounds)
+- [ ] QA: `just demo-e2e 16 7 1` ACCEPTS
+
+**Why this closes the gap**: the on-chain HonkVerifier now sees CycloFold proof results. A malicious aggregator who skips Nova must fabricate these 7 values — but the norm accumulators must be consistent with the per-coefficient norm check (which only the honest CycloFold circuit produces). Fabrication is detectable.
+
+### Tier 6 — P1/P2/P3 formal closure (all Option B — full formal proofs, ~6-8 weeks)
+
+**P1 — NIZK knowledge-soundness** (~3-4 weeks):
+- [ ] Formal proof that ternary-challenge scalar sigma achieves knowledge soundness with (1/3)^10 error
+- [ ] Reduction to Ring-SIS over Z_q[X]/(X^256+1) with q ≈ 2^49
+- [ ] Game-hopping proof with concrete security bounds
+- [ ] Document in `paper/security-proofs/p1-nizk-soundness.tex`
+- [ ] External cryptographer review required before closure
+
+**P2 — Nova fold linearity** (~2-3 weeks):
+- [ ] Formal articulation of the Nova security model applied to CycloFoldStepCircuit (7-field state, 8,192-coefficient witness)
+- [ ] Proof that relaxed R1CS folding preserves the sigma protocol's soundness under the assumption that `folding-schemes` correctly implements Nova
+- [ ] Concrete parameter analysis: step count, field size, error probability
+- [ ] Document in `paper/security-proofs/p2-fold-linearity.tex`
+
+**P3 — Accumulator→SNARK encoding** (~1-2 weeks):
+- [ ] Formal proof that the Noir `aggregator_final` circuit correctly encodes the 7-field CycloFold state as ~254-bit field elements
+- [ ] Finite field arithmetic mapping proof (Fr ↔ accumulator state)
+- [ ] Honk public input encoding proof (15 public inputs ↔ 7 Cyclo fields + 8 plaintexts)
+- [ ] Document in `paper/security-proofs/p3-encoding.tex`

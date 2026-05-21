@@ -103,5 +103,13 @@ The Nova-folded CycloFold proof's final 7-field state (hash, fold_count, ring_ve
 **P3 — Accumulator→SNARK encoding** (~1-2 weeks):
 - [ ] Formal proof that the Noir `aggregator_final` circuit correctly encodes the 7-field CycloFold state as ~254-bit field elements
 - [ ] Finite field arithmetic mapping proof (Fr ↔ accumulator state)
-- [ ] Honk public input encoding proof (15 public inputs ↔ 7 Cyclo fields + 8 plaintexts)
+- [ ] Honk public input encoding proof (post-Tier-5 count ↔ 7 Cyclo fields + plaintexts)
 - [ ] Document in `paper/security-proofs/p3-encoding.tex`
+
+### Tier 6 — Blocking Questions
+
+**P1 — Ring-SIS assumption**: Which exact ring? `Z_q[X]/(X^256+1)` with `q = q_commit/2 ≈ 2^49` per `spec-real-p2p3.md`? Are `B_Z_S`, `B_Z_E` parameterized against the same q?
+
+**P2 — Nova reference**: Can we cite Kothapalli-Setty-Tzialla directly, or do we need a Sonobe-specific derivation? What test properties suffice for reviewer confidence?
+
+**P3**: Gated on Tier 5 completion. Sequencing only.

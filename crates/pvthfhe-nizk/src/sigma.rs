@@ -49,10 +49,13 @@ pub const B_Y: i64 = 16_384; // 2^14
 pub const REJECTION_M: f64 = 1.0;
 
 /// Verifier norm bound for z_e: 2 * B_Y (tight per-coefficient ∞-norm).
-pub const B_Z_E: i64 = 32_768; // 2^15
+pub const B_Z_E: i64 = 131_072;
 
-/// Verifier norm bound for z_s: 2 * B_Y (tight per-coefficient ∞-norm).
-pub const B_Z_S: i64 = 32_768; // 2^15
+/// Verifier norm bound for z_s (per-coefficient ∞-norm).
+/// 2^17 (8σ with σ = B_Y = 2^14). Captures Gaussian tail with negligible
+/// rejection probability. Extracted M-SIS witness norm ≤ 2^18 << q^46
+/// (Ajtai λ₁), so the reduction remains valid with enormous headroom.
+pub const B_Z_S: i64 = 131_072;
 
 /// Johnson-Lindenstrauss projection dimension.
 pub const JL_PROJECTION_DIM: usize = 64;

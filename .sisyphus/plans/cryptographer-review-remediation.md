@@ -87,29 +87,38 @@ The Nova-folded CycloFold proof's final 7-field state (hash, fold_count, ring_ve
 
 ### Tier 6 — P1/P2/P3 formal closure (all Option B — full formal proofs, ~6-8 weeks)
 
-**P1 — NIZK knowledge-soundness** (~3-4 weeks):
-- [ ] Formal proof that ternary-challenge scalar sigma achieves knowledge soundness with (1/3)^10 error
-- [ ] Reduction to Ring-SIS over Z_q[X]/(X^256+1) with q ≈ 2^49
-- [ ] Game-hopping proof with concrete security bounds
-- [ ] Document in `paper/security-proofs/p1-nizk-soundness.tex`
-- [ ] External cryptographer review required before closure
+#### P1 — NIZK knowledge-soundness (~3-4 weeks)
 
-**P2 — Nova fold linearity** (~2-3 weeks):
-- [ ] Formal articulation of the Nova security model applied to CycloFoldStepCircuit (7-field state, 8,192-coefficient witness)
-- [ ] Proof that relaxed R1CS folding preserves the sigma protocol's soundness under the assumption that `folding-schemes` correctly implements Nova
-- [ ] Concrete parameter analysis: step count, field size, error probability
-- [ ] Document in `paper/security-proofs/p2-fold-linearity.tex`
+**Ring and parameters answered** (from code + design docs research):
 
-**P3 — Accumulator→SNARK encoding** (~1-2 weeks):
-- [ ] Formal proof that the Noir `aggregator_final` circuit correctly encodes the 7-field CycloFold state as ~254-bit field elements
-- [ ] Finite field arithmetic mapping proof (Fr ↔ accumulator state)
-- [ ] Honk public input encoding proof (post-Tier-5 count ↔ 7 Cyclo fields + plaintexts)
-- [ ] Document in `paper/security-proofs/p3-encoding.tex`
+| Parameter | Value | Source |
+|-----------|-------|--------|
+| RLWE ring | Z_Q[X]/(X^8192+1), log₂Q ≈ 174 | sigma.rs:4, parameters.toml |
+| Ajtai ring | Z_{q_commit}[X]/(X^256+1), q_commit = 562,949,953,438,721 ≈ 2^50 | ajtai.rs:13-20 |
+| B_Y (mask bound) | 1,073,741,824 = 2^30 | sigma.rs:45 |
+| B_Z_S (verifier bound) | B_Y + N = 1,073,750,016 ≈ 2^30 | sigma.rs:51 |
+| B_Z_E | B_Y + N·SIGMA_B_E = 1,073,872,896 ≈ 2^30 | sigma.rs:49 |
+| SIGMA_B_E | 16 | sigma.rs:43 |
+| β_T (Cyclo fold norm bound) | 1,344 (= 1024 + 10·2·16) | cyclo/lib.rs |
 
-### Tier 6 — Blocking Questions
+**⚠️ Critical finding**: the sigma protocol's verifier norm bound (B_Z_S ≈ 2^30) is ~6 orders of magnitude looser than the bound assumed by the security proof (M2-msis-reduction.md assumes 1,024). The forking lemma would extract a witness with norm up to ~2^31, which is NOT a valid M-SIS solution (needs ≤ 2,048). However, the Cyclo folding layer independently enforces β_T = 1,344 on the accumulated witness — the composed system has tight norms, but the P1 layer alone does NOT have standalone soundness. The P1 proof MUST explicitly state that norm tightness relies on the P2 folding verifier.
 
-**P1 — Ring-SIS assumption**: Which exact ring? `Z_q[X]/(X^256+1)` with `q = q_commit/2 ≈ 2^49` per `spec-real-p2p3.md`? Are `B_Z_S`, `B_Z_E` parameterized against the same q?
+**P1 task**: Formalize the composed-reduction path: sigma → Cyclo fold, with Cyclo's β_T as the actual norm gate. Prove that the forking-lemma extractor at the sigma layer extracts a witness that, after θ₂ packing and Cyclo folding, satisfies the M-SIS relation at β_T. Document in `paper/security-proofs/p1-nizk-soundness.tex`.
 
-**P2 — Nova reference**: Can we cite Kothapalli-Setty-Tzialla directly, or do we need a Sonobe-specific derivation? What test properties suffice for reviewer confidence?
+#### P2 — Nova fold linearity (~2-3 weeks)
 
-**P3**: Gated on Tier 5 completion. Sequencing only.
+**Reference answered**: Cite Kothapalli-Setty-Tzialla (CRYPTO 2022, ePrint 2021/370) directly. The paper proves knowledge soundness for folding a single function F applied repeatedly — NOT for arbitrary sequences of different step circuits. Our CycloFoldStepCircuit uses the SAME R1CS structure at every step (state_len=7, 8192-coefficient witness), which matches Nova's assumption.
+
+The polynomial-depth knowledge soundness gap (Lee-Seo 2024/232) applies but at our recursion depth (~10 fold steps), bounded-depth analysis suffices. The Nguyen-Boneh-Setty 2-cycle vulnerability (2023/969) was fixed in Sonobe.
+
+Thread-local SIGMA_RESPONSE_DATA is non-deterministic advice within a step that does NOT change the R1CS structure — it's part of the input encoding.
+
+**Test property for reviewer confidence**: the folding linearity test in `cyclo_fold_ring_constraints.rs` (10-fold iteration with increasing accumulator, verifying that `Az∘Bz = u·Cz + E` holds at each step and that `u ≤ (1/p)^t · ε`) would convince a reviewer.
+
+**P2 task**: State the folding linearity theorem ("folding two valid relaxed R1CS instances produces a valid folded instance"), cite Kothapalli et al., prove that SIGMA_RESPONSE_DATA doesn't break the linearity argument, and reference the existing linearity test. Document in `paper/security-proofs/p2-fold-linearity.tex`.
+
+#### P3 — Accumulator→SNARK encoding (~1-2 weeks)
+
+**Gating resolved**: Tier 5 is complete — the 7-field CycloFold state is now in the Noir circuit. Post-Tier-5, the Noir circuit has `NUMBER_OF_PUBLIC_INPUTS` = field that BB will compute from the circuit.
+
+**P3 task**: Formal proof that the 7 Fr values (each ≤ 254 bits) correctly encode the CycloFold accumulator state without loss. The encoding is: `z[i]_fr = Fr::from(z[i]_native)` where `z[i]_native` is a field element in F_{q_commit}. Since `q_commit ≈ 2^50 < 2^254`, the mapping is injective. Document in `paper/security-proofs/p3-encoding.tex`.

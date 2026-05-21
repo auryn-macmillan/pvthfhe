@@ -268,7 +268,7 @@ pub fn prove(
             .map(|(&a, &b)| a + scalar_mul_i64(ch, b))
             .collect();
 
-        let zs_norm_sq: f64 = z_s.iter().map(|&x| (x as f64) * (x as f64)).sum();
+        let _zs_norm_sq: f64 = z_s.iter().map(|&x| (x as f64) * (x as f64)).sum();
         // Lyubashevsky 2009, Lemma 4: reject with probability
         // 1 - exp((-2*ch*<y,s> - ||ch*s||²) / (2 * M * σ²))
         // For scalar challenge ch ∈ {-1,0,1}:

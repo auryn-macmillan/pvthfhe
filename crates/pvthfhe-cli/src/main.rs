@@ -409,6 +409,7 @@ struct DemoObserver {
     keygen_announced: bool,
     dkg_deal_announced: bool,
     dkg_aggregate_announced: bool,
+    dkg_fold_announced: bool,
     nizk_prove_announced: bool,
     nizk_verify_announced: bool,
     pvss_announced: bool,
@@ -428,7 +429,7 @@ struct DemoObserver {
 
 #[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]
 impl DemoObserver {
-    const STEP_COUNT: usize = 13;
+    const STEP_COUNT: usize = 14;
 
     fn pvss_backend_id(&self) -> &str {
         self.pvss_backend_id.as_deref().unwrap_or(PVSS_BACKEND_ID)
@@ -461,44 +462,48 @@ impl PipelineObserver for DemoObserver {
                 self.dkg_aggregate_announced = true;
                 Self::print_step(3, "dkg_aggregate", detail);
             }
+            "dkg_fold" if !self.dkg_fold_announced => {
+                self.dkg_fold_announced = true;
+                Self::print_step(4, "dkg_fold", detail);
+            }
             "nizk_prove" if !self.nizk_prove_announced => {
                 self.nizk_prove_announced = true;
-                Self::print_step(4, "nizk_prove", detail);
+                Self::print_step(5, "nizk_prove", detail);
             }
             "nizk_verify" if !self.nizk_verify_announced => {
                 self.nizk_verify_announced = true;
-                Self::print_step(5, "nizk_verify", detail);
+                Self::print_step(6, "nizk_verify", detail);
             }
             "pvss_share_encrypt" if !self.pvss_announced => {
                 self.pvss_announced = true;
-                Self::print_step(6, "pvss_share_encrypt", detail);
+                Self::print_step(7, "pvss_share_encrypt", detail);
             }
             "cyclo_fold" if !self.cyclo_fold_announced => {
                 self.cyclo_fold_announced = true;
-                Self::print_step(7, "cyclo_fold", detail);
+                Self::print_step(8, "cyclo_fold", detail);
             }
             "compressor_prove" if !self.compressor_prove_announced => {
                 self.compressor_prove_announced = true;
-                Self::print_step(11, "compressor_prove", detail);
+                Self::print_step(12, "compressor_prove", detail);
             }
             "compressor_verify" if !self.compressor_verify_announced => {
                 self.compressor_verify_announced = true;
-                Self::print_step(12, "compressor_verify", detail);
+                Self::print_step(13, "compressor_verify", detail);
             }
             "partial_decrypt" if !self.partial_decrypt_announced => {
                 self.partial_decrypt_announced = true;
-                Self::print_step(8, "partial_decrypt", detail);
+                Self::print_step(9, "partial_decrypt", detail);
             }
             "aggregate_decrypt" if !self.aggregate_decrypt_announced => {
                 self.aggregate_decrypt_announced = true;
-                Self::print_step(9, "aggregate_decrypt", detail);
+                Self::print_step(10, "aggregate_decrypt", detail);
             }
             "c7_decrypt_aggregation" => {
-                Self::print_step(10, "c7_decrypt_aggregation", detail);
+                Self::print_step(11, "c7_decrypt_aggregation", detail);
             }
             "c7_noir_aggregator" if !self.c7_noir_announced => {
                 self.c7_noir_announced = true;
-                Self::print_step(13, "c7_noir_aggregator", detail);
+                Self::print_step(14, "c7_noir_aggregator", detail);
             }
             "setup_threshold" if !self.setup_threshold_announced => {
                 self.setup_threshold_announced = true;

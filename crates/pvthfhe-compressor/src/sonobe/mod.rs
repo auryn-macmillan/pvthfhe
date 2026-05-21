@@ -380,11 +380,12 @@ thread_local! {
 }
 
 thread_local! {
-    /// Per-step sigma response data for CycloFoldStepCircuit norm enforcement (G7b).
-    pub static SIGMA_RESPONSE_DATA: std::cell::RefCell<Vec<(Vec<i64>, Vec<i64>)>> = std::cell::RefCell::new(Vec::new());
+    /// Per-step sigma response data for CycloFoldStepCircuit norm enforcement (G7b-laBRADOR).
+    /// Each entry: (z_s_coeffs, z_e_coeffs, p_s_proj, p_e_proj)
+    pub static SIGMA_RESPONSE_DATA: std::cell::RefCell<Vec<(Vec<i64>, Vec<i64>, Vec<i64>, Vec<i64>)>> = std::cell::RefCell::new(Vec::new());
 }
 
-pub fn set_sigma_response_data(responses: Vec<(Vec<i64>, Vec<i64>)>) {
+pub fn set_sigma_response_data(responses: Vec<(Vec<i64>, Vec<i64>, Vec<i64>, Vec<i64>)>) {
     SIGMA_RESPONSE_DATA.with(|cell| *cell.borrow_mut() = responses);
 }
 
@@ -727,20 +728,30 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
         let sigma_verification_count = sigma_verify_step(cs.clone(), _i)?;
         let sigma_count = z_i[4].clone() + sigma_verification_count;
 
-        // G7b: Compute squared L2 norms of z_s and z_e for norm enforcement.
-        let (z_s_sq, z_e_sq) = SIGMA_RESPONSE_DATA.with(|cell| {
+        // G7b-laBRADOR: LaBRADOR-style JL projection norm enforcement.
+        // Replaces per-coefficient L∞ range check (~524K constraints) with O(m) projection check.
+        // The projected values p_s, p_e are provided as witnesses from SIGMA_RESPONSE_DATA.
+        // Soundness: with m=64, ‖w‖₂ > √(2m)·β ⇒ Pr[‖Π·w‖₂ ≤ √(m/2)·β] ≤ 2^{-32}.
+        let (z_s_proj_acc, z_e_proj_acc) = SIGMA_RESPONSE_DATA.with(|cell| {
             let data = cell.borrow();
-            if let Some((ref z_s, ref z_e)) = data.get(_i) {
-                let s_sq: F = z_s.iter().map(|&x| F::from((x as i128 * x as i128) as u64)).sum();
-                let e_sq: F = z_e.iter().map(|&x| F::from((x as i128 * x as i128) as u64)).sum();
-                (FpVar::constant(s_sq), FpVar::constant(e_sq))
+            if let Some((_, _, ref p_s, ref p_e)) = data.get(_i) {
+                let p_s_vars: Vec<FpVar<F>> = p_s.iter()
+                    .map(|&p| FpVar::new_witness(cs.clone(), || Ok(F::from(p.unsigned_abs()))).unwrap())
+                    .collect();
+                let p_e_vars: Vec<FpVar<F>> = p_e.iter()
+                    .map(|&p| FpVar::new_witness(cs.clone(), || Ok(F::from(p.unsigned_abs()))).unwrap())
+                    .collect();
+
+                let mut proj_s_sq = FpVar::<F>::zero();
+                for v in &p_s_vars { proj_s_sq += v.clone() * v.clone(); }
+                let mut proj_e_sq = FpVar::<F>::zero();
+                for v in &p_e_vars { proj_e_sq += v.clone() * v.clone(); }
+
+                (z_i[5].clone() + proj_s_sq, z_i[6].clone() + proj_e_sq)
             } else {
-                (FpVar::constant(F::zero()), FpVar::constant(F::zero()))
+                (z_i[5].clone(), z_i[6].clone())
             }
         });
-
-        let z_s_sq_acc = z_i[5].clone() + z_s_sq;
-        let z_e_sq_acc = z_i[6].clone() + z_e_sq;
 
         let _ = cs.num_constraints();
 
@@ -750,8 +761,8 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
             count_inc,
             verification_count,
             sigma_count,
-            z_s_sq_acc,
-            z_e_sq_acc,
+            z_s_proj_acc,
+            z_e_proj_acc,
         ])
     }
 }

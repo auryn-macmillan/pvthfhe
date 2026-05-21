@@ -22,6 +22,8 @@ pub mod hash_bridge;
 pub mod sigma;
 pub mod schnorr;
 
+pub use sigma::{compute_jl_projection, l2_squared, JL_PROJECTION_DIM, B_Z_S, B_Z_E, B_Y};
+
 use thiserror::Error;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 

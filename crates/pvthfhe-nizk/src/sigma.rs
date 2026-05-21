@@ -50,6 +50,47 @@ pub const B_Z_E: i64 = B_Y + N_I64 * SIGMA_B_E;
 /// Verifier norm bound for z_s: B_Y + N.
 pub const B_Z_S: i64 = B_Y + N_I64;
 
+/// Johnson-Lindenstrauss projection dimension.
+pub const JL_PROJECTION_DIM: usize = 64;
+
+/// Compute sparse JL projection p = Π·w for LaBRADOR-style norm enforcement.
+/// Uses Achlioptas sparse ±1/√m entries — only ~1/3 of rows are non-zero.
+/// Deterministic: seed determines all random positions.
+pub fn compute_jl_projection(w: &[i64], seed: [u8; 32], m: usize) -> Vec<i64> {
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
+
+    if w.is_empty() { return vec![0i64; m]; }
+
+    let n = w.len();
+    let inv_sqrt_m = 1.0 / (m as f64).sqrt();
+    let scaler = 1_000_000i64; // fixed-point scaling to keep integer arithmetic
+
+    let mut rng = StdRng::from_seed(seed);
+    let mut projection = vec![0i64; m];
+
+    for i in 0..m {
+        let mut sum: f64 = 0.0;
+        // Achlioptas sparse: each entry is ±1/√m with prob 1/6 each, or 0 with prob 2/3
+        for j in 0..n {
+            let r: f64 = rng.gen(); // random in [0,1)
+            if r < 1.0 / 6.0 {
+                sum += (w[j] as f64) * inv_sqrt_m;
+            } else if r < 2.0 / 6.0 {
+                sum -= (w[j] as f64) * inv_sqrt_m;
+            }
+            // else: 0 (prob 2/3)
+        }
+        projection[i] = (sum * scaler as f64) as i64;
+    }
+    projection
+}
+
+/// Compute L2 squared norm of a vector.
+pub fn l2_squared(v: &[i64]) -> i128 {
+    v.iter().map(|&x| (x as i128) * (x as i128)).sum()
+}
+
 const MODULI: [u64; 3] = [RLWE_Q0, RLWE_Q1, RLWE_Q2];
 const RNS_LEN: usize = RLWE_N * 3;
 

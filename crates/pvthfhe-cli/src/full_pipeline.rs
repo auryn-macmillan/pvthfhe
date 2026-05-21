@@ -35,6 +35,7 @@ use pvthfhe_compressor::sonobe::{
         SigmaWitness as CompressorSigmaWitness,
         SonobeCompressor,
         clear_cyclo_ring_data, clear_sigma_data, set_cyclo_ring_data, set_sigma_data,
+        set_sigma_response_data,
     };
 #[cfg(feature = "sonobe-compressor")]
 use pvthfhe_compressor::witness::{ShareVerificationWitness, ShareVerificationWitnessSet};
@@ -1368,6 +1369,40 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
     let compressor = Compressor::new(epoch_hash, fold_report.share_count())?;
     observer.phase_end("compressor_new", elapsed_ms(compressor_new_started));
+
+    // G7b-laBRADOR: collect JL projection data for CycloFoldStepCircuit norm enforcement.
+    #[cfg(feature = "sonobe-compressor")]
+    {
+        use pvthfhe_nizk::sigma::{compute_jl_projection, JL_PROJECTION_DIM};
+        use pvthfhe_nizk::adapter::extract_sigma_statement_and_proof;
+
+        let mut responses = Vec::new();
+        for (_pid, stmt, _witness, proof) in &nizk_outputs {
+            let seed = {
+                let mut hasher = Sha256::new();
+                hasher.update(session_id.as_bytes());
+                hasher.update(&stmt.participant_id.to_le_bytes());
+                let digest: [u8; 32] = hasher.finalize().into();
+                digest
+            };
+            let nizk_stmt = pvthfhe_nizk::NizkStatement {
+                ciphertext_bytes: stmt.ciphertext_bytes.clone(),
+                decrypt_share_bytes: stmt.decrypt_share_bytes.clone(),
+                pvss_commitment: stmt.pvss_commitment,
+                params: (stmt.params.0, pvthfhe_nizk::sigma::RLWE_N, stmt.params.2),
+                session_id: stmt.session_id.clone(),
+                participant_id: stmt.participant_id,
+                epoch: stmt.epoch,
+            };
+            let (_, _, sigma_proof) =
+                extract_sigma_statement_and_proof(&nizk_stmt, proof.as_bytes())
+                    .map_err(|e| anyhow::anyhow!("extract sigma proof for JL projection: {e}"))?;
+            let p_s = compute_jl_projection(&sigma_proof.z_s, seed, JL_PROJECTION_DIM);
+            let p_e = compute_jl_projection(&sigma_proof.z_e, seed, JL_PROJECTION_DIM);
+            responses.push((sigma_proof.z_s.clone(), sigma_proof.z_e.clone(), p_s, p_e));
+        }
+        set_sigma_response_data(responses);
+    }
 
     observer.phase_start("compressor_prove", Some(compressor.backend_id()));
 

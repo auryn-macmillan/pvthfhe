@@ -2591,6 +2591,29 @@ pub fn build_c7_prover_toml(
     }
     toml.push_str("]\n");
 
+    // G.SHARE-PROVENANCE: registered share hashes for DKG share commitment verification.
+    // Computed as Noir vector_hash(share, DOMAIN_DKG_SHARE_COMMIT) = poseidon_sponge([7, share...]).
+    toml.push_str("registered_share_hashes = [");
+    let domain_dkg_share = Fr::from(7u64);
+    for i in 0..active_count {
+        let coeffs = &share_coeffs[i];
+        let mut inputs = Vec::with_capacity(9);
+        inputs.push(domain_dkg_share);
+        for &c in coeffs.iter().take(8) {
+            inputs.push(field_from_i64(c));
+        }
+        while inputs.len() < 9 {
+            inputs.push(Fr::from(0u64));
+        }
+        let share_hash = poseidon_sponge_native_noir(&inputs);
+        if i > 0 { toml.push_str(", "); }
+        toml.push_str(&format!("\"0x{}\"", field_hex_be(share_hash)));
+    }
+    for _i in active_count..NOIR_MAX_PARTICIPANTS {
+        toml.push_str(&format!(", \"0x{:064x}\"", 0u64));
+    }
+    toml.push_str("]\n");
+
     // G.12: Schnorr signing public keys (public inputs to Noir circuit)
     toml.push_str("party_signing_pks = [");
     for (i, pk) in party_signing_pks.iter().enumerate() {

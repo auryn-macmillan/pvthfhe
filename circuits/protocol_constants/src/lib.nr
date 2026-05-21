@@ -14,3 +14,4 @@ pub global DOMAIN_CHALLENGE_DERIVE: Field = 3;
 pub global DOMAIN_CIPHERTEXT_BINDING: Field = 4;
 pub global DOMAIN_DKG_BINDING: Field = 5;
 pub global DOMAIN_AGGREGATOR_D_COMMIT: Field = 6;
+pub global DOMAIN_DKG_SHARE_COMMIT: Field = 7;

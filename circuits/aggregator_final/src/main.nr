@@ -92,6 +92,7 @@ fn main(
     cyclo_norm_ze: pub Field,
     committee_party_ids: pub [Field; MAX_PARTICIPANTS],
     participant_shares: [[Field; N]; MAX_PARTICIPANTS],
+    registered_share_hashes: pub [Field; MAX_PARTICIPANTS],
 ) -> pub [Field; N] {
     assert(epoch as u64 > 0, "epoch must be positive");
     assert(participant_set_hash != 0, "participant set hash must be non-zero");
@@ -173,6 +174,17 @@ fn main(
     assert(share_non_zero_count == threshold + 1,
         "exactly threshold+1 shares must be non-zero");
 
+    // G.SHARE-PROVENANCE: verify each share matches the DKG-registered commitment.
+    // This proves s_i came from the correct DKG polynomial: the dealer publishes
+    // hash(s_i) during DKG setup, and the circuit verifies the received share matches.
+    for i in 0..MAX_PARTICIPANTS {
+        if (i as u32) < n {
+            let share_hash = vector_hash(participant_shares[i], protocol_constants::DOMAIN_DKG_SHARE_COMMIT);
+            assert(share_hash == registered_share_hashes[i],
+                "share does not match DKG registration");
+        }
+    }
+
     // --- Reconstruct plaintext from shares via Lagrange interpolation ---
     let mut computed_plaintext = [0; N];
     for j in 0..N {
@@ -241,6 +253,11 @@ fn test_honest_lagrange_recombination() {
     }
     let participant_set_hash = poseidon::poseidon::bn254::sponge(ps_hash_inputs);
 
+    let mut registered_share_hashes = [0; MAX_PARTICIPANTS];
+    for i in 0..3 {
+        registered_share_hashes[i] = vector_hash(d[i], protocol_constants::DOMAIN_DKG_SHARE_COMMIT);
+    }
+
     let plaintext = main(
         ciphertext_hash,
         aggregate_pk_hash,
@@ -253,6 +270,7 @@ fn test_honest_lagrange_recombination() {
         1, 1, 1, 1, 1, 1, 1,
         committee_party_ids,
         d,
+        registered_share_hashes,
     );
 
     // Verify plaintext = [1, 0, 0, 0, 0, 0, 0, 0]
@@ -320,6 +338,7 @@ fn test_tamper_zero_party_id() {
         0, 0, 0, 0, 0, 0, 0,
         committee_party_ids,
         d,
+        [0; MAX_PARTICIPANTS],
     );
 }
 
@@ -360,6 +379,7 @@ fn test_tamper_duplicate_party_ids() {
         0, 0, 0, 0, 0, 0, 0,
         committee_party_ids,
         d,
+        [0; MAX_PARTICIPANTS],
     );
 }
 
@@ -406,6 +426,7 @@ fn test_ciphertext_equals_plaintext_hash() {
         0, 0, 0, 0, 0, 0, 0,
         committee_party_ids,
         d,
+        [0; MAX_PARTICIPANTS],
     );
 }
 
@@ -441,6 +462,7 @@ fn test_tamper_wrong_threshold() {
         0, 0, 0, 0, 0, 0, 0,
         committee_party_ids,
         d,
+        [0; MAX_PARTICIPANTS],
     );
 }
 
@@ -476,5 +498,6 @@ fn test_tamper_epoch_zero() {
         0, 0, 0, 0, 0, 0, 0,
         committee_party_ids,
         d,
+        [0; MAX_PARTICIPANTS],
     );
 }

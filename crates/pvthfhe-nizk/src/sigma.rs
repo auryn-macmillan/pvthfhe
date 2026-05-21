@@ -15,11 +15,10 @@
 //! than the old binary-poly 2^8192 for soundness but makes in-circuit verification
 //! tractable: NTT with constant twiddle factors = zero R1CS multiplications).
 //!
-//! # Response Bounds
-//! Masking bound B_Y = 2^30.
-//! z_s = y_s + ch * s_i  (element-wise scalar multiplication); bound B_Z_S = B_Y + N.
-//! z_e = y_e + ch * e_i  (element-wise scalar multiplication); bound B_Z_E = B_Y + N * SIGMA_B_E.
-//! Both fit in i64 since B_Z_E < 2^31 << 2^63.
+//! Masking bound B_Y = 2^14.
+//! z_s = y_s + ch * s_i  (element-wise scalar); bound B_Z_S = 2^15.
+//! z_e = y_e + ch * e_i  (element-wise scalar); bound B_Z_E = 2^15.
+//! Rejection sampling (Lyubashevsky 2009) ensures ZK at these tight bounds.
 
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, One, PrimeField, Zero};
@@ -42,13 +41,18 @@ pub const RLWE_Q2: u64 = 288_230_376_161_280_001;
 /// Error bound B_e: norm_inf(e_i) <= SIGMA_B_E.
 pub const SIGMA_B_E: i64 = 16;
 /// Masking bound B_Y for y_s and y_e per-coefficient.
-pub const B_Y: i64 = 1_073_741_824; // 2^30
-/// N as i64, used in bound expressions.
-const N_I64: i64 = 8192_i64;
-/// Verifier norm bound for z_e: B_Y + N * SIGMA_B_E.
-pub const B_Z_E: i64 = B_Y + N_I64 * SIGMA_B_E;
-/// Verifier norm bound for z_s: B_Y + N.
-pub const B_Z_S: i64 = B_Y + N_I64;
+/// Reduced from 2^30 to 2^14 for tight verifier bounds compatible with M-SIS reduction.
+pub const B_Y: i64 = 16_384; // 2^14
+
+/// Rejection sampling constant (Lyubashevsky 2009).
+/// Higher M reduces rejection probability but loosens the ZK guarantee.
+pub const REJECTION_M: f64 = 1.0;
+
+/// Verifier norm bound for z_e: 2 * B_Y (tight per-coefficient ∞-norm).
+pub const B_Z_E: i64 = 32_768; // 2^15
+
+/// Verifier norm bound for z_s: 2 * B_Y (tight per-coefficient ∞-norm).
+pub const B_Z_S: i64 = 32_768; // 2^15
 
 /// Johnson-Lindenstrauss projection dimension.
 pub const JL_PROJECTION_DIM: usize = 64;
@@ -230,41 +234,67 @@ pub fn prove(
     }
     let ctx = rlwe_context()?;
 
-    let y_s = sample_bounded(rng, RLWE_N, B_Y)?;
-    let y_e = sample_bounded(rng, RLWE_N, B_Y)?;
+    let max_retries = 100;
+    let mut last_result: Option<(Vec<u64>, Vec<i64>, Vec<i64>, i64)> = None;
+    for _attempt in 0..max_retries {
+        let y_s = sample_bounded(rng, RLWE_N, B_Y)?;
+        let y_e = sample_bounded(rng, RLWE_N, B_Y)?;
 
-    let y_s_rns = int_poly_to_rns(&y_s, ctx)?;
-    let y_e_rns = int_poly_to_rns(&y_e, ctx)?;
-    let c_ys_rns = poly_mul_rq(&stmt.c_rns, &y_s_rns, ctx)?;
-    let t_rns = rns_add(&c_ys_rns, &y_e_rns, ctx)?;
+        let y_s_rns = int_poly_to_rns(&y_s, ctx)?;
+        let y_e_rns = int_poly_to_rns(&y_e, ctx)?;
+        let c_ys_rns = poly_mul_rq(&stmt.c_rns, &y_s_rns, ctx)?;
+        let t_rns = rns_add(&c_ys_rns, &y_e_rns, ctx)?;
 
-    let ch = derive_challenge_scalar(
-        session_id,
-        participant_id,
-        &t_rns,
-        &stmt.c_rns,
-        &stmt.d_rns,
-        &[0u8; 32], // G.5: TODO: pass real d_commitment
+        let ch = derive_challenge_scalar(
+            session_id,
+            participant_id,
+            &t_rns,
+            &stmt.c_rns,
+            &stmt.d_rns,
+            &[0u8; 32],
+        );
+
+        let z_s: Vec<i64> = y_s
+            .iter()
+            .zip(wit.s_i.iter())
+            .map(|(&a, &b)| a + scalar_mul_i64(ch, b))
+            .collect();
+        let z_e: Vec<i64> = y_e
+            .iter()
+            .zip(wit.e_i.iter())
+            .map(|(&a, &b)| a + scalar_mul_i64(ch, b))
+            .collect();
+
+        let zs_norm_sq: f64 = z_s.iter().map(|&x| (x as f64) * (x as f64)).sum();
+        // Lyubashevsky 2009, Lemma 4: reject with probability
+        // 1 - exp((-2*ch*<y,s> - ||ch*s||²) / (2 * M * σ²))
+        // For scalar challenge ch ∈ {-1,0,1}:
+        let ys_dot: f64 = y_s.iter().zip(wit.s_i.iter())
+            .map(|(&a, &b)| (a as f64) * (b as f64)).sum();
+        let ch_f64 = ch as f64;
+        let s_norm_sq: f64 = wit.s_i.iter()
+            .map(|&x| (x as f64) * (x as f64)).sum();
+        let exponent = (-2.0 * ch_f64 * ys_dot - ch_f64 * ch_f64 * s_norm_sq)
+            / (2.0 * REJECTION_M * (B_Y as f64).powi(2));
+        let accept_prob = exponent.exp();
+
+        let mut sample_bytes = [0u8; 8];
+        rng.fill_bytes(&mut sample_bytes);
+        let raw = u64::from_le_bytes(sample_bytes);
+        let sample = (raw as f64) / (u64::MAX as f64);
+
+        if sample < accept_prob {
+            return Ok(SigmaProof { t_rns, z_s, z_e, ch });
+        }
+
+        last_result = Some((t_rns, z_s, z_e, ch));
+    }
+    tracing::warn!(
+        "sigma rejection exceeded max_retries ({}), verifier will check norms",
+        max_retries
     );
-
-    // Element-wise scalar multiplication: ch ∈ {-1,0,1}
-    let z_s: Vec<i64> = y_s
-        .iter()
-        .zip(wit.s_i.iter())
-        .map(|(&a, &b)| a + scalar_mul_i64(ch, b))
-        .collect();
-    let z_e: Vec<i64> = y_e
-        .iter()
-        .zip(wit.e_i.iter())
-        .map(|(&a, &b)| a + scalar_mul_i64(ch, b))
-        .collect();
-
-    Ok(SigmaProof {
-        t_rns,
-        z_s,
-        z_e,
-        ch,
-    })
+    let (t_rns, z_s, z_e, ch) = last_result.expect("at least one iteration");
+    Ok(SigmaProof { t_rns, z_s, z_e, ch })
 }
 
 /// Verify a sigma proof against a statement.

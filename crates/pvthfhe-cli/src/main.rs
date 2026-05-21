@@ -417,6 +417,7 @@ struct DemoObserver {
     compressor_verify_announced: bool,
     partial_decrypt_announced: bool,
     aggregate_decrypt_announced: bool,
+    c7_noir_announced: bool,
     setup_threshold_announced: bool,
     aggregate_keygen_ms: Option<f64>,
     encrypt_ms: Option<f64>,
@@ -478,24 +479,25 @@ impl PipelineObserver for DemoObserver {
             }
             "compressor_prove" if !self.compressor_prove_announced => {
                 self.compressor_prove_announced = true;
-                Self::print_step(8, "compressor_prove", detail);
+                Self::print_step(11, "compressor_prove", detail);
             }
             "compressor_verify" if !self.compressor_verify_announced => {
                 self.compressor_verify_announced = true;
-                Self::print_step(9, "compressor_verify", detail);
+                Self::print_step(12, "compressor_verify", detail);
             }
             "partial_decrypt" if !self.partial_decrypt_announced => {
                 self.partial_decrypt_announced = true;
-                Self::print_step(10, "partial_decrypt", detail);
+                Self::print_step(8, "partial_decrypt", detail);
             }
             "aggregate_decrypt" if !self.aggregate_decrypt_announced => {
                 self.aggregate_decrypt_announced = true;
-                Self::print_step(11, "aggregate_decrypt", detail);
+                Self::print_step(9, "aggregate_decrypt", detail);
             }
             "c7_decrypt_aggregation" => {
-                Self::print_step(12, "c7_decrypt_aggregation", detail);
+                Self::print_step(10, "c7_decrypt_aggregation", detail);
             }
-            "c7_noir_aggregator" => {
+            "c7_noir_aggregator" if !self.c7_noir_announced => {
+                self.c7_noir_announced = true;
                 Self::print_step(13, "c7_noir_aggregator", detail);
             }
             "setup_threshold" if !self.setup_threshold_announced => {

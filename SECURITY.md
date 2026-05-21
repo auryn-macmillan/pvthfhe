@@ -45,10 +45,10 @@ For a full list of formal assumptions, see [.sisyphus/design/security-proofs.md]
 
 This is a research prototype and contains components where formal soundness proofs are still being developed:
 
-- **P1 (CRITICAL)**: **Lattice NIZK Soundness**. P1 (CRITICAL): Per-share RLWE NIZK knowledge soundness is conditional on (a) Module-SIS hardness over R_{q_commit}, (b) Cyclo Theorem 3 soundness (ePrint 2026/359), and (c) collision resistance of SHA-256 for the P4 commitment domain. T2 is PROVED — rewinding extractor (ROM, forking lemma, Lemma 9 accepted assumption) (code exists, see §Implementation status line 17). Any relying party must treat per-share proofs as computationally binding under these assumptions only. **Zero-knowledge**: The serialized proof achieves computational ZK — fresh random masks (OsRng, non-deterministic) per invocation; masked sigma transcript (z_s, z_e, t_bytes) reveals nothing about the witness. No witness openings (secret_share, error, randomness) are serialized. Struct-level regression test (`nizk_share_no_witness_leak.rs`) and byte-level tests (`nizk_share_zk.rs`) enforce ZK. **Keygen NIZK stubs**: `KeygenSimulator` uses a hardcoded `nizk: vec![0x00, 0x01]` placeholder. No verifiable lattice NIZK exists for dealer key shares or public-key contributions. Real lattice NIZK for key shares requires wiring `CycloNizkAdapter` per dealer. See `interfold-equivalence.md` §C1. **R4 fixes applied**: (i) Algebraic sigma equation `c*z_s+z_e == t+ch*d_i` now verified in `verify_algebraic_relation` (was missing; `2fd44e5`). (ii) BFV plaintext domain check `|z_m_i| < t/2` enforced in `bfv_sigma::verify` (`5dee0f8`). (iii) 8 soundness RED tests added confirming tampered d_rns/z_s rejection. **D.2 batched share-encryption proof** (`aadabff`): batched verifier covers sk+esm tracks with independent commitments via `batch_verify_share_encryption`; tampering one track while keeping the other valid fails the batched check (see `crates/pvthfhe-pvss/tests/nizk_share_batched_tracks.rs`). **D.3 domain separation** (`a8e2db2`): per-track domain tags in `pvthfhe-domain-tags` prevent cross-track proof replay (sk proof cannot be replayed as e\_sm proof).
+- **P1 (CRITICAL)**: **Lattice NIZK Soundness** — Trust boundary documented (T3). Per-share RLWE NIZK knowledge soundness is conditional on (a) Module-SIS hardness over R_{q_commit}, (b) Cyclo Theorem 3 soundness (ePrint 2026/359), and (c) collision resistance of SHA-256 for the P4 commitment domain. T2 is PROVED — rewinding extractor (ROM, forking lemma, Lemma 9 accepted assumption) (code exists, see §Implementation status line 17). Any relying party must treat per-share proofs as computationally binding under these assumptions only. **Zero-knowledge**: The serialized proof achieves computational ZK — fresh random masks (OsRng, non-deterministic) per invocation; masked sigma transcript (z_s, z_e, t_bytes) reveals nothing about the witness. No witness openings (secret_share, error, randomness) are serialized. Struct-level regression test (`nizk_share_no_witness_leak.rs`) and byte-level tests (`nizk_share_zk.rs`) enforce ZK. **Keygen NIZK stubs**: `KeygenSimulator` uses a hardcoded `nizk: vec![0x00, 0x01]` placeholder. No verifiable lattice NIZK exists for dealer key shares or public-key contributions. Real lattice NIZK for key shares requires wiring `CycloNizkAdapter` per dealer. See `interfold-equivalence.md` §C1. **R4 fixes applied**: (i) Algebraic sigma equation `c*z_s+z_e == t+ch*d_i` now verified in `verify_algebraic_relation` (was missing; `2fd44e5`). (ii) BFV plaintext domain check `|z_m_i| < t/2` enforced in `bfv_sigma::verify` (`5dee0f8`). (iii) 8 soundness RED tests added confirming tampered d_rns/z_s rejection. **D.2 batched share-encryption proof** (`aadabff`): batched verifier covers sk+esm tracks with independent commitments via `batch_verify_share_encryption`; tampering one track while keeping the other valid fails the batched check (see `crates/pvthfhe-pvss/tests/nizk_share_batched_tracks.rs`). **D.3 domain separation** (`a8e2db2`): per-track domain tags in `pvthfhe-domain-tags` prevent cross-track proof replay (sk proof cannot be replayed as e\_sm proof).
 **Share provenance (R5 CLOSED)**: Per-party secret key commitments `sk_commit_i = AjtaiHash(sk_i)` are published during DKG. The verifier checks `proof.pvss_commitment == sk_commitments[party_index]` in the pipeline. `combined_sk_commitment_hash` (Poseidon of all sk_commitments) is a Noir aggregator_final public input, enabling on-chain share provenance verification.
-- **P2 (HIGH)**: **LatticeFold+ Linearity**. Real — Cyclo LatticeFold+ over RLWE, T=10. Lemma 9 is accepted as a documented protocol assumption (see `docs/security-proofs/lemma9.md` §0): formal proof deferred; the risk of a non-invertible challenge difference in the Cyclo commitment ring (φ=256, q≈2^50) is believed negligible. Soundness remains conditional on M-SIS hardness over R_{q_commit}, Cyclo Theorem 3 (ePrint 2026/359), and the Lemma 9 invertibility assumption.
-- **P3 (MEDIUM)**: **MicroNova-lattice Encoding**. Substitituted by off-chain Sonobe + on-chain commitment topology. The aggregator submits an UltraHonk proof of the Sonobe state commitment, which is checked on-chain alongside an off-chain attestation. MicroNova heterogeneous IVC is available as an opt-in compressor via `PVTHFHE_COMPRESSOR=micronova` (`HeterogeneousCircuitFamily` + `LatticeFoldTreeCircuitFamily`). See ARCHITECTURE.md §MicroNova.
+- **P2 (HIGH)**: **LatticeFold+ Linearity** — Trust boundary documented (T3). Real — Cyclo LatticeFold+ over RLWE, T=10. Lemma 9 is accepted as a documented protocol assumption (see `docs/security-proofs/lemma9.md` §0): formal proof deferred; the risk of a non-invertible challenge difference in the Cyclo commitment ring (φ=256, q≈2^50) is believed negligible. Soundness remains conditional on M-SIS hardness over R_{q_commit}, Cyclo Theorem 3 (ePrint 2026/359), and the Lemma 9 invertibility assumption.
+- **P3 (MEDIUM)**: **MicroNova-lattice Encoding** — Trust boundary documented (T3). Substituted by off-chain Sonobe + on-chain commitment topology. The aggregator submits an UltraHonk proof of the Sonobe state commitment, which is checked on-chain alongside an off-chain attestation. MicroNova heterogeneous IVC is available as an opt-in compressor via `PVTHFHE_COMPRESSOR=micronova` (`HeterogeneousCircuitFamily` + `LatticeFoldTreeCircuitFamily`). See ARCHITECTURE.md §MicroNova.
   MicroNova per-variant verifier enforcement is a known Sonobe architecture
   limitation — the current framework uses a single verifier key for all
   circuit variants. See heterogeneous-ivc.md:96-99 for details.
@@ -104,6 +104,34 @@ trust model assumes:
    check before any Nova operations occur, providing a defense-in-depth barrier.
 
 - **Bench stub phases**: `onchain_verify`, `noir_decrypt_share`, `noir_aggregator_final`, `noir_sonobe_wrap` phases in the bench binary (`pvthfhe_e2e.rs`) are timing-only markers. No Solidity verifier or Noir circuit is executed during these phases. See `.sisyphus/design/spec-real-p2p3.md` §6 for the production verification plan.
+
+## Trust Boundary — In-Circuit vs Native
+
+Only the Noir `aggregator_final` circuit is verified on-chain (via HonkVerifier.sol). 
+All other protocol proofs run natively and are NOT verifiable by the on-chain verifier.
+
+| Protocol Proof | In-Circuit | Native-Only | Notes |
+|---------------|-----------|-------------|-------|
+| Threshold/Lagrange recombination | ✓ | — | Fully constrained in Noir |
+| Plaintext derivation | ✓ | — | Computed from shares via Lagrange |
+| ciphertext_hash ≠ plaintext_hash | ✓ | — | Weak check (≠ only) |
+| BFV encryption sigma | — | ✓ | Native NIZK via pvthfhe-nizk |
+| PVSS DKG NIZK | — | ✓ | Native DKG ceremony |
+| Share Schnorr signatures | — | ✓ | Folded via Sonobe Nova |
+| Cyclo NIZK (lattice fold) | — | ✓ | CycloFoldStepCircuit |
+| Sonobe Nova fold soundness | — | ✓ | Native Sonobe IVC |
+| Ajtai commitment verification | — | ✓ | Native Nova-folded |
+| C7 decryption aggregation | — | ✓ | CompressionTree (native) |
+| Epoch replay protection | — | ✓ | On-chain SessionRegistry |
+
+## Proving Backend Inventory
+
+| Backend | Role | Technology |
+|---------|------|-----------|
+| Cyclo (fhe-math) | Ring equation + Ajtai commitment | Lattice-native |
+| Sonobe Nova (folding-schemes) | IVC folding + C7 aggregation | R1CS Nova |
+| Noir + BB UltraHonk | Final Lagrange recombination | Noir R1CS → Honk |
+| HonkVerifier.sol | On-chain verification | Solidity |
 
 ### G7b Norm Enforcement
 

@@ -34,6 +34,8 @@ The system allows $n$ parties to jointly manage an FHE secret key.
 [ Solidity Verifier ] <----------------------- [ SNARK + Attestation ]
 ```
 
+The pipeline uses four proving backends: Cyclo (ring/sigma), Sonobe Nova (folding), Noir UltraHonk (final aggregation), and HonkVerifier.sol (on-chain).
+
 ## Protocol Layers
 
 | Layer | Responsibility | Component |

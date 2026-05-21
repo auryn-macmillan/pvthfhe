@@ -391,7 +391,6 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
         &report.party_signing_pks,
         &report.share_sig_rs,
         &report.share_sig_ss,
-        report.combined_share_hash,
         Fr::from(0u64),
     );
     if let Err(e) = std::fs::write(&prover_toml_path, &prover_toml_data) {

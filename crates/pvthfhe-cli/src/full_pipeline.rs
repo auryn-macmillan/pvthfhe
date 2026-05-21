@@ -1512,7 +1512,6 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         &party_signing_pks,
         &share_sig_rs,
         &share_sig_ss,
-        combined_share_hash,
         Fr::from_be_bytes_mod_order(&Sha256::digest(
             format!("dkg-transcript-{session_id}").as_bytes()
         )),
@@ -2437,7 +2436,6 @@ pub fn build_c7_prover_toml(
     party_signing_pks: &[Fr],    // G.12: Per-party Schnorr signing public keys
     share_sig_rs: &[Fr],          // G.12: Per-party Schnorr signature R-points
     share_sig_ss: &[Fr],          // G.12: Per-party Schnorr signature s-values
-    combined_share_hash: Fr,      // G.12: Combined share hash from Nova-folded ShareVerificationStepCircuit
     dkg_transcript_hash: Fr,
 ) -> String {
     let n_participants = committee_party_ids.len();
@@ -2479,11 +2477,8 @@ pub fn build_c7_prover_toml(
     let d_commitment = {
         use pvthfhe_compressor::witness::poseidon_sponge_hash_native;
         poseidon_sponge_hash_native(&[
-            // Domain separator
             Fr::from(6u64),
-            // Share commitment
-            combined_share_hash,
-            // DKG and committee identity
+            Fr::zero(),
             dkg_root,
             participant_set_hash,
             // Session binding (G.4 — Interfold nonce placeholder)
@@ -2504,7 +2499,7 @@ pub fn build_c7_prover_toml(
     };
     #[cfg(not(feature = "sonobe-compressor"))]
     let d_commitment = bind_8_with_domain_native(&[
-        combined_share_hash,
+        Fr::zero(),
         dkg_root,
         participant_set_hash,
         Fr::from(1u64),
@@ -2521,7 +2516,6 @@ pub fn build_c7_prover_toml(
     toml.push_str(&format!("decrypt_nizk_hash = \"0x{}\"\n", field_hex_be(decrypt_nizk_hash_field)));
     toml.push_str(&format!("epoch = \"1\"\n"));
     toml.push_str(&format!("participant_set_hash = \"0x{}\"\n", field_hex_be(participant_set_hash)));
-    toml.push_str(&format!("combined_share_hash = \"0x{}\"\n", field_hex_be(combined_share_hash)));
     toml.push_str(&format!("dkg_transcript_hash = \"0x{}\"\n", field_hex_be(dkg_transcript_hash)));
     toml.push_str(&format!("d_commitment = \"0x{}\"\n", field_hex_be(d_commitment)));
     toml.push_str(&format!("n_participants = \"{}\"\n", n_participants));
@@ -2745,7 +2739,6 @@ mod tests {
             &[],
             &[],
             &[],
-            Fr::from(0u64),
             Fr::from(0u64),
         );
 

@@ -81,8 +81,6 @@ fn main(
     dkg_transcript_hash: pub Field,
     epoch: pub Field,
     participant_set_hash: pub Field,
-    // G.12 Phase 2: pre-computed combined share hash from folded Schnorr verification
-    combined_share_hash: pub Field,
     n_participants: pub Field,
     threshold: pub Field,
     committee_party_ids: pub [Field; MAX_PARTICIPANTS],
@@ -146,22 +144,6 @@ fn main(
         }
     }
     assert(lagrange_sum == 1, "Lagrange coefficients must sum to 1");
-
-    // Phase 2 deprecation: per-share hashing is now done by the folded
-    // ShareVerificationStepCircuit. The combined_share_hash is received
-    // as a public input. This code is kept for backward compatibility.
-    // --- Hash each participant's share vector ---
-    let mut share_hashes = [0; MAX_PARTICIPANTS];
-    for i in 0..MAX_PARTICIPANTS {
-        if (i as u32) < n {
-            share_hashes[i] = vector_hash(participant_shares[i], protocol_constants::DOMAIN_VECTOR_MERKLE);
-        }
-    }
-    let computed_combined_share_hash = combine_hashes(share_hashes, n_participants);
-    // Verify that the pre-computed combined_share_hash matches what the
-    // circuit computes from raw shares. This replaces the dead pass-through.
-    assert(computed_combined_share_hash == combined_share_hash,
-        "combined_share_hash mismatch");
 
     // G.8: Enforce exactly threshold+1 non-zero shares
     let mut share_non_zero_count = 0;
@@ -248,14 +230,6 @@ fn test_honest_lagrange_recombination() {
     }
     let participant_set_hash = poseidon::poseidon::bn254::sponge(ps_hash_inputs);
 
-    let mut share_hashes = [0; MAX_PARTICIPANTS];
-    for i in 0..MAX_PARTICIPANTS {
-        if (i as u32) < (n_participants as u32) {
-            share_hashes[i] = vector_hash(d[i], protocol_constants::DOMAIN_VECTOR_MERKLE);
-        }
-    }
-    let combined_share_hash = combine_hashes(share_hashes, n_participants);
-
     let plaintext = main(
         ciphertext_hash,
         aggregate_pk_hash,
@@ -263,7 +237,6 @@ fn test_honest_lagrange_recombination() {
         999,
         epoch,
         participant_set_hash,
-        combined_share_hash,
         n_participants,
         threshold,
         committee_party_ids,
@@ -323,14 +296,6 @@ fn test_tamper_zero_party_id() {
     let decrypt_nizk_hash = 500;
     let participant_set_hash = 300;
 
-    let mut share_hashes = [0; MAX_PARTICIPANTS];
-    for i in 0..MAX_PARTICIPANTS {
-        if (i as u32) < (n_participants as u32) {
-            share_hashes[i] = vector_hash(d[i], protocol_constants::DOMAIN_VECTOR_MERKLE);
-        }
-    }
-    let combined_share_hash = combine_hashes(share_hashes, n_participants);
-
     main(
         ciphertext_hash,
         aggregate_pk_hash,
@@ -338,7 +303,6 @@ fn test_tamper_zero_party_id() {
         999,
         epoch,
         participant_set_hash,
-        combined_share_hash,
         n_participants,
         threshold,
         committee_party_ids,
@@ -371,14 +335,6 @@ fn test_tamper_duplicate_party_ids() {
     }
     let participant_set_hash = poseidon::poseidon::bn254::sponge(ps_hash_inputs);
 
-    let mut share_hashes = [0; MAX_PARTICIPANTS];
-    for i in 0..MAX_PARTICIPANTS {
-        if (i as u32) < (n_participants as u32) {
-            share_hashes[i] = vector_hash(d[i], protocol_constants::DOMAIN_VECTOR_MERKLE);
-        }
-    }
-    let combined_share_hash = combine_hashes(share_hashes, n_participants);
-
     main(
         ciphertext_hash,
         aggregate_pk_hash,
@@ -386,7 +342,6 @@ fn test_tamper_duplicate_party_ids() {
         999,
         epoch,
         participant_set_hash,
-        combined_share_hash,
         n_participants,
         threshold,
         committee_party_ids,
@@ -425,14 +380,6 @@ fn test_ciphertext_equals_plaintext_hash() {
     }
     let participant_set_hash = poseidon::poseidon::bn254::sponge(ps_hash_inputs);
 
-    let mut share_hashes = [0; MAX_PARTICIPANTS];
-    for i in 0..MAX_PARTICIPANTS {
-        if (i as u32) < (n_participants as u32) {
-            share_hashes[i] = vector_hash(d[i], protocol_constants::DOMAIN_VECTOR_MERKLE);
-        }
-    }
-    let combined_share_hash = combine_hashes(share_hashes, n_participants);
-
     main(
         ciphertext_hash,
         aggregate_pk_hash,
@@ -440,7 +387,6 @@ fn test_ciphertext_equals_plaintext_hash() {
         999,
         epoch,
         participant_set_hash,
-        combined_share_hash,
         n_participants,
         threshold,
         committee_party_ids,
@@ -468,14 +414,6 @@ fn test_tamper_wrong_threshold() {
     let decrypt_nizk_hash = 500;
     let participant_set_hash = 300;
 
-    let mut share_hashes = [0; MAX_PARTICIPANTS];
-    for i in 0..MAX_PARTICIPANTS {
-        if (i as u32) < (n_participants as u32) {
-            share_hashes[i] = vector_hash(d[i], protocol_constants::DOMAIN_VECTOR_MERKLE);
-        }
-    }
-    let combined_share_hash = combine_hashes(share_hashes, n_participants);
-
     main(
         ciphertext_hash,
         aggregate_pk_hash,
@@ -483,7 +421,6 @@ fn test_tamper_wrong_threshold() {
         999,
         epoch,
         participant_set_hash,
-        combined_share_hash,
         n_participants,
         threshold,
         committee_party_ids,
@@ -511,14 +448,6 @@ fn test_tamper_epoch_zero() {
     let decrypt_nizk_hash = 500;
     let participant_set_hash = 300;
 
-    let mut share_hashes = [0; MAX_PARTICIPANTS];
-    for i in 0..MAX_PARTICIPANTS {
-        if (i as u32) < (n_participants as u32) {
-            share_hashes[i] = vector_hash(d[i], protocol_constants::DOMAIN_VECTOR_MERKLE);
-        }
-    }
-    let combined_share_hash = combine_hashes(share_hashes, n_participants);
-
     main(
         ciphertext_hash,
         aggregate_pk_hash,
@@ -526,7 +455,6 @@ fn test_tamper_epoch_zero() {
         999,
         epoch,
         participant_set_hash,
-        combined_share_hash,
         n_participants,
         threshold,
         committee_party_ids,

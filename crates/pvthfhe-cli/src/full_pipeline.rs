@@ -1454,6 +1454,16 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         ));
     }
 
+    #[cfg(feature = "sonobe-compressor")]
+    let cyclo_state = {
+        use pvthfhe_compressor::sonobe::extract_cyclo_state;
+        compressed.sonobe_proof.as_ref()
+            .map(|p| extract_cyclo_state(p).unwrap_or([Fr::zero(); 7]))
+            .unwrap_or([Fr::zero(); 7])
+    };
+    #[cfg(not(feature = "sonobe-compressor"))]
+    let cyclo_state = [Fr::zero(); 7];
+
     // G.12 Phase 2: fold share verification steps via Nova IVC
     #[cfg(feature = "sonobe-compressor")]
     let combined_share_hash = {
@@ -1515,6 +1525,13 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         Fr::from_be_bytes_mod_order(&Sha256::digest(
             format!("dkg-transcript-{session_id}").as_bytes()
         )),
+        cyclo_state[0],
+        cyclo_state[1],
+        cyclo_state[2],
+        cyclo_state[3],
+        cyclo_state[4],
+        cyclo_state[5],
+        cyclo_state[6],
     );
     let mut noir_passed = true;
 
@@ -2437,6 +2454,13 @@ pub fn build_c7_prover_toml(
     share_sig_rs: &[Fr],          // G.12: Per-party Schnorr signature R-points
     share_sig_ss: &[Fr],          // G.12: Per-party Schnorr signature s-values
     dkg_transcript_hash: Fr,
+    cyclo_hash: Fr,
+    cyclo_norm_acc: Fr,
+    cyclo_fold_count: Fr,
+    cyclo_ring_count: Fr,
+    cyclo_sigma_count: Fr,
+    cyclo_norm_zs: Fr,
+    cyclo_norm_ze: Fr,
 ) -> String {
     let n_participants = committee_party_ids.len();
     let threshold = n_participants - 1;
@@ -2520,6 +2544,14 @@ pub fn build_c7_prover_toml(
     toml.push_str(&format!("d_commitment = \"0x{}\"\n", field_hex_be(d_commitment)));
     toml.push_str(&format!("n_participants = \"{}\"\n", n_participants));
     toml.push_str(&format!("threshold = \"{}\"\n", threshold));
+
+    toml.push_str(&format!("cyclo_hash = \"0x{}\"\n", field_hex_be(cyclo_hash)));
+    toml.push_str(&format!("cyclo_norm_acc = \"0x{}\"\n", field_hex_be(cyclo_norm_acc)));
+    toml.push_str(&format!("cyclo_fold_count = \"0x{}\"\n", field_hex_be(cyclo_fold_count)));
+    toml.push_str(&format!("cyclo_ring_count = \"0x{}\"\n", field_hex_be(cyclo_ring_count)));
+    toml.push_str(&format!("cyclo_sigma_count = \"0x{}\"\n", field_hex_be(cyclo_sigma_count)));
+    toml.push_str(&format!("cyclo_norm_zs = \"0x{}\"\n", field_hex_be(cyclo_norm_zs)));
+    toml.push_str(&format!("cyclo_norm_ze = \"0x{}\"\n", field_hex_be(cyclo_norm_ze)));
 
     // Committee party IDs: exactly MAX_PARTICIPANTS, padded with zeros
     toml.push_str("committee_party_ids = [");
@@ -2740,6 +2772,13 @@ mod tests {
             &[],
             &[],
             Fr::from(0u64),
+            Fr::zero(),
+            Fr::zero(),
+            Fr::zero(),
+            Fr::zero(),
+            Fr::zero(),
+            Fr::zero(),
+            Fr::zero(),
         );
 
         assert!(

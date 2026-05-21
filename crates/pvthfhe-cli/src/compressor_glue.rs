@@ -29,7 +29,7 @@ pub struct E2eCompressedProof {
     /// Stable digest of the compressed proof bytes.
     pub digest: [u8; 32],
     #[cfg(feature = "sonobe-compressor")]
-    sonobe_proof: Option<SonobeProof>,
+    pub sonobe_proof: Option<SonobeProof>,
 }
 
 /// Compressor backend selector.

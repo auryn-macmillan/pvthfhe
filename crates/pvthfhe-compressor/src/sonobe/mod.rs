@@ -35,7 +35,7 @@ use std::fs;
 use std::borrow::Borrow;
 
 use ark_bn254::{Fr, G1Projective as G1};
-use ark_ff::{BigInteger, PrimeField};
+use ark_ff::{BigInteger, PrimeField, Zero};
 use ark_grumpkin::Projective as G2;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::eq::EqGadget;
@@ -2259,13 +2259,13 @@ impl<
     }
 }
 
-struct ParsedProof<'a> {
+pub(crate) struct ParsedProof<'a> {
     acc_hash: [u8; 32],
     public_inputs_hash: [u8; 32],
     ivc_bytes: &'a [u8],
 }
 
-fn parse_proof(bytes: &[u8]) -> Result<ParsedProof<'_>, CompressorError> {
+pub(crate) fn parse_proof(bytes: &[u8]) -> Result<ParsedProof<'_>, CompressorError> {
     if bytes.len() < 76 || bytes[0..4] != PROOF_MAGIC {
         return Err(CompressorError::InvalidProof);
     }
@@ -2300,6 +2300,24 @@ fn parse_proof(bytes: &[u8]) -> Result<ParsedProof<'_>, CompressorError> {
         public_inputs_hash,
         ivc_bytes: &bytes[76..],
     })
+}
+
+/// Extract the final CycloFold accumulator state (z_i) from a compressed proof.
+///
+/// State layout: z[0]=hash, z[1]=escalated_norm, z[2]=fold_count,
+/// z[3]=ring_verif_count, z[4]=sigma_count, z[5]=z_s_proj_acc, z[6]=z_e_proj_acc.
+pub fn extract_cyclo_state(proof: &CompressedProof) -> Result<[Fr; 7], CompressorError> {
+    let parsed = parse_proof(&proof.0)?;
+    let ivc_proof = SonobeIvcProof::deserialize_with_mode(parsed.ivc_bytes, Compress::Yes, Validate::Yes)
+        .map_err(|_| CompressorError::InvalidProof)?;
+    if ivc_proof.z_i.len() != 7 {
+        return Err(CompressorError::InvalidProof);
+    }
+    let mut state = [Fr::zero(); 7];
+    for (i, val) in ivc_proof.z_i.iter().enumerate() {
+        state[i] = *val;
+    }
+    Ok(state)
 }
 
 fn decode_scalar(bytes: &[u8]) -> Result<Fr, CompressorError> {

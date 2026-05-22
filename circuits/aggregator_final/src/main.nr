@@ -492,3 +492,191 @@ fn test_tamper_epoch_zero() {
         [0; MAX_PARTICIPANTS],
     );
 }
+
+#[test(should_fail)]
+fn test_tamper_aggregate_pk_hash_zero() {
+    let n_participants = 3;
+    let threshold = 2;
+    let epoch = 1;
+
+    let mut d = make_zero_shares();
+    d[0] = [1, 0, 0, 0, 0, 0, 0, 0];
+    d[1] = [1, 0, 0, 0, 0, 0, 0, 0];
+    d[2] = [1, 0, 0, 0, 0, 0, 0, 0];
+
+    let mut committee_party_ids = [0; MAX_PARTICIPANTS];
+    committee_party_ids[0] = 1;
+    committee_party_ids[1] = 2;
+    committee_party_ids[2] = 3;
+
+    let ciphertext_hash = 42;
+    let aggregate_pk_hash = 0;
+    let decrypt_nizk_hash = 500;
+    let mut ps_hash_inputs = [0; MAX_PARTICIPANTS + 1];
+    ps_hash_inputs[0] = protocol_constants::DOMAIN_VECTOR_MERKLE;
+    for i in 0..MAX_PARTICIPANTS {
+        ps_hash_inputs[i + 1] = committee_party_ids[i];
+    }
+    let participant_set_hash = poseidon::poseidon::bn254::sponge(ps_hash_inputs);
+
+    let mut registered_share_hashes = [0; MAX_PARTICIPANTS];
+    for i in 0..3 {
+        registered_share_hashes[i] = vector_hash(d[i], protocol_constants::DOMAIN_DKG_SHARE_COMMIT);
+    }
+
+    main(
+        ciphertext_hash,
+        aggregate_pk_hash,
+        decrypt_nizk_hash,
+        999,
+        epoch,
+        participant_set_hash,
+        n_participants,
+        threshold,
+        
+        committee_party_ids,
+        d,
+        registered_share_hashes,
+    );
+}
+
+#[test(should_fail)]
+fn test_tamper_decrypt_nizk_hash_zero() {
+    let n_participants = 3;
+    let threshold = 2;
+    let epoch = 1;
+
+    let mut d = make_zero_shares();
+    d[0] = [1, 0, 0, 0, 0, 0, 0, 0];
+    d[1] = [1, 0, 0, 0, 0, 0, 0, 0];
+    d[2] = [1, 0, 0, 0, 0, 0, 0, 0];
+
+    let mut committee_party_ids = [0; MAX_PARTICIPANTS];
+    committee_party_ids[0] = 1;
+    committee_party_ids[1] = 2;
+    committee_party_ids[2] = 3;
+
+    let ciphertext_hash = 42;
+    let aggregate_pk_hash = 100;
+    let decrypt_nizk_hash = 0;
+    let mut ps_hash_inputs = [0; MAX_PARTICIPANTS + 1];
+    ps_hash_inputs[0] = protocol_constants::DOMAIN_VECTOR_MERKLE;
+    for i in 0..MAX_PARTICIPANTS {
+        ps_hash_inputs[i + 1] = committee_party_ids[i];
+    }
+    let participant_set_hash = poseidon::poseidon::bn254::sponge(ps_hash_inputs);
+
+    let mut registered_share_hashes = [0; MAX_PARTICIPANTS];
+    for i in 0..3 {
+        registered_share_hashes[i] = vector_hash(d[i], protocol_constants::DOMAIN_DKG_SHARE_COMMIT);
+    }
+
+    main(
+        ciphertext_hash,
+        aggregate_pk_hash,
+        decrypt_nizk_hash,
+        999,
+        epoch,
+        participant_set_hash,
+        n_participants,
+        threshold,
+        
+        committee_party_ids,
+        d,
+        registered_share_hashes,
+    );
+}
+
+#[test(should_fail)]
+fn test_tamper_dkg_transcript_hash_zero() {
+    let n_participants = 3;
+    let threshold = 2;
+    let epoch = 1;
+
+    let mut d = make_zero_shares();
+    d[0] = [1, 0, 0, 0, 0, 0, 0, 0];
+    d[1] = [1, 0, 0, 0, 0, 0, 0, 0];
+    d[2] = [1, 0, 0, 0, 0, 0, 0, 0];
+
+    let mut committee_party_ids = [0; MAX_PARTICIPANTS];
+    committee_party_ids[0] = 1;
+    committee_party_ids[1] = 2;
+    committee_party_ids[2] = 3;
+
+    let ciphertext_hash = 42;
+    let aggregate_pk_hash = 100;
+    let decrypt_nizk_hash = 500;
+    let mut ps_hash_inputs = [0; MAX_PARTICIPANTS + 1];
+    ps_hash_inputs[0] = protocol_constants::DOMAIN_VECTOR_MERKLE;
+    for i in 0..MAX_PARTICIPANTS {
+        ps_hash_inputs[i + 1] = committee_party_ids[i];
+    }
+    let participant_set_hash = poseidon::poseidon::bn254::sponge(ps_hash_inputs);
+
+    let mut registered_share_hashes = [0; MAX_PARTICIPANTS];
+    for i in 0..3 {
+        registered_share_hashes[i] = vector_hash(d[i], protocol_constants::DOMAIN_DKG_SHARE_COMMIT);
+    }
+
+    main(
+        ciphertext_hash,
+        aggregate_pk_hash,
+        decrypt_nizk_hash,
+        0,
+        epoch,
+        participant_set_hash,
+        n_participants,
+        threshold,
+        
+        committee_party_ids,
+        d,
+        registered_share_hashes,
+    );
+}
+
+#[test(should_fail)]
+fn test_tamper_registered_share_hashes() {
+    let n_participants = 3;
+    let threshold = 2;
+    let epoch = 1;
+
+    let mut d = make_zero_shares();
+    d[0] = [1, 0, 0, 0, 0, 0, 0, 0];
+    d[1] = [1, 0, 0, 0, 0, 0, 0, 0];
+    d[2] = [1, 0, 0, 0, 0, 0, 0, 0];
+
+    let mut committee_party_ids = [0; MAX_PARTICIPANTS];
+    committee_party_ids[0] = 1;
+    committee_party_ids[1] = 2;
+    committee_party_ids[2] = 3;
+
+    let ciphertext_hash = 42;
+    let aggregate_pk_hash = 100;
+    let decrypt_nizk_hash = 500;
+    let mut ps_hash_inputs = [0; MAX_PARTICIPANTS + 1];
+    ps_hash_inputs[0] = protocol_constants::DOMAIN_VECTOR_MERKLE;
+    for i in 0..MAX_PARTICIPANTS {
+        ps_hash_inputs[i + 1] = committee_party_ids[i];
+    }
+    let participant_set_hash = poseidon::poseidon::bn254::sponge(ps_hash_inputs);
+
+    let mut registered_share_hashes = [0; MAX_PARTICIPANTS];
+    for i in 0..3 {
+        registered_share_hashes[i] = vector_hash(d[i], protocol_constants::DOMAIN_DKG_SHARE_COMMIT) + 1;
+    }
+
+    main(
+        ciphertext_hash,
+        aggregate_pk_hash,
+        decrypt_nizk_hash,
+        999,
+        epoch,
+        participant_set_hash,
+        n_participants,
+        threshold,
+        
+        committee_party_ids,
+        d,
+        registered_share_hashes,
+    );
+}

@@ -144,6 +144,10 @@ pub struct PipelineReport {
     pub share_sig_ss: Vec<Fr>,
     /// G.12: Combined share hash from Nova-folded ShareVerificationStepCircuit.
     pub combined_share_hash: Fr,
+    /// Hash-chain 1.1: Poseidon hash over all NIZK proof bytes.
+    pub all_nizk_proof_hash: Fr,
+    /// Hash-chain 1.2: SHA-256→Fr hash of the compressed proof digest.
+    pub compressed_proof_hash: Fr,
     /// Per-party secret key commitments (Ajtai D2 hash of sk_i).
     /// Used to verify that NIZK proofs use the party's actual DKG secret key share.
     pub sk_commitments: Vec<[u8; 32]>,
@@ -684,6 +688,20 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             }
         }
     }
+
+    let all_nizk_proof_hash = {
+        let mut hash_inputs = Vec::with_capacity(nizk_outputs.len());
+        for (_party_id, _statement, _witness, proof) in &nizk_outputs {
+            hash_inputs.push(Fr::from_be_bytes_mod_order(
+                &Sha256::digest(&proof.proof_bytes)
+            ));
+        }
+        poseidon_sponge_native_noir(&hash_inputs)
+    };
+    tracing::info!(
+        "hash-chain 1.1: all_nizk_proof_hash bound {} proof(s) into NIZK→PVSS session",
+        nizk_outputs.len()
+    );
 
     observer.phase_start("pvss_share_encrypt", Some(PVSS_BACKEND_ID));
     let pvss_started = Instant::now();
@@ -1433,6 +1451,11 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     timings.phases.compressor_verify.total_ms = compressor_verify_ms;
     timings.phases.compressor_verify.instances_run = 1;
 
+    let compressed_proof_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(&compressed.digest));
+    tracing::info!(
+        "hash-chain 1.2: compressed_proof_hash bound into d_commitment session"
+    );
+
     #[cfg(feature = "sonobe-compressor")]
     {
         observer.phase_start("compressor_verify_external", Some(compressor.backend_id()));
@@ -1455,7 +1478,15 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let cyclo_state = {
         use pvthfhe_compressor::sonobe::extract_cyclo_state;
         compressed.sonobe_proof.as_ref()
-            .map(|p| extract_cyclo_state(p).unwrap_or([Fr::zero(); 7]))
+            .map(|p| {
+                match extract_cyclo_state(p) {
+                    Ok(state) => state,
+                    Err(e) => {
+                        tracing::warn!("cyclo state extraction failed: {e:?}, using zero state");
+                        [Fr::zero(); 7]
+                    }
+                }
+            })
             .unwrap_or([Fr::zero(); 7])
     };
     #[cfg(not(feature = "sonobe-compressor"))]
@@ -1508,7 +1539,13 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     // Build Prover.toml from current pipeline data
     let committee_party_ids_u32: Vec<u32> = (1..=share_coeffs.len()).map(|i| i as u32).collect();
     // G.4: Derive session_nonce from session_id (deterministic placeholder until Interfold E3)
-    let session_nonce = Fr::from_be_bytes_mod_order(&Sha256::digest(session_id.as_bytes()));
+    // Hash-chain 1.1: bind NIZK verification results into session_nonce
+    let session_nonce = {
+        let mut hasher = Sha256::new();
+        hasher.update(session_id.as_bytes());
+        hasher.update(&all_nizk_proof_hash.into_bigint().to_bytes_be());
+        Fr::from_be_bytes_mod_order(&hasher.finalize())
+    };
     let prover_toml = build_c7_prover_toml(
         &share_coeffs,
         &committee_party_ids_u32,
@@ -1522,6 +1559,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         Fr::from_be_bytes_mod_order(&Sha256::digest(
             format!("dkg-transcript-{session_id}").as_bytes()
         )),
+        compressed_proof_hash,
     );
     let mut noir_passed = true;
 
@@ -1602,7 +1640,12 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     }
 
     // G.4: Derive session_nonce from session_id (deterministic placeholder until Interfold E3)
-    let session_nonce = Fr::from_be_bytes_mod_order(&Sha256::digest(session_id.as_bytes()));
+    let session_nonce = {
+        let mut hasher = Sha256::new();
+        hasher.update(session_id.as_bytes());
+        hasher.update(&all_nizk_proof_hash.into_bigint().to_bytes_be());
+        Fr::from_be_bytes_mod_order(&hasher.finalize())
+    };
 
     // G.3: d_commitment end-to-end verification
     // session_nonce is now available (G.4). When the verifier can independently
@@ -1630,6 +1673,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         share_sig_rys,
         share_sig_ss,
         combined_share_hash,
+        all_nizk_proof_hash,
+        compressed_proof_hash,
         sk_commitments,
         sk_bindings: registered_sk_bindings,
         dkg_verified,
@@ -2444,6 +2489,7 @@ pub fn build_c7_prover_toml(
     share_sig_rs: &[Fr],          // G.12: Per-party Schnorr signature R-points
     share_sig_ss: &[Fr],          // G.12: Per-party Schnorr signature s-values
     dkg_transcript_hash: Fr,
+    compressed_proof_hash: Fr,
 ) -> String {
     let n_participants = committee_party_ids.len();
     let threshold = n_participants - 1;
@@ -2500,6 +2546,8 @@ pub fn build_c7_prover_toml(
             decrypt_nizk_hash_field,
             // Ciphertext provenance (G.13)
             ciphertext_hash,
+            // Compressed proof binding (hash-chain 1.2)
+            compressed_proof_hash,
             // Keygen transcript (from DKG ceremony)
             keygen_transcript_hash,
         ])
@@ -2769,6 +2817,7 @@ mod tests {
             &[],
             &[],
             &[],
+            Fr::from(0u64),
             Fr::from(0u64),
         );
 

@@ -38,9 +38,9 @@ use num_traits::ToPrimitive;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Smudging noise standard deviation per coefficient.
-/// σ_smudge = 2^40 · σ_err ≈ 3.506 × 10^12.
-/// See `.sisyphus/design/smudging.md` §4 for derivation.
-const SIGMA_SMUDGE: f64 = 3_506_204_876_800.0;
+/// σ_smudge = 2^44 · σ_err ≈ 5.610 × 10^13 (IND-CPAD §G.26).
+/// Raised from 2^40 for 128-bit security with unlimited queries.
+const SIGMA_SMUDGE: f64 = 56_099_278_028_800.0;
 
 /// Per-party state retained across protocol rounds.
 #[derive(Zeroize, ZeroizeOnDrop)]

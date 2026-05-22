@@ -332,8 +332,30 @@ pub struct CycloRingWitness<F: PrimeField> {
     pub challenge: F,
 }
 
+struct AutoClear<T: Default> {
+    data: std::cell::RefCell<T>,
+}
+
+impl<T: Default> AutoClear<T> {
+    const fn new(value: T) -> Self {
+        Self {
+            data: std::cell::RefCell::new(value),
+        }
+    }
+
+    fn inner(&self) -> &std::cell::RefCell<T> {
+        &self.data
+    }
+}
+
+impl<T: Default> Drop for AutoClear<T> {
+    fn drop(&mut self) {
+        *self.data.borrow_mut() = T::default();
+    }
+}
+
 thread_local! {
-    pub(crate) static CYCLO_RING_DATA: std::cell::RefCell<Vec<CycloRingWitness<ark_bn254::Fr>>> = std::cell::RefCell::new(Vec::new());
+    pub(crate) static CYCLO_RING_DATA: AutoClear<Vec<CycloRingWitness<ark_bn254::Fr>>> = AutoClear::new(Vec::new());
 }
 
 /// Per-step sigma NIZK witness data for G7 in-circuit verification.
@@ -376,21 +398,21 @@ const SIGMA_RNS_MODULI: [u64; 3] = [
 ];
 
 thread_local! {
-    pub(crate) static SIGMA_DATA: std::cell::RefCell<Vec<SigmaWitness<ark_bn254::Fr>>> = std::cell::RefCell::new(Vec::new());
+    pub(crate) static SIGMA_DATA: AutoClear<Vec<SigmaWitness<ark_bn254::Fr>>> = AutoClear::new(Vec::new());
 }
 
 thread_local! {
     /// Per-step sigma response data for CycloFoldStepCircuit norm enforcement (G7b-laBRADOR).
     /// Each entry: (z_s_coeffs, z_e_coeffs, p_s_proj, p_e_proj, jl_entries)
-    pub static SIGMA_RESPONSE_DATA: std::cell::RefCell<Vec<(Vec<i64>, Vec<i64>, Vec<i64>, Vec<i64>, Vec<Vec<(usize, bool)>>)>> = std::cell::RefCell::new(Vec::new());
+    pub static SIGMA_RESPONSE_DATA: AutoClear<Vec<(Vec<i64>, Vec<i64>, Vec<i64>, Vec<i64>, Vec<Vec<(usize, bool)>>)>> = AutoClear::new(Vec::new());
 }
 
 pub fn set_sigma_response_data(responses: Vec<(Vec<i64>, Vec<i64>, Vec<i64>, Vec<i64>, Vec<Vec<(usize, bool)>>)>) {
-    SIGMA_RESPONSE_DATA.with(|cell| *cell.borrow_mut() = responses);
+    SIGMA_RESPONSE_DATA.with(|cell| *cell.inner().borrow_mut() = responses);
 }
 
 pub fn clear_sigma_response_data() {
-    SIGMA_RESPONSE_DATA.with(|cell| cell.borrow_mut().clear());
+    SIGMA_RESPONSE_DATA.with(|cell| cell.inner().borrow_mut().clear());
 }
 
 #[inline]
@@ -401,7 +423,7 @@ fn fr_to_f<F: PrimeField>(fr: &ark_bn254::Fr) -> F {
 
 fn cyclo_witness_or_default<F: PrimeField>(step: usize) -> (Vec<F>, Vec<F>, Vec<F>, Vec<F>, F) {
     CYCLO_RING_DATA.with(|cell| {
-        let ring_data = cell.borrow();
+        let ring_data = cell.inner().borrow();
         let witness_opt = ring_data
             .get(step)
             .or_else(|| step.checked_sub(1).and_then(|zero_based| ring_data.get(zero_based)));
@@ -423,26 +445,39 @@ fn cyclo_witness_or_default<F: PrimeField>(step: usize) -> (Vec<F>, Vec<F>, Vec<
 
 pub fn set_cyclo_ring_data(witnesses: Vec<CycloRingWitness<ark_bn254::Fr>>) {
     CYCLO_RING_DATA.with(|cell| {
-        *cell.borrow_mut() = witnesses;
+        *cell.inner().borrow_mut() = witnesses;
     });
 }
 
 pub fn clear_cyclo_ring_data() {
     CYCLO_RING_DATA.with(|cell| {
-        cell.borrow_mut().clear();
+        cell.inner().borrow_mut().clear();
     });
 }
 
 pub fn set_sigma_data(witnesses: Vec<SigmaWitness<ark_bn254::Fr>>) {
     SIGMA_DATA.with(|cell| {
-        *cell.borrow_mut() = witnesses;
+        *cell.inner().borrow_mut() = witnesses;
     });
 }
 
 pub fn clear_sigma_data() {
     SIGMA_DATA.with(|cell| {
-        cell.borrow_mut().clear();
+        cell.inner().borrow_mut().clear();
     });
+}
+
+/// RAII guard that clears thread-local witness data on drop.
+/// Ensures stale data from a panicked prove/prove_steps run doesn't
+/// contaminate the next run on the same thread.
+struct ThreadLocalClearGuard;
+
+impl Drop for ThreadLocalClearGuard {
+    fn drop(&mut self) {
+        clear_cyclo_ring_data();
+        clear_sigma_data();
+        clear_sigma_response_data();
+    }
 }
 
 /// Perform G7 sigma equation verification in-circuit.
@@ -461,7 +496,7 @@ fn sigma_verify_step<F: PrimeField>(
     step: usize,
 ) -> Result<FpVar<F>, SynthesisError> {
     let has_data = SIGMA_DATA.with(|cell| {
-        let data = cell.borrow();
+        let data = cell.inner().borrow();
         let witness_opt = data.get(step).or_else(|| step.checked_sub(1).and_then(|zb| data.get(zb)));
         witness_opt.is_some()
     });
@@ -472,7 +507,7 @@ fn sigma_verify_step<F: PrimeField>(
 
     // Allocate witness variables from sigma data and enforce equation
     SIGMA_DATA.with(|cell| {
-        let data = cell.borrow();
+        let data = cell.inner().borrow();
         let witness_opt = data.get(step).or_else(|| step.checked_sub(1).and_then(|zb| data.get(zb)));
         let w = match witness_opt {
             Some(w) => w,
@@ -595,7 +630,7 @@ fn sigma_verify_step<F: PrimeField>(
 
                 // G7b-laBRADOR: JL projection constraint.
                 let (p_s_vec, p_e_vec, jl_entries) = SIGMA_RESPONSE_DATA.with(|cell| {
-                    let data = cell.borrow();
+                    let data = cell.inner().borrow();
                     if let Some((_, _, ref p_s, ref p_e, ref entries)) = data.get(step) {
                         (p_s.clone(), p_e.clone(), entries.clone())
                     } else {
@@ -798,7 +833,7 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
         // Full in-circuit projection constraint requires ~175K additional constraints
         // (sparse JL matrix × N witness elements) — deferred to follow-up.
         let (z_s_proj_acc, z_e_proj_acc) = SIGMA_RESPONSE_DATA.with(|cell| {
-            let data = cell.borrow();
+            let data = cell.inner().borrow();
             if let Some((_, _, ref p_s, ref p_e, ..)) = data.get(_i) {
                 let p_s_vars: Vec<FpVar<F>> = p_s.iter()
                     .map(|&p| FpVar::new_witness(cs.clone(), || Ok(F::from(p.unsigned_abs()))).unwrap())
@@ -995,6 +1030,8 @@ impl<
         clear_cyclo_ring_data();
         clear_sigma_data();
 
+        let _guard = ThreadLocalClearGuard;
+
         let initial = decode_triple(acc)?;
         let delta = decode_triple(public_inputs)?;
         let params = self.deserialize_params()?;
@@ -1059,78 +1096,12 @@ impl<
             return Ok(false);
         }
 
-        let ivc_proof =
-            SonobeIvcProof::deserialize_with_mode(parsed.ivc_bytes, Compress::Yes, Validate::Yes)
-                .map_err(|_| CompressorError::InvalidProof)?;
-
-        if ivc_proof.z_0.len() != self.state_len || ivc_proof.z_i.len() != self.state_len {
-            return Ok(false);
-        }
-
-        if normalized_hash(&encode_triple((
-            ivc_proof.z_0[0],
-            ivc_proof.z_0[1],
-            ivc_proof.z_0[2],
-        )))? != parsed.acc_hash
-        {
-            return Ok(false);
-        }
-
-        let verifier = SonobeNova::<S>::vp_deserialize_with_mode(
-            self.verifier_key_bytes.as_slice(),
-            Compress::Yes,
-            Validate::Yes,
-            (),
+        verify_ivc_core::<S>(
+            &parsed,
+            self.state_len,
+            &self.verifier_key_bytes,
+            |z| normalized_hash(&encode_triple((z[0], z[1], z[2]))),
         )
-        .map_err(|_| CompressorError::Backend("sonobe verifier key deserialization failed"))?;
-
-        // G.30: Counter consistency enforcement.
-        // Track A: counters always increment (ring_inc = FpVar::one()), even with zero data.
-        // Track B: counters only increment when real verification data was set via thread-locals.
-        // The fold_count == verification_count check ensures the prover ran each step,
-        // but does NOT guarantee actual verification data was present (that's a Track A/B distinction).
-        let ring_check = if self.state_len >= 4 {
-            Some((ivc_proof.z_i[2], ivc_proof.z_i[3]))
-        } else {
-            None
-        };
-
-        let sigma_check = if self.state_len >= 5 {
-            Some((ivc_proof.z_i[2], ivc_proof.z_i[4]))
-        } else {
-            None
-        };
-
-        if let Err(e) = SonobeNova::<S>::verify(verifier, ivc_proof) { tracing::warn!("Nova::verify failed: {:?}", e);
-            return Ok(false);
-        }
-
-        if let Some((fold_count, verification_count)) = ring_check {
-            if fold_count != verification_count { tracing::warn!("fold_count {:?} != verification_count {:?}", fold_count, verification_count);
-                return Ok(false);
-            }
-        }
-
-        if let Some((fold_count, sigma_count)) = sigma_check {
-            if fold_count != sigma_count { tracing::warn!("fold_count {:?} != sigma_verification_count {:?}", fold_count, sigma_count);
-                return Ok(false);
-            }
-        }
-
-        // G.30: When counters are non-zero but verification data might not have been set (Track A),
-        // log but don't reject — Track A mode is valid.
-        if let Some((fold_count, ring_verif)) = ring_check {
-            if fold_count != Fr::from(0u64) {
-                tracing::debug!(
-                    "G.30 counters: fold_count={:?}, ring_verif={:?}, sigma={:?}",
-                    fold_count,
-                    ring_verif,
-                    sigma_check.map(|(_, s)| s)
-                );
-            }
-        }
-
-        Ok(true)
     }
 
     fn backend_id(&self) -> &str {
@@ -1155,6 +1126,8 @@ impl ProofCompressor for SonobeCompressor<CycloFoldStepCircuit<Fr>> {
         clear_cyclo_ring_data();
         clear_sigma_data();
         clear_sigma_response_data();
+
+        let _guard = ThreadLocalClearGuard;
 
         let initial = decode_hex(acc)?;
         let delta = decode_quad(public_inputs)?;
@@ -1225,82 +1198,12 @@ impl ProofCompressor for SonobeCompressor<CycloFoldStepCircuit<Fr>> {
             return Ok(false);
         }
 
-        let ivc_proof =
-            SonobeIvcProof::deserialize_with_mode(parsed.ivc_bytes, Compress::Yes, Validate::Yes)
-                .map_err(|_| CompressorError::InvalidProof)?;
-
-        if ivc_proof.z_0.len() != self.state_len || ivc_proof.z_i.len() != self.state_len {
-            return Ok(false);
-        }
-
-        if normalized_hash(&encode_hex((
-            ivc_proof.z_0[0],
-            ivc_proof.z_0[1],
-            ivc_proof.z_0[2],
-            ivc_proof.z_0[3],
-            ivc_proof.z_0[4],
-            ivc_proof.z_0[5],
-            ivc_proof.z_0[6],
-        )))? != parsed.acc_hash
-        {
-            return Ok(false);
-        }
-
-        let verifier = SonobeNova::<CycloFoldStepCircuit<Fr>>::vp_deserialize_with_mode(
-            self.verifier_key_bytes.as_slice(),
-            Compress::Yes,
-            Validate::Yes,
-            (),
+        verify_ivc_core::<CycloFoldStepCircuit<Fr>>(
+            &parsed,
+            self.state_len,
+            &self.verifier_key_bytes,
+            |z| normalized_hash(&encode_hex((z[0], z[1], z[2], z[3], z[4], z[5], z[6]))),
         )
-        .map_err(|_| CompressorError::Backend("sonobe verifier key deserialization failed"))?;
-
-        // G.30: Counter consistency enforcement.
-        // Track A: counters always increment (ring_inc = FpVar::one()), even with zero data.
-        // Track B: counters only increment when real verification data was set via thread-locals.
-        // The fold_count == verification_count check ensures the prover ran each step,
-        // but does NOT guarantee actual verification data was present (that's a Track A/B distinction).
-        let ring_check = if self.state_len >= 4 {
-            Some((ivc_proof.z_i[2], ivc_proof.z_i[3]))
-        } else {
-            None
-        };
-
-        let sigma_check = if self.state_len >= 5 {
-            Some((ivc_proof.z_i[2], ivc_proof.z_i[4]))
-        } else {
-            None
-        };
-
-        if let Err(e) = SonobeNova::<CycloFoldStepCircuit<Fr>>::verify(verifier, ivc_proof) { tracing::warn!("Nova::verify failed: {:?}", e);
-            return Ok(false);
-        }
-
-        if let Some((fold_count, verification_count)) = ring_check {
-            if fold_count != verification_count { tracing::warn!("fold_count {:?} != verification_count {:?}", fold_count, verification_count);
-                return Ok(false);
-            }
-        }
-
-        if let Some((fold_count, sigma_count)) = sigma_check {
-            if fold_count != sigma_count { tracing::warn!("fold_count {:?} != sigma_verification_count {:?}", fold_count, sigma_count);
-                return Ok(false);
-            }
-        }
-
-        // G.30: When counters are non-zero but verification data might not have been set (Track A),
-        // log but don't reject — Track A mode is valid.
-        if let Some((fold_count, ring_verif)) = ring_check {
-            if fold_count != Fr::from(0u64) {
-                tracing::debug!(
-                    "G.30 counters: fold_count={:?}, ring_verif={:?}, sigma={:?}",
-                    fold_count,
-                    ring_verif,
-                    sigma_check.map(|(_, s)| s)
-                );
-            }
-        }
-
-        Ok(true)
     }
 
     fn backend_id(&self) -> &str {
@@ -1334,80 +1237,12 @@ impl<
             return Ok(false);
         }
 
-        let ivc_proof =
-            SonobeIvcProof::deserialize_with_mode(parsed.ivc_bytes, Compress::Yes, Validate::Yes)
-                .map_err(|_| CompressorError::InvalidProof)?;
-
-        if ivc_proof.z_0.len() != self.state_len || ivc_proof.z_i.len() != self.state_len {
-            return Ok(false);
-        }
-
-        if normalized_hash(&encode_triple((
-            ivc_proof.z_0[0],
-            ivc_proof.z_0[1],
-            ivc_proof.z_0[2],
-        )))? != parsed.acc_hash
-        {
-            return Ok(false);
-        }
-
-        let verifier = SonobeNova::<S>::vp_deserialize_with_mode(
-            self.verifier_key_bytes.as_slice(),
-            Compress::Yes,
-            Validate::Yes,
-            (),
+        verify_ivc_core::<S>(
+            &parsed,
+            self.state_len,
+            &self.verifier_key_bytes,
+            |z| normalized_hash(&encode_triple((z[0], z[1], z[2]))),
         )
-        .map_err(|_| CompressorError::Backend(
-            "sonobe external verifier key deserialization failed",
-        ))?;
-
-        // G.30: Counter consistency enforcement.
-        // Track A: counters always increment (ring_inc = FpVar::one()), even with zero data.
-        // Track B: counters only increment when real verification data was set via thread-locals.
-        // The fold_count == verification_count check ensures the prover ran each step,
-        // but does NOT guarantee actual verification data was present (that's a Track A/B distinction).
-        let ring_check = if self.state_len >= 4 {
-            Some((ivc_proof.z_i[2], ivc_proof.z_i[3]))
-        } else {
-            None
-        };
-
-        let sigma_check = if self.state_len >= 5 {
-            Some((ivc_proof.z_i[2], ivc_proof.z_i[4]))
-        } else {
-            None
-        };
-
-        if let Err(e) = SonobeNova::<S>::verify(verifier, ivc_proof) { tracing::warn!("Nova::verify failed: {:?}", e);
-            return Ok(false);
-        }
-
-        if let Some((fold_count, verification_count)) = ring_check {
-            if fold_count != verification_count { tracing::warn!("fold_count {:?} != verification_count {:?}", fold_count, verification_count);
-                return Ok(false);
-            }
-        }
-
-        if let Some((fold_count, sigma_count)) = sigma_check {
-            if fold_count != sigma_count { tracing::warn!("fold_count {:?} != sigma_verification_count {:?}", fold_count, sigma_count);
-                return Ok(false);
-            }
-        }
-
-        // G.30: When counters are non-zero but verification data might not have been set (Track A),
-        // log but don't reject — Track A mode is valid.
-        if let Some((fold_count, ring_verif)) = ring_check {
-            if fold_count != Fr::from(0u64) {
-                tracing::debug!(
-                    "G.30 counters: fold_count={:?}, ring_verif={:?}, sigma={:?}",
-                    fold_count,
-                    ring_verif,
-                    sigma_check.map(|(_, s)| s)
-                );
-            }
-        }
-
-        Ok(true)
     }
 
     pub fn prove_steps(
@@ -1417,6 +1252,8 @@ impl<
     ) -> Result<CompressedProof, CompressorError> {
         clear_cyclo_ring_data();
         clear_sigma_data();
+
+        let _guard = ThreadLocalClearGuard;
 
         assert_eq!(
             steps.len(),
@@ -1499,78 +1336,12 @@ impl<
             return Ok(false);
         }
 
-        let ivc_proof =
-            SonobeIvcProof::deserialize_with_mode(parsed.ivc_bytes, Compress::Yes, Validate::Yes)
-                .map_err(|_| CompressorError::InvalidProof)?;
-
-        if ivc_proof.z_0.len() != self.state_len || ivc_proof.z_i.len() != self.state_len {
-            return Ok(false);
-        }
-
-        if normalized_hash(&encode_triple((
-            ivc_proof.z_0[0],
-            ivc_proof.z_0[1],
-            ivc_proof.z_0[2],
-        )))? != parsed.acc_hash
-        {
-            return Ok(false);
-        }
-
-        let verifier = SonobeNova::<S>::vp_deserialize_with_mode(
-            self.verifier_key_bytes.as_slice(),
-            Compress::Yes,
-            Validate::Yes,
-            (),
+        verify_ivc_core::<S>(
+            &parsed,
+            self.state_len,
+            &self.verifier_key_bytes,
+            |z| normalized_hash(&encode_triple((z[0], z[1], z[2]))),
         )
-        .map_err(|_| CompressorError::Backend("sonobe verifier key deserialization failed"))?;
-
-        // G.30: Counter consistency enforcement.
-        // Track A: counters always increment (ring_inc = FpVar::one()), even with zero data.
-        // Track B: counters only increment when real verification data was set via thread-locals.
-        // The fold_count == verification_count check ensures the prover ran each step,
-        // but does NOT guarantee actual verification data was present (that's a Track A/B distinction).
-        let ring_check = if self.state_len >= 4 {
-            Some((ivc_proof.z_i[2], ivc_proof.z_i[3]))
-        } else {
-            None
-        };
-
-        let sigma_check = if self.state_len >= 5 {
-            Some((ivc_proof.z_i[2], ivc_proof.z_i[4]))
-        } else {
-            None
-        };
-
-        if let Err(e) = SonobeNova::<S>::verify(verifier, ivc_proof) { tracing::warn!("Nova::verify failed: {:?}", e);
-            return Ok(false);
-        }
-
-        if let Some((fold_count, verification_count)) = ring_check {
-            if fold_count != verification_count { tracing::warn!("fold_count {:?} != verification_count {:?}", fold_count, verification_count);
-                return Ok(false);
-            }
-        }
-
-        if let Some((fold_count, sigma_count)) = sigma_check {
-            if fold_count != sigma_count { tracing::warn!("fold_count {:?} != sigma_verification_count {:?}", fold_count, sigma_count);
-                return Ok(false);
-            }
-        }
-
-        // G.30: When counters are non-zero but verification data might not have been set (Track A),
-        // log but don't reject — Track A mode is valid.
-        if let Some((fold_count, ring_verif)) = ring_check {
-            if fold_count != Fr::from(0u64) {
-                tracing::debug!(
-                    "G.30 counters: fold_count={:?}, ring_verif={:?}, sigma={:?}",
-                    fold_count,
-                    ring_verif,
-                    sigma_check.map(|(_, s)| s)
-                );
-            }
-        }
-
-        Ok(true)
     }
 }
 
@@ -1586,84 +1357,12 @@ impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
             return Ok(false);
         }
 
-        let ivc_proof =
-            SonobeIvcProof::deserialize_with_mode(parsed.ivc_bytes, Compress::Yes, Validate::Yes)
-                .map_err(|_| CompressorError::InvalidProof)?;
-
-        if ivc_proof.z_0.len() != self.state_len || ivc_proof.z_i.len() != self.state_len {
-            return Ok(false);
-        }
-
-        if normalized_hash(&encode_hex((
-            ivc_proof.z_0[0],
-            ivc_proof.z_0[1],
-            ivc_proof.z_0[2],
-            ivc_proof.z_0[3],
-            ivc_proof.z_0[4],
-            ivc_proof.z_0[5],
-            ivc_proof.z_0[6],
-        )))? != parsed.acc_hash
-        {
-            return Ok(false);
-        }
-
-        let verifier = SonobeNova::<CycloFoldStepCircuit<Fr>>::vp_deserialize_with_mode(
-            self.verifier_key_bytes.as_slice(),
-            Compress::Yes,
-            Validate::Yes,
-            (),
+        verify_ivc_core::<CycloFoldStepCircuit<Fr>>(
+            &parsed,
+            self.state_len,
+            &self.verifier_key_bytes,
+            |z| normalized_hash(&encode_hex((z[0], z[1], z[2], z[3], z[4], z[5], z[6]))),
         )
-        .map_err(|_| CompressorError::Backend(
-            "sonobe external verifier key deserialization failed",
-        ))?;
-
-        // G.30: Counter consistency enforcement.
-        // Track A: counters always increment (ring_inc = FpVar::one()), even with zero data.
-        // Track B: counters only increment when real verification data was set via thread-locals.
-        // The fold_count == verification_count check ensures the prover ran each step,
-        // but does NOT guarantee actual verification data was present (that's a Track A/B distinction).
-        let ring_check = if self.state_len >= 4 {
-            Some((ivc_proof.z_i[2], ivc_proof.z_i[3]))
-        } else {
-            None
-        };
-
-        let sigma_check = if self.state_len >= 5 {
-            Some((ivc_proof.z_i[2], ivc_proof.z_i[4]))
-        } else {
-            None
-        };
-
-        if let Err(e) = SonobeNova::<CycloFoldStepCircuit<Fr>>::verify(verifier, ivc_proof) { tracing::warn!("Nova::verify failed: {:?}", e);
-            return Ok(false);
-        }
-
-        if let Some((fold_count, verification_count)) = ring_check {
-            if fold_count != verification_count { tracing::warn!("fold_count {:?} != verification_count {:?}", fold_count, verification_count);
-                return Ok(false);
-            }
-        }
-
-        if let Some((fold_count, sigma_count)) = sigma_check {
-            if fold_count != sigma_count { tracing::warn!("fold_count {:?} != sigma_verification_count {:?}", fold_count, sigma_count);
-                return Ok(false);
-            }
-        }
-
-        // G.30: When counters are non-zero but verification data might not have been set (Track A),
-        // log but don't reject — Track A mode is valid.
-        if let Some((fold_count, ring_verif)) = ring_check {
-            if fold_count != Fr::from(0u64) {
-                tracing::debug!(
-                    "G.30 counters: fold_count={:?}, ring_verif={:?}, sigma={:?}",
-                    fold_count,
-                    ring_verif,
-                    sigma_check.map(|(_, s)| s)
-                );
-            }
-        }
-
-        Ok(true)
     }
 
     pub fn prove_steps(
@@ -1674,6 +1373,8 @@ impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
         clear_cyclo_ring_data();
         clear_sigma_data();
         clear_sigma_response_data();
+
+        let _guard = ThreadLocalClearGuard;
 
         assert_eq!(
             steps.len(),
@@ -1747,6 +1448,7 @@ impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
         acc: &[u8],
         witnesses: &crate::witness::ShareVerificationWitnessSet,
     ) -> Result<CompressedProof, CompressorError> {
+        let _guard = ThreadLocalClearGuard;
         if !witnesses.verify_commitments() {
             return Err(CompressorError::InvalidProof);
         }
@@ -1776,6 +1478,7 @@ impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
         acc: &[u8],
         witnesses: &crate::witness::AjtaiCommitmentWitnessSet,
     ) -> Result<CompressedProof, CompressorError> {
+        let _guard = ThreadLocalClearGuard;
         use crate::sonobe::ajtai_commitment_circuit::{set_ajtai_witness_data, clear_ajtai_witness_data};
 
         if !witnesses.verify_commitments() {
@@ -1829,82 +1532,12 @@ impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
             return Ok(false);
         }
 
-        let ivc_proof =
-            SonobeIvcProof::deserialize_with_mode(parsed.ivc_bytes, Compress::Yes, Validate::Yes)
-                .map_err(|_| CompressorError::InvalidProof)?;
-
-        if ivc_proof.z_0.len() != self.state_len || ivc_proof.z_i.len() != self.state_len {
-            return Ok(false);
-        }
-
-        if normalized_hash(&encode_hex((
-            ivc_proof.z_0[0],
-            ivc_proof.z_0[1],
-            ivc_proof.z_0[2],
-            ivc_proof.z_0[3],
-            ivc_proof.z_0[4],
-            ivc_proof.z_0[5],
-            ivc_proof.z_0[6],
-        )))? != parsed.acc_hash
-        {
-            return Ok(false);
-        }
-
-        let verifier = SonobeNova::<CycloFoldStepCircuit<Fr>>::vp_deserialize_with_mode(
-            self.verifier_key_bytes.as_slice(),
-            Compress::Yes,
-            Validate::Yes,
-            (),
+        verify_ivc_core::<CycloFoldStepCircuit<Fr>>(
+            &parsed,
+            self.state_len,
+            &self.verifier_key_bytes,
+            |z| normalized_hash(&encode_hex((z[0], z[1], z[2], z[3], z[4], z[5], z[6]))),
         )
-        .map_err(|_| CompressorError::Backend("sonobe verifier key deserialization failed"))?;
-
-        // G.30: Counter consistency enforcement.
-        // Track A: counters always increment (ring_inc = FpVar::one()), even with zero data.
-        // Track B: counters only increment when real verification data was set via thread-locals.
-        // The fold_count == verification_count check ensures the prover ran each step,
-        // but does NOT guarantee actual verification data was present (that's a Track A/B distinction).
-        let ring_check = if self.state_len >= 4 {
-            Some((ivc_proof.z_i[2], ivc_proof.z_i[3]))
-        } else {
-            None
-        };
-
-        let sigma_check = if self.state_len >= 5 {
-            Some((ivc_proof.z_i[2], ivc_proof.z_i[4]))
-        } else {
-            None
-        };
-
-        if let Err(e) = SonobeNova::<CycloFoldStepCircuit<Fr>>::verify(verifier, ivc_proof) { tracing::warn!("Nova::verify failed: {:?}", e);
-            return Ok(false);
-        }
-
-        if let Some((fold_count, verification_count)) = ring_check {
-            if fold_count != verification_count { tracing::warn!("fold_count {:?} != verification_count {:?}", fold_count, verification_count);
-                return Ok(false);
-            }
-        }
-
-        if let Some((fold_count, sigma_count)) = sigma_check {
-            if fold_count != sigma_count { tracing::warn!("fold_count {:?} != sigma_verification_count {:?}", fold_count, sigma_count);
-                return Ok(false);
-            }
-        }
-
-        // G.30: When counters are non-zero but verification data might not have been set (Track A),
-        // log but don't reject — Track A mode is valid.
-        if let Some((fold_count, ring_verif)) = ring_check {
-            if fold_count != Fr::from(0u64) {
-                tracing::debug!(
-                    "G.30 counters: fold_count={:?}, ring_verif={:?}, sigma={:?}",
-                    fold_count,
-                    ring_verif,
-                    sigma_check.map(|(_, s)| s)
-                );
-            }
-        }
-
-        Ok(true)
     }
 }
 
@@ -1924,6 +1557,7 @@ impl<
         acc: &[u8],
         steps: &[C7MerkleExternalInputs<Fr>],
     ) -> Result<CompressedProof, CompressorError> {
+        let _guard = ThreadLocalClearGuard;
         assert_eq!(
             steps.len(),
             self.ivc_steps,
@@ -2009,78 +1643,12 @@ impl<
             return Ok(false);
         }
 
-        let ivc_proof =
-            SonobeIvcProof::deserialize_with_mode(parsed.ivc_bytes, Compress::Yes, Validate::Yes)
-                .map_err(|_| CompressorError::InvalidProof)?;
-
-        if ivc_proof.z_0.len() != self.state_len || ivc_proof.z_i.len() != self.state_len {
-            return Ok(false);
-        }
-
-        if normalized_hash(&encode_triple((
-            ivc_proof.z_0[0],
-            ivc_proof.z_0[1],
-            ivc_proof.z_0[2],
-        )))? != parsed.acc_hash
-        {
-            return Ok(false);
-        }
-
-        let verifier = SonobeNova::<S>::vp_deserialize_with_mode(
-            self.verifier_key_bytes.as_slice(),
-            Compress::Yes,
-            Validate::Yes,
-            (),
+        verify_ivc_core::<S>(
+            &parsed,
+            self.state_len,
+            &self.verifier_key_bytes,
+            |z| normalized_hash(&encode_triple((z[0], z[1], z[2]))),
         )
-        .map_err(|_| CompressorError::Backend("sonobe verifier key deserialization failed"))?;
-
-        // G.30: Counter consistency enforcement.
-        // Track A: counters always increment (ring_inc = FpVar::one()), even with zero data.
-        // Track B: counters only increment when real verification data was set via thread-locals.
-        // The fold_count == verification_count check ensures the prover ran each step,
-        // but does NOT guarantee actual verification data was present (that's a Track A/B distinction).
-        let ring_check = if self.state_len >= 4 {
-            Some((ivc_proof.z_i[2], ivc_proof.z_i[3]))
-        } else {
-            None
-        };
-
-        let sigma_check = if self.state_len >= 5 {
-            Some((ivc_proof.z_i[2], ivc_proof.z_i[4]))
-        } else {
-            None
-        };
-
-        if let Err(e) = SonobeNova::<S>::verify(verifier, ivc_proof) { tracing::warn!("Nova::verify failed: {:?}", e);
-            return Ok(false);
-        }
-
-        if let Some((fold_count, verification_count)) = ring_check {
-            if fold_count != verification_count { tracing::warn!("fold_count {:?} != verification_count {:?}", fold_count, verification_count);
-                return Ok(false);
-            }
-        }
-
-        if let Some((fold_count, sigma_count)) = sigma_check {
-            if fold_count != sigma_count { tracing::warn!("fold_count {:?} != sigma_verification_count {:?}", fold_count, sigma_count);
-                return Ok(false);
-            }
-        }
-
-        // G.30: When counters are non-zero but verification data might not have been set (Track A),
-        // log but don't reject — Track A mode is valid.
-        if let Some((fold_count, ring_verif)) = ring_check {
-            if fold_count != Fr::from(0u64) {
-                tracing::debug!(
-                    "G.30 counters: fold_count={:?}, ring_verif={:?}, sigma={:?}",
-                    fold_count,
-                    ring_verif,
-                    sigma_check.map(|(_, s)| s)
-                );
-            }
-        }
-
-        Ok(true)
     }
 }
 
@@ -2100,6 +1668,7 @@ impl<
         acc: &[u8],
         steps: &[ExternalInputs5<Fr>],
     ) -> Result<CompressedProof, CompressorError> {
+        let _guard = ThreadLocalClearGuard;
         assert_eq!(
             steps.len(),
             self.ivc_steps,
@@ -2185,79 +1754,96 @@ impl<
             return Ok(false);
         }
 
-        let ivc_proof =
-            SonobeIvcProof::deserialize_with_mode(parsed.ivc_bytes, Compress::Yes, Validate::Yes)
-                .map_err(|_| CompressorError::InvalidProof)?;
-
-        if ivc_proof.z_0.len() != self.state_len || ivc_proof.z_i.len() != self.state_len {
-            return Ok(false);
-        }
-
-        if normalized_hash(&encode_triple((
-            ivc_proof.z_0[0],
-            ivc_proof.z_0[1],
-            ivc_proof.z_0[2],
-        )))? != parsed.acc_hash
-        {
-            return Ok(false);
-        }
-
-        let verifier = SonobeNova::<S>::vp_deserialize_with_mode(
-            self.verifier_key_bytes.as_slice(),
-            Compress::Yes,
-            Validate::Yes,
-            (),
+        verify_ivc_core::<S>(
+            &parsed,
+            self.state_len,
+            &self.verifier_key_bytes,
+            |z| normalized_hash(&encode_triple((z[0], z[1], z[2]))),
         )
-        .map_err(|_| CompressorError::Backend("sonobe verifier key deserialization failed"))?;
+    }
+}
 
-        // G.30: Counter consistency enforcement.
-        // Track A: counters always increment (ring_inc = FpVar::one()), even with zero data.
-        // Track B: counters only increment when real verification data was set via thread-locals.
-        // The fold_count == verification_count check ensures the prover ran each step,
-        // but does NOT guarantee actual verification data was present (that's a Track A/B distinction).
-        let ring_check = if self.state_len >= 4 {
-            Some((ivc_proof.z_i[2], ivc_proof.z_i[3]))
-        } else {
-            None
-        };
+/// Verify IVC proof and enforce G.30 counter consistency.
+///
+/// After the caller validates the proof header (magic, version, public_inputs_hash),
+/// this function deserializes the IVC proof, checks state lengths and `acc_hash`,
+/// deserializes the verifier key, verifies the Nova proof, and enforces counter
+/// consistency (ring_count, sigma_count).
+///
+/// `state_hash` computes the expected accumulator hash from `z_0`.
+fn verify_ivc_core<S: FCircuit<Fr, Params = ()>>(
+    parsed: &ParsedProof<'_>,
+    state_len: usize,
+    vk_bytes: &[u8],
+    state_hash: impl FnOnce(&[Fr]) -> Result<[u8; 32], CompressorError>,
+) -> Result<bool, CompressorError> {
+    let ivc_proof =
+        SonobeIvcProof::deserialize_with_mode(parsed.ivc_bytes, Compress::Yes, Validate::Yes)
+            .map_err(|_| CompressorError::InvalidProof)?;
 
-        let sigma_check = if self.state_len >= 5 {
-            Some((ivc_proof.z_i[2], ivc_proof.z_i[4]))
-        } else {
-            None
-        };
+    if ivc_proof.z_0.len() != state_len || ivc_proof.z_i.len() != state_len {
+        return Ok(false);
+    }
 
-        if let Err(e) = SonobeNova::<S>::verify(verifier, ivc_proof) { tracing::warn!("Nova::verify failed: {:?}", e);
+    if state_hash(&ivc_proof.z_0)? != parsed.acc_hash {
+        return Ok(false);
+    }
+
+    let verifier = SonobeNova::<S>::vp_deserialize_with_mode(
+        vk_bytes,
+        Compress::Yes,
+        Validate::Yes,
+        (),
+    )
+    .map_err(|_| CompressorError::Backend("sonobe verifier key deserialization failed"))?;
+
+    // G.30: Counter consistency enforcement.
+    // Track A: counters always increment (ring_inc = FpVar::one()), even with zero data.
+    // Track B: counters only increment when real verification data was set via thread-locals.
+    // The fold_count == verification_count check ensures the prover ran each step,
+    // but does NOT guarantee actual verification data was present (that's a Track A/B distinction).
+    let ring_check = if state_len >= 4 {
+        Some((ivc_proof.z_i[2], ivc_proof.z_i[3]))
+    } else {
+        None
+    };
+
+    let sigma_check = if state_len >= 5 {
+        Some((ivc_proof.z_i[2], ivc_proof.z_i[4]))
+    } else {
+        None
+    };
+
+    if let Err(e) = SonobeNova::<S>::verify(verifier, ivc_proof) { tracing::warn!("Nova::verify failed: {:?}", e);
+        return Ok(false);
+    }
+
+    if let Some((fold_count, verification_count)) = ring_check {
+        if fold_count != verification_count { tracing::warn!("fold_count {:?} != verification_count {:?}", fold_count, verification_count);
             return Ok(false);
         }
-
-        if let Some((fold_count, verification_count)) = ring_check {
-            if fold_count != verification_count { tracing::warn!("fold_count {:?} != verification_count {:?}", fold_count, verification_count);
-                return Ok(false);
-            }
-        }
-
-        if let Some((fold_count, sigma_count)) = sigma_check {
-            if fold_count != sigma_count { tracing::warn!("fold_count {:?} != sigma_verification_count {:?}", fold_count, sigma_count);
-                return Ok(false);
-            }
-        }
-
-        // G.30: When counters are non-zero but verification data might not have been set (Track A),
-        // log but don't reject — Track A mode is valid.
-        if let Some((fold_count, ring_verif)) = ring_check {
-            if fold_count != Fr::from(0u64) {
-                tracing::debug!(
-                    "G.30 counters: fold_count={:?}, ring_verif={:?}, sigma={:?}",
-                    fold_count,
-                    ring_verif,
-                    sigma_check.map(|(_, s)| s)
-                );
-            }
-        }
-
-        Ok(true)
     }
+
+    if let Some((fold_count, sigma_count)) = sigma_check {
+        if fold_count != sigma_count { tracing::warn!("fold_count {:?} != sigma_verification_count {:?}", fold_count, sigma_count);
+            return Ok(false);
+        }
+    }
+
+    // G.30: When counters are non-zero but verification data might not have been set (Track A),
+    // log but don't reject — Track A mode is valid.
+    if let Some((fold_count, ring_verif)) = ring_check {
+        if fold_count != Fr::from(0u64) {
+            tracing::debug!(
+                "G.30 counters: fold_count={:?}, ring_verif={:?}, sigma={:?}",
+                fold_count,
+                ring_verif,
+                sigma_check.map(|(_, s)| s)
+            );
+        }
+    }
+
+    Ok(true)
 }
 
 pub(crate) struct ParsedProof<'a> {

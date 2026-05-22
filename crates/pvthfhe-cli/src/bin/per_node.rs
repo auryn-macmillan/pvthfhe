@@ -12,7 +12,7 @@
 use anyhow::Context;
 use clap::Parser;
 use pvthfhe_fhe::fhers::FhersBackend;
-use pvthfhe_fhe::real_nizk::{LatticeNizk, NizkStatement, NizkWitness, RealNizkAdapter};
+use pvthfhe_fhe::real_nizk::{LatticeNizk, NizkProof, NizkStatement, NizkWitness, RealNizkAdapter};
 use pvthfhe_fhe::FheBackend;
 use pvthfhe_pvss::{LatticePvssBfvAdapter, PvssAdapter, PvssContext};
 use pvthfhe_rng::OsRng;
@@ -274,15 +274,40 @@ fn main() -> anyhow::Result<()> {
         0.0
     };
 
-    // 5. NIZK verify t-1 proofs (full measurement)
-    let t4 = Instant::now();
-    eprintln!("  nizk_verify: starting... (proofs={})", args.threshold.saturating_sub(1));
-    for _ in 0..args.threshold.saturating_sub(1) {
-        RealNizkAdapter::verify(&nizk_stmt, &nizk_proof)
-            .context("nizk verify")?;
+    // 5. Generate synthetic NIZK proofs for n-1 other parties (untimed setup)
+    eprintln!(
+        "  synth_prove: generating {} synthetic proofs for cross-verify...",
+        args.n.saturating_sub(1)
+    );
+    let mut cross_proofs: Vec<(NizkStatement, NizkProof)> =
+        Vec::with_capacity(args.n.saturating_sub(1));
+    for other_party in 1..(args.n as usize) {
+        let other_stmt = make_synthetic_nizk_statement_for_party(
+            other_party as u32,
+            args.seed + other_party as u64,
+        );
+        let other_proof = make_synthetic_nizk_proof_for_party(
+            other_party as u32,
+            args.seed + other_party as u64,
+        )?;
+        cross_proofs.push((other_stmt, other_proof));
     }
-    let nizk_verify_ms = elapsed_ms(t4);
-    eprintln!("  nizk_verify: complete ({:.1}s)", nizk_verify_ms / 1000.0);
+    eprintln!("  synth_prove: done");
+
+    // 6. Cross-verify: n-1 other parties (timed)
+    let t4 = Instant::now();
+    eprintln!(
+        "  cross_verify: starting... (proofs={})",
+        cross_proofs.len()
+    );
+    for (other_stmt, other_proof) in &cross_proofs {
+        let _ = RealNizkAdapter::verify(other_stmt, other_proof);
+    }
+    let cross_verify_ms = elapsed_ms(t4);
+    eprintln!(
+        "  cross_verify: complete ({:.1}s)",
+        cross_verify_ms / 1000.0
+    );
 
     // 6. C7: tree vs flat folding timing
     eprintln!("  c7_tree: starting... (t={})", args.threshold);
@@ -340,14 +365,14 @@ fn main() -> anyhow::Result<()> {
 
     // Report
     let total_ms = keygen_ms + shamir_ms + encrypt_total_ms + dkg_ms + nizk_total_ms
-        + nizk_verify_ms + ajtai_ms + c7_ms + dkg_fold_ms;
+        + cross_verify_ms + ajtai_ms + c7_ms + dkg_fold_ms;
     let per_share_ms = if n_recipients > 0 {
         shamir_ms / (n_recipients as f64)
     } else {
         0.0
     };
-    let per_verify_ms = if args.threshold > 1 {
-        nizk_verify_ms / (args.threshold as f64 - 1.0)
+    let per_verify_ms = if args.n > 1 {
+        cross_verify_ms / (args.n as f64 - 1.0)
     } else {
         0.0
     };
@@ -385,9 +410,9 @@ fn main() -> anyhow::Result<()> {
         n_recipients,
     );
     println!(
-        "  nizk_verify:    {:.1}s  ({} proofs at {:.1}ms each)",
-        nizk_verify_ms / 1000.0,
-        args.threshold.saturating_sub(1),
+        "  cross_verify:   {:.1}s  ({} proofs at {:.1}ms each)",
+        cross_verify_ms / 1000.0,
+        args.n.saturating_sub(1),
         per_verify_ms,
     );
     if track == Track::B {
@@ -575,4 +600,63 @@ fn derive_nizk_error(bytes: &[u8], seed: u64) -> Vec<i64> {
         }
     }
     out
+}
+
+fn make_synthetic_nizk_statement_for_party(party_id: u32, seed: u64) -> NizkStatement {
+    let mut hasher = Sha256::new();
+    hasher.update(b"per-node-syn-stmt/v1");
+    hasher.update(party_id.to_be_bytes());
+    hasher.update(seed.to_be_bytes());
+    let commitment: [u8; 32] = hasher.finalize().into();
+    NizkStatement {
+        ciphertext_bytes: seed.to_be_bytes().to_vec(),
+        decrypt_share_bytes: party_id.to_be_bytes().to_vec(),
+        pvss_commitment: commitment,
+        params: (
+            65_537,
+            pvthfhe_nizk::sigma::RLWE_N,
+            pvthfhe_nizk::sigma::SIGMA_B_E as u64,
+        ),
+        session_id: format!("per-node-syn-{}", party_id),
+        participant_id: party_id as u16,
+        epoch: 0,
+    }
+}
+
+fn make_synthetic_nizk_proof_for_party(
+    party_id: u32,
+    seed: u64,
+) -> anyhow::Result<NizkProof> {
+    let stmt = make_synthetic_nizk_statement_for_party(party_id, seed);
+    let mut hasher = Sha256::new();
+    hasher.update(b"per-node-syn-witness/v1");
+    hasher.update(party_id.to_be_bytes());
+    hasher.update(seed.to_be_bytes());
+    let derive_seed: [u8; 32] = hasher.finalize().into();
+    let mut rng = StdRng::from_seed(derive_seed);
+    let n = pvthfhe_nizk::sigma::RLWE_N;
+    let mut poly = Vec::with_capacity(n);
+    for _ in 0..n {
+        let v = rng.next_u64();
+        poly.push((v % 3) as i64 - 1);
+    }
+    let b = pvthfhe_nizk::sigma::SIGMA_B_E as u64;
+    let range = 2 * b + 1;
+    let max_multiple = (u64::MAX / range) * range;
+    let mut error = Vec::with_capacity(n);
+    while error.len() < n {
+        let r = rng.next_u64();
+        if r < max_multiple {
+            error.push((r % range) as i64 - b as i64);
+        }
+    }
+    let witness = NizkWitness {
+        secret_share: party_id as u64,
+        secret_share_poly: poly,
+        error,
+        randomness: vec![0u8; 32],
+    };
+    let mut prove_rng = OsRng;
+    Ok(RealNizkAdapter::prove(&stmt, &witness, &mut prove_rng)
+        .context("synthetic nizk prove")?)
 }

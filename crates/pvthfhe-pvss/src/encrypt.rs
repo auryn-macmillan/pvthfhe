@@ -93,13 +93,7 @@ impl LatticePvssBfvAdapter {
         committed_esm_noise_bytes: Option<Vec<u8>>,
         sk_agg_share: Option<u64>,
     ) -> Result<DecryptedShare, PvssError> {
-        let dkg_root = if ctx.dkg_root.is_empty() {
-            // Fallback: treat session_id as provisional DKG root for backward compat.
-            // Batch H will require the full DkgAnchorSet::root_digest().
-            ctx.session_id.clone()
-        } else {
-            ctx.dkg_root.clone()
-        };
+        let dkg_root = share_proof_dkg_root(ctx)?;
 
         let ciphertext_v = compute_ciphertext_v(ciphertext_u).to_vec();
         let effective_sk_share = sk_agg_share.or(witness.sk_agg_share);
@@ -214,9 +208,6 @@ impl PvssAdapter for LatticePvssBfvAdapter {
             .map(|chunk| party_shares.iter().map(|ps| ps[chunk]).collect())
             .collect();
 
-        let parity_proof_bytes = crate::parity::prove_parity(&chunk_shares, ctx.n, ctx.t)
-            .map(|pp| crate::parity::serialize_parity_proof(&pp));
-
         let all_share_bytes: Vec<Vec<u8>> = party_shares
             .iter()
             .map(|shares| serialize_share_payload(shares, secret.len()))
@@ -224,7 +215,7 @@ impl PvssAdapter for LatticePvssBfvAdapter {
 
         let mut ciphertexts = Vec::with_capacity(ctx.n);
         let mut proofs = Vec::with_capacity(ctx.n);
-        let dkg_root = share_proof_dkg_root(ctx);
+        let dkg_root = share_proof_dkg_root(ctx)?;
         let bfv_params_digest = canonical_bfv_params_digest().to_vec();
 
         for (index, (share_bytes, recipient_pk_bytes)) in
@@ -265,6 +256,10 @@ impl PvssAdapter for LatticePvssBfvAdapter {
             proofs.push(proof.proof_bytes.0);
         }
 
+        let enc_validity_data: Vec<u8> = ciphertexts.iter().flatten().copied().collect();
+        let parity_proof_bytes = crate::parity::prove_parity(&chunk_shares, ctx.n, ctx.t, secret, &enc_validity_data)
+            .map(|pp| crate::parity::serialize_parity_proof(&pp));
+
         Ok(EncryptedShares {
             ciphertexts,
             share_bytes: all_share_bytes.clone(),
@@ -282,7 +277,7 @@ impl PvssAdapter for LatticePvssBfvAdapter {
         if shares.ciphertexts.len() != ctx.n || shares.proofs.len() != ctx.n {
             return Err(PvssError::InvalidShare);
         }
-        let dkg_root = share_proof_dkg_root(ctx);
+        let dkg_root = share_proof_dkg_root(ctx)?;
         let bfv_params_digest = canonical_bfv_params_digest().to_vec();
 
         for (index, (ciphertext_u, proof_bytes)) in shares
@@ -311,6 +306,52 @@ impl PvssAdapter for LatticePvssBfvAdapter {
         if let Some(ref pp_bytes) = shares.parity_proof {
             let proof = crate::parity::deserialize_parity_proof(pp_bytes)
                 .ok_or_else(|| PvssError::ShareVerification("parity proof deserialization failed".into()))?;
+
+            let enc_validity_data: Vec<u8> = shares.ciphertexts.iter().flatten().copied().collect();
+            let expected_enc_hash = crate::parity::hash_encryption_validity(&enc_validity_data);
+
+            let expected_norm_hash = if !shares.share_bytes.is_empty() {
+                let first_len = shares.share_bytes[0].len();
+                if first_len < LENGTH_PREFIX_LEN + FR_SERIALIZED_LEN {
+                    return Err(PvssError::ShareVerification("share payload too short for norm witness recovery".into()));
+                }
+                let original_len = u32::from_be_bytes(
+                    shares.share_bytes[0][..LENGTH_PREFIX_LEN].try_into()
+                        .map_err(|_| PvssError::ShareVerification("original_len parse".into()))?,
+                ) as usize;
+                let num_chunks = (first_len - LENGTH_PREFIX_LEN) / FR_SERIALIZED_LEN;
+                let needed = ctx.t;
+                if shares.share_bytes.len() < needed {
+                    return Err(PvssError::ShareVerification(format!(
+                        "need {needed} shares for norm witness recovery, got {}",
+                        shares.share_bytes.len()
+                    )));
+                }
+                let mut recovered_frs = Vec::with_capacity(num_chunks);
+                for chunk_idx in 0..num_chunks {
+                    let points: Vec<(usize, Fr)> = shares.share_bytes[..needed]
+                        .iter()
+                        .enumerate()
+                        .map(|(i, payload)| {
+                            let offset = LENGTH_PREFIX_LEN + chunk_idx * FR_SERIALIZED_LEN;
+                            let arr: &[u8; FR_SERIALIZED_LEN] =
+                                payload[offset..offset + FR_SERIALIZED_LEN].try_into()
+                                    .expect("share payload chunk alignment");
+                            (i + 1, bytes32_to_fr(arr).expect("share Fr out of range"))
+                        })
+                        .collect();
+                    let recovered = crate::shamir::recover(&points, needed)
+                        .map_err(|_| PvssError::ShareVerification(format!(
+                            "norm witness recovery failed for chunk {chunk_idx}"
+                        )))?;
+                    recovered_frs.push(recovered);
+                }
+                let secret_bytes = frs_to_secret(&recovered_frs, original_len);
+                crate::parity::hash_norm_witness(&secret_bytes)
+            } else {
+                return Err(PvssError::ShareVerification("no shares for norm witness recovery".into()));
+            };
+
             for (party_idx, payload) in shares.share_bytes.iter().enumerate() {
                 let fr_data = &payload[4..];
                 let mut share_frs = Vec::new();
@@ -323,9 +364,9 @@ impl PvssAdapter for LatticePvssBfvAdapter {
                     share_frs.push(fr);
                 }
                 let idx = party_idx + 1;
-                if !crate::parity::verify_parity(&share_frs, idx, &proof) {
+                if !crate::parity::verify_parity(&share_frs, idx, &proof, expected_norm_hash, expected_enc_hash) {
                     return Err(PvssError::ShareVerification(format!(
-                        "parity proof: share {idx} not on RS codeword"
+                        "parity proof: share {idx} not on RS codeword or witness hash mismatch"
                     )));
                 }
             }
@@ -439,13 +480,13 @@ fn validate_context(ctx: &PvssContext) -> Result<(), PvssError> {
     Ok(())
 }
 
-pub fn share_proof_dkg_root(ctx: &PvssContext) -> Vec<u8> {
+pub fn share_proof_dkg_root(ctx: &PvssContext) -> Result<Vec<u8>, PvssError> {
     if ctx.dkg_root.is_empty() {
-        tracing::warn!("share_proof_dkg_root: dkg_root is empty, falling back to session_id (provisional root; will break when full DkgAnchorSet rolls out)");
-        ctx.session_id.clone()
-    } else {
-        ctx.dkg_root.clone()
+        return Err(PvssError::BackendError(
+            "dkg_root is empty — must be set to bind proofs to a specific DKG ceremony".to_string(),
+        ));
     }
+    Ok(ctx.dkg_root.clone())
 }
 
 // ── secret ↔ Fr conversion ─────────────────────────────────────────────

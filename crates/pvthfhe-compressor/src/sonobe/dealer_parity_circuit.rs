@@ -55,7 +55,7 @@ impl<F: PrimeField> FCircuit<F> for DealerParityStepCircuit<F> {
 
         let mut parity_acc = FpVar::<F>::zero();
         for j in 0..shares.len().min(poly_factors.len()) {
-            let s = FpVar::constant(to_f(shares[j]));
+            let s = FpVar::<F>::new_witness(cs.clone(), || Ok(to_f(shares[j])))?;
             let p = FpVar::constant(to_f(poly_factors[j]));
             parity_acc += s * p;
         }

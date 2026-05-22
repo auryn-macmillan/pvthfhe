@@ -12,6 +12,7 @@ pub use poseidon_gadget::PoseidonSpongeVar;
 pub mod ring_element_var;
 pub mod ring_verifier;
 pub mod ajtai_commitment_circuit;
+pub mod dealer_parity_circuit;
 pub mod share_verification_circuit;
 pub use ajtai_commitment_circuit::{clear_ajtai_witness_data, set_ajtai_witness_data, AjtaiCommitmentStepCircuit};
 pub use c7_circuit::{
@@ -27,6 +28,7 @@ pub use latticefold_adapter::*;
 pub use latticefold_circuit_family::LatticeFoldTreeCircuitFamily;
 pub use poseidon_gadget::hash8_native;
 pub use ring_verifier::RingVerifierCircuit;
+pub use dealer_parity_circuit::{clear_dealer_parity_data, set_dealer_parity_data, DealerParityStepCircuit};
 pub use share_verification_circuit::{clear_share_coeffs_data,set_share_coeffs_data,ShareVerificationStepCircuit};
 
 use std::fmt::Debug;

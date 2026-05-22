@@ -751,6 +751,51 @@ fn eval_bn254_poly_coeffs(coefficients: &[Fr], x: Fr) -> Fr {
 
 // ── helpers ─────────────────────────────────────────────────────────────
 
+pub fn compute_poly_factors(n: usize, t: usize, r: ark_bn254::Fr) -> Vec<ark_bn254::Fr> {
+    use ark_ff::AdditiveGroup;
+
+    let n_rows = if n > t + 1 { n - t - 1 } else { 0 };
+    let mut factors = vec![ark_bn254::Fr::ZERO; n];
+
+    if n_rows == 0 {
+        return factors;
+    }
+
+    let order = t + 1;
+
+    // Precompute binomial coefficients C(order, j) for j=0..order
+    let mut binom = Vec::with_capacity(order + 1);
+    binom.push(ark_bn254::Fr::from(1u64));
+    for j in 0..order {
+        let next = binom[j] * ark_bn254::Fr::from((order - j) as u64)
+            * ark_bn254::Fr::from((j + 1) as u64)
+                .inverse()
+                .expect("j+1 < Fr modulus");
+        binom.push(next);
+    }
+
+    // Schwartz-Zippel: combine all parity-check rows with powers of r.
+    // factor_p = Σ_{i: 0 ≤ p−i ≤ order, 0 ≤ i < n_rows} r^i · (−1)^{order−(p−i)} · C(order, p−i)
+    for p in 0..n {
+        let lo = if p < order { 0 } else { p - order };
+        let hi = (p).min(n_rows - 1);
+        let mut acc = ark_bn254::Fr::ZERO;
+        let mut r_pow = r.pow(&[lo as u64]); // r^lo
+        for i in lo..=hi {
+            let jj = p - i; // j in 0..=order
+            let sign = if (order - jj) % 2 == 0 {
+                ark_bn254::Fr::ONE
+            } else {
+                -ark_bn254::Fr::ONE
+            };
+            acc += r_pow * sign * binom[jj];
+            r_pow *= r;
+        }
+        factors[p] = acc;
+    }
+    factors
+}
+
 fn map_fhe_error(error: FheError) -> PvssError {
     PvssError::BackendError(error.to_string())
 }

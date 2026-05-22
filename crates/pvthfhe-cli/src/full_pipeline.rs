@@ -30,8 +30,9 @@ use pvthfhe_pvss::nizk_decrypt::{
 use pvthfhe_pvss::slot_registry::SmudgeSlotRegistry;
 #[cfg(feature = "sonobe-compressor")]
 use pvthfhe_compressor::sonobe::{
-    cyclo_verifier::verify_ring_equation, encode_hex,
+    cyclo_verifier::verify_ring_equation, encode_hex, encode_triple, ExternalInputs3,
         CycloFoldStepCircuit, CycloRingWitness,
+        DealerParityStepCircuit, clear_dealer_parity_data, set_dealer_parity_data,
         SigmaWitness as CompressorSigmaWitness,
         SonobeCompressor,
         clear_cyclo_ring_data, clear_sigma_data, set_cyclo_ring_data, set_sigma_data,
@@ -156,6 +157,8 @@ pub struct PipelineReport {
     pub sk_bindings: Vec<[u8; 32]>,
     /// Whether the DKG ceremony (dealer→recipient PVSS) passed all verifications.
     pub dkg_verified: bool,
+    /// Whether the dealer parity check (H·shares == 0) passed for all dealers.
+    pub parity_verified: bool,
     /// Total number of shares processed in the DKG ceremony (n × n).
     pub dkg_share_count: usize,
     /// Per-recipient Nova-folded commitment hashes from the DKG ceremony.
@@ -269,6 +272,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     // Verifies aggregate matches aggregate public key via dkg_aggregation.
     let dkg_verified;
     let dkg_share_count;
+    let parity_verified;
     let recipient_fold_hashes;
     let recipient_parity_proof_hashes;
     observer.phase_start("dkg_ceremony", Some(&format!("n={} t={}", cfg.n, cfg.t)));
@@ -351,6 +355,53 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                         .with_context(|| format!("deserialize share dealer={dealer_id} chunk={chunk_idx} recipient={recipient_id}"))?;
                     let chunk_total: Fr = fr_values.iter().fold(Fr::zero(), |acc, &f| acc + f);
                     dealer_recipient_total_shares[dealer_id][recipient_id] += chunk_total;
+                }
+            }
+
+            #[cfg(feature = "sonobe-compressor")]
+            {
+                use pvthfhe_pvss::encrypt::compute_poly_factors;
+                use pvthfhe_compressor::ProofCompressor;
+                let r = Fr::from_be_bytes_mod_order(&Sha256::digest(
+                    format!("parity-r-{dkg_session_id}-{dealer_id}").as_bytes()
+                ));
+                let poly_factors = compute_poly_factors(n, t, r);
+                let shares_fr = dealer_recipient_total_shares[dealer_id].clone();
+
+                let native_dot: Fr = shares_fr.iter().zip(poly_factors.iter())
+                    .map(|(&s, &f)| s * f)
+                    .fold(Fr::zero(), |acc, x| acc + x);
+                tracing::info!(
+                    "parity_debug dealer={dealer_id} n={n} t={t} dot_is_zero={} first_share={:?} first_factor={:?}",
+                    native_dot.is_zero(),
+                    shares_fr.first(),
+                    poly_factors.first(),
+                );
+
+                set_dealer_parity_data(shares_fr.clone(), poly_factors);
+
+                let parity_compressor = SonobeCompressor::<DealerParityStepCircuit<Fr>>::new(
+                    [0u8; 32], 1,
+                )
+                .map_err(|e| anyhow::anyhow!("parity compressor (dealer={dealer_id}): {e:?}"))?;
+
+                let acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
+                let public_inputs = encode_triple((r, Fr::zero(), Fr::from(n as u64)));
+                let parity_result = parity_compressor
+                    .prove(&acc, &public_inputs)
+                    .map_err(|e| anyhow::anyhow!("parity prove (dealer={dealer_id}): {e:?}"))?;
+
+                clear_dealer_parity_data();
+
+                let vk = parity_compressor.verifier_key();
+                let verified = parity_compressor
+                    .verify(&vk, &parity_result, &public_inputs)
+                    .map_err(|e| anyhow::anyhow!("parity verify (dealer={dealer_id}): {e:?}"))?;
+
+                if verified {
+                    tracing::info!("parity_check: PASSED (dealer={dealer_id})");
+                } else {
+                    anyhow::bail!("parity_check: FAILED (dealer={dealer_id})");
                 }
             }
         }
@@ -522,6 +573,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
         dkg_share_count = n * n;
         dkg_verified = true;
+        parity_verified = true;
         observer.phase_end("dkg_fold", elapsed_ms(dkg_fold_started));
     }
     observer.phase_end("dkg_ceremony", elapsed_ms(dkg_started));
@@ -1672,6 +1724,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         sk_commitments,
         sk_bindings: registered_sk_bindings,
         dkg_verified,
+        parity_verified,
         dkg_share_count,
         recipient_fold_hashes,
         recipient_parity_proof_hashes,

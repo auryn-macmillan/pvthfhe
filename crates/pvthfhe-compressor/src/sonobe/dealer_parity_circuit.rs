@@ -3,6 +3,7 @@
 //! One circuit instance per dealer, processing all n shares in one step.
 
 use ark_ff::{BigInteger, PrimeField};
+use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
@@ -55,7 +56,7 @@ impl<F: PrimeField> FCircuit<F> for DealerParityStepCircuit<F> {
 
         let mut parity_acc = FpVar::<F>::zero();
         for j in 0..shares.len().min(poly_factors.len()) {
-            let s = FpVar::<F>::new_witness(cs.clone(), || Ok(to_f(shares[j])))?;
+            let s = FpVar::<F>::new_witness(cs.clone(), || -> Result<F, SynthesisError> { Ok(to_f(shares[j])) })?;
             let p = FpVar::constant(to_f(poly_factors[j]));
             parity_acc += s * p;
         }

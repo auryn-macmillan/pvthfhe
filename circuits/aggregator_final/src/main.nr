@@ -83,13 +83,7 @@ fn main(
     participant_set_hash: pub Field,
     n_participants: pub Field,
     threshold: pub Field,
-    cyclo_hash: pub Field,
-    cyclo_norm_acc: pub Field,
-    cyclo_fold_count: pub Field,
-    cyclo_ring_count: pub Field,
-    cyclo_sigma_count: pub Field,
-    cyclo_norm_zs: pub Field,
-    cyclo_norm_ze: pub Field,
+
     committee_party_ids: pub [Field; MAX_PARTICIPANTS],
     participant_shares: [[Field; N]; MAX_PARTICIPANTS],
     registered_share_hashes: pub [Field; MAX_PARTICIPANTS],
@@ -101,9 +95,6 @@ fn main(
     assert(threshold as u32 > 0, "threshold must be positive");
     assert(threshold as u32 <= n_participants as u32, "threshold must not exceed n_participants");
 
-    assert(cyclo_fold_count != 0, "cyclo_fold_count must be non-zero");
-    // Norm accumulators may be zero if no sigma verification data was present
-    // (Track A, incomplete steps). The CycloFold circuit enforces norms natively.
 
     let n = if (n_participants as u32) < MAX_PARTICIPANTS { n_participants as u32 } else { MAX_PARTICIPANTS };
     // But Lagrange requires distinct non-zero IDs. Cap n to the count of
@@ -267,7 +258,7 @@ fn test_honest_lagrange_recombination() {
         participant_set_hash,
         n_participants,
         threshold,
-        1, 1, 1, 1, 1, 1, 1,
+
         committee_party_ids,
         d,
         registered_share_hashes,
@@ -335,7 +326,7 @@ fn test_tamper_zero_party_id() {
         participant_set_hash,
         n_participants,
         threshold,
-        0, 0, 0, 0, 0, 0, 0,
+        
         committee_party_ids,
         d,
         [0; MAX_PARTICIPANTS],
@@ -376,7 +367,7 @@ fn test_tamper_duplicate_party_ids() {
         participant_set_hash,
         n_participants,
         threshold,
-        0, 0, 0, 0, 0, 0, 0,
+        
         committee_party_ids,
         d,
         [0; MAX_PARTICIPANTS],
@@ -423,7 +414,7 @@ fn test_ciphertext_equals_plaintext_hash() {
         participant_set_hash,
         n_participants,
         threshold,
-        0, 0, 0, 0, 0, 0, 0,
+        
         committee_party_ids,
         d,
         [0; MAX_PARTICIPANTS],
@@ -459,7 +450,7 @@ fn test_tamper_wrong_threshold() {
         participant_set_hash,
         n_participants,
         threshold,
-        0, 0, 0, 0, 0, 0, 0,
+        
         committee_party_ids,
         d,
         [0; MAX_PARTICIPANTS],
@@ -495,7 +486,7 @@ fn test_tamper_epoch_zero() {
         participant_set_hash,
         n_participants,
         threshold,
-        0, 0, 0, 0, 0, 0, 0,
+        
         committee_party_ids,
         d,
         [0; MAX_PARTICIPANTS],

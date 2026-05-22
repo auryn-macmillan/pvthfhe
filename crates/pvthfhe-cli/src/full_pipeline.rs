@@ -617,8 +617,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             match ajtai_result {
                 Ok(hash) => hash,
                 Err(e) => {
-                    tracing::warn!("Ajtai Phase 4 folding failed: {e:?}, using zero");
-                    Fr::zero()
+                    anyhow::bail!("Ajtai Phase 4 folding failed: {e:?}")
                 }
             }
         }
@@ -1262,16 +1261,16 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         let (sig_r, sig_s) = schnorr::schnorr_sign(sk, share_hash, &mut rng);
         // Serialize pk as Fr coordinates (compatible with Noir in-circuit verification)
         let pk_fr =
-            Fr::from_le_bytes_mod_order(&pk.x().unwrap().into_bigint().to_bytes_le());
+            Fr::from_le_bytes_mod_order(&pk.x().context("G1 point")?.into_bigint().to_bytes_le());
         let pk_y_fr =
-            Fr::from_le_bytes_mod_order(&pk.y().unwrap().into_bigint().to_bytes_le());
+            Fr::from_le_bytes_mod_order(&pk.y().context("G1 point")?.into_bigint().to_bytes_le());
         party_signing_pks.push(pk_fr);
         party_signing_pkys.push(pk_y_fr);
         // Serialize sig_r as Fr coordinates
         let sig_r_fr =
-            Fr::from_le_bytes_mod_order(&sig_r.x().unwrap().into_bigint().to_bytes_le());
+            Fr::from_le_bytes_mod_order(&sig_r.x().context("G1 point")?.into_bigint().to_bytes_le());
         let sig_r_y_fr =
-            Fr::from_le_bytes_mod_order(&sig_r.y().unwrap().into_bigint().to_bytes_le());
+            Fr::from_le_bytes_mod_order(&sig_r.y().context("G1 point")?.into_bigint().to_bytes_le());
         share_sig_rs.push(sig_r_fr);
         share_sig_rys.push(sig_r_y_fr);
         share_sig_ss.push(sig_s);
@@ -1310,12 +1309,10 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let c7_r = derive_challenge_point_r(&share_coeffs);
 
     // Skip Noir verification if n exceeds in-circuit MAX_PARTICIPANTS
-    let c7_passed = if share_coeffs.len() > NOIR_MAX_PARTICIPANTS {
-        observer.phase_start("c7_noir_aggregator", None);
-        tracing::info!("C7 Noir: skipped (n={} > MAX_PARTICIPANTS={}, deferred to Nova folding)", share_coeffs.len(), NOIR_MAX_PARTICIPANTS);
-        observer.phase_end("c7_noir_aggregator", 0.0);
-        true
-    } else {
+    if share_coeffs.len() > NOIR_MAX_PARTICIPANTS {
+        anyhow::bail!("C7 verification skipped: {} > MAX_PARTICIPANTS ({})", share_coeffs.len(), NOIR_MAX_PARTICIPANTS);
+    }
+    let c7_passed = {
         let passed = run_c7_verification(
             &share_coeffs_fr,
             &lagrange_coeffs_fr,
@@ -1525,13 +1522,6 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         Fr::from_be_bytes_mod_order(&Sha256::digest(
             format!("dkg-transcript-{session_id}").as_bytes()
         )),
-        cyclo_state[0],
-        cyclo_state[1],
-        cyclo_state[2],
-        cyclo_state[3],
-        cyclo_state[4],
-        cyclo_state[5],
-        cyclo_state[6],
     );
     let mut noir_passed = true;
 
@@ -1602,7 +1592,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             let status = run_with_timeout(&mut bb_verify_cmd, 120);
             match status {
                 Ok(s) if s.success() => {}
-                Ok(s) => { tracing::warn!("C7 Noir: bb verify returned non-zero: {s}"); }
+                Ok(s) => { noir_passed = false; tracing::warn!("C7 Noir: bb verify returned non-zero: {s}"); }
                 Err(e) => { tracing::warn!("C7 Noir: bb verify failed: {e}"); noir_passed = false; }
             }
         }
@@ -1617,7 +1607,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     // G.3: d_commitment end-to-end verification
     // session_nonce is now available (G.4). When the verifier can independently
     // reconstruct d_commitment, compare against Noir public inputs here.
-    let d_commitment_verified: Option<bool> = None;
+    let d_commitment_verified: Option<bool> = Some(false); // TODO: compute real d_commitment and compare (G.5)
 
     Ok(PipelineReport {
         timings,
@@ -2454,13 +2444,6 @@ pub fn build_c7_prover_toml(
     share_sig_rs: &[Fr],          // G.12: Per-party Schnorr signature R-points
     share_sig_ss: &[Fr],          // G.12: Per-party Schnorr signature s-values
     dkg_transcript_hash: Fr,
-    cyclo_hash: Fr,
-    cyclo_norm_acc: Fr,
-    cyclo_fold_count: Fr,
-    cyclo_ring_count: Fr,
-    cyclo_sigma_count: Fr,
-    cyclo_norm_zs: Fr,
-    cyclo_norm_ze: Fr,
 ) -> String {
     let n_participants = committee_party_ids.len();
     let threshold = n_participants - 1;
@@ -2544,14 +2527,6 @@ pub fn build_c7_prover_toml(
     toml.push_str(&format!("d_commitment = \"0x{}\"\n", field_hex_be(d_commitment)));
     toml.push_str(&format!("n_participants = \"{}\"\n", n_participants));
     toml.push_str(&format!("threshold = \"{}\"\n", threshold));
-
-    toml.push_str(&format!("cyclo_hash = \"0x{}\"\n", field_hex_be(cyclo_hash)));
-    toml.push_str(&format!("cyclo_norm_acc = \"0x{}\"\n", field_hex_be(cyclo_norm_acc)));
-    toml.push_str(&format!("cyclo_fold_count = \"0x{}\"\n", field_hex_be(cyclo_fold_count)));
-    toml.push_str(&format!("cyclo_ring_count = \"0x{}\"\n", field_hex_be(cyclo_ring_count)));
-    toml.push_str(&format!("cyclo_sigma_count = \"0x{}\"\n", field_hex_be(cyclo_sigma_count)));
-    toml.push_str(&format!("cyclo_norm_zs = \"0x{}\"\n", field_hex_be(cyclo_norm_zs)));
-    toml.push_str(&format!("cyclo_norm_ze = \"0x{}\"\n", field_hex_be(cyclo_norm_ze)));
 
     // Committee party IDs: exactly MAX_PARTICIPANTS, padded with zeros
     toml.push_str("committee_party_ids = [");
@@ -2795,13 +2770,6 @@ mod tests {
             &[],
             &[],
             Fr::from(0u64),
-            Fr::zero(),
-            Fr::zero(),
-            Fr::zero(),
-            Fr::zero(),
-            Fr::zero(),
-            Fr::zero(),
-            Fr::zero(),
         );
 
         assert!(

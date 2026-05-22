@@ -203,6 +203,8 @@ fn main() -> anyhow::Result<()> {
     if sk_bytes.len() <= dkg_chunk_size {
         let encrypted = adapter.deal(&sk_bytes, &recipient_pks, &dkg_ctx)
             .map_err(|e| anyhow::anyhow!("dkg deal: {e:?}"))?;
+        adapter.verify_shares(&encrypted, &dkg_ctx)
+            .context("pvss verify_shares")?;
         if encrypted.parity_proof.is_some() {
             parity_proof_count += 1;
         }
@@ -213,6 +215,8 @@ fn main() -> anyhow::Result<()> {
             let chunk = &sk_bytes[start..end];
             let encrypted = adapter.deal(chunk, &recipient_pks, &dkg_ctx)
                 .map_err(|e| anyhow::anyhow!("dkg deal chunk={chunk_idx}: {e:?}"))?;
+            adapter.verify_shares(&encrypted, &dkg_ctx)
+                .context("pvss verify_shares")?;
             if encrypted.parity_proof.is_some() {
                 parity_proof_count += 1;
             }

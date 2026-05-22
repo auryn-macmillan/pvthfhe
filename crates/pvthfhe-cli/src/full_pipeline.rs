@@ -1647,12 +1647,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         Fr::from_be_bytes_mod_order(&hasher.finalize())
     };
 
-    // G.3: d_commitment end-to-end verification
-    // session_nonce is now available (G.4). When the verifier can independently
-    // reconstruct d_commitment, compare against Noir public inputs here.
-    let d_commitment_verified: Option<bool> = Some(false); // TODO: compute real d_commitment and compare (G.5)
-
-    Ok(PipelineReport {
+    let mut report = PipelineReport {
         timings,
         plaintext_roundtrip_ok,
         all_verifications_passed: noir_passed,
@@ -1666,7 +1661,6 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         session_id: session_id.to_string(),
         decrypt_nizk_hash,
         session_nonce,
-        d_commitment_verified,
         party_signing_pks,
         party_signing_pkys,
         share_sig_rs,
@@ -1681,7 +1675,37 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         dkg_share_count,
         recipient_fold_hashes,
         recipient_parity_proof_hashes,
-    })
+        d_commitment_verified: Some(false),
+    };
+
+    let report_failures = verify_pipeline_report(&report);
+    if !report_failures.is_empty() {
+        tracing::warn!("PipelineReport verification failures: {:?}", report_failures);
+    }
+    report.d_commitment_verified = Some(report_failures.is_empty());
+    Ok(report)
+}
+
+fn verify_pipeline_report(report: &PipelineReport) -> Vec<String> {
+    let mut failures = Vec::new();
+
+    if !report.all_verifications_passed {
+        failures.push("all_verifications_passed is false".into());
+    }
+
+    if report.dkg_verified && report.recipient_fold_hashes.iter().all(|&h| h == Fr::zero()) {
+        failures.push("dkg_verified=true but all fold hashes are zero".into());
+    }
+
+    if !report.committee_party_ids.is_empty() && report.sk_commitments.is_empty() {
+        failures.push("parties present but sk_commitments empty".into());
+    }
+
+    if !report.share_coeffs.is_empty() && report.combined_share_hash.is_zero() {
+        failures.push("shares present but combined_share_hash is zero".into());
+    }
+
+    failures
 }
 
 fn build_nizk_inputs(

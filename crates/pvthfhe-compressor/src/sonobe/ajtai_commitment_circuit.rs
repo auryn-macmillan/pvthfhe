@@ -1,12 +1,12 @@
+use super::{ExternalInputs6, ExternalInputs6Var, PoseidonSpongeVar};
+use crate::{StepCircuit, StepCircuitDescriptor};
 use ark_ff::{BigInteger, PrimeField};
-use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::fields::fp::FpVar;
+use ark_r1cs_std::fields::FieldVar;
 use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
 use folding_schemes::frontend::FCircuit;
 use sha3::{Digest, Keccak256};
 use std::cell::RefCell;
-use super::{ExternalInputs6, ExternalInputs6Var, PoseidonSpongeVar};
-use crate::{StepCircuit, StepCircuitDescriptor};
 
 thread_local! {
     pub static AJTAI_WITNESS_DATA: RefCell<Vec<Vec<ark_bn254::Fr>>> = RefCell::new(Vec::new());
@@ -29,9 +29,13 @@ impl<F: PrimeField> FCircuit<F> for AjtaiCommitmentStepCircuit<F> {
     type Params = ();
     type ExternalInputs = ExternalInputs6<F>;
     type ExternalInputsVar = ExternalInputs6Var<F>;
-    fn state_len(&self) -> usize { 2 }
+    fn state_len(&self) -> usize {
+        2
+    }
     fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
-        Ok(Self { _phantom: std::marker::PhantomData })
+        Ok(Self {
+            _phantom: std::marker::PhantomData,
+        })
     }
     fn generate_step_constraints(
         &self,
@@ -42,10 +46,10 @@ impl<F: PrimeField> FCircuit<F> for AjtaiCommitmentStepCircuit<F> {
     ) -> Result<Vec<FpVar<F>>, SynthesisError> {
         // Phase 4a: NTT ring multiplication deferred; using Poseidon hash of
         // witness coefficients as placeholder.
-        let coeffs = AJTAI_WITNESS_DATA.with(|cell|
-            cell.borrow().get(_i).cloned().unwrap_or_default()
-        );
-        let coeff_vars: Vec<FpVar<F>> = coeffs.iter()
+        let coeffs =
+            AJTAI_WITNESS_DATA.with(|cell| cell.borrow().get(_i).cloned().unwrap_or_default());
+        let coeff_vars: Vec<FpVar<F>> = coeffs
+            .iter()
             .map(|c| {
                 let v = F::from_le_bytes_mod_order(&c.into_bigint().to_bytes_le());
                 FpVar::constant(v)
@@ -65,8 +69,12 @@ impl<F: PrimeField> FCircuit<F> for AjtaiCommitmentStepCircuit<F> {
 }
 
 impl<F: PrimeField> StepCircuit for AjtaiCommitmentStepCircuit<F> {
-    fn descriptor(&self) -> StepCircuitDescriptor { StepCircuitDescriptor { width: 2 } }
-    fn circuit_hash(&self) -> [u8; 32] { Keccak256::digest(b"pvthfhe/sonobe/ajtai-commitment/v1").into() }
+    fn descriptor(&self) -> StepCircuitDescriptor {
+        StepCircuitDescriptor { width: 2 }
+    }
+    fn circuit_hash(&self) -> [u8; 32] {
+        Keccak256::digest(b"pvthfhe/sonobe/ajtai-commitment/v1").into()
+    }
 }
 
 #[cfg(test)]
@@ -94,23 +102,29 @@ mod tests {
         let circuit = AjtaiCommitmentStepCircuit::<ark_bn254::Fr>::new(()).unwrap();
         let zero = || ark_bn254::Fr::zero();
         let z_i = || vec![FpVar::constant(zero()), FpVar::constant(zero())];
-        let ext = || ExternalInputs6Var(
-            FpVar::constant(zero()),
-            FpVar::constant(zero()),
-            FpVar::constant(zero()),
-            FpVar::constant(zero()),
-            FpVar::constant(zero()),
-            FpVar::constant(zero()),
-        );
+        let ext = || {
+            ExternalInputs6Var(
+                FpVar::constant(zero()),
+                FpVar::constant(zero()),
+                FpVar::constant(zero()),
+                FpVar::constant(zero()),
+                FpVar::constant(zero()),
+                FpVar::constant(zero()),
+            )
+        };
 
         set_ajtai_witness_data(vec![vec![ark_bn254::Fr::from(1u64)]]);
         let cs1 = ConstraintSystem::<ark_bn254::Fr>::new_ref();
-        let out1 = circuit.generate_step_constraints(cs1, 0, z_i(), ext()).unwrap();
+        let out1 = circuit
+            .generate_step_constraints(cs1, 0, z_i(), ext())
+            .unwrap();
         let h1 = out1[0].value().unwrap();
 
         set_ajtai_witness_data(vec![vec![ark_bn254::Fr::from(2u64)]]);
         let cs2 = ConstraintSystem::<ark_bn254::Fr>::new_ref();
-        let out2 = circuit.generate_step_constraints(cs2, 0, z_i(), ext()).unwrap();
+        let out2 = circuit
+            .generate_step_constraints(cs2, 0, z_i(), ext())
+            .unwrap();
         let h2 = out2[0].value().unwrap();
 
         assert_ne!(h1, h2, "different witness must produce different hash");
@@ -143,7 +157,9 @@ mod tests {
             FpVar::constant(ark_bn254::Fr::zero()),
         );
 
-        let out = circuit.generate_step_constraints(cs.clone(), 0, z_i, ext).unwrap();
+        let out = circuit
+            .generate_step_constraints(cs.clone(), 0, z_i, ext)
+            .unwrap();
         assert_eq!(out.len(), 2);
         // step_count should be 1 when starting from 0
         assert_eq!(out[1].value().unwrap(), ark_bn254::Fr::one());

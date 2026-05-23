@@ -83,6 +83,7 @@ fn main(
     participant_set_hash: pub Field,
     n_participants: pub Field,
     threshold: pub Field,
+    lagrange_coeffs: pub [Field; MAX_PARTICIPANTS],
 
     committee_party_ids: pub [Field; MAX_PARTICIPANTS],
     participant_shares: [[Field; N]; MAX_PARTICIPANTS],
@@ -131,11 +132,20 @@ fn main(
     assert(computed_participant_set_hash == participant_set_hash,
         "committee_party_ids must hash to participant_set_hash");
 
-    // --- Compute Lagrange coefficients from committee party IDs ---
-    let mut lagrange_coeffs = [0; MAX_PARTICIPANTS];
-    for i in 0..MAX_PARTICIPANTS {
-        if (i as u32) < n {
-            lagrange_coeffs[i] = lagrange_coeff_at(i, committee_party_ids, n);
+    // --- C7: Lagrange coefficients -- dual-mode (backward compatible) ---
+    // When lagrange_coeffs[0] != 0: use precomputed off-circuit coeffs (O(n) total)
+    // When lagrange_coeffs[0] == 0: fall back to in-circuit computation (O(n^2))
+    // Tests pass [0; MAX_PARTICIPANTS]; production provides precomputed coeffs.
+    let mut coeffs = [0; MAX_PARTICIPANTS];
+    if lagrange_coeffs[0] != 0 {
+        for i in 0..MAX_PARTICIPANTS {
+            coeffs[i] = lagrange_coeffs[i];
+        }
+    } else {
+        for i in 0..MAX_PARTICIPANTS {
+            if (i as u32) < n {
+                coeffs[i] = lagrange_coeff_at(i, committee_party_ids, n);
+            }
         }
     }
 
@@ -143,7 +153,7 @@ fn main(
     let mut lagrange_sum = 0;
     for i in 0..MAX_PARTICIPANTS {
         if (i as u32) < n {
-            lagrange_sum = lagrange_sum + lagrange_coeffs[i];
+            lagrange_sum = lagrange_sum + coeffs[i];
         }
     }
     assert(lagrange_sum == 1, "Lagrange coefficients must sum to 1");
@@ -182,7 +192,7 @@ fn main(
         let mut coeff = 0;
         for i in 0..MAX_PARTICIPANTS {
             if (i as u32) < n {
-                coeff = coeff + lagrange_coeffs[i] * participant_shares[i][j];
+                coeff = coeff + coeffs[i] * participant_shares[i][j];
             }
         }
         computed_plaintext[j] = coeff;
@@ -259,6 +269,7 @@ fn test_honest_lagrange_recombination() {
         n_participants,
         threshold,
 
+        [0; MAX_PARTICIPANTS],
         committee_party_ids,
         d,
         registered_share_hashes,
@@ -327,6 +338,7 @@ fn test_tamper_zero_party_id() {
         n_participants,
         threshold,
         
+        [0; MAX_PARTICIPANTS],
         committee_party_ids,
         d,
         [0; MAX_PARTICIPANTS],
@@ -368,6 +380,7 @@ fn test_tamper_duplicate_party_ids() {
         n_participants,
         threshold,
         
+        [0; MAX_PARTICIPANTS],
         committee_party_ids,
         d,
         [0; MAX_PARTICIPANTS],
@@ -415,6 +428,7 @@ fn test_ciphertext_equals_plaintext_hash() {
         n_participants,
         threshold,
         
+        [0; MAX_PARTICIPANTS],
         committee_party_ids,
         d,
         [0; MAX_PARTICIPANTS],
@@ -451,6 +465,7 @@ fn test_tamper_wrong_threshold() {
         n_participants,
         threshold,
         
+        [0; MAX_PARTICIPANTS],
         committee_party_ids,
         d,
         [0; MAX_PARTICIPANTS],
@@ -487,6 +502,7 @@ fn test_tamper_epoch_zero() {
         n_participants,
         threshold,
         
+        [0; MAX_PARTICIPANTS],
         committee_party_ids,
         d,
         [0; MAX_PARTICIPANTS],
@@ -534,6 +550,7 @@ fn test_tamper_aggregate_pk_hash_zero() {
         n_participants,
         threshold,
         
+        [0; MAX_PARTICIPANTS],
         committee_party_ids,
         d,
         registered_share_hashes,
@@ -581,6 +598,7 @@ fn test_tamper_decrypt_nizk_hash_zero() {
         n_participants,
         threshold,
         
+        [0; MAX_PARTICIPANTS],
         committee_party_ids,
         d,
         registered_share_hashes,
@@ -628,6 +646,7 @@ fn test_tamper_dkg_transcript_hash_zero() {
         n_participants,
         threshold,
         
+        [0; MAX_PARTICIPANTS],
         committee_party_ids,
         d,
         registered_share_hashes,
@@ -675,6 +694,7 @@ fn test_tamper_registered_share_hashes() {
         n_participants,
         threshold,
         
+        [0; MAX_PARTICIPANTS],
         committee_party_ids,
         d,
         registered_share_hashes,

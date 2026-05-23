@@ -23,11 +23,14 @@ verifier cost. The current prototype uses:
 | DKG | Pedersen-DKG over BFV/RLWE secret domain (`.sisyphus/design/dkg-construction.md`) | ✅ Real (BN254 Shamir, OsRng, smudging) |
 | NIZK | Cyclo-companion Ajtai D2 sigma + BFV sigma (conditional, P1 OPEN) | ⚠️ Real with conditional soundness |
 | Folding (P2) | Sonobe Nova with Cyclo CCS witness representation (`.sisyphus/design/fold-construction.md`) | ⚠️ Real (CCS satisfiability, ∞-norm; P2 OPEN — Sonobe substitute) |
-| Compression (P3) | Sonobe Nova IVC with CycloFoldStepCircuit (hash-accumulate, not Ajtai fold) | ⚠️ Real (hash-state folding; P3 OPEN — see `spec-real-p2p3.md` §5.1) |
+| Compression (P3) | Sonobe Nova IVC with KZG<Bn254> commitments + CycloFoldStepCircuit | ⚠️ Real (P3 OPEN — DeciderEth SNARK bridge feature-gated) |
 | On-chain verifier | OpenZeppelin AccessControl + TimelockController | ✅ Real (AccessControl, multisig, runId) |
+| IVC SNARK (P4) | Extended `CompressedProof` format + DeciderEth Groth16 bridge (`sonobe-snark` feature) + dual-mode Noir circuit (`sonobe_state_commitment`) | ⚠️ Partially implemented (Poseidon legacy + public-input-binding; full Groth16 verification deferred) |
 | Decrypt (smudge) | `legacy_local_smudge` (non-equivalent) vs `committed_smudge_pvss` (target committed mode) | ✅ Doc split (F.3) |
-| Shamir/RS validity (C2) | BN254-scalar Shamir + batched sk/e_sm share-computation relation | ✅ Implemented (`share_computation.rs`) |
+| Shamir/RS validity (C2) | BN254-scalar Shamir + P(0) commitment binding + batched sk/e_sm share-computation relation | ✅ Implemented (`share_computation.rs`, `dealer_parity_circuit.rs`) |
 | Share encryption (C3) | BFV sigma + Ajtai commitment; verifier lacks BFV encryption relation | ⚠️ Partial (D.1 blocker — see §C3 in interfold-equivalence.md) |
+| Keygen NIZK (C0) | BFV keypair correctness NIZK via `sigma::prove` (`nizk_keygen.rs`) | ✅ Implemented (replaces `vec![0x00, 0x01]` stub) |
+| Parity check (C2) | In-circuit H·shares==0 via Schwartz-Zippel + Poseidon P(0) binding | ✅ Implemented (`dealer_parity_circuit.rs`, `parity.rs`) |
 | Final aggregation (C7) | Sonobe C7DecryptAggregationCircuit (N=8) + C7MerkleStepCircuit (N=8192, Poseidon R1CS) + Noir aggregator_final | ✅ Implemented (Sonobe C7DecryptAggregationCircuit N=8 + C7MerkleStepCircuit N=8192 Poseidon R1CS + Noir aggregator_final) |
 
 ## Audit Status

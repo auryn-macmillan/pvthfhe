@@ -103,18 +103,18 @@ fn ark<F: PrimeField>(state: &mut [FpVar<F>], rk: &[F]) -> Result<(), SynthesisE
 /// Full S-box: apply x^5 to every state element (3 multiplications each).
 fn full_sbox<F: PrimeField>(state: &mut [FpVar<F>]) -> Result<(), SynthesisError> {
     for elem in state.iter_mut() {
-        let sq = elem.clone() * elem.clone();   // x^2
-        let qu = sq.clone() * sq.clone();        // x^4
-        *elem = qu * elem.clone();               // x^5
+        let sq = elem.clone() * elem.clone(); // x^2
+        let qu = sq.clone() * sq.clone(); // x^4
+        *elem = qu * elem.clone(); // x^5
     }
     Ok(())
 }
 
 /// Partial S-box: apply x^5 to only state[0].
 fn partial_sbox<F: PrimeField>(state: &mut [FpVar<F>]) -> Result<(), SynthesisError> {
-    let sq = state[0].clone() * state[0].clone();   // x^2
-    let qu = sq.clone() * sq.clone();                // x^4
-    state[0] = qu * state[0].clone();                // x^5
+    let sq = state[0].clone() * state[0].clone(); // x^2
+    let qu = sq.clone() * sq.clone(); // x^4
+    state[0] = qu * state[0].clone(); // x^5
     Ok(())
 }
 
@@ -378,8 +378,14 @@ mod tests {
     #[test]
     fn native_hash8_consistency() {
         let inputs: Vec<Fr> = vec![
-            Fr::from(1u64), Fr::from(1u64), Fr::from(1u64), Fr::from(1u64),
-            Fr::from(1u64), Fr::from(1u64), Fr::from(1u64), Fr::from(1u64),
+            Fr::from(1u64),
+            Fr::from(1u64),
+            Fr::from(1u64),
+            Fr::from(1u64),
+            Fr::from(1u64),
+            Fr::from(1u64),
+            Fr::from(1u64),
+            Fr::from(1u64),
         ];
         let h1 = hash8_native(&inputs);
         let h2 = hash8_native(&inputs);
@@ -423,8 +429,14 @@ mod tests {
     #[test]
     fn circuit_hash8_matches_native() {
         let inputs: Vec<Fr> = vec![
-            Fr::from(1u64), Fr::from(2u64), Fr::from(3u64), Fr::from(4u64),
-            Fr::from(5u64), Fr::from(6u64), Fr::from(7u64), Fr::from(8u64),
+            Fr::from(1u64),
+            Fr::from(2u64),
+            Fr::from(3u64),
+            Fr::from(4u64),
+            Fr::from(5u64),
+            Fr::from(6u64),
+            Fr::from(7u64),
+            Fr::from(8u64),
         ];
 
         let native_result = hash8_native(&inputs);

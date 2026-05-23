@@ -1,13 +1,31 @@
+/// ShareVerificationStepCircuit — Verifies RLWE sigma proof equation in Nova IVC.
+///
+/// Each step verifies `SIGMA_VERIFY_COEFFS` NTT-domain coefficients of the
+/// sigma relation `c·z_s + z_e == t + ch·d_i` over 3 RNS limbs, with quotient
+/// witnesses for modular reduction and power-basis norm enforcement.
+///
+/// The circuit folds per-step verification results into a Poseidon accumulator.
+/// After all steps, the accumulator serves as `verified_sigma_hash` and is
+/// bound into the aggregator_final Noir circuit as a public input.
+use super::{sigma_verify_step, ExternalInputs3, ExternalInputs3Var, PoseidonSpongeVar};
+use crate::{StepCircuit, StepCircuitDescriptor};
 use ark_ff::{BigInteger, PrimeField};
-use ark_r1cs_std::fields::FieldVar;
+use ark_r1cs_std::alloc::AllocVar;
+use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
+use ark_r1cs_std::fields::FieldVar;
 use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
 use folding_schemes::frontend::FCircuit;
 use sha3::{Digest, Keccak256};
 use std::cell::RefCell;
-use super::{ExternalInputs6, ExternalInputs6Var, PoseidonSpongeVar};
-use crate::{StepCircuit, StepCircuitDescriptor};
 
+/// Thread-local for step metadata (step count verification). The actual
+/// sigma NTT data lives in `SIGMA_DATA` (mod.rs), accessed by `sigma_verify_step`.
+thread_local! {
+    pub static SIGMA_VERIFY_META: RefCell<Vec<ark_bn254::Fr>> = RefCell::new(Vec::new());
+}
+
+// Backward-compatible aliases used by the compressor prove_steps glue.
 thread_local! {
     pub static SHARE_COEFFS_DATA: RefCell<Vec<Vec<ark_bn254::Fr>>> = RefCell::new(Vec::new());
 }
@@ -20,6 +38,21 @@ pub fn clear_share_coeffs_data() {
     SHARE_COEFFS_DATA.with(|cell| cell.borrow_mut().clear());
 }
 
+/// Number of sigma verification steps to expect. Persists across prove/verify.
+thread_local! {
+    pub static SIGMA_VERIFY_N_STEPS: RefCell<usize> = RefCell::new(0);
+}
+
+pub fn set_sigma_verify_meta(domain_tags: Vec<ark_bn254::Fr>, n_steps: usize) {
+    SIGMA_VERIFY_META.with(|cell| *cell.borrow_mut() = domain_tags);
+    SIGMA_VERIFY_N_STEPS.with(|cell| *cell.borrow_mut() = n_steps);
+}
+
+pub fn clear_sigma_verify_meta() {
+    SIGMA_VERIFY_META.with(|cell| cell.borrow_mut().clear());
+    // SIGMA_VERIFY_N_STEPS persists for Nova verify re-synthesis.
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct ShareVerificationStepCircuit<F: PrimeField> {
     _phantom: std::marker::PhantomData<F>,
@@ -27,73 +60,65 @@ pub struct ShareVerificationStepCircuit<F: PrimeField> {
 
 impl<F: PrimeField> FCircuit<F> for ShareVerificationStepCircuit<F> {
     type Params = ();
-    type ExternalInputs = ExternalInputs6<F>;
-    type ExternalInputsVar = ExternalInputs6Var<F>;
-    fn state_len(&self) -> usize { 2 }
-    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
-        Ok(Self { _phantom: std::marker::PhantomData })
+    type ExternalInputs = ExternalInputs3<F>;
+    type ExternalInputsVar = ExternalInputs3Var<F>;
+
+    fn state_len(&self) -> usize {
+        2
     }
+
+    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
+        Ok(Self {
+            _phantom: std::marker::PhantomData,
+        })
+    }
+
     fn generate_step_constraints(
         &self,
-        cs: ConstraintSystemRef<F>, _i: usize, z_i: Vec<FpVar<F>>,
-        external_inputs: Self::ExternalInputsVar,
+        cs: ConstraintSystemRef<F>,
+        _i: usize,
+        z_i: Vec<FpVar<F>>,
+        _external_inputs: Self::ExternalInputsVar,
     ) -> Result<Vec<FpVar<F>>, SynthesisError> {
-        let coeffs = SHARE_COEFFS_DATA.with(|cell| cell.borrow().get(_i).cloned().unwrap_or_default());
-        let coeff_vars: Vec<FpVar<F>> = coeffs
-            .iter()
-            .map(|c| {
-                let v = F::from_le_bytes_mod_order(&c.into_bigint().to_bytes_le());
-                FpVar::constant(v)
-            })
-            .collect();
+        let n_steps = SIGMA_VERIFY_N_STEPS.with(|cell| *cell.borrow());
 
-        // 1. Hash share coefficients via Poseidon sponge
-        let mut coeff_sponge = PoseidonSpongeVar::new();
-        coeff_sponge.absorb(&coeff_vars)?;
-        let share_hash = coeff_sponge.squeeze_one()?;
+        // Run sigma equation verification for this step. On failure, the
+        // function enforces `1 == 0` (unsatisfiable constraint).
+        let sigma_result = sigma_verify_step(cs.clone(), _i)?;
 
-        // 2. Compute Schnorr challenge: e = Poseidon(domain, sig_r_x, sig_r_y, pk_x, pk_y, share_hash)
-        //    ExternalInputs6: (sig_r_x, sig_r_y, sig_s, pk_x, pk_y, domain)
-        let mut challenge_sponge = PoseidonSpongeVar::new();
-        challenge_sponge.absorb(&[
-            external_inputs.5.clone(),                    // domain separator
-            external_inputs.0.clone(),                    // sig_r_x
-            external_inputs.1.clone(),                    // sig_r_y
-            external_inputs.3.clone(),                    // pk_x
-            external_inputs.4.clone(),                    // pk_y
-            share_hash.clone(),                           // share commitment hash
-        ])?;
-        let challenge_e = challenge_sponge.squeeze_one()?;
+        // Compute a step commitment hash from the verification result and
+        // step metadata for accumulation.
+        let domain_tag =
+            SIGMA_VERIFY_META.with(|cell| cell.borrow().get(_i).cloned().unwrap_or_default());
+        let domain_f = F::from_le_bytes_mod_order(&domain_tag.into_bigint().to_bytes_le());
 
-        // G.12 Phase 2b: Schnorr EC equality (s·G == R + e·PK).
-        //
-        // Full in-circuit EC verification requires non-native Fq arithmetic
-        // over the Fr constraint field. The ark-bn254 GVar (CurveVar for G1)
-        // operates over Fq as native field; our Sonobe Nova circuit runs over
-        // Fr. Non-native EC arithmetic (EmulatedFpVar<Fq, Fr> with full
-        // point addition + scalar multiplication) is deferred to the on-chain
-        // Solidity verifier. The in-circuit check ensures only the challenge
-        // derivation binds the full point coordinates.
-        let _ = (&external_inputs.0, &external_inputs.1, &external_inputs.2,
-                 &external_inputs.3, &external_inputs.4, &external_inputs.5,
-                 &challenge_e);
+        let mut hash_sponge = PoseidonSpongeVar::new();
+        hash_sponge.absorb(&[FpVar::constant(domain_f), sigma_result])?;
+        let step_hash = hash_sponge.squeeze_one()?;
 
-        // 3. Accumulate: step_commitment = poseidon(share_hash || challenge_e)
-        //    This binds the signature challenge to the accumulated state
-        let mut acc_sponge = PoseidonSpongeVar::new();
-        acc_sponge.absorb(&[share_hash, challenge_e])?;
-        let step_commitment = acc_sponge.squeeze_one()?;
-
-        let acc_hash = z_i[0].clone() + step_commitment;
+        let acc_hash = z_i[0].clone() + step_hash;
         let step_count = z_i[1].clone() + FpVar::constant(F::one());
 
-        let _ = cs.num_constraints();
+        // Enforce we process exactly n_steps.
+        if _i + 1 >= n_steps && n_steps > 0 {
+            step_count.enforce_equal(&FpVar::constant(F::from(n_steps as u64)))?;
+        }
 
         Ok(vec![acc_hash, step_count])
     }
 }
 
+/// Convert ark_bn254::Fr to circuit field F.
+fn to_f<F: PrimeField>(fr: ark_bn254::Fr) -> F {
+    use ark_ff::BigInteger;
+    F::from_le_bytes_mod_order(&fr.into_bigint().to_bytes_le())
+}
+
 impl<F: PrimeField> StepCircuit for ShareVerificationStepCircuit<F> {
-    fn descriptor(&self) -> StepCircuitDescriptor { StepCircuitDescriptor { width: 2 } }
-    fn circuit_hash(&self) -> [u8; 32] { Keccak256::digest(b"pvthfhe/pvss/share-verify/v1").into() }
+    fn descriptor(&self) -> StepCircuitDescriptor {
+        StepCircuitDescriptor { width: 2 }
+    }
+    fn circuit_hash(&self) -> [u8; 32] {
+        Keccak256::digest(b"pvthfhe/pvss/share-verify-sigma/v1").into()
+    }
 }

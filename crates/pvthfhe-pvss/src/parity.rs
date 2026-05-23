@@ -35,7 +35,8 @@ pub fn generate_parity_matrix(n: usize, t: usize) -> Vec<Vec<Fr>> {
     let mut binom: Vec<Fr> = Vec::with_capacity(order + 1);
     binom.push(Fr::from(1u64));
     for j in 0..order {
-        let next = binom[j] * Fr::from((order - j) as u64)
+        let next = binom[j]
+            * Fr::from((order - j) as u64)
             * Fr::from((j + 1) as u64)
                 .inverse()
                 .expect("j+1 < Fr modulus");
@@ -116,10 +117,7 @@ fn interpolate_coeffs(points: &[(usize, Fr)]) -> Option<Vec<Fr>> {
 }
 
 fn eval_poly(coeffs: &[Fr], x: Fr) -> Fr {
-    coeffs
-        .iter()
-        .rev()
-        .fold(Fr::ZERO, |acc, &c| acc * x + c)
+    coeffs.iter().rev().fold(Fr::ZERO, |acc, &c| acc * x + c)
 }
 
 pub fn prove_parity(
@@ -318,7 +316,9 @@ mod tests {
             for chunk in &chunk_shares {
                 share_frs.push(chunk[recipient - 1]);
             }
-            assert!(verify_parity(&share_frs, recipient, &proof, empty_norm, empty_enc));
+            assert!(verify_parity(
+                &share_frs, recipient, &proof, empty_norm, empty_enc
+            ));
         }
 
         let mut bad_frs = Vec::with_capacity(num_chunks);
@@ -341,7 +341,13 @@ mod tests {
         let proof = prove_parity(&[values.clone()], n, t, &[], &[]).expect("prove_parity");
 
         for i in 1..=n {
-            assert!(verify_parity(&[values[i - 1]], i, &proof, empty_norm, empty_enc));
+            assert!(verify_parity(
+                &[values[i - 1]],
+                i,
+                &proof,
+                empty_norm,
+                empty_enc
+            ));
         }
     }
 
@@ -377,7 +383,13 @@ mod tests {
         let empty_norm = hash_norm_witness(&[]);
         let empty_enc = hash_encryption_validity(&[]);
         let proof = prove_parity(&[values.clone()], 3, 2, &[], &[]).expect("prove vacuous");
-        assert!(verify_parity(&[values[0]], 1, &proof, empty_norm, empty_enc));
+        assert!(verify_parity(
+            &[values[0]],
+            1,
+            &proof,
+            empty_norm,
+            empty_enc
+        ));
     }
 
     #[test]
@@ -396,8 +408,8 @@ mod tests {
         let norm_witness = b"test-norm-witness-data-for-binding";
         let enc_validity = b"test-encryption-validity-data";
 
-        let proof = prove_parity(&chunk_shares, n, t, norm_witness, enc_validity)
-            .expect("prove_parity");
+        let proof =
+            prove_parity(&chunk_shares, n, t, norm_witness, enc_validity).expect("prove_parity");
 
         let expected_norm = hash_norm_witness(norm_witness);
         let expected_enc = hash_encryption_validity(enc_validity);
@@ -410,7 +422,13 @@ mod tests {
             for chunk in &chunk_shares {
                 share_frs.push(chunk[recipient - 1]);
             }
-            assert!(verify_parity(&share_frs, recipient, &proof, expected_norm, expected_enc));
+            assert!(verify_parity(
+                &share_frs,
+                recipient,
+                &proof,
+                expected_norm,
+                expected_enc
+            ));
         }
 
         // Wrong norm witness hash

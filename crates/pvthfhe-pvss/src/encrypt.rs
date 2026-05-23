@@ -7,6 +7,7 @@ use pvthfhe_rng::OsRng;
 use pvthfhe_types::{EncRandomness, ProtocolBytes, ShareSecret};
 use rand_core::{RngCore, SeedableRng};
 
+use crate::dkg_aggregation::{compute_esm_aggregate_commitment, compute_sk_aggregate_commitment};
 use crate::nizk_decrypt::{
     compute_decrypt_ciphertext_hash, derive_party_binding, DecryptNizkMode, DecryptNizkProof,
     DecryptNizkProver, DecryptNizkStatement, DecryptNizkVerifier, DecryptNizkWitness,
@@ -16,7 +17,6 @@ use crate::nizk_share::{
     ShareNizkProver, ShareNizkStatement, ShareNizkVerifier, ShareNizkWitness,
 };
 use crate::shamir;
-use crate::dkg_aggregation::{compute_esm_aggregate_commitment, compute_sk_aggregate_commitment};
 use crate::{DecryptedShare, EncryptedShares, PvssAdapter, PvssContext, PvssError};
 
 const BACKEND_ID: &str = "lattice-pvss-bfv-d2";
@@ -102,8 +102,7 @@ impl LatticePvssBfvAdapter {
             Some(_) => {
                 let sk_val = effective_sk_share.ok_or(PvssError::InvalidShare)?;
                 let esm_val = effective_esm_share.ok_or(PvssError::InvalidShare)?;
-                let ciphertext_hash =
-                    compute_decrypt_ciphertext_hash(ciphertext_u, &ciphertext_v);
+                let ciphertext_hash = compute_decrypt_ciphertext_hash(ciphertext_u, &ciphertext_v);
                 let recipient_id =
                     u16::try_from(party_index).map_err(|_| PvssError::InvalidShare)?;
                 let accepted_participant_ids: Vec<u16> = (1..=u16::try_from(ctx.n)
@@ -257,8 +256,9 @@ impl PvssAdapter for LatticePvssBfvAdapter {
         }
 
         let enc_validity_data: Vec<u8> = ciphertexts.iter().flatten().copied().collect();
-        let parity_proof_bytes = crate::parity::prove_parity(&chunk_shares, ctx.n, ctx.t, secret, &enc_validity_data)
-            .map(|pp| crate::parity::serialize_parity_proof(&pp));
+        let parity_proof_bytes =
+            crate::parity::prove_parity(&chunk_shares, ctx.n, ctx.t, secret, &enc_validity_data)
+                .map(|pp| crate::parity::serialize_parity_proof(&pp));
 
         Ok(EncryptedShares {
             ciphertexts,
@@ -304,8 +304,9 @@ impl PvssAdapter for LatticePvssBfvAdapter {
         }
 
         if let Some(ref pp_bytes) = shares.parity_proof {
-            let proof = crate::parity::deserialize_parity_proof(pp_bytes)
-                .ok_or_else(|| PvssError::ShareVerification("parity proof deserialization failed".into()))?;
+            let proof = crate::parity::deserialize_parity_proof(pp_bytes).ok_or_else(|| {
+                PvssError::ShareVerification("parity proof deserialization failed".into())
+            })?;
 
             let enc_validity_data: Vec<u8> = shares.ciphertexts.iter().flatten().copied().collect();
             let expected_enc_hash = crate::parity::hash_encryption_validity(&enc_validity_data);
@@ -313,10 +314,13 @@ impl PvssAdapter for LatticePvssBfvAdapter {
             let expected_norm_hash = if !shares.share_bytes.is_empty() {
                 let first_len = shares.share_bytes[0].len();
                 if first_len < LENGTH_PREFIX_LEN + FR_SERIALIZED_LEN {
-                    return Err(PvssError::ShareVerification("share payload too short for norm witness recovery".into()));
+                    return Err(PvssError::ShareVerification(
+                        "share payload too short for norm witness recovery".into(),
+                    ));
                 }
                 let original_len = u32::from_be_bytes(
-                    shares.share_bytes[0][..LENGTH_PREFIX_LEN].try_into()
+                    shares.share_bytes[0][..LENGTH_PREFIX_LEN]
+                        .try_into()
                         .map_err(|_| PvssError::ShareVerification("original_len parse".into()))?,
                 ) as usize;
                 let num_chunks = (first_len - LENGTH_PREFIX_LEN) / FR_SERIALIZED_LEN;
@@ -334,22 +338,26 @@ impl PvssAdapter for LatticePvssBfvAdapter {
                         .enumerate()
                         .map(|(i, payload)| {
                             let offset = LENGTH_PREFIX_LEN + chunk_idx * FR_SERIALIZED_LEN;
-                            let arr: &[u8; FR_SERIALIZED_LEN] =
-                                payload[offset..offset + FR_SERIALIZED_LEN].try_into()
-                                    .expect("share payload chunk alignment");
+                            let arr: &[u8; FR_SERIALIZED_LEN] = payload
+                                [offset..offset + FR_SERIALIZED_LEN]
+                                .try_into()
+                                .expect("share payload chunk alignment");
                             (i + 1, bytes32_to_fr(arr).expect("share Fr out of range"))
                         })
                         .collect();
-                    let recovered = crate::shamir::recover(&points, needed)
-                        .map_err(|_| PvssError::ShareVerification(format!(
+                    let recovered = crate::shamir::recover(&points, needed).map_err(|_| {
+                        PvssError::ShareVerification(format!(
                             "norm witness recovery failed for chunk {chunk_idx}"
-                        )))?;
+                        ))
+                    })?;
                     recovered_frs.push(recovered);
                 }
                 let secret_bytes = frs_to_secret(&recovered_frs, original_len);
                 crate::parity::hash_norm_witness(&secret_bytes)
             } else {
-                return Err(PvssError::ShareVerification("no shares for norm witness recovery".into()));
+                return Err(PvssError::ShareVerification(
+                    "no shares for norm witness recovery".into(),
+                ));
             };
 
             for (party_idx, payload) in shares.share_bytes.iter().enumerate() {
@@ -359,12 +367,19 @@ impl PvssAdapter for LatticePvssBfvAdapter {
                     let arr: &[u8; 32] = chunk.try_into().map_err(|_| {
                         PvssError::ShareVerification("share chunk misaligned".into())
                     })?;
-                    let fr = bytes32_to_fr(arr)
-                        .ok_or_else(|| PvssError::ShareVerification("share Fr out of range".into()))?;
+                    let fr = bytes32_to_fr(arr).ok_or_else(|| {
+                        PvssError::ShareVerification("share Fr out of range".into())
+                    })?;
                     share_frs.push(fr);
                 }
                 let idx = party_idx + 1;
-                if !crate::parity::verify_parity(&share_frs, idx, &proof, expected_norm_hash, expected_enc_hash) {
+                if !crate::parity::verify_parity(
+                    &share_frs,
+                    idx,
+                    &proof,
+                    expected_norm_hash,
+                    expected_enc_hash,
+                ) {
                     return Err(PvssError::ShareVerification(format!(
                         "parity proof: share {idx} not on RS codeword or witness hash mismatch"
                     )));
@@ -373,10 +388,9 @@ impl PvssAdapter for LatticePvssBfvAdapter {
         }
 
         if !shares.share_bytes.is_empty() {
-            verify_share_rs_consistency(&shares.share_bytes, ctx.t)
-                .map_err(|e| PvssError::ShareVerification(format!(
-                    "cross-share RS parity check failed: {e}"
-                )))?;
+            verify_share_rs_consistency(&shares.share_bytes, ctx.t).map_err(|e| {
+                PvssError::ShareVerification(format!("cross-share RS parity check failed: {e}"))
+            })?;
         }
 
         Ok(())
@@ -640,10 +654,7 @@ fn deserialize_share_payloads(
 /// This prevents the share-poisoning attack where a dishonest dealer creates
 /// individually-valid NIZK proofs for shares that reconstruct garbage.
 /// Equivalent to the RS parity portion of `share_computation::verify_batched_share_computation`.
-fn verify_share_rs_consistency(
-    share_bytes: &[Vec<u8>],
-    threshold: usize,
-) -> Result<(), String> {
+fn verify_share_rs_consistency(share_bytes: &[Vec<u8>], threshold: usize) -> Result<(), String> {
     let n = share_bytes.len();
     if n == 0 {
         return Ok(());
@@ -767,7 +778,8 @@ pub fn compute_poly_factors(n: usize, t: usize, r: ark_bn254::Fr) -> Vec<ark_bn2
     let mut binom = Vec::with_capacity(order + 1);
     binom.push(ark_bn254::Fr::from(1u64));
     for j in 0..order {
-        let next = binom[j] * ark_bn254::Fr::from((order - j) as u64)
+        let next = binom[j]
+            * ark_bn254::Fr::from((order - j) as u64)
             * ark_bn254::Fr::from((j + 1) as u64)
                 .inverse()
                 .expect("j+1 < Fr modulus");

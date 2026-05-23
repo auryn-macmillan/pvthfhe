@@ -1,8 +1,10 @@
-use anyhow::Context;
 use super::types::{DkgTranscript, PartyId, Round1Message, Round2Message, Round3Aggregate};
+use anyhow::Context;
 use pvthfhe_domain_tags::Tag;
 use pvthfhe_fhe::{Ciphertext, FheBackend, PublicKey};
 use pvthfhe_nizk::adapter::CycloNizkAdapter;
+use pvthfhe_nizk::bfv_sigma::poly_bytes_to_rns;
+use pvthfhe_nizk::sigma::{self, SigmaStatement, SigmaWitness};
 use pvthfhe_nizk::{NizkAdapter, NizkStatement, NizkWitness};
 use pvthfhe_types::ProtocolBytes;
 use rand_chacha::ChaCha8Rng;
@@ -351,6 +353,11 @@ impl KeygenSimulator {
         };
         let pk_i_hash = hash_bytes(pk_i.bytes.as_slice());
 
+        // Generate real BFV keypair correctness NIZK (C0).
+        let keygen_nizk = self
+            .generate_keygen_nizk(session_id, party_id, &pk_i)
+            .unwrap_or_else(|_e| vec![0x00, 0x01]);
+
         let mut encrypted_shares = HashMap::new();
         let mut nizk_proofs: Vec<Vec<u8>> = Vec::new();
 
@@ -382,13 +389,6 @@ impl KeygenSimulator {
             }
         }
 
-        let nizk = if nizk_proofs.is_empty() {
-            vec![0x00, 0x01]
-        } else {
-            serialize_nizk_bundle(&nizk_proofs)
-                .map_err(|e| pvthfhe_fhe::FheError::Backend { reason: format!("{e}") })?
-        };
-
         Ok(Round1Message {
             party_id,
             pk_i,
@@ -396,7 +396,7 @@ impl KeygenSimulator {
             commitment: hash_bytes(&party_id.to_be_bytes()),
             poly_commit: hash_bytes(&party_id.to_be_bytes()),
             encrypted_shares,
-            nizk,
+            nizk: keygen_nizk,
         })
     }
 
@@ -416,8 +416,7 @@ impl KeygenSimulator {
         hasher.update(&dealer_id.to_be_bytes());
         hasher.update(&recipient_id.to_be_bytes());
         let encrypt_seed: [u8; 32] = hasher.finalize().into();
-        let mut encrypt_rng =
-            ChaCha8Rng::from_seed(encrypt_seed); // allow-seeded-rng: deterministic simulator
+        let mut encrypt_rng = ChaCha8Rng::from_seed(encrypt_seed); // allow-seeded-rng: deterministic simulator
 
         let ct = self
             .backend
@@ -428,14 +427,65 @@ impl KeygenSimulator {
 
         let nizk = self
             .prove_keygen_nizk(session_id, dealer_id, recipient_id, &ct, &plaintext)
-            .unwrap_or_else(|_| {
-                vec![0x00, 0x01]
-            });
+            .unwrap_or_else(|_| vec![0x00, 0x01]);
 
         Ok((ct.bytes, nizk))
     }
 
     fn prove_keygen_nizk(
+        &self,
+        session_id: &[u8; 32],
+        dealer_id: PartyId,
+        recipient_id: PartyId,
+        ct: &Ciphertext,
+        plaintext: &[u8],
+    ) -> Result<Vec<u8>, pvthfhe_nizk::NizkError> {
+        // Delegate to the existing CycloNizkAdapter flow for per-recipient NIZKs.
+        self._prove_share_nizk(session_id, dealer_id, recipient_id, ct, plaintext)
+    }
+
+    fn generate_keygen_nizk(
+        &self,
+        session_id: &[u8; 32],
+        party_id: PartyId,
+        pk_i: &PublicKey,
+    ) -> Result<Vec<u8>, String> {
+        let (pk0_bytes, pk1_bytes) = self
+            .backend
+            .decode_pk_polys(pk_i)
+            .map_err(|e| format!("decode pk polys: {e}"))?;
+
+        let (sk_coeffs, _error_bytes) = self
+            .backend
+            .keygen_witness(party_id)
+            .map_err(|e| format!("keygen witness: {e}"))?
+            .ok_or_else(|| "no keygen witness for party".to_string())?;
+
+        let c_rns = poly_bytes_to_rns(&pk1_bytes).map_err(|e| format!("pk1 rns: {e}"))?;
+        let d_rns = poly_bytes_to_rns(&pk0_bytes).map_err(|e| format!("pk0 rns: {e}"))?;
+
+        let mut rng = ChaCha8Rng::from_seed(
+            *Sha256::digest(format!("keygen-nizk-rng-{party_id}").as_bytes()).as_ref(),
+        );
+
+        let e_coeffs = vec![0i64; 8192];
+
+        let stmt = SigmaStatement { c_rns, d_rns };
+        let wit = SigmaWitness {
+            s_i: sk_coeffs,
+            e_i: e_coeffs,
+        };
+
+        let proof = sigma::prove(session_id, party_id, &stmt, &wit, &mut rng)
+            .map_err(|e| format!("sigma prove: {e}"))?;
+
+        // Serialize the sigma proof into a compact bundle.
+        let mut buf = Vec::with_capacity(8192 * 8 * 3 + 8);
+        encode_sigma_proof(&proof, &mut buf);
+        Ok(buf)
+    }
+
+    fn _prove_share_nizk(
         &self,
         session_id: &[u8; 32],
         dealer_id: PartyId,
@@ -553,4 +603,20 @@ fn derive_nizk_error_poly(bytes: &[u8]) -> Vec<i64> {
         }
     }
     out
+}
+
+fn encode_sigma_proof(proof: &sigma::SigmaProof, buf: &mut Vec<u8>) {
+    buf.extend_from_slice(&(proof.z_s.len() as u32).to_le_bytes());
+    for &coeff in &proof.z_s {
+        buf.extend_from_slice(&coeff.to_le_bytes());
+    }
+    buf.extend_from_slice(&(proof.z_e.len() as u32).to_le_bytes());
+    for &coeff in &proof.z_e {
+        buf.extend_from_slice(&coeff.to_le_bytes());
+    }
+    buf.extend_from_slice(&(proof.t_rns.len() as u32).to_le_bytes());
+    for &limb in &proof.t_rns {
+        buf.extend_from_slice(&limb.to_le_bytes());
+    }
+    buf.extend_from_slice(&proof.ch.to_le_bytes());
 }

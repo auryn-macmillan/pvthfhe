@@ -227,6 +227,25 @@ rather than flat Nova folding:
 This replaces the Phase 2 off-circuit Merkle verification with fully constrained
 in-circuit Merkle proofs.
 
+### Nova Commitment Scheme: KZG
+
+The Sonobe Nova IVC compressor uses `KZG<'static, Bn254>` for main-curve commitments (CS1)
+and `Pedersen<G2>` for CycleFold-curve commitments (CS2). This enables Sonobe's `DeciderEth`
+Groth16 SNARK wrapping for on-chain IVC verification.
+
+- **Switch**: `Pedersen<G1>` → `KZG<'static, Bn254>` (rev `63f2930d`). The `'static` lifetime
+  is valid because `KZG::setup` uses `Cow::Owned` (fully-owned SRS).
+- **KZG trusted setup**: Generated at runtime via `KZG::<Bn254>::setup(rng, 1 << 17)`.
+  The file `bench/srs/bn254.srs` is a text-only stub (52 bytes). Production requires a
+  real MPC ceremony output.
+- **SNARK bridge**: `snark_bridge.rs` provides `wrap_nova_instance()` (feature-gated on
+  `sonobe-snark`) and `serialize_wrapped_proof()` for the extended `CompressedProof` format.
+- **Proof format**: Extended with optional SNARK trailer: `[snark_len: u32 BE][snark_bytes]`.
+  `parse_proof()` handles both v1 (76+ivc_len) and v2 (80+ivc_len+snark_len) formats.
+- **Noir circuit**: `sonobe_state_commitment` is dual-mode: `ivc_snark_proof_hash == 0` uses
+  legacy Poseidon hash preimage; `!= 0` uses Poseidon binding of all 6 public inputs.
+- **Dependency**: `ark-groth16` (optional, gated behind `sonobe-snark` feature).
+
 ### Per-Node / Per-Aggregator Scaling
 
 Scaling simulation binaries (`pvthfhe-per-node`, `pvthfhe-per-aggregator`) benchmark

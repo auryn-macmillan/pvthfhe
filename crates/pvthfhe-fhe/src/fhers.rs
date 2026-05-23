@@ -6,6 +6,8 @@ use crate::{
     types::{Ciphertext, DecryptShare, KeygenShare, Params, PublicKey as OpaquePublicKey},
     wire, DecryptionWitness, EncryptionWitness, FheBackend,
 };
+use ark_bn254::Fr;
+use ark_ff::{BigInteger, PrimeField};
 use fhe::bfv::{
     BfvParameters, BfvParametersBuilder, Ciphertext as BfvCiphertext, Encoding, Plaintext,
     PublicKey as BfvPublicKey, SecretKey,
@@ -19,22 +21,20 @@ use fhe_traits::{
     Serialize,
 };
 use ndarray::Array2;
-use rand::rngs::StdRng;
-use rayon::prelude::*;
+use num_bigint::{BigInt, BigUint};
+use num_traits::ToPrimitive;
 use pvthfhe_types::ProtocolBytes;
+use rand::rngs::StdRng;
 use rand_chacha::ChaCha8Rng;
 use rand_core::{RngCore, SeedableRng};
 use rand_distr::{Distribution, Normal};
+use rayon::prelude::*;
 use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
     time::Instant,
 };
-use ark_bn254::Fr;
-use ark_ff::{BigInteger, PrimeField};
-use num_bigint::{BigInt, BigUint};
-use num_traits::ToPrimitive;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Smudging noise standard deviation per coefficient.
@@ -52,6 +52,12 @@ pub struct PartyState {
     /// Placeholder for smudging-error sums added in later tasks.
     pub esi_poly_sum: Vec<Poly>,
     sk_shamir_shares: Vec<Vec<i64>>,
+    /// Original key-generation error polynomial (for BFV keypair NIZK).
+    pub keygen_error_coeffs: Option<Vec<i64>>,
+    /// Original key-generation ternary secret-key coefficients (for BFV keypair NIZK).
+    pub keygen_sk_coeffs: Option<Vec<i64>>,
+    /// Original key-generation error polynomial serialized (for BFV keypair NIZK).
+    pub keygen_error_poly_bytes: Option<Vec<u8>>,
 }
 
 /// Primary backend wrapping gnosisguild/fhe.rs BFV.
@@ -83,11 +89,7 @@ impl Clone for FhersBackend {
             esm_noise_poly_map: self.esm_noise_poly_map.clone(),
             #[cfg(debug_assertions)]
             owned_party_id: {
-                let val = self
-                    .owned_party_id
-                    .lock()
-                    .ok()
-                    .and_then(|guard| *guard);
+                let val = self.owned_party_id.lock().ok().and_then(|guard| *guard);
                 std::sync::Mutex::new(val)
             },
         }
@@ -123,9 +125,12 @@ impl FhersBackend {
     pub fn party_secret_key_bytes(&self, party_id: u32) -> Result<Vec<u8>, FheError> {
         #[cfg(debug_assertions)]
         {
-            let owned = self.owned_party_id.lock().map_err(|err| FheError::Backend {
-                reason: format!("owned_party_id lock poisoned: {err}"),
-            })?;
+            let owned = self
+                .owned_party_id
+                .lock()
+                .map_err(|err| FheError::Backend {
+                    reason: format!("owned_party_id lock poisoned: {err}"),
+                })?;
             if let Some(owned_id) = *owned {
                 if party_id != owned_id {
                     tracing::warn!(
@@ -142,6 +147,24 @@ impl FhersBackend {
             bytes.extend_from_slice(&coeff.to_le_bytes());
         }
         Ok(bytes)
+    }
+
+    /// Return the key-generation witness (sk, e) for BFV keypair NIZK.
+    /// Returns `None` if no keygen data was stored for this party.
+    pub fn party_keygen_witness(
+        &self,
+        party_id: u32,
+    ) -> Result<Option<(Vec<i64>, Vec<u8>)>, FheError> {
+        let states = self.party_states.lock().map_err(|err| FheError::Backend {
+            reason: format!("party_states lock poisoned: {err}"),
+        })?;
+        match states.get(&party_id) {
+            Some(state) => match (&state.keygen_sk_coeffs, &state.keygen_error_poly_bytes) {
+                (Some(sk), Some(e_bytes)) => Ok(Some((sk.clone(), e_bytes.clone()))),
+                _ => Ok(None),
+            },
+            None => Ok(None),
+        }
     }
 
     /// Store committed smudging-noise polynomial bytes for `party_id` (B.2).
@@ -373,7 +396,11 @@ impl FhersBackend {
     }
 
     fn compute_party_sk_sums(&self, n: usize, t: usize) -> Result<(), FheError> {
-        tracing::debug!(n_participants = n, threshold = t, "setup_threshold: computing Shamir shares for all parties (O(n²·degree))");
+        tracing::debug!(
+            n_participants = n,
+            threshold = t,
+            "setup_threshold: computing Shamir shares for all parties (O(n²·degree))"
+        );
         if n == 0 {
             return Err(FheError::Backend {
                 reason: "n must be > 0".into(),
@@ -405,7 +432,11 @@ impl FhersBackend {
         };
 
         let t_pre_read = std::time::Instant::now();
-        tracing::info!(n = n, ms = t_pre_read.elapsed().as_secs_f64() * 1000.0, "setup_threshold: pre-read sk_coeffs");
+        tracing::info!(
+            n = n,
+            ms = t_pre_read.elapsed().as_secs_f64() * 1000.0,
+            "setup_threshold: pre-read sk_coeffs"
+        );
 
         let threshold = self.shamir_threshold(n, t);
         let bfv_params = self.bfv_params.clone();
@@ -417,44 +448,54 @@ impl FhersBackend {
         // ── Parallel: each party generates Shamir shares for all recipients ──
         // allow-seeded-rng: deterministic Shamir share generation so parallel
         // execution is deterministic and reproducible.
-        let all_shares: Vec<Result<((u32, Vec<Array2<u64>>), Vec<Vec<i64>>), FheError>> =
-            (1u32..=max_party_id)
-                .into_par_iter()
-                .map(|party_id| {
-                    let mut sm = ShareManager::new(n, threshold, bfv_params.clone());
-                    let sk_poly = sm
-                        .coeffs_to_poly_level0(&all_sk_coeffs[&party_id])
-                        .map_err(|err| FheError::Backend {
-                            reason: err.to_string(),
-                        })?;
-                    let mut rng = StdRng::seed_from_u64(party_id as u64);
-                    let shares = sm
-                        .generate_secret_shares_from_poly(sk_poly, &mut rng)
-                        .map_err(|err| FheError::Backend {
-                            reason: err.to_string(),
-                        })?;
-                    let sk_shamir: Vec<Vec<i64>> = (0..n)
-                        .map(|ri| {
-                            shares[0]
-                                .row(ri)
-                                .iter()
-                                .copied()
-                                .map(|c| {
-                                    i64::try_from(c).map_err(|err| FheError::Backend {
-                                        reason: err.to_string(),
-                                    })
+        let all_shares: Vec<Result<((u32, Vec<Array2<u64>>), Vec<Vec<i64>>), FheError>> = (1u32
+            ..=max_party_id)
+            .into_par_iter()
+            .map(|party_id| {
+                let mut sm = ShareManager::new(n, threshold, bfv_params.clone());
+                let sk_poly = sm
+                    .coeffs_to_poly_level0(&all_sk_coeffs[&party_id])
+                    .map_err(|err| FheError::Backend {
+                        reason: err.to_string(),
+                    })?;
+                let mut rng = StdRng::seed_from_u64(party_id as u64);
+                let shares = sm
+                    .generate_secret_shares_from_poly(sk_poly, &mut rng)
+                    .map_err(|err| FheError::Backend {
+                        reason: err.to_string(),
+                    })?;
+                let sk_shamir: Vec<Vec<i64>> = (0..n)
+                    .map(|ri| {
+                        shares[0]
+                            .row(ri)
+                            .iter()
+                            .copied()
+                            .map(|c| {
+                                i64::try_from(c).map_err(|err| FheError::Backend {
+                                    reason: err.to_string(),
                                 })
-                                .collect::<Result<Vec<_>, _>>()
-                        })
-                        .collect::<Result<Vec<_>, _>>()?;
-                    Ok(((party_id, shares), sk_shamir))
-                })
-                .collect();
+                            })
+                            .collect::<Result<Vec<_>, _>>()
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(((party_id, shares), sk_shamir))
+            })
+            .collect();
 
         let t_parallel = std::time::Instant::now();
         let n_parties = max_party_id as usize;
-        let total_allocated_mb = n_parties * (n_parties - 1) * self.bfv_params.moduli().len() * self.bfv_params.degree() * 8 / (1024 * 1024);
-        tracing::info!(n = n, ms = t_parallel.elapsed().as_secs_f64() * 1000.0, total_allocated_mb = total_allocated_mb, "setup_threshold: parallel Shamir generation");
+        let total_allocated_mb = n_parties
+            * (n_parties - 1)
+            * self.bfv_params.moduli().len()
+            * self.bfv_params.degree()
+            * 8
+            / (1024 * 1024);
+        tracing::info!(
+            n = n,
+            ms = t_parallel.elapsed().as_secs_f64() * 1000.0,
+            total_allocated_mb = total_allocated_mb,
+            "setup_threshold: parallel Shamir generation"
+        );
 
         // ── Re-acquire lock for sequential merge ──
         let mut party_states = self.party_states.lock().map_err(|err| FheError::Backend {
@@ -472,12 +513,10 @@ impl FhersBackend {
                     u32::try_from(receiver_index + 1).map_err(|err| FheError::Backend {
                         reason: err.to_string(),
                     })?;
-                let mut sender_share_data = Vec::with_capacity(
-                    self.bfv_params.moduli().len() * self.bfv_params.degree(),
-                );
+                let mut sender_share_data =
+                    Vec::with_capacity(self.bfv_params.moduli().len() * self.bfv_params.degree());
                 for modulus_matrix in &shares {
-                    sender_share_data
-                        .extend(modulus_matrix.row(receiver_index).iter().copied());
+                    sender_share_data.extend(modulus_matrix.row(receiver_index).iter().copied());
                 }
                 let sender_share = Array2::from_shape_vec(
                     (self.bfv_params.moduli().len(), self.bfv_params.degree()),
@@ -496,7 +535,11 @@ impl FhersBackend {
         }
 
         let t_merge = std::time::Instant::now();
-        tracing::info!(n = n, ms = t_merge.elapsed().as_secs_f64() * 1000.0, "setup_threshold: sequential merge into distributed");
+        tracing::info!(
+            n = n,
+            ms = t_merge.elapsed().as_secs_f64() * 1000.0,
+            "setup_threshold: sequential merge into distributed"
+        );
 
         let share_manager = ShareManager::new(n, threshold, bfv_params);
         for party_id in 1u32..=max_party_id {
@@ -530,10 +573,18 @@ impl FhersBackend {
         }
 
         let t_aggregate = std::time::Instant::now();
-        tracing::info!(n = n, ms = t_aggregate.elapsed().as_secs_f64() * 1000.0, "setup_threshold: aggregate collected shares");
+        tracing::info!(
+            n = n,
+            ms = t_aggregate.elapsed().as_secs_f64() * 1000.0,
+            "setup_threshold: aggregate collected shares"
+        );
 
         let t_total = std::time::Instant::now();
-        tracing::info!(n = n, ms = t_total.elapsed().as_secs_f64() * 1000.0, "setup_threshold: DONE");
+        tracing::info!(
+            n = n,
+            ms = t_total.elapsed().as_secs_f64() * 1000.0,
+            "setup_threshold: DONE"
+        );
 
         Ok(())
     }
@@ -652,18 +703,25 @@ impl FheBackend for FhersBackend {
             reason: err.to_string(),
         })?;
         let sk = SecretKey::random(&self.bfv_params, &mut seeded_rng);
-        let (p0_share, _pk_1, _sk_poly, _e) =
+        let (p0_share, _pk_1, _sk_poly, keygen_error) =
             PublicKeyShare::new_extended(&sk, crp.clone(), &mut seeded_rng).map_err(|err| {
                 FheError::Backend {
                     reason: err.to_string(),
                 }
             })?;
 
+        let mut error_pb = keygen_error;
+        error_pb.change_representation(Representation::PowerBasis);
+        let keygen_e_bytes = error_pb.to_bytes();
+
         let party_state = PartyState {
             sk_poly_sum: sk.coeffs.to_vec(),
             sk_poly_sum_poly: None,
             esi_poly_sum: Vec::new(),
             sk_shamir_shares: Vec::new(),
+            keygen_error_coeffs: None,
+            keygen_sk_coeffs: Some(sk.coeffs.to_vec()),
+            keygen_error_poly_bytes: Some(keygen_e_bytes),
         };
 
         let mut party_states = self.party_states.lock().map_err(|err| FheError::Backend {
@@ -673,9 +731,12 @@ impl FheBackend for FhersBackend {
 
         #[cfg(debug_assertions)]
         {
-            let mut owned = self.owned_party_id.lock().map_err(|err| FheError::Backend {
-                reason: format!("owned_party_id lock poisoned: {err}"),
-            })?;
+            let mut owned = self
+                .owned_party_id
+                .lock()
+                .map_err(|err| FheError::Backend {
+                    reason: format!("owned_party_id lock poisoned: {err}"),
+                })?;
             *owned = Some(party_id);
         }
 
@@ -690,6 +751,10 @@ impl FheBackend for FhersBackend {
 
     fn supports_session_scoped_keygen(&self) -> bool {
         true
+    }
+
+    fn keygen_witness(&self, party_id: u32) -> Result<Option<(Vec<i64>, Vec<u8>)>, FheError> {
+        self.party_keygen_witness(party_id)
     }
 
     fn setup_threshold(&self, n: usize, t: usize) -> Result<(), FheError> {
@@ -1256,7 +1321,9 @@ impl FheBackend for FhersBackend {
         let mut seen = std::collections::HashSet::new();
         for share in shares {
             if !seen.insert(share.party_id) {
-                return Err(FheError::MalformedDecryptShare { party_id: share.party_id });
+                return Err(FheError::MalformedDecryptShare {
+                    party_id: share.party_id,
+                });
             }
         }
 
@@ -1419,11 +1486,7 @@ impl FhersBackend {
         use num_bigint::BigInt;
         use num_traits::ToPrimitive;
 
-        const MODULI_I128: [i128; 3] = [
-            288230376173076481,
-            288230376167047169,
-            288230376161280001,
-        ];
+        const MODULI_I128: [i128; 3] = [288230376173076481, 288230376167047169, 288230376161280001];
         let moduli_big: [BigInt; 3] = [
             BigInt::from(MODULI_I128[0]),
             BigInt::from(MODULI_I128[1]),
@@ -1443,9 +1506,7 @@ impl FhersBackend {
         // Precompute inv_j = M_j^{-1} mod q_j (as i128, since q_j < 2^63)
         let mut m_inv = [0i128; 3];
         for j in 0..3 {
-            let mj_i128 = (&m_big[j] % &moduli_big[j])
-                .to_i128()
-                .unwrap_or(0);
+            let mj_i128 = (&m_big[j] % &moduli_big[j]).to_i128().unwrap_or(0);
             let (_, inv, _) = Self::egcd_i128(mj_i128, MODULI_I128[j]);
             m_inv[j] = (inv % MODULI_I128[j] + MODULI_I128[j]) % MODULI_I128[j];
         }
@@ -1455,17 +1516,17 @@ impl FhersBackend {
             let mut val_big = BigInt::from(0u32);
             for j in 0..3 {
                 let r = residues[j * n_coeffs + i] as i128;
-                let term = BigInt::from(r)
-                    * &m_big[j]
-                    * m_inv[j];
+                let term = BigInt::from(r) * &m_big[j] * m_inv[j];
                 val_big = (&val_big + term) % &q_big;
             }
             // Convert back to i128; since Q ≈ 2^174 > i128::MAX, this may overflow.
             match val_big.to_i128() {
                 Some(v) => coeffs.push(v),
-                None => return Err(FheError::Backend {
-                    reason: format!("CRT coefficient exceeds i128 range at index {i}"),
-                }),
+                None => {
+                    return Err(FheError::Backend {
+                        reason: format!("CRT coefficient exceeds i128 range at index {i}"),
+                    })
+                }
             }
         }
         Ok(coeffs)
@@ -1489,7 +1550,7 @@ impl FhersBackend {
     ///
     /// The polynomial bytes are needed by the C7 verification path to check
     /// `Σ λ_i · d_i(r) ≡ plaintext(r) (mod Q)`.
-        pub fn aggregate_decrypt_with_poly(
+    pub fn aggregate_decrypt_with_poly(
         &self,
         ct: &Ciphertext,
         shares: &[DecryptShare],
@@ -1521,7 +1582,9 @@ impl FhersBackend {
         let mut seen = std::collections::HashSet::new();
         for share in shares {
             if !seen.insert(share.party_id) {
-                return Err(FheError::MalformedDecryptShare { party_id: share.party_id });
+                return Err(FheError::MalformedDecryptShare {
+                    party_id: share.party_id,
+                });
             }
         }
 
@@ -1658,7 +1721,9 @@ impl FhersBackend {
         let mut seen = std::collections::HashSet::new();
         for share in shares {
             if !seen.insert(share.party_id) {
-                return Err(FheError::MalformedDecryptShare { party_id: share.party_id });
+                return Err(FheError::MalformedDecryptShare {
+                    party_id: share.party_id,
+                });
             }
         }
 
@@ -1703,10 +1768,7 @@ impl FhersBackend {
                 -(first_poly * &BigUint::from(abs_val))
             };
 
-            for (lambda, poly) in lagrange_coeffs[1..]
-                .iter()
-                .zip(share_polys[1..].iter())
-            {
+            for (lambda, poly) in lagrange_coeffs[1..].iter().zip(share_polys[1..].iter()) {
                 let term = if *lambda >= 0 {
                     poly * &BigUint::from(*lambda as u64)
                 } else {
@@ -1757,9 +1819,7 @@ impl FhersBackend {
         // so we conservatively reject larger n.
         if n > 64 {
             return Err(FheError::InvalidParams {
-                reason: format!(
-                    "Lagrange coefficient overflow: n={n} exceeds safe bound of 64"
-                ),
+                reason: format!("Lagrange coefficient overflow: n={n} exceeds safe bound of 64"),
             });
         }
 
@@ -1809,6 +1869,9 @@ variance = 10
             sk_poly_sum_poly: None,
             esi_poly_sum: Vec::new(),
             sk_shamir_shares: vec![vec![7i64, 8, 9]],
+            keygen_error_coeffs: None,
+            keygen_sk_coeffs: None,
+            keygen_error_poly_bytes: None,
         };
         // Simulate drop via Zeroize trait (ZeroizeOnDrop calls this in Drop impl).
         state.zeroize();
@@ -1881,9 +1944,7 @@ variance = 10
         let pk = backend
             .aggregate_keygen(&[share1, share2, share3, share4, share5])
             .expect("aggregate_keygen");
-        let ct = backend
-            .encrypt(&pk, plaintext, &mut rng)
-            .expect("encrypt");
+        let ct = backend.encrypt(&pk, plaintext, &mut rng).expect("encrypt");
         backend.setup_threshold(n, t).expect("setup_threshold");
         let ds1 = backend
             .partial_decrypt(&ct, 1, &mut rng)
@@ -1898,12 +1959,9 @@ variance = 10
 
         assert_eq!(decoded, plaintext.as_ref(), "decoded plaintext must match");
 
-        let ctx = backend
-            .bfv_params
-            .ctx_at_level(0)
-            .expect("ctx_at_level");
-        let raw_poly = Poly::from_bytes(&raw_poly_bytes, &ctx)
-            .expect("raw result poly deserialize");
+        let ctx = backend.bfv_params.ctx_at_level(0).expect("ctx_at_level");
+        let raw_poly =
+            Poly::from_bytes(&raw_poly_bytes, &ctx).expect("raw result poly deserialize");
         assert!(
             !raw_poly_bytes.is_empty(),
             "raw result poly bytes must not be empty"

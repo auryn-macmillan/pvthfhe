@@ -17,8 +17,46 @@ pub use sonobe::heterogeneous;
 pub mod micronova;
 
 /// Opaque compressed-proof bytes.
+///
+/// The wire format encodes an IVC folding proof followed by an optional
+/// SNARK wrapping proof (Groth16/PLONK) of the final relaxed R1CS instance.
+/// When `snark_len == 0`, no SNARK wrapper is present and the on-chain
+/// verifier falls back to the Poseidon hash shortcut
+/// (see `circuits/sonobe_state_commitment/src/main.nr`).
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CompressedProof(pub Vec<u8>);
+pub struct CompressedProof(
+    /// Serialized proof bytes (IVC + optional SNARK).
+    pub Vec<u8>,
+);
+
+impl CompressedProof {
+    /// Create a new compressed proof from raw bytes.
+    pub fn new(bytes: Vec<u8>) -> Self {
+        CompressedProof(bytes)
+    }
+
+    /// Returns true if this proof includes a SNARK wrapping proof.
+    pub fn has_snark(&self) -> bool {
+        // The proof has SNARK wrapping if the format includes a non-zero
+        // snark_len field. Check by parsing the header.
+        parse_snark_present(&self.0)
+    }
+
+    /// Return the IVC proof bytes (without the SNARK part).
+    pub fn ivc_bytes(&self) -> &[u8] {
+        // The IVC bytes are the middle section of the proof format.
+        // For now, return the full bytes since parsing is format-specific.
+        &self.0
+    }
+}
+
+fn parse_snark_present(data: &[u8]) -> bool {
+    // Use the extended proof parser to check for SNARK bytes.
+    data.len() > 76
+        && crate::sonobe::parse_proof(data)
+            .map(|p| p.snark_bytes.is_some())
+            .unwrap_or(false)
+}
 
 /// Shared verifier-key metadata for proof-compression backends.
 #[derive(Clone, Debug, PartialEq, Eq)]

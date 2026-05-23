@@ -164,7 +164,13 @@ impl<F: PrimeField> FCircuit<F> for HeterogeneousStepCircuit<F> {
     ) -> Result<Vec<FpVar<F>>, SynthesisError> {
         let family = Self::family_impl();
         let result = family.generate_step_constraints(cs, i, z_i, external_inputs)?;
-        debug_assert_eq!(result.len(), self.state_len(), "heterogeneous circuit family produced state of length {} != state_len() {}", result.len(), self.state_len());
+        debug_assert_eq!(
+            result.len(),
+            self.state_len(),
+            "heterogeneous circuit family produced state of length {} != state_len() {}",
+            result.len(),
+            self.state_len()
+        );
         Ok(result)
     }
 }

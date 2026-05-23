@@ -20,8 +20,8 @@ use std::cell::RefCell;
 use pvthfhe_domain_tags::Tag;
 
 use super::{ExternalInputs5, ExternalInputs5Var, PoseidonSpongeVar, SonobeCompressor};
-use crate::{CompressedProof, CompressorError, StepCircuit, StepCircuitDescriptor};
 use crate::witness::C7WitnessSet;
+use crate::{CompressedProof, CompressorError, StepCircuit, StepCircuitDescriptor};
 
 /// Number of share polynomial coefficients per participant (BFV ring dimension).
 const N_COEFFS: usize = 8192;
@@ -40,7 +40,8 @@ thread_local! {
 
 fn serialize_fr(v: &ark_bn254::Fr) -> Vec<u8> {
     let mut buf = Vec::new();
-    v.serialize_uncompressed(&mut buf).expect("Fr serialization");
+    v.serialize_uncompressed(&mut buf)
+        .expect("Fr serialization");
     buf
 }
 
@@ -141,8 +142,9 @@ impl<F: PrimeField> FCircuit<F> for C7DecryptAggregationCircuit<F> {
 
         let (eval, coeff_vars, r_pow_vars) = C7_STEP_DATA.with(|cell| {
             let data_ref = cell.borrow();
-            let data_opt: Option<(Vec<Vec<u8>>, Vec<u8>)> =
-                data_ref.as_ref().map(|d| (d.coeffs.clone(), d.challenge_r.clone()));
+            let data_opt: Option<(Vec<Vec<u8>>, Vec<u8>)> = data_ref
+                .as_ref()
+                .map(|d| (d.coeffs.clone(), d.challenge_r.clone()));
 
             match data_opt {
                 Some((ref coeffs_bytes_per_step, ref challenge_r_bytes)) => {
@@ -166,9 +168,7 @@ impl<F: PrimeField> FCircuit<F> for C7DecryptAggregationCircuit<F> {
                     let mut coeff_vars: Vec<FpVar<F>> = Vec::with_capacity(N_COEFFS);
                     for j in 0..N_COEFFS {
                         let coeff_val = if j * 32 + 32 <= coeffs_bytes.len() {
-                            F::from_le_bytes_mod_order(
-                                &coeffs_bytes[j * 32..(j + 1) * 32],
-                            )
+                            F::from_le_bytes_mod_order(&coeffs_bytes[j * 32..(j + 1) * 32])
                         } else {
                             F::zero()
                         };
@@ -204,16 +204,12 @@ impl<F: PrimeField> FCircuit<F> for C7DecryptAggregationCircuit<F> {
 
                     let mut coeff_vars: Vec<FpVar<F>> = Vec::with_capacity(N_COEFFS);
                     for _ in 0..N_COEFFS {
-                        coeff_vars.push(
-                            FpVar::<F>::new_witness(cs.clone(), || Ok(F::zero()))?
-                        );
+                        coeff_vars.push(FpVar::<F>::new_witness(cs.clone(), || Ok(F::zero()))?);
                     }
 
                     let mut r_pow_vars: Vec<FpVar<F>> = Vec::with_capacity(N_COEFFS);
                     for j in 0..N_COEFFS {
-                        r_pow_vars.push(
-                            FpVar::<F>::new_witness(cs.clone(), || Ok(r_pow_vals[j]))?
-                        );
+                        r_pow_vars.push(FpVar::<F>::new_witness(cs.clone(), || Ok(r_pow_vals[j]))?);
                     }
 
                     let mut eval_acc = FpVar::<F>::constant(F::zero());
@@ -293,9 +289,9 @@ pub fn c7_fold_witnesses(
     dkg_root_hash: ark_bn254::Fr,
     d_commitment: ark_bn254::Fr,
 ) -> Result<CompressedProof, CompressorError> {
-    use ark_bn254::Fr;
     use crate::poly_eval::eval_poly_bn254;
     use crate::witness::hash_all_coeffs;
+    use ark_bn254::Fr;
 
     if witnesses.participants.is_empty() {
         return Err(CompressorError::InvalidProof);
@@ -311,7 +307,11 @@ pub fn c7_fold_witnesses(
         .map(|w| w.coeffs.clone())
         .collect();
 
-    let derived_r = hash_all_coeffs(&[witnesses.participants[0].coeff_commitment, dkg_root_hash, d_commitment]);
+    let derived_r = hash_all_coeffs(&[
+        witnesses.participants[0].coeff_commitment,
+        dkg_root_hash,
+        d_commitment,
+    ]);
 
     set_c7_step_data(coeffs.clone(), derived_r);
 
@@ -321,7 +321,13 @@ pub fn c7_fold_witnesses(
         .enumerate()
         .map(|(i, w)| {
             let share_eval = eval_poly_bn254(&coeffs[i], derived_r);
-            ExternalInputs5(share_eval, w.lagrange_coeff, w.coeff_commitment, dkg_root_hash, derived_r)
+            ExternalInputs5(
+                share_eval,
+                w.lagrange_coeff,
+                w.coeff_commitment,
+                dkg_root_hash,
+                derived_r,
+            )
         })
         .collect();
 

@@ -5,8 +5,8 @@ use pvthfhe_nizk::{
     adapter::CycloNizkAdapter, hash_bridge, NizkAdapter, NizkProof, NizkStatement, NizkWitness,
 };
 use pvthfhe_rng::OsRng;
-use pvthfhe_types::Secret;
 use pvthfhe_types::witness_language::{BfvParameters as SchemaBfvParams, R3Relation};
+use pvthfhe_types::Secret;
 use pvthfhe_wire::{WireError, WireFormat};
 
 use ark_bn254::Fr;
@@ -375,7 +375,9 @@ fn proof_secret_share(
         DecryptNizkMode::LegacyLocalSmudge => {
             // B.3: prefer DKG-committed sk_agg_share when available;
             // fall back to pk-derived binding when DKG commitment is unavailable.
-            Ok(witness.sk_agg_share.unwrap_or_else(|| derive_party_binding(&stmt.party_pk)))
+            Ok(witness
+                .sk_agg_share
+                .unwrap_or_else(|| derive_party_binding(&stmt.party_pk)))
         }
         DecryptNizkMode::CommittedSmudge { .. } => {
             witness.sk_agg_share.ok_or(PvssError::InvalidShare)

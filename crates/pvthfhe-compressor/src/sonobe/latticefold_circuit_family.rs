@@ -23,8 +23,8 @@ use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
 use sha3::{Digest, Keccak256};
 
 use super::heterogeneous::HeterogeneousCircuitFamily;
-use super::PoseidonSpongeVar;
 use super::ExternalInputs3Var;
+use super::PoseidonSpongeVar;
 
 /// A LatticeFold+ tree circuit family for heterogeneous IVC.
 ///
@@ -67,7 +67,11 @@ impl LatticeFoldTreeCircuitFamily {
 
 impl<F: PrimeField> HeterogeneousCircuitFamily<F> for LatticeFoldTreeCircuitFamily {
     fn num_circuits(&self) -> usize {
-        if self.depth == 0 { 1 } else { 2 }
+        if self.depth == 0 {
+            1
+        } else {
+            2
+        }
     }
 
     fn circuit_index(&self, i: usize) -> usize {

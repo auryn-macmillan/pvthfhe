@@ -303,12 +303,7 @@ mod tests {
     #[test]
     fn witness_set_single_share_trivial() {
         let coeffs: Vec<Fr> = (0..8).map(|i| Fr::from(i as u64)).collect();
-        let set = C7WitnessSet::new(
-            &[coeffs],
-            &[Fr::from(1u64)],
-            Fr::from(3u64),
-            Fr::from(7u64),
-        );
+        let set = C7WitnessSet::new(&[coeffs], &[Fr::from(1u64)], Fr::from(3u64), Fr::from(7u64));
         assert!(set.verify_commitments());
         assert!(set.verify_lagrange_sum());
     }
@@ -316,12 +311,8 @@ mod tests {
     #[test]
     fn witness_set_bad_commitment_rejected() {
         let coeffs: Vec<Fr> = (0..8).map(|i| Fr::from(i as u64)).collect();
-        let mut set = C7WitnessSet::new(
-            &[coeffs],
-            &[Fr::from(1u64)],
-            Fr::from(3u64),
-            Fr::from(7u64),
-        );
+        let mut set =
+            C7WitnessSet::new(&[coeffs], &[Fr::from(1u64)], Fr::from(3u64), Fr::from(7u64));
         set.participants[0].coeff_commitment += Fr::from(1u64);
         assert!(!set.verify_commitments());
     }

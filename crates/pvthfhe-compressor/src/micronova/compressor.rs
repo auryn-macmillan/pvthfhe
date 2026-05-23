@@ -8,9 +8,9 @@ use ark_bn254::Fr;
 use ark_ff::Zero;
 
 use crate::sonobe::{
-    encode_triple, heterogeneous::HeterogeneousCircuitFamily, ExternalInputs3,
+    encode_triple, heterogeneous::HeterogeneousCircuitFamily,
+    latticefold_circuit_family::LatticeFoldTreeCircuitFamily, ExternalInputs3,
     HeterogeneousStepCircuit, SonobeCompressor,
-    latticefold_circuit_family::LatticeFoldTreeCircuitFamily,
 };
 use crate::{CompressedProof, CompressorError};
 
@@ -58,15 +58,11 @@ impl MicroNovaCompressor {
         );
 
         // Configure the circuit family for this tree depth.
-        let family = LatticeFoldTreeCircuitFamily {
-            depth: self.depth,
-        };
+        let family = LatticeFoldTreeCircuitFamily { depth: self.depth };
         HeterogeneousStepCircuit::<Fr>::set_family(family);
 
-        let compressor = SonobeCompressor::<HeterogeneousStepCircuit<Fr>>::new(
-            self.epoch,
-            self.total_steps,
-        )?;
+        let compressor =
+            SonobeCompressor::<HeterogeneousStepCircuit<Fr>>::new(self.epoch, self.total_steps)?;
 
         let acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
         compressor.prove_steps(&acc, steps)
@@ -85,18 +81,14 @@ impl MicroNovaCompressor {
             self.total_steps
         );
 
-        let family = LatticeFoldTreeCircuitFamily {
-            depth: self.depth,
-        };
+        let family = LatticeFoldTreeCircuitFamily { depth: self.depth };
         // Clone before set_family consumes the value, so we can use it for
         // per-step circuit variant validation below.
         let family_for_check = family.clone();
         HeterogeneousStepCircuit::<Fr>::set_family(family);
 
-        let compressor = SonobeCompressor::<HeterogeneousStepCircuit<Fr>>::new(
-            self.epoch,
-            self.total_steps,
-        )?;
+        let compressor =
+            SonobeCompressor::<HeterogeneousStepCircuit<Fr>>::new(self.epoch, self.total_steps)?;
 
         let vk = compressor.verifier_key();
 
@@ -106,11 +98,9 @@ impl MicroNovaCompressor {
         // would be needed (see docs/security-proofs/p3/heterogeneous-ivc.md:96-99).
         // This explicit check at the compressor level is defense-in-depth.
         for (i, _step) in steps.iter().enumerate() {
-            let expected_variant =
-                <LatticeFoldTreeCircuitFamily as HeterogeneousCircuitFamily<Fr>>::circuit_index(
-                    &family_for_check,
-                    i,
-                );
+            let expected_variant = <LatticeFoldTreeCircuitFamily as HeterogeneousCircuitFamily<
+                Fr,
+            >>::circuit_index(&family_for_check, i);
             let expected_hash =
                 <LatticeFoldTreeCircuitFamily as HeterogeneousCircuitFamily<Fr>>::circuit_hash(
                     &family_for_check,

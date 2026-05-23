@@ -148,9 +148,8 @@ fn run_dry_run_pvss_probe(args: &Args) -> anyhow::Result<()> {
 
     let backend_threshold = args.t;
     let backend = FhersBackend::load_params(DEMO_PARAMS_TOML).context("backend init")?;
-    let mut simulator =
-        KeygenSimulator::new(args.n, backend_threshold, backend.clone())
-            .map_err(|e| anyhow::anyhow!("keygen param: {e}"))?;
+    let mut simulator = KeygenSimulator::new(args.n, backend_threshold, backend.clone())
+        .map_err(|e| anyhow::anyhow!("keygen param: {e}"))?;
     let transcript = match simulator.run().context("keygen")? {
         KeygenResult::Complete(transcript) => transcript,
         KeygenResult::Blamed(blamed) => anyhow::bail!("keygen blamed: {blamed:?}"),
@@ -399,11 +398,18 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
         return;
     }
 
-    match pvthfhe_circuit_tests::nargo::execute("aggregator_final", &prover_toml_path)
-        .and_then(|_artifacts| pvthfhe_circuit_tests::bb::write_vk_prove_verify("aggregator_final", "ultra_honk"))
-    {
-        Ok(_) => info!(phase = "noir_aggregator_final", "Noir aggregator_final circuit proof succeeded"),
-        Err(err) => warn!(phase = "noir_aggregator_final", error = %err, "Noir aggregator_final circuit proof failed"),
+    match pvthfhe_circuit_tests::nargo::execute("aggregator_final", &prover_toml_path).and_then(
+        |_artifacts| {
+            pvthfhe_circuit_tests::bb::write_vk_prove_verify("aggregator_final", "ultra_honk")
+        },
+    ) {
+        Ok(_) => info!(
+            phase = "noir_aggregator_final",
+            "Noir aggregator_final circuit proof succeeded"
+        ),
+        Err(err) => {
+            warn!(phase = "noir_aggregator_final", error = %err, "Noir aggregator_final circuit proof failed")
+        }
     }
 }
 
@@ -426,7 +432,13 @@ fn run_c7_sonobe_optional(n: usize, seed: u64) -> (f64, bool) {
     let coeff_commitment = hash_all_coeffs(&vec![Fr::from(0u64); 8192]);
     let derived_r = hash_all_coeffs(&[coeff_commitment, Fr::from(0u64)]);
     let steps: Vec<ExternalInputs5<Fr>> = vec![
-        ExternalInputs5(Fr::from(1u64), Fr::from(1u64), coeff_commitment, Fr::from(0u64), derived_r);
+        ExternalInputs5(
+            Fr::from(1u64),
+            Fr::from(1u64),
+            coeff_commitment,
+            Fr::from(0u64),
+            derived_r
+        );
         n
     ];
     let proof = compressor

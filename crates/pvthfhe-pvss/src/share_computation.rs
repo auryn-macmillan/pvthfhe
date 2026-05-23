@@ -293,7 +293,7 @@ fn validate_share_coordinates(
     Ok(())
 }
 
-fn interpolate_coefficients(points: &[(Fr, Fr)]) -> Result<Vec<Fr>, ShareComputationError> {
+pub fn interpolate_coefficients(points: &[(Fr, Fr)]) -> Result<Vec<Fr>, ShareComputationError> {
     let degree = points.len() - 1;
     let mut coefficients = vec![Fr::ZERO; degree + 1];
 
@@ -336,6 +336,9 @@ fn eval_bn254_poly(coefficients: &[Fr], x: Fr) -> Fr {
 }
 
 fn coefficient_within_signed_bound(value: &Fr, bound: u64) -> bool {
+    if bound == u64::MAX {
+        return true;
+    }
     value.is_zero()
         || canonical_u64(value).is_some_and(|v| v <= bound)
         || canonical_u64(&(-*value)).is_some_and(|v| v <= bound)

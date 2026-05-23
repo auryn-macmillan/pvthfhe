@@ -69,6 +69,12 @@ pub trait FheBackend: Send + Sync {
         false
     }
 
+    /// Return the key-generation witness (sk coefficients, error serialized) for a party.
+    /// Used by BFV keypair NIZK. Returns `None` if the backend does not store this data.
+    fn keygen_witness(&self, _party_id: u32) -> Result<Option<(Vec<i64>, Vec<u8>)>, FheError> {
+        Ok(None)
+    }
+
     /// Prepare threshold-decryption state after all keygen shares exist.
     fn setup_threshold(&self, _n: usize, _t: usize) -> Result<(), FheError> {
         Ok(())

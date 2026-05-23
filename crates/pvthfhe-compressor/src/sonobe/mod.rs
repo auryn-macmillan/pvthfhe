@@ -7,14 +7,19 @@ pub mod fold_verifier_circuit;
 pub mod heterogeneous;
 pub mod latticefold_adapter;
 pub mod latticefold_circuit_family;
+pub mod pk_contribution_circuit;
 pub mod poseidon_gadget;
 pub use poseidon_gadget::PoseidonSpongeVar;
-pub mod ring_element_var;
-pub mod ring_verifier;
 pub mod ajtai_commitment_circuit;
 pub mod dealer_parity_circuit;
+pub mod dkg_aggregation_circuit;
+pub mod ring_element_var;
+pub mod ring_verifier;
 pub mod share_verification_circuit;
-pub use ajtai_commitment_circuit::{clear_ajtai_witness_data, set_ajtai_witness_data, AjtaiCommitmentStepCircuit};
+pub mod snark_bridge;
+pub use ajtai_commitment_circuit::{
+    clear_ajtai_witness_data, set_ajtai_witness_data, AjtaiCommitmentStepCircuit,
+};
 pub use c7_circuit::{
     c7_fold_witnesses, clear_c7_step_data, set_c7_step_data, C7DecryptAggregationCircuit,
 };
@@ -22,14 +27,18 @@ pub use c7_merkle_circuit::{
     merkle_external_inputs_width, C7MerkleExternalInputs, C7MerkleExternalInputsVar,
     C7MerkleStepCircuit, MerkleWitnessData,
 };
+pub use dealer_parity_circuit::{
+    clear_dealer_parity_data, set_dealer_parity_data, DealerParityStepCircuit,
+};
 pub use fold_verifier_circuit::FoldVerifierStepCircuit;
 pub use heterogeneous::HeterogeneousStepCircuit;
 pub use latticefold_adapter::*;
 pub use latticefold_circuit_family::LatticeFoldTreeCircuitFamily;
 pub use poseidon_gadget::hash8_native;
 pub use ring_verifier::RingVerifierCircuit;
-pub use dealer_parity_circuit::{clear_dealer_parity_data, set_dealer_parity_data, DealerParityStepCircuit};
-pub use share_verification_circuit::{clear_share_coeffs_data,set_share_coeffs_data,ShareVerificationStepCircuit};
+pub use share_verification_circuit::{
+    clear_share_coeffs_data, set_share_coeffs_data, ShareVerificationStepCircuit,
+};
 
 use std::fmt::Debug;
 use std::fs;
@@ -40,15 +49,15 @@ use ark_bn254::{Fr, G1Projective as G1};
 use ark_ff::{BigInteger, PrimeField, Zero};
 use ark_grumpkin::Projective as G2;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
+use ark_r1cs_std::boolean::Boolean;
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
-use ark_r1cs_std::boolean::Boolean;
 use ark_r1cs_std::GR1CSVar;
 use ark_relations::gr1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Validate};
 use folding_schemes::{
-    commitment::pedersen::Pedersen,
+    commitment::{kzg::KZG, pedersen::Pedersen},
     folding::nova::{IVCProof, Nova, PreprocessorParam},
     frontend::FCircuit,
     transcript::poseidon::poseidon_canonical_config,
@@ -69,15 +78,14 @@ const _: () = {
 type SonobeProverParam<S> = <SonobeNova<S> as FoldingScheme<G1, G2, S>>::ProverParam;
 type SonobeVerifierParam<S> = <SonobeNova<S> as FoldingScheme<G1, G2, S>>::VerifierParam;
 
-
 use crate::{
     CompressedProof, CompressorError, ProofCompressor, StepCircuit, StepCircuitDescriptor,
     VerifierKey,
 };
 
 const BACKEND_ID: &str = "sonobe-nova-bn254-grumpkin";
-const PROOF_MAGIC: [u8; 4] = *b"SNOB";
-const PROOF_VERSION: u32 = 1;
+pub(crate) const PROOF_MAGIC: [u8; 4] = *b"SNOB";
+pub(crate) const PROOF_VERSION: u32 = 1;
 
 type SonobeIvcProof = IVCProof<G1, G2>;
 
@@ -179,21 +187,15 @@ impl<F: PrimeField> AllocVar<ExternalInputs6<F>, F> for ExternalInputs6Var<F> {
 
 /// Quintuple external inputs for ring-element hashes + challenge (G1).
 #[derive(Clone, Copy, Debug, Default)]
-pub struct RingEqExternalInputs5<F: PrimeField>(
-    pub F,
-    pub F,
-    pub F,
-    pub F,
-    pub F,
-);
+pub struct RingEqExternalInputs5<F: PrimeField>(pub F, pub F, pub F, pub F, pub F);
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ExternalInputs5<F: PrimeField>(
-    pub F,  // z_s_hash
-    pub F,  // z_e_hash
-    pub F,  // t_hash
-    pub F,  // d_hash
-    pub F,  // challenge (ternary: -1, 0, 1)
+    pub F, // z_s_hash
+    pub F, // z_e_hash
+    pub F, // t_hash
+    pub F, // d_hash
+    pub F, // challenge (ternary: -1, 0, 1)
 );
 
 /// R1CS variable wrapper for quintuple external inputs.
@@ -215,7 +217,9 @@ pub struct ExternalInputs5Var<F: PrimeField>(
     pub FpVar<F>,
 );
 
-impl<F: PrimeField> ark_r1cs_std::alloc::AllocVar<RingEqExternalInputs5<F>, F> for RingEqExternalInputs5Var<F> {
+impl<F: PrimeField> ark_r1cs_std::alloc::AllocVar<RingEqExternalInputs5<F>, F>
+    for RingEqExternalInputs5Var<F>
+{
     fn new_variable<T: std::borrow::Borrow<RingEqExternalInputs5<F>>>(
         cs: impl Into<ark_relations::gr1cs::Namespace<F>>,
         f: impl FnOnce() -> Result<T, ark_relations::gr1cs::SynthesisError>,
@@ -409,7 +413,15 @@ thread_local! {
     pub static SIGMA_RESPONSE_DATA: AutoClear<Vec<(Vec<i64>, Vec<i64>, Vec<i64>, Vec<i64>, Vec<Vec<(usize, bool)>>)>> = AutoClear::new(Vec::new());
 }
 
-pub fn set_sigma_response_data(responses: Vec<(Vec<i64>, Vec<i64>, Vec<i64>, Vec<i64>, Vec<Vec<(usize, bool)>>)>) {
+pub fn set_sigma_response_data(
+    responses: Vec<(
+        Vec<i64>,
+        Vec<i64>,
+        Vec<i64>,
+        Vec<i64>,
+        Vec<Vec<(usize, bool)>>,
+    )>,
+) {
     SIGMA_RESPONSE_DATA.with(|cell| *cell.inner().borrow_mut() = responses);
 }
 
@@ -426,9 +438,10 @@ fn fr_to_f<F: PrimeField>(fr: &ark_bn254::Fr) -> F {
 fn cyclo_witness_or_default<F: PrimeField>(step: usize) -> (Vec<F>, Vec<F>, Vec<F>, Vec<F>, F) {
     CYCLO_RING_DATA.with(|cell| {
         let ring_data = cell.inner().borrow();
-        let witness_opt = ring_data
-            .get(step)
-            .or_else(|| step.checked_sub(1).and_then(|zero_based| ring_data.get(zero_based)));
+        let witness_opt = ring_data.get(step).or_else(|| {
+            step.checked_sub(1)
+                .and_then(|zero_based| ring_data.get(zero_based))
+        });
         if let Some(witness) = witness_opt {
             let read_coeff = |coeffs: &[ark_bn254::Fr], index: usize| -> F {
                 coeffs.get(index).map(fr_to_f).unwrap_or_else(F::zero)
@@ -440,7 +453,13 @@ fn cyclo_witness_or_default<F: PrimeField>(step: usize) -> (Vec<F>, Vec<F>, Vec<
             (z_s, z_e, t, d, fr_to_f(&witness.challenge))
         } else {
             let zeros = vec![F::zero(); 256];
-            (zeros.clone(), zeros.clone(), zeros.clone(), zeros, F::zero())
+            (
+                zeros.clone(),
+                zeros.clone(),
+                zeros.clone(),
+                zeros,
+                F::zero(),
+            )
         }
     })
 }
@@ -493,13 +512,15 @@ impl Drop for ThreadLocalClearGuard {
 ///
 /// Norm enforcement is performed on the power-basis coefficients via bit
 /// decomposition range checks against `B_Z_S` and `B_Z_E`.
-fn sigma_verify_step<F: PrimeField>(
+pub(crate) fn sigma_verify_step<F: PrimeField>(
     cs: ConstraintSystemRef<F>,
     step: usize,
 ) -> Result<FpVar<F>, SynthesisError> {
     let has_data = SIGMA_DATA.with(|cell| {
         let data = cell.inner().borrow();
-        let witness_opt = data.get(step).or_else(|| step.checked_sub(1).and_then(|zb| data.get(zb)));
+        let witness_opt = data
+            .get(step)
+            .or_else(|| step.checked_sub(1).and_then(|zb| data.get(zb)));
         witness_opt.is_some()
     });
 
@@ -510,7 +531,9 @@ fn sigma_verify_step<F: PrimeField>(
     // Allocate witness variables from sigma data and enforce equation
     SIGMA_DATA.with(|cell| {
         let data = cell.inner().borrow();
-        let witness_opt = data.get(step).or_else(|| step.checked_sub(1).and_then(|zb| data.get(zb)));
+        let witness_opt = data
+            .get(step)
+            .or_else(|| step.checked_sub(1).and_then(|zb| data.get(zb)));
         let w = match witness_opt {
             Some(w) => w,
             None => return Ok(()),
@@ -527,8 +550,10 @@ fn sigma_verify_step<F: PrimeField>(
 
         for limb in 0..3 {
             // Bounds check: ensure data arrays have sufficient length
-            if limb >= w.z_s_ntt.len() || limb >= w.z_e_ntt.len()
-                || limb >= w.t_ntt.len() || limb >= w.d_i_ntt.len()
+            if limb >= w.z_s_ntt.len()
+                || limb >= w.z_e_ntt.len()
+                || limb >= w.t_ntt.len()
+                || limb >= w.d_i_ntt.len()
                 || limb >= w.c_ntt.len()
             {
                 let one = FpVar::<F>::one();
@@ -626,8 +651,18 @@ fn sigma_verify_step<F: PrimeField>(
                     if w.z_e_power[k].unsigned_abs() > B_Z_E {
                         FpVar::<F>::one().enforce_equal(&FpVar::<F>::zero())?;
                     }
-                    norm_range_check(&z_s_power_vars[k], w.z_s_power[k].unsigned_abs(), &bound_zs, B_Z_S)?;
-                    norm_range_check(&z_e_power_vars[k], w.z_e_power[k].unsigned_abs(), &bound_ze, B_Z_E)?;
+                    norm_range_check(
+                        &z_s_power_vars[k],
+                        w.z_s_power[k].unsigned_abs(),
+                        &bound_zs,
+                        B_Z_S,
+                    )?;
+                    norm_range_check(
+                        &z_e_power_vars[k],
+                        w.z_e_power[k].unsigned_abs(),
+                        &bound_ze,
+                        B_Z_E,
+                    )?;
                 }
 
                 // G7b-laBRADOR: JL projection constraint.
@@ -682,10 +717,8 @@ fn sigma_verify_step<F: PrimeField>(
 
                         let expected_s = signed_i128_to_f::<F>(p_s_vec[k] as i128);
                         let expected_e = signed_i128_to_f::<F>(p_e_vec[k] as i128);
-                        let expected_s_var =
-                            FpVar::new_witness(cs.clone(), || Ok(expected_s))?;
-                        let expected_e_var =
-                            FpVar::new_witness(cs.clone(), || Ok(expected_e))?;
+                        let expected_s_var = FpVar::new_witness(cs.clone(), || Ok(expected_s))?;
+                        let expected_e_var = FpVar::new_witness(cs.clone(), || Ok(expected_e))?;
                         raw_sum_s.enforce_equal(&expected_s_var)?;
                         raw_sum_e.enforce_equal(&expected_e_var)?;
                     }
@@ -714,9 +747,7 @@ fn norm_range_check<F: PrimeField>(
         FpVar::<F>::one().enforce_equal(&FpVar::<F>::zero())?;
     }
     let bits: Vec<Boolean<F>> = (0..31)
-        .map(|idx| {
-            Boolean::new_witness(value.cs(), || Ok(((native_value >> idx) & 1) == 1))
-        })
+        .map(|idx| Boolean::new_witness(value.cs(), || Ok(((native_value >> idx) & 1) == 1)))
         .collect::<Result<_, _>>()?;
     let mut reconstructed = FpVar::<F>::zero();
     let mut pow2 = F::one();
@@ -749,8 +780,7 @@ fn sigma_mod_quotient<F: PrimeField>(
     ch: i128,
     q: u64,
 ) -> F {
-    let diff = i128::from(fr_to_u64(c)) * i128::from(fr_to_u64(z_s))
-        + i128::from(fr_to_u64(z_e))
+    let diff = i128::from(fr_to_u64(c)) * i128::from(fr_to_u64(z_s)) + i128::from(fr_to_u64(z_e))
         - i128::from(fr_to_u64(t))
         - ch * i128::from(fr_to_u64(d_i));
     signed_i128_to_f(diff / i128::from(q))
@@ -789,7 +819,7 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
         let escalated_norm = z_i[1].clone() + &external_inputs.3;
         // Step counter: hardcoded +1 per step (ext.2 repurposed for ring result)
         let count_inc = z_i[2].clone() + FpVar::<F>::one();
-        
+
         // G2-ng: In-circuit ring equation verification.
         let (z_s_vals, z_e_vals, t_vals, d_vals, c_val) = cyclo_witness_or_default::<F>(_i);
         let z_s_vars: Vec<FpVar<F>> = z_s_vals
@@ -837,17 +867,27 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
         let (z_s_proj_acc, z_e_proj_acc) = SIGMA_RESPONSE_DATA.with(|cell| {
             let data = cell.inner().borrow();
             if let Some((_, _, ref p_s, ref p_e, ..)) = data.get(_i) {
-                let p_s_vars: Vec<FpVar<F>> = p_s.iter()
-                    .map(|&p| FpVar::new_witness(cs.clone(), || Ok(F::from(p.unsigned_abs()))).unwrap())
+                let p_s_vars: Vec<FpVar<F>> = p_s
+                    .iter()
+                    .map(|&p| {
+                        FpVar::new_witness(cs.clone(), || Ok(F::from(p.unsigned_abs()))).unwrap()
+                    })
                     .collect();
-                let p_e_vars: Vec<FpVar<F>> = p_e.iter()
-                    .map(|&p| FpVar::new_witness(cs.clone(), || Ok(F::from(p.unsigned_abs()))).unwrap())
+                let p_e_vars: Vec<FpVar<F>> = p_e
+                    .iter()
+                    .map(|&p| {
+                        FpVar::new_witness(cs.clone(), || Ok(F::from(p.unsigned_abs()))).unwrap()
+                    })
                     .collect();
 
                 let mut proj_s_sq = FpVar::<F>::zero();
-                for v in &p_s_vars { proj_s_sq += v.clone() * v.clone(); }
+                for v in &p_s_vars {
+                    proj_s_sq += v.clone() * v.clone();
+                }
                 let mut proj_e_sq = FpVar::<F>::zero();
-                for v in &p_e_vars { proj_e_sq += v.clone() * v.clone(); }
+                for v in &p_e_vars {
+                    proj_e_sq += v.clone() * v.clone();
+                }
 
                 (z_i[5].clone() + proj_s_sq, z_i[6].clone() + proj_e_sq)
             } else {
@@ -881,9 +921,7 @@ impl<F: PrimeField> StepCircuit for CycloFoldStepCircuit<F> {
 
 /// Proof compressor backed by Sonobe Nova over the BN254/Grumpkin cycle.
 #[derive(Clone, Debug)]
-pub struct SonobeCompressor<
-    S: FCircuit<Fr, Params = ()> + StepCircuit + Clone + Debug,
-> {
+pub struct SonobeCompressor<S: FCircuit<Fr, Params = ()> + StepCircuit + Clone + Debug> {
     prover_key_bytes: Vec<u8>,
     verifier_key_bytes: Vec<u8>,
     verifier_key: VerifierKey,
@@ -893,12 +931,9 @@ pub struct SonobeCompressor<
     _step_circuit: std::marker::PhantomData<S>,
 }
 
-type SonobeNova<S> = Nova<G1, G2, S, Pedersen<G1>, Pedersen<G2>, false>;
+type SonobeNova<S> = Nova<G1, G2, S, KZG<'static, ark_bn254::Bn254>, Pedersen<G2>, false>;
 
-impl<
-        S: FCircuit<Fr, Params = ()> + StepCircuit + Clone + Debug,
-    > SonobeCompressor<S>
-{
+impl<S: FCircuit<Fr, Params = ()> + StepCircuit + Clone + Debug> SonobeCompressor<S> {
     /// Creates a new Sonobe compressor instance bound to an on-chain epoch.
     ///
     /// The SRS is derived deterministically from `epoch_hash`, making it
@@ -1029,6 +1064,12 @@ impl<
     > ProofCompressor for SonobeCompressor<S>
 {
     fn prove(&self, acc: &[u8], public_inputs: &[u8]) -> Result<CompressedProof, CompressorError> {
+        // BLOCKER(phase=4): The Nova SNARK wrapper for on-chain IVC verification
+        // is not available in the current Sonobe revision (63f2930d). After
+        // nova.ivc_proof(), the relaxed R1CS final instance should be
+        // Groth16/PLONK-snarked via nova.generate_proof(). See:
+        // circuits/sonobe_state_commitment/src/main.nr for the Poseidon shortcut
+        // that this would replace. Unblocked by Sonobe audit completion.
         clear_cyclo_ring_data();
         clear_sigma_data();
 
@@ -1066,21 +1107,33 @@ impl<
         ivc_proof
             .serialize_with_mode(&mut ivc_bytes, Compress::Yes)
             .map_err(|_| CompressorError::Backend("sonobe proof serialization failed"))?;
+        let acc_hash_arr = normalized_hash(acc)?;
+        let pi_hash_arr = normalized_hash(public_inputs)?;
         tracing::info!(
             ivc_bytes_len = ivc_bytes.len(),
             rss_kb = rss_kb(),
             "sonobe: ivc proof serialized"
         );
 
-        let mut proof_bytes = Vec::with_capacity(76 + ivc_bytes.len());
-        proof_bytes.extend_from_slice(&PROOF_MAGIC);
-        proof_bytes.extend_from_slice(&PROOF_VERSION.to_be_bytes());
-        proof_bytes.extend_from_slice(&normalized_hash(acc)?);
-        proof_bytes.extend_from_slice(&normalized_hash(public_inputs)?);
-        #[allow(clippy::as_conversions)]
-        proof_bytes.extend_from_slice(&(ivc_bytes.len() as u32).to_be_bytes());
-        proof_bytes.extend_from_slice(&ivc_bytes);
-        Ok(CompressedProof(proof_bytes))
+        let snark_binding: Vec<u8> = {
+            let mut h = Keccak256::new();
+            h.update(&ivc_bytes);
+            h.update(&acc_hash_arr);
+            h.update(&pi_hash_arr);
+            h.update(&self.srs_hash);
+            let digest: [u8; 32] = h.finalize().into();
+            digest.to_vec()
+        };
+
+        let proof_bytes = build_proof_bytes(
+            PROOF_MAGIC,
+            PROOF_VERSION,
+            &acc_hash_arr,
+            &pi_hash_arr,
+            &ivc_bytes,
+            Some(snark_binding.as_slice()),
+        );
+        Ok(CompressedProof::new(proof_bytes))
     }
 
     fn verify(
@@ -1098,12 +1151,9 @@ impl<
             return Ok(false);
         }
 
-        verify_ivc_core::<S>(
-            &parsed,
-            self.state_len,
-            &self.verifier_key_bytes,
-            |z| normalized_hash(&encode_triple((z[0], z[1], z[2]))),
-        )
+        verify_ivc_core::<S>(&parsed, self.state_len, &self.verifier_key_bytes, |z| {
+            normalized_hash(&encode_triple((z[0], z[1], z[2])))
+        })
     }
 
     fn backend_id(&self) -> &str {
@@ -1134,9 +1184,8 @@ impl ProofCompressor for SonobeCompressor<CycloFoldStepCircuit<Fr>> {
         let initial = decode_hex(acc)?;
         let delta = decode_quad(public_inputs)?;
         let params = self.deserialize_params()?;
-        let circuit =
-            CycloFoldStepCircuit::<Fr>::new(())
-                .map_err(|_| CompressorError::Backend("sonobe circuit init failed"))?;
+        let circuit = CycloFoldStepCircuit::<Fr>::new(())
+            .map_err(|_| CompressorError::Backend("sonobe circuit init failed"))?;
         let state_len = circuit.state_len();
 
         let mut initial_state = Vec::with_capacity(state_len);
@@ -1148,8 +1197,9 @@ impl ProofCompressor for SonobeCompressor<CycloFoldStepCircuit<Fr>> {
         initial_state.push(initial.5);
         initial_state.push(initial.6);
 
-        let mut nova = SonobeNova::<CycloFoldStepCircuit<Fr>>::init(&params, circuit, initial_state)
-            .map_err(|_| CompressorError::Backend("sonobe init failed"))?;
+        let mut nova =
+            SonobeNova::<CycloFoldStepCircuit<Fr>>::init(&params, circuit, initial_state)
+                .map_err(|_| CompressorError::Backend("sonobe init failed"))?;
         tracing::info!(rss_kb = rss_kb(), "sonobe: Nova::init done");
         // Reproducible folding RNG — bound to session epoch via srs_hash.
         // Acceptable for research prototype; production should mix OsRng nonce.
@@ -1179,10 +1229,10 @@ impl ProofCompressor for SonobeCompressor<CycloFoldStepCircuit<Fr>> {
         proof_bytes.extend_from_slice(&PROOF_VERSION.to_be_bytes());
         proof_bytes.extend_from_slice(&normalized_hash(acc)?);
         proof_bytes.extend_from_slice(&normalized_hash(public_inputs)?);
-                #[allow(clippy::as_conversions)]
+        #[allow(clippy::as_conversions)]
         proof_bytes.extend_from_slice(&(ivc_bytes.len() as u32).to_be_bytes());
         proof_bytes.extend_from_slice(&ivc_bytes);
-        Ok(CompressedProof(proof_bytes))
+        Ok(CompressedProof::new(proof_bytes))
     }
 
     fn verify(
@@ -1239,12 +1289,9 @@ impl<
             return Ok(false);
         }
 
-        verify_ivc_core::<S>(
-            &parsed,
-            self.state_len,
-            &self.verifier_key_bytes,
-            |z| normalized_hash(&encode_triple((z[0], z[1], z[2]))),
-        )
+        verify_ivc_core::<S>(&parsed, self.state_len, &self.verifier_key_bytes, |z| {
+            normalized_hash(&encode_triple((z[0], z[1], z[2])))
+        })
     }
 
     pub fn prove_steps(
@@ -1285,7 +1332,11 @@ impl<
         for (step_idx, ext_inputs) in steps.iter().enumerate() {
             nova.prove_step(&mut rng, *ext_inputs, None)
                 .map_err(|_| CompressorError::Backend("sonobe prove step failed"))?;
-            tracing::info!(step = step_idx, rss_kb = rss_kb(), "sonobe: prove_steps done");
+            tracing::info!(
+                step = step_idx,
+                rss_kb = rss_kb(),
+                "sonobe: prove_steps done"
+            );
         }
 
         let ivc_proof = nova.ivc_proof();
@@ -1314,7 +1365,7 @@ impl<
             rss_kb = rss_kb(),
             "sonobe: prove_steps proof serialized"
         );
-        Ok(CompressedProof(proof_bytes))
+        Ok(CompressedProof::new(proof_bytes))
     }
 
     pub fn verify_steps(
@@ -1338,12 +1389,9 @@ impl<
             return Ok(false);
         }
 
-        verify_ivc_core::<S>(
-            &parsed,
-            self.state_len,
-            &self.verifier_key_bytes,
-            |z| normalized_hash(&encode_triple((z[0], z[1], z[2]))),
-        )
+        verify_ivc_core::<S>(&parsed, self.state_len, &self.verifier_key_bytes, |z| {
+            normalized_hash(&encode_triple((z[0], z[1], z[2])))
+        })
     }
 }
 
@@ -1387,9 +1435,8 @@ impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
 
         let initial = decode_hex(acc)?;
         let params = self.deserialize_params()?;
-        let circuit =
-            CycloFoldStepCircuit::<Fr>::new(())
-                .map_err(|_| CompressorError::Backend("sonobe circuit init failed"))?;
+        let circuit = CycloFoldStepCircuit::<Fr>::new(())
+            .map_err(|_| CompressorError::Backend("sonobe circuit init failed"))?;
         let state_len = circuit.state_len();
 
         let mut initial_state = Vec::with_capacity(state_len);
@@ -1401,14 +1448,19 @@ impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
         initial_state.push(initial.5);
         initial_state.push(initial.6);
 
-        let mut nova = SonobeNova::<CycloFoldStepCircuit<Fr>>::init(&params, circuit, initial_state)
-            .map_err(|_| CompressorError::Backend("sonobe init failed"))?;
+        let mut nova =
+            SonobeNova::<CycloFoldStepCircuit<Fr>>::init(&params, circuit, initial_state)
+                .map_err(|_| CompressorError::Backend("sonobe init failed"))?;
         let mut rng = ChaCha20Rng::from_seed(self.srs_hash);
 
         for (step_idx, ext_inputs) in steps.iter().enumerate() {
             nova.prove_step(&mut rng, *ext_inputs, None)
                 .map_err(|_| CompressorError::Backend("sonobe prove step failed"))?;
-            tracing::info!(step = step_idx, rss_kb = rss_kb(), "sonobe: prove_steps done");
+            tracing::info!(
+                step = step_idx,
+                rss_kb = rss_kb(),
+                "sonobe: prove_steps done"
+            );
         }
 
         let ivc_proof = nova.ivc_proof();
@@ -1437,7 +1489,7 @@ impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
             rss_kb = rss_kb(),
             "sonobe: prove_steps proof serialized"
         );
-        Ok(CompressedProof(proof_bytes))
+        Ok(CompressedProof::new(proof_bytes))
     }
 
     /// Prove share verification steps from a witness set.
@@ -1481,7 +1533,9 @@ impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
         witnesses: &crate::witness::AjtaiCommitmentWitnessSet,
     ) -> Result<CompressedProof, CompressorError> {
         let _guard = ThreadLocalClearGuard;
-        use crate::sonobe::ajtai_commitment_circuit::{set_ajtai_witness_data, clear_ajtai_witness_data};
+        use crate::sonobe::ajtai_commitment_circuit::{
+            clear_ajtai_witness_data, set_ajtai_witness_data,
+        };
 
         if !witnesses.verify_commitments() {
             return Err(CompressorError::InvalidProof);
@@ -1591,7 +1645,11 @@ impl<
         for (step_idx, ext_inputs) in steps.iter().enumerate() {
             nova.prove_step(&mut rng, ext_inputs.clone(), None)
                 .map_err(|_| CompressorError::Backend("sonobe prove step merkle failed"))?;
-            tracing::info!(step = step_idx, rss_kb = rss_kb(), "sonobe: prove_steps_merkle done");
+            tracing::info!(
+                step = step_idx,
+                rss_kb = rss_kb(),
+                "sonobe: prove_steps_merkle done"
+            );
         }
 
         let ivc_proof = nova.ivc_proof();
@@ -1620,7 +1678,7 @@ impl<
             rss_kb = rss_kb(),
             "sonobe: prove_steps_merkle proof serialized"
         );
-        Ok(CompressedProof(proof_bytes))
+        Ok(CompressedProof::new(proof_bytes))
     }
 
     /// Verify a proof produced by [`Self::prove_steps_merkle`].
@@ -1645,12 +1703,9 @@ impl<
             return Ok(false);
         }
 
-        verify_ivc_core::<S>(
-            &parsed,
-            self.state_len,
-            &self.verifier_key_bytes,
-            |z| normalized_hash(&encode_triple((z[0], z[1], z[2]))),
-        )
+        verify_ivc_core::<S>(&parsed, self.state_len, &self.verifier_key_bytes, |z| {
+            normalized_hash(&encode_triple((z[0], z[1], z[2])))
+        })
     }
 }
 
@@ -1702,7 +1757,11 @@ impl<
         for (step_idx, ext_inputs) in steps.iter().enumerate() {
             nova.prove_step(&mut rng, *ext_inputs, None)
                 .map_err(|_| CompressorError::Backend("sonobe prove step c7 failed"))?;
-            tracing::info!(step = step_idx, rss_kb = rss_kb(), "sonobe: prove_steps_c7 done");
+            tracing::info!(
+                step = step_idx,
+                rss_kb = rss_kb(),
+                "sonobe: prove_steps_c7 done"
+            );
         }
 
         let ivc_proof = nova.ivc_proof();
@@ -1731,7 +1790,7 @@ impl<
             rss_kb = rss_kb(),
             "sonobe: prove_steps_c7 proof serialized"
         );
-        Ok(CompressedProof(proof_bytes))
+        Ok(CompressedProof::new(proof_bytes))
     }
 
     /// Verify a proof produced by [`Self::prove_steps_c7`].
@@ -1756,12 +1815,9 @@ impl<
             return Ok(false);
         }
 
-        verify_ivc_core::<S>(
-            &parsed,
-            self.state_len,
-            &self.verifier_key_bytes,
-            |z| normalized_hash(&encode_triple((z[0], z[1], z[2]))),
-        )
+        verify_ivc_core::<S>(&parsed, self.state_len, &self.verifier_key_bytes, |z| {
+            normalized_hash(&encode_triple((z[0], z[1], z[2])))
+        })
     }
 }
 
@@ -1791,13 +1847,9 @@ fn verify_ivc_core<S: FCircuit<Fr, Params = ()>>(
         return Ok(false);
     }
 
-    let verifier = SonobeNova::<S>::vp_deserialize_with_mode(
-        vk_bytes,
-        Compress::Yes,
-        Validate::Yes,
-        (),
-    )
-    .map_err(|_| CompressorError::Backend("sonobe verifier key deserialization failed"))?;
+    let verifier =
+        SonobeNova::<S>::vp_deserialize_with_mode(vk_bytes, Compress::Yes, Validate::Yes, ())
+            .map_err(|_| CompressorError::Backend("sonobe verifier key deserialization failed"))?;
 
     // G.30: Counter consistency enforcement.
     // Track A: counters always increment (ring_inc = FpVar::one()), even with zero data.
@@ -1816,18 +1868,29 @@ fn verify_ivc_core<S: FCircuit<Fr, Params = ()>>(
         None
     };
 
-    if let Err(e) = SonobeNova::<S>::verify(verifier, ivc_proof) { tracing::warn!("Nova::verify failed: {:?}", e);
+    if let Err(e) = SonobeNova::<S>::verify(verifier, ivc_proof) {
+        tracing::warn!("Nova::verify failed: {:?}", e);
         return Ok(false);
     }
 
     if let Some((fold_count, verification_count)) = ring_check {
-        if fold_count != verification_count { tracing::warn!("fold_count {:?} != verification_count {:?}", fold_count, verification_count);
+        if fold_count != verification_count {
+            tracing::warn!(
+                "fold_count {:?} != verification_count {:?}",
+                fold_count,
+                verification_count
+            );
             return Ok(false);
         }
     }
 
     if let Some((fold_count, sigma_count)) = sigma_check {
-        if fold_count != sigma_count { tracing::warn!("fold_count {:?} != sigma_verification_count {:?}", fold_count, sigma_count);
+        if fold_count != sigma_count {
+            tracing::warn!(
+                "fold_count {:?} != sigma_verification_count {:?}",
+                fold_count,
+                sigma_count
+            );
             return Ok(false);
         }
     }
@@ -1849,9 +1912,10 @@ fn verify_ivc_core<S: FCircuit<Fr, Params = ()>>(
 }
 
 pub(crate) struct ParsedProof<'a> {
-    acc_hash: [u8; 32],
-    public_inputs_hash: [u8; 32],
-    ivc_bytes: &'a [u8],
+    pub(crate) acc_hash: [u8; 32],
+    pub(crate) public_inputs_hash: [u8; 32],
+    pub(crate) ivc_bytes: &'a [u8],
+    pub(crate) snark_bytes: Option<&'a [u8]>,
 }
 
 pub(crate) fn parse_proof(bytes: &[u8]) -> Result<ParsedProof<'_>, CompressorError> {
@@ -1880,15 +1944,68 @@ pub(crate) fn parse_proof(bytes: &[u8]) -> Result<ParsedProof<'_>, CompressorErr
             .try_into()
             .map_err(|_| CompressorError::InvalidProof)?,
     ) as usize;
-    if bytes.len() != 76 + ivc_len {
+
+    if bytes.len() < 76 + ivc_len {
         return Err(CompressorError::InvalidProof);
     }
+
+    // Check for extended format with optional SNARK proof trailer.
+    let snark_offset = 76 + ivc_len;
+    let (ivc_bytes, snark_bytes) = if bytes.len() == snark_offset {
+        // Original format: no SNARK trailer.
+        (&bytes[76..snark_offset], None)
+    } else if bytes.len() >= snark_offset + 4 {
+        // Extended format: snark_len[u32 BE] + snark_bytes.
+        #[allow(clippy::as_conversions)]
+        let snark_len = u32::from_be_bytes(
+            bytes[snark_offset..snark_offset + 4]
+                .try_into()
+                .map_err(|_| CompressorError::InvalidProof)?,
+        ) as usize;
+        if bytes.len() != snark_offset + 4 + snark_len {
+            return Err(CompressorError::InvalidProof);
+        }
+        let snark = if snark_len > 0 {
+            Some(&bytes[snark_offset + 4..])
+        } else {
+            None
+        };
+        (&bytes[76..snark_offset], snark)
+    } else {
+        return Err(CompressorError::InvalidProof);
+    };
 
     Ok(ParsedProof {
         acc_hash,
         public_inputs_hash,
-        ivc_bytes: &bytes[76..],
+        ivc_bytes,
+        snark_bytes,
     })
+}
+
+/// Build a compressed proof byte vector with the optional SNARK trailer.
+pub(crate) fn build_proof_bytes(
+    magic: [u8; 4],
+    version: u32,
+    acc_hash: &[u8; 32],
+    public_inputs_hash: &[u8; 32],
+    ivc_bytes: &[u8],
+    snark_proof: Option<&[u8]>,
+) -> Vec<u8> {
+    let snark_len = snark_proof.map_or(0u32, |p| p.len() as u32);
+    let mut out = Vec::with_capacity(80 + ivc_bytes.len() + snark_len as usize);
+    out.extend_from_slice(&magic);
+    out.extend_from_slice(&version.to_be_bytes());
+    out.extend_from_slice(acc_hash);
+    out.extend_from_slice(public_inputs_hash);
+    #[allow(clippy::as_conversions)]
+    out.extend_from_slice(&(ivc_bytes.len() as u32).to_be_bytes());
+    out.extend_from_slice(ivc_bytes);
+    out.extend_from_slice(&snark_len.to_be_bytes());
+    if let Some(snark) = snark_proof {
+        out.extend_from_slice(snark);
+    }
+    out
 }
 
 /// Extract the final CycloFold accumulator state (z_i) from a compressed proof.
@@ -1897,8 +2014,9 @@ pub(crate) fn parse_proof(bytes: &[u8]) -> Result<ParsedProof<'_>, CompressorErr
 /// z[3]=ring_verif_count, z[4]=sigma_count, z[5]=z_s_proj_acc, z[6]=z_e_proj_acc.
 pub fn extract_cyclo_state(proof: &CompressedProof) -> Result<[Fr; 7], CompressorError> {
     let parsed = parse_proof(&proof.0)?;
-    let ivc_proof = SonobeIvcProof::deserialize_with_mode(parsed.ivc_bytes, Compress::Yes, Validate::Yes)
-        .map_err(|_| CompressorError::InvalidProof)?;
+    let ivc_proof =
+        SonobeIvcProof::deserialize_with_mode(parsed.ivc_bytes, Compress::Yes, Validate::Yes)
+            .map_err(|_| CompressorError::InvalidProof)?;
     if ivc_proof.z_i.len() != 7 {
         return Err(CompressorError::InvalidProof);
     }
@@ -1971,7 +2089,6 @@ pub fn encode_quad(value: (Fr, Fr, Fr, Fr)) -> [u8; 128] {
     out
 }
 
-
 /// Decode 192 bytes into a sextuple of Fr scalars.
 pub fn decode_hex6(bytes: &[u8]) -> Result<(Fr, Fr, Fr, Fr, Fr, Fr), CompressorError> {
     if bytes.len() < 192 {
@@ -2043,10 +2160,10 @@ fn encode_quint(value: ExternalInputs5<Fr>) -> [u8; 160] {
     ark_serialize::CanonicalSerialize::serialize_uncompressed(&value.1, &mut buf[32..64]).unwrap();
     ark_serialize::CanonicalSerialize::serialize_uncompressed(&value.2, &mut buf[64..96]).unwrap();
     ark_serialize::CanonicalSerialize::serialize_uncompressed(&value.3, &mut buf[96..128]).unwrap();
-    ark_serialize::CanonicalSerialize::serialize_uncompressed(&value.4, &mut buf[128..160]).unwrap();
+    ark_serialize::CanonicalSerialize::serialize_uncompressed(&value.4, &mut buf[128..160])
+        .unwrap();
     buf
 }
-
 
 fn encode_merkle_step(step: &C7MerkleExternalInputs<Fr>) -> Vec<u8> {
     let mut out = Vec::new();

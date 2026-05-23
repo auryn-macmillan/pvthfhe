@@ -89,8 +89,7 @@ impl<F: PrimeField> AllocVar<C7MerkleExternalInputs<F>, F> for C7MerkleExternalI
         let e = v.borrow();
 
         let share_eval = FpVar::<F>::new_variable(cs.clone(), || Ok(e.share_eval), mode)?;
-        let lagrange_coeff =
-            FpVar::<F>::new_variable(cs.clone(), || Ok(e.lagrange_coeff), mode)?;
+        let lagrange_coeff = FpVar::<F>::new_variable(cs.clone(), || Ok(e.lagrange_coeff), mode)?;
         let merkle_root = FpVar::<F>::new_variable(cs.clone(), || Ok(e.merkle_root), mode)?;
         let merkle_leaf_value =
             FpVar::<F>::new_variable(cs.clone(), || Ok(e.merkle_data.leaf_value), mode)?;
@@ -99,8 +98,7 @@ impl<F: PrimeField> AllocVar<C7MerkleExternalInputs<F>, F> for C7MerkleExternalI
 
         let mut merkle_siblings = Vec::with_capacity(e.merkle_data.siblings.len());
         for sibling in &e.merkle_data.siblings {
-            merkle_siblings
-                .push(FpVar::<F>::new_variable(cs.clone(), || Ok(*sibling), mode)?);
+            merkle_siblings.push(FpVar::<F>::new_variable(cs.clone(), || Ok(*sibling), mode)?);
         }
 
         Ok(Self {
@@ -167,7 +165,11 @@ fn verify_merkle_path<F: PrimeField>(
         let b = FpVar::<F>::new_witness(cs.clone(), || {
             let idx = leaf_index.value()?;
             let limb0 = idx.into_bigint().as_ref()[0];
-            let bit = if (limb0 >> i) & 1 == 1 { F::ONE } else { F::ZERO };
+            let bit = if (limb0 >> i) & 1 == 1 {
+                F::ONE
+            } else {
+                F::ZERO
+            };
             Ok(bit)
         })?;
         bits.push(b);
@@ -206,9 +208,21 @@ fn verify_merkle_path<F: PrimeField>(
             let j1 = (j & 2) != 0;
             let j2 = (j & 4) != 0;
 
-            let t0 = if j0 { b0.clone() } else { one.clone() - b0.clone() };
-            let t1 = if j1 { b1.clone() } else { one.clone() - b1.clone() };
-            let t2 = if j2 { b2.clone() } else { one.clone() - b2.clone() };
+            let t0 = if j0 {
+                b0.clone()
+            } else {
+                one.clone() - b0.clone()
+            };
+            let t1 = if j1 {
+                b1.clone()
+            } else {
+                one.clone() - b1.clone()
+            };
+            let t2 = if j2 {
+                b2.clone()
+            } else {
+                one.clone() - b2.clone()
+            };
 
             let mid = t0 * t1;
             is_pos.push(mid * t2);
@@ -329,7 +343,8 @@ impl<F: PrimeField> FCircuit<F> for C7MerkleStepCircuit<F> {
         //    z'[0] = z[0] + ext.lagrange_coeff * ext.share_eval
         //    z'[1] = z[1] + ext.lagrange_coeff
         //    z'[2] = z[2] + 1
-        let acc_eval = z_i[0].clone() + external_inputs.lagrange_coeff.clone() * external_inputs.share_eval;
+        let acc_eval =
+            z_i[0].clone() + external_inputs.lagrange_coeff.clone() * external_inputs.share_eval;
 
         let lagrange_sum = z_i[1].clone() + external_inputs.lagrange_coeff;
 
@@ -356,10 +371,10 @@ impl<F: PrimeField> StepCircuit for C7MerkleStepCircuit<F> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::merkle::{build_merkle_tree, prove_merkle_path, verify_merkle_proof};
     use ark_bn254::Fr;
     use ark_r1cs_std::alloc::AllocVar;
     use ark_relations::gr1cs::ConstraintSystem;
-    use crate::merkle::{build_merkle_tree, prove_merkle_path, verify_merkle_proof};
 
     #[test]
     fn merkle_circuit_descriptor_width_depth5() {
@@ -392,7 +407,10 @@ mod tests {
 
         let leaf_index = 5usize;
         let proof = prove_merkle_path(&tree, leaf_index, arity);
-        assert!(verify_merkle_proof(&proof, arity), "native proof must be valid");
+        assert!(
+            verify_merkle_proof(&proof, arity),
+            "native proof must be valid"
+        );
 
         // Flatten level-siblings into a flat list for the circuit.
         let flat_siblings: Vec<Fr> = proof.siblings.iter().flatten().copied().collect();
@@ -408,8 +426,7 @@ mod tests {
                 .iter()
                 .map(|v| FpVar::<Fr>::new_witness(cs.clone(), || Ok(*v)).unwrap())
                 .collect();
-            let merkle_root_var =
-                FpVar::<Fr>::new_witness(cs.clone(), || Ok(proof.root)).unwrap();
+            let merkle_root_var = FpVar::<Fr>::new_witness(cs.clone(), || Ok(proof.root)).unwrap();
 
             let result = verify_merkle_path(
                 &leaf_value_var,
@@ -420,7 +437,10 @@ mod tests {
                 &merkle_root_var,
                 cs.clone(),
             );
-            assert!(result.is_ok(), "verify_merkle_path must succeed with correct leaf_index=5");
+            assert!(
+                result.is_ok(),
+                "verify_merkle_path must succeed with correct leaf_index=5"
+            );
             assert!(
                 cs.is_satisfied().unwrap(),
                 "constraint system must be satisfied with correct leaf_index=5"
@@ -439,8 +459,7 @@ mod tests {
                 .iter()
                 .map(|v| FpVar::<Fr>::new_witness(cs.clone(), || Ok(*v)).unwrap())
                 .collect();
-            let merkle_root_var =
-                FpVar::<Fr>::new_witness(cs.clone(), || Ok(proof.root)).unwrap();
+            let merkle_root_var = FpVar::<Fr>::new_witness(cs.clone(), || Ok(proof.root)).unwrap();
 
             let _ = verify_merkle_path(
                 &leaf_value_var,

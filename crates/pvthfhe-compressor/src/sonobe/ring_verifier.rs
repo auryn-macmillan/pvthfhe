@@ -82,7 +82,9 @@ impl<F: PrimeField> FCircuit<F> for RingVerifierCircuit<F> {
         external_inputs.2.enforce_equal(&t_hash)?;
         external_inputs.3.enforce_equal(&d_hash)?;
 
-        external_inputs.4.enforce_equal(&FpVar::constant(self.challenge))?;
+        external_inputs
+            .4
+            .enforce_equal(&FpVar::constant(self.challenge))?;
 
         if self.challenge == F::one() {
             for k in 0..n {

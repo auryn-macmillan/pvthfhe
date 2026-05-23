@@ -43,7 +43,7 @@ The value RLWE_N=1024 (illustrative; see Canonical Parameters and `parameters.to
 - **Parameter renegotiation**: Locked except through the escape hatches in §9.
 - **Implementation**: No Rust/Noir/Solidity code is written here. Phase 1 starts
   from these interfaces.
-- **KZG ceremony selection**: Deferred to Phase 3 gate artefact.
+- **KZG ceremony selection**: Implemented (Phase 4). Sonobe Nova uses `KZG<'static, Bn254>` for CS1 with runtime SRS generation via `KZG::<Bn254>::setup(rng, 1 << 17)`. The `bench/srs/bn254.srs` file is a text-only stub — production requires a real MPC ceremony output. `DeciderEth` Groth16 SNARK bridge is feature-gated on `sonobe-snark`.
 
 ---
 
@@ -989,7 +989,7 @@ and must not be performed ad hoc in implementation code.
 | Exact BB UltraHonk version pin for Noir circuit | Phase 1 | Must match `REPRODUCING.md` toolchain pin; current stub uses nightly.20260324 |
 | Exact a' (extended commitment rank) value from Cyclo ePrint §C.1 | Phase 1 | Required for accurate proof-size and performance estimates |
 | Concrete M-SIS security estimate at (φ=256, q_commit≈2^50, a=13) | Phase 1 | Required for §8 PASS/FAIL for PQ security row |
-| KZG ceremony selection (Powers-of-Tau source) | Phase 3 | Ethereum mainnet ceremony recommended; document in REPRODUCING.md |
+| KZG ceremony selection (Powers-of-Tau source) | Phase 4 | Implemented: Sonobe Nova CS1 = `KZG<'static, Bn254>`, runtime SRS via `KZG::<Bn254>::setup(rng, 1<<17)`. Production ceremony still deferred (see `bench/srs/bn254.srs`). |
 | Formal T2 joint extractor (RLWE ∘ M-SIS ∘ Cyclo T3) | Phase 4+ | Tabled per P1 policy; status remains `skeleton` |
 | QROM analysis for Cyclo FS transcript | Phase 4+ | Not blocked; ROM baseline sufficient for Phases 1–3 |
 | NTT-domain vs coefficient-domain CCS template | Phase 1 | Affects per-share witness packing strategy (nizk-selection.md §7 Q1) |

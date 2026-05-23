@@ -5,6 +5,8 @@ pub mod dkg_aggregation;
 pub mod encrypt;
 /// Share-decryption NIZK helpers and proof types.
 pub mod nizk_decrypt;
+/// Key-generation NIZK for BFV keypair correctness (C0).
+pub mod nizk_keygen;
 /// Share-encryption NIZK helpers and proof types.
 pub mod nizk_share;
 pub mod parity;

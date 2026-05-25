@@ -84,6 +84,7 @@ fn main(
     n_participants: pub Field,
     threshold: pub Field,
     lagrange_coeffs: pub [Field; MAX_PARTICIPANTS],
+    plaintext_commitment: pub Field,
 
     committee_party_ids: pub [Field; MAX_PARTICIPANTS],
     participant_shares: [[Field; N]; MAX_PARTICIPANTS],
@@ -201,6 +202,8 @@ fn main(
     // Hash the computed plaintext (used for ciphertext distinction check)
     let plaintext_hash = vector_hash(computed_plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
 
+    assert(plaintext_commitment == plaintext_hash, "plaintext commitment mismatch");
+
     // Constrain ciphertext_hash: must differ from plaintext_hash
     assert(ciphertext_hash != plaintext_hash, "ciphertext and plaintext hash must differ");
 
@@ -259,6 +262,9 @@ fn test_honest_lagrange_recombination() {
         registered_share_hashes[i] = vector_hash(d[i], protocol_constants::DOMAIN_DKG_SHARE_COMMIT);
     }
 
+    let expected_plaintext = [1, 0, 0, 0, 0, 0, 0, 0];
+    let plaintext_commitment = vector_hash(expected_plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
+
     let plaintext = main(
         ciphertext_hash,
         aggregate_pk_hash,
@@ -270,6 +276,7 @@ fn test_honest_lagrange_recombination() {
         threshold,
 
         [0; MAX_PARTICIPANTS],
+        plaintext_commitment,
         committee_party_ids,
         d,
         registered_share_hashes,
@@ -328,7 +335,7 @@ fn test_tamper_zero_party_id() {
     let decrypt_nizk_hash = 500;
     let participant_set_hash = 300;
 
-    main(
+    let _ = main(
         ciphertext_hash,
         aggregate_pk_hash,
         decrypt_nizk_hash,
@@ -339,6 +346,7 @@ fn test_tamper_zero_party_id() {
         threshold,
         
         [0; MAX_PARTICIPANTS],
+        0,
         committee_party_ids,
         d,
         [0; MAX_PARTICIPANTS],
@@ -370,7 +378,7 @@ fn test_tamper_duplicate_party_ids() {
     }
     let participant_set_hash = poseidon::poseidon::bn254::sponge(ps_hash_inputs);
 
-    main(
+    let _ = main(
         ciphertext_hash,
         aggregate_pk_hash,
         decrypt_nizk_hash,
@@ -381,6 +389,7 @@ fn test_tamper_duplicate_party_ids() {
         threshold,
         
         [0; MAX_PARTICIPANTS],
+        0,
         committee_party_ids,
         d,
         [0; MAX_PARTICIPANTS],
@@ -418,7 +427,7 @@ fn test_ciphertext_equals_plaintext_hash() {
     }
     let participant_set_hash = poseidon::poseidon::bn254::sponge(ps_hash_inputs);
 
-    main(
+    let _ = main(
         ciphertext_hash,
         aggregate_pk_hash,
         decrypt_nizk_hash,
@@ -429,6 +438,7 @@ fn test_ciphertext_equals_plaintext_hash() {
         threshold,
         
         [0; MAX_PARTICIPANTS],
+        plaintext_hash,
         committee_party_ids,
         d,
         [0; MAX_PARTICIPANTS],
@@ -455,7 +465,7 @@ fn test_tamper_wrong_threshold() {
     let decrypt_nizk_hash = 500;
     let participant_set_hash = 300;
 
-    main(
+    let _ = main(
         ciphertext_hash,
         aggregate_pk_hash,
         decrypt_nizk_hash,
@@ -466,6 +476,7 @@ fn test_tamper_wrong_threshold() {
         threshold,
         
         [0; MAX_PARTICIPANTS],
+        0,
         committee_party_ids,
         d,
         [0; MAX_PARTICIPANTS],
@@ -492,7 +503,7 @@ fn test_tamper_epoch_zero() {
     let decrypt_nizk_hash = 500;
     let participant_set_hash = 300;
 
-    main(
+    let _ = main(
         ciphertext_hash,
         aggregate_pk_hash,
         decrypt_nizk_hash,
@@ -503,6 +514,7 @@ fn test_tamper_epoch_zero() {
         threshold,
         
         [0; MAX_PARTICIPANTS],
+        0,
         committee_party_ids,
         d,
         [0; MAX_PARTICIPANTS],
@@ -540,7 +552,10 @@ fn test_tamper_aggregate_pk_hash_zero() {
         registered_share_hashes[i] = vector_hash(d[i], protocol_constants::DOMAIN_DKG_SHARE_COMMIT);
     }
 
-    main(
+    let expected_plaintext = [1, 0, 0, 0, 0, 0, 0, 0];
+    let plaintext_commitment = vector_hash(expected_plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
+
+    let _ = main(
         ciphertext_hash,
         aggregate_pk_hash,
         decrypt_nizk_hash,
@@ -551,6 +566,7 @@ fn test_tamper_aggregate_pk_hash_zero() {
         threshold,
         
         [0; MAX_PARTICIPANTS],
+        plaintext_commitment,
         committee_party_ids,
         d,
         registered_share_hashes,
@@ -588,7 +604,10 @@ fn test_tamper_decrypt_nizk_hash_zero() {
         registered_share_hashes[i] = vector_hash(d[i], protocol_constants::DOMAIN_DKG_SHARE_COMMIT);
     }
 
-    main(
+    let expected_plaintext = [1, 0, 0, 0, 0, 0, 0, 0];
+    let plaintext_commitment = vector_hash(expected_plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
+
+    let _ = main(
         ciphertext_hash,
         aggregate_pk_hash,
         decrypt_nizk_hash,
@@ -599,6 +618,7 @@ fn test_tamper_decrypt_nizk_hash_zero() {
         threshold,
         
         [0; MAX_PARTICIPANTS],
+        plaintext_commitment,
         committee_party_ids,
         d,
         registered_share_hashes,
@@ -636,7 +656,10 @@ fn test_tamper_dkg_transcript_hash_zero() {
         registered_share_hashes[i] = vector_hash(d[i], protocol_constants::DOMAIN_DKG_SHARE_COMMIT);
     }
 
-    main(
+    let expected_plaintext = [1, 0, 0, 0, 0, 0, 0, 0];
+    let plaintext_commitment = vector_hash(expected_plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
+
+    let _ = main(
         ciphertext_hash,
         aggregate_pk_hash,
         decrypt_nizk_hash,
@@ -647,6 +670,7 @@ fn test_tamper_dkg_transcript_hash_zero() {
         threshold,
         
         [0; MAX_PARTICIPANTS],
+        plaintext_commitment,
         committee_party_ids,
         d,
         registered_share_hashes,
@@ -684,7 +708,10 @@ fn test_tamper_registered_share_hashes() {
         registered_share_hashes[i] = vector_hash(d[i], protocol_constants::DOMAIN_DKG_SHARE_COMMIT) + 1;
     }
 
-    main(
+    let expected_plaintext = [1, 0, 0, 0, 0, 0, 0, 0];
+    let plaintext_commitment = vector_hash(expected_plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
+
+    let _ = main(
         ciphertext_hash,
         aggregate_pk_hash,
         decrypt_nizk_hash,
@@ -695,6 +722,7 @@ fn test_tamper_registered_share_hashes() {
         threshold,
         
         [0; MAX_PARTICIPANTS],
+        plaintext_commitment,
         committee_party_ids,
         d,
         registered_share_hashes,

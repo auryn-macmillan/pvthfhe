@@ -3,23 +3,23 @@
 //! Deterministic via `ChaCha20Rng::seed_from_u64(0x4e_34)`.
 
 use pvthfhe_nizk::sigma::{
-    compute_d_rns, prove, verify, SigmaStatement, SigmaWitness, SIGMA_B_E, RLWE_N, RLWE_Q0,
-    RLWE_Q1, RLWE_Q2,
+    compute_d_rns, prove, rlwe_n, verify, SigmaStatement, SigmaWitness, RLWE_Q0, RLWE_Q1, RLWE_Q2,
+    SIGMA_B_E,
 };
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
 
 fn sample_uniform_rq(rng: &mut ChaCha20Rng) -> Vec<u64> {
-    const MODULI: [u64; 3] = [RLWE_Q0, RLWE_Q1, RLWE_Q2];
-    let mut out = vec![0u64; RLWE_N * 3];
-    for (limb, &q) in MODULI.iter().enumerate() {
+    let moduli = [RLWE_Q0, RLWE_Q1, RLWE_Q2];
+    let mut out = vec![0u64; rlwe_n() * moduli.len()];
+    for (limb, &q) in moduli.iter().enumerate() {
         // Rejection sampling avoids modular bias: discard values >= floor(2^64/q)*q.
         let threshold = u64::MAX - (u64::MAX % q);
-        for j in 0..RLWE_N {
+        for j in 0..rlwe_n() {
             loop {
                 let v = rng.next_u64();
                 if v < threshold {
-                    out[limb * RLWE_N + j] = v % q;
+                    out[limb * rlwe_n() + j] = v % q;
                     break;
                 }
             }
@@ -29,7 +29,7 @@ fn sample_uniform_rq(rng: &mut ChaCha20Rng) -> Vec<u64> {
 }
 
 fn sample_ternary(rng: &mut ChaCha20Rng) -> Vec<i64> {
-    let mut s = vec![0i64; RLWE_N];
+    let mut s = vec![0i64; rlwe_n()];
     for x in s.iter_mut() {
         let mut b = [0u8; 1];
         rng.fill_bytes(&mut b);
@@ -45,7 +45,7 @@ fn sample_ternary(rng: &mut ChaCha20Rng) -> Vec<i64> {
 fn sample_error(rng: &mut ChaCha20Rng) -> Result<Vec<i64>, String> {
     const RANGE: u64 = 33; // 2 * SIGMA_B_E + 1 = 33
     const THRESHOLD: u64 = u64::MAX - (u64::MAX % RANGE);
-    let mut e = vec![0i64; RLWE_N];
+    let mut e = vec![0i64; rlwe_n()];
     for x in e.iter_mut() {
         loop {
             let v = rng.next_u64();
@@ -143,14 +143,8 @@ fn cheating_instances_all_reject() -> Result<(), String> {
                 d_rns: d_tampered,
             };
             let wit = SigmaWitness { s_i, e_i };
-            let proof = prove(
-                b"test-session-n4",
-                0,
-                &stmt_honest,
-                &wit,
-                &mut rng,
-            )
-            .map_err(|err| format!("tamper-stmt prove trial {trial}: {err}"))?;
+            let proof = prove(b"test-session-n4", 0, &stmt_honest, &wit, &mut rng)
+                .map_err(|err| format!("tamper-stmt prove trial {trial}: {err}"))?;
             assert!(
                 verify(b"test-session-n4", 0, &stmt_tampered, &proof).is_err(),
                 "tamper-stmt trial {trial}: should have been rejected"

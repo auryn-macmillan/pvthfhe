@@ -179,9 +179,7 @@ impl KeygenSimulator {
         for i in 0..self.n_parties {
             let party_id = party_id_from_index(i);
             let share = self.keygen_share_with_session(&session_id, party_id)?;
-            let pk = PublicKey {
-                bytes: share.bytes.0,
-            };
+            let pk = self.backend.aggregate_keygen(&[share.clone()])?;
             all_pks.insert(party_id, pk);
         }
 
@@ -349,14 +347,14 @@ impl KeygenSimulator {
     ) -> Result<Round1Message, pvthfhe_fhe::FheError> {
         let share = self.keygen_share_with_session(session_id, party_id)?;
         let pk_i = PublicKey {
-            bytes: share.bytes.0,
+            bytes: share.bytes.0.clone(),
         };
         let pk_i_hash = hash_bytes(pk_i.bytes.as_slice());
 
         // Generate real BFV keypair correctness NIZK (C0).
         let keygen_nizk = self
-            .generate_keygen_nizk(session_id, party_id, &pk_i)
-            .unwrap_or_else(|_e| vec![0x00, 0x01]);
+            .generate_keygen_nizk(session_id, party_id, &pk_i, &share)
+            .map_err(|e| pvthfhe_fhe::FheError::Backend { reason: e })?;
 
         let mut encrypted_shares = HashMap::new();
         let mut nizk_proofs: Vec<Vec<u8>> = Vec::new();
@@ -366,21 +364,14 @@ impl KeygenSimulator {
             if recipient_id != party_id {
                 match all_pks.get(&recipient_id) {
                     Some(recipient_pk) => {
-                        match self.encrypt_share_for_recipient(
+                        let (ct_bytes, nizk_bytes) = self.encrypt_share_for_recipient(
                             session_id,
                             party_id,
                             recipient_id,
                             recipient_pk,
-                        ) {
-                            Ok((ct_bytes, nizk_bytes)) => {
-                                encrypted_shares.insert(recipient_id, ct_bytes);
-                                nizk_proofs.push(nizk_bytes);
-                            }
-                            Err(_) => {
-                                // Fallback: hardcoded stub when encryption fails
-                                encrypted_shares.insert(recipient_id, vec![0x11, 0x22]);
-                            }
-                        }
+                        )?;
+                        encrypted_shares.insert(recipient_id, ct_bytes);
+                        nizk_proofs.push(nizk_bytes);
                     }
                     None => {
                         encrypted_shares.insert(recipient_id, vec![0x11, 0x22]);
@@ -407,8 +398,12 @@ impl KeygenSimulator {
         recipient_id: PartyId,
         recipient_pk: &PublicKey,
     ) -> Result<(Vec<u8>, Vec<u8>), pvthfhe_fhe::FheError> {
-        let share_bytes = self.keygen_share_with_session(session_id, dealer_id)?;
-        let plaintext = share_bytes.bytes.0;
+        let mut hasher = Sha256::new();
+        hasher.update(b"pvthfhe-sim-share-v1");
+        hasher.update(session_id);
+        hasher.update(&dealer_id.to_be_bytes());
+        hasher.update(&recipient_id.to_be_bytes());
+        let share_hash: [u8; 32] = hasher.finalize().into();
 
         let mut hasher = Sha256::new();
         hasher.update(b"pvthfhe-sim-encrypt-v1");
@@ -420,14 +415,16 @@ impl KeygenSimulator {
 
         let ct = self
             .backend
-            .encrypt(recipient_pk, &plaintext, &mut encrypt_rng)
+            .encrypt(recipient_pk, &share_hash, &mut encrypt_rng)
             .map_err(|e| pvthfhe_fhe::FheError::Backend {
                 reason: format!("encrypt share for recipient {recipient_id}: {e}"),
             })?;
 
         let nizk = self
-            .prove_keygen_nizk(session_id, dealer_id, recipient_id, &ct, &plaintext)
-            .unwrap_or_else(|_| vec![0x00, 0x01]);
+            .prove_keygen_nizk(session_id, dealer_id, recipient_id, &ct, &share_hash)
+            .map_err(|e| pvthfhe_fhe::FheError::Backend {
+                reason: e.to_string(),
+            })?;
 
         Ok((ct.bytes, nizk))
     }
@@ -449,13 +446,18 @@ impl KeygenSimulator {
         session_id: &[u8; 32],
         party_id: PartyId,
         pk_i: &PublicKey,
+        share: &pvthfhe_fhe::KeygenShare,
     ) -> Result<Vec<u8>, String> {
+        let real_pk = self
+            .backend
+            .aggregate_keygen(&[share.clone()])
+            .map_err(|e| format!("aggregate single keygen: {e}"))?;
         let (pk0_bytes, pk1_bytes) = self
             .backend
-            .decode_pk_polys(pk_i)
+            .decode_pk_polys(&real_pk)
             .map_err(|e| format!("decode pk polys: {e}"))?;
 
-        let (sk_coeffs, _error_bytes) = self
+        let (sk_coeffs, error_bytes) = self
             .backend
             .keygen_witness(party_id)
             .map_err(|e| format!("keygen witness: {e}"))?
@@ -468,7 +470,20 @@ impl KeygenSimulator {
             *Sha256::digest(format!("keygen-nizk-rng-{party_id}").as_bytes()).as_ref(),
         );
 
-        let e_coeffs = vec![0i64; 8192];
+        let error_rns = poly_bytes_to_rns(&error_bytes).map_err(|e| format!("error rns: {e}"))?;
+        let n = pvthfhe_nizk::sigma::rlwe_n();
+        let q0 = 288230376173076481u64;
+        let e_coeffs: Vec<i64> = error_rns
+            .iter()
+            .take(n)
+            .map(|&v| {
+                if v > q0 / 2 {
+                    (v as i128 - q0 as i128) as i64
+                } else {
+                    v as i64
+                }
+            })
+            .collect();
 
         let stmt = SigmaStatement { c_rns, d_rns };
         let wit = SigmaWitness {
@@ -513,7 +528,7 @@ impl KeygenSimulator {
             pvss_commitment,
             params: (
                 65_537,
-                pvthfhe_nizk::sigma::RLWE_N,
+                pvthfhe_nizk::sigma::rlwe_n(),
                 pvthfhe_nizk::sigma::SIGMA_B_E as u64,
             ),
             session_id: session_str,
@@ -576,7 +591,7 @@ fn derive_witness_poly(bytes: &[u8]) -> Vec<i64> {
     hasher.update(bytes);
     let seed: [u8; 32] = hasher.finalize().into();
     let mut rng = ChaCha8Rng::from_seed(seed); // allow-seeded-rng: deterministic simulator
-    let n = pvthfhe_nizk::sigma::RLWE_N;
+    let n = pvthfhe_nizk::sigma::rlwe_n();
     let mut poly = Vec::with_capacity(n);
     for _ in 0..n {
         let v = rng.next_u64();
@@ -591,7 +606,7 @@ fn derive_nizk_error_poly(bytes: &[u8]) -> Vec<i64> {
     hasher.update(bytes);
     let seed: [u8; 32] = hasher.finalize().into();
     let mut rng = ChaCha8Rng::from_seed(seed); // allow-seeded-rng: deterministic simulator
-    let n = pvthfhe_nizk::sigma::RLWE_N;
+    let n = pvthfhe_nizk::sigma::rlwe_n();
     let b = pvthfhe_nizk::sigma::SIGMA_B_E as u64;
     let range = 2 * b + 1;
     let max_multiple = (u64::MAX / range) * range;

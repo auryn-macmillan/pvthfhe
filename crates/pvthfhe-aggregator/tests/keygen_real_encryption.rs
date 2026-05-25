@@ -115,11 +115,7 @@ fn deserialize_nizk_bundle(bundle: &[u8]) -> Vec<Vec<u8>> {
 
 /// Compute the pvss_commitment used in NIZK statements (same as
 /// `prove_keygen_nizk`).
-fn compute_pvss_commitment(
-    session_id: &[u8; 32],
-    dealer_id: u32,
-    plaintext: &[u8],
-) -> [u8; 32] {
+fn compute_pvss_commitment(session_id: &[u8; 32], dealer_id: u32, plaintext: &[u8]) -> [u8; 32] {
     let mut h = Sha256::new();
     h.update(session_id);
     h.update(&dealer_id.to_be_bytes());
@@ -143,7 +139,7 @@ fn build_nizk_statement(
         pvss_commitment,
         params: (
             65_537,
-            pvthfhe_nizk::sigma::RLWE_N,
+            pvthfhe_nizk::sigma::rlwe_n(),
             pvthfhe_nizk::sigma::SIGMA_B_E as u64,
         ),
         session_id: session_str,
@@ -271,7 +267,10 @@ fn keygen_nizk_verify_passes() {
     let session_str = hex::encode(session_id);
 
     // Fresh backend for witness derivation.
-    let witness_backend = must(FhersBackend::load_params(TEST_PARAMS_TOML), "load witness backend");
+    let witness_backend = must(
+        FhersBackend::load_params(TEST_PARAMS_TOML),
+        "load witness backend",
+    );
 
     let adapter = CycloNizkAdapter;
 
@@ -303,8 +302,7 @@ fn keygen_nizk_verify_passes() {
             let share = derive_share(&witness_backend, &session_id, dealer_id);
             let plaintext = share.bytes.0.clone();
 
-            let pvss_commitment =
-                compute_pvss_commitment(&session_id, dealer_id, &plaintext);
+            let pvss_commitment = compute_pvss_commitment(&session_id, dealer_id, &plaintext);
 
             let statement = build_nizk_statement(
                 (*ct_bytes).clone(),

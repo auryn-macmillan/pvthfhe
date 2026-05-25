@@ -557,10 +557,10 @@ fn build_algebraic_proof(stmt: &ShareNizkStatement, witness: &ShareNizkWitness) 
     // is proved separately by the BFV encryption proof (v4). The e_i=0 path
     // provides defense-in-depth algebraic binding; the cryptographic RLWE
     // soundness comes from the BFV sigma proof.
-    let e_i = vec![0i64; sigma::RLWE_N];
+    let e_i = vec![0i64; sigma::rlwe_n()];
     let c_rns = derive_share_sigma_c_rns(stmt.session_id.as_slice(), stmt.recipient_index);
-    let d_rns =
-        sigma::compute_d_rns(&c_rns, &s_i, &e_i).unwrap_or_else(|_| vec![0u64; sigma::RLWE_N * 3]);
+    let d_rns = sigma::compute_d_rns(&c_rns, &s_i, &e_i)
+        .unwrap_or_else(|_| vec![0u64; sigma::rlwe_n() * pvthfhe_types::rlwe_moduli().len()]);
 
     let mut proof_rng = ChaCha20Rng::from_rng(&mut OsRng).expect("OsRng available"); // allow-seeded-rng: (removed — now uses OsRng)
     let sigma_stmt = sigma::SigmaStatement {
@@ -588,11 +588,11 @@ fn derive_share_sigma_witness(share: &[u8]) -> Vec<i64> {
     h.update(u64::try_from(share.len()).unwrap_or(0).to_be_bytes());
     h.update(share);
     let digest = h.finalize();
-    let mut out = vec![0i64; sigma::RLWE_N];
+    let mut out = vec![0i64; sigma::rlwe_n()];
     for (byte_index, byte) in digest.iter().enumerate() {
         for bit in 0..8usize {
             let idx = byte_index * 8 + bit;
-            if idx < sigma::RLWE_N {
+            if idx < sigma::rlwe_n() {
                 out[idx] = i64::from((byte >> bit) & 1);
             }
         }
@@ -605,14 +605,13 @@ fn derive_share_sigma_c_rns(session_id: &[u8], recipient_index: usize) -> Vec<u6
     h.update(b"pvthfhe-share-sigma-c-rns-v1");
     h.update(session_id);
     h.update(recipient_index.to_be_bytes());
-    let mut rng = ChaCha20Rng::from_seed(h.finalize().into()); // allow-seeded-rng: deterministic share sigma c_rns derivation
-    let mut out = vec![0u64; sigma::RLWE_N * 3];
-    for (limb, modulus) in [sigma::RLWE_Q0, sigma::RLWE_Q1, sigma::RLWE_Q2]
-        .iter()
-        .enumerate()
-    {
-        for index in 0..sigma::RLWE_N {
-            out[limb * sigma::RLWE_N + index] = rng.next_u64() % modulus;
+    let mut rng = ChaCha20Rng::from_seed(h.finalize().into());
+    let moduli = pvthfhe_types::rlwe_moduli();
+    let n = sigma::rlwe_n();
+    let mut out = vec![0u64; n * moduli.len()];
+    for (limb, modulus) in moduli.iter().enumerate() {
+        for index in 0..n {
+            out[limb * n + index] = rng.next_u64() % modulus;
         }
     }
     out
@@ -955,14 +954,14 @@ fn bfv_sigma_binding_data(stmt: &ShareNizkStatement, d_commitment: &[u8; 32]) ->
 }
 
 fn encode_fhers_plaintext_slots(plaintext: &[u8]) -> Result<Vec<i64>, PvssError> {
-    let max = sigma::RLWE_N.saturating_sub(1) * 2;
+    let max = sigma::rlwe_n().saturating_sub(1) * 2;
     if plaintext.len() > max {
         return Err(PvssError::InvalidShare);
     }
 
     let t_plain: i64 = 65536;
     let t_half: u64 = 32768;
-    let mut out = vec![0i64; sigma::RLWE_N];
+    let mut out = vec![0i64; sigma::rlwe_n()];
     out[0] = i64::try_from(plaintext.len()).map_err(|_| PvssError::InvalidShare)?;
     for (slot_index, chunk) in plaintext.chunks(2).enumerate() {
         let lo = u16::from(chunk[0]);
@@ -1003,12 +1002,11 @@ fn read_bfv_u64_vec(bytes: &[u8], offset: &mut usize) -> Result<Vec<u64>, PvssEr
 
 // ── RLWE context (cached, shared by helpers) ──────────────────────────────
 
-const RLWE_MODULI: [u64; 3] = [sigma::RLWE_Q0, sigma::RLWE_Q1, sigma::RLWE_Q2];
-
 fn get_rlwe_context() -> Result<&'static Arc<Context>, PvssError> {
     static CTX: OnceLock<Result<Arc<Context>, String>> = OnceLock::new();
     CTX.get_or_init(|| {
-        Context::new(&RLWE_MODULI, sigma::RLWE_N)
+        let moduli = pvthfhe_types::rlwe_moduli();
+        Context::new(&moduli, sigma::rlwe_n())
             .map(Arc::new)
             .map_err(|e| format!("{e:?}"))
     })
@@ -1032,7 +1030,7 @@ fn poly_bytes_to_i64(poly_bytes: &[u8]) -> Result<Vec<i64>, PvssError> {
     let half_q0 = q0 / 2;
 
     let rns: Vec<u64> = Vec::<u64>::from(&poly);
-    let n = sigma::RLWE_N;
+    let n = sigma::rlwe_n();
     let mut out = Vec::with_capacity(n);
     for j in 0..n {
         let c = i64::try_from(rns[j]).map_err(|_| PvssError::InvalidShare)?;

@@ -5,7 +5,89 @@ pub mod witness_language;
 use core::mem::ManuallyDrop;
 use core::ops::{Deref, DerefMut};
 use serde::{Deserialize, Serialize};
+use std::sync::OnceLock;
 use zeroize::{Zeroize, ZeroizeOnDrop};
+
+/// BFV parameter preset for runtime parameter selection.
+#[derive(Clone, Debug)]
+pub struct BfvParameterPreset {
+    /// Polynomial ring degree N (power of two).
+    pub n: usize,
+    /// RNS moduli q_0, q_1, ... (each q_i ≡ 1 mod 2N for NTT).
+    pub moduli: Vec<u64>,
+    /// Plaintext modulus t (coefficient space Z_t).
+    pub plaintext_modulus: u64,
+    /// Gaussian error bound (∞-norm).
+    pub gaussian_bound: u64,
+}
+
+impl BfvParameterPreset {
+    /// Insecure preset for fast iteration (N=512, 1 limb ~40 bits).
+    pub fn insecure512() -> Self {
+        Self {
+            n: 512,
+            moduli: vec![549755903489],
+            plaintext_modulus: 100,
+            gaussian_bound: 16,
+        }
+    }
+
+    /// Production preset (N=8192, 3 RNS limbs, ~174 bits total modulus).
+    pub fn production8192() -> Self {
+        Self {
+            n: 8192,
+            moduli: vec![
+                288_230_376_173_076_481,
+                288_230_376_167_047_169,
+                288_230_376_161_280_001,
+            ],
+            plaintext_modulus: 65536,
+            gaussian_bound: 16,
+        }
+    }
+}
+
+static ACTIVE_PRESET: OnceLock<BfvParameterPreset> = OnceLock::new();
+
+/// Set the globally active BFV parameter preset.
+///
+/// Must be called before any NIZK/FHE operations. Subsequent calls are
+/// silently ignored (first-write-wins via `OnceLock`).
+pub fn set_active_preset(preset: BfvParameterPreset) {
+    let _ = ACTIVE_PRESET.set(preset);
+}
+
+/// Return the active RLWE ring degree N.
+pub fn rlwe_n() -> usize {
+    ACTIVE_PRESET.get().map(|p| p.n).unwrap_or(8192)
+}
+
+/// Return the active RNS moduli.
+pub fn rlwe_moduli() -> Vec<u64> {
+    ACTIVE_PRESET
+        .get()
+        .map(|p| p.moduli.clone())
+        .unwrap_or_else(|| {
+            vec![
+                288_230_376_173_076_481,
+                288_230_376_167_047_169,
+                288_230_376_161_280_001,
+            ]
+        })
+}
+
+/// Return the active plaintext modulus.
+pub fn rlwe_plaintext_modulus() -> u64 {
+    ACTIVE_PRESET
+        .get()
+        .map(|p| p.plaintext_modulus)
+        .unwrap_or(65536)
+}
+
+/// Return the active Gaussian bound.
+pub fn rlwe_gaussian_bound() -> u64 {
+    ACTIVE_PRESET.get().map(|p| p.gaussian_bound).unwrap_or(16)
+}
 
 /// Secret material that is zeroized on drop.
 ///
@@ -353,5 +435,3 @@ impl core::fmt::Debug for DecryptionWitness {
             .finish()
     }
 }
-
-

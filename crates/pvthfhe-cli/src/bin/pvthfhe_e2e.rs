@@ -54,6 +54,9 @@ struct Args {
     /// Print backend IDs and exit before any expensive setup.
     #[arg(long)]
     dry_run: bool,
+    /// BFV parameter preset name: "production8192" (default) or "insecure512".
+    #[arg(long, default_value = "production8192")]
+    params: String,
 }
 
 const SAFE_DEFAULT_TRACING_FILTER: &str = "pvthfhe_cli=info,pvthfhe_compressor=info,pvthfhe_fhe=info,pvthfhe_lattice_pvss=info,pvthfhe_aggregator=info,pvthfhe_pvss=info,pvthfhe_bench=info,sonobe=info";
@@ -122,6 +125,14 @@ fn run_e2e(args: Args) -> anyhow::Result<()> {
             args.n
         );
     }
+
+    let preset = match args.params.to_lowercase().as_str() {
+        "insecure512" => pvthfhe_types::BfvParameterPreset::insecure512(),
+        "production8192" => pvthfhe_types::BfvParameterPreset::production8192(),
+        other => anyhow::bail!("unknown preset: {other}. Use 'production8192' or 'insecure512'"),
+    };
+    pvthfhe_types::set_active_preset(preset);
+    info!(params = %args.params, "active parameter preset set");
 
     let mut observer = BenchObserver::new(args.n, args.t, args.seed);
     let report = run_full_pipeline(

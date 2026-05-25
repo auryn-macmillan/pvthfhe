@@ -73,7 +73,7 @@ The benchmark pipeline records and republishes a fixed artifact chain under `ben
 2. `bench_comparison` reads that artifact and emits `bench/results/comparison.json`.
 3. `render_comparison` renders the human-readable Markdown report (`comparison-<git-sha>.md`, i.e. the `comparison.md` report family).
 
-The `e2e_timings.json` artifact contract is stable for this phase: it carries schema_version `1.0.0` and exactly 12 phases (`keygen`, `nizk_prove`, `nizk_verify`, `pvss_share_encrypt`, `pvss_decrypt_prove`, `cyclo_fold`, `compressor_prove`, `compressor_verify`, `partial_decrypt`, `aggregate_decrypt`, `noir_sonobe_wrap`, `onchain_verify`). The comparison renderer consumes those timings to populate all 12 Interfold-shaped comparison rows, including merged-stage notes when a single PVTHFHE pass backs multiple comparison rows.
+The `e2e_timings.json` artifact contract is stable for this phase: it carries schema_version `1.0.0` and 14 phases (`keygen`, `nizk_prove`, `nizk_verify`, `pvss_share_encrypt`, `pvss_decrypt_prove`, `cyclo_fold`, `compressor_prove`, `compressor_verify`, `partial_decrypt`, `aggregate_decrypt`, `esm_noise_gen`, `dkg_ceremony`, `g7_nizk_verify`, `c7_noir_aggregator`; plus optional `dkg_deal`, `dkg_aggregate`, `dkg_fold`, `compressor_new`, `compressor_verify_external`, `c7_decrypt_aggregation`, `share_verify_fold` when enabled). The comparison renderer consumes those timings to populate all Interfold-shaped comparison rows, including merged-stage notes when a single PVTHFHE pass backs multiple comparison rows.
 
 ## Formal Section
 

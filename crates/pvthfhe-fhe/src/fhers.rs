@@ -769,7 +769,11 @@ impl FheBackend for FhersBackend {
                 reason: format!("threshold t={t} exceeds max_t={max_t} for n={n}. Must satisfy t ≤ (n-1)/2 for Shamir security.")
             });
         }
-        self.compute_party_sk_sums(n, t)?;
+        if std::env::var("PVTHFHE_SKIP_SETUP_THRESHOLD").as_deref() != Ok("1") {
+            self.compute_party_sk_sums(n, t)?;
+        } else {
+            tracing::info!("PVTHFHE_SKIP_SETUP_THRESHOLD=1: skipping O(n²) Shamir regeneration (coeffs→poly deferred to partial_decrypt)");
+        }
 
         *self.threshold_n.lock().map_err(|err| FheError::Backend {
             reason: err.to_string(),

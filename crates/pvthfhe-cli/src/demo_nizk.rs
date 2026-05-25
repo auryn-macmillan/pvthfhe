@@ -73,7 +73,7 @@ pub fn build_demo_nizk_inputs(
             pvss_commitment,
             params: (
                 65_537_u64,
-                pvthfhe_nizk::sigma::RLWE_N,
+                pvthfhe_nizk::sigma::rlwe_n(),
                 pvthfhe_nizk::sigma::SIGMA_B_E as u64,
             ),
             session_id: session_id.to_owned(),
@@ -105,7 +105,7 @@ pub fn build_demo_nizk_inputs(
 /// error extracted from the backend's [`EncryptionWitness`].
 fn derive_demo_error_poly(secret_key_bytes: &[u8]) -> Vec<i64> {
     use rand::SeedableRng;
-    let n = pvthfhe_nizk::sigma::RLWE_N;
+    let n = pvthfhe_nizk::sigma::rlwe_n();
     let b = pvthfhe_nizk::sigma::SIGMA_B_E; // 16
     let range = u64::try_from(2 * b + 1).expect("2*SIGMA_B_E+1 fits u64"); // 33
 

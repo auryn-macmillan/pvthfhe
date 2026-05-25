@@ -6,7 +6,7 @@
 use pvthfhe_nizk::adapter::CycloNizkAdapter;
 use pvthfhe_nizk::hash_bridge;
 use pvthfhe_nizk::sigma::{
-    compute_d_rns, prove as sigma_prove, B_Z_E, RLWE_N, RLWE_Q0, RLWE_Q1, RLWE_Q2,
+    compute_d_rns, prove as sigma_prove, rlwe_n, B_Z_E, RLWE_Q0, RLWE_Q1, RLWE_Q2,
 };
 use pvthfhe_nizk::sigma::{SigmaStatement, SigmaWitness};
 use pvthfhe_nizk::{NizkAdapter, NizkError, NizkProof, NizkStatement, NizkWitness};
@@ -14,7 +14,7 @@ use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
 
 fn sample_ternary(rng: &mut ChaCha20Rng) -> Vec<i64> {
-    let mut s = vec![0i64; RLWE_N];
+    let mut s = vec![0i64; rlwe_n()];
     for x in s.iter_mut() {
         let mut b = [0u8; 1];
         rng.fill_bytes(&mut b);
@@ -31,7 +31,7 @@ fn sample_error(rng: &mut ChaCha20Rng) -> Result<Vec<i64>, NizkError> {
     const B_E: i64 = 16;
     const RANGE: u64 = 33;
     const THRESHOLD: u64 = u64::MAX - (u64::MAX % RANGE);
-    let mut e = vec![0i64; RLWE_N];
+    let mut e = vec![0i64; rlwe_n()];
     for x in e.iter_mut() {
         loop {
             let v = rng.next_u64();
@@ -61,7 +61,7 @@ fn make_valid_proof(
         ciphertext_bytes: vec![0u8; 32],
         decrypt_share_bytes: vec![0u8; 32],
         pvss_commitment,
-        params: (65_537_u64, RLWE_N, 16_u64),
+        params: (65_537_u64, rlwe_n(), 16_u64),
         session_id: session_id.to_owned(),
         participant_id,
         epoch: 0,
@@ -104,7 +104,7 @@ fn mismatched_pvss_commitment_produces_verification_failed() {
         ciphertext_bytes: vec![0u8; 32],
         decrypt_share_bytes: vec![0u8; 32],
         pvss_commitment: commit_a,
-        params: (65_537_u64, RLWE_N, 16_u64),
+        params: (65_537_u64, rlwe_n(), 16_u64),
         session_id: "c4-session".to_owned(),
         participant_id: 1,
         epoch: 0,
@@ -145,14 +145,14 @@ fn different_session_ids_produce_different_challenges() {
         let mut rng = ChaCha20Rng::seed_from_u64(0xC4D1FF01 ^ seed);
         let c_rns: Vec<u64> = {
             let moduli = [RLWE_Q0, RLWE_Q1, RLWE_Q2];
-            let mut out = vec![0u64; RLWE_N * 3];
+            let mut out = vec![0u64; rlwe_n() * 3];
             for (limb, &q) in moduli.iter().enumerate() {
                 let threshold = u64::MAX - (u64::MAX % q);
-                for j in 0..RLWE_N {
+                for j in 0..rlwe_n() {
                     loop {
                         let v = rng.next_u64();
                         if v < threshold {
-                            out[limb * RLWE_N + j] = v % q;
+                            out[limb * rlwe_n() + j] = v % q;
                             break;
                         }
                     }
@@ -173,10 +173,10 @@ fn different_session_ids_produce_different_challenges() {
         let mut rng_a = ChaCha20Rng::seed_from_u64(0xC4D1FF02 ^ seed);
         let mut rng_b = ChaCha20Rng::seed_from_u64(0xC4D1FF02 ^ seed);
 
-        let proof_a = sigma_prove(b"session-alpha", 1, &stmt, &wit, &mut rng_a)
-            .expect("sigma prove a");
-        let proof_b = sigma_prove(b"session-beta", 1, &stmt, &wit, &mut rng_b)
-            .expect("sigma prove b");
+        let proof_a =
+            sigma_prove(b"session-alpha", 1, &stmt, &wit, &mut rng_a).expect("sigma prove a");
+        let proof_b =
+            sigma_prove(b"session-beta", 1, &stmt, &wit, &mut rng_b).expect("sigma prove b");
 
         if proof_a.ch != proof_b.ch {
             diff_count += 1;
@@ -190,10 +190,10 @@ fn different_session_ids_produce_different_challenges() {
 
 /// Offset inside the sigma section where z_e[0] data lives.
 ///
-/// Sigma section layout (spec §3.4 EXTENSION):
-///   d_rns[4 + N*3*8] | t_rns[4 + N*3*8] | z_s[4 + N*8] | z_e_count[4] | z_e_data
-const SIGMA_Z_E_DATA_OFFSET: usize =
-    (4 + RLWE_N * 3 * 8) + (4 + RLWE_N * 3 * 8) + (4 + RLWE_N * 8) + 4;
+fn sigma_z_e_data_offset() -> usize {
+    let n = rlwe_n();
+    (4 + n * 3 * 8) + (4 + n * 3 * 8) + (4 + n * 8) + 4
+}
 
 #[test]
 fn scenario_01_tampered_ajtai_commitment() -> Result<(), NizkError> {
@@ -203,7 +203,7 @@ fn scenario_01_tampered_ajtai_commitment() -> Result<(), NizkError> {
     // to break algebraic verification equation).
     let sigma_start = sigma_section_offset("n8-session");
     // Layout: d_rns count(4) | d_rns values(24576*8) | t_rns count(4) | t_rns values
-    let t_rns_first_val = sigma_start + 4 + RLWE_N * 3 * 8 + 4;
+    let t_rns_first_val = sigma_start + 4 + rlwe_n() * 3 * 8 + 4;
     if t_rns_first_val + 7 < proof.proof_bytes.len() {
         proof.proof_bytes[t_rns_first_val] ^= 0xFF;
     }
@@ -292,7 +292,7 @@ fn scenario_05_degree_mismatch() -> Result<(), NizkError> {
 fn scenario_06_forged_sigma_response_ze_overflow() -> Result<(), NizkError> {
     let adapter = CycloNizkAdapter;
     let (stmt, mut proof) = make_valid_proof(0x4E38_0006, "n8-session", 1)?;
-    let outer_ze0 = sigma_section_offset("n8-session") + SIGMA_Z_E_DATA_OFFSET;
+    let outer_ze0 = sigma_section_offset("n8-session") + sigma_z_e_data_offset();
     proof.proof_bytes[outer_ze0..outer_ze0 + 8].copy_from_slice(&(B_Z_E + 1).to_le_bytes());
     match adapter.verify(&stmt, &proof) {
         Err(NizkError::VerificationFailed(_)) => Ok(()),
@@ -314,7 +314,7 @@ fn scenario_07_replay_attack() -> Result<(), NizkError> {
         ciphertext_bytes: vec![0u8; 32],
         decrypt_share_bytes: vec![0u8; 32],
         pvss_commitment: pvss_commitment_b,
-        params: (65_537_u64, RLWE_N, 16_u64),
+        params: (65_537_u64, rlwe_n(), 16_u64),
         session_id: "n8-session-B".to_owned(),
         participant_id: 1,
         epoch: 0,
@@ -339,7 +339,7 @@ fn scenario_08_participant_id_collision() -> Result<(), NizkError> {
         ciphertext_bytes: vec![0u8; 32],
         decrypt_share_bytes: vec![0u8; 32],
         pvss_commitment,
-        params: (65_537_u64, RLWE_N, 16_u64),
+        params: (65_537_u64, rlwe_n(), 16_u64),
         session_id: "n8-session".to_owned(),
         participant_id: 2,
         epoch: 0,
@@ -370,15 +370,15 @@ fn scenario_09_byte_truncated_proof() -> Result<(), NizkError> {
 fn scenario_10_zero_witness_completeness() -> Result<(), NizkError> {
     let adapter = CycloNizkAdapter;
     let mut rng = ChaCha20Rng::seed_from_u64(0x4E38_000A);
-    let s_i = vec![0i64; RLWE_N];
-    let e_i = vec![0i64; RLWE_N];
+    let s_i = vec![0i64; rlwe_n()];
+    let e_i = vec![0i64; rlwe_n()];
     let secret_share: u64 = 0;
     let pvss_commitment = hash_bridge::commit("n8-session", 1, secret_share);
     let stmt = NizkStatement {
         ciphertext_bytes: vec![0u8; 32],
         decrypt_share_bytes: vec![0u8; 32],
         pvss_commitment,
-        params: (65_537_u64, RLWE_N, 16_u64),
+        params: (65_537_u64, rlwe_n(), 16_u64),
         session_id: "n8-session".to_owned(),
         participant_id: 1,
         epoch: 0,

@@ -37,7 +37,7 @@ impl<F: PrimeField> FCircuit<F> for KeyContributionStepCircuit<F> {
     type ExternalInputsVar = ExternalInputs3Var<F>;
 
     fn state_len(&self) -> usize {
-        2
+        3
     }
 
     fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
@@ -67,17 +67,13 @@ impl<F: PrimeField> FCircuit<F> for KeyContributionStepCircuit<F> {
         let acc = z_i[0].clone() + step_hash;
         let count = z_i[1].clone() + FpVar::constant(F::one());
 
-        if _i + 1 >= n && n > 0 {
-            count.enforce_equal(&FpVar::constant(F::from(n as u64)))?;
-        }
-
-        Ok(vec![acc, count])
+        Ok(vec![acc, count, z_i[2].clone() + FpVar::constant(F::one())])
     }
 }
 
 impl<F: PrimeField> StepCircuit for KeyContributionStepCircuit<F> {
     fn descriptor(&self) -> StepCircuitDescriptor {
-        StepCircuitDescriptor { width: 2 }
+        StepCircuitDescriptor { width: 3 }
     }
     fn circuit_hash(&self) -> [u8; 32] {
         Keccak256::digest(b"pvthfhe/pk-contribution/v1").into()

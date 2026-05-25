@@ -7,10 +7,12 @@ pub mod fold_verifier_circuit;
 pub mod heterogeneous;
 pub mod latticefold_adapter;
 pub mod latticefold_circuit_family;
+pub mod pk_aggregation_circuit;
 pub mod pk_contribution_circuit;
 pub mod poseidon_gadget;
 pub use poseidon_gadget::PoseidonSpongeVar;
 pub mod ajtai_commitment_circuit;
+pub mod bfv_encryption_circuit;
 pub mod dealer_parity_circuit;
 pub mod dkg_aggregation_circuit;
 pub mod ring_element_var;
@@ -19,6 +21,9 @@ pub mod share_verification_circuit;
 pub mod snark_bridge;
 pub use ajtai_commitment_circuit::{
     clear_ajtai_witness_data, set_ajtai_witness_data, AjtaiCommitmentStepCircuit,
+};
+pub use bfv_encryption_circuit::{
+    clear_bfv_encryption_data, set_bfv_encryption_data, BFV_STEP_DATA_LEN,
 };
 pub use c7_circuit::{
     c7_fold_witnesses, clear_c7_step_data, set_c7_step_data, C7DecryptAggregationCircuit,
@@ -495,10 +500,25 @@ struct ThreadLocalClearGuard;
 
 impl Drop for ThreadLocalClearGuard {
     fn drop(&mut self) {
-        clear_cyclo_ring_data();
-        clear_sigma_data();
-        clear_sigma_response_data();
+        clear_all_thread_locals();
     }
+}
+
+/// Unified thread-local clear for all compressor witness data.
+/// Called by `ThreadLocalClearGuard` drop and available as a public API
+/// for explicit clearing between pipeline steps.
+pub fn clear_all_thread_locals() {
+    clear_cyclo_ring_data();
+    clear_sigma_data();
+    clear_bfv_encryption_data();
+    clear_sigma_response_data();
+    clear_ajtai_witness_data();
+    clear_c7_step_data();
+    clear_dealer_parity_data();
+    clear_share_coeffs_data();
+    pk_contribution_circuit::clear_pk_contribution_data();
+    pk_aggregation_circuit::clear_pk_agg_data();
+    dkg_aggregation_circuit::clear_dkg_agg_data();
 }
 
 /// Perform G7 sigma equation verification in-circuit.
@@ -803,7 +823,7 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
     }
 
     fn state_len(&self) -> usize {
-        7
+        8
     }
 
     fn generate_step_constraints(
@@ -813,11 +833,8 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
         z_i: Vec<FpVar<F>>,
         external_inputs: Self::ExternalInputsVar,
     ) -> Result<Vec<FpVar<F>>, SynthesisError> {
-        // Hash-accumulate fold (existing path)
         let folded_hash = z_i[0].clone() * &external_inputs.0 + z_i[0].clone();
-        // G.16: absorb C7 final state hash into CycloFold state for cross-circuit binding
         let escalated_norm = z_i[1].clone() + &external_inputs.3;
-        // Step counter: hardcoded +1 per step (ext.2 repurposed for ring result)
         let count_inc = z_i[2].clone() + FpVar::<F>::one();
 
         // G2-ng: In-circuit ring equation verification.
@@ -856,6 +873,11 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
         // G7: In-circuit sigma NIZK equation verification.
         let sigma_verification_count = sigma_verify_step(cs.clone(), _i)?;
         let sigma_count = z_i[4].clone() + sigma_verification_count;
+
+        // G8: BFV encryption sigma verification in-circuit.
+        let bfv_verification_count =
+            bfv_encryption_circuit::bfv_encryption_verify_step(cs.clone(), _i)?;
+        let bfv_count = z_i[7].clone() + bfv_verification_count;
 
         // G7b-laBRADOR (WIP): LaBRADOR-style JL projection norm accumulation.
         // NOTE: This is work-in-progress. The projected values are NOT currently
@@ -905,13 +927,14 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
             sigma_count,
             z_s_proj_acc,
             z_e_proj_acc,
+            bfv_count,
         ])
     }
 }
 
 impl<F: PrimeField> StepCircuit for CycloFoldStepCircuit<F> {
     fn descriptor(&self) -> StepCircuitDescriptor {
-        StepCircuitDescriptor { width: 7 }
+        StepCircuitDescriptor { width: 8 }
     }
 
     fn circuit_hash(&self) -> [u8; 32] {
@@ -1115,14 +1138,18 @@ impl<
             "sonobe: ivc proof serialized"
         );
 
-        let snark_binding: Vec<u8> = {
-            let mut h = Keccak256::new();
-            h.update(&ivc_bytes);
-            h.update(&acc_hash_arr);
-            h.update(&pi_hash_arr);
-            h.update(&self.srs_hash);
-            let digest: [u8; 32] = h.finalize().into();
-            digest.to_vec()
+        let snark_seed = u64::from_le_bytes(self.srs_hash[..8].try_into().unwrap_or([0u8; 8]));
+        let snark_result = snark_bridge::wrap_nova_instance(
+            nova,
+            &self.verifier_key_bytes,
+            self.state_len,
+            snark_seed,
+        )?;
+
+        let snark_proof = if snark_result.snark_proof_bytes.is_empty() {
+            None
+        } else {
+            Some(snark_result.snark_proof_bytes.as_slice())
         };
 
         let proof_bytes = build_proof_bytes(
@@ -1131,7 +1158,7 @@ impl<
             &acc_hash_arr,
             &pi_hash_arr,
             &ivc_bytes,
-            Some(snark_binding.as_slice()),
+            snark_proof,
         );
         Ok(CompressedProof::new(proof_bytes))
     }
@@ -1196,6 +1223,7 @@ impl ProofCompressor for SonobeCompressor<CycloFoldStepCircuit<Fr>> {
         initial_state.push(initial.4);
         initial_state.push(initial.5);
         initial_state.push(initial.6);
+        initial_state.push(initial.7);
 
         let mut nova =
             SonobeNova::<CycloFoldStepCircuit<Fr>>::init(&params, circuit, initial_state)
@@ -1224,14 +1252,28 @@ impl ProofCompressor for SonobeCompressor<CycloFoldStepCircuit<Fr>> {
             "sonobe: ivc proof serialized"
         );
 
-        let mut proof_bytes = Vec::with_capacity(76 + ivc_bytes.len());
-        proof_bytes.extend_from_slice(&PROOF_MAGIC);
-        proof_bytes.extend_from_slice(&PROOF_VERSION.to_be_bytes());
-        proof_bytes.extend_from_slice(&normalized_hash(acc)?);
-        proof_bytes.extend_from_slice(&normalized_hash(public_inputs)?);
-        #[allow(clippy::as_conversions)]
-        proof_bytes.extend_from_slice(&(ivc_bytes.len() as u32).to_be_bytes());
-        proof_bytes.extend_from_slice(&ivc_bytes);
+        let snark_seed = u64::from_le_bytes(self.srs_hash[..8].try_into().unwrap_or([0u8; 8]));
+        let snark_result = snark_bridge::wrap_nova_instance(
+            nova,
+            &self.verifier_key_bytes,
+            self.state_len,
+            snark_seed,
+        )?;
+
+        let snark_proof_bytes = if snark_result.snark_proof_bytes.is_empty() {
+            None
+        } else {
+            Some(snark_result.snark_proof_bytes.as_slice())
+        };
+
+        let proof_bytes = build_proof_bytes(
+            PROOF_MAGIC,
+            PROOF_VERSION,
+            &normalized_hash(acc)?,
+            &normalized_hash(public_inputs)?,
+            &ivc_bytes,
+            snark_proof_bytes,
+        );
         Ok(CompressedProof::new(proof_bytes))
     }
 
@@ -1254,7 +1296,11 @@ impl ProofCompressor for SonobeCompressor<CycloFoldStepCircuit<Fr>> {
             &parsed,
             self.state_len,
             &self.verifier_key_bytes,
-            |z| normalized_hash(&encode_hex((z[0], z[1], z[2], z[3], z[4], z[5], z[6]))),
+            |z| {
+                normalized_hash(&encode_hex((
+                    z[0], z[1], z[2], z[3], z[4], z[5], z[6], z[7],
+                )))
+            },
         )
     }
 
@@ -1411,7 +1457,11 @@ impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
             &parsed,
             self.state_len,
             &self.verifier_key_bytes,
-            |z| normalized_hash(&encode_hex((z[0], z[1], z[2], z[3], z[4], z[5], z[6]))),
+            |z| {
+                normalized_hash(&encode_hex((
+                    z[0], z[1], z[2], z[3], z[4], z[5], z[6], z[7],
+                )))
+            },
         )
     }
 
@@ -1421,7 +1471,6 @@ impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
         steps: &[ExternalInputs4<Fr>],
     ) -> Result<CompressedProof, CompressorError> {
         clear_cyclo_ring_data();
-        clear_sigma_data();
         clear_sigma_response_data();
 
         let _guard = ThreadLocalClearGuard;
@@ -1447,6 +1496,7 @@ impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
         initial_state.push(initial.4);
         initial_state.push(initial.5);
         initial_state.push(initial.6);
+        initial_state.push(initial.7);
 
         let mut nova =
             SonobeNova::<CycloFoldStepCircuit<Fr>>::init(&params, circuit, initial_state)
@@ -1592,7 +1642,11 @@ impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
             &parsed,
             self.state_len,
             &self.verifier_key_bytes,
-            |z| normalized_hash(&encode_hex((z[0], z[1], z[2], z[3], z[4], z[5], z[6]))),
+            |z| {
+                normalized_hash(&encode_hex((
+                    z[0], z[1], z[2], z[3], z[4], z[5], z[6], z[7],
+                )))
+            },
         )
     }
 }
@@ -1868,6 +1922,12 @@ fn verify_ivc_core<S: FCircuit<Fr, Params = ()>>(
         None
     };
 
+    let bfv_check = if state_len >= 8 {
+        Some((ivc_proof.z_i[2], ivc_proof.z_i[7]))
+    } else {
+        None
+    };
+
     if let Err(e) = SonobeNova::<S>::verify(verifier, ivc_proof) {
         tracing::warn!("Nova::verify failed: {:?}", e);
         return Ok(false);
@@ -1890,6 +1950,17 @@ fn verify_ivc_core<S: FCircuit<Fr, Params = ()>>(
                 "fold_count {:?} != sigma_verification_count {:?}",
                 fold_count,
                 sigma_count
+            );
+            return Ok(false);
+        }
+    }
+
+    if let Some((fold_count, bfv_count)) = bfv_check {
+        if fold_count != bfv_count {
+            tracing::warn!(
+                "fold_count {:?} != bfv_verification_count {:?}",
+                fold_count,
+                bfv_count
             );
             return Ok(false);
         }
@@ -2011,16 +2082,17 @@ pub(crate) fn build_proof_bytes(
 /// Extract the final CycloFold accumulator state (z_i) from a compressed proof.
 ///
 /// State layout: z[0]=hash, z[1]=escalated_norm, z[2]=fold_count,
-/// z[3]=ring_verif_count, z[4]=sigma_count, z[5]=z_s_proj_acc, z[6]=z_e_proj_acc.
-pub fn extract_cyclo_state(proof: &CompressedProof) -> Result<[Fr; 7], CompressorError> {
+/// z[3]=ring_verif_count, z[4]=sigma_count, z[5]=z_s_proj_acc, z[6]=z_e_proj_acc,
+/// z[7]=bfv_verification_count.
+pub fn extract_cyclo_state(proof: &CompressedProof) -> Result<[Fr; 8], CompressorError> {
     let parsed = parse_proof(&proof.0)?;
     let ivc_proof =
         SonobeIvcProof::deserialize_with_mode(parsed.ivc_bytes, Compress::Yes, Validate::Yes)
             .map_err(|_| CompressorError::InvalidProof)?;
-    if ivc_proof.z_i.len() != 7 {
+    if ivc_proof.z_i.len() != 8 {
         return Err(CompressorError::InvalidProof);
     }
-    let mut state = [Fr::zero(); 7];
+    let mut state = [Fr::zero(); 8];
     for (i, val) in ivc_proof.z_i.iter().enumerate() {
         state[i] = *val;
     }
@@ -2121,8 +2193,8 @@ pub fn encode_hex6(value: (Fr, Fr, Fr, Fr, Fr, Fr)) -> [u8; 192] {
     out
 }
 
-pub fn decode_hex(bytes: &[u8]) -> Result<(Fr, Fr, Fr, Fr, Fr, Fr, Fr), CompressorError> {
-    if bytes.len() < 224 {
+pub fn decode_hex(bytes: &[u8]) -> Result<(Fr, Fr, Fr, Fr, Fr, Fr, Fr, Fr), CompressorError> {
+    if bytes.len() < 256 {
         return Err(CompressorError::InvalidInput);
     }
     let a = decode_scalar(&bytes[0..32])?;
@@ -2132,11 +2204,12 @@ pub fn decode_hex(bytes: &[u8]) -> Result<(Fr, Fr, Fr, Fr, Fr, Fr, Fr), Compress
     let e = decode_scalar(&bytes[128..160])?;
     let f = decode_scalar(&bytes[160..192])?;
     let g = decode_scalar(&bytes[192..224])?;
-    Ok((a, b, c, d, e, f, g))
+    let h = decode_scalar(&bytes[224..256])?;
+    Ok((a, b, c, d, e, f, g, h))
 }
 
-pub fn encode_hex(value: (Fr, Fr, Fr, Fr, Fr, Fr, Fr)) -> [u8; 224] {
-    let mut out = [0u8; 224];
+pub fn encode_hex(value: (Fr, Fr, Fr, Fr, Fr, Fr, Fr, Fr)) -> [u8; 256] {
+    let mut out = [0u8; 256];
     let a = encode_scalar(value.0);
     let b = encode_scalar(value.1);
     let c = encode_scalar(value.2);
@@ -2144,6 +2217,7 @@ pub fn encode_hex(value: (Fr, Fr, Fr, Fr, Fr, Fr, Fr)) -> [u8; 224] {
     let e = encode_scalar(value.4);
     let f = encode_scalar(value.5);
     let g = encode_scalar(value.6);
+    let h = encode_scalar(value.7);
     out[0..32].copy_from_slice(&a);
     out[32..64].copy_from_slice(&b);
     out[64..96].copy_from_slice(&c);
@@ -2151,6 +2225,7 @@ pub fn encode_hex(value: (Fr, Fr, Fr, Fr, Fr, Fr, Fr)) -> [u8; 224] {
     out[128..160].copy_from_slice(&e);
     out[160..192].copy_from_slice(&f);
     out[192..224].copy_from_slice(&g);
+    out[224..256].copy_from_slice(&h);
     out
 }
 

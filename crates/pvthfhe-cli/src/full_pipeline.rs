@@ -15,11 +15,11 @@ use pvthfhe_aggregator::{
 use pvthfhe_bench::e2e_timings::E2eTimings;
 #[cfg(feature = "sonobe-compressor")]
 use pvthfhe_compressor::sonobe::{
-    clear_cyclo_ring_data, clear_dealer_parity_data, clear_sigma_data,
-    cyclo_verifier::verify_ring_equation, encode_hex, encode_triple, set_cyclo_ring_data,
-    set_dealer_parity_data, set_sigma_data, set_sigma_response_data, CycloFoldStepCircuit,
-    CycloRingWitness, DealerParityStepCircuit, ExternalInputs3,
-    SigmaWitness as CompressorSigmaWitness, SonobeCompressor,
+    bfv_encryption_circuit::set_bfv_encryption_data, clear_cyclo_ring_data,
+    clear_dealer_parity_data, clear_sigma_data, cyclo_verifier::verify_ring_equation, encode_hex,
+    encode_triple, set_cyclo_ring_data, set_dealer_parity_data, set_sigma_data,
+    set_sigma_response_data, CycloFoldStepCircuit, CycloRingWitness, DealerParityStepCircuit,
+    ExternalInputs3, SigmaWitness as CompressorSigmaWitness, SonobeCompressor,
 };
 #[cfg(feature = "sonobe-compressor")]
 use pvthfhe_compressor::witness::{ShareVerificationWitness, ShareVerificationWitnessSet};
@@ -369,7 +369,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                     .zip(poly_factors.iter())
                     .map(|(&s, &f)| s * f)
                     .fold(Fr::zero(), |acc, x| acc + x);
-                tracing::info!(
+                tracing::debug!(
                     "parity_debug dealer={dealer_id} n={n} t={t} dot_is_zero={} first_share={:?} first_factor={:?}",
                     native_dot.is_zero(),
                     shares_fr.first(),
@@ -508,6 +508,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             let ajtai_compressor = SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, n)
                 .map_err(|e| anyhow::anyhow!("ajtai compressor init: {e:?}"))?;
             let acc = encode_hex((
+                Fr::zero(),
                 Fr::zero(),
                 Fr::zero(),
                 Fr::zero(),
@@ -688,6 +689,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 )
                 .map_err(|e| anyhow::anyhow!("Ajtai compressor init failed: {e:?}"))?;
                 let acc = encode_hex((
+                    Fr::zero(),
                     Fr::zero(),
                     Fr::zero(),
                     Fr::zero(),
@@ -1116,7 +1118,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 ciphertext_bytes: stmt.ciphertext_bytes.clone(),
                 decrypt_share_bytes: stmt.decrypt_share_bytes.clone(),
                 pvss_commitment: stmt.pvss_commitment,
-                params: (stmt.params.0, pvthfhe_nizk::sigma::RLWE_N, stmt.params.2),
+                params: (stmt.params.0, pvthfhe_nizk::sigma::rlwe_n(), stmt.params.2),
                 session_id: stmt.session_id.clone(),
                 participant_id: stmt.participant_id,
                 epoch: stmt.epoch,
@@ -1548,7 +1550,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 ciphertext_bytes: stmt.ciphertext_bytes.clone(),
                 decrypt_share_bytes: stmt.decrypt_share_bytes.clone(),
                 pvss_commitment: stmt.pvss_commitment,
-                params: (stmt.params.0, pvthfhe_nizk::sigma::RLWE_N, stmt.params.2),
+                params: (stmt.params.0, pvthfhe_nizk::sigma::rlwe_n(), stmt.params.2),
                 session_id: stmt.session_id.clone(),
                 participant_id: stmt.participant_id,
                 epoch: stmt.epoch,
@@ -1624,13 +1626,13 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 Ok(state) => state,
                 Err(e) => {
                     tracing::warn!("cyclo state extraction failed: {e:?}, using zero state");
-                    [Fr::zero(); 7]
+                    [Fr::zero(); 8]
                 }
             })
-            .unwrap_or([Fr::zero(); 7])
+            .unwrap_or([Fr::zero(); 8])
     };
     #[cfg(not(feature = "sonobe-compressor"))]
-    let cyclo_state = [Fr::zero(); 7];
+    let cyclo_state = [Fr::zero(); 8];
 
     // G.12 Phase 2: fold share verification steps via Nova IVC
     #[cfg(feature = "sonobe-compressor")]
@@ -1644,6 +1646,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         )
         .map_err(|e| anyhow::anyhow!("share_verify_compressor_new: {e:?}"))?;
         let sv_acc = encode_hex((
+            Fr::zero(),
             Fr::zero(),
             Fr::zero(),
             Fr::zero(),
@@ -2148,15 +2151,14 @@ fn compute_ajtai_commitment_for_track(
             participant_id
         );
 
-        // Reshape witness into ring elements (same as Cyclo path)
-        const RLWE_N: usize = 8192;
+        let rlwe_n_val = pvthfhe_nizk::sigma::rlwe_n();
         let padded: Vec<i64> = {
-            let mut v = vec![0i64; RLWE_N];
-            let take = witness.secret_share_poly.len().min(RLWE_N);
+            let mut v = vec![0i64; rlwe_n_val];
+            let take = witness.secret_share_poly.len().min(rlwe_n_val);
             v[..take].copy_from_slice(&witness.secret_share_poly[..take]);
             v
         };
-        let n_elems = RLWE_N / PHI_COMMIT; // 32
+        let n_elems = rlwe_n_val / PHI_COMMIT;
         let witness_polys: Vec<RqPoly> = padded
             .chunks(PHI_COMMIT)
             .map(|chunk| {
@@ -2253,15 +2255,15 @@ fn compute_cyclo_ajtai_commitment(
         h.finalize().into()
     };
 
-    const RLWE_N: usize = 8192;
+    let rlwe_n_val = pvthfhe_nizk::sigma::rlwe_n();
     let padded: Vec<i64> = {
-        let mut v = vec![0i64; RLWE_N];
-        let take = witness.secret_share_poly.len().min(RLWE_N);
+        let mut v = vec![0i64; rlwe_n_val];
+        let take = witness.secret_share_poly.len().min(rlwe_n_val);
         v[..take].copy_from_slice(&witness.secret_share_poly[..take]);
         v
     };
 
-    let n_elems = RLWE_N / PHI_COMMIT; // 32
+    let n_elems = rlwe_n_val / PHI_COMMIT;
     let witness_polys: Vec<RqPoly> = padded
         .chunks(PHI_COMMIT)
         .map(|chunk| {
@@ -2825,6 +2827,33 @@ pub fn build_c7_prover_toml(
     };
     let decrypt_nizk_hash_field = Fr::from_be_bytes_mod_order(decrypt_nizk_hash);
 
+    let party_ids_fr: Vec<Fr> = committee_party_ids
+        .iter()
+        .map(|&id| Fr::from(id as u64))
+        .collect();
+    let lagrange_coeffs_fr = compute_lagrange_coeffs_bn254(&party_ids_fr, Fr::from(0u64));
+
+    // Plaintext commitment: Lagrange interpolation of shares -> Poseidon hash.
+    // Matches Noir aggregator_final circuit: vector_hash(computed_plaintext, DOMAIN_VECTOR_MERKLE)
+    let plaintext_commitment = {
+        let mut plaintext = [Fr::zero(); 8];
+        for k in 0..8 {
+            let mut sum = Fr::zero();
+            for (i, lambda) in lagrange_coeffs_fr.iter().enumerate() {
+                let coeff = field_from_i64(share_coeffs[i][k]);
+                sum += *lambda * coeff;
+            }
+            plaintext[k] = sum;
+        }
+
+        let mut inputs = Vec::with_capacity(9);
+        inputs.push(Fr::from(1u64)); // DOMAIN_VECTOR_MERKLE
+        for k in 0..8 {
+            inputs.push(plaintext[k]);
+        }
+        poseidon_sponge_native_noir(&inputs)
+    };
+
     // PLACEHOLDER: keygen transcript hash from DKG ceremony output.
     // The real value will be provided by the DKG ceremony; this is a
     // deterministic placeholder until Interfold registry integration.
@@ -2904,16 +2933,23 @@ pub fn build_c7_prover_toml(
     toml.push_str(&format!("n_participants = \"{}\"\n", n_participants));
     toml.push_str(&format!("threshold = \"{}\"\n", threshold));
 
-    // C7: Lagrange coefficients — all zeros triggers in-circuit fallback
-    // Production should pass precomputed coeffs from lagrange_coeffs parameter
     toml.push_str("lagrange_coeffs = [");
     for i in 0..NOIR_MAX_PARTICIPANTS {
         if i > 0 {
             toml.push_str(", ");
         }
-        toml.push_str("\"0x0000000000000000000000000000000000000000000000000000000000000000\"");
+        if i < lagrange_coeffs_fr.len() {
+            toml.push_str(&format!("\"0x{}\"", field_hex_be(lagrange_coeffs_fr[i])));
+        } else {
+            toml.push_str("\"0x0000000000000000000000000000000000000000000000000000000000000000\"");
+        }
     }
     toml.push_str("]\n");
+
+    toml.push_str(&format!(
+        "plaintext_commitment = \"0x{}\"\n",
+        field_hex_be(plaintext_commitment)
+    ));
 
     // Committee party IDs: exactly MAX_PARTICIPANTS, padded with zeros
     toml.push_str("committee_party_ids = [");

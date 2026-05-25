@@ -134,7 +134,7 @@ fn main() -> anyhow::Result<()> {
     let shamir_ms = elapsed_ms(t1);
     eprintln!("  shamir_split: complete ({:.1}s)", shamir_ms / 1000.0);
 
-    // 3. Encrypt ONE share, extrapolate x(n-1)
+    // 3. Encrypt n-1 shares
     let t2 = Instant::now();
     eprintln!("  encrypt: starting... (n_recipients={})", n_recipients);
     let plaintext = vec![0x42u8; 32];
@@ -144,12 +144,17 @@ fn main() -> anyhow::Result<()> {
             bytes: keygen_share.bytes.clone(),
         }])
         .context("aggregate keygen for single party")?;
-    let mut encrypt_rng = StdRng::seed_from_u64(args.seed ^ 0xABCD_EF01);
+    let mut first_encrypt_rng = StdRng::seed_from_u64(args.seed ^ 0xABCD_EF01);
     let encrypted = backend
-        .encrypt(&pk, &plaintext, &mut encrypt_rng)
-        .context("encrypt one share")?;
-    let encrypt_one_ms = elapsed_ms(t2);
-    let encrypt_total_ms = encrypt_one_ms * (n_recipients as f64);
+        .encrypt(&pk, &plaintext, &mut first_encrypt_rng)
+        .context("encrypt first share")?;
+    for j in 2..(args.n as usize) {
+        let mut encrypt_rng = StdRng::seed_from_u64(args.seed ^ 0xABCD_EF01 ^ j as u64);
+        let _ = backend
+            .encrypt(&pk, &plaintext, &mut encrypt_rng)
+            .with_context(|| format!("encrypt share for recipient {j}"))?;
+    }
+    let encrypt_total_ms = elapsed_ms(t2);
     eprintln!("  encrypt: complete ({:.1}s)", encrypt_total_ms / 1000.0);
 
     // 3b. DKG ceremony: Shamir-split key + PVSS-encrypt shares for all recipients
@@ -201,9 +206,11 @@ fn main() -> anyhow::Result<()> {
     let dkg_chunk_size = 4000;
     let mut parity_proof_count = 0usize;
     if sk_bytes.len() <= dkg_chunk_size {
-        let encrypted = adapter.deal(&sk_bytes, &recipient_pks, &dkg_ctx)
+        let encrypted = adapter
+            .deal(&sk_bytes, &recipient_pks, &dkg_ctx)
             .map_err(|e| anyhow::anyhow!("dkg deal: {e:?}"))?;
-        adapter.verify_shares(&encrypted, &dkg_ctx)
+        adapter
+            .verify_shares(&encrypted, &dkg_ctx)
             .context("pvss verify_shares")?;
         if encrypted.parity_proof.is_some() {
             parity_proof_count += 1;
@@ -213,9 +220,11 @@ fn main() -> anyhow::Result<()> {
             let start = chunk_idx * dkg_chunk_size;
             let end = (start + dkg_chunk_size).min(sk_bytes.len());
             let chunk = &sk_bytes[start..end];
-            let encrypted = adapter.deal(chunk, &recipient_pks, &dkg_ctx)
+            let encrypted = adapter
+                .deal(chunk, &recipient_pks, &dkg_ctx)
                 .map_err(|e| anyhow::anyhow!("dkg deal chunk={chunk_idx}: {e:?}"))?;
-            adapter.verify_shares(&encrypted, &dkg_ctx)
+            adapter
+                .verify_shares(&encrypted, &dkg_ctx)
                 .context("pvss verify_shares")?;
             if encrypted.parity_proof.is_some() {
                 parity_proof_count += 1;
@@ -225,7 +234,7 @@ fn main() -> anyhow::Result<()> {
     let dkg_ms = elapsed_ms(ta_dkg);
     eprintln!("  dkg_ceremony: complete ({:.1}s)", dkg_ms / 1000.0);
 
-    // 4. NIZK prove ONE proof, extrapolate x(n-1)
+    // 4. NIZK prove all n-1 proofs
     let t3 = Instant::now();
     eprintln!("  nizk_prove: starting... (n_recipients={})", n_recipients);
     let nizk_stmt = NizkStatement {
@@ -239,7 +248,7 @@ fn main() -> anyhow::Result<()> {
         },
         params: (
             65_537,
-            pvthfhe_nizk::sigma::RLWE_N,
+            pvthfhe_nizk::sigma::rlwe_n(),
             pvthfhe_nizk::sigma::SIGMA_B_E as u64,
         ),
         session_id: "per-node-sim".to_string(),
@@ -249,18 +258,17 @@ fn main() -> anyhow::Result<()> {
     let secret_key_poly_witness = secret_key_to_ternary_poly(&sk_bytes, args.seed);
     let error_poly = derive_nizk_error(&sk_bytes, args.seed);
     let nizk_witness = NizkWitness {
-        secret_share: u64::from_le_bytes(
-            plaintext[..8].try_into().unwrap_or([0u8; 8]),
-        ),
+        secret_share: u64::from_le_bytes(plaintext[..8].try_into().unwrap_or([0u8; 8])),
         secret_share_poly: secret_key_poly_witness,
         error: error_poly,
         randomness: vec![0u8; 32],
     };
-    let mut prove_rng = OsRng;
-    let nizk_proof = RealNizkAdapter::prove(&nizk_stmt, &nizk_witness, &mut prove_rng)
-        .context("nizk prove")?;
-    let nizk_one_ms = elapsed_ms(t3);
-    let nizk_total_ms = nizk_one_ms * (n_recipients as f64);
+    for _j in 0..n_recipients {
+        let mut prove_rng = OsRng;
+        let _ = RealNizkAdapter::prove(&nizk_stmt, &nizk_witness, &mut prove_rng)
+            .context("nizk prove")?;
+    }
+    let nizk_total_ms = elapsed_ms(t3);
     eprintln!("  nizk_prove: complete ({:.1}s)", nizk_total_ms / 1000.0);
 
     // 4b. Track B: AjtaiMatrix commitment timing (one commit)
@@ -268,7 +276,10 @@ fn main() -> anyhow::Result<()> {
         let ta = Instant::now();
         let epoch_hash: [u8; 32] = Sha256::digest(args.seed.to_be_bytes()).into();
         let _ajtai_commitment = compute_ajtai_matrix_commitment(&sk_bytes, &epoch_hash)?;
-        tracing::debug!("Ajtai commitment: {:?}", hex::encode(&_ajtai_commitment[..8]));
+        tracing::debug!(
+            "Ajtai commitment: {:?}",
+            hex::encode(&_ajtai_commitment[..8])
+        );
         elapsed_ms(ta)
     } else {
         0.0
@@ -328,12 +339,13 @@ fn main() -> anyhow::Result<()> {
         use ark_bn254::Fr;
         use pvthfhe_compressor::sonobe::CycloFoldStepCircuit;
         use pvthfhe_compressor::sonobe::{encode_hex, SonobeCompressor};
-        use pvthfhe_compressor::witness::{AjtaiCommitmentWitness, AjtaiCommitmentWitnessSet};
         use pvthfhe_compressor::witness::hash_all_coeffs;
+        use pvthfhe_compressor::witness::{AjtaiCommitmentWitness, AjtaiCommitmentWitnessSet};
 
         let t6 = Instant::now();
         let epoch_hash: [u8; 32] = Sha256::digest(args.seed.to_be_bytes()).into();
-        let parity_hash = hash_all_coeffs(&[Fr::from(args.n as u64), Fr::from(args.threshold as u64)]);
+        let parity_hash =
+            hash_all_coeffs(&[Fr::from(args.n as u64), Fr::from(args.threshold as u64)]);
         let witnesses: Vec<AjtaiCommitmentWitness> = (0..args.n)
             .map(|i| {
                 let seed = {
@@ -353,7 +365,16 @@ fn main() -> anyhow::Result<()> {
         let ajtai_compressor =
             SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, args.n)
                 .map_err(|e| anyhow::anyhow!("dkg fold compressor init: {e:?}"))?;
-        let acc = encode_hex((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64), Fr::from(0u64), Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
+        let acc = encode_hex((
+            Fr::from(0u64),
+            Fr::from(0u64),
+            Fr::from(0u64),
+            Fr::from(0u64),
+            Fr::from(0u64),
+            Fr::from(0u64),
+            Fr::from(0u64),
+            Fr::from(0u64),
+        ));
         ajtai_compressor
             .prove_steps_ajtai(&acc, &witness_set)
             .map_err(|e| anyhow::anyhow!("dkg fold prove_steps_ajtai: {e:?}"))?;
@@ -364,10 +385,27 @@ fn main() -> anyhow::Result<()> {
     eprintln!("  dkg_fold: complete ({:.1}s)", dkg_fold_ms / 1000.0);
 
     // Report
-    let total_ms = keygen_ms + shamir_ms + encrypt_total_ms + dkg_ms + nizk_total_ms
-        + cross_verify_ms + ajtai_ms + c7_ms + dkg_fold_ms;
+    let total_ms = keygen_ms
+        + shamir_ms
+        + encrypt_total_ms
+        + dkg_ms
+        + nizk_total_ms
+        + cross_verify_ms
+        + ajtai_ms
+        + c7_ms
+        + dkg_fold_ms;
     let per_share_ms = if n_recipients > 0 {
         shamir_ms / (n_recipients as f64)
+    } else {
+        0.0
+    };
+    let encrypt_per_ms = if n_recipients > 0 {
+        encrypt_total_ms / (n_recipients as f64)
+    } else {
+        0.0
+    };
+    let nizk_per_ms = if n_recipients > 0 {
+        nizk_total_ms / (n_recipients as f64)
     } else {
         0.0
     };
@@ -392,7 +430,7 @@ fn main() -> anyhow::Result<()> {
     println!(
         "  encrypt:        {:.1}s  ({:.1}ms per share x {})",
         encrypt_total_ms / 1000.0,
-        encrypt_one_ms,
+        encrypt_per_ms,
         n_recipients,
     );
     println!(
@@ -406,7 +444,7 @@ fn main() -> anyhow::Result<()> {
     println!(
         "  nizk_prove:     {:.1}s  ({:.1}ms per proof x {})",
         nizk_total_ms / 1000.0,
-        nizk_one_ms,
+        nizk_per_ms,
         n_recipients,
     );
     println!(
@@ -463,18 +501,18 @@ fn compute_ajtai_matrix_commitment(
     use pvthfhe_cyclo::ajtai::{self, AjtaiCommitment};
     use pvthfhe_cyclo::ring::{ntt_mul, ring_add_poly, RqPoly, PHI_COMMIT, Q_COMMIT};
 
-    const RLWE_N: usize = 8192;
+    let rlwe_n_val = pvthfhe_nizk::sigma::rlwe_n();
     let sk_coeffs: Vec<i64> = sk_bytes
         .chunks_exact(8)
         .map(|c| i64::from_le_bytes(c.try_into().unwrap()))
         .collect();
     let padded: Vec<i64> = {
-        let mut v = vec![0i64; RLWE_N];
-        let take = sk_coeffs.len().min(RLWE_N);
+        let mut v = vec![0i64; rlwe_n_val];
+        let take = sk_coeffs.len().min(rlwe_n_val);
         v[..take].copy_from_slice(&sk_coeffs[..take]);
         v
     };
-    let n_elems = RLWE_N / PHI_COMMIT;
+    let n_elems = rlwe_n_val / PHI_COMMIT;
     let witness_polys: Vec<RqPoly> = padded
         .chunks(PHI_COMMIT)
         .map(|chunk| {
@@ -485,7 +523,11 @@ fn compute_ajtai_matrix_commitment(
                         (c as u64) % Q_COMMIT
                     } else {
                         let rem = c.unsigned_abs() % Q_COMMIT;
-                        if rem == 0 { 0 } else { Q_COMMIT - rem }
+                        if rem == 0 {
+                            0
+                        } else {
+                            Q_COMMIT - rem
+                        }
                     }
                 })
                 .collect();
@@ -523,8 +565,8 @@ fn compute_ajtai_matrix_commitment(
     for row in &matrix {
         let mut acc = RqPoly::zero();
         for (j, wj) in witness_polys.iter().enumerate() {
-            let prod = ntt_mul(&row[j], wj)
-                .map_err(|e| anyhow::anyhow!("Ajtai commit ntt_mul: {e}"))?;
+            let prod =
+                ntt_mul(&row[j], wj).map_err(|e| anyhow::anyhow!("Ajtai commit ntt_mul: {e}"))?;
             acc = ring_add_poly(&acc, &prod);
         }
         commitment.push(acc);
@@ -541,7 +583,7 @@ fn secret_key_to_ternary_poly(bytes: &[u8], seed: u64) -> Vec<i64> {
     hasher.update(seed.to_be_bytes());
     let derive_seed: [u8; 32] = hasher.finalize().into();
     let mut rng = StdRng::from_seed(derive_seed);
-    let n = pvthfhe_nizk::sigma::RLWE_N;
+    let n = pvthfhe_nizk::sigma::rlwe_n();
     let mut poly = Vec::with_capacity(n);
     for _ in 0..n {
         let v = rng.next_u64();
@@ -570,8 +612,7 @@ fn time_c7_tree_folding(t: usize, _seed: u64, _pk_hash: &[u8; 32]) -> anyhow::Re
     while leaf_hashes.len() < leaf_count {
         leaf_hashes.push([0u8; 32]);
     }
-    CompressionTree::build(&leaf_hashes)
-        .map_err(|e| anyhow::anyhow!("C7 tree build: {e:?}"))?;
+    CompressionTree::build(&leaf_hashes).map_err(|e| anyhow::anyhow!("C7 tree build: {e:?}"))?;
     Ok(())
 }
 
@@ -588,7 +629,7 @@ fn derive_nizk_error(bytes: &[u8], seed: u64) -> Vec<i64> {
     hasher.update(seed.to_be_bytes());
     let derive_seed: [u8; 32] = hasher.finalize().into();
     let mut rng = StdRng::from_seed(derive_seed);
-    let n = pvthfhe_nizk::sigma::RLWE_N;
+    let n = pvthfhe_nizk::sigma::rlwe_n();
     let b = pvthfhe_nizk::sigma::SIGMA_B_E as u64;
     let range = 2 * b + 1;
     let max_multiple = (u64::MAX / range) * range;
@@ -614,7 +655,7 @@ fn make_synthetic_nizk_statement_for_party(party_id: u32, seed: u64) -> NizkStat
         pvss_commitment: commitment,
         params: (
             65_537,
-            pvthfhe_nizk::sigma::RLWE_N,
+            pvthfhe_nizk::sigma::rlwe_n(),
             pvthfhe_nizk::sigma::SIGMA_B_E as u64,
         ),
         session_id: format!("per-node-syn-{}", party_id),
@@ -623,10 +664,7 @@ fn make_synthetic_nizk_statement_for_party(party_id: u32, seed: u64) -> NizkStat
     }
 }
 
-fn make_synthetic_nizk_proof_for_party(
-    party_id: u32,
-    seed: u64,
-) -> anyhow::Result<NizkProof> {
+fn make_synthetic_nizk_proof_for_party(party_id: u32, seed: u64) -> anyhow::Result<NizkProof> {
     let stmt = make_synthetic_nizk_statement_for_party(party_id, seed);
     let mut hasher = Sha256::new();
     hasher.update(b"per-node-syn-witness/v1");
@@ -634,7 +672,7 @@ fn make_synthetic_nizk_proof_for_party(
     hasher.update(seed.to_be_bytes());
     let derive_seed: [u8; 32] = hasher.finalize().into();
     let mut rng = StdRng::from_seed(derive_seed);
-    let n = pvthfhe_nizk::sigma::RLWE_N;
+    let n = pvthfhe_nizk::sigma::rlwe_n();
     let mut poly = Vec::with_capacity(n);
     for _ in 0..n {
         let v = rng.next_u64();
@@ -657,6 +695,5 @@ fn make_synthetic_nizk_proof_for_party(
         randomness: vec![0u8; 32],
     };
     let mut prove_rng = OsRng;
-    Ok(RealNizkAdapter::prove(&stmt, &witness, &mut prove_rng)
-        .context("synthetic nizk prove")?)
+    Ok(RealNizkAdapter::prove(&stmt, &witness, &mut prove_rng).context("synthetic nizk prove")?)
 }

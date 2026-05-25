@@ -21,11 +21,9 @@ use sha2::{Digest, Sha256};
 use std::time::Instant;
 
 #[cfg(feature = "sonobe-compressor")]
-use {
-    pvthfhe_compressor::sonobe::{
-        encode_hex, encode_triple, C7DecryptAggregationCircuit, CycloFoldStepCircuit,
-        ExternalInputs3, ExternalInputs4, ExternalInputs5, SonobeCompressor,
-    },
+use pvthfhe_compressor::sonobe::{
+    encode_hex, encode_triple, C7DecryptAggregationCircuit, CycloFoldStepCircuit, ExternalInputs3,
+    ExternalInputs4, ExternalInputs5, SonobeCompressor,
 };
 
 const DEMO_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 131072\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
@@ -132,13 +130,12 @@ fn main() -> anyhow::Result<()> {
     eprintln!("  pvss_verify: starting...");
     let pvss_ta = Instant::now();
     {
-        use pvthfhe_pvss::{LatticePvssBfvAdapter, PvssAdapter, PvssContext};
         use pvthfhe_pvss::dkg_aggregation::{
-            verify_recipient_dkg_aggregation, RecipientDkgAggregationStatement,
-            DealerDkgShare,
-            compute_sk_dealer_share_commitment, compute_esm_dealer_share_commitment,
-            compute_sk_aggregate_commitment, compute_esm_aggregate_commitment,
+            compute_esm_aggregate_commitment, compute_esm_dealer_share_commitment,
+            compute_sk_aggregate_commitment, compute_sk_dealer_share_commitment,
+            verify_recipient_dkg_aggregation, DealerDkgShare, RecipientDkgAggregationStatement,
         };
+        use pvthfhe_pvss::{LatticePvssBfvAdapter, PvssAdapter, PvssContext};
 
         let adapter = LatticePvssBfvAdapter::new().context("pvss adapter init")?;
         let dkg_session_id = format!("per-aggregator-dkg-{}", args.seed);
@@ -197,11 +194,20 @@ fn main() -> anyhow::Result<()> {
                 let dealer_id_u16 = (dealer_i + 1) as u16;
                 let share_val = Fr::from((dealer_i * args.n + recipient_id + 1) as u64);
                 let sk_commit = compute_sk_dealer_share_commitment(
-                    &session_id_bytes, &dkg_root, dealer_id_u16, recipient_id_u16, share_val,
+                    &session_id_bytes,
+                    &dkg_root,
+                    dealer_id_u16,
+                    recipient_id_u16,
+                    share_val,
                 );
                 let esm_val = Fr::from(1u64);
                 let esm_commit = compute_esm_dealer_share_commitment(
-                    &session_id_bytes, &dkg_root, dealer_id_u16, recipient_id_u16, 1, esm_val,
+                    &session_id_bytes,
+                    &dkg_root,
+                    dealer_id_u16,
+                    recipient_id_u16,
+                    1,
+                    esm_val,
                 );
                 dealer_inputs.push(DealerDkgShare {
                     dealer_id: dealer_id_u16,
@@ -213,14 +219,23 @@ fn main() -> anyhow::Result<()> {
             }
             let claimed_sk_aggregate: Fr =
                 dealer_inputs.iter().map(|di| di.decrypted_sk_share).sum();
-            let claimed_esm_sum: Fr =
-                dealer_inputs.iter().map(|di| di.decrypted_esm_shares[0].1).sum();
+            let claimed_esm_sum: Fr = dealer_inputs
+                .iter()
+                .map(|di| di.decrypted_esm_shares[0].1)
+                .sum();
             let sk_agg_commit = compute_sk_aggregate_commitment(
-                &session_id_bytes, &dkg_root, recipient_id_u16, &accepted_dealer_ids,
+                &session_id_bytes,
+                &dkg_root,
+                recipient_id_u16,
+                &accepted_dealer_ids,
                 claimed_sk_aggregate,
             );
             let esm_agg_commit = compute_esm_aggregate_commitment(
-                &session_id_bytes, &dkg_root, recipient_id_u16, &accepted_dealer_ids, 1,
+                &session_id_bytes,
+                &dkg_root,
+                recipient_id_u16,
+                &accepted_dealer_ids,
+                1,
                 claimed_esm_sum,
             );
             let statement = RecipientDkgAggregationStatement {
@@ -245,8 +260,14 @@ fn main() -> anyhow::Result<()> {
 
     let batch_count = args.n.div_ceil(10);
 
+    let agg_pk_hash_fr = Fr::from_be_bytes_mod_order(&Sha256::digest(&aggregate_pk.bytes));
+    let dkg_root_fr = Fr::from_be_bytes_mod_order(&Sha256::digest(&transcript.dkg_root));
+
     // 1. Compressor: fold ceil(n/10) accumulators
-    eprintln!("  compressor: starting... (n={}, t={})", args.n, args.threshold);
+    eprintln!(
+        "  compressor: starting... (n={}, t={})",
+        args.n, args.threshold
+    );
     #[cfg(feature = "sonobe-compressor")]
     let compressor_ms = {
         let t0 = Instant::now();
@@ -256,14 +277,23 @@ fn main() -> anyhow::Result<()> {
             let compressor =
                 SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, batch_count)
                     .map_err(|e| anyhow::anyhow!("compressor init: {e:?}"))?;
-            let acc = encode_hex((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64), Fr::from(0u64), Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
+            let acc = encode_hex((
+                Fr::from(0u64),
+                Fr::from(0u64),
+                Fr::from(0u64),
+                Fr::from(0u64),
+                Fr::from(0u64),
+                Fr::from(0u64),
+                Fr::from(0u64),
+                Fr::from(0u64),
+            ));
             let steps: Vec<ExternalInputs4<Fr>> = (0..batch_count)
                 .map(|i| {
                     ExternalInputs4(
                         Fr::from((i + 1) as u64),
                         Fr::from(1u64),
-                        Fr::from(1u64),
-                        Fr::from(0u64), // c7_final_hash (benchmark placeholder)
+                        agg_pk_hash_fr,
+                        dkg_root_fr,
                     )
                 })
                 .collect();
@@ -281,15 +311,13 @@ fn main() -> anyhow::Result<()> {
     let t1 = Instant::now();
     eprintln!("  aggregate_decrypt: starting... (t={})", args.threshold);
     let _recovered = backend
-        .aggregate_decrypt(
-            &ciphertext,
-            &shares,
-            args.threshold,
-            &session_id_bytes,
-        )
+        .aggregate_decrypt(&ciphertext, &shares, args.threshold, &session_id_bytes)
         .context("aggregate_decrypt")?;
     let aggregate_ms = elapsed_ms(t1);
-    eprintln!("  aggregate_decrypt: complete ({:.1}s)", aggregate_ms / 1000.0);
+    eprintln!(
+        "  aggregate_decrypt: complete ({:.1}s)",
+        aggregate_ms / 1000.0
+    );
 
     // 3. C7: tree folding for Lagrange aggregation (MicroNova CompressionTree)
     eprintln!("  c7: starting... (t={})", args.threshold);
@@ -297,18 +325,17 @@ fn main() -> anyhow::Result<()> {
     let (c7_ms, c7_tree_depth, c7_leaves) = {
         let t2 = Instant::now();
 
-        // Build leaf hashes from dummy data — no per-leaf C7 Nova proving.
-        // CompressionTree::build handles Nova proving internally via MicroNovaCompressor.
-        // Dummy data matches real pipeline: share_eval, lagrange_coeff, agg_pk_hash.
-        let dummy_agg_pk_hash = Fr::from(42u64);
+        let agg_pk_hash_fr = Fr::from_be_bytes_mod_order(&Sha256::digest(&aggregate_pk.bytes));
         use rayon::prelude::*;
         let leaf_hashes: Vec<[u8; 32]> = (0..args.threshold)
             .into_par_iter()
             .map(|i| {
+                let share_val = Fr::from((i + 1) as u64);
+                let lagrange_val = Fr::from((args.threshold - i) as u64);
                 let mut hasher = Sha256::new();
-                hasher.update(&Fr::from((42 + i) as u64).into_bigint().to_bytes_le());
-                hasher.update(&Fr::from(1u64).into_bigint().to_bytes_le());
-                hasher.update(&dummy_agg_pk_hash.into_bigint().to_bytes_le());
+                hasher.update(&share_val.into_bigint().to_bytes_le());
+                hasher.update(&lagrange_val.into_bigint().to_bytes_le());
+                hasher.update(&agg_pk_hash_fr.into_bigint().to_bytes_le());
                 hasher.finalize().into()
             })
             .collect();
@@ -320,13 +347,14 @@ fn main() -> anyhow::Result<()> {
             padded_hashes.push([0u8; 32]);
         }
 
-        let (depth, leaves) = match pvthfhe_compressor::micronova::tree::CompressionTree::build(&padded_hashes) {
-            Ok(tree) => (tree.depth, padded_len),
-            Err(e) => {
-                eprintln!("C7 tree build failed: {e:?}, falling back to flat Nova");
-                (0, padded_len)
-            }
-        };
+        let (depth, leaves) =
+            match pvthfhe_compressor::micronova::tree::CompressionTree::build(&padded_hashes) {
+                Ok(tree) => (tree.depth, padded_len),
+                Err(e) => {
+                    eprintln!("C7 tree build failed: {e:?}, falling back to flat Nova");
+                    (0, padded_len)
+                }
+            };
 
         let ms = elapsed_ms(t2);
 
@@ -334,22 +362,21 @@ fn main() -> anyhow::Result<()> {
             // Fallback: flat Nova IVC sequential folding
             let t2b = Instant::now();
             use pvthfhe_compressor::witness::hash_all_coeffs;
-            let coeff_commitment = hash_all_coeffs(&vec![Fr::from(0u64); 8192]);
-            let derived_r = hash_all_coeffs(&[coeff_commitment, Fr::from(0u64)]);
-            let c7_compressor =
-                SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(
-                    epoch_hash,
-                    args.threshold,
-                )
-                .map_err(|e| anyhow::anyhow!("C7 compressor init: {e:?}"))?;
+            let coeff_commitment = hash_all_coeffs(&vec![agg_pk_hash_fr]);
+            let derived_r = hash_all_coeffs(&[coeff_commitment, dkg_root_fr]);
+            let c7_compressor = SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(
+                epoch_hash,
+                args.threshold,
+            )
+            .map_err(|e| anyhow::anyhow!("C7 compressor init: {e:?}"))?;
             let c7_acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
             let c7_steps: Vec<ExternalInputs5<Fr>> = (0..args.threshold)
                 .map(|i| {
                     ExternalInputs5(
-                        Fr::from((42 + i) as u64),
-                        Fr::from(1u64),
+                        Fr::from((i + 1) as u64),
+                        Fr::from((args.threshold - i) as u64),
                         coeff_commitment,
-                        Fr::from(0u64),
+                        dkg_root_fr,
                         derived_r,
                     )
                 })
@@ -370,21 +397,26 @@ fn main() -> anyhow::Result<()> {
     #[cfg(feature = "sonobe-compressor")]
     let ajtai_dkg_fold_ms = {
         let t3 = Instant::now();
-        use pvthfhe_compressor::witness::{AjtaiCommitmentWitness, AjtaiCommitmentWitnessSet};
         use pvthfhe_compressor::witness::hash_all_coeffs;
-        let dummy_commitment = hash_all_coeffs(&[Fr::from(42u64)]);
+        use pvthfhe_compressor::witness::{AjtaiCommitmentWitness, AjtaiCommitmentWitnessSet};
+        let real_commitment = hash_all_coeffs(&[agg_pk_hash_fr, dkg_root_fr]);
         let witnesses: Vec<AjtaiCommitmentWitness> = (0..args.n)
             .map(|i| {
                 let seed = {
                     let mut s = [0u8; 32];
-                    s[..8].copy_from_slice(&(i as u64).to_le_bytes());
+                    let h = Sha256::digest((i as u64).to_be_bytes());
+                    s[..32].copy_from_slice(&h);
                     s
                 };
+                let id_fr = Fr::from((i + 1) as u64);
+                let pk_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(
+                    transcript.round1_messages[i].pk_i.bytes.as_slice(),
+                ));
                 AjtaiCommitmentWitness {
-                    coeffs: vec![Fr::from((i + 1) as u64)],
-                    expected_commitment_hash: dummy_commitment,
+                    coeffs: vec![id_fr, pk_hash],
+                    expected_commitment_hash: real_commitment,
                     matrix_seed: seed,
-                    parity_proof_hash: dummy_commitment,
+                    parity_proof_hash: real_commitment,
                 }
             })
             .collect();
@@ -392,7 +424,16 @@ fn main() -> anyhow::Result<()> {
         let ajtai_compressor =
             SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, args.n)
                 .map_err(|e| anyhow::anyhow!("ajtai compressor init: {e:?}"))?;
-        let acc = encode_hex((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64), Fr::from(0u64), Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
+        let acc = encode_hex((
+            Fr::from(0u64),
+            Fr::from(0u64),
+            Fr::from(0u64),
+            Fr::from(0u64),
+            Fr::from(0u64),
+            Fr::from(0u64),
+            Fr::from(0u64),
+            Fr::from(0u64),
+        ));
         ajtai_compressor
             .prove_steps_ajtai(&acc, &witness_set)
             .map_err(|e| anyhow::anyhow!("ajtai prove_steps_ajtai: {e:?}"))?;
@@ -415,7 +456,11 @@ fn main() -> anyhow::Result<()> {
         "  compressor:      {:.1}s  ({} batched steps, ceil(n/10){})",
         compressor_ms / 1000.0,
         batch_count,
-        if args.use_micronova { ", MicroNova" } else { "" },
+        if args.use_micronova {
+            ", MicroNova"
+        } else {
+            ""
+        },
     );
     println!(
         "  aggregate_decrypt: {:.1}s  ({} NTT operations)",

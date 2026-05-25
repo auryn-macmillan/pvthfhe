@@ -109,10 +109,13 @@ enum Commands {
         /// Deterministic seed for RNG.
         #[arg(long, default_value_t = 0)]
         seed: u64,
+        /// BFV parameter preset name: "production8192" (default) or "insecure512".
+        #[arg(long, default_value = "production8192")]
+        params: String,
     },
 }
 
-const SAFE_DEFAULT_TRACING_FILTER: &str = "pvthfhe_cli=info,pvthfhe_compressor=warn,pvthfhe_fhe=info,pvthfhe_lattice_pvss=info,pvthfhe_aggregator=info,pvthfhe_pvss=info,pvthfhe_bench=info,sonobe=warn";
+const SAFE_DEFAULT_TRACING_FILTER: &str = "pvthfhe_cli=warn,pvthfhe_compressor=warn,pvthfhe_fhe=warn,pvthfhe_lattice_pvss=warn,pvthfhe_aggregator=warn,pvthfhe_pvss=warn,pvthfhe_bench=warn,sonobe=warn";
 
 fn build_env_filter() -> tracing_subscriber::EnvFilter {
     match std::env::var("RUST_LOG") {
@@ -161,18 +164,15 @@ fn main() -> anyhow::Result<()> {
             r8_aggregate(&ciphertext, &shares, threshold)?;
         }
         Commands::Verify { proof } => {
-            let proof_bytes = std::fs::read(&proof)
-                .context("failed to read proof file")?;
+            let proof_bytes = std::fs::read(&proof).context("failed to read proof file")?;
 
             #[cfg(feature = "sonobe-compressor")]
             {
+                use pvthfhe_compressor::sonobe::{CycloFoldStepCircuit, SonobeCompressor};
                 use pvthfhe_compressor::{CompressedProof, ProofCompressor};
-                use pvthfhe_compressor::sonobe::{
-                    CycloFoldStepCircuit, SonobeCompressor,
-                };
-                let compressor = SonobeCompressor::<CycloFoldStepCircuit<ark_bn254::Fr>>::new(
-                    [0u8; 32], 1,
-                ).map_err(|e| anyhow::anyhow!("compressor init: {e:?}"))?;
+                let compressor =
+                    SonobeCompressor::<CycloFoldStepCircuit<ark_bn254::Fr>>::new([0u8; 32], 1)
+                        .map_err(|e| anyhow::anyhow!("compressor init: {e:?}"))?;
                 let vk = compressor.verifier_key();
                 let compressed_proof = CompressedProof(proof_bytes);
                 match compressor.verify(&vk, &compressed_proof, &[]) {
@@ -186,7 +186,21 @@ fn main() -> anyhow::Result<()> {
                 println!("verify: UNSUPPORTED (sonobe-compressor feature required)");
             }
         }
-        Commands::Demo { n, threshold, seed } => {
+        Commands::Demo {
+            n,
+            threshold,
+            seed,
+            params,
+        } => {
+            let preset = match params.to_lowercase().as_str() {
+                "insecure512" => pvthfhe_types::BfvParameterPreset::insecure512(),
+                "production8192" => pvthfhe_types::BfvParameterPreset::production8192(),
+                other => {
+                    anyhow::bail!("unknown preset: {other}. Use 'production8192' or 'insecure512'")
+                }
+            };
+            pvthfhe_types::set_active_preset(preset);
+            info!(%params, "active parameter preset set");
             run_demo(n, threshold.unwrap_or(n / 2 + 1), seed)?;
         }
     }
@@ -400,7 +414,10 @@ fn run_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
         .iter()
         .map(|h| h.to_string())
         .collect();
-    println!("recipient_parity_proof_hashes=[{}]", parity_hashes_str.join(", "));
+    println!(
+        "recipient_parity_proof_hashes=[{}]",
+        parity_hashes_str.join(", ")
+    );
     if report.all_verifications_passed {
         println!("verify: ACCEPT");
         info!("demo complete: ACCEPT");
@@ -540,9 +557,16 @@ impl PipelineObserver for DemoObserver {
                 self.dkg_aggregate_ms = Some(ms);
                 println!("{name}: complete ({ms:.3} ms)");
             }
-            "keygen" | "pvss_share_encrypt" | "cyclo_fold" | "compressor_prove"
-            | "compressor_verify" | "partial_decrypt" | "aggregate_decrypt"
-            | "c7_decrypt_aggregation" | "c7_noir_aggregator" | "setup_threshold" => {
+            "keygen"
+            | "pvss_share_encrypt"
+            | "cyclo_fold"
+            | "compressor_prove"
+            | "compressor_verify"
+            | "partial_decrypt"
+            | "aggregate_decrypt"
+            | "c7_decrypt_aggregation"
+            | "c7_noir_aggregator"
+            | "setup_threshold" => {
                 println!("{name}: complete ({ms:.3} ms)")
             }
             _ => {}

@@ -24,12 +24,14 @@ fn test_message() -> Round1Message {
     }
 }
 
-const RLWE_N: usize = pvthfhe_nizk::sigma::RLWE_N;
+fn rlwe_n() -> usize {
+    pvthfhe_nizk::sigma::rlwe_n()
+}
 
 #[test]
 fn demo_nizk_with_none_seed_uses_osrng_and_succeeds() {
     let message = test_message();
-    let secret_key_bytes = vec![0u8; RLWE_N * 8];
+    let secret_key_bytes = vec![0u8; rlwe_n() * 8];
 
     let result = build_demo_nizk_inputs("session-1", &message, None, &secret_key_bytes);
     assert!(
@@ -41,7 +43,7 @@ fn demo_nizk_with_none_seed_uses_osrng_and_succeeds() {
 #[test]
 fn demo_nizk_with_some_seed_refuses_without_insecure_flag() {
     let message = test_message();
-    let secret_key_bytes = vec![0u8; RLWE_N * 8];
+    let secret_key_bytes = vec![0u8; rlwe_n() * 8];
 
     let result = build_demo_nizk_inputs("session-1", &message, Some(42), &secret_key_bytes);
     assert!(

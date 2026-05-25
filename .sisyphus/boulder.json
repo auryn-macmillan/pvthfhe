@@ -1,8 +1,19 @@
 {
-  "active_plan": "/home/dev/pvthfhe/.sisyphus/plans/meta-plan-all-deferred.md",
-  "started_at": "2026-05-18T19:22:16.380Z",
-  "session_ids": ["ses_1e864f9f1ffecXRmG0OjbjoCa3"],
-  "plan_name": "meta-plan-all-deferred",
-  "status": "active",
-  "progress": "25/32 Phase G complete. 7 remaining (G.6-G.8 Noir R1CS, G.12 Schnorr, G.26 IND-CPAD) require architectural design."
+  "active_plan": "/home/dev/pvthfhe/.sisyphus/plans/bfv-encryption-sigma-gap.md",
+  "started_at": "2026-05-25T02:32:12.273Z",
+  "completed_at": "2026-05-25T03:21:33.000Z",
+  "session_ids": [
+    "ses_1e864f9f1ffecXRmG0OjbjoCa3",
+    "ses_1a2a6e993ffeJBH2cO4sTo0wSC",
+    "ses_1a29f62f9ffeA0DJH0wWrx5r2H"
+  ],
+  "plan_name": "bfv-encryption-sigma-gap",
+  "status": "complete",
+  "progress": "8/8 done. BFV encryption sigma in-circuit via CycloFoldStepCircuit (state 8). S-Z batched across L moduli. Adversarial test created. demo-e2e ACCEPT.",
+  "session_origins": {
+    "ses_1e864f9f1ffecXRmG0OjbjoCa3": "direct",
+    "ses_1a2a6e993ffeJBH2cO4sTo0wSC": "appended",
+    "ses_1a29f62f9ffeA0DJH0wWrx5r2H": "appended"
+  },
+  "task_sessions": {}
 }

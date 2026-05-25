@@ -1,6 +1,6 @@
 use pvthfhe_nizk::adapter::CycloNizkAdapter;
 use pvthfhe_nizk::hash_bridge;
-use pvthfhe_nizk::sigma::RLWE_N;
+use pvthfhe_nizk::sigma::rlwe_n;
 use pvthfhe_nizk::{NizkAdapter, NizkProof, NizkStatement, NizkWitness};
 use rand_chacha::rand_core::SeedableRng;
 
@@ -12,7 +12,7 @@ fn minimal_valid_stmt() -> NizkStatement {
         ciphertext_bytes: vec![0u8; 32],
         decrypt_share_bytes: vec![0u8; 32],
         pvss_commitment,
-        params: (65_537_u64, RLWE_N, 16_u64),
+        params: (65_537_u64, rlwe_n(), 16_u64),
         session_id: session_id.to_owned(),
         participant_id,
         epoch: 0,
@@ -39,15 +39,15 @@ fn oversized_session_id_rejected() {
         ciphertext_bytes: vec![0u8; 32],
         decrypt_share_bytes: vec![0u8; 32],
         pvss_commitment: [0u8; 32],
-        params: (65_537_u64, RLWE_N, 16_u64),
+        params: (65_537_u64, rlwe_n(), 16_u64),
         session_id: long_sid,
         participant_id: 1,
         epoch: 0,
     };
     let witness = NizkWitness {
         secret_share: 0,
-        secret_share_poly: vec![0i64; RLWE_N],
-        error: vec![0i64; RLWE_N],
+        secret_share_poly: vec![0i64; rlwe_n()],
+        error: vec![0i64; rlwe_n()],
         randomness: vec![],
     };
     let mut rng = rand_chacha::ChaCha20Rng::seed_from_u64(0xD05_B0);

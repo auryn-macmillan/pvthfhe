@@ -19,10 +19,10 @@
 //!
 //! # Response Bounds
 //! Masking bound B_Y = 2^30.
-//! z_u = y_u + ch * u   (bound B_Z_U = B_Y + N * B_U)
-//! z_e0 = y_e0 + ch * e0 (bound B_Z_E = B_Y + N * BFV_SIGMA_B_E)
-//! z_e1 = y_e1 + ch * e1 (bound B_Z_E = B_Y + N * BFV_SIGMA_B_E)
-//! z_m = y_m + ch * m   (bound B_Z_M = B_Y + N * B_M)
+//! z_u = y_u + ch * u   (bound b_z_u() = B_Y + N * B_U)
+//! z_e0 = y_e0 + ch * e0 (bound b_z_e() = B_Y + N * BFV_SIGMA_B_E)
+//! z_e1 = y_e1 + ch * e1 (bound b_z_e() = B_Y + N * BFV_SIGMA_B_E)
+//! z_m = y_m + ch * m   (bound b_z_m() = B_Y + N * B_M)
 //! All fit in i64 since largest bound < 2^31 << 2^63.
 
 use fhe_math::rq::{Context, Poly, Representation};
@@ -33,13 +33,10 @@ use std::sync::{Arc, OnceLock};
 use subtle::ConstantTimeEq;
 
 use crate::sigma::{
-    int_poly_to_rns, poly_mul_rq, poly_mul_rq_to_int, rns_add, sample_bounded, RLWE_N, RLWE_Q0,
-    RLWE_Q1, RLWE_Q2,
+    int_poly_to_rns, num_rns_limbs, poly_mul_rq, poly_mul_rq_to_int, rlwe_n, rns_add,
+    sample_bounded,
 };
 use crate::NizkError;
-
-const MODULI: [u64; 3] = [RLWE_Q0, RLWE_Q1, RLWE_Q2];
-const RNS_LEN: usize = RLWE_N * 3;
 
 /// Masking bound B_Y = 2^30.
 pub const B_Y: i64 = 1_073_741_824;
@@ -51,19 +48,25 @@ pub const BFV_SIGMA_B_E: i64 = 10_000;
 /// Plaintext half-modulus bound (t/2 = 32768 for t=65536 centered representation).
 pub const B_M: i64 = 32_768;
 
-const N_I64: i64 = 8192_i64;
-
 /// Verifier norm bound for z_u: B_Y + N * B_U.
-pub const B_Z_U: i64 = B_Y + N_I64 * B_U;
+pub fn b_z_u() -> i64 {
+    B_Y + rlwe_n() as i64 * B_U
+}
 /// Verifier norm bound for z_e0 / z_e1: B_Y + N * BFV_SIGMA_B_E.
-pub const B_Z_E: i64 = B_Y + N_I64 * BFV_SIGMA_B_E;
+pub fn b_z_e() -> i64 {
+    B_Y + rlwe_n() as i64 * BFV_SIGMA_B_E
+}
 /// Verifier norm bound for z_m: B_Y + N * B_M.
-pub const B_Z_M: i64 = B_Y + N_I64 * B_M;
+pub fn b_z_m() -> i64 {
+    B_Y + rlwe_n() as i64 * B_M
+}
 
-fn rlwe_context() -> Result<&'static Arc<Context>, NizkError> {
+fn bfv_rlwe_context() -> Result<&'static Arc<Context>, NizkError> {
     static CTX: OnceLock<Result<Arc<Context>, String>> = OnceLock::new();
     CTX.get_or_init(|| {
-        Context::new(&MODULI, RLWE_N)
+        let n = rlwe_n();
+        let moduli = pvthfhe_types::rlwe_moduli();
+        Context::new(&moduli, n)
             .map(Arc::new)
             .map_err(|e| format!("{e:?}"))
     })
@@ -78,7 +81,7 @@ pub fn bfv_delta_rns(t_plain: u64) -> Result<Vec<u64>, NizkError> {
             "plaintext modulus must be positive",
         ));
     }
-    let ctx = rlwe_context()?;
+    let ctx = bfv_rlwe_context()?;
     Ok(ctx.q.iter().map(|m| m.modulus() / t_plain).collect())
 }
 
@@ -135,8 +138,8 @@ pub struct BfvSigmaProof {
 /// sigma protocol.  Each byte becomes a coefficient; the polynomial is
 /// zero-padded to N = 8192 coefficients.
 pub fn encode_raw_plaintext(plaintext: &[u8]) -> Vec<i64> {
-    let mut m = vec![0i64; RLWE_N];
-    let len = plaintext.len().min(RLWE_N);
+    let mut m = vec![0i64; rlwe_n()];
+    let len = plaintext.len().min(rlwe_n());
     for (i, &byte) in plaintext[..len].iter().enumerate() {
         m[i] = i64::from(byte);
     }
@@ -150,7 +153,7 @@ pub fn encode_raw_plaintext(plaintext: &[u8]) -> Vec<i64> {
 /// the same context (N=8192, 3 limbs).  The function converts to
 /// power-basis before extracting coefficients.
 pub fn poly_bytes_to_rns(poly_bytes: &[u8]) -> Result<Vec<u64>, NizkError> {
-    let ctx = rlwe_context()?;
+    let ctx = bfv_rlwe_context()?;
     let mut poly = Poly::from_bytes(poly_bytes, ctx)
         .map_err(|_| NizkError::InvalidInput("failed to deserialise Poly from bytes"))?;
     poly.change_representation(Representation::PowerBasis);
@@ -163,10 +166,14 @@ pub fn poly_bytes_to_rns(poly_bytes: &[u8]) -> Result<Vec<u64>, NizkError> {
 /// Callers are responsible for coefficient domain bounds (e.g. B_M for
 /// plaintexts, B_Y for masking polynomials).
 pub fn scale_plaintext_to_rns(m_int: &[i64], delta: &[u64]) -> Result<Vec<u64>, NizkError> {
-    let ctx = rlwe_context()?;
+    let ctx = bfv_rlwe_context()?;
     let num_limbs = ctx.q.len();
-    let n = RLWE_N;
-    debug_assert_eq!(m_int.len(), n, "scale_plaintext_to_rns: input length must equal RLWE_N");
+    let n = rlwe_n();
+    debug_assert_eq!(
+        m_int.len(),
+        n,
+        "scale_plaintext_to_rns: input length must equal rlwe_n()"
+    );
     let mut out = vec![0u64; n * num_limbs];
     for (limb, &d) in delta.iter().enumerate() {
         let modulus = u128::from(ctx.q[limb].modulus());
@@ -193,17 +200,17 @@ pub fn prove(
     binding_data: &[u8],
     rng: &mut dyn RngCore,
 ) -> Result<BfvSigmaProof, NizkError> {
-    if stmt.pk0_rns.len() != RNS_LEN
-        || stmt.pk1_rns.len() != RNS_LEN
-        || stmt.ct0_rns.len() != RNS_LEN
-        || stmt.ct1_rns.len() != RNS_LEN
+    if stmt.pk0_rns.len() != (rlwe_n() * num_rns_limbs())
+        || stmt.pk1_rns.len() != (rlwe_n() * num_rns_limbs())
+        || stmt.ct0_rns.len() != (rlwe_n() * num_rns_limbs())
+        || stmt.ct1_rns.len() != (rlwe_n() * num_rns_limbs())
     {
         return Err(NizkError::InvalidInput("statement RNS lengths must be 3*N"));
     }
-    if wit.u.len() != RLWE_N
-        || wit.e0.len() != RLWE_N
-        || wit.e1.len() != RLWE_N
-        || wit.m.len() != RLWE_N
+    if wit.u.len() != rlwe_n()
+        || wit.e0.len() != rlwe_n()
+        || wit.e1.len() != rlwe_n()
+        || wit.m.len() != rlwe_n()
     {
         return Err(NizkError::InvalidInput(
             "witness polynomials must have length N",
@@ -213,12 +220,12 @@ pub fn prove(
         return Err(NizkError::InvalidInput("delta_limbs must have length 3"));
     }
 
-    let ctx = rlwe_context()?;
+    let ctx = bfv_rlwe_context()?;
 
-    let y_u = sample_bounded(rng, RLWE_N, B_Y)?;
-    let y_e0 = sample_bounded(rng, RLWE_N, B_Y)?;
-    let y_e1 = sample_bounded(rng, RLWE_N, B_Y)?;
-    let y_m = sample_bounded(rng, RLWE_N, B_Y)?;
+    let y_u = sample_bounded(rng, rlwe_n(), B_Y)?;
+    let y_e0 = sample_bounded(rng, rlwe_n(), B_Y)?;
+    let y_e1 = sample_bounded(rng, rlwe_n(), B_Y)?;
+    let y_m = sample_bounded(rng, rlwe_n(), B_Y)?;
 
     let y_u_rns = int_poly_to_rns(&y_u, ctx)?;
     let y_e0_rns = int_poly_to_rns(&y_e0, ctx)?;
@@ -277,30 +284,32 @@ pub fn verify(
     proof: &BfvSigmaProof,
     binding_data: &[u8],
 ) -> Result<(), NizkError> {
-    if stmt.pk0_rns.len() != RNS_LEN
-        || stmt.pk1_rns.len() != RNS_LEN
-        || stmt.ct0_rns.len() != RNS_LEN
-        || stmt.ct1_rns.len() != RNS_LEN
+    if stmt.pk0_rns.len() != (rlwe_n() * num_rns_limbs())
+        || stmt.pk1_rns.len() != (rlwe_n() * num_rns_limbs())
+        || stmt.ct0_rns.len() != (rlwe_n() * num_rns_limbs())
+        || stmt.ct1_rns.len() != (rlwe_n() * num_rns_limbs())
     {
         return Err(NizkError::InvalidInput("statement RNS lengths must be 3*N"));
     }
-    if proof.t0_rns.len() != RNS_LEN || proof.t1_rns.len() != RNS_LEN {
+    if proof.t0_rns.len() != (rlwe_n() * num_rns_limbs())
+        || proof.t1_rns.len() != (rlwe_n() * num_rns_limbs())
+    {
         return Err(NizkError::InvalidInput(
             "proof t0/t1_rns length must be 3*N",
         ));
     }
-    if proof.u_resp.len() != RLWE_N
-        || proof.e0_resp.len() != RLWE_N
-        || proof.e1_resp.len() != RLWE_N
-        || proof.m_resp.len() != RLWE_N
-        || proof.ch.len() != RLWE_N
+    if proof.u_resp.len() != rlwe_n()
+        || proof.e0_resp.len() != rlwe_n()
+        || proof.e1_resp.len() != rlwe_n()
+        || proof.m_resp.len() != rlwe_n()
+        || proof.ch.len() != rlwe_n()
     {
         return Err(NizkError::InvalidInput(
             "proof polynomial lengths must be N",
         ));
     }
 
-    let ctx = rlwe_context()?;
+    let ctx = bfv_rlwe_context()?;
 
     let expected_ch = derive_challenge(
         &proof.t0_rns,
@@ -323,19 +332,19 @@ pub fn verify(
     }
 
     let max_u = proof.u_resp.iter().map(|x| x.abs()).max().unwrap_or(0);
-    if max_u > B_Z_U {
+    if max_u > b_z_u() {
         return Err(NizkError::VerificationFailed("z_u norm bound exceeded"));
     }
     let max_e0 = proof.e0_resp.iter().map(|x| x.abs()).max().unwrap_or(0);
-    if max_e0 > B_Z_E {
+    if max_e0 > b_z_e() {
         return Err(NizkError::VerificationFailed("z_e0 norm bound exceeded"));
     }
     let max_e1 = proof.e1_resp.iter().map(|x| x.abs()).max().unwrap_or(0);
-    if max_e1 > B_Z_E {
+    if max_e1 > b_z_e() {
         return Err(NizkError::VerificationFailed("z_e1 norm bound exceeded"));
     }
     let max_m = proof.m_resp.iter().map(|x| x.abs()).max().unwrap_or(0);
-    if max_m > B_Z_M {
+    if max_m > b_z_m() {
         return Err(NizkError::VerificationFailed("z_m norm bound exceeded"));
     }
 
@@ -410,7 +419,7 @@ fn derive_challenge(
     hasher.update(delta_bytes);
     hasher.update(binding_data);
 
-    let mut raw = [0u8; RLWE_N / 8];
+    let mut raw = vec![0u8; rlwe_n() / 8];
     {
         let h = hasher.clone();
         let digest: [u8; 32] = h.finalize().into();
@@ -428,10 +437,10 @@ fn derive_challenge(
         }
     }
 
-    let mut bits = Vec::with_capacity(RLWE_N);
+    let mut bits = Vec::with_capacity(rlwe_n());
     'outer: for byte in &raw {
         for bit_pos in 0..8u32 {
-            if bits.len() < RLWE_N {
+            if bits.len() < rlwe_n() {
                 bits.push(i64::from((byte >> bit_pos) & 1u8));
             } else {
                 break 'outer;
@@ -562,11 +571,11 @@ mod tests {
     use rand_core::SeedableRng;
 
     fn zero_rns() -> Vec<u64> {
-        vec![0u64; RNS_LEN]
+        vec![0u64; (rlwe_n() * num_rns_limbs())]
     }
 
     fn zero_i64_vec() -> Vec<i64> {
-        vec![0i64; RLWE_N]
+        vec![0i64; rlwe_n()]
     }
 
     /// RED test (Batch B.1): verifier must reject proofs with m_resp

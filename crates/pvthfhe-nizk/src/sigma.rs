@@ -1,7 +1,7 @@
-//! Schnorr-style sigma protocol over the PVTHFHE production RLWE ring.
+//! Schnorr-style sigma protocol over the active parameter preset RLWE ring.
 //!
 //! # Ring
-//! R_Q = Z_Q\[X\]/(X^8192+1), Q = q_0 * q_1 * q_2 (3 RNS limbs, log2(Q) ~= 174).
+//! R_Q = Z_Q\[X\]/(X^N+1), Q = ∏ q_i (L RNS limbs).
 //! Polynomial arithmetic uses the fhe-math NTT backend.
 //!
 //! # Relation
@@ -30,14 +30,22 @@ use std::sync::{Arc, OnceLock};
 
 use crate::NizkError;
 
-/// RLWE polynomial degree N = 8192.
-pub const RLWE_N: usize = 8192;
 /// First RNS prime q_0 (58-bit, q ≡ 1 mod 2N).
 pub const RLWE_Q0: u64 = 288_230_376_173_076_481;
 /// Second RNS prime q_1 (58-bit, q ≡ 1 mod 2N).
 pub const RLWE_Q1: u64 = 288_230_376_167_047_169;
 /// Third RNS prime q_2 (58-bit, q ≡ 1 mod 2N).
 pub const RLWE_Q2: u64 = 288_230_376_161_280_001;
+
+/// RLWE polynomial degree N (delegates to active preset).
+pub fn rlwe_n() -> usize {
+    pvthfhe_types::rlwe_n()
+}
+
+/// Return the number of RNS limbs from the active preset.
+pub fn num_rns_limbs() -> usize {
+    pvthfhe_types::rlwe_moduli().len()
+}
 /// Error bound B_e: norm_inf(e_i) <= SIGMA_B_E.
 pub const SIGMA_B_E: i64 = 16;
 /// Masking bound B_Y for y_s and y_e per-coefficient.
@@ -66,7 +74,9 @@ pub fn compute_jl_projection(w: &[i64], seed: [u8; 32], m: usize) -> Vec<i64> {
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
 
-    if w.is_empty() { return vec![0i64; m]; }
+    if w.is_empty() {
+        return vec![0i64; m];
+    }
 
     let n = w.len();
     let inv_sqrt_m = (3.0 / (m as f64)).sqrt(); // Achlioptas ±√(3/m)
@@ -101,7 +111,9 @@ pub fn compute_raw_jl_sum(w: &[i64], seed: [u8; 32], m: usize) -> Vec<i64> {
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
 
-    if w.is_empty() { return vec![0i64; m]; }
+    if w.is_empty() {
+        return vec![0i64; m];
+    }
 
     let mut rng = StdRng::from_seed(seed);
     let mut projection = vec![0i64; m];
@@ -151,13 +163,12 @@ pub fn l2_squared(v: &[i64]) -> i128 {
     v.iter().map(|&x| (x as i128) * (x as i128)).sum()
 }
 
-const MODULI: [u64; 3] = [RLWE_Q0, RLWE_Q1, RLWE_Q2];
-const RNS_LEN: usize = RLWE_N * 3;
-
 fn rlwe_context() -> Result<&'static Arc<Context>, NizkError> {
     static CTX: OnceLock<Result<Arc<Context>, String>> = OnceLock::new();
     CTX.get_or_init(|| {
-        Context::new(&MODULI, RLWE_N)
+        let n = rlwe_n();
+        let moduli = pvthfhe_types::rlwe_moduli();
+        Context::new(&moduli, n)
             .map(Arc::new)
             .map_err(|e| format!("{e:?}"))
     })
@@ -203,10 +214,12 @@ pub struct SigmaProof {
 ///
 /// Used in test setup to derive the statement from a witness.
 pub fn compute_d_rns(c_rns: &[u64], s_i: &[i64], e_i: &[i64]) -> Result<Vec<u64>, NizkError> {
-    if c_rns.len() != RNS_LEN {
-        return Err(NizkError::InvalidInput("c_rns length must be 3*N"));
+    let n = rlwe_n();
+    let rns_len = n * num_rns_limbs();
+    if c_rns.len() != rns_len {
+        return Err(NizkError::InvalidInput("c_rns length must be L*N"));
     }
-    if s_i.len() != RLWE_N || e_i.len() != RLWE_N {
+    if s_i.len() != n || e_i.len() != n {
         return Err(NizkError::InvalidInput("s_i and e_i must have length N"));
     }
     let ctx = rlwe_context()?;
@@ -227,10 +240,12 @@ pub fn prove(
     wit: &SigmaWitness,
     rng: &mut dyn RngCore,
 ) -> Result<SigmaProof, NizkError> {
-    if stmt.c_rns.len() != RNS_LEN || stmt.d_rns.len() != RNS_LEN {
-        return Err(NizkError::InvalidInput("statement RNS lengths must be 3*N"));
+    let n = rlwe_n();
+    let rns_len = n * num_rns_limbs();
+    if stmt.c_rns.len() != rns_len || stmt.d_rns.len() != rns_len {
+        return Err(NizkError::InvalidInput("statement RNS lengths must be L*N"));
     }
-    if wit.s_i.len() != RLWE_N || wit.e_i.len() != RLWE_N {
+    if wit.s_i.len() != n || wit.e_i.len() != n {
         return Err(NizkError::InvalidInput(
             "witness polynomials must have length N",
         ));
@@ -240,8 +255,8 @@ pub fn prove(
     let max_retries = 100;
     let mut last_result: Option<(Vec<u64>, Vec<i64>, Vec<i64>, i64)> = None;
     for _attempt in 0..max_retries {
-        let y_s = sample_bounded(rng, RLWE_N, B_Y)?;
-        let y_e = sample_bounded(rng, RLWE_N, B_Y)?;
+        let y_s = sample_bounded(rng, n, B_Y)?;
+        let y_e = sample_bounded(rng, n, B_Y)?;
 
         let y_s_rns = int_poly_to_rns(&y_s, ctx)?;
         let y_e_rns = int_poly_to_rns(&y_e, ctx)?;
@@ -272,11 +287,13 @@ pub fn prove(
         // Lyubashevsky 2009, Lemma 4: reject with probability
         // 1 - exp((-2*ch*<y,s> - ||ch*s||²) / (2 * M * σ²))
         // For scalar challenge ch ∈ {-1,0,1}:
-        let ys_dot: f64 = y_s.iter().zip(wit.s_i.iter())
-            .map(|(&a, &b)| (a as f64) * (b as f64)).sum();
+        let ys_dot: f64 = y_s
+            .iter()
+            .zip(wit.s_i.iter())
+            .map(|(&a, &b)| (a as f64) * (b as f64))
+            .sum();
         let ch_f64 = ch as f64;
-        let s_norm_sq: f64 = wit.s_i.iter()
-            .map(|&x| (x as f64) * (x as f64)).sum();
+        let s_norm_sq: f64 = wit.s_i.iter().map(|&x| (x as f64) * (x as f64)).sum();
         let exponent = (-2.0 * ch_f64 * ys_dot - ch_f64 * ch_f64 * s_norm_sq)
             / (2.0 * REJECTION_M * (B_Y as f64).powi(2));
         let accept_prob = exponent.exp();
@@ -287,7 +304,12 @@ pub fn prove(
         let sample = (raw as f64) / (u64::MAX as f64);
 
         if sample < accept_prob {
-            return Ok(SigmaProof { t_rns, z_s, z_e, ch });
+            return Ok(SigmaProof {
+                t_rns,
+                z_s,
+                z_e,
+                ch,
+            });
         }
 
         last_result = Some((t_rns, z_s, z_e, ch));
@@ -297,7 +319,12 @@ pub fn prove(
         max_retries
     );
     let (t_rns, z_s, z_e, ch) = last_result.expect("at least one iteration");
-    Ok(SigmaProof { t_rns, z_s, z_e, ch })
+    Ok(SigmaProof {
+        t_rns,
+        z_s,
+        z_e,
+        ch,
+    })
 }
 
 /// Verify a sigma proof against a statement.
@@ -326,13 +353,15 @@ pub fn verify_scalar(
     stmt: &SigmaStatement,
     proof: &SigmaProof,
 ) -> Result<(), NizkError> {
-    if stmt.c_rns.len() != RNS_LEN || stmt.d_rns.len() != RNS_LEN {
-        return Err(NizkError::InvalidInput("statement RNS lengths must be 3*N"));
+    let n = rlwe_n();
+    let rns_len = n * num_rns_limbs();
+    if stmt.c_rns.len() != rns_len || stmt.d_rns.len() != rns_len {
+        return Err(NizkError::InvalidInput("statement RNS lengths must be L*N"));
     }
-    if proof.t_rns.len() != RNS_LEN {
-        return Err(NizkError::InvalidInput("proof t_rns length must be 3*N"));
+    if proof.t_rns.len() != rns_len {
+        return Err(NizkError::InvalidInput("proof t_rns length must be L*N"));
     }
-    if proof.z_s.len() != RLWE_N || proof.z_e.len() != RLWE_N {
+    if proof.z_s.len() != n || proof.z_e.len() != n {
         return Err(NizkError::InvalidInput(
             "proof polynomial lengths must be N",
         ));
@@ -389,11 +418,7 @@ pub fn verify_scalar(
 /// `sk_binding = Sha256(d_rns || participant_id || session_id)`, domain-separated
 /// with `"pvthfhe-sk-binding/v1"`.  The verifier can reconstruct this hash from
 /// the proof-embedded `d_rns` and check it against the DKG registry.
-pub fn compute_sk_binding(
-    d_rns: &[u64],
-    participant_id: u32,
-    session_id: &[u8],
-) -> [u8; 32] {
+pub fn compute_sk_binding(d_rns: &[u64], participant_id: u32, session_id: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(b"pvthfhe-sk-binding/v1");
     for limb in d_rns {
@@ -440,11 +465,11 @@ pub fn poly_mul_rq(
 
 /// Add two polynomials in RNS power-basis representation per-limb mod q_limb.
 pub fn rns_add(a: &[u64], b: &[u64], ctx: &Arc<Context>) -> Result<Vec<u64>, NizkError> {
-    let expected = RLWE_N * ctx.q.len();
+    let n = rlwe_n();
+    let expected = n * ctx.q.len();
     if a.len() != expected || b.len() != expected {
         return Err(NizkError::InvalidInput("rns_add: length mismatch"));
     }
-    let n = RLWE_N;
     let mut out = vec![0u64; a.len()];
     for (limb, modulus) in ctx.q.iter().enumerate() {
         let q = modulus.modulus();
@@ -462,16 +487,14 @@ pub fn poly_mul_rq_to_int(
     b_int: &[i64],
     ctx: &Arc<Context>,
 ) -> Result<Vec<i64>, NizkError> {
+    let n = rlwe_n();
     let a_rns = int_poly_to_rns(a_int, ctx)?;
     let b_rns = int_poly_to_rns(b_int, ctx)?;
     let prod_rns = poly_mul_rq(&a_rns, &b_rns, ctx)?;
-    // Recover integer coefficients via limb-0 centering.
-    // Valid because |true coefficient| <= N (negacyclic convolution of binary * ternary/bounded)
-    // which is far below q_0/2 ~ 2^57.
     let q0 = i64::try_from(ctx.q[0].modulus())
         .map_err(|_| NizkError::InvalidInput("q0 too large for i64"))?;
-    let mut result = vec![0i64; RLWE_N];
-    for j in 0..RLWE_N {
+    let mut result = vec![0i64; n];
+    for j in 0..n {
         let c = i64::try_from(prod_rns[j])
             .map_err(|_| NizkError::InvalidInput("prod coeff out of i64 range"))?;
         result[j] = if c > q0 / 2 { c - q0 } else { c };
@@ -595,11 +618,13 @@ fn rns_add_scalar_mul(
     b: &[u64],
     ctx: &Arc<Context>,
 ) -> Result<Vec<u64>, NizkError> {
-    let expected = RLWE_N * ctx.q.len();
+    let n = rlwe_n();
+    let expected = n * ctx.q.len();
     if a.len() != expected || b.len() != expected {
-        return Err(NizkError::InvalidInput("rns_add_scalar_mul: length mismatch"));
+        return Err(NizkError::InvalidInput(
+            "rns_add_scalar_mul: length mismatch",
+        ));
     }
-    let n = RLWE_N;
     let mut out = vec![0u64; a.len()];
     match ch {
         0 => {
@@ -653,42 +678,42 @@ pub fn sample_bounded(rng: &mut dyn RngCore, n: usize, bound: i64) -> Result<Vec
 /// Returns per-limb Fr vectors for the NTT-domain sigma equation check:
 ///   `NTT(c)[k] * NTT(z_s)[k] + NTT(z_e)[k] = NTT(t)[k] + ch * NTT(d_i)[k]`
 ///
-/// Each limb vector has `RLWE_N` Fr elements. The caller typically takes
-/// the first `SIGMA_VERIFY_COEFFS` coefficients for the in-circuit check.
+/// Caller typically takes the first `SIGMA_VERIFY_COEFFS` coefficients for the in-circuit check.
 #[allow(clippy::type_complexity)]
 pub fn compute_sigma_ntt_data(
     c_rns: &[u64],
     d_rns: &[u64],
     proof: &SigmaProof,
-) -> Result<(
-    Vec<Vec<Fr>>, // z_s_ntt: 3 limbs × N
-    Vec<Vec<Fr>>, // z_e_ntt: 3 limbs × N
-    Vec<Vec<Fr>>, // t_ntt: 3 limbs × N
-    Vec<Vec<Fr>>, // d_i_ntt: 3 limbs × N
-    Vec<Vec<Fr>>, // c_ntt: 3 limbs × N
-    Vec<i64>,      // z_s_power (raw integer coeffs)
-    Vec<i64>,      // z_e_power (raw integer coeffs)
-    Fr,            // ch as Fr
-), NizkError> {
+) -> Result<
+    (
+        Vec<Vec<Fr>>, // z_s_ntt: L limbs × N
+        Vec<Vec<Fr>>, // z_e_ntt: L limbs × N
+        Vec<Vec<Fr>>, // t_ntt: L limbs × N
+        Vec<Vec<Fr>>, // d_i_ntt: L limbs × N
+        Vec<Vec<Fr>>, // c_ntt: L limbs × N
+        Vec<i64>,     // z_s_power (raw integer coeffs)
+        Vec<i64>,     // z_e_power (raw integer coeffs)
+        Fr,           // ch as Fr
+    ),
+    NizkError,
+> {
     use fhe_math::rq::{Poly, Representation};
 
     let ctx = rlwe_context()?;
-    let n = RLWE_N;
+    let n = rlwe_n();
+    let l = num_rns_limbs();
 
-    let ntt_rns_slice = |rns: &[u64], limb: usize|
-        -> Result<Vec<Fr>, NizkError>
-    {
+    let ntt_rns_slice = |rns: &[u64], limb: usize| -> Result<Vec<Fr>, NizkError> {
         let start = limb * n;
         let end = start + n;
         if rns.len() < end {
             return Ok(vec![Fr::zero(); n]);
         }
         let slice = &rns[start..end];
-        let mut full_rns = vec![0u64; n * 3];
+        let mut full_rns = vec![0u64; n * l];
         full_rns[limb * n..(limb + 1) * n].copy_from_slice(slice);
-        let mut poly = Poly::try_convert_from(
-            full_rns, &ctx, false, Representation::PowerBasis,
-        ).map_err(|_| NizkError::InvalidInput("poly convert failed"))?;
+        let mut poly = Poly::try_convert_from(full_rns, &ctx, false, Representation::PowerBasis)
+            .map_err(|_| NizkError::InvalidInput("poly convert failed"))?;
         poly.change_representation(Representation::Ntt);
         let ntt_full: Vec<u64> = Vec::from(&poly);
         Ok(ntt_full
@@ -699,17 +724,16 @@ pub fn compute_sigma_ntt_data(
             .collect())
     };
 
-    let mut z_s_ntt = Vec::with_capacity(3);
-    let mut z_e_ntt = Vec::with_capacity(3);
-    let mut t_ntt = Vec::with_capacity(3);
-    let mut d_i_ntt = Vec::with_capacity(3);
-    let mut c_ntt = Vec::with_capacity(3);
+    let mut z_s_ntt = Vec::with_capacity(l);
+    let mut z_e_ntt = Vec::with_capacity(l);
+    let mut t_ntt = Vec::with_capacity(l);
+    let mut d_i_ntt = Vec::with_capacity(l);
+    let mut c_ntt = Vec::with_capacity(l);
 
-    // For z_s and z_e, convert integer coeffs to RNS then NTT
     let z_s_rns = int_poly_to_rns(&proof.z_s, ctx)?;
     let z_e_rns = int_poly_to_rns(&proof.z_e, ctx)?;
 
-    for limb in 0..3 {
+    for limb in 0..l {
         let z_s_ntt_limb = ntt_rns_slice(&z_s_rns, limb)?;
         let z_e_ntt_limb = ntt_rns_slice(&z_e_rns, limb)?;
         let t_ntt_limb = ntt_rns_slice(&proof.t_rns, limb)?;
@@ -730,8 +754,16 @@ pub fn compute_sigma_ntt_data(
         _ => return Err(NizkError::InvalidInput("challenge must be -1, 0, or 1")),
     };
 
-    Ok((z_s_ntt, z_e_ntt, t_ntt, d_i_ntt, c_ntt,
-        proof.z_s.clone(), proof.z_e.clone(), ch_fr))
+    Ok((
+        z_s_ntt,
+        z_e_ntt,
+        t_ntt,
+        d_i_ntt,
+        c_ntt,
+        proof.z_s.clone(),
+        proof.z_e.clone(),
+        ch_fr,
+    ))
 }
 
 #[cfg(test)]
@@ -763,9 +795,9 @@ mod tests {
     fn challenge_depends_on_session_id() {
         let session_a = b"session-alpha-123";
         let session_b = b"session-beta-456";
-        let t_rns = vec![1u64; RNS_LEN];
-        let c_rns = vec![2u64; RNS_LEN];
-        let d_rns = vec![3u64; RNS_LEN];
+        let t_rns = vec![1u64; rlwe_n() * num_rns_limbs()];
+        let c_rns = vec![2u64; rlwe_n() * num_rns_limbs()];
+        let d_rns = vec![3u64; rlwe_n() * num_rns_limbs()];
         let pvss = [0u8; 32];
 
         // Verify SHA-256 prefix differs with different session IDs (binding)
@@ -782,6 +814,9 @@ mod tests {
         let t_bytes: Vec<u8> = t_rns.iter().flat_map(|x| x.to_le_bytes()).collect();
         let digest_a = labeled_sha256(&prefix_a, b"t_rns", &t_bytes);
         let digest_b = labeled_sha256(&prefix_b, b"t_rns", &t_bytes);
-        assert_ne!(digest_a, digest_b, "SHA-256 digests must differ with different session IDs");
+        assert_ne!(
+            digest_a, digest_b,
+            "SHA-256 digests must differ with different session IDs"
+        );
     }
 }

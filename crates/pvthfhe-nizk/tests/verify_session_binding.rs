@@ -8,13 +8,13 @@
 
 use pvthfhe_nizk::adapter::CycloNizkAdapter;
 use pvthfhe_nizk::hash_bridge;
-use pvthfhe_nizk::sigma::RLWE_N;
+use pvthfhe_nizk::sigma::rlwe_n;
 use pvthfhe_nizk::{NizkAdapter, NizkError, NizkStatement, NizkWitness};
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
 
 fn sample_ternary(rng: &mut ChaCha20Rng) -> Vec<i64> {
-    let mut s = vec![0i64; RLWE_N];
+    let mut s = vec![0i64; rlwe_n()];
     for x in s.iter_mut() {
         let mut b = [0u8; 1];
         rng.fill_bytes(&mut b);
@@ -31,7 +31,7 @@ fn sample_error(rng: &mut ChaCha20Rng) -> Result<Vec<i64>, NizkError> {
     const B_E: i64 = 16;
     const RANGE: u64 = 33;
     const THRESHOLD: u64 = u64::MAX - (u64::MAX % RANGE);
-    let mut e = vec![0i64; RLWE_N];
+    let mut e = vec![0i64; rlwe_n()];
     for x in e.iter_mut() {
         loop {
             let v = rng.next_u64();
@@ -90,7 +90,7 @@ fn tampered_session_id_must_be_rejected() {
         ciphertext_bytes: vec![0u8; 32],
         decrypt_share_bytes: vec![0u8; 32],
         pvss_commitment,
-        params: (65_537_u64, RLWE_N, 16_u64),
+        params: (65_537_u64, rlwe_n(), 16_u64),
         session_id: session_a.to_owned(),
         participant_id: 1,
         epoch: 0,
@@ -136,7 +136,7 @@ fn tampered_participant_id_must_be_rejected() {
         ciphertext_bytes: vec![0u8; 32],
         decrypt_share_bytes: vec![0u8; 32],
         pvss_commitment,
-        params: (65_537_u64, RLWE_N, 16_u64),
+        params: (65_537_u64, rlwe_n(), 16_u64),
         session_id: session.to_owned(),
         participant_id: pid_a,
         epoch: 0,
@@ -192,7 +192,7 @@ fn cross_session_verify_must_fail() {
         ciphertext_bytes: vec![0u8; 32],
         decrypt_share_bytes: vec![0u8; 32],
         pvss_commitment: pvss_b,
-        params: (65_537_u64, RLWE_N, 16_u64),
+        params: (65_537_u64, rlwe_n(), 16_u64),
         session_id: session_b.to_owned(),
         participant_id: 1,
         epoch: 0,
@@ -211,7 +211,7 @@ fn cross_session_verify_must_fail() {
         ciphertext_bytes: vec![0u8; 32],
         decrypt_share_bytes: vec![0u8; 32],
         pvss_commitment: pvss_a,
-        params: (65_537_u64, RLWE_N, 16_u64),
+        params: (65_537_u64, rlwe_n(), 16_u64),
         session_id: session_a.to_owned(),
         participant_id: 1,
         epoch: 0,
@@ -244,7 +244,7 @@ fn matching_session_binding_passes() {
         ciphertext_bytes: vec![0u8; 32],
         decrypt_share_bytes: vec![0u8; 32],
         pvss_commitment,
-        params: (65_537_u64, RLWE_N, 16_u64),
+        params: (65_537_u64, rlwe_n(), 16_u64),
         session_id: session.to_owned(),
         participant_id: 1,
         epoch: 0,
@@ -278,7 +278,7 @@ fn different_participant_id_is_rejected() {
         ciphertext_bytes: vec![0u8; 32],
         decrypt_share_bytes: vec![0u8; 32],
         pvss_commitment,
-        params: (65_537_u64, RLWE_N, 16_u64),
+        params: (65_537_u64, rlwe_n(), 16_u64),
         session_id: session.to_owned(),
         participant_id: 1,
         epoch: 0,

@@ -34,7 +34,7 @@
 //! Phase 2 (F-series): `cyclo_accumulator_bytes` will be populated with real Cyclo fold transcript bytes.
 
 use crate::ajtai::{AjtaiCommitment, AjtaiMatrix, AjtaiParams, Rq, PHI, Q_COMMIT};
-use crate::sigma::{self, SigmaStatement, SigmaWitness, RLWE_N};
+use crate::sigma::{self, rlwe_n, SigmaStatement, SigmaWitness};
 use crate::{NizkAdapter, NizkError, NizkProof, NizkStatement, NizkWitness, BACKEND_ID};
 
 use rand_chacha::ChaCha20Rng;
@@ -56,8 +56,9 @@ const MAX_SESSION_ID_LEN: usize = 256;
 /// Maximum number of participants in a batch_verify call.
 const MAX_BATCH_STMTS: usize = 1024;
 
-/// Number of `Rq` elements (PHI=256 each) needed to pack RLWE_N coefficients.
-const AJTAI_M: usize = RLWE_N / PHI;
+fn ajtai_m() -> usize {
+    rlwe_n() / PHI
+}
 
 /// Zero-sized adapter implementing the Cyclo-companion Ajtai D2 NIZK backend.
 #[derive(Debug, Default, Clone, Copy)]
@@ -86,7 +87,10 @@ impl NizkAdapter for CycloNizkAdapter {
 
         let d_rns = sigma::compute_d_rns(&c_rns, &s_i, &e_i)?;
 
-        let ajtai_commitment = compute_ajtai_commitment(&derive_epoch_crs_seed(stmt.epoch, stmt.session_id.as_bytes()), &s_i)?;
+        let ajtai_commitment = compute_ajtai_commitment(
+            &derive_epoch_crs_seed(stmt.epoch, stmt.session_id.as_bytes()),
+            &s_i,
+        )?;
         let ajtai_bytes = serialize_ajtai_commitment(&ajtai_commitment);
 
         let sigma_binding = ajtai_sigma_session_binding(stmt.session_id.as_bytes(), &ajtai_bytes);
@@ -220,9 +224,7 @@ impl NizkAdapter for CycloNizkAdapter {
 ///
 /// Returns `(d_rns, SigmaProof { t_rns, z_s, z_e, ch })` by parsing
 /// the sigma section from the encoded proof.
-pub fn extract_sigma_proof(
-    proof_bytes: &[u8],
-) -> Result<(Vec<u64>, sigma::SigmaProof), NizkError> {
+pub fn extract_sigma_proof(proof_bytes: &[u8]) -> Result<(Vec<u64>, sigma::SigmaProof), NizkError> {
     let mut cur = Cursor::new(proof_bytes);
 
     let version = cur.read_u16()?;
@@ -297,9 +299,9 @@ fn validate_statement(stmt: &NizkStatement) -> Result<(), NizkError> {
     if stmt.params.1 == 0 {
         return Err(NizkError::InvalidInput("ring degree must be non-zero"));
     }
-    if stmt.params.1 != RLWE_N {
+    if stmt.params.1 != rlwe_n() {
         return Err(NizkError::InvalidInput(
-            "ring degree must equal RLWE_N=8192",
+            "ring degree must match active preset N",
         ));
     }
     if stmt.session_id.is_empty() {
@@ -362,17 +364,17 @@ fn compute_ccs_instance_id(stmt: &NizkStatement) -> Result<[u8; 32], NizkError> 
 /// Seed derivation: `ChaCha20Rng::from_seed(ccs_instance_id)` with rejection
 /// sampling per limb to avoid modular bias.
 fn expand_c_rns(seed: &[u8; 32]) -> Result<Vec<u64>, NizkError> {
-    use crate::sigma::{RLWE_Q0, RLWE_Q1, RLWE_Q2};
-    let mut rng = ChaCha20Rng::from_seed(*seed); // allow-seeded-rng: deterministic NIZK test vector generation
-    const MODULI: [u64; 3] = [RLWE_Q0, RLWE_Q1, RLWE_Q2];
-    let mut c_rns = vec![0u64; RLWE_N * 3];
-    for (limb, &q) in MODULI.iter().enumerate() {
+    let mut rng = ChaCha20Rng::from_seed(*seed);
+    let moduli = pvthfhe_types::rlwe_moduli();
+    let n = rlwe_n();
+    let mut c_rns = vec![0u64; n * moduli.len()];
+    for (limb, &q) in moduli.iter().enumerate() {
         let threshold = u64::MAX - (u64::MAX % q);
-        for j in 0..RLWE_N {
+        for j in 0..rlwe_n() {
             loop {
                 let v = rng.next_u64();
                 if v < threshold {
-                    c_rns[limb * RLWE_N + j] = v % q;
+                    c_rns[limb * rlwe_n() + j] = v % q;
                     break;
                 }
             }
@@ -382,8 +384,8 @@ fn expand_c_rns(seed: &[u8; 32]) -> Result<Vec<u64>, NizkError> {
 }
 
 fn pad_or_truncate_to_rlwe_n(v: &[i64]) -> Vec<i64> {
-    let mut out = vec![0i64; RLWE_N];
-    let take = v.len().min(RLWE_N);
+    let mut out = vec![0i64; rlwe_n()];
+    let take = v.len().min(rlwe_n());
     out[..take].copy_from_slice(&v[..take]);
     out
 }
@@ -414,9 +416,12 @@ fn derive_epoch_crs_seed(epoch: u64, session_id: &[u8]) -> [u8; 32] {
     h.finalize().into()
 }
 
-fn compute_ajtai_commitment(crs_seed: &[u8; 32], s_i: &[i64]) -> Result<AjtaiCommitment, NizkError> {
+fn compute_ajtai_commitment(
+    crs_seed: &[u8; 32],
+    s_i: &[i64],
+) -> Result<AjtaiCommitment, NizkError> {
     let params = AjtaiParams::default();
-    let matrix = AjtaiMatrix::from_seed(*crs_seed, &params, AJTAI_M)?; // allow-seeded-rng: CRS seed is epoch-bound
+    let matrix = AjtaiMatrix::from_seed(*crs_seed, &params, ajtai_m())?; // allow-seeded-rng: CRS seed is epoch-bound
     let witness_rq: Vec<Rq> = s_i
         .chunks(PHI)
         .map(|chunk| {

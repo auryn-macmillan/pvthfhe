@@ -194,18 +194,19 @@ pub fn compressor_inputs(
     let acc = encode_hex((
         Fr::from_le_bytes_mod_order(&acc_commitment_hash),
         Fr::from(total_norm),
-        Fr::from(0u64), // initial fold count (IVC step circuit increments internally)
-        Fr::from(0u64), // initial c7_final_hash is zero for the accumulator
-        Fr::from(0u64), // initial sigma_verification_count
-        Fr::from(0u64), // initial z_s_sq_sum_acc
-        Fr::from(0u64), // initial z_e_sq_sum_acc
+        Fr::from(0u64),
+        Fr::from(0u64),
+        Fr::from(0u64),
+        Fr::from(0u64),
+        Fr::from(0u64),
+        Fr::from(0u64),
     ))
     .to_vec();
     let public_inputs = encode_quad((
         Fr::from_le_bytes_mod_order(&public_io_hash),
         Fr::from(total_norm),
         Fr::from(1u64), // M6: ring verification result (1 = passed; pipeline checks before prove)
-        c7_final_hash,   // G.16: hash(C7_final_state) binds the two circuits
+        c7_final_hash,  // G.16: hash(C7_final_state) binds the two circuits
     ))
     .to_vec();
     (acc, public_inputs)

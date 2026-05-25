@@ -11,27 +11,27 @@ use sha3::{Digest, Keccak256};
 use std::cell::RefCell;
 
 thread_local! {
-    pub static DKG_AGG_DATA: RefCell<Vec<Vec<ark_bn254::Fr>>> = RefCell::new(Vec::new());
+    pub static PK_AGG_DATA: RefCell<Vec<Vec<ark_bn254::Fr>>> = RefCell::new(Vec::new());
 }
 thread_local! {
-    pub static DKG_AGG_N_STEPS: RefCell<usize> = RefCell::new(0);
+    pub static PK_AGG_N: RefCell<usize> = RefCell::new(0);
 }
 
-pub fn set_dkg_agg_data(data: Vec<Vec<ark_bn254::Fr>>) {
-    DKG_AGG_N_STEPS.with(|cell| *cell.borrow_mut() = data.len());
-    DKG_AGG_DATA.with(|cell| *cell.borrow_mut() = data);
+pub fn set_pk_agg_data(data: Vec<Vec<ark_bn254::Fr>>) {
+    PK_AGG_N.with(|cell| *cell.borrow_mut() = data.len());
+    PK_AGG_DATA.with(|cell| *cell.borrow_mut() = data);
 }
 
-pub fn clear_dkg_agg_data() {
-    DKG_AGG_DATA.with(|cell| cell.borrow_mut().clear());
+pub fn clear_pk_agg_data() {
+    PK_AGG_DATA.with(|cell| cell.borrow_mut().clear());
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct DkgAggregationStepCircuit<F: PrimeField> {
+pub struct PkAggregationStepCircuit<F: PrimeField> {
     _phantom: std::marker::PhantomData<F>,
 }
 
-impl<F: PrimeField> FCircuit<F> for DkgAggregationStepCircuit<F> {
+impl<F: PrimeField> FCircuit<F> for PkAggregationStepCircuit<F> {
     type Params = ();
     type ExternalInputs = ExternalInputs3<F>;
     type ExternalInputsVar = ExternalInputs3Var<F>;
@@ -53,14 +53,14 @@ impl<F: PrimeField> FCircuit<F> for DkgAggregationStepCircuit<F> {
         z_i: Vec<FpVar<F>>,
         _external_inputs: Self::ExternalInputsVar,
     ) -> Result<Vec<FpVar<F>>, SynthesisError> {
-        let n_steps = DKG_AGG_N_STEPS.with(|cell| *cell.borrow());
-        let data = DKG_AGG_DATA.with(|cell| cell.borrow().clone());
-        let step_shares = data.get(_i).cloned().unwrap_or_default();
+        let n = PK_AGG_N.with(|cell| *cell.borrow());
+        let data = PK_AGG_DATA.with(|cell| cell.borrow().clone());
+        let step_pks = data.get(_i).cloned().unwrap_or_default();
 
         let mut sum = FpVar::<F>::zero();
-        for share in &step_shares {
+        for pk in &step_pks {
             let s = FpVar::<F>::new_witness(cs.clone(), || {
-                let val = F::from_le_bytes_mod_order(&share.into_bigint().to_bytes_le());
+                let val = F::from_le_bytes_mod_order(&pk.into_bigint().to_bytes_le());
                 Ok(val)
             })?;
             sum += s;
@@ -76,11 +76,11 @@ impl<F: PrimeField> FCircuit<F> for DkgAggregationStepCircuit<F> {
     }
 }
 
-impl<F: PrimeField> StepCircuit for DkgAggregationStepCircuit<F> {
+impl<F: PrimeField> StepCircuit for PkAggregationStepCircuit<F> {
     fn descriptor(&self) -> StepCircuitDescriptor {
         StepCircuitDescriptor { width: 3 }
     }
     fn circuit_hash(&self) -> [u8; 32] {
-        Keccak256::digest(b"pvthfhe/dkg-agg/v1").into()
+        Keccak256::digest(b"pvthfhe/pk-aggregation/v1").into()
     }
 }

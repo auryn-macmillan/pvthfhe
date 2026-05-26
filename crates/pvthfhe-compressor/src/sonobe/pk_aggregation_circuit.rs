@@ -1,4 +1,4 @@
-use super::{ExternalInputs3, ExternalInputs3Var, PoseidonSpongeVar};
+use super::{sigma_verify_step, ExternalInputs3, ExternalInputs3Var, PoseidonSpongeVar};
 use crate::{StepCircuit, StepCircuitDescriptor};
 use ark_ff::{BigInteger, PrimeField};
 use ark_r1cs_std::alloc::AllocVar;
@@ -66,8 +66,13 @@ impl<F: PrimeField> FCircuit<F> for PkAggregationStepCircuit<F> {
             sum += s;
         }
 
+        let step_f = F::from((_i + 1) as u64);
+        let step_var = FpVar::<F>::new_witness(cs.clone(), || Ok(step_f))?;
+
+        let sigma_ok = sigma_verify_step(cs.clone(), _i)?;
+
         let mut sponge = PoseidonSpongeVar::new();
-        sponge.absorb(&[sum, FpVar::constant(F::from((_i + 1) as u64))])?;
+        sponge.absorb(&[sum, step_var, sigma_ok])?;
         let step_hash = sponge.squeeze_one()?;
         let acc = z_i[0].clone() + step_hash;
         let count = z_i[1].clone() + FpVar::constant(F::one());

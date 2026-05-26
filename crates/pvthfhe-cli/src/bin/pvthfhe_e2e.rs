@@ -389,20 +389,67 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
 
     let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let prover_toml_path = repo_root.join("circuits/aggregator_final/Prover.toml");
-    // G.4: Derive session_nonce from session_id (deterministic placeholder until Interfold E3)
-    let session_nonce = Fr::from_be_bytes_mod_order(&Sha256::digest(report.session_id.as_bytes()));
+
+    // Compute all fields for the simplified C7 Noir circuit
+    let ciphertext_hash =
+        Fr::from_be_bytes_mod_order(&Sha256::digest(report.session_id.as_bytes()));
+    let aggregate_pk_hash =
+        Fr::from_be_bytes_mod_order(&Sha256::digest(&report.aggregate_pk_bytes));
+    let decrypt_nizk_hash_field = Fr::from_be_bytes_mod_order(&report.decrypt_nizk_hash);
+    let dkg_transcript_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(
+        format!("dkg-transcript-{}", report.session_id).as_bytes(),
+    ));
+    let epoch = Fr::from(1u64);
+    let participant_set_hash = {
+        use pvthfhe_cli::full_pipeline::poseidon_sponge_native_noir;
+        let noir_max = 128usize;
+        let mut inputs = Vec::with_capacity(noir_max + 1);
+        inputs.push(Fr::from(1u64));
+        for &id in report.committee_party_ids.iter().take(noir_max) {
+            inputs.push(Fr::from(id as u64));
+        }
+        while inputs.len() < noir_max + 1 {
+            inputs.push(Fr::from(0u64));
+        }
+        poseidon_sponge_native_noir(&inputs)
+    };
+    let n_participants = Fr::from(report.share_coeffs.len() as u64);
+    let threshold = Fr::from((report.committee_party_ids.len() - 1) as u64);
+
+    // Plaintext from Lagrange interpolation
+    use pvthfhe_cli::full_pipeline::field_from_i64;
+    let mut nova_final_plaintext = [Fr::zero(); 8];
+    for k in 0..8 {
+        let mut sum = Fr::zero();
+        for (i, lambda) in report.lagrange_coeffs.iter().enumerate() {
+            let coeff = field_from_i64(report.share_coeffs[i][k]);
+            sum += *lambda * coeff;
+        }
+        nova_final_plaintext[k] = sum;
+    }
+    let plaintext_commitment = {
+        use pvthfhe_cli::full_pipeline::poseidon_sponge_native_noir;
+        let mut inputs = Vec::with_capacity(9);
+        inputs.push(Fr::from(1u64));
+        for k in 0..8 {
+            inputs.push(nova_final_plaintext[k]);
+        }
+        poseidon_sponge_native_noir(&inputs)
+    };
+
     let prover_toml_data = build_c7_prover_toml(
-        &report.share_coeffs,
-        &report.committee_party_ids,
-        &report.aggregate_pk_bytes,
-        &report.session_id,
-        &report.decrypt_nizk_hash,
-        session_nonce,
-        &report.party_signing_pks,
-        &report.share_sig_rs,
-        &report.share_sig_ss,
-        Fr::from(0u64),
+        ciphertext_hash,
+        aggregate_pk_hash,
+        decrypt_nizk_hash_field,
+        dkg_transcript_hash,
+        epoch,
+        participant_set_hash,
+        n_participants,
+        threshold,
+        plaintext_commitment,
         report.compressed_proof_hash,
+        &nova_final_plaintext,
+        report.combined_share_hash,
     );
     if let Err(e) = std::fs::write(&prover_toml_path, &prover_toml_data) {
         warn!(phase = "noir_aggregator_final", error = %e, "Noir aggregator_final: failed to write Prover.toml");

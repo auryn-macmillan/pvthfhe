@@ -239,6 +239,7 @@ pub fn prove(
     stmt: &SigmaStatement,
     wit: &SigmaWitness,
     rng: &mut dyn RngCore,
+    d_commitment: &[u8; 32],
 ) -> Result<SigmaProof, NizkError> {
     let n = rlwe_n();
     let rns_len = n * num_rns_limbs();
@@ -269,7 +270,7 @@ pub fn prove(
             &t_rns,
             &stmt.c_rns,
             &stmt.d_rns,
-            &[0u8; 32],
+            d_commitment,
         );
 
         let z_s: Vec<i64> = y_s
@@ -337,8 +338,9 @@ pub fn verify(
     participant_id: u32,
     stmt: &SigmaStatement,
     proof: &SigmaProof,
+    d_commitment: &[u8; 32],
 ) -> Result<(), NizkError> {
-    verify_scalar(session_id, participant_id, stmt, proof)
+    verify_scalar(session_id, participant_id, stmt, proof, d_commitment)
 }
 
 /// Verify a scalar-challenge sigma proof against a statement.
@@ -352,6 +354,7 @@ pub fn verify_scalar(
     participant_id: u32,
     stmt: &SigmaStatement,
     proof: &SigmaProof,
+    d_commitment: &[u8; 32],
 ) -> Result<(), NizkError> {
     let n = rlwe_n();
     let rns_len = n * num_rns_limbs();
@@ -378,7 +381,7 @@ pub fn verify_scalar(
         &proof.t_rns,
         &stmt.c_rns,
         &stmt.d_rns,
-        &[0u8; 32], // G.5: TODO: pass real d_commitment
+        d_commitment,
     );
     // Constant-time comparison for challenge
     let ch_match = (proof.ch ^ expected_ch) == 0;
@@ -764,6 +767,130 @@ pub fn compute_sigma_ntt_data(
         proof.z_e.clone(),
         ch_fr,
     ))
+}
+
+/// Evaluate polynomial (given as coefficient slice) at point x using
+/// Horner's method. Returns the result mod q.
+pub fn poly_eval_mod(coeffs: &[i64], x: u64, q: u64) -> u64 {
+    let mut result: i128 = 0;
+    for &c in coeffs.iter().rev() {
+        result = ((result * x as i128) + c as i128).rem_euclid(q as i128);
+    }
+    result as u64
+}
+
+/// Compute the Schwartz-Zippel challenge point gamma from the sigma proof
+/// transcript using Fiat-Shamir (prover cannot choose gamma).
+pub fn compute_sz_gamma(proof: &SigmaProof, session_id: &[u8], party_id: u32) -> u64 {
+    let mut h = Sha256::new();
+    h.update(b"pvthfhe-sz-gamma-v1");
+    h.update(session_id);
+    h.update(&party_id.to_le_bytes());
+    h.update(&proof.ch.to_le_bytes());
+    for &v in &proof.t_rns {
+        h.update(&v.to_le_bytes());
+    }
+    let digest = h.finalize();
+    u64::from_le_bytes(digest[..8].try_into().unwrap())
+}
+
+/// Compute Schwartz-Zippel single-point evaluation data for the compressor witness.
+///
+/// Evaluates each of the five polynomials (c, z_s, z_e, t, d_i) at the
+/// Fiat-Shamir-derived gamma point per RNS limb, and precomputes the
+/// modulus-reduction quotient r1 so the in-circuit check is a single
+/// equality constraint per limb.
+///
+/// Returns (gamma, c_eval, zs_eval, ze_eval, t_eval, di_eval, r1_eval)
+/// where each eval vector has one entry per RNS limb.
+pub fn compute_sigma_sz_data(
+    c_rns: &[u64],
+    d_rns: &[u64],
+    proof: &SigmaProof,
+    session_id: &[u8],
+    party_id: u32,
+) -> (
+    u64,
+    Vec<u64>,
+    Vec<u64>,
+    Vec<u64>,
+    Vec<u64>,
+    Vec<u64>,
+    Vec<u64>,
+) {
+    let n = rlwe_n();
+    let moduli = pvthfhe_types::rlwe_moduli();
+    let gamma = compute_sz_gamma(proof, session_id, party_id);
+
+    let mut sz_c_eval = Vec::with_capacity(moduli.len());
+    let mut sz_zs_eval = Vec::with_capacity(moduli.len());
+    let mut sz_ze_eval = Vec::with_capacity(moduli.len());
+    let mut sz_t_eval = Vec::with_capacity(moduli.len());
+    let mut sz_di_eval = Vec::with_capacity(moduli.len());
+    let mut sz_r1_eval = Vec::with_capacity(moduli.len());
+
+    for limb in 0..moduli.len() {
+        let q = moduli[limb];
+
+        // Extract power-basis coefficients from RNS arrays.
+        // c_rns / d_rns / proof.t_rns are in RNS power-basis layout:
+        //   limb 0: coeffs 0..n-1, limb 1: n..2n-1, etc.
+        let c_coeffs: Vec<i64> = c_rns[limb * n..(limb + 1) * n]
+            .iter()
+            .map(|&v| (v % q) as i64)
+            .collect();
+        let d_coeffs: Vec<i64> = d_rns[limb * n..(limb + 1) * n]
+            .iter()
+            .map(|&v| (v % q) as i64)
+            .collect();
+        let t_coeffs: Vec<i64> = proof.t_rns[limb * n..(limb + 1) * n]
+            .iter()
+            .map(|&v| (v % q) as i64)
+            .collect();
+
+        // z_s and z_e are signed integer coefficients; reduce to [0, q) for
+        // polynomial evaluation.
+        let zs_coeffs: Vec<i64> = proof
+            .z_s
+            .iter()
+            .map(|&v| {
+                let rem = (v as i128).rem_euclid(q as i128);
+                i64::try_from(rem).unwrap_or(0)
+            })
+            .collect();
+        let ze_coeffs: Vec<i64> = proof
+            .z_e
+            .iter()
+            .map(|&v| {
+                let rem = (v as i128).rem_euclid(q as i128);
+                i64::try_from(rem).unwrap_or(0)
+            })
+            .collect();
+
+        let c_val = poly_eval_mod(&c_coeffs, gamma, q);
+        let zs_val = poly_eval_mod(&zs_coeffs, gamma, q);
+        let ze_val = poly_eval_mod(&ze_coeffs, gamma, q);
+        let t_val = poly_eval_mod(&t_coeffs, gamma, q);
+        let di_val = poly_eval_mod(&d_coeffs, gamma, q);
+
+        // r1 = (c(gamma)*z_s(gamma) + z_e(gamma) - t(gamma) - ch*d_i(gamma)) / Q
+        let ch_val = proof.ch as i128;
+        let lhs = c_val as i128 * zs_val as i128 + ze_val as i128
+            - t_val as i128
+            - ch_val * di_val as i128;
+        let r1 = lhs.div_euclid(q as i128).unsigned_abs() as u64;
+
+        sz_c_eval.push(c_val);
+        sz_zs_eval.push(zs_val);
+        sz_ze_eval.push(ze_val);
+        sz_t_eval.push(t_val);
+        sz_di_eval.push(di_val);
+        sz_r1_eval.push(r1);
+    }
+
+    (
+        gamma, sz_c_eval, sz_zs_eval, sz_ze_eval, sz_t_eval, sz_di_eval, sz_r1_eval,
+    )
 }
 
 #[cfg(test)]

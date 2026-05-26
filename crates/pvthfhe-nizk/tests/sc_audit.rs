@@ -65,7 +65,7 @@ fn sc_audit_verify_rejects_tampered_challenge() -> Result<(), Box<dyn std::error
     let d_rns = compute_d_rns(&c_rns, &s_i, &e_i)?;
     let stmt = SigmaStatement { c_rns, d_rns };
     let wit = SigmaWitness { s_i, e_i };
-    let proof = prove(b"audit-session", 0, &stmt, &wit, &mut rng)?;
+    let proof = prove(b"audit-session", 0, &stmt, &wit, &mut rng, &[1u8; 32])?;
 
     // Tamper challenge: flip sign (if non-zero) or set to 1 (if zero)
     let mut tampered = proof.clone();
@@ -75,7 +75,7 @@ fn sc_audit_verify_rejects_tampered_challenge() -> Result<(), Box<dyn std::error
         tampered.ch = 1;
     }
     assert!(
-        verify(b"audit-session", 0, &stmt, &tampered).is_err(),
+        verify(b"audit-session", 0, &stmt, &tampered, &[1u8; 32]).is_err(),
         "challenge tampered must be rejected"
     );
 
@@ -93,14 +93,14 @@ fn scalar_sigma_roundtrip_uses_single_ternary_challenge() -> Result<(), Box<dyn 
     let stmt = SigmaStatement { c_rns, d_rns };
     let wit = SigmaWitness { s_i, e_i };
 
-    let proof = prove(b"scalar-session", 11, &stmt, &wit, &mut rng)?;
+    let proof = prove(b"scalar-session", 11, &stmt, &wit, &mut rng, &[1u8; 32])?;
 
     assert!(
         matches!(proof.ch, -1 | 0 | 1),
         "scalar sigma challenge must be one ternary scalar"
     );
-    verify_scalar(b"scalar-session", 11, &stmt, &proof)?;
-    verify(b"scalar-session", 11, &stmt, &proof)?;
+    verify_scalar(b"scalar-session", 11, &stmt, &proof, &[1u8; 32])?;
+    verify(b"scalar-session", 11, &stmt, &proof, &[1u8; 32])?;
 
     Ok(())
 }

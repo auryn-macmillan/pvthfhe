@@ -384,8 +384,22 @@ impl KeygenSimulator {
             party_id,
             pk_i,
             pk_i_hash,
-            commitment: hash_bytes(&party_id.to_be_bytes()),
-            poly_commit: hash_bytes(&party_id.to_be_bytes()),
+            commitment: {
+                let mut data = Vec::new();
+                data.extend_from_slice(b"pvthfhe-poly-commit-v1");
+                data.extend_from_slice(&party_id.to_be_bytes());
+                data.extend_from_slice(session_id);
+                data.extend_from_slice(&share.bytes.0);
+                hash_bytes(&data)
+            },
+            poly_commit: {
+                let mut data = Vec::new();
+                data.extend_from_slice(b"pvthfhe-poly-commit-v1");
+                data.extend_from_slice(session_id);
+                data.extend_from_slice(&party_id.to_be_bytes());
+                data.extend_from_slice(&share.bytes.0);
+                hash_bytes(&data)
+            },
             encrypted_shares,
             nizk: keygen_nizk,
         })
@@ -491,7 +505,15 @@ impl KeygenSimulator {
             e_i: e_coeffs,
         };
 
-        let proof = sigma::prove(session_id, party_id, &stmt, &wit, &mut rng)
+        // Compute poly_commit identically to Round1Message for Fiat-Shamir binding.
+        let mut poly_commit_data = Vec::new();
+        poly_commit_data.extend_from_slice(b"pvthfhe-poly-commit-v1");
+        poly_commit_data.extend_from_slice(session_id);
+        poly_commit_data.extend_from_slice(&party_id.to_be_bytes());
+        poly_commit_data.extend_from_slice(&share.bytes.0);
+        let poly_commit = hash_bytes(&poly_commit_data);
+
+        let proof = sigma::prove(session_id, party_id, &stmt, &wit, &mut rng, &poly_commit)
             .map_err(|e| format!("sigma prove: {e}"))?;
 
         // Serialize the sigma proof into a compact bundle.

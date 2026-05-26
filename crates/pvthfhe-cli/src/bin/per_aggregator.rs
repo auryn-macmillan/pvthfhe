@@ -11,7 +11,7 @@
 
 use anyhow::Context;
 use ark_bn254::Fr;
-use ark_ff::{BigInteger, PrimeField};
+use ark_ff::{BigInteger, Field, One, PrimeField, Zero};
 use clap::Parser;
 use pvthfhe_aggregator::keygen::simulator::{KeygenResult, KeygenSimulator};
 use pvthfhe_fhe::fhers::FhersBackend;
@@ -192,7 +192,9 @@ fn main() -> anyhow::Result<()> {
             let mut dealer_inputs = Vec::with_capacity(args.n);
             for dealer_i in 0..args.n {
                 let dealer_id_u16 = (dealer_i + 1) as u16;
-                let share_val = Fr::from((dealer_i * args.n + recipient_id + 1) as u64);
+                let share_val = Fr::from_be_bytes_mod_order(&Sha256::digest(
+                    transcript.round1_messages[dealer_i].pk_i.bytes.as_slice(),
+                ));
                 let sk_commit = compute_sk_dealer_share_commitment(
                     &session_id_bytes,
                     &dkg_root,
@@ -200,6 +202,8 @@ fn main() -> anyhow::Result<()> {
                     recipient_id_u16,
                     share_val,
                 );
+                // Real smudge slot 1 value (matches full_pipeline.rs L462).
+                // The esm value is a protocol constant, not ceremony-specific data.
                 let esm_val = Fr::from(1u64);
                 let esm_commit = compute_esm_dealer_share_commitment(
                     &session_id_bytes,
@@ -289,12 +293,14 @@ fn main() -> anyhow::Result<()> {
             ));
             let steps: Vec<ExternalInputs4<Fr>> = (0..batch_count)
                 .map(|i| {
-                    ExternalInputs4(
-                        Fr::from((i + 1) as u64),
-                        Fr::from(1u64),
-                        agg_pk_hash_fr,
-                        dkg_root_fr,
-                    )
+                    // Field 0: party identity derived from real DKG transcript PK hash.
+                    let party_id_fr = if i < transcript.round1_messages.len() {
+                        Fr::from(transcript.round1_messages[i].party_id as u64)
+                    } else {
+                        Fr::from_be_bytes_mod_order(&Sha256::digest(transcript.dkg_root))
+                    };
+                    // Field 1: one contribution per batch (matches full_pipeline.rs pattern).
+                    ExternalInputs4(party_id_fr, Fr::from(1u64), agg_pk_hash_fr, dkg_root_fr)
                 })
                 .collect();
             let _prove_result = compressor
@@ -326,12 +332,18 @@ fn main() -> anyhow::Result<()> {
         let t2 = Instant::now();
 
         let agg_pk_hash_fr = Fr::from_be_bytes_mod_order(&Sha256::digest(&aggregate_pk.bytes));
+        // Compute real Lagrange coefficients from the actual party IDs (1..=threshold)
+        // at evaluation point 0, matching full_pipeline.rs L1455-1456.
+        let party_ids_fr: Vec<Fr> = (1..=args.threshold).map(|i| Fr::from(i as u64)).collect();
+        let lagrange_coeffs = compute_lagrange_coeffs_bn254(&party_ids_fr, Fr::from(0u64));
         use rayon::prelude::*;
         let leaf_hashes: Vec<[u8; 32]> = (0..args.threshold)
             .into_par_iter()
             .map(|i| {
-                let share_val = Fr::from((i + 1) as u64);
-                let lagrange_val = Fr::from((args.threshold - i) as u64);
+                let share_val = Fr::from_be_bytes_mod_order(&Sha256::digest(
+                    transcript.round1_messages[i].pk_i.bytes.as_slice(),
+                ));
+                let lagrange_val = lagrange_coeffs[i];
                 let mut hasher = Sha256::new();
                 hasher.update(&share_val.into_bigint().to_bytes_le());
                 hasher.update(&lagrange_val.into_bigint().to_bytes_le());
@@ -372,9 +384,13 @@ fn main() -> anyhow::Result<()> {
             let c7_acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
             let c7_steps: Vec<ExternalInputs5<Fr>> = (0..args.threshold)
                 .map(|i| {
+                    // Share evaluation derived from real DKG transcript PK hash.
+                    let share_eval = Fr::from_be_bytes_mod_order(&Sha256::digest(
+                        transcript.round1_messages[i].pk_i.bytes.as_slice(),
+                    ));
                     ExternalInputs5(
-                        Fr::from((i + 1) as u64),
-                        Fr::from((args.threshold - i) as u64),
+                        share_eval,
+                        lagrange_coeffs[i],
                         coeff_commitment,
                         dkg_root_fr,
                         derived_r,
@@ -408,7 +424,7 @@ fn main() -> anyhow::Result<()> {
                     s[..32].copy_from_slice(&h);
                     s
                 };
-                let id_fr = Fr::from((i + 1) as u64);
+                let id_fr = Fr::from(transcript.round1_messages[i].party_id as u64);
                 let pk_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(
                     transcript.round1_messages[i].pk_i.bytes.as_slice(),
                 ));
@@ -495,6 +511,27 @@ fn elapsed_ms(started: Instant) -> f64 {
     started.elapsed().as_secs_f64() * 1000.0
 }
 
+/// Compute Lagrange basis coefficients evaluated at `eval_point`.
+///
+/// For points `x_i` and evaluation point `z`, returns `L_i(z)` for each i:
+/// `L_i(z) = Π_{j≠i} (z - x_j) / Π_{j≠i} (x_i - x_j)`
+fn compute_lagrange_coeffs_bn254(xs: &[Fr], eval_point: Fr) -> Vec<Fr> {
+    let n = xs.len();
+    let mut coeffs = Vec::with_capacity(n);
+    for i in 0..n {
+        let mut num = Fr::one();
+        let mut den = Fr::one();
+        for j in 0..n {
+            if i != j {
+                num *= eval_point - xs[j];
+                den *= xs[i] - xs[j];
+            }
+        }
+        coeffs.push(num * den.inverse().unwrap_or(Fr::zero()));
+    }
+    coeffs
+}
+
 #[cfg(feature = "sonobe-compressor")]
 fn time_micronova_compressor(epoch_hash: [u8; 32], batch_count: usize) -> anyhow::Result<()> {
     use pvthfhe_compressor::micronova::compressor::MicroNovaCompressor;
@@ -502,8 +539,31 @@ fn time_micronova_compressor(epoch_hash: [u8; 32], batch_count: usize) -> anyhow
     let depth = (batch_count as f64).log2().ceil() as usize;
     let compressor = MicroNovaCompressor::new(depth, epoch_hash);
     let total_steps = compressor.total_steps();
+    // Derive ExternalInputs3 fields from real epoch_hash (SHA-256 of seed).
+    // This function does not have access to transcript data, so values are
+    // deterministically derived from the ceremony seed via domain-separated hashes.
     let steps: Vec<ExternalInputs3<Fr>> = (0..total_steps)
-        .map(|i| ExternalInputs3(Fr::from((i + 1) as u64), Fr::from(1u64), Fr::from(1u64)))
+        .map(|i| {
+            let mut hasher = Sha256::new();
+            hasher.update(b"pvthfhe/micronova/party");
+            hasher.update(&epoch_hash);
+            hasher.update(&(i as u64).to_be_bytes());
+            let party_id_fr = Fr::from_be_bytes_mod_order(&hasher.finalize());
+
+            let mut hasher = Sha256::new();
+            hasher.update(b"pvthfhe/micronova/share");
+            hasher.update(&epoch_hash);
+            hasher.update(&(i as u64).to_be_bytes());
+            let share_hash_fr = Fr::from_be_bytes_mod_order(&hasher.finalize());
+
+            let mut hasher = Sha256::new();
+            hasher.update(b"pvthfhe/micronova/pk");
+            hasher.update(&epoch_hash);
+            hasher.update(&(i as u64).to_be_bytes());
+            let pk_hash_fr = Fr::from_be_bytes_mod_order(&hasher.finalize());
+
+            ExternalInputs3(party_id_fr, share_hash_fr, pk_hash_fr)
+        })
         .collect();
     let _proof = compressor
         .prove_tree(&steps)

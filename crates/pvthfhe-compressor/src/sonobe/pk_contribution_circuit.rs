@@ -61,8 +61,9 @@ impl<F: PrimeField> FCircuit<F> for KeyContributionStepCircuit<F> {
         let sigma_result = sigma_verify_step(cs.clone(), _i)?;
 
         let id_f = F::from_le_bytes_mod_order(&party_id.into_bigint().to_bytes_le());
+        let id_var = FpVar::<F>::new_witness(cs.clone(), || Ok(id_f))?;
         let mut sponge = PoseidonSpongeVar::new();
-        sponge.absorb(&[FpVar::constant(id_f), sigma_result])?;
+        sponge.absorb(&[id_var, sigma_result])?;
         let step_hash = sponge.squeeze_one()?;
         let acc = z_i[0].clone() + step_hash;
         let count = z_i[1].clone() + FpVar::constant(F::one());

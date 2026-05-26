@@ -23,7 +23,8 @@ pub fn prove_keygen_nizk(
         e_i: e_coeffs.to_vec(),
     };
 
-    let proof = pvthfhe_nizk::sigma::prove(session_id, party_id, &stmt, &wit, rng)?;
+    let d_commitment = compute_keygen_d_commitment(session_id, party_id, pk0_bytes, pk1_bytes);
+    let proof = pvthfhe_nizk::sigma::prove(session_id, party_id, &stmt, &wit, rng, &d_commitment)?;
 
     let mut proof_bytes = Vec::new();
     encode_i64_vec_buf(&proof.z_s, &mut proof_bytes);
@@ -50,7 +51,8 @@ pub fn verify_keygen_nizk(
 
     let proof_decoded = decode_keygen_proof(&proof.proof_bytes)?;
 
-    sigma::verify(session_id, party_id, &stmt, &proof_decoded)
+    let d_commitment = compute_keygen_d_commitment(session_id, party_id, pk0_bytes, pk1_bytes);
+    sigma::verify(session_id, party_id, &stmt, &proof_decoded, &d_commitment)
 }
 
 fn decode_keygen_proof(
@@ -90,6 +92,22 @@ fn decode_keygen_proof(
         t_rns,
         ch,
     })
+}
+
+fn compute_keygen_d_commitment(
+    session_id: &[u8],
+    party_id: u32,
+    pk0_bytes: &[u8],
+    pk1_bytes: &[u8],
+) -> [u8; 32] {
+    use sha2::{Digest, Sha256};
+    let mut h = Sha256::new();
+    h.update(b"pvthfhe-keygen-dcommit/v1");
+    h.update(session_id);
+    h.update(&party_id.to_le_bytes());
+    h.update(pk0_bytes);
+    h.update(pk1_bytes);
+    h.finalize().into()
 }
 
 fn encode_i64_vec_buf(v: &[i64], buf: &mut Vec<u8>) {

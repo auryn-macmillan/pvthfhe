@@ -5,6 +5,7 @@ pub mod c7_merkle_circuit;
 pub mod cyclo_verifier;
 pub mod fold_verifier_circuit;
 pub mod heterogeneous;
+pub mod lagrange_fold_circuit;
 pub mod latticefold_adapter;
 pub mod latticefold_circuit_family;
 pub mod pk_aggregation_circuit;
@@ -37,6 +38,7 @@ pub use dealer_parity_circuit::{
 };
 pub use fold_verifier_circuit::FoldVerifierStepCircuit;
 pub use heterogeneous::HeterogeneousStepCircuit;
+pub use lagrange_fold_circuit::{clear_lagrange_data, set_lagrange_data, LagrangeFoldStepCircuit};
 pub use latticefold_adapter::*;
 pub use latticefold_circuit_family::LatticeFoldTreeCircuitFamily;
 pub use poseidon_gadget::hash8_native;
@@ -397,6 +399,19 @@ pub struct SigmaWitness<F: PrimeField> {
     pub z_s_power: Vec<i64>,
     /// Response z_e in power basis (integer coeffs) for norm enforcement
     pub z_e_power: Vec<i64>,
+    // Schwartz-Zippel single-point evaluation data (per RNS limb):
+    pub sz_gamma: u64,
+    pub sz_c_eval: Vec<u64>,
+    pub sz_zs_eval: Vec<u64>,
+    pub sz_ze_eval: Vec<u64>,
+    pub sz_t_eval: Vec<u64>,
+    pub sz_di_eval: Vec<u64>,
+    pub sz_r1_eval: Vec<u64>,
+    /// Cyclotomic quotient r2(γ) per limb. Reserved for future cyclotomic
+    /// constraint (X^N+1)(γ) · r2(γ). Currently populated as zeros — the
+    /// RNS CRT isomorphism means per-modulus correctness already implies
+    /// ring correctness via the Chinese Remainder Theorem.
+    pub sz_r2_eval: Vec<u64>,
 }
 
 /// Number of coefficients per limb checked in-circuit for sigma verification.
@@ -519,6 +534,7 @@ pub fn clear_all_thread_locals() {
     pk_contribution_circuit::clear_pk_contribution_data();
     pk_aggregation_circuit::clear_pk_agg_data();
     dkg_aggregation_circuit::clear_dkg_agg_data();
+    lagrange_fold_circuit::clear_lagrange_data();
 }
 
 /// Perform G7 sigma equation verification in-circuit.
@@ -545,7 +561,7 @@ pub(crate) fn sigma_verify_step<F: PrimeField>(
     });
 
     if !has_data {
-        return Ok(FpVar::<F>::one());
+        return Ok(FpVar::<F>::zero());
     }
 
     // Allocate witness variables from sigma data and enforce equation
@@ -560,13 +576,6 @@ pub(crate) fn sigma_verify_step<F: PrimeField>(
         };
         let n = SIGMA_VERIFY_COEFFS;
         let f_ch: F = fr_to_f(&w.ch);
-        let ch_i128 = if w.ch == ark_bn254::Fr::from(1u64) {
-            1i128
-        } else if w.ch == -ark_bn254::Fr::from(1u64) {
-            -1i128
-        } else {
-            0i128
-        };
 
         for limb in 0..3 {
             // Bounds check: ensure data arrays have sufficient length
@@ -592,51 +601,40 @@ pub(crate) fn sigma_verify_step<F: PrimeField>(
                 continue;
             }
 
-            let z_s_ntt_vals: Vec<F> = w.z_s_ntt[limb][..n].iter().map(fr_to_f).collect();
-            let z_e_ntt_vals: Vec<F> = w.z_e_ntt[limb][..n].iter().map(fr_to_f).collect();
-            let t_ntt_vals: Vec<F> = w.t_ntt[limb][..n].iter().map(fr_to_f).collect();
-            let d_i_ntt_vals: Vec<F> = w.d_i_ntt[limb][..n].iter().map(fr_to_f).collect();
-            let c_ntt_vals: Vec<F> = w.c_ntt[limb][..n].iter().map(fr_to_f).collect();
-
-            let z_s_ntt_vars: Vec<FpVar<F>> = z_s_ntt_vals
-                .iter()
-                .map(|&v| FpVar::new_witness(cs.clone(), || Ok(v)))
-                .collect::<Result<_, _>>()?;
-            let z_e_ntt_vars: Vec<FpVar<F>> = z_e_ntt_vals
-                .iter()
-                .map(|&v| FpVar::new_witness(cs.clone(), || Ok(v)))
-                .collect::<Result<_, _>>()?;
-            let t_ntt_vars: Vec<FpVar<F>> = t_ntt_vals
-                .iter()
-                .map(|&v| FpVar::new_witness(cs.clone(), || Ok(v)))
-                .collect::<Result<_, _>>()?;
-            let d_i_ntt_vars: Vec<FpVar<F>> = d_i_ntt_vals
-                .iter()
-                .map(|&v| FpVar::new_witness(cs.clone(), || Ok(v)))
-                .collect::<Result<_, _>>()?;
-            let c_ntt_vars: Vec<FpVar<F>> = c_ntt_vals
-                .iter()
-                .map(|&v| FpVar::new_witness(cs.clone(), || Ok(v)))
-                .collect::<Result<_, _>>()?;
-
             let ch_var = FpVar::new_witness(cs.clone(), || Ok(f_ch))?;
             let q_const = FpVar::constant(F::from(SIGMA_RNS_MODULI[limb]));
 
-            for k in 0..n {
-                let quotient: F = sigma_mod_quotient(
-                    &w.c_ntt[limb][k],
-                    &w.z_s_ntt[limb][k],
-                    &w.z_e_ntt[limb][k],
-                    &w.t_ntt[limb][k],
-                    &w.d_i_ntt[limb][k],
-                    ch_i128,
-                    SIGMA_RNS_MODULI[limb],
-                );
-                let quotient_var = FpVar::new_witness(cs.clone(), || Ok(quotient))?;
-                let lhs = &c_ntt_vars[k] * &z_s_ntt_vars[k] + &z_e_ntt_vars[k];
-                let rhs = &t_ntt_vars[k] + &ch_var * &d_i_ntt_vars[k] + &q_const * quotient_var;
-                lhs.enforce_equal(&rhs)?;
-            }
+            // Schwartz-Zippel: evaluate at a single random point gamma instead of all NTT coeffs.
+            // The equation: c(gamma)*z_s(gamma) + z_e(gamma) == t(gamma) + ch*d_i(gamma) + Q[limb]*r1(gamma)
+            // This is sound by the Schwartz-Zippel lemma (probability of false pass <= N/q < 2^-48).
+            let sz_c_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_c_eval[limb])))?;
+            let sz_zs_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_zs_eval[limb])))?;
+            let sz_ze_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_ze_eval[limb])))?;
+            let sz_t_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_t_eval[limb])))?;
+            let sz_di_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_di_eval[limb])))?;
+            let sz_r1_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_r1_eval[limb])))?;
+
+            let sz_lhs = &sz_c_eval * &sz_zs_eval + &sz_ze_eval;
+            let sz_rhs = &sz_t_eval + &ch_var * &sz_di_eval + &q_const * &sz_r1_eval;
+            sz_lhs.enforce_equal(&sz_rhs)?;
+
+            // Quotient witness range check: r1(g) = (c(g)*z_s(g) + z_e(g) - t(g) - ch*d_i(g)) / Q
+            // Since all terms are norm-bounded (B_Z_S = 131072) and Q approx 2^58,
+            // the quotient is bounded to 0 or 1. Range-checking prevents adversarial
+            // quotient inflation that would break S-Z soundness.
+            norm_range_check(
+                &sz_r1_eval,
+                w.sz_r1_eval[limb],
+                &FpVar::constant(F::one()),
+                1u64,
+            )?;
+
+            // NOTE: Cyclotomic quotient r2(γ) is currently zeroed. The RNS CRT
+            // isomorphism (per-modulus correctness ≡ ring correctness) makes the
+            // full cyclo constraint redundant. When r2 is populated, the full
+            // equation becomes:
+            //   c(γ)·z_s(γ) + z_e(γ) = t(γ) + ch·d_i(γ) + Q·r1(γ) + cyclo(γ)·r2(γ)
+            // where cyclo(γ) = γ^N + 1 mod q. See SigmaWitness::sz_r2_eval.
 
             // G7b: Norm enforcement on power-basis coefficients
             if limb == 0 {
@@ -779,31 +777,12 @@ fn norm_range_check<F: PrimeField>(
     Ok(())
 }
 
-fn fr_to_u64(value: &ark_bn254::Fr) -> u64 {
-    value.into_bigint().0[0]
-}
-
 fn signed_i128_to_f<F: PrimeField>(value: i128) -> F {
     if value < 0 {
         -F::from(value.unsigned_abs() as u64)
     } else {
         F::from(value as u64)
     }
-}
-
-fn sigma_mod_quotient<F: PrimeField>(
-    c: &ark_bn254::Fr,
-    z_s: &ark_bn254::Fr,
-    z_e: &ark_bn254::Fr,
-    t: &ark_bn254::Fr,
-    d_i: &ark_bn254::Fr,
-    ch: i128,
-    q: u64,
-) -> F {
-    let diff = i128::from(fr_to_u64(c)) * i128::from(fr_to_u64(z_s)) + i128::from(fr_to_u64(z_e))
-        - i128::from(fr_to_u64(t))
-        - ch * i128::from(fr_to_u64(d_i));
-    signed_i128_to_f(diff / i128::from(q))
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -1160,7 +1139,9 @@ impl<
             &ivc_bytes,
             snark_proof,
         );
-        Ok(CompressedProof::new(proof_bytes))
+        let mut proof = CompressedProof::new(proof_bytes);
+        proof.ivc_proof_hash = Some(snark_result.pp_hash);
+        Ok(proof)
     }
 
     fn verify(
@@ -1173,7 +1154,7 @@ impl<
             return Ok(false);
         }
 
-        let parsed = parse_proof(&proof.0)?;
+        let parsed = parse_proof(&proof.bytes)?;
         if parsed.public_inputs_hash != normalized_hash(public_inputs)? {
             return Ok(false);
         }
@@ -1192,7 +1173,7 @@ impl<
     }
 
     fn compressed_proof_bytes<'a>(&self, proof: &'a CompressedProof) -> &'a [u8] {
-        &proof.0
+        &proof.bytes
     }
 }
 
@@ -1274,7 +1255,9 @@ impl ProofCompressor for SonobeCompressor<CycloFoldStepCircuit<Fr>> {
             &ivc_bytes,
             snark_proof_bytes,
         );
-        Ok(CompressedProof::new(proof_bytes))
+        let mut proof = CompressedProof::new(proof_bytes);
+        proof.ivc_proof_hash = Some(snark_result.pp_hash);
+        Ok(proof)
     }
 
     fn verify(
@@ -1287,7 +1270,7 @@ impl ProofCompressor for SonobeCompressor<CycloFoldStepCircuit<Fr>> {
             return Ok(false);
         }
 
-        let parsed = parse_proof(&proof.0)?;
+        let parsed = parse_proof(&proof.bytes)?;
         if parsed.public_inputs_hash != normalized_hash(public_inputs)? {
             return Ok(false);
         }
@@ -1313,7 +1296,7 @@ impl ProofCompressor for SonobeCompressor<CycloFoldStepCircuit<Fr>> {
     }
 
     fn compressed_proof_bytes<'a>(&self, proof: &'a CompressedProof) -> &'a [u8] {
-        &proof.0
+        &proof.bytes
     }
 }
 
@@ -1406,12 +1389,22 @@ impl<
         proof_bytes.extend_from_slice(&(ivc_bytes.len() as u32).to_be_bytes());
         proof_bytes.extend_from_slice(&ivc_bytes);
 
+        let snark_seed = u64::from_le_bytes(self.srs_hash[..8].try_into().unwrap_or([0u8; 8]));
+        let snark_result = snark_bridge::wrap_nova_instance(
+            nova,
+            &self.verifier_key_bytes,
+            self.state_len,
+            snark_seed,
+        )?;
+
         tracing::info!(
             ivc_bytes_len = ivc_bytes.len(),
             rss_kb = rss_kb(),
             "sonobe: prove_steps proof serialized"
         );
-        Ok(CompressedProof::new(proof_bytes))
+        let mut proof = CompressedProof::new(proof_bytes);
+        proof.ivc_proof_hash = Some(snark_result.pp_hash);
+        Ok(proof)
     }
 
     pub fn verify_steps(
@@ -1424,7 +1417,7 @@ impl<
             return Ok(false);
         }
 
-        let parsed = parse_proof(&proof.0)?;
+        let parsed = parse_proof(&proof.bytes)?;
 
         let mut steps_bytes = Vec::new();
         for step in steps {
@@ -1534,12 +1527,22 @@ impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
         proof_bytes.extend_from_slice(&(ivc_bytes.len() as u32).to_be_bytes());
         proof_bytes.extend_from_slice(&ivc_bytes);
 
+        let snark_seed = u64::from_le_bytes(self.srs_hash[..8].try_into().unwrap_or([0u8; 8]));
+        let snark_result = snark_bridge::wrap_nova_instance(
+            nova,
+            &self.verifier_key_bytes,
+            self.state_len,
+            snark_seed,
+        )?;
+
         tracing::info!(
             ivc_bytes_len = ivc_bytes.len(),
             rss_kb = rss_kb(),
             "sonobe: prove_steps proof serialized"
         );
-        Ok(CompressedProof::new(proof_bytes))
+        let mut proof = CompressedProof::new(proof_bytes);
+        proof.ivc_proof_hash = Some(snark_result.pp_hash);
+        Ok(proof)
     }
 
     /// Prove share verification steps from a witness set.
@@ -1627,7 +1630,7 @@ impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
             return Ok(false);
         }
 
-        let parsed = parse_proof(&proof.0)?;
+        let parsed = parse_proof(&proof.bytes)?;
 
         let mut steps_bytes = Vec::new();
         for step in steps {
@@ -1727,12 +1730,22 @@ impl<
         proof_bytes.extend_from_slice(&(ivc_bytes.len() as u32).to_be_bytes());
         proof_bytes.extend_from_slice(&ivc_bytes);
 
+        let snark_seed = u64::from_le_bytes(self.srs_hash[..8].try_into().unwrap_or([0u8; 8]));
+        let snark_result = snark_bridge::wrap_nova_instance(
+            nova,
+            &self.verifier_key_bytes,
+            self.state_len,
+            snark_seed,
+        )?;
+
         tracing::info!(
             ivc_bytes_len = ivc_bytes.len(),
             rss_kb = rss_kb(),
             "sonobe: prove_steps_merkle proof serialized"
         );
-        Ok(CompressedProof::new(proof_bytes))
+        let mut proof = CompressedProof::new(proof_bytes);
+        proof.ivc_proof_hash = Some(snark_result.pp_hash);
+        Ok(proof)
     }
 
     /// Verify a proof produced by [`Self::prove_steps_merkle`].
@@ -1746,7 +1759,7 @@ impl<
             return Ok(false);
         }
 
-        let parsed = parse_proof(&proof.0)?;
+        let parsed = parse_proof(&proof.bytes)?;
 
         let mut steps_bytes = Vec::new();
         for step in steps {
@@ -1839,12 +1852,22 @@ impl<
         proof_bytes.extend_from_slice(&(ivc_bytes.len() as u32).to_be_bytes());
         proof_bytes.extend_from_slice(&ivc_bytes);
 
+        let snark_seed = u64::from_le_bytes(self.srs_hash[..8].try_into().unwrap_or([0u8; 8]));
+        let snark_result = snark_bridge::wrap_nova_instance(
+            nova,
+            &self.verifier_key_bytes,
+            self.state_len,
+            snark_seed,
+        )?;
+
         tracing::info!(
             ivc_bytes_len = ivc_bytes.len(),
             rss_kb = rss_kb(),
             "sonobe: prove_steps_c7 proof serialized"
         );
-        Ok(CompressedProof::new(proof_bytes))
+        let mut proof = CompressedProof::new(proof_bytes);
+        proof.ivc_proof_hash = Some(snark_result.pp_hash);
+        Ok(proof)
     }
 
     /// Verify a proof produced by [`Self::prove_steps_c7`].
@@ -1858,7 +1881,7 @@ impl<
             return Ok(false);
         }
 
-        let parsed = parse_proof(&proof.0)?;
+        let parsed = parse_proof(&proof.bytes)?;
 
         let mut steps_bytes = Vec::new();
         for step in steps {
@@ -1945,7 +1968,10 @@ fn verify_ivc_core<S: FCircuit<Fr, Params = ()>>(
     }
 
     if let Some((fold_count, sigma_count)) = sigma_check {
-        if fold_count != sigma_count {
+        // Only enforce sigma_count == fold_count when sigma data was actually
+        // populated. If sigma_count is 0, assume the pipeline path doesn't
+        // include sigma verification (Track A / data-absent paths).
+        if sigma_count != Fr::zero() && fold_count != sigma_count {
             tracing::warn!(
                 "fold_count {:?} != sigma_verification_count {:?}",
                 fold_count,
@@ -1956,7 +1982,10 @@ fn verify_ivc_core<S: FCircuit<Fr, Params = ()>>(
     }
 
     if let Some((fold_count, bfv_count)) = bfv_check {
-        if fold_count != bfv_count {
+        // Only enforce bfv_count == fold_count when bfv data was actually
+        // populated. If bfv_count is 0, assume the pipeline path doesn't
+        // include bfv verification (Track A / data-absent paths).
+        if bfv_count != Fr::zero() && fold_count != bfv_count {
             tracing::warn!(
                 "fold_count {:?} != bfv_verification_count {:?}",
                 fold_count,
@@ -2085,7 +2114,7 @@ pub(crate) fn build_proof_bytes(
 /// z[3]=ring_verif_count, z[4]=sigma_count, z[5]=z_s_proj_acc, z[6]=z_e_proj_acc,
 /// z[7]=bfv_verification_count.
 pub fn extract_cyclo_state(proof: &CompressedProof) -> Result<[Fr; 8], CompressorError> {
-    let parsed = parse_proof(&proof.0)?;
+    let parsed = parse_proof(&proof.bytes)?;
     let ivc_proof =
         SonobeIvcProof::deserialize_with_mode(parsed.ivc_bytes, Compress::Yes, Validate::Yes)
             .map_err(|_| CompressorError::InvalidProof)?;

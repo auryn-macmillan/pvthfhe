@@ -109,6 +109,7 @@ impl NizkAdapter for CycloNizkAdapter {
             &sigma_stmt,
             &sigma_wit,
             rng,
+            &stmt.pvss_commitment,
         )?;
 
         let proof_bytes = encode_proof(
@@ -191,6 +192,7 @@ impl NizkAdapter for CycloNizkAdapter {
             u32::from(stmt.participant_id),
             &sigma_stmt,
             &sigma_proof,
+            &stmt.pvss_commitment,
         )?;
 
         if !bool::from(encoded_commitment.ct_eq(&stmt.pvss_commitment)) {

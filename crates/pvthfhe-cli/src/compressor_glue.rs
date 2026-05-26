@@ -28,6 +28,9 @@ pub const SONOBE_COMPRESSOR_ID: &str = "sonobe-nova-bn254-grumpkin";
 pub struct E2eCompressedProof {
     /// Stable digest of the compressed proof bytes.
     pub digest: [u8; 32],
+    /// Hash of the transparent IVC proof. Threaded from
+    /// [`CompressedProof::ivc_proof_hash`] after `wrap_nova_instance`.
+    pub ivc_proof_hash: Option<[u8; 32]>,
     #[cfg(feature = "sonobe-compressor")]
     pub sonobe_proof: Option<SonobeProof>,
 }
@@ -99,8 +102,10 @@ impl Compressor {
                 let proof = inner
                     .prove(&acc, &public_inputs)
                     .map_err(compressor_error_to_anyhow)?;
+                let ivc_hash = proof.ivc_proof_hash;
                 Ok(E2eCompressedProof {
                     digest: sha256_bytes(inner.compressed_proof_bytes(&proof)),
+                    ivc_proof_hash: ivc_hash,
                     sonobe_proof: Some(proof),
                 })
             }
@@ -115,6 +120,7 @@ impl Compressor {
                 }
                 Ok(E2eCompressedProof {
                     digest: hasher.finalize().into(),
+                    ivc_proof_hash: None,
                     #[cfg(feature = "sonobe-compressor")]
                     sonobe_proof: None,
                 })

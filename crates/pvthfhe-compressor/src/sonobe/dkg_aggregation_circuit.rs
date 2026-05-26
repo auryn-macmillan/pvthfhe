@@ -66,8 +66,11 @@ impl<F: PrimeField> FCircuit<F> for DkgAggregationStepCircuit<F> {
             sum += s;
         }
 
+        let step_f = F::from((_i + 1) as u64);
+        let step_var = FpVar::<F>::new_witness(cs.clone(), || Ok(step_f))?;
+
         let mut sponge = PoseidonSpongeVar::new();
-        sponge.absorb(&[sum, FpVar::constant(F::from((_i + 1) as u64))])?;
+        sponge.absorb(&[sum, step_var])?;
         let step_hash = sponge.squeeze_one()?;
         let acc = z_i[0].clone() + step_hash;
         let count = z_i[1].clone() + FpVar::constant(F::one());

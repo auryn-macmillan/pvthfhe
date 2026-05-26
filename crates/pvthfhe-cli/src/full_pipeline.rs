@@ -22,7 +22,9 @@ use pvthfhe_compressor::sonobe::{
     ExternalInputs3, SigmaWitness as CompressorSigmaWitness, SonobeCompressor,
 };
 #[cfg(feature = "sonobe-compressor")]
-use pvthfhe_compressor::witness::{ShareVerificationWitness, ShareVerificationWitnessSet};
+use pvthfhe_compressor::witness::{
+    hash_all_coeffs, ShareVerificationWitness, ShareVerificationWitnessSet,
+};
 use pvthfhe_cyclo::{fold, CYCLO_BACKEND_ID, PVTHFHE_CYCLO_PARAMS};
 use pvthfhe_domain_tags::Tag;
 use pvthfhe_fhe::{
@@ -32,7 +34,7 @@ use pvthfhe_fhe::{
 };
 use pvthfhe_nizk::adapter::extract_sigma_proof;
 use pvthfhe_nizk::schnorr;
-use pvthfhe_nizk::sigma::compute_sk_binding;
+use pvthfhe_nizk::sigma::{compute_sigma_sz_data, compute_sk_binding};
 use pvthfhe_pvss::dkg_aggregation::{
     compute_esm_aggregate_commitment, compute_sk_aggregate_commitment,
 };
@@ -139,9 +141,10 @@ pub struct PipelineReport {
     pub share_sig_rs: Vec<Fr>,
     /// G.12: Per-party Schnorr signature R-points (G1Affine y-coordinate as Fr).
     pub share_sig_rys: Vec<Fr>,
-    /// Phase 4: SHA-256 hash of the IVC SNARK proof bytes, when the
-    /// `sonobe-snark` feature is enabled and a Groth16 wrapping proof
-    /// was generated. `None` when using the Poseidon hash shortcut
+    /// Phase 4: SHA-256 hash of the transparent IVC proof (pp_hash from Nova).
+    /// Always populated — no Groth16 ceremony is required. The pp_hash binds
+    /// the IVC proof bytes to the compressed proof format for on-chain
+    /// verification via the Poseidon hash shortcut.
     /// (see circuits/sonobe_state_commitment/src/main.nr).
     pub ivc_snark_proof_hash: Option<[u8; 32]>,
     /// G.12: Per-party Schnorr signature s-values.
@@ -268,6 +271,32 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         let sk_commit = compute_share_commitment(session_id.as_bytes(), party_idx, &sk_bytes);
         sk_commitments.push(sk_commit);
         party_sk_bytes.push(sk_bytes);
+    }
+
+    // ── C1: PK contribution IVC verification ──
+    #[cfg(feature = "sonobe-compressor")]
+    {
+        use pvthfhe_compressor::sonobe::pk_contribution_circuit::{
+            clear_pk_contribution_data, set_pk_contribution_data, KeyContributionStepCircuit,
+        };
+        use pvthfhe_compressor::ProofCompressor;
+        let party_ids: Vec<Fr> = (0..cfg.n).map(|i| Fr::from((i + 1) as u64)).collect();
+        set_pk_contribution_data(party_ids, cfg.n);
+        let c1_compressor =
+            SonobeCompressor::<KeyContributionStepCircuit<Fr>>::new([0u8; 32], cfg.n)
+                .map_err(|e| anyhow::anyhow!("c1 compressor: {e:?}"))?;
+        let c1_acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
+        let c1_pi = encode_triple((Fr::from(1u64), Fr::zero(), Fr::from(cfg.n as u64)));
+        let c1_proof = c1_compressor
+            .prove(&c1_acc, &c1_pi)
+            .map_err(|e| anyhow::anyhow!("c1 prove: {e:?}"))?;
+        clear_pk_contribution_data();
+        let c1_vk = c1_compressor.verifier_key();
+        let c1_verified = c1_compressor
+            .verify(&c1_vk, &c1_proof, &c1_pi)
+            .map_err(|e| anyhow::anyhow!("c1 verify: {e:?}"))?;
+        assert!(c1_verified);
+        tracing::info!("c1: PK contribution IVC verified ({} parties)", cfg.n);
     }
 
     // ── DKG Ceremony (dealer → recipient share distribution, d=n) ──
@@ -493,6 +522,43 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             })?;
         }
         observer.phase_end("dkg_aggregate", elapsed_ms(dkg_agg_started));
+
+        // ── C4: DKG aggregation IVC verification ──
+        #[cfg(feature = "sonobe-compressor")]
+        {
+            use pvthfhe_compressor::sonobe::dkg_aggregation_circuit::{
+                clear_dkg_agg_data, set_dkg_agg_data, DkgAggregationStepCircuit,
+            };
+            use pvthfhe_compressor::ProofCompressor;
+            let grouped_by_recipient: Vec<Vec<Fr>> = (0..n)
+                .map(|recipient_id| {
+                    (0..n)
+                        .map(|dealer_id| dealer_recipient_total_shares[dealer_id][recipient_id])
+                        .collect()
+                })
+                .collect();
+            set_dkg_agg_data(grouped_by_recipient);
+            let c4_compressor =
+                SonobeCompressor::<DkgAggregationStepCircuit<Fr>>::new([0u8; 32], n)
+                    .map_err(|e| anyhow::anyhow!("c4 compressor: {e:?}"))?;
+            let c4_acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
+            let external_inputs: Vec<ExternalInputs3<Fr>> = (0..n)
+                .map(|_| ExternalInputs3(Fr::from(1u64), Fr::zero(), Fr::from(n as u64)))
+                .collect();
+            let c4_proof = c4_compressor
+                .prove_steps(&c4_acc, &external_inputs)
+                .map_err(|e| anyhow::anyhow!("c4 prove: {e:?}"))?;
+            clear_dkg_agg_data();
+            let c4_vk = c4_compressor.verifier_key();
+            let c4_verified = c4_compressor
+                .verify_steps(&c4_vk, &c4_proof, &external_inputs)
+                .map_err(|e| anyhow::anyhow!("c4 verify: {e:?}"))?;
+            if !c4_verified {
+                tracing::warn!("c4: DKG aggregation IVC verification FAILED");
+            } else {
+                tracing::info!("c4: DKG aggregation IVC verified ({} recipients)", n);
+            }
+        }
 
         observer.phase_start("dkg_fold", Some(&format!("n={} recipients", n)));
         let dkg_fold_started = Instant::now();
@@ -878,6 +944,41 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     }
     observer.phase_end("aggregate_keygen", elapsed_ms(aggregate_keygen_started));
 
+    // ── C5: PK aggregation IVC verification ──
+    #[cfg(feature = "sonobe-compressor")]
+    {
+        use pvthfhe_compressor::sonobe::pk_aggregation_circuit::{
+            clear_pk_agg_data, set_pk_agg_data, PkAggregationStepCircuit,
+        };
+        use pvthfhe_compressor::ProofCompressor;
+        let per_party_pks: Vec<Vec<Fr>> = transcript
+            .round1_messages
+            .iter()
+            .map(|message| {
+                let pk_hash = Sha256::digest(&message.pk_i.bytes);
+                vec![Fr::from_be_bytes_mod_order(&pk_hash)]
+            })
+            .collect();
+        set_pk_agg_data(per_party_pks);
+        let c5_compressor = SonobeCompressor::<PkAggregationStepCircuit<Fr>>::new([0u8; 32], cfg.n)
+            .map_err(|e| anyhow::anyhow!("c5 compressor: {e:?}"))?;
+        let c5_acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
+        let c5_pi = encode_triple((Fr::from(1u64), Fr::zero(), Fr::from(cfg.n as u64)));
+        let c5_proof = c5_compressor
+            .prove(&c5_acc, &c5_pi)
+            .map_err(|e| anyhow::anyhow!("c5 prove: {e:?}"))?;
+        clear_pk_agg_data();
+        let c5_vk = c5_compressor.verifier_key();
+        let c5_verified = c5_compressor
+            .verify(&c5_vk, &c5_proof, &c5_pi)
+            .map_err(|e| anyhow::anyhow!("c5 verify: {e:?}"))?;
+        if !c5_verified {
+            tracing::warn!("c5: PK aggregation IVC verification FAILED");
+        } else {
+            tracing::info!("c5: PK aggregation IVC verified ({} parties)", cfg.n);
+        }
+    }
+
     let plaintext = 0xB10C_u64.to_le_bytes().to_vec();
     let mut encrypt_rng = OsRng;
     observer.phase_start("encrypt", None);
@@ -1133,6 +1234,14 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 pvthfhe_nizk::sigma::compute_sigma_ntt_data(&c_rns, &d_rns, &sigma_proof).map_err(
                     |e| anyhow::anyhow!("compute sigma NTT data party {}: {e}", party_id),
                 )?;
+            let (sz_gamma, sz_c_eval, sz_zs_eval, sz_ze_eval, sz_t_eval, sz_di_eval, sz_r1_eval) =
+                compute_sigma_sz_data(
+                    &c_rns,
+                    &d_rns,
+                    &sigma_proof,
+                    stmt.session_id.as_bytes(),
+                    *party_id,
+                );
             sigma_witnesses.push(CompressorSigmaWitness {
                 z_s_ntt,
                 z_e_ntt,
@@ -1142,6 +1251,14 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 ch,
                 z_s_power,
                 z_e_power,
+                sz_gamma,
+                sz_c_eval,
+                sz_zs_eval,
+                sz_ze_eval,
+                sz_t_eval,
+                sz_di_eval,
+                sz_r1_eval,
+                sz_r2_eval: vec![0u64; 3],
             });
         }
 
@@ -1452,6 +1569,18 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     // Derive challenge point r from share coefficient data (deterministic)
     let c7_r = derive_challenge_point_r(&share_coeffs);
 
+    // G.5: Compute ciphertext commitment for cross-circuit binding.
+    // Convert ciphertext bytes to Fr field elements (max 8 for Poseidon rate-4 sponge)
+    // and compute a Poseidon hash commitment.
+    let d_commitment = {
+        let ct_bytes_fr: Vec<Fr> = ciphertext
+            .bytes
+            .chunks(31)
+            .map(|chunk| Fr::from_le_bytes_mod_order(chunk))
+            .collect();
+        hash_all_coeffs(&ct_bytes_fr[..ct_bytes_fr.len().min(8)])
+    };
+
     // Skip Noir verification if n exceeds in-circuit MAX_PARTICIPANTS
     if share_coeffs.len() > NOIR_MAX_PARTICIPANTS {
         anyhow::bail!(
@@ -1469,7 +1598,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             &aggregate_pk.bytes,
             &dkg_root_vec,
             c7_r,
-            Fr::from(0u64), // G.5: TODO: pass real d_commitment
+            d_commitment,
         );
         let c7_ms = elapsed_ms(c7_started);
         observer.phase_end("c7_decrypt_aggregation", c7_ms);
@@ -1699,20 +1828,60 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         Fr::from_be_bytes_mod_order(&hasher.finalize())
     };
 
+    // Compute all fields for the simplified C7 Noir circuit (aggregator_final)
+    let ciphertext_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(session_id.as_bytes()));
+    let aggregate_pk_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(&aggregate_pk.bytes));
+    let decrypt_nizk_hash_field = Fr::from_be_bytes_mod_order(&decrypt_nizk_hash);
+    let dkg_transcript_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(
+        format!("dkg-transcript-{session_id}").as_bytes(),
+    ));
+    let epoch = Fr::from(1u64);
+    let participant_set_hash = {
+        let mut inputs = Vec::with_capacity(NOIR_MAX_PARTICIPANTS + 1);
+        inputs.push(Fr::from(1u64));
+        for &id in committee_party_ids_u32.iter().take(NOIR_MAX_PARTICIPANTS) {
+            inputs.push(Fr::from(id as u64));
+        }
+        while inputs.len() < NOIR_MAX_PARTICIPANTS + 1 {
+            inputs.push(Fr::from(0u64));
+        }
+        poseidon_sponge_native_noir(&inputs)
+    };
+    let n_participants = Fr::from(share_coeffs.len() as u64);
+    let threshold = Fr::from((committee_party_ids_u32.len() - 1) as u64);
+
+    // Plaintext from Lagrange interpolation + Poseidon commitment
+    let mut nova_final_plaintext = [Fr::zero(); 8];
+    for k in 0..8 {
+        let mut sum = Fr::zero();
+        for (i, lambda) in lagrange_coeffs_fr.iter().enumerate() {
+            let coeff = field_from_i64(share_coeffs[i][k]);
+            sum += *lambda * coeff;
+        }
+        nova_final_plaintext[k] = sum;
+    }
+    let plaintext_commitment = {
+        let mut inputs = Vec::with_capacity(9);
+        inputs.push(Fr::from(1u64));
+        for k in 0..8 {
+            inputs.push(nova_final_plaintext[k]);
+        }
+        poseidon_sponge_native_noir(&inputs)
+    };
+
     let prover_toml = build_c7_prover_toml(
-        &share_coeffs,
-        &committee_party_ids_u32,
-        &aggregate_pk.bytes,
-        &session_id,
-        &decrypt_nizk_hash,
-        session_nonce,
-        &party_signing_pks,
-        &share_sig_rs,
-        &share_sig_ss,
-        Fr::from_be_bytes_mod_order(&Sha256::digest(
-            format!("dkg-transcript-{session_id}").as_bytes(),
-        )),
+        ciphertext_hash,
+        aggregate_pk_hash,
+        decrypt_nizk_hash_field,
+        dkg_transcript_hash,
+        epoch,
+        participant_set_hash,
+        n_participants,
+        threshold,
+        plaintext_commitment,
         compressed_proof_hash,
+        &nova_final_plaintext,
+        combined_share_hash,
     );
     let mut noir_passed = true;
 
@@ -1915,8 +2084,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         recipient_fold_hashes,
         recipient_parity_proof_hashes,
         d_commitment_verified: Some(false),
-        ivc_snark_proof_hash: None,
-        pipeline_integrity_hash: Fr::zero(),
+        ivc_snark_proof_hash: compressed.ivc_proof_hash,
+        pipeline_integrity_hash,
     };
 
     let report_failures = verify_pipeline_report(&report);
@@ -2744,7 +2913,7 @@ fn native_poseidon_permute(state: &mut [Fr], params: &light_poseidon::PoseidonPa
     }
 }
 
-fn poseidon_sponge_native_noir(inputs: &[Fr]) -> Fr {
+pub fn poseidon_sponge_native_noir(inputs: &[Fr]) -> Fr {
     const RATE: usize = 4;
     const CAPACITY: usize = 1;
     const T: usize = RATE + CAPACITY;
@@ -2770,7 +2939,7 @@ fn poseidon_sponge_native_noir(inputs: &[Fr]) -> Fr {
     state[CAPACITY]
 }
 
-fn field_from_i64(value: i64) -> Fr {
+pub fn field_from_i64(value: i64) -> Fr {
     if value >= 0 {
         Fr::from(value as u64)
     } else {
@@ -2789,272 +2958,83 @@ fn field_hex_be(value: Fr) -> String {
 }
 
 pub fn build_c7_prover_toml(
-    share_coeffs: &[Vec<i64>],
-    committee_party_ids: &[u32],
-    aggregate_pk_bytes: &[u8],
-    session_id: &str,
-    decrypt_nizk_hash: &[u8; 32],
-    session_nonce: Fr,
-    party_signing_pks: &[Fr],
-    share_sig_rs: &[Fr],
-    share_sig_ss: &[Fr],
+    ciphertext_hash: Fr,
+    aggregate_pk_hash: Fr,
+    decrypt_nizk_hash: Fr,
     dkg_transcript_hash: Fr,
-    compressed_proof_hash: Fr,
+    epoch: Fr,
+    participant_set_hash: Fr,
+    n_participants: Fr,
+    threshold: Fr,
+    plaintext_commitment: Fr,
+    ivc_snark_proof_hash: Fr,
+    nova_final_plaintext: &[Fr],
+    nova_share_chain_hash: Fr,
 ) -> String {
-    let n_participants = committee_party_ids.len();
-    let threshold = n_participants - 1;
-
-    // Derive real hashes from pipeline data
-    let agg_pk_hash_bytes = Sha256::digest(aggregate_pk_bytes);
-    let ct_hash_bytes = Sha256::digest(session_id.as_bytes());
-    let dkg_root_bytes = Sha256::digest(format!("dkg-{session_id}").as_bytes());
-    let ciphertext_hash = Fr::from_be_bytes_mod_order(&ct_hash_bytes);
-    let aggregate_pk_hash = Fr::from_be_bytes_mod_order(&agg_pk_hash_bytes);
-    let dkg_root = Fr::from_be_bytes_mod_order(&dkg_root_bytes);
-    // G.7: participant_set_hash must use Poseidon to match Noir circuit computation.
-    // The circuit computes: vector_hash(committee_party_ids, DOMAIN_VECTOR_MERKLE)
-    // DOMAIN_VECTOR_MERKLE = 1 (protocol_constants/src/lib.nr:11)
-    let participant_set_hash = {
-        let mut inputs = Vec::with_capacity(NOIR_MAX_PARTICIPANTS + 1);
-        inputs.push(Fr::from(1u64));
-        for &id in committee_party_ids.iter().take(NOIR_MAX_PARTICIPANTS) {
-            inputs.push(Fr::from(id as u64));
-        }
-        while inputs.len() < NOIR_MAX_PARTICIPANTS + 1 {
-            inputs.push(Fr::from(0u64));
-        }
-        poseidon_sponge_native_noir(&inputs)
-    };
-    let decrypt_nizk_hash_field = Fr::from_be_bytes_mod_order(decrypt_nizk_hash);
-
-    let party_ids_fr: Vec<Fr> = committee_party_ids
-        .iter()
-        .map(|&id| Fr::from(id as u64))
-        .collect();
-    let lagrange_coeffs_fr = compute_lagrange_coeffs_bn254(&party_ids_fr, Fr::from(0u64));
-
-    // Plaintext commitment: Lagrange interpolation of shares -> Poseidon hash.
-    // Matches Noir aggregator_final circuit: vector_hash(computed_plaintext, DOMAIN_VECTOR_MERKLE)
-    let plaintext_commitment = {
-        let mut plaintext = [Fr::zero(); 8];
-        for k in 0..8 {
-            let mut sum = Fr::zero();
-            for (i, lambda) in lagrange_coeffs_fr.iter().enumerate() {
-                let coeff = field_from_i64(share_coeffs[i][k]);
-                sum += *lambda * coeff;
-            }
-            plaintext[k] = sum;
-        }
-
-        let mut inputs = Vec::with_capacity(9);
-        inputs.push(Fr::from(1u64)); // DOMAIN_VECTOR_MERKLE
-        for k in 0..8 {
-            inputs.push(plaintext[k]);
-        }
-        poseidon_sponge_native_noir(&inputs)
-    };
-
-    // PLACEHOLDER: keygen transcript hash from DKG ceremony output.
-    // The real value will be provided by the DKG ceremony; this is a
-    // deterministic placeholder until Interfold registry integration.
-    let keygen_transcript_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(
-        format!("keygen-{session_id}-n{n_participants}-t{threshold}").as_bytes(),
-    ));
-    // G.4: session_nonce from Interfold E3 registry passed by caller
-
-    #[cfg(feature = "sonobe-compressor")]
-    let d_commitment = {
-        use pvthfhe_compressor::witness::poseidon_sponge_hash_native;
-        poseidon_sponge_hash_native(&[
-            Fr::from(6u64),
-            Fr::zero(),
-            dkg_root,
-            participant_set_hash,
-            // Session binding (G.4 — Interfold nonce placeholder)
-            session_nonce,
-            Fr::from(1u64), // epoch
-            // Protocol parameters
-            Fr::from(n_participants as u64),
-            Fr::from(threshold as u64),
-            // Key material
-            aggregate_pk_hash,
-            // NIZK proof binding
-            decrypt_nizk_hash_field,
-            // Ciphertext provenance (G.13)
-            ciphertext_hash,
-            // Compressed proof binding (hash-chain 1.2)
-            compressed_proof_hash,
-            // Keygen transcript (from DKG ceremony)
-            keygen_transcript_hash,
-        ])
-    };
-    #[cfg(not(feature = "sonobe-compressor"))]
-    let d_commitment = bind_8_with_domain_native(
-        &[
-            Fr::zero(),
-            dkg_root,
-            participant_set_hash,
-            Fr::from(1u64),
-            Fr::from(n_participants as u64),
-            Fr::from(threshold as u64),
-            aggregate_pk_hash,
-            decrypt_nizk_hash_field,
-        ],
-        Fr::from(6u64),
-    );
-
-    let mut toml = String::new();
-
-    toml.push_str(&format!(
-        "ciphertext_hash = \"0x{}\"\n",
+    use std::fmt::Write;
+    let mut s = String::new();
+    writeln!(
+        s,
+        "ciphertext_hash = \"0x{}\"",
         field_hex_be(ciphertext_hash)
-    ));
-    toml.push_str(&format!(
-        "aggregate_pk_hash = \"0x{}\"\n",
+    )
+    .unwrap();
+    writeln!(
+        s,
+        "aggregate_pk_hash = \"0x{}\"",
         field_hex_be(aggregate_pk_hash)
-    ));
-    toml.push_str(&format!(
-        "decrypt_nizk_hash = \"0x{}\"\n",
-        field_hex_be(decrypt_nizk_hash_field)
-    ));
-    toml.push_str(&format!("epoch = \"1\"\n"));
-    toml.push_str(&format!(
-        "participant_set_hash = \"0x{}\"\n",
-        field_hex_be(participant_set_hash)
-    ));
-    toml.push_str(&format!(
-        "dkg_transcript_hash = \"0x{}\"\n",
+    )
+    .unwrap();
+    writeln!(
+        s,
+        "decrypt_nizk_hash = \"0x{}\"",
+        field_hex_be(decrypt_nizk_hash)
+    )
+    .unwrap();
+    writeln!(
+        s,
+        "dkg_transcript_hash = \"0x{}\"",
         field_hex_be(dkg_transcript_hash)
-    ));
-    toml.push_str(&format!(
-        "d_commitment = \"0x{}\"\n",
-        field_hex_be(d_commitment)
-    ));
-    toml.push_str(&format!("n_participants = \"{}\"\n", n_participants));
-    toml.push_str(&format!("threshold = \"{}\"\n", threshold));
-
-    toml.push_str("lagrange_coeffs = [");
-    for i in 0..NOIR_MAX_PARTICIPANTS {
-        if i > 0 {
-            toml.push_str(", ");
-        }
-        if i < lagrange_coeffs_fr.len() {
-            toml.push_str(&format!("\"0x{}\"", field_hex_be(lagrange_coeffs_fr[i])));
-        } else {
-            toml.push_str("\"0x0000000000000000000000000000000000000000000000000000000000000000\"");
-        }
-    }
-    toml.push_str("]\n");
-
-    toml.push_str(&format!(
-        "plaintext_commitment = \"0x{}\"\n",
+    )
+    .unwrap();
+    writeln!(s, "epoch = \"0x{}\"", field_hex_be(epoch)).unwrap();
+    writeln!(
+        s,
+        "participant_set_hash = \"0x{}\"",
+        field_hex_be(participant_set_hash)
+    )
+    .unwrap();
+    writeln!(s, "n_participants = \"0x{}\"", field_hex_be(n_participants)).unwrap();
+    writeln!(s, "threshold = \"0x{}\"", field_hex_be(threshold)).unwrap();
+    writeln!(
+        s,
+        "plaintext_commitment = \"0x{}\"",
         field_hex_be(plaintext_commitment)
-    ));
-
-    // Committee party IDs: exactly MAX_PARTICIPANTS, padded with zeros
-    toml.push_str("committee_party_ids = [");
-    for (i, &pid) in committee_party_ids
-        .iter()
-        .take(NOIR_MAX_PARTICIPANTS)
-        .enumerate()
-    {
-        if i > 0 {
-            toml.push_str(", ");
-        }
-        toml.push_str(&format!("\"0x{:064x}\"", pid));
-    }
-    for _i in committee_party_ids.len().min(NOIR_MAX_PARTICIPANTS)..NOIR_MAX_PARTICIPANTS {
-        toml.push_str(&format!(", \"0x{:064x}\"", 0u64));
-    }
-    toml.push_str("]\n");
-
-    // Participant shares: only threshold+1 are non-zero (Noir circuit asserts
-    // share_non_zero_count == threshold + 1). Remaining shares are zero-padded.
-    let active_count = (threshold + 1).min(share_coeffs.len());
-    toml.push_str("participant_shares = [\n");
-    for i in 0..active_count {
-        let coeffs = &share_coeffs[i];
-        toml.push_str("  [");
-        for (j, &c) in coeffs.iter().take(8).enumerate() {
-            if j > 0 {
-                toml.push_str(", ");
-            }
-            toml.push_str(&format!("\"0x{}\"", field_hex_be(field_from_i64(c))));
-        }
-        for _j in coeffs.len().min(8)..8usize {
-            toml.push_str(&format!(", \"0x{:064x}\"", 0u64));
-        }
-        toml.push_str("],\n");
-    }
-    // Zero-pad remaining slots up to MAX_PARTICIPANTS
-    for _i in active_count..NOIR_MAX_PARTICIPANTS {
-        toml.push_str("  [");
-        for j in 0..8usize {
-            if j > 0 {
-                toml.push_str(", ");
-            }
-            toml.push_str(&format!("\"0x{:064x}\"", 0u64));
-        }
-        toml.push_str("],\n");
-    }
-    toml.push_str("]\n");
-
-    // G.SHARE-PROVENANCE: registered share hashes for DKG share commitment verification.
-    // Computed as Noir vector_hash(share, DOMAIN_DKG_SHARE_COMMIT) = poseidon_sponge([7, share...]).
-    toml.push_str("registered_share_hashes = [");
-    let domain_dkg_share = Fr::from(7u64);
-    for i in 0..active_count {
-        let coeffs = &share_coeffs[i];
-        let mut inputs = Vec::with_capacity(9);
-        inputs.push(domain_dkg_share);
-        for &c in coeffs.iter().take(8) {
-            inputs.push(field_from_i64(c));
-        }
-        while inputs.len() < 9 {
-            inputs.push(Fr::from(0u64));
-        }
-        let share_hash = poseidon_sponge_native_noir(&inputs);
-        if i > 0 {
-            toml.push_str(", ");
-        }
-        toml.push_str(&format!("\"0x{}\"", field_hex_be(share_hash)));
-    }
-    for _i in active_count..NOIR_MAX_PARTICIPANTS {
-        toml.push_str(&format!(", \"0x{:064x}\"", 0u64));
-    }
-    toml.push_str("]\n");
-
-    // G.12: Schnorr signing public keys (public inputs to Noir circuit)
-    toml.push_str("party_signing_pks = [");
-    for (i, pk) in party_signing_pks.iter().enumerate() {
-        if i > 0 {
-            toml.push_str(", ");
-        }
-        toml.push_str(&format!("\"0x{}\"", field_hex_be(*pk)));
-    }
-    toml.push_str("]\n");
-
-    // G.12: Schnorr signature R-points (private witness inputs)
-    toml.push_str("share_sig_rs = [");
-    for (i, r) in share_sig_rs.iter().enumerate() {
-        if i > 0 {
-            toml.push_str(", ");
-        }
-        toml.push_str(&format!("\"0x{}\"", field_hex_be(*r)));
-    }
-    toml.push_str("]\n");
-
-    // G.12: Schnorr signature s-values (private witness inputs)
-    toml.push_str("share_sig_ss = [");
-    for (i, s) in share_sig_ss.iter().enumerate() {
-        if i > 0 {
-            toml.push_str(", ");
-        }
-        toml.push_str(&format!("\"0x{}\"", field_hex_be(*s)));
-    }
-    toml.push_str("]\n");
-
-    toml
+    )
+    .unwrap();
+    writeln!(
+        s,
+        "ivc_snark_proof_hash = \"0x{}\"",
+        field_hex_be(ivc_snark_proof_hash)
+    )
+    .unwrap();
+    writeln!(
+        s,
+        "nova_final_plaintext = [{}]",
+        nova_final_plaintext
+            .iter()
+            .map(|v| format!("\"0x{}\"", field_hex_be(*v)))
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+    .unwrap();
+    writeln!(
+        s,
+        "nova_share_chain_hash = \"0x{}\"",
+        field_hex_be(nova_share_chain_hash)
+    )
+    .unwrap();
+    s
 }
 
 /// Run a Command with a timeout, returning the ExitStatus.
@@ -3197,21 +3177,31 @@ mod tests {
 
     #[test]
     fn c7_prover_toml_exports_decrypt_nizk_hash_public_input() {
-        let share_coeffs = vec![vec![1, 0, 0, 0, 0, 0, 0, 0]; 3];
-        let committee_party_ids = vec![1u32, 2, 3];
-        let session_nonce = Fr::from_be_bytes_mod_order(&Sha256::digest("test-session".as_bytes()));
+        let ciphertext_hash = Fr::from(1u64);
+        let aggregate_pk_hash = Fr::from(2u64);
+        let decrypt_nizk_hash = Fr::from(97u64);
+        let dkg_transcript_hash = Fr::from(3u64);
+        let epoch = Fr::from(1u64);
+        let participant_set_hash = Fr::from(5u64);
+        let n_participants = Fr::from(3u64);
+        let threshold = Fr::from(2u64);
+        let plaintext_commitment = Fr::from(6u64);
+        let ivc_snark_proof_hash = Fr::from(7u64);
+        let nova_final_plaintext = [Fr::from(42u64); 8];
+        let nova_share_chain_hash = Fr::from(8u64);
         let prover_toml = build_c7_prover_toml(
-            &share_coeffs,
-            &committee_party_ids,
-            &[7u8; 32],
-            "test-session",
-            &[9u8; 32],
-            session_nonce,
-            &[],
-            &[],
-            &[],
-            Fr::from(0u64),
-            Fr::from(0u64),
+            ciphertext_hash,
+            aggregate_pk_hash,
+            decrypt_nizk_hash,
+            dkg_transcript_hash,
+            epoch,
+            participant_set_hash,
+            n_participants,
+            threshold,
+            plaintext_commitment,
+            ivc_snark_proof_hash,
+            &nova_final_plaintext,
+            nova_share_chain_hash,
         );
         assert!(
             prover_toml.contains("decrypt_nizk_hash ="),

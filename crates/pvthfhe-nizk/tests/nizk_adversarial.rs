@@ -173,10 +173,10 @@ fn different_session_ids_produce_different_challenges() {
         let mut rng_a = ChaCha20Rng::seed_from_u64(0xC4D1FF02 ^ seed);
         let mut rng_b = ChaCha20Rng::seed_from_u64(0xC4D1FF02 ^ seed);
 
-        let proof_a =
-            sigma_prove(b"session-alpha", 1, &stmt, &wit, &mut rng_a).expect("sigma prove a");
-        let proof_b =
-            sigma_prove(b"session-beta", 1, &stmt, &wit, &mut rng_b).expect("sigma prove b");
+        let proof_a = sigma_prove(b"session-alpha", 1, &stmt, &wit, &mut rng_a, &[1u8; 32])
+            .expect("sigma prove a");
+        let proof_b = sigma_prove(b"session-beta", 1, &stmt, &wit, &mut rng_b, &[1u8; 32])
+            .expect("sigma prove b");
 
         if proof_a.ch != proof_b.ch {
             diff_count += 1;

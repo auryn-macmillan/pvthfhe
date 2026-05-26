@@ -34,6 +34,7 @@ use super::PoseidonSpongeVar;
 /// |---------|-------|-------------|
 /// | Leaf ring-equation verifier | 0 | Checks `c·z_s + z_e - t - c·d ≡ 0` (placeholder) |
 /// | Internal fold verifier | 1 | Accumulates child hashes into parent |
+/// | Lagrange fold verifier | 2 | Lagrange coefficient computation with share provenance |
 #[derive(Debug, Clone)]
 pub struct LatticeFoldTreeCircuitFamily {
     /// Number of internal levels above the leaves.
@@ -70,17 +71,16 @@ impl<F: PrimeField> HeterogeneousCircuitFamily<F> for LatticeFoldTreeCircuitFami
         if self.depth == 0 {
             1
         } else {
-            2
+            3 // leaf, internal, lagrange
         }
     }
 
     fn circuit_index(&self, i: usize) -> usize {
-        // Leaves use circuit 0, internal nodes use circuit 1.
-        let lf_start = self.leaf_start();
-        if i >= lf_start {
-            0 // leaf
-        } else {
-            1 // internal
+        match i {
+            0 => 0, // leaf
+            1 => 1, // internal
+            2 => 2, // lagrange
+            _ => unimplemented!("circuit_index out of range: {i}"),
         }
     }
 
@@ -88,7 +88,8 @@ impl<F: PrimeField> HeterogeneousCircuitFamily<F> for LatticeFoldTreeCircuitFami
         let mut hasher = Keccak256::new();
         match idx {
             0 => hasher.update(b"pvthfhe/micronova/leaf-ring-verifier/v1"),
-            _ => hasher.update(b"pvthfhe/micronova/internal-fold-verifier/v1"),
+            1 => hasher.update(b"pvthfhe/micronova/internal-fold-verifier/v1"),
+            _ => hasher.update(b"pvthfhe/micronova/lagrange-fold/v1"),
         };
         let result = hasher.finalize();
         let mut hash = [0u8; 32];
@@ -138,16 +139,12 @@ mod tests {
     }
 
     #[test]
-    fn latticefold_family_depth2_has_two_circuits() {
+    fn latticefold_family_depth2_has_three_circuits() {
         let family = LatticeFoldTreeCircuitFamily { depth: 2 };
-        assert_eq!(num_circuits(&family), 2);
-        // Internal nodes (0..2) use circuit 1
-        assert_eq!(circuit_index(&family, 0), 1);
-        assert_eq!(circuit_index(&family, 1), 1);
-        assert_eq!(circuit_index(&family, 2), 1);
-        // Leaves (3..6) use circuit 0
-        assert_eq!(circuit_index(&family, 3), 0);
-        assert_eq!(circuit_index(&family, 6), 0);
+        assert_eq!(num_circuits(&family), 3);
+        assert_eq!(circuit_index(&family, 0), 0); // leaf
+        assert_eq!(circuit_index(&family, 1), 1); // internal
+        assert_eq!(circuit_index(&family, 2), 2); // lagrange
     }
 
     #[test]
@@ -162,6 +159,9 @@ mod tests {
         let family = LatticeFoldTreeCircuitFamily { depth: 2 };
         let h0 = circuit_hash(&family, 0);
         let h1 = circuit_hash(&family, 1);
+        let h2 = circuit_hash(&family, 2);
         assert_ne!(h0, h1, "leaf and internal circuit hashes must differ");
+        assert_ne!(h0, h2, "leaf and lagrange circuit hashes must differ");
+        assert_ne!(h1, h2, "internal and lagrange circuit hashes must differ");
     }
 }

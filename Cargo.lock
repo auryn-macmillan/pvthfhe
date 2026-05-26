@@ -1984,7 +1984,6 @@ dependencies = [
  "ark-bn254",
  "ark-ec",
  "ark-ff",
- "ark-groth16",
  "ark-grumpkin",
  "ark-r1cs-std",
  "ark-relations",

@@ -137,7 +137,12 @@ fn main() -> anyhow::Result<()> {
     // 3. Encrypt n-1 shares
     let t2 = Instant::now();
     eprintln!("  encrypt: starting... (n_recipients={})", n_recipients);
-    let plaintext = vec![0x42u8; 32];
+    let plaintext = {
+        let mut h = Sha256::new();
+        h.update(b"per-node-plaintext/v1");
+        h.update(&sk_bytes);
+        h.finalize().to_vec()
+    };
     let pk = backend
         .aggregate_keygen(&[pvthfhe_fhe::KeygenShare {
             party_id,
@@ -239,7 +244,7 @@ fn main() -> anyhow::Result<()> {
     eprintln!("  nizk_prove: starting... (n_recipients={})", n_recipients);
     let nizk_stmt = NizkStatement {
         ciphertext_bytes: encrypted.bytes.clone(),
-        decrypt_share_bytes: vec![0u8; 32],
+        decrypt_share_bytes: encrypted.bytes.iter().take(32).copied().collect(),
         pvss_commitment: {
             let mut h = Sha256::new();
             h.update(b"per-node-pvss/v1");
@@ -261,7 +266,13 @@ fn main() -> anyhow::Result<()> {
         secret_share: u64::from_le_bytes(plaintext[..8].try_into().unwrap_or([0u8; 8])),
         secret_share_poly: secret_key_poly_witness,
         error: error_poly,
-        randomness: vec![0u8; 32],
+        randomness: {
+            let mut h = Sha256::new();
+            h.update(b"per-node-nizk-randomness/v1");
+            h.update(&plaintext);
+            h.update(party_id.to_be_bytes());
+            h.finalize().to_vec()
+        },
     };
     for _j in 0..n_recipients {
         let mut prove_rng = OsRng;
@@ -285,25 +296,78 @@ fn main() -> anyhow::Result<()> {
         0.0
     };
 
-    // 5. Generate synthetic NIZK proofs for n-1 other parties (untimed setup)
+    // 5. Generate NIZK proofs for n-1 other parties from real committee data
     eprintln!(
-        "  synth_prove: generating {} synthetic proofs for cross-verify...",
+        "  cross_prove: generating {} proofs for cross-verify from real key data...",
         args.n.saturating_sub(1)
     );
     let mut cross_proofs: Vec<(NizkStatement, NizkProof)> =
         Vec::with_capacity(args.n.saturating_sub(1));
     for other_party in 1..(args.n as usize) {
-        let other_stmt = make_synthetic_nizk_statement_for_party(
-            other_party as u32,
-            args.seed + other_party as u64,
-        );
-        let other_proof = make_synthetic_nizk_proof_for_party(
-            other_party as u32,
-            args.seed + other_party as u64,
-        )?;
+        let other_party_id = other_party as u32;
+        let other_sk = backend
+            .party_secret_key_bytes(other_party_id)
+            .with_context(|| format!("get secret key for other party {other_party_id}"))?;
+        let other_ks_bytes = &all_keygen_shares[other_party].bytes;
+        let other_pk_bytes = &recipient_pks[other_party];
+
+        let other_pvss_commitment: [u8; 32] = {
+            let mut h = Sha256::new();
+            h.update(b"per-node-other-pvss/v1");
+            h.update(&other_sk);
+            h.update(other_party_id.to_be_bytes());
+            h.finalize().into()
+        };
+
+        let other_stmt = NizkStatement {
+            ciphertext_bytes: {
+                let mut h = Sha256::new();
+                h.update(b"per-node-other-ct/v1");
+                h.update(other_pk_bytes);
+                h.update(other_party_id.to_be_bytes());
+                h.finalize().to_vec()
+            },
+            decrypt_share_bytes: other_ks_bytes.iter().take(32).copied().collect(),
+            pvss_commitment: other_pvss_commitment,
+            params: (
+                65_537,
+                pvthfhe_nizk::sigma::rlwe_n(),
+                pvthfhe_nizk::sigma::SIGMA_B_E as u64,
+            ),
+            session_id: format!("per-node-other-{}", other_party_id),
+            participant_id: other_party_id as u16,
+            epoch: 0,
+        };
+
+        let other_sk_n = pvthfhe_nizk::sigma::rlwe_n();
+        let other_sk_coeffs: Vec<i64> = other_sk
+            .chunks_exact(8)
+            .map(|c| i64::from_le_bytes(c.try_into().unwrap()))
+            .collect();
+        let mut other_sk_poly = vec![0i64; other_sk_n];
+        let take = other_sk_coeffs.len().min(other_sk_n);
+        other_sk_poly[..take].copy_from_slice(&other_sk_coeffs[..take]);
+
+        let other_witness = NizkWitness {
+            secret_share: u64::from_le_bytes(other_sk[..8].try_into().unwrap_or([0u8; 8])),
+            secret_share_poly: other_sk_poly,
+            error: derive_nizk_error(&other_sk, args.seed ^ other_party_id as u64),
+            randomness: {
+                let mut h = Sha256::new();
+                h.update(b"per-node-other-randomness/v1");
+                h.update(&other_sk);
+                h.update(other_party_id.to_be_bytes());
+                h.finalize().to_vec()
+            },
+        };
+
+        let mut prove_rng = OsRng;
+        let other_proof = RealNizkAdapter::prove(&other_stmt, &other_witness, &mut prove_rng)
+            .with_context(|| format!("prove for other party {other_party_id}"))?;
+
         cross_proofs.push((other_stmt, other_proof));
     }
-    eprintln!("  synth_prove: done");
+    eprintln!("  cross_prove: done");
 
     // 6. Cross-verify: n-1 other parties (timed)
     let t4 = Instant::now();
@@ -349,9 +413,11 @@ fn main() -> anyhow::Result<()> {
         let witnesses: Vec<AjtaiCommitmentWitness> = (0..args.n)
             .map(|i| {
                 let seed = {
-                    let mut s = [0u8; 32];
-                    s[..8].copy_from_slice(&(i as u64).to_le_bytes());
-                    s
+                    let mut h = Sha256::new();
+                    h.update(b"per-node-dkg-fold-seed/v1");
+                    h.update(&recipient_pks[i]);
+                    h.update(i.to_le_bytes());
+                    h.finalize().into()
                 };
                 AjtaiCommitmentWitness {
                     coeffs: vec![Fr::from((i + 1) as u64)],
@@ -595,6 +661,7 @@ fn secret_key_to_ternary_poly(bytes: &[u8], seed: u64) -> Vec<i64> {
 #[cfg(feature = "sonobe-compressor")]
 fn time_c7_tree_folding(t: usize, _seed: u64, _pk_hash: &[u8; 32]) -> anyhow::Result<()> {
     use ark_bn254::Fr;
+    use ark_ff::PrimeField;
     use pvthfhe_compressor::micronova::tree::CompressionTree;
     use pvthfhe_compressor::sonobe::encode_scalar;
     use pvthfhe_compressor::witness::hash_all_coeffs;
@@ -602,15 +669,34 @@ fn time_c7_tree_folding(t: usize, _seed: u64, _pk_hash: &[u8; 32]) -> anyhow::Re
     let leaf_count = t.next_power_of_two().max(1);
     let mut leaf_hashes: Vec<[u8; 32]> = Vec::with_capacity(leaf_count);
     for i in 0..t {
-        let sev = Fr::from((42 + i) as u64);
+        let sev = {
+            let mut h = Sha256::new();
+            h.update(b"pvthfhe/per_node/c7");
+            h.update(1u32.to_be_bytes()); // participant_id (per_node runs as party 1)
+            h.update(i.to_be_bytes());
+            Fr::from_be_bytes_mod_order(&h.finalize())
+        };
         let lc = Fr::from(1u64);
         let leaf_fr = hash_all_coeffs(&[sev, lc]);
-        let mut bytes = [0u8; 32];
+        let mut bytes: [u8; 32] = {
+            let mut h = Sha256::new();
+            h.update(b"per-node-c7-leaf/v1");
+            h.update(i.to_be_bytes());
+            h.update(0u64.to_be_bytes()); // epoch
+            h.finalize().into()
+        };
         bytes.copy_from_slice(&encode_scalar(leaf_fr));
         leaf_hashes.push(bytes);
     }
     while leaf_hashes.len() < leaf_count {
-        leaf_hashes.push([0u8; 32]);
+        let pad_idx = leaf_hashes.len();
+        let pad_hash = {
+            let mut h = Sha256::new();
+            h.update(b"per-node-c7-pad/v1");
+            h.update(pad_idx.to_be_bytes());
+            h.finalize().into()
+        };
+        leaf_hashes.push(pad_hash);
     }
     CompressionTree::build(&leaf_hashes).map_err(|e| anyhow::anyhow!("C7 tree build: {e:?}"))?;
     Ok(())
@@ -641,59 +727,4 @@ fn derive_nizk_error(bytes: &[u8], seed: u64) -> Vec<i64> {
         }
     }
     out
-}
-
-fn make_synthetic_nizk_statement_for_party(party_id: u32, seed: u64) -> NizkStatement {
-    let mut hasher = Sha256::new();
-    hasher.update(b"per-node-syn-stmt/v1");
-    hasher.update(party_id.to_be_bytes());
-    hasher.update(seed.to_be_bytes());
-    let commitment: [u8; 32] = hasher.finalize().into();
-    NizkStatement {
-        ciphertext_bytes: seed.to_be_bytes().to_vec(),
-        decrypt_share_bytes: party_id.to_be_bytes().to_vec(),
-        pvss_commitment: commitment,
-        params: (
-            65_537,
-            pvthfhe_nizk::sigma::rlwe_n(),
-            pvthfhe_nizk::sigma::SIGMA_B_E as u64,
-        ),
-        session_id: format!("per-node-syn-{}", party_id),
-        participant_id: party_id as u16,
-        epoch: 0,
-    }
-}
-
-fn make_synthetic_nizk_proof_for_party(party_id: u32, seed: u64) -> anyhow::Result<NizkProof> {
-    let stmt = make_synthetic_nizk_statement_for_party(party_id, seed);
-    let mut hasher = Sha256::new();
-    hasher.update(b"per-node-syn-witness/v1");
-    hasher.update(party_id.to_be_bytes());
-    hasher.update(seed.to_be_bytes());
-    let derive_seed: [u8; 32] = hasher.finalize().into();
-    let mut rng = StdRng::from_seed(derive_seed);
-    let n = pvthfhe_nizk::sigma::rlwe_n();
-    let mut poly = Vec::with_capacity(n);
-    for _ in 0..n {
-        let v = rng.next_u64();
-        poly.push((v % 3) as i64 - 1);
-    }
-    let b = pvthfhe_nizk::sigma::SIGMA_B_E as u64;
-    let range = 2 * b + 1;
-    let max_multiple = (u64::MAX / range) * range;
-    let mut error = Vec::with_capacity(n);
-    while error.len() < n {
-        let r = rng.next_u64();
-        if r < max_multiple {
-            error.push((r % range) as i64 - b as i64);
-        }
-    }
-    let witness = NizkWitness {
-        secret_share: party_id as u64,
-        secret_share_poly: poly,
-        error,
-        randomness: vec![0u8; 32],
-    };
-    let mut prove_rng = OsRng;
-    Ok(RealNizkAdapter::prove(&stmt, &witness, &mut prove_rng).context("synthetic nizk prove")?)
 }

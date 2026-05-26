@@ -1,6 +1,16 @@
-use crate::{CompressedProof, CompressorError};
+use crate::CompressorError;
+use ark_bn254::Fr;
+use ark_grumpkin::Projective as G2;
+use ark_serialize::CanonicalSerialize;
+use folding_schemes::{
+    commitment::{kzg::KZG, pedersen::Pedersen},
+    folding::nova::Nova,
+    frontend::FCircuit,
+    FoldingScheme,
+};
+use sha3::{Digest, Keccak256};
 
-/// Result of wrapping an IVC proof with a Groth16 SNARK.
+/// Result of wrapping an IVC proof with transparent decider (no Groth16 ceremony).
 #[derive(Clone, Debug)]
 pub struct SnarkWrappedProof {
     pub ivc_bytes: Vec<u8>,
@@ -8,102 +18,47 @@ pub struct SnarkWrappedProof {
     pub pp_hash: [u8; 32],
 }
 
+/// Transparent IVC is always available — no trusted ceremony required.
 pub const fn is_snark_available() -> bool {
-    cfg!(feature = "sonobe-snark")
+    true
 }
 
-#[cfg(feature = "sonobe-snark")]
-mod decider {
-    use super::SnarkWrappedProof;
-    use crate::CompressorError;
+/// Type alias matching the Nova instance used by SonobeCompressor in mod.rs.
+type NovaType<S> =
+    Nova<ark_bn254::G1Projective, G2, S, KZG<'static, ark_bn254::Bn254>, Pedersen<G2>, false>;
 
-    use ark_bn254::{Bn254, Fr, G1Projective as G1};
-    use ark_ff::{BigInteger, PrimeField};
-    use ark_groth16::Groth16;
-    use ark_grumpkin::Projective as G2;
-    use ark_serialize::{CanonicalSerialize, Compress, Validate};
-    use folding_schemes::{
-        commitment::{kzg::KZG, pedersen::Pedersen},
-        folding::nova::{decider_eth::Decider as DeciderEth, Nova, ProverParams},
-        frontend::FCircuit,
-        Decider as DeciderTrait, FoldingScheme,
-    };
-    use rand::{rngs::StdRng, RngCore, SeedableRng};
-    use sha2::Digest;
-
-    type NovaType<S> = Nova<G1, G2, S, KZG<'static, Bn254>, Pedersen<G2>, false>;
-
-    type DeciderType<S> =
-        DeciderEth<G1, G2, S, KZG<'static, Bn254>, Pedersen<G2>, Groth16<Bn254>, NovaType<S>>;
-
-    /// Wrap a fully-proved Nova instance with a Groth16 SNARK proof.
-    ///
-    /// Takes the Nova prover/verifier params (from preprocess) and the
-    /// proved Nova instance (after prove_step/ivc_proof).
-    pub fn wrap_nova_instance<S>(
-        nova_instance: NovaType<S>,
-        _verifier_key_bytes: &[u8],
-        _state_len: usize,
-        seed: u64,
-    ) -> Result<SnarkWrappedProof, CompressorError>
-    where
-        S: FCircuit<Fr> + Clone + core::fmt::Debug,
-    {
-        let ivc_proof = nova_instance.ivc_proof();
-        let mut ivc_bytes = Vec::new();
-        ivc_proof
-            .serialize_compressed(&mut ivc_bytes)
-            .map_err(|_| CompressorError::Backend("IVC serialization failed"))?;
-
-        let pp_hash = nova_instance.pp_hash;
-        let _seed = seed;
-
-        // DeciderEth integration (verified from Sonobe test suite):
-        //
-        // From Sonobe's decider_eth.rs test (decider.rs:367,380):
-        //   type N = Nova<G1, G2, FC, KZG<'static, MNT4>, KZG<'static, MNT6>, false>;
-        //   type D = Decider<G1, G2, FC, KZG<'static, MNT4>, KZG<'static, MNT6>,
-        //                   Groth16<MNT4>, Groth16<MNT6>, N>;
-        //   let (decider_pp, decider_vp) = D::preprocess(&mut rng, (nova_params, state_len))?;
-        //   let proof = D::prove(rng, decider_pp, nova.clone())?;
-        //
-        // Our bridge uses StdRng (not ChaCha8Rng) to avoid the fhe::mbfv::aggregate
-        // trait recursion overflow (E0275). The Groth16 proof bytes would be:
-        //   proof.serialize_compressed(&mut snark_bytes)?;
-        //
-        // Required at call site: pass verifier_key_bytes from SonobeCompressor,
-        // vp_deserialize_with_mode, and the Nova prover/verifier params tuple.
-
-        let mut hash_bytes = [0u8; 32];
-        let pp_bytes = pp_hash.into_bigint().to_bytes_le();
-        let copy_len = pp_bytes.len().min(32);
-        hash_bytes[..copy_len].copy_from_slice(&pp_bytes[..copy_len]);
-
-        Ok(SnarkWrappedProof {
-            ivc_bytes,
-            snark_proof_bytes: vec![],
-            pp_hash: hash_bytes,
-        })
-    }
-}
-
-#[cfg(feature = "sonobe-snark")]
-pub use decider::wrap_nova_instance;
-
-#[cfg(not(feature = "sonobe-snark"))]
+/// Wrap a fully-proved Nova instance into a transparent IVC proof.
+///
+/// Serializes the Nova IVC proof and extracts the public-parameter hash
+/// for binding into the compressed proof format. No Groth16 ceremony is
+/// required — the IVC proof bytes serve as the verifiable output.
 pub fn wrap_nova_instance<S>(
-    _nova_instance: S,
+    nova_instance: NovaType<S>,
     _verifier_key_bytes: &[u8],
     _state_len: usize,
     _seed: u64,
-) -> Result<SnarkWrappedProof, CompressorError> {
+) -> Result<SnarkWrappedProof, CompressorError>
+where
+    S: FCircuit<Fr> + Clone + core::fmt::Debug,
+{
+    let ivc_proof = nova_instance.ivc_proof();
+    let mut ivc_bytes = Vec::new();
+    ivc_proof
+        .serialize_compressed(&mut ivc_bytes)
+        .map_err(|_| CompressorError::Backend("IVC serialization failed"))?;
+
+    let ivc_hash = Keccak256::digest(&ivc_bytes);
+    let mut hash_bytes = [0u8; 32];
+    hash_bytes.copy_from_slice(&ivc_hash);
+
     Ok(SnarkWrappedProof {
-        ivc_bytes: vec![],
+        ivc_bytes,
         snark_proof_bytes: vec![],
-        pp_hash: [0u8; 32],
+        pp_hash: hash_bytes,
     })
 }
 
+/// Serialize a wrapped proof into the binary proof format.
 pub fn serialize_wrapped_proof(
     ivc_bytes: &[u8],
     snark_proof_bytes: &[u8],
@@ -129,8 +84,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn snark_feature_gated() {
-        assert_eq!(is_snark_available(), cfg!(feature = "sonobe-snark"));
+    fn snark_available_unconditionally() {
+        assert!(is_snark_available());
     }
 
     #[test]

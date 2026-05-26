@@ -549,6 +549,19 @@ impl ShareNizkVerifier {
     }
 }
 
+fn compute_share_d_commitment(stmt: &ShareNizkStatement) -> [u8; 32] {
+    let mut h = Sha256::new();
+    h.update(b"pvthfhe-share-dcommit/v1");
+    h.update(stmt.session_id.as_slice());
+    h.update(
+        &u32::try_from(stmt.recipient_index)
+            .unwrap_or(0)
+            .to_le_bytes(),
+    );
+    h.update(stmt.share_commitment.as_slice());
+    h.finalize().into()
+}
+
 /// Build algebraic proof: share sigma proof over RLWE relation.
 fn build_algebraic_proof(stmt: &ShareNizkStatement, witness: &ShareNizkWitness) -> Vec<u8> {
     let s_i = derive_share_sigma_witness(witness.share_bytes.expose());
@@ -568,12 +581,14 @@ fn build_algebraic_proof(stmt: &ShareNizkStatement, witness: &ShareNizkWitness) 
         d_rns: d_rns.clone(),
     };
     let sigma_witness = sigma::SigmaWitness { s_i, e_i };
+    let d_commitment = compute_share_d_commitment(stmt);
     let proof = sigma::prove(
         stmt.session_id.as_slice(),
         u32::try_from(stmt.recipient_index).unwrap_or(0),
         &sigma_stmt,
         &sigma_witness,
         &mut proof_rng,
+        &d_commitment,
     );
 
     match proof {
@@ -1094,11 +1109,13 @@ fn verify_algebraic_relation(
         c_rns,
         d_rns: d_rns.clone(),
     };
+    let d_commitment = compute_share_d_commitment(stmt);
     sigma::verify_scalar(
         stmt.session_id.as_slice(),
         u32::try_from(stmt.recipient_index).unwrap_or(0),
         &sigma_stmt,
         &sigma_proof,
+        &d_commitment,
     )
     .map_err(|_| {
         eprintln!("[NIZK-VERIFY] FAIL: algebraic scalar sigma verification failed");

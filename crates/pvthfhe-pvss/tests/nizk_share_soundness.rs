@@ -455,6 +455,7 @@ fn forge_algebraic_proof_for_statement(stmt: &ShareNizkStatement, share: &[u8]) 
         &sigma_stmt,
         &sigma_witness,
         &mut proof_rng,
+        &[1u8; 32],
     )
     .expect("sigma prove");
     test_encode_algebraic_proof(&d_rns, &proof)
@@ -675,6 +676,7 @@ fn forge_valid_algebraic_proof(
         &sigma_stmt,
         &sigma_witness,
         &mut proof_rng,
+        &[1u8; 32],
     )
     .expect("sigma prove");
     (test_encode_algebraic_proof(&d_rns, &proof), d_rns)

@@ -174,7 +174,7 @@ fn main() -> anyhow::Result<()> {
                     SonobeCompressor::<CycloFoldStepCircuit<ark_bn254::Fr>>::new([0u8; 32], 1)
                         .map_err(|e| anyhow::anyhow!("compressor init: {e:?}"))?;
                 let vk = compressor.verifier_key();
-                let compressed_proof = CompressedProof(proof_bytes);
+                let compressed_proof = CompressedProof::new(proof_bytes);
                 match compressor.verify(&vk, &compressed_proof, &[]) {
                     Ok(true) => println!("verify: ACCEPT"),
                     Ok(false) => println!("verify: REJECT"),

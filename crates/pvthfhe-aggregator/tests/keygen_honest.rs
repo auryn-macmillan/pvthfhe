@@ -34,21 +34,30 @@ fn honest_n5_keygen() {
 fn new_rejects_t_zero() {
     let backend = mock_backend();
     let result = KeygenSimulator::new(3, 0, backend);
-    assert!(matches!(result, Err(KeygenError::InvalidThreshold { n: 3, t: 0 })));
+    assert!(matches!(
+        result,
+        Err(KeygenError::InvalidThreshold { n: 3, t: 0 })
+    ));
 }
 
 #[test]
 fn new_rejects_t_greater_than_n() {
     let backend = mock_backend();
     let result = KeygenSimulator::new(3, 4, backend);
-    assert!(matches!(result, Err(KeygenError::InvalidThreshold { n: 3, t: 4 })));
+    assert!(matches!(
+        result,
+        Err(KeygenError::InvalidThreshold { n: 3, t: 4 })
+    ));
 }
 
 #[test]
 fn new_rejects_n_zero() {
     let backend = mock_backend();
     let result = KeygenSimulator::new(0, 1, backend);
-    assert!(matches!(result, Err(KeygenError::InvalidThreshold { n: 0, t: 1 })));
+    assert!(matches!(
+        result,
+        Err(KeygenError::InvalidThreshold { n: 0, t: 1 })
+    ));
 }
 
 #[test]
@@ -56,7 +65,10 @@ fn new_rejects_t_exceeds_max_threshold() {
     let backend = mock_backend();
     // n=10, max_t = (10-1)/2 = 4. t=6 exceeds.
     let result = KeygenSimulator::new(10, 6, backend);
-    assert!(matches!(result, Err(KeygenError::InvalidThreshold { n: 10, t: 6 })));
+    assert!(matches!(
+        result,
+        Err(KeygenError::InvalidThreshold { n: 10, t: 6 })
+    ));
 }
 
 #[test]

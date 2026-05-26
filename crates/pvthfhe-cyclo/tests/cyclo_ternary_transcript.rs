@@ -9,7 +9,7 @@ use pvthfhe_cyclo::fiat_shamir::{challenge_v1, CycloTernaryTranscript};
 
 #[test]
 fn ternary_challenges_are_in_valid_range() {
-    let mut transcript = CycloTernaryTranscript::new("test-session");
+    let mut transcript = CycloTernaryTranscript::new("test-session", 0);
     for _ in 0..1000 {
         let c = transcript.sample_challenge();
         assert!(
@@ -21,7 +21,7 @@ fn ternary_challenges_are_in_valid_range() {
 
 #[test]
 fn domain_separator_differs_from_sonobe_v1() {
-    let mut t2 = CycloTernaryTranscript::new("test-session");
+    let mut t2 = CycloTernaryTranscript::new("test-session", 0);
     t2.absorb(b"fold-data");
 
     let ternary = t2.sample_challenge();
@@ -50,7 +50,7 @@ fn domain_separator_differs_from_sonobe_v1() {
 
 #[test]
 fn ternary_distribution_is_roughly_uniform() {
-    let mut transcript = CycloTernaryTranscript::new("stats-test");
+    let mut transcript = CycloTernaryTranscript::new("stats-test", 0);
     let mut counts = [0u64; 3]; // counts for -1, 0, 1
 
     for i in 0u32..3000 {
@@ -87,18 +87,18 @@ fn ternary_distribution_is_roughly_uniform() {
 
 #[test]
 fn different_absorbed_data_produces_different_challenges() {
-    let mut t1 = CycloTernaryTranscript::new("det-test");
+    let mut t1 = CycloTernaryTranscript::new("det-test", 0);
     t1.absorb(b"aaa");
 
-    let mut t2 = CycloTernaryTranscript::new("det-test");
+    let mut t2 = CycloTernaryTranscript::new("det-test", 0);
     t2.absorb(b"bbb");
 
     // With high probability, different absorbed data produces different
     // challenges. We check across multiple samples.
     let mut different = false;
-    let mut t1b = CycloTernaryTranscript::new("det-test");
+    let mut t1b = CycloTernaryTranscript::new("det-test", 0);
     t1b.absorb(b"aaa");
-    let mut t2b = CycloTernaryTranscript::new("det-test");
+    let mut t2b = CycloTernaryTranscript::new("det-test", 0);
     t2b.absorb(b"bbb");
 
     for _ in 0..100 {

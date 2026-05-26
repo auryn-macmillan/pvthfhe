@@ -6,6 +6,7 @@ use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
+#[cfg(not(feature = "nova-backend"))]
 use folding_schemes::frontend::FCircuit;
 use sha3::{Digest, Keccak256};
 
@@ -28,6 +29,7 @@ impl<F: PrimeField> RingVerifierCircuit<F> {
     }
 }
 
+#[cfg(not(feature = "nova-backend"))]
 impl<F: PrimeField> FCircuit<F> for RingVerifierCircuit<F> {
     type Params = (F, Vec<F>);
     type ExternalInputs = RingEqExternalInputs5<F>;

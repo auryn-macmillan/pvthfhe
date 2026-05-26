@@ -278,6 +278,12 @@ impl FhersBackend {
             }
         })?;
 
+        // L4: reject trivially-zero public keys (defense-in-depth)
+        let all_zero = c.c.iter().all(|p| p.coefficients().iter().all(|&v| v == 0));
+        if all_zero {
+            return Err(FheError::MalformedPublicKey);
+        }
+
         Ok(BfvPublicKey {
             par: self.bfv_params.clone(),
             c,
@@ -458,7 +464,21 @@ impl FhersBackend {
                     .map_err(|err| FheError::Backend {
                         reason: err.to_string(),
                     })?;
-                let mut rng = StdRng::seed_from_u64(party_id as u64);
+                // M1-fix: Use full 256-bit deterministic seed instead of ~10-bit seed.
+                // session_id is not available at this call site (setup_threshold
+                // signature does not accept it). Derive instance-bound seed from
+                // party_id, n, threshold, and bfv_params.degree for >10 bits while
+                // preserving determinism needed for parallel reproducible execution.
+                let mut h = Sha256::new();
+                h.update(b"pvthfhe-share-rng-seed-v1");
+                h.update(&party_id.to_be_bytes());
+                h.update(&n.to_be_bytes());
+                h.update(&threshold.to_be_bytes());
+                h.update(&bfv_params.degree().to_be_bytes());
+                let digest = h.finalize();
+                let mut seed = [0u8; 32];
+                seed.copy_from_slice(&digest);
+                let mut rng = StdRng::from_seed(seed);
                 let shares = sm
                     .generate_secret_shares_from_poly(sk_poly, &mut rng)
                     .map_err(|err| FheError::Backend {

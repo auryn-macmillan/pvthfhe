@@ -15,6 +15,7 @@ use ark_ff::PrimeField;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
+#[cfg(not(feature = "nova-backend"))]
 use folding_schemes::transcript::poseidon::poseidon_canonical_config;
 
 /// Extracted Poseidon parameters from the canonical config.
@@ -42,6 +43,7 @@ impl<F: PrimeField> PoseidonParams<F> {
     /// Create params from the canonical Poseidon config for Bn254.
     ///
     /// For Bn254::Fr: t=5 (rate=4, capacity=1), full_rounds=8, partial_rounds=60, alpha=5.
+    #[cfg(not(feature = "nova-backend"))]
     pub fn canonical() -> Self {
         let config = poseidon_canonical_config::<F>();
         Self {
@@ -52,6 +54,34 @@ impl<F: PrimeField> PoseidonParams<F> {
             rate: config.rate,
             capacity: config.capacity,
             t: config.rate + config.capacity,
+        }
+    }
+
+    /// Hardcoded canonical Poseidon params when folding_schemes is unavailable.
+    ///
+    /// Uses the identity MDS and zero round constants — this is NOT a real
+    /// Poseidon instance but suffices for type-level compatibility under
+    /// the nova-backend feature where the compressor is a stub.
+    #[cfg(feature = "nova-backend")]
+    pub fn canonical() -> Self {
+        let zero = F::zero();
+        let one = F::from(1u64);
+        let mds = vec![
+            vec![one, zero, zero, zero, zero],
+            vec![zero, one, zero, zero, zero],
+            vec![zero, zero, one, zero, zero],
+            vec![zero, zero, zero, one, zero],
+            vec![zero, zero, zero, zero, one],
+        ];
+        let ark = vec![vec![F::zero(); 5]; 68];
+        PoseidonParams {
+            mds,
+            ark,
+            full_rounds: 8,
+            partial_rounds: 60,
+            rate: 4,
+            capacity: 1,
+            t: 5,
         }
     }
 }

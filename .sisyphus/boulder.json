@@ -1,28 +1,9 @@
 {
-  "active_plan": "/home/dev/pvthfhe/.sisyphus/plans/interfold-c7-lagrange.md",
-  "started_at": "2026-05-25T16:57:37.813Z",
-  "session_ids": [
-    "ses_1e864f9f1ffecXRmG0OjbjoCa3",
-    "ses_19febbd0affeSMfzRyny47hxBl",
-    "ses_19feb9abcffeFNvbsoL65It7lB",
-    "ses_19fbbbe3dffe8huWVjfaPVhQrP",
-    "ses_19fbba774ffevPWlSwHSv4MZuT",
-    "ses_19fbb92b2ffe5JbkEJv38FhgzQ",
-    "ses_19f47ff40ffeAmVymQ4gd1X5GE",
-    "ses_19f47dd9affePUGyyNn2nlot5U"
-  ],
-  "plan_name": "interfold-c7-lagrange",
+  "active_plan": "/home/dev/pvthfhe/.sisyphus/plans/migrate-to-microsoft-nova.md",
+  "started_at": "2026-05-26T20:20:00.000Z",
+  "session_ids": ["ses_19a51fdd1ffeAAbN01r8sB4wO8"],
+  "plan_name": "migrate-to-microsoft-nova",
   "status": "active",
-  "progress": "0/3 — starting",
-  "session_origins": {
-    "ses_1e864f9f1ffecXRmG0OjbjoCa3": "direct",
-    "ses_19febbd0affeSMfzRyny47hxBl": "appended",
-    "ses_19feb9abcffeFNvbsoL65It7lB": "appended",
-    "ses_19fbbbe3dffe8huWVjfaPVhQrP": "appended",
-    "ses_19fbba774ffevPWlSwHSv4MZuT": "appended",
-    "ses_19fbb92b2ffe5JbkEJv38FhgzQ": "appended",
-    "ses_19f47ff40ffeAmVymQ4gd1X5GE": "appended",
-    "ses_19f47dd9affePUGyyNn2nlot5U": "appended"
-  },
-  "task_sessions": {}
+  "progress": "0/16 — Phase 1 research",
+  "branch": "feat/migrate-to-microsoft-nova"
 }

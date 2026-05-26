@@ -44,18 +44,15 @@ fn c7_step_circuit_compiles_with_sonobe() {
 /// Test 2: state_len is 3.
 #[test]
 fn c7_state_len_is_three() {
-    let circuit =
-        C7DecryptAggregationCircuit::<Fr>::new(()).expect("construct C7 circuit");
+    let circuit = C7DecryptAggregationCircuit::<Fr>::new(()).expect("construct C7 circuit");
     assert_eq!(circuit.state_len(), 3);
 }
 
 /// Test 3: circuit_hash is deterministic.
 #[test]
 fn c7_circuit_hash_is_deterministic() {
-    let circuit_a =
-        C7DecryptAggregationCircuit::<Fr>::new(()).expect("construct C7 circuit a");
-    let circuit_b =
-        C7DecryptAggregationCircuit::<Fr>::new(()).expect("construct C7 circuit b");
+    let circuit_a = C7DecryptAggregationCircuit::<Fr>::new(()).expect("construct C7 circuit a");
+    let circuit_b = C7DecryptAggregationCircuit::<Fr>::new(()).expect("construct C7 circuit b");
     assert_eq!(circuit_a.circuit_hash(), circuit_b.circuit_hash());
 }
 
@@ -70,8 +67,7 @@ fn c7_circuit_hash_differs_from_toy() {
 /// Test 5: descriptor width is 3.
 #[test]
 fn c7_descriptor_width_is_three() {
-    let circuit =
-        C7DecryptAggregationCircuit::<Fr>::new(()).expect("construct C7 circuit");
+    let circuit = C7DecryptAggregationCircuit::<Fr>::new(()).expect("construct C7 circuit");
     assert_eq!(circuit.descriptor().width, 3);
 }
 
@@ -93,10 +89,11 @@ fn c7_roundtrip_prove_verify() {
     set_c7_step_data(coeffs, derived_r);
 
     let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
-    let steps: Vec<ExternalInputs5<Fr>> = vec![
-        ExternalInputs5(ext_0, Fr::from(1u64), commitment, Fr::from(0u64), derived_r);
-        num_steps
-    ];
+    let steps: Vec<ExternalInputs5<Fr>> =
+        vec![
+            ExternalInputs5(ext_0, Fr::from(1u64), commitment, Fr::from(0u64), derived_r);
+            num_steps
+        ];
     let proof = compressor
         .prove_steps_c7(&acc, &steps)
         .expect("prove C7 ivc");

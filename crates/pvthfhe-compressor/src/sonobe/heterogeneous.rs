@@ -31,6 +31,7 @@
 use ark_ff::PrimeField;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
+#[cfg(not(feature = "nova-backend"))]
 use folding_schemes::frontend::FCircuit;
 use sha3::{Digest, Keccak256};
 use std::cell::RefCell;
@@ -140,6 +141,7 @@ impl<F: PrimeField> HeterogeneousStepCircuit<F> {
     }
 }
 
+#[cfg(not(feature = "nova-backend"))]
 impl<F: PrimeField> FCircuit<F> for HeterogeneousStepCircuit<F> {
     type Params = ();
     type ExternalInputs = ExternalInputs3<F>;
@@ -175,6 +177,7 @@ impl<F: PrimeField> FCircuit<F> for HeterogeneousStepCircuit<F> {
     }
 }
 
+#[cfg(not(feature = "nova-backend"))]
 impl<F: PrimeField> StepCircuit for HeterogeneousStepCircuit<F> {
     fn descriptor(&self) -> StepCircuitDescriptor {
         StepCircuitDescriptor { width: 3 }

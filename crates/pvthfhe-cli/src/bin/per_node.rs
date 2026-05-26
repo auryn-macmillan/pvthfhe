@@ -376,7 +376,8 @@ fn main() -> anyhow::Result<()> {
         cross_proofs.len()
     );
     for (other_stmt, other_proof) in &cross_proofs {
-        let _ = RealNizkAdapter::verify(other_stmt, other_proof);
+        RealNizkAdapter::verify(other_stmt, other_proof)
+            .map_err(|e| anyhow::anyhow!("cross_verify NIZK verification FAILED: {e:?}"))?;
     }
     let cross_verify_ms = elapsed_ms(t4);
     eprintln!(

@@ -88,9 +88,8 @@ fn merkle_circuit_hash_deterministic() {
 #[test]
 fn merkle_circuit_roundtrip() {
     let num_steps = 4;
-    let compressor =
-        SonobeCompressor::<C7MerkleStepCircuit<Fr>>::new(epoch(), num_steps)
-            .expect("construct C7 merkle sonobe compressor");
+    let compressor = SonobeCompressor::<C7MerkleStepCircuit<Fr>>::new(epoch(), num_steps)
+        .expect("construct C7 merkle sonobe compressor");
 
     let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
 
@@ -118,9 +117,8 @@ fn merkle_circuit_roundtrip() {
 #[test]
 fn merkle_circuit_wrong_leaf_rejected() {
     let num_steps = 4;
-    let compressor =
-        SonobeCompressor::<C7MerkleStepCircuit<Fr>>::new(epoch(), num_steps)
-            .expect("construct C7 merkle sonobe compressor");
+    let compressor = SonobeCompressor::<C7MerkleStepCircuit<Fr>>::new(epoch(), num_steps)
+        .expect("construct C7 merkle sonobe compressor");
 
     let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
 
@@ -167,8 +165,7 @@ fn merkle_circuit_wrong_leaf_rejected() {
 #[test]
 fn merkle_circuit_differs_from_c7_basic() {
     let merkle = C7MerkleStepCircuit::<Fr>::new(()).expect("construct C7 merkle");
-    let basic =
-        C7DecryptAggregationCircuit::<Fr>::new(()).expect("construct C7 basic");
+    let basic = C7DecryptAggregationCircuit::<Fr>::new(()).expect("construct C7 basic");
     assert_ne!(
         merkle.circuit_hash(),
         basic.circuit_hash(),
@@ -186,8 +183,8 @@ fn merkle_circuit_descriptor_width_depth5() {
 /// Test 8: circuit with custom depth/arity computes correct width.
 #[test]
 fn merkle_circuit_custom_depth_descriptor() {
-    let circuit = C7MerkleStepCircuit::<Fr>::new_with_depth(5, 8)
-        .expect("construct depth-5 merkle");
+    let circuit =
+        C7MerkleStepCircuit::<Fr>::new_with_depth(5, 8).expect("construct depth-5 merkle");
     assert_eq!(circuit.descriptor().width, 40);
     assert_eq!(circuit.merkle_depth, 5);
     assert_eq!(circuit.merkle_arity, 8);

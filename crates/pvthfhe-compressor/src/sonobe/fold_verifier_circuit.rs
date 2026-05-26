@@ -21,6 +21,7 @@ use ark_ff::PrimeField;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
+#[cfg(not(feature = "nova-backend"))]
 use folding_schemes::frontend::FCircuit;
 use sha3::{Digest, Keccak256};
 
@@ -50,6 +51,7 @@ pub struct FoldVerifierStepCircuit<F: PrimeField> {
     _field: std::marker::PhantomData<F>,
 }
 
+#[cfg(not(feature = "nova-backend"))]
 impl<F: PrimeField> FCircuit<F> for FoldVerifierStepCircuit<F> {
     type Params = ();
     type ExternalInputs = ExternalInputs3<F>;

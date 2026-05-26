@@ -17,14 +17,7 @@ fn compression_4_leaf() {
 #[test]
 fn compression_8_leaf() {
     let leaves = vec![
-        [1u8; 32],
-        [2u8; 32],
-        [3u8; 32],
-        [4u8; 32],
-        [5u8; 32],
-        [6u8; 32],
-        [7u8; 32],
-        [8u8; 32],
+        [1u8; 32], [2u8; 32], [3u8; 32], [4u8; 32], [5u8; 32], [6u8; 32], [7u8; 32], [8u8; 32],
     ];
     let tree = CompressionTree::build(&leaves).unwrap();
     assert_eq!(tree.depth, 3);
@@ -37,14 +30,7 @@ fn compression_proofs_are_constant_size() {
     let size_2 = tree_2.root_proof.0.len();
 
     let leaves_8 = vec![
-        [1u8; 32],
-        [2u8; 32],
-        [3u8; 32],
-        [4u8; 32],
-        [5u8; 32],
-        [6u8; 32],
-        [7u8; 32],
-        [8u8; 32],
+        [1u8; 32], [2u8; 32], [3u8; 32], [4u8; 32], [5u8; 32], [6u8; 32], [7u8; 32], [8u8; 32],
     ];
     let tree_8 = CompressionTree::build(&leaves_8).unwrap();
     let size_8 = tree_8.root_proof.0.len();

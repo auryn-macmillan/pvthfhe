@@ -101,8 +101,10 @@ fn native_broken_ring_equation_fails() {
     let ze = make_native_element(&[2]);
     let t = make_native_element(&[9]);
     let d = make_native_element(&[0]);
-    assert!(!verify_ring_equation(c, &zs, &ze, &t, &d),
-        "native ring equation must reject broken equation (W1: p2-m6 gap closure)");
+    assert!(
+        !verify_ring_equation(c, &zs, &ze, &t, &d),
+        "native ring equation must reject broken equation (W1: p2-m6 gap closure)"
+    );
 }
 
 #[test]

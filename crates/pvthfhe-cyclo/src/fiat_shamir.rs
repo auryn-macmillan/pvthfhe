@@ -87,11 +87,12 @@ pub struct CycloTernaryTranscript {
 }
 
 impl CycloTernaryTranscript {
-    /// Initialise a new transcript with the v2 domain separator and `session_id`.
-    pub fn new(session_id: &str) -> Self {
+    /// Initialise a new transcript with the v2 domain separator, `session_id`, and `participant_id`.
+    pub fn new(session_id: &str, participant_id: u16) -> Self {
         let mut state = Sha256::new();
         state.update(b"pvthfhe-cyclo-fs-v2");
         state.update(session_id.as_bytes());
+        state.update(&participant_id.to_le_bytes());
         Self { state }
     }
 

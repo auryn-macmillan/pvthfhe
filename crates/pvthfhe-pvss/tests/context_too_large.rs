@@ -83,12 +83,18 @@ fn dealer_index_is_non_zero_and_session_bound() {
 
     // Same session must always produce the same index.
     let idx_a2 = derive_dealer_index(&session_a);
-    assert_eq!(idx_a, idx_a2, "dealer_index must be deterministic for same session");
+    assert_eq!(
+        idx_a, idx_a2,
+        "dealer_index must be deterministic for same session"
+    );
 
     // Different sessions should (with overwhelming probability) produce different indices.
     assert_ne!(idx_a, idx_b, "dealer_index must differ across sessions");
 
     // Empty session should also produce a valid non-zero index.
     let idx_empty = derive_dealer_index(&[]);
-    assert!(idx_empty > 0, "dealer_index must be non-zero even for empty session_id");
+    assert!(
+        idx_empty > 0,
+        "dealer_index must be non-zero even for empty session_id"
+    );
 }

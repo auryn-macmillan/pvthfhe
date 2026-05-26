@@ -89,7 +89,6 @@ fn is_compliant_wrapper(ty: &Type) -> bool {
         "EncRandomness",
         "CcsWitnessSecret",
         "ProtocolBytes",
-
     ]
     .iter()
     .any(|token| repr.contains(token))

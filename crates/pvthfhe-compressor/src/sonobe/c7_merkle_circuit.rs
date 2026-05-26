@@ -18,6 +18,7 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::GR1CSVar;
 use ark_relations::gr1cs::{ConstraintSystemRef, Namespace, SynthesisError};
+#[cfg(not(feature = "nova-backend"))]
 use folding_schemes::frontend::FCircuit;
 use sha3::{Digest, Keccak256};
 
@@ -294,6 +295,7 @@ pub struct C7MerkleStepCircuit<F: PrimeField> {
 }
 
 impl<F: PrimeField> C7MerkleStepCircuit<F> {
+    #[cfg(not(feature = "nova-backend"))]
     pub fn new_with_depth(depth: usize, arity: usize) -> Result<Self, folding_schemes::Error> {
         Ok(Self {
             _field: std::marker::PhantomData,
@@ -307,6 +309,7 @@ impl<F: PrimeField> C7MerkleStepCircuit<F> {
     }
 }
 
+#[cfg(not(feature = "nova-backend"))]
 impl<F: PrimeField> FCircuit<F> for C7MerkleStepCircuit<F> {
     type Params = ();
     type ExternalInputs = C7MerkleExternalInputs<F>;

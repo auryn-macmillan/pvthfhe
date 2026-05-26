@@ -8,6 +8,7 @@ use pvthfhe_nizk::sigma::{self, SigmaStatement, SigmaWitness};
 use pvthfhe_nizk::{NizkAdapter, NizkStatement, NizkWitness};
 use pvthfhe_types::ProtocolBytes;
 use rand_chacha::ChaCha8Rng;
+use rand_core::OsRng;
 use rand_core::{RngCore, SeedableRng};
 use sha2::{Digest, Sha256};
 use std::{
@@ -21,6 +22,40 @@ pub enum FaultType {
     MalformedProof,
     WithholdShare,
     Equivocate,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn round1_commitment_opens_only_with_bound_pk_hash_and_nonce() {
+        let party_id = 7;
+        let session_id = [0x11; 32];
+        let pk_i_hash = [0x22; 32];
+        let commitment_nonce = [0x33; 32];
+
+        let commitment =
+            compute_round1_commitment(party_id, &session_id, &pk_i_hash, &commitment_nonce);
+
+        let mut different_pk_hash = pk_i_hash;
+        different_pk_hash[0] ^= 0xff;
+        let mut different_nonce = commitment_nonce;
+        different_nonce[0] ^= 0xff;
+
+        assert_eq!(
+            commitment,
+            compute_round1_commitment(party_id, &session_id, &pk_i_hash, &commitment_nonce)
+        );
+        assert_ne!(
+            commitment,
+            compute_round1_commitment(party_id, &session_id, &different_pk_hash, &commitment_nonce,)
+        );
+        assert_ne!(
+            commitment,
+            compute_round1_commitment(party_id, &session_id, &pk_i_hash, &different_nonce)
+        );
+    }
 }
 
 #[derive(Debug)]
@@ -63,12 +98,28 @@ fn party_id_from_index(index: usize) -> PartyId {
     u32::try_from(index.saturating_add(1)).unwrap_or(u32::MAX)
 }
 
-fn hash_bytes(data: &[u8]) -> [u8; 32] {
+fn hash_bytes(domain: &[u8], data: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
+    hasher.update(b"pvthfhe/");
+    hasher.update(domain);
     hasher.update(data);
-    let mut out = [0u8; 32];
-    out.copy_from_slice(&hasher.finalize());
-    out
+    hasher.finalize().into()
+}
+
+/// H2: Round1 commit-reveal binding for a party public key hash.
+pub fn compute_round1_commitment(
+    party_id: PartyId,
+    session_id: &[u8; 32],
+    pk_i_hash: &[u8; 32],
+    commitment_nonce: &[u8; 32],
+) -> [u8; 32] {
+    let mut h = Sha256::new();
+    h.update(b"pvthfhe-dkg-commit-reveal/v2");
+    h.update(&party_id.to_be_bytes());
+    h.update(session_id);
+    h.update(pk_i_hash);
+    h.update(commitment_nonce);
+    h.finalize().into()
 }
 
 impl KeygenSimulator {
@@ -132,7 +183,7 @@ impl KeygenSimulator {
         data.extend_from_slice(Tag::KeygenSimulatorSession.as_bytes());
         data.extend_from_slice(&participant_set_hash);
         data.extend_from_slice(&self.threshold.to_be_bytes());
-        hash_bytes(&data)
+        hash_bytes(b"session-id/v1", &data)
     }
 
     fn participant_set_hash(&self) -> [u8; 32] {
@@ -140,7 +191,7 @@ impl KeygenSimulator {
         for index in 0..self.n_parties {
             data.extend_from_slice(&party_id_from_index(index).to_be_bytes());
         }
-        hash_bytes(&data)
+        hash_bytes(b"participant-set/v1", &data)
     }
 
     /// Deterministic keygen for the simulator: derives a seeded RNG from
@@ -205,7 +256,7 @@ impl KeygenSimulator {
 
             if fault == Some(&FaultType::Equivocate) {
                 let mut alt_msg = msg.clone();
-                alt_msg.commitment = hash_bytes(b"alt");
+                alt_msg.commitment = hash_bytes(b"equivocation-alt/v1", b"alt");
                 r1_msgs.push(alt_msg);
                 equivocated.insert(party_id);
             }
@@ -304,18 +355,20 @@ impl KeygenSimulator {
             let mut leaf = Vec::new();
             leaf.extend_from_slice(&m.party_id.to_be_bytes());
             leaf.extend_from_slice(&m.pk_i_hash);
-            dkg_root_hasher.update(hash_bytes(&leaf));
+            dkg_root_hasher.update(hash_bytes(b"dkg-root/v1", &leaf));
         }
         let mut dkg_root = [0u8; 32];
         dkg_root.copy_from_slice(&dkg_root_hasher.finalize());
 
         let mut transcript_hasher = Sha256::new();
+        transcript_hasher.update(b"pvthfhe/transcript/v1");
         // Serialize round1_messages for transcript hash
         for msg in &valid_r1 {
             transcript_hasher.update(&msg.party_id.to_be_bytes());
             transcript_hasher.update(&msg.nizk);
             transcript_hasher.update(&msg.pk_i.bytes);
             transcript_hasher.update(&msg.pk_i_hash);
+            transcript_hasher.update(&msg.commitment_nonce);
             transcript_hasher.update(&msg.commitment);
             transcript_hasher.update(&msg.poly_commit);
             // Skip encrypted_shares to avoid ordering issues across parties
@@ -349,7 +402,7 @@ impl KeygenSimulator {
         let pk_i = PublicKey {
             bytes: share.bytes.0.clone(),
         };
-        let pk_i_hash = hash_bytes(pk_i.bytes.as_slice());
+        let pk_i_hash = hash_bytes(b"participant-pk-hash/v1", pk_i.bytes.as_slice());
 
         // Generate real BFV keypair correctness NIZK (C0).
         let keygen_nizk = self
@@ -380,25 +433,29 @@ impl KeygenSimulator {
             }
         }
 
+        // H2: fresh nonce for rogue-key commit-reveal binding.
+        let commitment_nonce = {
+            let mut nonce = [0u8; 32];
+            OsRng.fill_bytes(&mut nonce);
+            nonce
+        };
+        // H2: commitment binds pk_i_hash + nonce to prevent an adversary from
+        // choosing their pk after seeing honest keys.
+        let commitment =
+            { compute_round1_commitment(party_id, session_id, &pk_i_hash, &commitment_nonce) };
+
         Ok(Round1Message {
             party_id,
             pk_i,
             pk_i_hash,
-            commitment: {
-                let mut data = Vec::new();
-                data.extend_from_slice(b"pvthfhe-poly-commit-v1");
-                data.extend_from_slice(&party_id.to_be_bytes());
-                data.extend_from_slice(session_id);
-                data.extend_from_slice(&share.bytes.0);
-                hash_bytes(&data)
-            },
+            commitment_nonce,
+            commitment,
             poly_commit: {
                 let mut data = Vec::new();
-                data.extend_from_slice(b"pvthfhe-poly-commit-v1");
                 data.extend_from_slice(session_id);
                 data.extend_from_slice(&party_id.to_be_bytes());
                 data.extend_from_slice(&share.bytes.0);
-                hash_bytes(&data)
+                hash_bytes(b"poly-commit/v1", &data)
             },
             encrypted_shares,
             nizk: keygen_nizk,
@@ -507,11 +564,10 @@ impl KeygenSimulator {
 
         // Compute poly_commit identically to Round1Message for Fiat-Shamir binding.
         let mut poly_commit_data = Vec::new();
-        poly_commit_data.extend_from_slice(b"pvthfhe-poly-commit-v1");
         poly_commit_data.extend_from_slice(session_id);
         poly_commit_data.extend_from_slice(&party_id.to_be_bytes());
         poly_commit_data.extend_from_slice(&share.bytes.0);
-        let poly_commit = hash_bytes(&poly_commit_data);
+        let poly_commit = hash_bytes(b"poly-commit/v1", &poly_commit_data);
 
         let proof = sigma::prove(session_id, party_id, &stmt, &wit, &mut rng, &poly_commit)
             .map_err(|e| format!("sigma prove: {e}"))?;

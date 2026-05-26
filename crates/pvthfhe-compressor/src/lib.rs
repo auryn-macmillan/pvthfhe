@@ -10,10 +10,158 @@ pub mod poly_eval;
 pub mod witness;
 
 /// Sonobe-backed proof compressor implementation.
+/// Enabled only when the `nova-backend` feature is active.
+/// When disabled, stubs are provided for workspace compilation.
+#[cfg(feature = "nova-backend")]
 pub mod sonobe;
+#[cfg(feature = "nova-backend")]
 pub use sonobe::heterogeneous;
 
+#[cfg(not(feature = "nova-backend"))]
+pub mod sonobe {
+    use crate::{CompressedProof, CompressorError, ProofCompressor, StepCircuit, VerifierKey};
+    use ark_ff::PrimeField;
+    use std::marker::PhantomData;
+
+    pub mod poseidon_gadget {
+        use ark_ff::PrimeField;
+
+        #[derive(Clone, Debug)]
+        pub struct PoseidonParams<F: PrimeField> {
+            pub mds: Vec<Vec<F>>,
+            pub ark: Vec<Vec<F>>,
+            pub full_rounds: usize,
+            pub partial_rounds: usize,
+            pub rate: usize,
+            pub capacity: usize,
+            pub t: usize,
+        }
+
+        impl<F: PrimeField> PoseidonParams<F> {
+            pub fn canonical() -> Self {
+                let zero = F::zero();
+                let one = super::one_stub::<F>();
+                let mds = vec![
+                    vec![one, zero, zero, zero, zero],
+                    vec![zero, one, zero, zero, zero],
+                    vec![zero, zero, one, zero, zero],
+                    vec![zero, zero, zero, one, zero],
+                    vec![zero, zero, zero, zero, one],
+                ];
+                let ark = vec![vec![F::zero(); 5]; 68];
+                PoseidonParams {
+                    mds,
+                    ark,
+                    full_rounds: 8,
+                    partial_rounds: 60,
+                    rate: 4,
+                    capacity: 1,
+                    t: 5,
+                }
+            }
+        }
+    }
+
+    pub use poseidon_gadget::PoseidonParams;
+
+    fn one_stub<F: PrimeField>() -> F {
+        F::from(1u64)
+    }
+
+    pub fn hash8_native<F: PrimeField>(_inputs: &[F]) -> F {
+        F::zero()
+    }
+
+    pub struct ToyStepCircuit<F> {
+        _field: PhantomData<F>,
+    }
+    impl<F> StepCircuit for ToyStepCircuit<F> {
+        fn descriptor(&self) -> crate::StepCircuitDescriptor {
+            crate::StepCircuitDescriptor { width: 0 }
+        }
+        fn circuit_hash(&self) -> [u8; 32] {
+            [0u8; 32]
+        }
+    }
+
+    pub struct CycloFoldStepCircuit<F> {
+        _phantom: PhantomData<F>,
+    }
+    impl<F> StepCircuit for CycloFoldStepCircuit<F> {
+        fn descriptor(&self) -> crate::StepCircuitDescriptor {
+            crate::StepCircuitDescriptor { width: 8 }
+        }
+        fn circuit_hash(&self) -> [u8; 32] {
+            [0u8; 32]
+        }
+    }
+
+    pub struct SonobeCompressor<S> {
+        _phantom: PhantomData<S>,
+    }
+
+    impl<S: StepCircuit> SonobeCompressor<S> {
+        pub fn new(_epoch_hash: [u8; 32], _ivc_steps: usize) -> Result<Self, CompressorError> {
+            Err(CompressorError::Backend("nova-backend feature not enabled"))
+        }
+
+        pub fn srs_hash(&self) -> [u8; 32] {
+            [0u8; 32]
+        }
+
+        pub fn verifier_key(&self) -> VerifierKey {
+            VerifierKey {
+                srs_id: String::new(),
+                step_circuit_hash: [0u8; 32],
+                backend_id: "stub".to_string(),
+                version: 0,
+            }
+        }
+    }
+
+    impl<S: StepCircuit> ProofCompressor for SonobeCompressor<S> {
+        fn prove(
+            &self,
+            _acc: &[u8],
+            _public_inputs: &[u8],
+        ) -> Result<CompressedProof, CompressorError> {
+            Err(CompressorError::Backend("nova-backend feature not enabled"))
+        }
+
+        fn verify(
+            &self,
+            _vk: &VerifierKey,
+            _proof: &CompressedProof,
+            _public_inputs: &[u8],
+        ) -> Result<bool, CompressorError> {
+            Ok(false)
+        }
+
+        fn backend_id(&self) -> &str {
+            "stub"
+        }
+
+        fn vk_bytes(&self) -> &[u8] {
+            &[]
+        }
+
+        fn compressed_proof_bytes<'a>(&self, proof: &'a CompressedProof) -> &'a [u8] {
+            &proof.bytes
+        }
+    }
+
+    pub(crate) fn parse_proof(_bytes: &[u8]) -> Result<ParsedProof<'_>, CompressorError> {
+        Err(CompressorError::Backend("nova-backend feature not enabled"))
+    }
+
+    pub(crate) struct ParsedProof<'a> {
+        pub(crate) snark_bytes: Option<&'a [u8]>,
+    }
+}
+
 /// MicroNova recursive compression (P3-M2).
+/// Depends on the sonobe module and is NOT available with the nova-backend feature.
+#[cfg(not(feature = "nova-backend"))]
 pub mod micronova;
 
 /// Opaque compressed-proof bytes.
@@ -59,11 +207,9 @@ impl CompressedProof {
 }
 
 fn parse_snark_present(data: &[u8]) -> bool {
-    // Use the extended proof parser to check for SNARK bytes.
-    data.len() > 76
-        && crate::sonobe::parse_proof(data)
-            .map(|p| p.snark_bytes.is_some())
-            .unwrap_or(false)
+    crate::sonobe::parse_proof(data)
+        .map(|p| p.snark_bytes.is_some())
+        .unwrap_or(false)
 }
 
 /// Shared verifier-key metadata for proof-compression backends.

@@ -68,7 +68,11 @@ impl<F: PrimeField> AjtaiMatrix<F> {
             }
             entries.push(row);
         }
-        Self { rows, cols, entries }
+        Self {
+            rows,
+            cols,
+            entries,
+        }
     }
 
     /// Commit to a witness vector: y = A·w.

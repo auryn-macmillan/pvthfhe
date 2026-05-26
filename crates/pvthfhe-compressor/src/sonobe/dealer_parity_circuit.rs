@@ -7,15 +7,30 @@
 //! commitment check, this prevents a dealer from using a polynomial whose
 //! constant term does not match the public commitment.
 
+#[cfg(not(feature = "nova-backend"))]
 use super::{ExternalInputs3, ExternalInputs3Var};
-use crate::{StepCircuit, StepCircuitDescriptor};
-use ark_ff::{BigInteger, PrimeField};
-use ark_r1cs_std::alloc::AllocVar;
-use ark_r1cs_std::eq::EqGadget;
-use ark_r1cs_std::fields::fp::FpVar;
-use ark_r1cs_std::fields::FieldVar;
+#[cfg(not(feature = "nova-backend"))]
+use ark_r1cs_std::{
+    alloc::AllocVar,
+    eq::EqGadget,
+    fields::{fp::FpVar, FieldVar},
+};
+#[cfg(not(feature = "nova-backend"))]
 use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
+#[cfg(not(feature = "nova-backend"))]
 use folding_schemes::frontend::FCircuit;
+
+#[cfg(feature = "nova-backend")]
+use bellpepper_core::{
+    num::AllocatedNum, ConstraintSystem, LinearCombination, SynthesisError as BpSynthesisError,
+};
+#[cfg(feature = "nova-backend")]
+use bp_ff::PrimeField as BpPrimeField;
+
+use crate::{StepCircuit, StepCircuitDescriptor};
+#[cfg(not(feature = "nova-backend"))]
+use ark_ff::BigInteger;
+use ark_ff::PrimeField;
 use sha3::{Digest, Keccak256};
 use std::cell::RefCell;
 
@@ -57,10 +72,21 @@ pub fn clear_dealer_parity_data() {
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct DealerParityStepCircuit<F: PrimeField> {
+pub struct DealerParityStepCircuit<F> {
     _phantom: std::marker::PhantomData<F>,
+    /// Per-step share data for the bellpepper backend.
+    /// The caller sets this field before each `prove_step` call.
+    #[cfg(feature = "nova-backend")]
+    pub step_shares: Vec<F>,
+    /// Per-step poly-factor data for the bellpepper backend.
+    #[cfg(feature = "nova-backend")]
+    pub step_poly_factors: Vec<F>,
+    /// P(0) constant term for the bellpepper backend.
+    #[cfg(feature = "nova-backend")]
+    pub step_p0: Option<F>,
 }
 
+#[cfg(not(feature = "nova-backend"))]
 impl<F: PrimeField> FCircuit<F> for DealerParityStepCircuit<F> {
     type Params = ();
     type ExternalInputs = ExternalInputs3<F>;
@@ -124,6 +150,67 @@ impl<F: PrimeField> FCircuit<F> for DealerParityStepCircuit<F> {
     }
 }
 
+#[cfg(feature = "nova-backend")]
+impl<F> arecibo::traits::circuit::StepCircuit<F> for DealerParityStepCircuit<F>
+where
+    F: BpPrimeField,
+{
+    fn arity(&self) -> usize {
+        3
+    }
+
+    fn synthesize<CS: ConstraintSystem<F>>(
+        &self,
+        cs: &mut CS,
+        z: &[AllocatedNum<F>],
+    ) -> Result<Vec<AllocatedNum<F>>, BpSynthesisError> {
+        let n = self.step_shares.len().max(self.step_poly_factors.len());
+
+        // (a) Schwartz-Zippel parity check: H·shares == 0
+        let mut parity_acc =
+            AllocatedNum::alloc(cs.namespace(|| "parity_init"), || Ok(F::from(0u64)))?;
+        for j in 0..n {
+            let s_val = self.step_shares.get(j).copied().unwrap_or(F::from(0u64));
+            let p_val = self
+                .step_poly_factors
+                .get(j)
+                .copied()
+                .unwrap_or(F::from(0u64));
+            let s = AllocatedNum::alloc(cs.namespace(|| format!("share_{j}")), || Ok(s_val))?;
+            let p = AllocatedNum::alloc(cs.namespace(|| format!("poly_factor_{j}")), || Ok(p_val))?;
+            let prod = s.mul(cs.namespace(|| format!("s_p_mul_{j}")), &p)?;
+            parity_acc = parity_acc.add(cs.namespace(|| format!("parity_add_{j}")), &prod)?;
+        }
+
+        // Enforce parity_acc == 0
+        let lc_parity = LinearCombination::<F>::zero() + parity_acc.get_variable();
+        let lc_one = LinearCombination::<F>::zero() + CS::one();
+        let lc_zero = LinearCombination::<F>::zero();
+        cs.enforce(
+            || "parity_zero",
+            |_| lc_parity.clone(),
+            |_| lc_one.clone(),
+            |_| lc_zero.clone(),
+        );
+
+        // (b) P(0) binding: allocate P(0) as a witness placeholder.
+        // Full equality constraint to external inputs is not available
+        // in the arecibo StepCircuit trait (no external inputs parameter).
+        // The caller is expected to validate P(0) off-circuit.
+        let _p0 = AllocatedNum::alloc(cs.namespace(|| "p0"), || {
+            Ok(self.step_p0.unwrap_or(F::from(0u64)))
+        })?;
+
+        let done = AllocatedNum::alloc(cs.namespace(|| "done"), || Ok(F::from(1u64)))?;
+        let one = AllocatedNum::alloc(cs.namespace(|| "one"), || Ok(F::from(1u64)))?;
+        let count = z[1].clone().add(cs.namespace(|| "count_inc"), &one)?;
+        let ext0 = z[2].clone();
+
+        Ok(vec![done, count, ext0])
+    }
+}
+
+#[cfg(not(feature = "nova-backend"))]
 fn to_f<F: PrimeField>(fr: ark_bn254::Fr) -> F {
     F::from_le_bytes_mod_order(&fr.into_bigint().to_bytes_le())
 }

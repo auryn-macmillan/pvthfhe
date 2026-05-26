@@ -1382,7 +1382,7 @@ pub fn compute_share_commitment_tracked(
 /// Compute the hash-bound secondary ciphertext component from `ciphertext_u`.
 pub fn compute_ciphertext_v(ciphertext_u: &[u8]) -> [u8; DIGEST_LEN] {
     let mut hasher = Sha256::new();
-    hasher.update(b"ciphertext-v1");
+    hasher.update(b"pvthfhe/ciphertext-v/v1");
     hasher.update(ciphertext_u);
     hasher.finalize().into()
 }

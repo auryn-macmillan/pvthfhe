@@ -389,6 +389,9 @@ pub fn verify(
 // provide complete binding data — this function does NOT internally bind to
 // any protocol identifiers. Callers in nizk_share.rs and adapter.rs provide
 // full binding via bfv_sigma_binding_data().
+// TODO(L2): session_id and party_id should be first-class parameters in a
+// future refactor. Currently the binding relies on the outer caller to hash
+// these via binding_data, which is fragile and easy to omit accidentally.
 #[allow(clippy::too_many_arguments)]
 fn derive_challenge(
     t0_rns: &[u64],

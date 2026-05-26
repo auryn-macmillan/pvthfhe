@@ -1,6 +1,6 @@
-use pvthfhe_types::ProtocolBytes;
 use super::*;
 use pvthfhe_aggregator::decrypt::DecryptError;
+use pvthfhe_types::ProtocolBytes;
 
 const SEED: u64 = 47;
 

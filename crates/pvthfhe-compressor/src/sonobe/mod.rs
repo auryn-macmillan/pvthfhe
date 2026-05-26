@@ -2,6 +2,7 @@
 
 pub mod c7_circuit;
 pub mod c7_merkle_circuit;
+pub mod cyclo_fold_circuit;
 pub mod cyclo_verifier;
 pub mod fold_verifier_circuit;
 pub mod heterogeneous;
@@ -26,9 +27,9 @@ pub use ajtai_commitment_circuit::{
 pub use bfv_encryption_circuit::{
     clear_bfv_encryption_data, set_bfv_encryption_data, BFV_STEP_DATA_LEN,
 };
-pub use c7_circuit::{
-    c7_fold_witnesses, clear_c7_step_data, set_c7_step_data, C7DecryptAggregationCircuit,
-};
+#[cfg(not(feature = "nova-backend"))]
+pub use c7_circuit::c7_fold_witnesses;
+pub use c7_circuit::{clear_c7_step_data, set_c7_step_data, C7DecryptAggregationCircuit};
 pub use c7_merkle_circuit::{
     merkle_external_inputs_width, C7MerkleExternalInputs, C7MerkleExternalInputsVar,
     C7MerkleStepCircuit, MerkleWitnessData,
@@ -63,6 +64,7 @@ use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::GR1CSVar;
 use ark_relations::gr1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Validate};
+#[cfg(not(feature = "nova-backend"))]
 use folding_schemes::{
     commitment::{kzg::KZG, pedersen::Pedersen},
     folding::nova::{IVCProof, Nova, PreprocessorParam},
@@ -82,8 +84,43 @@ const _: () = {
     let _: Option<WitnessStatement> = None;
 };
 
+#[cfg(not(feature = "nova-backend"))]
 type SonobeProverParam<S> = <SonobeNova<S> as FoldingScheme<G1, G2, S>>::ProverParam;
+#[cfg(not(feature = "nova-backend"))]
 type SonobeVerifierParam<S> = <SonobeNova<S> as FoldingScheme<G1, G2, S>>::VerifierParam;
+
+// ── Nova (arecibo) backend ────────────────────────────────────────────
+// arecibo requires a cycle of curves: primary on BN254, secondary on Grumpkin.
+// A trivial secondary circuit passes state through unchanged.
+
+#[cfg(feature = "nova-backend")]
+mod arecibo_compat {
+    use arecibo::traits::circuit::StepCircuit as AreciboStepCircuit;
+    use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
+    use bp_ff::PrimeField;
+
+    /// Trivial secondary circuit for the BN254/Grumpkin curve cycle.
+    /// Passes state through unchanged.
+    #[derive(Clone, Debug, Default)]
+    pub struct TrivialSecondary;
+
+    impl<F: PrimeField> AreciboStepCircuit<F> for TrivialSecondary {
+        fn arity(&self) -> usize {
+            1
+        }
+
+        fn synthesize<CS: ConstraintSystem<F>>(
+            &self,
+            _cs: &mut CS,
+            z: &[AllocatedNum<F>],
+        ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
+            Ok(z.to_vec())
+        }
+    }
+}
+
+#[cfg(feature = "nova-backend")]
+use arecibo_compat::TrivialSecondary;
 
 use crate::{
     CompressedProof, CompressorError, ProofCompressor, StepCircuit, StepCircuitDescriptor,
@@ -94,6 +131,7 @@ const BACKEND_ID: &str = "sonobe-nova-bn254-grumpkin";
 pub(crate) const PROOF_MAGIC: [u8; 4] = *b"SNOB";
 pub(crate) const PROOF_VERSION: u32 = 1;
 
+#[cfg(not(feature = "nova-backend"))]
 type SonobeIvcProof = IVCProof<G1, G2>;
 
 /// Triple external inputs: (commitment, norm, count) for each fold step.
@@ -272,6 +310,7 @@ pub struct ToyStepCircuit<F: PrimeField> {
     _field: std::marker::PhantomData<F>,
 }
 
+#[cfg(not(feature = "nova-backend"))]
 impl<F: PrimeField> FCircuit<F> for ToyStepCircuit<F> {
     type Params = ();
     type ExternalInputs = ExternalInputs3<F>;
@@ -399,18 +438,22 @@ pub struct SigmaWitness<F: PrimeField> {
     pub z_s_power: Vec<i64>,
     /// Response z_e in power basis (integer coeffs) for norm enforcement
     pub z_e_power: Vec<i64>,
-    // Schwartz-Zippel single-point evaluation data (per RNS limb):
-    pub sz_gamma: u64,
+    // Schwartz-Zippel 3-point evaluation data (3 independent challenge points):
+    // SOUNDNESS BUDGET: 3 independent S-Z evaluation points per RNS limb.
+    // Composite false-pass probability ≤ (N/|F|)^3 ≤ (8192/2^58)^3 ≈ 2^-135.
+    // Target 2^-128 is achieved with 3 points (vs 1-point ~2^-43). Each Vec
+    // holds 3*L entries in order [γ0_l0, γ0_l1, γ0_l2, γ1_l0, γ1_l1, γ1_l2, γ2_l0, γ2_l1, γ2_l2].
+    pub sz_gamma: [u64; 3],
     pub sz_c_eval: Vec<u64>,
     pub sz_zs_eval: Vec<u64>,
     pub sz_ze_eval: Vec<u64>,
     pub sz_t_eval: Vec<u64>,
     pub sz_di_eval: Vec<u64>,
     pub sz_r1_eval: Vec<u64>,
-    /// Cyclotomic quotient r2(γ) per limb. Reserved for future cyclotomic
+    /// Cyclotomic quotient r2(γ) per limb×point. Reserved for future cyclotomic
     /// constraint (X^N+1)(γ) · r2(γ). Currently populated as zeros — the
     /// RNS CRT isomorphism means per-modulus correctness already implies
-    /// ring correctness via the Chinese Remainder Theorem.
+    /// ring correctness via the Chinese Remainder Theorem. Layout: 3*L entries.
     pub sz_r2_eval: Vec<u64>,
 }
 
@@ -604,30 +647,33 @@ pub(crate) fn sigma_verify_step<F: PrimeField>(
             let ch_var = FpVar::new_witness(cs.clone(), || Ok(f_ch))?;
             let q_const = FpVar::constant(F::from(SIGMA_RNS_MODULI[limb]));
 
-            // Schwartz-Zippel: evaluate at a single random point gamma instead of all NTT coeffs.
-            // The equation: c(gamma)*z_s(gamma) + z_e(gamma) == t(gamma) + ch*d_i(gamma) + Q[limb]*r1(gamma)
-            // This is sound by the Schwartz-Zippel lemma (probability of false pass <= N/q < 2^-48).
-            let sz_c_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_c_eval[limb])))?;
-            let sz_zs_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_zs_eval[limb])))?;
-            let sz_ze_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_ze_eval[limb])))?;
-            let sz_t_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_t_eval[limb])))?;
-            let sz_di_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_di_eval[limb])))?;
-            let sz_r1_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_r1_eval[limb])))?;
+            // SOUNDNESS: 3 independent S-Z evaluation points per limb.
+            // Composite false-pass probability ≤ (N/|F|)^3 ≤ (8192/2^58)^3 ≈ 2^-135.
+            // Target is 2^-128, achieved with 3 points.
+            for eval_idx in 0..3 {
+                let idx = eval_idx * 3 + limb; // 3*L layout: eval-major, then limb
+                let sz_c_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_c_eval[idx])))?;
+                let sz_zs_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_zs_eval[idx])))?;
+                let sz_ze_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_ze_eval[idx])))?;
+                let sz_t_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_t_eval[idx])))?;
+                let sz_di_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_di_eval[idx])))?;
+                let sz_r1_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_r1_eval[idx])))?;
 
-            let sz_lhs = &sz_c_eval * &sz_zs_eval + &sz_ze_eval;
-            let sz_rhs = &sz_t_eval + &ch_var * &sz_di_eval + &q_const * &sz_r1_eval;
-            sz_lhs.enforce_equal(&sz_rhs)?;
+                let sz_lhs = &sz_c_eval * &sz_zs_eval + &sz_ze_eval;
+                let sz_rhs = &sz_t_eval + &ch_var * &sz_di_eval + &q_const * &sz_r1_eval;
+                sz_lhs.enforce_equal(&sz_rhs)?;
 
-            // Quotient witness range check: r1(g) = (c(g)*z_s(g) + z_e(g) - t(g) - ch*d_i(g)) / Q
-            // Since all terms are norm-bounded (B_Z_S = 131072) and Q approx 2^58,
-            // the quotient is bounded to 0 or 1. Range-checking prevents adversarial
-            // quotient inflation that would break S-Z soundness.
-            norm_range_check(
-                &sz_r1_eval,
-                w.sz_r1_eval[limb],
-                &FpVar::constant(F::one()),
-                1u64,
-            )?;
+                // Quotient witness range check: r1(g) = (c(g)*z_s(g) + z_e(g) - t(g) - ch*d_i(g)) / Q
+                // Since all terms are norm-bounded (B_Z_S = 131072) and Q approx 2^58,
+                // the quotient is bounded to 0 or 1. Range-checking prevents adversarial
+                // quotient inflation that would break S-Z soundness.
+                norm_range_check(
+                    &sz_r1_eval,
+                    w.sz_r1_eval[idx],
+                    &FpVar::constant(F::one()),
+                    1u64,
+                )?;
+            }
 
             // NOTE: Cyclotomic quotient r2(γ) is currently zeroed. The RNS CRT
             // isomorphism (per-modulus correctness ≡ ring correctness) makes the
@@ -790,6 +836,7 @@ pub struct CycloFoldStepCircuit<F: PrimeField> {
     _field: std::marker::PhantomData<F>,
 }
 
+#[cfg(not(feature = "nova-backend"))]
 impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
     type Params = ();
     type ExternalInputs = ExternalInputs4<F>;
@@ -922,6 +969,7 @@ impl<F: PrimeField> StepCircuit for CycloFoldStepCircuit<F> {
 }
 
 /// Proof compressor backed by Sonobe Nova over the BN254/Grumpkin cycle.
+#[cfg(not(feature = "nova-backend"))]
 #[derive(Clone, Debug)]
 pub struct SonobeCompressor<S: FCircuit<Fr, Params = ()> + StepCircuit + Clone + Debug> {
     prover_key_bytes: Vec<u8>,
@@ -933,8 +981,10 @@ pub struct SonobeCompressor<S: FCircuit<Fr, Params = ()> + StepCircuit + Clone +
     _step_circuit: std::marker::PhantomData<S>,
 }
 
+#[cfg(not(feature = "nova-backend"))]
 type SonobeNova<S> = Nova<G1, G2, S, KZG<'static, ark_bn254::Bn254>, Pedersen<G2>, false>;
 
+#[cfg(not(feature = "nova-backend"))]
 impl<S: FCircuit<Fr, Params = ()> + StepCircuit + Clone + Debug> SonobeCompressor<S> {
     /// Creates a new Sonobe compressor instance bound to an on-chain epoch.
     ///
@@ -1056,8 +1106,232 @@ impl<S: FCircuit<Fr, Params = ()> + StepCircuit + Clone + Debug> SonobeCompresso
     }
 }
 
+// ── Nova (arecibo) backend SonobeCompressor ─────────────────────────
+
+#[cfg(feature = "nova-backend")]
+/// Proof compressor backed by Nova (arecibo) over the BN254/Grumpkin cycle.
+#[derive(Clone)]
+pub struct SonobeCompressor<S>
+where
+    S: arecibo::traits::circuit::StepCircuit<
+            <arecibo::provider::Bn256Engine as arecibo::traits::Engine>::Scalar,
+        > + Clone,
+{
+    public_params: arecibo::PublicParams<
+        arecibo::provider::Bn256Engine,
+        arecibo::provider::GrumpkinEngine,
+        S,
+        TrivialSecondary,
+    >,
+    verifier_key: VerifierKey,
+    ivc_steps: usize,
+    state_len: usize,
+    srs_hash: [u8; 32],
+    _step_circuit: std::marker::PhantomData<S>,
+}
+
+#[cfg(feature = "nova-backend")]
+impl<S> SonobeCompressor<S>
+where
+    S: arecibo::traits::circuit::StepCircuit<
+            <arecibo::provider::Bn256Engine as arecibo::traits::Engine>::Scalar,
+        > + Clone
+        + Default,
+{
+    /// Creates a new compressor instance bound to an on-chain epoch using the arecibo backend.
+    pub fn new(epoch_hash: [u8; 32], ivc_steps: usize) -> Result<Self, CompressorError> {
+        let c_primary = S::default();
+        let c_secondary = TrivialSecondary;
+
+        let pp = arecibo::PublicParams::setup(
+            &c_primary,
+            &c_secondary,
+            &*arecibo::traits::snark::default_ck_hint(),
+            &*arecibo::traits::snark::default_ck_hint(),
+        );
+
+        // Derive SRS hash: H(epoch_hash || SonobeSrs)
+        let srs_hash: [u8; 32] =
+            Keccak256::digest([&epoch_hash[..], Tag::SonobeSrs.as_bytes()].concat()).into();
+
+        let circuit_hash = Keccak256::digest(Tag::SonobeSrs.as_bytes()).into();
+
+        let srs_id = format!(
+            "sonobe-srs-{:02x}{:02x}{:02x}{:02x}",
+            srs_hash[0], srs_hash[1], srs_hash[2], srs_hash[3],
+        );
+
+        let verifier_key = VerifierKey {
+            srs_id,
+            step_circuit_hash: circuit_hash,
+            backend_id: BACKEND_ID.to_string(),
+            version: PROOF_VERSION,
+        };
+
+        Ok(Self {
+            public_params: pp,
+            verifier_key,
+            ivc_steps,
+            state_len: 3,
+            srs_hash,
+            _step_circuit: std::marker::PhantomData,
+        })
+    }
+
+    /// Returns the structured verifier-key metadata for this backend instance.
+    pub fn verifier_key(&self) -> VerifierKey {
+        self.verifier_key.clone()
+    }
+
+    /// Returns the SRS hash derived from the epoch at construction time.
+    pub fn srs_hash(&self) -> [u8; 32] {
+        self.srs_hash
+    }
+
+    /// Returns the number of IVC fold steps configured at construction time.
+    pub fn ivc_steps(&self) -> usize {
+        self.ivc_steps
+    }
+}
+
+#[cfg(feature = "nova-backend")]
+type NovaScalar = <arecibo::provider::Bn256Engine as arecibo::traits::Engine>::Scalar;
+#[cfg(feature = "nova-backend")]
+type NovaScalarSecondary = <arecibo::provider::GrumpkinEngine as arecibo::traits::Engine>::Scalar;
+
+#[cfg(feature = "nova-backend")]
+fn ark_to_nova_scalar(fr: ark_bn254::Fr) -> NovaScalar {
+    use bp_ff::PrimeField;
+    let bytes = fr.into_bigint().to_bytes_le();
+    let mut repr = <NovaScalar as PrimeField>::Repr::default();
+    let len = repr.as_ref().len().min(bytes.len());
+    repr.as_mut()[..len].copy_from_slice(&bytes[..len]);
+    NovaScalar::from_repr(repr).unwrap_or(NovaScalar::from(0u64))
+}
+
+#[cfg(feature = "nova-backend")]
+type NovaRecursiveSNARK<S> = arecibo::RecursiveSNARK<
+    arecibo::provider::Bn256Engine,
+    arecibo::provider::GrumpkinEngine,
+    S,
+    TrivialSecondary,
+>;
+
+#[cfg(feature = "nova-backend")]
+impl<S> SonobeCompressor<S>
+where
+    S: arecibo::traits::circuit::StepCircuit<NovaScalar> + Clone + Default,
+{
+    pub fn prove_steps(
+        &self,
+        acc: &[u8],
+        steps: &[ExternalInputs3<ark_bn254::Fr>],
+    ) -> Result<CompressedProof, CompressorError> {
+        clear_cyclo_ring_data();
+        clear_sigma_data();
+
+        let _guard = ThreadLocalClearGuard;
+
+        assert_eq!(
+            steps.len(),
+            self.ivc_steps,
+            "steps.len() must equal ivc_steps ({})",
+            self.ivc_steps
+        );
+
+        let initial = decode_triple(acc)?;
+        let z0_primary: Vec<NovaScalar> = vec![
+            ark_to_nova_scalar(initial.0),
+            ark_to_nova_scalar(initial.1),
+            ark_to_nova_scalar(initial.2),
+        ];
+        let z0_secondary = vec![NovaScalarSecondary::from(0u64)];
+
+        let c_primary = S::default();
+        let c_secondary = TrivialSecondary;
+
+        let mut recursive_snark: NovaRecursiveSNARK<S> = NovaRecursiveSNARK::new(
+            &self.public_params,
+            &c_primary,
+            &c_secondary,
+            &z0_primary,
+            &z0_secondary,
+        )
+        .map_err(|_| CompressorError::Backend("arecibo RecursiveSNARK::new failed"))?;
+
+        for _step in 0..self.ivc_steps {
+            recursive_snark
+                .prove_step(&self.public_params, &c_primary, &c_secondary)
+                .map_err(|_| CompressorError::Backend("arecibo prove_step failed"))?;
+        }
+
+        let proof_bytes = bincode::serialize(&recursive_snark)
+            .map_err(|_| CompressorError::Backend("arecibo proof serialization failed"))?;
+
+        let mut header = Vec::with_capacity(76 + proof_bytes.len());
+        header.extend_from_slice(&PROOF_MAGIC);
+        header.extend_from_slice(&PROOF_VERSION.to_be_bytes());
+        header.extend_from_slice(&normalized_hash(acc)?);
+
+        let mut steps_bytes = Vec::new();
+        for step in steps {
+            steps_bytes.extend_from_slice(&encode_triple((step.0, step.1, step.2)));
+        }
+        let public_inputs_hash: [u8; 32] = Keccak256::digest(&steps_bytes).into();
+        header.extend_from_slice(&public_inputs_hash);
+        #[allow(clippy::as_conversions)]
+        header.extend_from_slice(&(proof_bytes.len() as u32).to_be_bytes());
+        header.extend_from_slice(&proof_bytes);
+
+        Ok(CompressedProof::new(header))
+    }
+
+    pub fn verify_steps(
+        &self,
+        vk: &VerifierKey,
+        proof: &CompressedProof,
+        steps: &[ExternalInputs3<ark_bn254::Fr>],
+    ) -> Result<bool, CompressorError> {
+        if vk != &self.verifier_key {
+            return Ok(false);
+        }
+
+        let parsed = parse_proof(&proof.bytes)?;
+
+        let mut steps_bytes = Vec::new();
+        for step in steps {
+            steps_bytes.extend_from_slice(&encode_triple((step.0, step.1, step.2)));
+        }
+        let expected_hash: [u8; 32] = Keccak256::digest(&steps_bytes).into();
+        if parsed.public_inputs_hash != expected_hash {
+            return Ok(false);
+        }
+
+        let acc_ark = decode_triple(&proof.bytes[8..104])?;
+        let z0_primary: Vec<NovaScalar> = vec![
+            ark_to_nova_scalar(acc_ark.0),
+            ark_to_nova_scalar(acc_ark.1),
+            ark_to_nova_scalar(acc_ark.2),
+        ];
+        let z0_secondary = vec![NovaScalarSecondary::from(0u64)];
+
+        let recursive_snark: NovaRecursiveSNARK<S> =
+            bincode::deserialize(parsed.ivc_bytes).map_err(|_| CompressorError::InvalidProof)?;
+
+        recursive_snark
+            .verify(
+                &self.public_params,
+                self.ivc_steps,
+                &z0_primary,
+                &z0_secondary,
+            )
+            .map(|_| true)
+            .map_err(|_| CompressorError::InvalidProof)
+    }
+}
 // ProofCompressor impl for ExternalInputs3-based step circuits
 // (ToyStepCircuit, FoldVerifierStepCircuit, RingVerifierCircuit, etc.)
+#[cfg(not(feature = "nova-backend"))]
 impl<
         S: FCircuit<Fr, Params = (), ExternalInputs = ExternalInputs3<Fr>>
             + StepCircuit
@@ -1180,6 +1454,7 @@ impl<
 // ProofCompressor impl for CycloFoldStepCircuit with G.16 hash-chain binding.
 // Keep this concrete: blanket impls distinguished only by associated-type
 // equality overlap under Rust coherence.
+#[cfg(not(feature = "nova-backend"))]
 impl ProofCompressor for SonobeCompressor<CycloFoldStepCircuit<Fr>> {
     fn prove(&self, acc: &[u8], public_inputs: &[u8]) -> Result<CompressedProof, CompressorError> {
         // F6.3: clear stale thread-local witness data from prior prove calls
@@ -1301,6 +1576,7 @@ impl ProofCompressor for SonobeCompressor<CycloFoldStepCircuit<Fr>> {
 }
 
 // Impl for ExternalInputs3-based step circuits (prove_steps / verify_steps)
+#[cfg(not(feature = "nova-backend"))]
 impl<
         S: FCircuit<Fr, Params = (), ExternalInputs = ExternalInputs3<Fr>>
             + StepCircuit
@@ -1414,6 +1690,7 @@ impl<
         steps: &[ExternalInputs3<Fr>],
     ) -> Result<bool, CompressorError> {
         if vk != &self.verifier_key {
+            tracing::warn!("verify_steps(EI3): verifier key mismatch");
             return Ok(false);
         }
 
@@ -1435,6 +1712,7 @@ impl<
 }
 
 // Impl for CycloFoldStepCircuit (ExternalInputs4 prove_steps / verify_steps).
+#[cfg(not(feature = "nova-backend"))]
 impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
     pub fn verify_external(
         &self,
@@ -1654,6 +1932,7 @@ impl SonobeCompressor<CycloFoldStepCircuit<Fr>> {
     }
 }
 
+#[cfg(not(feature = "nova-backend"))]
 impl<
         S: FCircuit<Fr, Params = (), ExternalInputs = C7MerkleExternalInputs<Fr>>
             + StepCircuit
@@ -1776,6 +2055,7 @@ impl<
     }
 }
 
+#[cfg(not(feature = "nova-backend"))]
 impl<
         S: FCircuit<Fr, Params = (), ExternalInputs = ExternalInputs5<Fr>>
             + StepCircuit
@@ -1906,6 +2186,7 @@ impl<
 /// consistency (ring_count, sigma_count).
 ///
 /// `state_hash` computes the expected accumulator hash from `z_0`.
+#[cfg(not(feature = "nova-backend"))]
 fn verify_ivc_core<S: FCircuit<Fr, Params = ()>>(
     parsed: &ParsedProof<'_>,
     state_len: usize,
@@ -1917,10 +2198,22 @@ fn verify_ivc_core<S: FCircuit<Fr, Params = ()>>(
             .map_err(|_| CompressorError::InvalidProof)?;
 
     if ivc_proof.z_0.len() != state_len || ivc_proof.z_i.len() != state_len {
+        tracing::warn!(
+            "state_len mismatch: z_0={} z_i={} expected={}",
+            ivc_proof.z_0.len(),
+            ivc_proof.z_i.len(),
+            state_len
+        );
         return Ok(false);
     }
 
-    if state_hash(&ivc_proof.z_0)? != parsed.acc_hash {
+    let computed_hash = state_hash(&ivc_proof.z_0)?;
+    if computed_hash != parsed.acc_hash {
+        tracing::warn!(
+            "acc_hash mismatch: expected={:02x?} got={:02x?}",
+            parsed.acc_hash,
+            computed_hash
+        );
         return Ok(false);
     }
 
@@ -2113,6 +2406,7 @@ pub(crate) fn build_proof_bytes(
 /// State layout: z[0]=hash, z[1]=escalated_norm, z[2]=fold_count,
 /// z[3]=ring_verif_count, z[4]=sigma_count, z[5]=z_s_proj_acc, z[6]=z_e_proj_acc,
 /// z[7]=bfv_verification_count.
+#[cfg(not(feature = "nova-backend"))]
 pub fn extract_cyclo_state(proof: &CompressedProof) -> Result<[Fr; 8], CompressorError> {
     let parsed = parse_proof(&proof.bytes)?;
     let ivc_proof =

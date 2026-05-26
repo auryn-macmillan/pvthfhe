@@ -42,12 +42,12 @@ pub enum Tag {
     PvssBatchedDkgShareEncryptionESmTrack,
     /// `pvthfhe/pvss/smudge-slot-batch/v1` — smudge slot/batch identity binding.
     PvssSmudgeSlotBatch,
-/// `pvthfhe/pvss/transcript-root-binding/v1` — transcript-root replay binding.
-PvssTranscriptRootBinding,
-/// `pvthfhe/pvss/c7-decrypt-aggregation/v1` — C7 decryption aggregation step circuit.
-PvssC7DecryptAggregation,
-/// `pvthfhe/pvss/c7-merkle-decrypt-aggregation/v1` — C7 decryption aggregation with in-circuit Merkle verification.
-PvssC7MerkleDecryptAggregation,
+    /// `pvthfhe/pvss/transcript-root-binding/v1` — transcript-root replay binding.
+    PvssTranscriptRootBinding,
+    /// `pvthfhe/pvss/c7-decrypt-aggregation/v1` — C7 decryption aggregation step circuit.
+    PvssC7DecryptAggregation,
+    /// `pvthfhe/pvss/c7-merkle-decrypt-aggregation/v1` — C7 decryption aggregation with in-circuit Merkle verification.
+    PvssC7MerkleDecryptAggregation,
     /// `pvthfhe/p3/fold-verifier/v1` — P3 LatticeFold+ terminal verifier step circuit.
     PvssFoldVerifier,
     /// `pvthfhe/sonobe/ring-verifier/v1` — Sonobe ring equation verifier circuit (G1).
@@ -77,10 +77,10 @@ impl Tag {
             Tag::PvssBatchedDkgShareEncryptionESmTrack => {
                 b"pvthfhe/pvss/batched-dkg-share-encryption/e-sm-track/v1"
             }
-Tag::PvssSmudgeSlotBatch => b"pvthfhe/pvss/smudge-slot-batch/v1",
-Tag::PvssTranscriptRootBinding => b"pvthfhe/pvss/transcript-root-binding/v1",
-Tag::PvssC7DecryptAggregation => b"pvthfhe/pvss/c7-decrypt-aggregation/v1",
-Tag::PvssC7MerkleDecryptAggregation => b"pvthfhe/pvss/c7-merkle-decrypt-aggregation/v1",
+            Tag::PvssSmudgeSlotBatch => b"pvthfhe/pvss/smudge-slot-batch/v1",
+            Tag::PvssTranscriptRootBinding => b"pvthfhe/pvss/transcript-root-binding/v1",
+            Tag::PvssC7DecryptAggregation => b"pvthfhe/pvss/c7-decrypt-aggregation/v1",
+            Tag::PvssC7MerkleDecryptAggregation => b"pvthfhe/pvss/c7-merkle-decrypt-aggregation/v1",
             Tag::PvssFoldVerifier => b"pvthfhe/p3/fold-verifier/v1",
             Tag::SonobeRingVerifier => b"pvthfhe/sonobe/ring-verifier/v1",
         }
@@ -105,9 +105,9 @@ Tag::PvssC7MerkleDecryptAggregation => b"pvthfhe/pvss/c7-merkle-decrypt-aggregat
             Tag::PvssBatchedDkgShareEncryptionSkTrack.as_bytes(),
             Tag::PvssBatchedDkgShareEncryptionESmTrack.as_bytes(),
             Tag::PvssSmudgeSlotBatch.as_bytes(),
-Tag::PvssTranscriptRootBinding.as_bytes(),
-Tag::PvssC7DecryptAggregation.as_bytes(),
-Tag::PvssC7MerkleDecryptAggregation.as_bytes(),
+            Tag::PvssTranscriptRootBinding.as_bytes(),
+            Tag::PvssC7DecryptAggregation.as_bytes(),
+            Tag::PvssC7MerkleDecryptAggregation.as_bytes(),
             Tag::PvssFoldVerifier.as_bytes(),
             Tag::SonobeRingVerifier.as_bytes(),
         ];

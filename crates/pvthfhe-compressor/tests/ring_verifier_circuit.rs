@@ -33,7 +33,7 @@ fn honest_ring_coeffs_c1() -> (Vec<Fr>, Vec<Fr>, Vec<Fr>, Vec<Fr>) {
         zs[k] = Fr::from((k + 5) as u64);
         ze[k] = Fr::from((k + 15) as u64);
         t[k] = Fr::from((k + 3) as u64);
-        d[k] = Fr::from((k + 17) as u64);  // zs+ze = 2k+20 = t+d = (k+3)+(k+17)
+        d[k] = Fr::from((k + 17) as u64); // zs+ze = 2k+20 = t+d = (k+3)+(k+17)
     }
     (zs, ze, t, d)
 }

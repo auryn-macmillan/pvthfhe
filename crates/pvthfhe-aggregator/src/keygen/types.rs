@@ -7,6 +7,9 @@ pub struct Round1Message {
     pub party_id: PartyId,
     pub pk_i: PublicKey,
     pub pk_i_hash: [u8; 32],
+    /// Fresh random nonce binding the commitment to prevent rogue-key attacks (H2).
+    pub commitment_nonce: [u8; 32],
+    /// Commitment = SHA256("pvthfhe-dkg-commit-reveal/v2" || party_id || session_id || pk_i_hash || nonce).
     pub commitment: [u8; 32],
     pub poly_commit: [u8; 32],
     pub encrypted_shares: std::collections::HashMap<PartyId, Vec<u8>>,

@@ -10,10 +10,8 @@ help: Check that the patched package version and available features are compatib
       version. This may also occur with an optional dependency that is not enabled.
 warning: pvthfhe-fhe@0.1.0: MOCK BACKEND ACTIVE — XOR/SHA256 ONLY. Set PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK=1 to use.
 warning: pvthfhe-aggregator@0.1.0: aggregator: folding uses CycloFoldStepCircuit with real Ajtai commitments (CycloNizkAdapter)
-   Compiling pvthfhe-compressor v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-compressor)
-   Compiling pvthfhe-bench v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-bench)
    Compiling pvthfhe-cli v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-cli)
-    Finished `release` profile [optimized] target(s) in 30.79s
+    Finished `release` profile [optimized] target(s) in 26.23s
      Running `target/release/pvthfhe-cli demo --n 10 --threshold 4 --seed 1`
 demo: n=10 threshold=4 seed=1
 pvss_backend_id=lattice-pvss-bfv-d2
@@ -22,7 +20,12 @@ backend_id_p2: cyclo-rlwe-t10-lemma9-heuristic
 backend_id_p3: sonobe-nova-bn254-grumpkin
 note: on-chain Solidity verify is NOT run by demo (use bench-comparison)
 pvss_backend_id=lattice-pvss-bfv-d2
-[2m2026-05-26T13:56:25.975005Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m seed flag ignored in production path; will require --insecure-seed in future R3.6
+[2m2026-05-26T19:05:44.595043Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m seed flag ignored in production path; will require --insecure-seed in future R3.6
 step 1/14: keygen (n=10 t=4 seed=1)
-keygen: complete (1873.410 ms)
+keygen: complete (1841.120 ms)
 step 2/14: dkg_deal (n=10 dealers)
+dkg_deal: complete (80643.190 ms)
+step 3/14: dkg_aggregate (n=10 recipients)
+dkg_aggregate: complete (0.120 ms)
+[2m2026-05-26T19:07:13.341415Z[0m [33m WARN[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m Nova::verify failed: IVCVerificationFail
+Error: c4: DKG aggregation IVC verification FAILED

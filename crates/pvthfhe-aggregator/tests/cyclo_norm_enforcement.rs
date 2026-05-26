@@ -52,9 +52,7 @@ fn full_validation_rejects_large_error() {
     let ze = RingElement {
         coeffs: vec![fr(100); n],
     };
-    assert!(
-        validate_folding_witness(&s, &e, &zs, &ze, fr(1024), fr(16), fr(2049)).is_err()
-    );
+    assert!(validate_folding_witness(&s, &e, &zs, &ze, fr(1024), fr(16), fr(2049)).is_err());
 }
 
 #[test]
@@ -72,7 +70,5 @@ fn full_validation_accepts_matching_zs_ze() {
     let ze = RingElement {
         coeffs: e.coeffs.clone(),
     };
-    assert!(
-        validate_folding_witness(&s, &e, &zs, &ze, fr(1024), fr(16), fr(2049)).is_ok()
-    );
+    assert!(validate_folding_witness(&s, &e, &zs, &ze, fr(1024), fr(16), fr(2049)).is_ok());
 }

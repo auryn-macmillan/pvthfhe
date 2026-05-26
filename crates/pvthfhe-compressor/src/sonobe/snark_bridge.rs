@@ -2,6 +2,7 @@ use crate::CompressorError;
 use ark_bn254::Fr;
 use ark_grumpkin::Projective as G2;
 use ark_serialize::CanonicalSerialize;
+#[cfg(not(feature = "nova-backend"))]
 use folding_schemes::{
     commitment::{kzg::KZG, pedersen::Pedersen},
     folding::nova::Nova,
@@ -24,6 +25,7 @@ pub const fn is_snark_available() -> bool {
 }
 
 /// Type alias matching the Nova instance used by SonobeCompressor in mod.rs.
+#[cfg(not(feature = "nova-backend"))]
 type NovaType<S> =
     Nova<ark_bn254::G1Projective, G2, S, KZG<'static, ark_bn254::Bn254>, Pedersen<G2>, false>;
 
@@ -32,6 +34,7 @@ type NovaType<S> =
 /// Serializes the Nova IVC proof and extracts the public-parameter hash
 /// for binding into the compressed proof format. No Groth16 ceremony is
 /// required — the IVC proof bytes serve as the verifiable output.
+#[cfg(not(feature = "nova-backend"))]
 pub fn wrap_nova_instance<S>(
     nova_instance: NovaType<S>,
     _verifier_key_bytes: &[u8],

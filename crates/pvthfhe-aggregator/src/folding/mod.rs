@@ -16,8 +16,8 @@ compile_error!(
     "The `legacy-fold` feature has been removed in R4.3. Use `real-folding` (enabled by default)."
 );
 
-use pvthfhe_cyclo::adapter::LegacyHashChainAdapter;
 use anyhow::Context;
+use pvthfhe_cyclo::adapter::LegacyHashChainAdapter;
 #[cfg(feature = "real-folding")]
 use pvthfhe_cyclo::fold as cyclo_fold;
 #[cfg(feature = "real-folding")]
@@ -344,7 +344,7 @@ fn validate_nizk_structure(witness: &FoldWitness, _stmt: &FoldStatement) -> Resu
 #[cfg(feature = "real-folding")]
 fn fold_stmt_witness_to_cyclo_instance(
     stmt: &FoldStatement,
-    _witness: &FoldWitness,
+    witness: &FoldWitness,
     _acc: &FoldAccumulator,
 ) -> anyhow::Result<MultiTrackPShareInstance> {
     // TODO(C5): usize→u16 fallback in non-Result function; add error propagation when feasible.
@@ -363,7 +363,18 @@ fn fold_stmt_witness_to_cyclo_instance(
 
     let base = CcsPShareInstance {
         participant_id,
-        ajtai_commitment_bytes: ProtocolBytes::from(demo_zero_ajtai_commitment_bytes()),
+        ajtai_commitment_bytes: {
+            let mut h = Sha256::new();
+            h.update(b"pvthfhe/ajtai-commit/v1");
+            h.update(&witness.nizk_proof.proof_bytes);
+            h.update(&stmt.nizk_statement.ciphertext_bytes);
+            h.update(&binding_bytes);
+            let digest = h.finalize();
+            let mut padded = vec![0u8; AJTAI_COMMITMENT_BYTES];
+            let copy_len = digest.len().min(padded.len());
+            padded[..copy_len].copy_from_slice(&digest[..copy_len]);
+            ProtocolBytes::from(padded)
+        },
         public_io_bytes: ProtocolBytes::from(stmt.nizk_statement.ciphertext_bytes.clone()),
         ccs_witness_bytes: CcsWitnessSecret::new(demo_zero_witness_bytes()),
         sha256_binding_bytes: ProtocolBytes::from(binding_bytes.to_vec()),
@@ -373,11 +384,6 @@ fn fold_stmt_witness_to_cyclo_instance(
         base,
         multi_track_metadata: stmt.nizk_statement.multi_track_metadata.clone(),
     })
-}
-
-#[cfg(feature = "real-folding")]
-fn demo_zero_ajtai_commitment_bytes() -> Vec<u8> {
-    vec![0u8; AJTAI_COMMITMENT_BYTES]
 }
 
 #[cfg(feature = "real-folding")]

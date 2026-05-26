@@ -16,19 +16,16 @@ ark-grumpkin = "0.5"
 ark-r1cs-std = "0.5"
 ark-relations = "0.5"
 ark-serialize = "0.5"
-# ── Sonobe pin ───────────────────────────────────────────────────────────
-# Pinned at a pre-audit commit (63f2930). The upstream repository
-# (privacy-ethereum/sonobe) is undergoing a major refactor; active
-# development on the `staging` branch targets an external audit of the
-# Nova + CycleFold implementations. Security note: the `main` branch has
-# an open security finding (github issue #239, "Public input concatenation
-# enables memory DoS", opened 2026-01-24) that may affect PVTHFHE if
-# untrusted public inputs are accepted without length bounds.
-#
-# When the Sonobe audit completes and `staging` is merged, update this
-# pin to the first post-audit release commit.
+# ── Nova (Microsoft) ─────────────────────────────────────────────────────
+# Replaces folding-schemes (Sonobe) which had a pp_hash serialization bug
+# causing IVCVerificationFail in C4/C5 verification. Microsoft Nova uses
+# bellpepper constraint system (AllocatedNum, ConstraintSystem) instead of
+# ark-r1cs-std (FpVar, ConstraintSystemRef).
 # ──────────────────────────────────────────────────────────────────────────
-folding-schemes = { git = "https://github.com/privacy-ethereum/sonobe", package = "folding-schemes", rev = "63f2930d363150d4490ce2c4be8e0c25c2e1d92c" }
+arecibo = { version = "0.1", optional = true }
+bellpepper-core = { version = "0.4", optional = true }
+bincode = { version = "1", optional = true }
+bp-ff = { package = "ff", version = "0.13", optional = true }
 rand = "0.8"
 rand_chacha = "0.3"
 rand_core = "0.6"
@@ -42,6 +39,12 @@ default = ["transparent-decider"]
 # The IVC proof bytes and pp_hash are embedded directly in the compressed proof
 # format for on-chain verification via the Poseidon hash shortcut.
 transparent-decider = []
+# Enables the Nova (arecibo) proof-compression backend.
+# When disabled, SonobeCompressor and related types are stubbed out
+# so the rest of the workspace can compile without a Nova dependency.
+# Full migration to arecibo's bellpepper constraint system is
+# deferred to a future phase (TBD).
+nova-backend = ["arecibo", "bellpepper-core", "bincode", "bp-ff"]
 
 [dev-dependencies]
 

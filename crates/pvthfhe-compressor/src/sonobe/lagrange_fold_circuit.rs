@@ -4,15 +4,30 @@
 //! and accumulates into a running sum. Replaces the standalone Noir C7
 //! Lagrange computation with in-circuit folding.
 
+#[cfg(not(feature = "nova-backend"))]
 use super::PoseidonSpongeVar;
-use crate::{StepCircuit, StepCircuitDescriptor};
-use ark_ff::{BigInteger, PrimeField, Zero};
-use ark_r1cs_std::alloc::AllocVar;
-use ark_r1cs_std::eq::EqGadget;
-use ark_r1cs_std::fields::fp::FpVar;
-use ark_r1cs_std::fields::FieldVar;
+#[cfg(not(feature = "nova-backend"))]
+use ark_r1cs_std::{
+    alloc::AllocVar,
+    eq::EqGadget,
+    fields::{fp::FpVar, FieldVar},
+};
+#[cfg(not(feature = "nova-backend"))]
 use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
+#[cfg(not(feature = "nova-backend"))]
 use folding_schemes::frontend::FCircuit;
+
+#[cfg(feature = "nova-backend")]
+use bellpepper_core::{
+    num::AllocatedNum, ConstraintSystem, LinearCombination, SynthesisError as BpSynthesisError,
+};
+#[cfg(feature = "nova-backend")]
+use bp_ff::PrimeField as BpPrimeField;
+
+use crate::{StepCircuit, StepCircuitDescriptor};
+#[cfg(not(feature = "nova-backend"))]
+use ark_ff::BigInteger;
+use ark_ff::{PrimeField, Zero};
 use sha3::{Digest, Keccak256};
 use std::cell::RefCell;
 
@@ -29,10 +44,20 @@ pub fn clear_lagrange_data() {
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct LagrangeFoldStepCircuit<F: PrimeField> {
+pub struct LagrangeFoldStepCircuit<F> {
     _phantom: std::marker::PhantomData<F>,
+    /// Per-step Lagrange data for the bellpepper backend.
+    /// Each tuple: (lambda, share_hash, registered_hash).
+    /// The caller sets this field before each `prove_step` call.
+    #[cfg(feature = "nova-backend")]
+    pub step_data: Vec<(F, F, F)>,
+    /// Step index for the bellpepper backend.
+    /// The caller sets this field before each `prove_step` call.
+    #[cfg(feature = "nova-backend")]
+    pub step_index: usize,
 }
 
+#[cfg(not(feature = "nova-backend"))]
 impl<F: PrimeField> FCircuit<F> for LagrangeFoldStepCircuit<F> {
     type Params = ();
     type ExternalInputs = ();
@@ -89,6 +114,59 @@ impl<F: PrimeField> FCircuit<F> for LagrangeFoldStepCircuit<F> {
                 z_i[2].clone() + FpVar::constant(F::one()),
             ])
         })
+    }
+}
+
+#[cfg(feature = "nova-backend")]
+impl<F> arecibo::traits::circuit::StepCircuit<F> for LagrangeFoldStepCircuit<F>
+where
+    F: BpPrimeField,
+{
+    fn arity(&self) -> usize {
+        3
+    }
+
+    fn synthesize<CS: ConstraintSystem<F>>(
+        &self,
+        cs: &mut CS,
+        z: &[AllocatedNum<F>],
+    ) -> Result<Vec<AllocatedNum<F>>, BpSynthesisError> {
+        let (lambda, share_hash, registered_hash) = self
+            .step_data
+            .get(self.step_index)
+            .copied()
+            .unwrap_or((F::from(0u64), F::from(0u64), F::from(0u64)));
+
+        let lambda_var = AllocatedNum::alloc(cs.namespace(|| "lambda"), || Ok(lambda))?;
+        let share_var = AllocatedNum::alloc(cs.namespace(|| "share_hash"), || Ok(share_hash))?;
+        let registered_var =
+            AllocatedNum::alloc(cs.namespace(|| "registered_hash"), || Ok(registered_hash))?;
+
+        // Share provenance: registered hash must match claimed share hash.
+        // Enforce share_var == registered_var via share * 1 == registered.
+        let lc_a = LinearCombination::<F>::zero() + share_var.get_variable();
+        let lc_b = LinearCombination::<F>::zero() + CS::one();
+        let lc_c = LinearCombination::<F>::zero() + registered_var.get_variable();
+        cs.enforce(
+            || "share_eq_registered",
+            |_| lc_a.clone(),
+            |_| lc_b.clone(),
+            |_| lc_c.clone(),
+        );
+
+        // Contribution: lambda_i * share_hash_i
+        let contribution = lambda_var.mul(cs.namespace(|| "lambda_times_share"), &share_var)?;
+        let running_sum = z[0]
+            .clone()
+            .add(cs.namespace(|| "running_sum_add"), &contribution)?;
+
+        // Chain hash: placeholder (Poseidon not yet available in bellpepper).
+        let chain_hash = AllocatedNum::alloc(cs.namespace(|| "chain_hash"), || Ok(F::from(1u64)))?;
+
+        let one = AllocatedNum::alloc(cs.namespace(|| "one"), || Ok(F::from(1u64)))?;
+        let step_count = z[2].clone().add(cs.namespace(|| "step_inc"), &one)?;
+
+        Ok(vec![running_sum, chain_hash, step_count])
     }
 }
 

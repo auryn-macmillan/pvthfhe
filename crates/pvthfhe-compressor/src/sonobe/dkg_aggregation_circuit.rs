@@ -1,12 +1,27 @@
+//! DKG aggregation step circuit — accumulates per-recipient share hashes across steps.
+
+#[cfg(not(feature = "nova-backend"))]
 use super::{ExternalInputs3, ExternalInputs3Var, PoseidonSpongeVar};
-use crate::{StepCircuit, StepCircuitDescriptor};
-use ark_ff::{BigInteger, PrimeField};
-use ark_r1cs_std::alloc::AllocVar;
-use ark_r1cs_std::eq::EqGadget;
-use ark_r1cs_std::fields::fp::FpVar;
-use ark_r1cs_std::fields::FieldVar;
+#[cfg(not(feature = "nova-backend"))]
+use ark_r1cs_std::{
+    alloc::AllocVar,
+    eq::EqGadget,
+    fields::{fp::FpVar, FieldVar},
+};
+#[cfg(not(feature = "nova-backend"))]
 use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
+#[cfg(not(feature = "nova-backend"))]
 use folding_schemes::frontend::FCircuit;
+
+#[cfg(feature = "nova-backend")]
+use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError as BpSynthesisError};
+#[cfg(feature = "nova-backend")]
+use bp_ff::PrimeField as BpPrimeField;
+
+use crate::{StepCircuit, StepCircuitDescriptor};
+#[cfg(not(feature = "nova-backend"))]
+use ark_ff::BigInteger;
+use ark_ff::PrimeField;
 use sha3::{Digest, Keccak256};
 use std::cell::RefCell;
 
@@ -26,11 +41,29 @@ pub fn clear_dkg_agg_data() {
     DKG_AGG_DATA.with(|cell| cell.borrow_mut().clear());
 }
 
+/// A step circuit that aggregates DKG shares across recipients.
+///
+/// State layout (arity 3):
+///   z[0] = accumulated_step_hash
+///   z[1] = share_count
+///   z[2] = step_count
+///
+/// Per step: sum the per-recipient shares, hash (sum || step_index),
+/// then accumulate the hash into the state.
 #[derive(Clone, Debug, Default)]
-pub struct DkgAggregationStepCircuit<F: PrimeField> {
+pub struct DkgAggregationStepCircuit<F> {
     _phantom: std::marker::PhantomData<F>,
+    /// Per-step share data for the bellpepper backend.
+    /// The caller sets this field before each `prove_step` call.
+    #[cfg(feature = "nova-backend")]
+    pub step_shares: Vec<F>,
+    /// Step index for the bellpepper backend.
+    /// The caller sets this field before each `prove_step` call.
+    #[cfg(feature = "nova-backend")]
+    pub step_index: usize,
 }
 
+#[cfg(not(feature = "nova-backend"))]
 impl<F: PrimeField> FCircuit<F> for DkgAggregationStepCircuit<F> {
     type Params = ();
     type ExternalInputs = ExternalInputs3<F>;
@@ -53,7 +86,7 @@ impl<F: PrimeField> FCircuit<F> for DkgAggregationStepCircuit<F> {
         z_i: Vec<FpVar<F>>,
         _external_inputs: Self::ExternalInputsVar,
     ) -> Result<Vec<FpVar<F>>, SynthesisError> {
-        let n_steps = DKG_AGG_N_STEPS.with(|cell| *cell.borrow());
+        let _n_steps = DKG_AGG_N_STEPS.with(|cell| *cell.borrow());
         let data = DKG_AGG_DATA.with(|cell| cell.borrow().clone());
         let step_shares = data.get(_i).cloned().unwrap_or_default();
 
@@ -76,6 +109,42 @@ impl<F: PrimeField> FCircuit<F> for DkgAggregationStepCircuit<F> {
         let count = z_i[1].clone() + FpVar::constant(F::one());
 
         Ok(vec![acc, count, z_i[2].clone() + FpVar::constant(F::one())])
+    }
+}
+
+#[cfg(feature = "nova-backend")]
+impl<F> arecibo::traits::circuit::StepCircuit<F> for DkgAggregationStepCircuit<F>
+where
+    F: BpPrimeField,
+{
+    fn arity(&self) -> usize {
+        3
+    }
+
+    fn synthesize<CS: ConstraintSystem<F>>(
+        &self,
+        cs: &mut CS,
+        z: &[AllocatedNum<F>],
+    ) -> Result<Vec<AllocatedNum<F>>, BpSynthesisError> {
+        let mut sum = AllocatedNum::alloc(cs.namespace(|| "sum_init"), || Ok(F::from(0u64)))?;
+        for (i, share) in self.step_shares.iter().enumerate() {
+            let s = AllocatedNum::alloc(cs.namespace(|| format!("share_{i}")), || Ok(*share))?;
+            sum = sum.add(cs.namespace(|| format!("add_share_{i}")), &s)?;
+        }
+
+        let step_f = F::from((self.step_index + 1) as u64);
+        AllocatedNum::alloc(cs.namespace(|| "step_index"), || Ok(step_f))?;
+
+        // Poseidon is not yet available in bellpepper; allocate a constant
+        // placeholder until a compatible Poseidon gadget is wired.
+        let step_hash = AllocatedNum::alloc(cs.namespace(|| "step_hash"), || Ok(F::from(1u64)))?;
+
+        let acc = z[0].clone().add(cs.namespace(|| "acc_add"), &step_hash)?;
+        let one = AllocatedNum::alloc(cs.namespace(|| "one"), || Ok(F::from(1u64)))?;
+        let count = z[1].clone().add(cs.namespace(|| "count_inc"), &one)?;
+        let step_count = z[2].clone().add(cs.namespace(|| "step_inc"), &one)?;
+
+        Ok(vec![acc, count, step_count])
     }
 }
 

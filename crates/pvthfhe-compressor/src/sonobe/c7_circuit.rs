@@ -13,6 +13,7 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
 use ark_serialize::CanonicalSerialize;
+#[cfg(not(feature = "nova-backend"))]
 use folding_schemes::frontend::FCircuit;
 use sha3::{Digest, Keccak256};
 use std::cell::RefCell;
@@ -107,6 +108,7 @@ pub struct C7DecryptAggregationCircuit<F: PrimeField> {
     _field: std::marker::PhantomData<F>,
 }
 
+#[cfg(not(feature = "nova-backend"))]
 impl<F: PrimeField> FCircuit<F> for C7DecryptAggregationCircuit<F> {
     type Params = ();
     type ExternalInputs = ExternalInputs5<F>;
@@ -282,6 +284,7 @@ impl<F: PrimeField> StepCircuit for C7DecryptAggregationCircuit<F> {
 /// 5. Calls `compressor.prove_steps_c7()` with the per-step inputs
 /// 6. Clears thread-local data
 /// 7. Returns the compressed proof
+#[cfg(not(feature = "nova-backend"))]
 pub fn c7_fold_witnesses(
     compressor: &SonobeCompressor<C7DecryptAggregationCircuit<ark_bn254::Fr>>,
     witnesses: &C7WitnessSet,

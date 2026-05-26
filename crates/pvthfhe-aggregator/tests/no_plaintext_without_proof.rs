@@ -1,6 +1,6 @@
-use pvthfhe_types::ProtocolBytes;
 use pvthfhe_aggregator::decrypt::{aggregate_decrypt, partial_decrypt, DecryptError};
 use pvthfhe_fhe::{mock::MockBackend, types::Ciphertext, FheBackend};
+use pvthfhe_types::ProtocolBytes;
 use rand::thread_rng;
 
 fn acknowledge_mock() {
@@ -26,11 +26,31 @@ fn no_plaintext_without_valid_nizk_proof() {
     let ciphertext_hash = [2u8; 32];
 
     let party_pk = vec![0u8; 32];
-    let mut share1 = partial_decrypt(&backend, &ct, 1, &dkg_root, &ciphertext_hash, 42, &party_pk, None, &mut rng)
-        .expect("partial decrypt share 1");
+    let mut share1 = partial_decrypt(
+        &backend,
+        &ct,
+        1,
+        &dkg_root,
+        &ciphertext_hash,
+        42,
+        &party_pk,
+        None,
+        &mut rng,
+    )
+    .expect("partial decrypt share 1");
 
-    let mut share2 = partial_decrypt(&backend, &ct, 2, &dkg_root, &ciphertext_hash, 42, &party_pk, None, &mut rng)
-        .expect("partial decrypt share 2");
+    let mut share2 = partial_decrypt(
+        &backend,
+        &ct,
+        2,
+        &dkg_root,
+        &ciphertext_hash,
+        42,
+        &party_pk,
+        None,
+        &mut rng,
+    )
+    .expect("partial decrypt share 2");
 
     // Tamper share1's NIZK: pass the trivial nizk[0]==1 check by keeping
     // byte 0 as 1, but set remaining bytes to something invalid (0xDE).

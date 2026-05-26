@@ -11,8 +11,8 @@ use ark_r1cs_std::GR1CSVar;
 use ark_relations::gr1cs::ConstraintSystem;
 use folding_schemes::frontend::FCircuit;
 use pvthfhe_compressor::sonobe::{
-    encode_triple, ExternalInputs3, ExternalInputs3Var, FoldVerifierStepCircuit,
-    SonobeCompressor, ToyStepCircuit,
+    encode_triple, ExternalInputs3, ExternalInputs3Var, FoldVerifierStepCircuit, SonobeCompressor,
+    ToyStepCircuit,
 };
 use pvthfhe_compressor::{ProofCompressor, StepCircuit};
 
@@ -36,8 +36,7 @@ fn fold_verifier_compiles() {
 /// Test 2: state_len is 3.
 #[test]
 fn fold_verifier_state_len_three() {
-    let circuit =
-        FoldVerifierStepCircuit::<Fr>::new(()).expect("construct fold verifier circuit");
+    let circuit = FoldVerifierStepCircuit::<Fr>::new(()).expect("construct fold verifier circuit");
     assert_eq!(circuit.state_len(), 3);
 }
 

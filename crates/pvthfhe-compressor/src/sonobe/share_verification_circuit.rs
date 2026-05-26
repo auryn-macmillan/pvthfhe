@@ -15,6 +15,7 @@ use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
+#[cfg(not(feature = "nova-backend"))]
 use folding_schemes::frontend::FCircuit;
 use sha3::{Digest, Keccak256};
 use std::cell::RefCell;
@@ -58,6 +59,7 @@ pub struct ShareVerificationStepCircuit<F: PrimeField> {
     _phantom: std::marker::PhantomData<F>,
 }
 
+#[cfg(not(feature = "nova-backend"))]
 impl<F: PrimeField> FCircuit<F> for ShareVerificationStepCircuit<F> {
     type Params = ();
     type ExternalInputs = ExternalInputs3<F>;

@@ -56,7 +56,7 @@ fn new_has_all_required_phase_keys() {
         "compressor_verify",
         "partial_decrypt",
         "aggregate_decrypt",
-        "noir_sonobe_wrap",
+        "noir_nova_wrap",
         "noir_aggregator_final",
         "onchain_verify",
     ] {

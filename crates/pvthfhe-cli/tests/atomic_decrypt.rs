@@ -40,6 +40,7 @@ fn tampered_partial_rejected_no_plaintext() {
         epoch,
         &party_pk,
         None,
+        None,
         &mut rng,
     )
     .expect("share 1");
@@ -52,6 +53,7 @@ fn tampered_partial_rejected_no_plaintext() {
         &ciphertext_hash,
         epoch,
         &party_pk,
+        None,
         None,
         &mut rng,
     )

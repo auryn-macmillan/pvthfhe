@@ -13,11 +13,11 @@ Fold all per-recipient DKG share verifications into one compressed proof per rec
 ```
 Per recipient:
   All dealer commitments → AjtaiCommitmentWitnessSet
-    → SonobeCompressor::prove_steps_ajtai (Nova fold)
+    → NovaCompressor::prove_steps_ajtai (Nova fold)
     → compressed proof (O(1) on-chain verification)
 ```
 
-Already built: AjtaiCommitmentStepCircuit, AjtaiCommitmentWitness, prove_steps_ajtai, SonobeCompressor integration.
+Already built: AjtaiCommitmentStepCircuit, AjtaiCommitmentWitness, prove_steps_ajtai, NovaCompressor integration.
 
 ## Remaining Tasks
 
@@ -26,7 +26,7 @@ Already built: AjtaiCommitmentStepCircuit, AjtaiCommitmentWitness, prove_steps_a
 - [x] prove_steps_ajtai called per recipient
 - [x] recipient_fold_hashes in PipelineReport
 - [x] Verify that `recipient_fold_hashes[i]` equals `pipelinereport.recipient_fold_hashes[i]` by checking the log output after demo-e2e. The hash is a Fr value printed in the pipeline report summary. Assert that all n hashes are non-zero.
-- [x] QA: `PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run --release -p pvthfhe-cli --features sonobe-compressor,demo-seeded-rng,pipeline-extra-checks -- demo --n 10 --threshold 4 --seed 1 2>&1 | grep "recipient_fold_hashes"` — outputs n non-zero hashes
+- [x] QA: `PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run --release -p pvthfhe-cli --features nova-compressor,demo-seeded-rng,pipeline-extra-checks -- demo --n 10 --threshold 4 --seed 1 2>&1 | grep "recipient_fold_hashes"` — outputs n non-zero hashes
 
 ### Task 2: Integrate with parity-check proofs
 - [x] After parity proofs generated (Plan 1), fold parity proof hashes instead of per-share commitments
@@ -37,8 +37,8 @@ Already built: AjtaiCommitmentStepCircuit, AjtaiCommitmentWitness, prove_steps_a
 ### Task 3: Wire into aggregator and per-node
 - [x] `per_aggregator.rs`: fold all recipient verifications into one proof via `prove_steps_ajtai`. Add after the existing compressor timing block around line 220.
 - [x] `per_node.rs`: include parity-proof generation + Nova folding in timing. Add dkg_fold_ms to per-node report.
-- [x] QA: `PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run --bin per-aggregator --features sonobe-compressor -- --n 10 --threshold 4 --seed 1 2>&1 | tail -10` — completes without error
-- [x] QA: `PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run --bin per-node --features sonobe-compressor -- --n 10 --threshold 4 --seed 1 2>&1 | tail -15` — dkg_fold line appears in output
+- [x] QA: `PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run --bin per-aggregator --features nova-compressor -- --n 10 --threshold 4 --seed 1 2>&1 | tail -10` — completes without error
+- [x] QA: `PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run --bin per-node --features nova-compressor -- --n 10 --threshold 4 --seed 1 2>&1 | tail -15` — dkg_fold line appears in output
 
 ### Task 4: Test
 - [x] QA: `PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 just demo-e2e 10 4 1` — ACCEPTS

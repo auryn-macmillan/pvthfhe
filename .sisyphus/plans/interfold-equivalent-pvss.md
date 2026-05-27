@@ -415,7 +415,7 @@ Batch I: Benchmark and security-proof closure
 
 ## Batch G — C7-Equivalent Final Decryption Aggregation
 
-**G.1 current status (2026-05-13):** Implemented at N=8 research prototype level with both Sonobe Nova (P1.3-P1.5) and Noir (aggregator_final) paths. Production N=8192 deferred to Phase 2.
+**G.1 current status (2026-05-13):** Implemented at N=8 research prototype level with both Nova Nova (P1.3-P1.5) and Noir (aggregator_final) paths. Production N=8192 deferred to Phase 2.
 
 ### G.1 — Add final aggregation proof relation
 

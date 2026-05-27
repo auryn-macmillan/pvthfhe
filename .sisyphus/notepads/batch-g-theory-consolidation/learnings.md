@@ -15,7 +15,7 @@
 
 **P1/P2/P3 status updated in §7.1:**
 - P1: Added note about sigma masking seeds fix (A.1), T2 skeleton, D.1 blocker
-- P2: Added note about challenge space |C|=2^16, Lemma 9 heuristic, Sonobe substitute
+- P2: Added note about challenge space |C|=2^16, Lemma 9 heuristic, Nova substitute
 - P3: Added note about hash-accumulate (3 hashed field elements), not full Ajtai fold
 
 **Document version bumped:** 1.1 → 1.2, date 2026-05-11 → 2026-05-12
@@ -24,7 +24,7 @@
 
 Created `docs/security-proofs/soundness-budget-reconciliation.md` with:
 - Executive summary table mapping aspirational vs actual
-- Per-proof-system sections: sigma, bfv_sigma, cyclo_lemma9, sonobe_nova, aggregate_decrypt
+- Per-proof-system sections: sigma, bfv_sigma, cyclo_lemma9, nova_nova, aggregate_decrypt
 - Aspirational bound → actual status mapping table
 - Assumption dependency graph
 - 5 concrete recommendations

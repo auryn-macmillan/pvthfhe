@@ -94,8 +94,8 @@ Total raw findings across 7 audits: ~120. After deduplication and cross-referenc
 - Theoretical edge case if modulus lower 32 bits produce false negative.
 - **Fix**: Use explicit signed comparison or decompose into bit range check.
 
-**B.7 [LOW] — `sonobe_state_commitment` preimages are 4-field elements (prototype)**
-- Insufficient for real Sonobe state. Documented limitation.
+**B.7 [LOW] — `nova_state_commitment` preimages are 4-field elements (prototype)**
+- Insufficient for real Nova state. Documented limitation.
 
 ### C. FHE Backend & NIZK (5 findings)
 
@@ -262,7 +262,7 @@ Total raw findings across 7 audits: ~120. After deduplication and cross-referenc
 | ID | Finding | Effort |
 |----|---------|--------|
 | B.6 | Fix e_i bound check edge case | 0.25d |
-| B.7 | Document sonobe_state_commitment prototype status | 0.1d |
+| B.7 | Document nova_state_commitment prototype status | 0.1d |
 | E.1 | Document single-process architecture limitation | 0.1d |
 | F.5 | Cross-reference DOMAIN_* constants Rust ↔ Noir | 0.25d |
 

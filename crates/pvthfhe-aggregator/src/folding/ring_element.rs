@@ -31,9 +31,7 @@ impl<F: PrimeField> RingElement<F> {
 
     /// Create a ring element with all coefficients set to a constant.
     pub fn constant(c: F, n: usize) -> Self {
-        Self {
-            coeffs: vec![c; n],
-        }
+        Self { coeffs: vec![c; n] }
     }
 
     /// Add two ring elements (coefficient-wise).
@@ -87,11 +85,7 @@ impl<F: PrimeField> RingElement<F> {
     /// Panics if the two ring elements have different lengths.
     pub fn mul(&self, other: &Self) -> Self {
         let n = self.coeffs.len();
-        assert_eq!(
-            n,
-            other.coeffs.len(),
-            "RingElement::mul: length mismatch"
-        );
+        assert_eq!(n, other.coeffs.len(), "RingElement::mul: length mismatch");
         let mut result = vec![F::zero(); n];
         for i in 0..n {
             for j in 0..n {
@@ -132,7 +126,11 @@ impl<F: PrimeField> RingElement<F> {
             } else {
                 c
             };
-            if abs > acc { abs } else { acc }
+            if abs > acc {
+                abs
+            } else {
+                acc
+            }
         })
     }
 

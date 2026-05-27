@@ -1,10 +1,10 @@
 //! R5.2 RED: IVC_STEPS is a runtime parameter, not a constant 4.
 //!
 //! This test must FAIL (compile error) against current main because
-//! `SonobeCompressor::new` does not accept an `ivc_steps` parameter.
+//! `NovaCompressor::new` does not accept an `ivc_steps` parameter.
 
 use ark_bn254::Fr;
-use pvthfhe_compressor::sonobe::{encode_triple, SonobeCompressor, ToyStepCircuit};
+use pvthfhe_compressor::nova::{encode_triple, NovaCompressor, ToyStepCircuit};
 use pvthfhe_compressor::ProofCompressor;
 use sha2::{Digest, Sha256};
 
@@ -12,7 +12,7 @@ use sha2::{Digest, Sha256};
 fn ivc_steps_is_runtime_not_constant_four() {
     let epoch_hash = [0x42u8; 32];
 
-    let compressor = SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch_hash, 8)
+    let compressor = NovaCompressor::<ToyStepCircuit<Fr>>::new(epoch_hash, 8)
         .expect("construct compressor with ivc_steps=8");
 
     let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
@@ -35,7 +35,7 @@ fn ivc_steps_matches_number_of_parties() {
     let epoch_hash: [u8; 32] = Sha256::digest(&seed_bytes).into();
 
     let n_parties = 16;
-    let compressor = SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch_hash, n_parties)
+    let compressor = NovaCompressor::<ToyStepCircuit<Fr>>::new(epoch_hash, n_parties)
         .expect("construct compressor");
 
     assert_eq!(

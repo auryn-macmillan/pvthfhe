@@ -10,7 +10,7 @@
 | 4 | pvthfhe-keygen | FAIL | 2 failed in dkg_correctness: mock backend limitation — "decoded plaintext length 21203 exceeds max 16382" |
 | 5 | pvthfhe-nizk --lib | PASS | 0 tests |
 | 6 | pvthfhe-aggregator --lib | PASS | 0 tests |
-| 7 | pvthfhe-compressor | FAIL | 1 failed in sonobe_isolated_mem (RED phase — "keep failing until the memory fix lands") |
+| 7 | pvthfhe-compressor | FAIL | 1 failed in nova_isolated_mem (RED phase — "keep failing until the memory fix lands") |
 | 8 | cargo build | PASS | Workspace compiles |
 
 ### Contracts (Forge)
@@ -36,7 +36,7 @@
 
 ### Demo (e2e real crypto, n=10, t=4, seed=1)
 
-**Command:** `PVTHFHE_ALLOW_RESEARCH_BUILD=1 cargo run --release -p pvthfhe-cli --features "sonobe-compressor,demo-seeded-rng" -- demo --n 10 --threshold 4 --seed 1`
+**Command:** `PVTHFHE_ALLOW_RESEARCH_BUILD=1 cargo run --release -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng" -- demo --n 10 --threshold 4 --seed 1`
 
 | Check | Result | Evidence |
 |-------|--------|----------|

@@ -3,7 +3,7 @@
 **Plan**: `demo-e2e-track-b-default`
 **Status**: COMPLETE
 **Created**: 2026-05-14
-**Goal**: Default `demo-e2e` to Track B (LatticeFold+ / MicroNova) while retaining Track A (Sonobe Nova / hash-then-fold) behind `--track A` flag. No regression in Track A behavior.
+**Goal**: Default `demo-e2e` to Track B (LatticeFold+ / MicroNova) while retaining Track A (Nova Nova / hash-then-fold) behind `--track A` flag. No regression in Track A behavior.
 
 ---
 
@@ -41,7 +41,7 @@
 
 ### D.2 — Track B: R1CS compressor step
 
-**File**: `crates/pvthfhe-compressor/src/sonobe/mod.rs` (CycloFoldStepCircuit)
+**File**: `crates/pvthfhe-compressor/src/nova/mod.rs` (CycloFoldStepCircuit)
 
 Replace the placeholder comment with actual R1CS ring equation verification in `generate_step_constraints` for Track B. Key design:
 

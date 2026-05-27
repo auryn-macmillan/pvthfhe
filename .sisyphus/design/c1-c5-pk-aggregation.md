@@ -20,7 +20,7 @@ where `sk_i` is ternary, `e_i` is short Gaussian error.
 
 - Re-use the existing `sigma.rs` infrastructure: the relation is identical to
   `d_i = c · s_i + e_i` with `c := a`, `d_i := pk_0_i`, `s_i := sk_i`.
-- Create `KeyContributionStepCircuit` (Sonobe FCircuit) using `sigma_verify_step`
+- Create `KeyContributionStepCircuit` (Nova FCircuit) using `sigma_verify_step`
   with `c_rns = pk_1_rns`, `d_rns = pk_0_rns`.
 - Thread-local: `KEY_CONTRIB_DATA` storing per-party `(pk_0_rns, pk_1_rns, sk_coeffs, e_coeffs)`.
 - State: `(contribution_hash_accumulator, step_count)`.

@@ -195,14 +195,14 @@ From [proof-boundary.md](proof-boundary.md) (frozen Phase 2):
 | ID | Problem | Impact | Mitigation |
 |----|---------|--------|------------|
 | **P1** | Lattice NIZK well-formedness soundness for folded RLWE is not formally proven | SEC-3, SEC-5 broken; PB-01, PB-02 OPEN | Conditional on resolution of open problem. Sigma masking seeds now fresh per proof (OsRng, non-deterministic; deep-audit Batch A.1 fix). Joint extractor proof (T2) remains a skeleton. D.1 BFV encryption verifier relation still blocked (C3 structural gap — algebraic sigma proves hash-preimage, not BFV encryption structure). |
-| **P2** | LatticeFold+ over RLWE folding argument is not formally proven (Lemma 9 heuristic) | SEC-5 broken; PB-04 OPEN | Conditional on resolution of Lemma 9 invertibility heuristic. Challenge space locked at \|C\|=2^16 with T=10 rounds, giving ε_fold ≤ 2^(-160) exponential bound from |C|^(-T). The linear (conservative) bound is 1.5×10^(-4). Sonobe Nova currently substitutes for lattice-native folding. |
-| **P3** | MicroNova-lattice-encoding soundness is an open research conjecture | PB-03, PB-06 conditional | Research conjecture; treat as gap. Sonobe Nova IVC (CycloFoldStepCircuit) folds 3 hashed field elements (commitment_hash, norm, fold_count) via SHA-256 digest of Cyclo accumulator state — not full Ajtai commitment folding, range-check, or sum-check over raw R_{q_commit} elements. |
+| **P2** | LatticeFold+ over RLWE folding argument is not formally proven (Lemma 9 heuristic) | SEC-5 broken; PB-04 OPEN | Conditional on resolution of Lemma 9 invertibility heuristic. Challenge space locked at \|C\|=2^16 with T=10 rounds, giving ε_fold ≤ 2^(-160) exponential bound from |C|^(-T). The linear (conservative) bound is 1.5×10^(-4). Nova Nova currently substitutes for lattice-native folding. |
+| **P3** | MicroNova-lattice-encoding soundness is an open research conjecture | PB-03, PB-06 conditional | Research conjecture; treat as gap. Nova Nova IVC (CycloFoldStepCircuit) folds 3 hashed field elements (commitment_hash, norm, fold_count) via SHA-256 digest of Cyclo accumulator state — not full Ajtai commitment folding, range-check, or sum-check over raw R_{q_commit} elements. |
 
 ### 7.2 Residual Implementation Assumptions
 
 1. **Smudging exactness (PB-05)**: The exact distribution of smudging noise (discrete Gaussian with σ_smudge = 2⁴⁰·σ_err) is enforced by Rust code, not cryptographically proven. Bounded shortness is enforced; exact distributional correctness is an implementation assumption.
 
-2. **Sonobe substitution (current prototype)**: The current prototype substitutes Sonobe MicroNova for the LatticeFold+ folding layer. When the real LatticeFold+ implementation ships, the soundness budget must be re-evaluated.
+2. **Nova substitution (current prototype)**: The current prototype substitutes Nova MicroNova for the LatticeFold+ folding layer. When the real LatticeFold+ implementation ships, the soundness budget must be re-evaluated.
 
 3. **FHE backend trust**: The `gnosisguild/fhe.rs` BFV implementation is assumed correct per upstream community review. No independent audit of the FHE library has been performed within this project.
 
@@ -246,7 +246,7 @@ From [proof-boundary.md](proof-boundary.md) (frozen Phase 2):
 | Dependency | Version | Trust Level |
 |------------|---------|------------|
 | `gnosisguild/fhe.rs` | rev `5f24d0b6` | Assumed correct (community-reviewed BFV) |
-| `arkworks` / Sonobe folding-schemes | rev `63f2930d` | Research-grade; not audited for production |
+| `arkworks` / Nova folding-schemes | rev `63f2930d` | Research-grade; not audited for production |
 | `bb` (Barretenberg) | 5.0.0-nightly.20260324 | Assumed correct per upstream |
 | Noir compiler | 1.0.0-beta.20 | Assumed correct compilation |
 

@@ -19,10 +19,13 @@ pub mod ajtai;
 pub mod bfv_sigma;
 pub mod fiat_shamir;
 pub mod hash_bridge;
-pub mod sigma;
 pub mod schnorr;
+pub mod sigma;
 
-pub use sigma::{compute_jl_entries, compute_jl_projection, compute_raw_jl_sum, l2_squared, JL_PROJECTION_DIM, B_Z_S, B_Z_E, B_Y};
+pub use sigma::{
+    compute_jl_entries, compute_jl_projection, compute_raw_jl_sum, l2_squared, B_Y, B_Z_E, B_Z_S,
+    JL_PROJECTION_DIM,
+};
 
 use thiserror::Error;
 use zeroize::{Zeroize, ZeroizeOnDrop};

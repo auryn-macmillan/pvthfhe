@@ -13,7 +13,7 @@
 
 The `CycloFoldStepCircuit` in `compressor_glue.rs:41` does NOT perform full Ajtai commitment folding. It hashes the Cyclo accumulator state down to 3 Fr elements (commitment_hash, norm, fold_count) and folds those hashes through Nova. The comment at `compressor_glue.rs:56-60` states:
 
-> "The design intentionally hashes the accumulator down to 3 field elements before entering the IVC because lattice-native folding is infeasible inside a Sonobe Nova step circuit."
+> "The design intentionally hashes the accumulator down to 3 field elements before entering the IVC because lattice-native folding is infeasible inside a Nova Nova step circuit."
 
 This is the Track A surrogate. M1 replaces it with the real Track B folding.
 
@@ -96,7 +96,7 @@ impl CycloVerifierCCS {
 
 ### P2-M1.4 — Wire into CycloFoldStepCircuit
 
-**File**: `crates/pvthfhe-compressor/src/sonobe/mod.rs` (CycloFoldStepCircuit)
+**File**: `crates/pvthfhe-compressor/src/nova/mod.rs` (CycloFoldStepCircuit)
 
 Replace the hash-and-fold logic with CCS constraint verification:
 
@@ -142,7 +142,7 @@ The constraints now verify the RING equation in R1CS, not just a hash of the sta
 - [ ] CycloFoldStepCircuit verifies ring equation in R1CS constraints
 - [ ] 7 RED tests pass (including fold step roundtrip)
 - [ ] Demo ACCEPT (Track A path unchanged)
-- [ ] Existing Sonobe tests pass
+- [ ] Existing Nova tests pass
 - [ ] Lemma 9 referenced as accepted assumption
 
 ## Non-Goals

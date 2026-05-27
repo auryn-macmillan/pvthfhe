@@ -78,20 +78,21 @@ pub fn init_public_io_v1(session_id: &str, io_bytes: &[u8]) -> [u8; 32] {
 ///
 /// The Cyclo protocol samples challenges from {−1, 0, 1} with probability 1/3
 /// each (Cyclo ePrint 2026/359 §5.5).  This differs from the uniform u16 used
-/// by Sonobe (the `challenge_v1` path above).
+/// by Nova (the `challenge_v1` path above).
 ///
 /// Domain separator `"pvthfhe-cyclo-fs-v2"` isolates this transcript from the
-/// Sonobe-v1 path so that the two cannot be confused as equal challenges.
+/// Nova-v1 path so that the two cannot be confused as equal challenges.
 pub struct CycloTernaryTranscript {
     state: Sha256,
 }
 
 impl CycloTernaryTranscript {
-    /// Initialise a new transcript with the v2 domain separator and `session_id`.
-    pub fn new(session_id: &str) -> Self {
+    /// Initialise a new transcript with the v2 domain separator, `session_id`, and `participant_id`.
+    pub fn new(session_id: &str, participant_id: u16) -> Self {
         let mut state = Sha256::new();
         state.update(b"pvthfhe-cyclo-fs-v2");
         state.update(session_id.as_bytes());
+        state.update(&participant_id.to_le_bytes());
         Self { state }
     }
 

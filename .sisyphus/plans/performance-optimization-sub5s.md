@@ -51,7 +51,7 @@ Nova's `prove_step` cycle iterates IVC step by step over the hashed state. Each 
 |------|-------|--------|--------|
 | A.3a | Add micro-benchmark: `cargo bench --bench nova_prove_step` | `benches/nova_bench.rs` | 1 day | TODO |
 | A.3b | Profile hot spots with `perf` or `cargo flamegraph` | Manual | 0.5 day | DOCUMENTED |
-| A.3c | Address any single-function bottleneck (e.g., reduce field inversion count, cache Poseidon config) | `sonobe/mod.rs` | 1 day | TODO |
+| A.3c | Address any single-function bottleneck (e.g., reduce field inversion count, cache Poseidon config) | `nova/mod.rs` | 1 day | TODO |
 
 ### A.4 — MicroNova tree folding (O(log n) steps)
 

@@ -1,7 +1,7 @@
 # P3-M1 Problems
 
 ## Unresolved
-1. SonobeCompressor internal state_len constraint (hardcoded 3-element minimum) — needs generalization for future circuits with different state widths.
+1. NovaCompressor internal state_len constraint (hardcoded 3-element minimum) — needs generalization for future circuits with different state widths.
 2. The FoldVerifierStepCircuit uses simplified hash-accumulation logic; real CCS verifier constraints remain unimplemented.
 
 ## Deferred

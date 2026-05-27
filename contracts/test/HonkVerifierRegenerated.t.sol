@@ -80,7 +80,7 @@ contract HonkVerifierRegeneratedTest is Test {
     ///         Currently BLOCKED on BB VK shape mismatch.
     ///
     ///         When unblocked, change this test to assert the real generated
-    ///         verifier accepts exactly 7 public inputs (or 6 for sonobe_state_commitment).
+    ///         verifier accepts exactly 7 public inputs (or 6 for nova_state_commitment).
     function test_expected_public_input_count() public {
         // Placeholder: requires at least 1 public input.
         bytes32[] memory inputs = new bytes32[](7);

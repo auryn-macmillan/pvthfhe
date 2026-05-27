@@ -932,7 +932,7 @@ Max Concurrent: 7 (Wave R2 and I2)
 - [x] 12. **T12: Micro-bench — recursive folding (HyperNova-style)**
 
   **What to do**:
-  - Build a minimal folding loop using an existing Rust folding library (e.g., `arkworks` Sonobe / Nova, or hand-rolled HyperNova primer if needed) to fold N copies of a fixed-size R1CS instance, N ∈ {16, 64, 256, 1024}.
+  - Build a minimal folding loop using an existing Rust folding library (e.g., `arkworks` Nova / Nova, or hand-rolled HyperNova primer if needed) to fold N copies of a fixed-size R1CS instance, N ∈ {16, 64, 256, 1024}.
   - Measure: per-fold time, accumulator size, final-step prover time, final SNARK size, BB-verifier time on the final step.
   - Goal: confirm O(log N) or O(1)-amortized prover claims hold at our scale, surface constants.
   - Output JSON per envelope.
@@ -949,7 +949,7 @@ Max Concurrent: 7 (Wave R2 and I2)
   - **Blocked By**: T1, T5
 
   **References**:
-  - HyperNova 2023/573, MicroNova 2024/2099, Nova 2021/370, Sonobe.
+  - HyperNova 2023/573, MicroNova 2024/2099, Nova 2021/370, Nova.
 
   **Acceptance Criteria**:
   - [ ] Bench at all 4 N values

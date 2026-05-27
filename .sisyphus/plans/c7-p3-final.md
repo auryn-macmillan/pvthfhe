@@ -34,30 +34,30 @@
 ## P3: DeciderEth SNARK Activation
 
 **Current**: KZG switch done. `snark_bridge.rs` has `wrap_nova_instance()`. `build_proof_bytes` with SNARK trailer. Keccak256 IVC binding embeds proof hash. DeciderEth call is feature-gated.
-**Target**: Activate DeciderEth Groth16 SNARK wrapping at the prove call site when `sonobe-snark` feature enabled.
+**Target**: Activate DeciderEth Groth16 SNARK wrapping at the prove call site when `nova-snark` feature enabled.
 
 ### Implementation
 
-1. In `sonobe/mod.rs` prove method (ExternalInputs3 blanket impl, ~line 1105):
+1. In `nova/mod.rs` prove method (ExternalInputs3 blanket impl, ~line 1105):
    After `nova.ivc_proof()`, add:
    ```rust
-   #[cfg(feature = "sonobe-snark")]
+   #[cfg(feature = "nova-snark")]
    let snark_bytes = {
-       use crate::sonobe::snark_bridge;
+       use crate::nova::snark_bridge;
        snark_bridge::wrap_nova_instance(nova.clone(), &self.verifier_key_bytes, self.state_len, self.srs_hash[0] as u64)
            .map(|w| w.snark_proof_bytes)
            .unwrap_or_default()
    };
-   #[cfg(not(feature = "sonobe-snark"))]
+   #[cfg(not(feature = "nova-snark"))]
    let snark_bytes = Vec::new();
    ```
    Pass `snark_bytes` to `build_proof_bytes` as `Some(&snark_bytes)` when non-empty.
 
-2. Verify `CompressedProof::has_snark()` returns true when `sonobe-snark` enabled.
+2. Verify `CompressedProof::has_snark()` returns true when `nova-snark` enabled.
 
-3. Update `sonobe_state_commitment` Noir circuit: SNARK mode already dual-mode. Verify that `ivc_snark_proof_hash != 0` branch works with the Groth16 proof binding.
+3. Update `nova_state_commitment` Noir circuit: SNARK mode already dual-mode. Verify that `ivc_snark_proof_hash != 0` branch works with the Groth16 proof binding.
 
-4. Test: `cargo build --features sonobe-snark -p pvthfhe-compressor` compiles. `demo-e2e 5 2 1` ACCEPT with and without `sonobe-snark`.
+4. Test: `cargo build --features nova-snark -p pvthfhe-compressor` compiles. `demo-e2e 5 2 1` ACCEPT with and without `nova-snark`.
 
 ## Success Criteria
 
@@ -66,4 +66,4 @@
 - [x] P3: `wrap_nova_instance` already called at mod.rs:1142,1256. `build_proof_bytes` wired.
 - [x] P3: `CompressedProof::has_snark()` works
 - [x] P3: `demo-e2e 5 2 1` ACCEPT
-- [x] P3: Groth16 DeciderEth stub documented (actual proof generation deferred to Sonobe audit completion)
+- [x] P3: Groth16 DeciderEth stub documented (actual proof generation deferred to Nova audit completion)

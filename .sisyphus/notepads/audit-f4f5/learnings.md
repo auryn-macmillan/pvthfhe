@@ -108,7 +108,7 @@ Replaced 6 synthetic data locations in `crates/pvthfhe-cli/src/bin/per_node.rs` 
 ### Location 6 (line ~605): Magic number 42 in C7 tree folding
 - **Before**: `Fr::from((42 + i) as u64)`
 - **After**: `Fr::from_be_bytes_mod_order(&SHA-256("pvthfhe/per_node/c7" || participant_id || i))` — participant_id is 1 (per_node runs as party 1)
-- **Imports added**: `use ark_ff::PrimeField;` in the `#[cfg(feature = "sonobe-compressor")]` block for `from_be_bytes_mod_order`
+- **Imports added**: `use ark_ff::PrimeField;` in the `#[cfg(feature = "nova-compressor")]` block for `from_be_bytes_mod_order`
 
 ## Verification
 - `cargo check -p pvthfhe-cli --bin per-node`: **ZERO errors**

@@ -3,7 +3,7 @@
   "n": 5,
   "t": 2,
   "seed": 1,
-  "compressor_backend_id": "sonobe-nova-bn254-grumpkin",
+  "compressor_backend_id": "nova-bn254-grumpkin",
   "phases": {
     "keygen": {
       "total_ms": 437.178471,
@@ -90,7 +90,7 @@
       "total_ms": 11.753118,
       "instances_run": 1
     },
-    "noir_sonobe_wrap": {
+    "noir_nova_wrap": {
       "total_ms": 0.0,
       "instances_run": 0
     },

@@ -155,7 +155,9 @@ fn all_golden_vectors() {
             .iter()
             .map(|s| DecryptShare {
                 party_id: s.party_id,
-                bytes: ProtocolBytes(hex::decode(&s.share_bytes).expect("bad hex in decrypt_share")),
+                bytes: ProtocolBytes(
+                    hex::decode(&s.share_bytes).expect("bad hex in decrypt_share"),
+                ),
                 nizk_proof_bytes: None,
             })
             .collect();

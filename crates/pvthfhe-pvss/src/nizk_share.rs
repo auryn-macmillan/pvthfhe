@@ -108,6 +108,9 @@ pub struct ShareNizkOpenedProof {
     pub commitment_bytes: ProtocolBytes,
     /// Deterministic binding seed for the encryption commitment.
     pub commitment_seed: [u8; DIGEST_LEN],
+    /// Fresh 32-byte nonce added to commitment-seed derivation to prevent
+    /// rushing-adversary precomputation of deterministic commitments.
+    pub commitment_nonce: [u8; DIGEST_LEN],
     /// Commitment binding tag: SHA-256 over statement, relation_binding, commitment seed.
     pub commitment_binding: [u8; DIGEST_LEN],
     /// Fiat-Shamir challenge bytes.
@@ -351,7 +354,9 @@ impl ShareNizkProver {
         validate_statement(stmt)?;
         validate_witness(witness)?;
 
-        let commitment_seed = compute_commitment_seed(stmt, track_domain_tag);
+        let mut fresh_nonce = [0u8; DIGEST_LEN];
+        rand::thread_rng().fill_bytes(&mut fresh_nonce);
+        let commitment_seed = compute_commitment_seed(stmt, track_domain_tag, &fresh_nonce);
 
         let commitment_ct = create_commitment_ct(backend, stmt, witness, &commitment_seed)?;
 
@@ -392,6 +397,7 @@ impl ShareNizkProver {
             statement: stmt.clone(),
             commitment_bytes: ProtocolBytes(commitment_ct),
             commitment_seed,
+            commitment_nonce: fresh_nonce,
             commitment_binding,
             challenge,
             lattice_binding,
@@ -825,9 +831,17 @@ fn encode_bfv_encryption_proof_from_witness(
 
     // --- Produce sigma proof ---
     let mut proof_rng = ChaCha20Rng::from_rng(&mut OsRng).expect("OsRng available"); // allow-seeded-rng: (removed — now uses OsRng)
-    let binding_data = bfv_sigma_binding_data(stmt, &[0u8; 32]); // G.5: TODO: pass real d_commitment
-    let proof = bfv_sigma::prove(&bfv_stmt, &bfv_wit, &binding_data, &mut proof_rng)
-        .map_err(|_| PvssError::InvalidShare)?;
+    let d_commitment = compute_share_d_commitment(stmt);
+    let binding_data = bfv_sigma_binding_data(stmt, &d_commitment);
+    let proof = bfv_sigma::prove(
+        stmt.session_id.as_slice(),
+        stmt.dealer_index as u32,
+        &bfv_stmt,
+        &bfv_wit,
+        &binding_data,
+        &mut proof_rng,
+    )
+    .map_err(|_| PvssError::InvalidShare)?;
 
     let encoded_proof = encode_bfv_sigma_proof(&proof);
 
@@ -946,18 +960,29 @@ pub fn verify_bfv_encryption_proof(
     let bfv_proof = decode_bfv_sigma_proof(&bfv_encryption_proof[offset..])
         .map_err(|_| PvssError::BfvEncryptionProofFailed)?;
 
-    let binding_data = bfv_sigma_binding_data(stmt, &[0u8; 32]); // G.5: TODO: pass real d_commitment
-    bfv_sigma::verify(&bfv_stmt, &bfv_proof, &binding_data).map_err(|_| {
+    let d_commitment = compute_share_d_commitment(stmt);
+    let binding_data = bfv_sigma_binding_data(stmt, &d_commitment);
+    bfv_sigma::verify(
+        stmt.session_id.as_slice(),
+        stmt.dealer_index as u32,
+        &bfv_stmt,
+        &bfv_proof,
+        &binding_data,
+    )
+    .map_err(|_| {
         eprintln!("[NIZK-VERIFY] FAIL: bfv_sigma::verify failed");
         PvssError::BfvEncryptionProofFailed
     })
 }
 
+/// Build opaque binding data for the BFV sigma protocol.
+///
+/// `session_id` and `dealer_index` are intentionally NOT included here — they
+/// are now first-class params passed directly to `bfv_sigma::prove`/`verify`,
+/// ensuring they cannot be accidentally omitted.
 fn bfv_sigma_binding_data(stmt: &ShareNizkStatement, d_commitment: &[u8; 32]) -> Vec<u8> {
     let mut h = Sha256::new();
     h.update(b"pvthfhe-share-bfv-sigma-binding-v5");
-    h.update(stmt.session_id.as_slice());
-    h.update(stmt.dealer_index.to_be_bytes());
     h.update(stmt.recipient_index.to_be_bytes());
     h.update(stmt.bfv_params_digest.as_slice());
     h.update(stmt.dkg_root.as_slice());
@@ -1382,7 +1407,7 @@ pub fn compute_share_commitment_tracked(
 /// Compute the hash-bound secondary ciphertext component from `ciphertext_u`.
 pub fn compute_ciphertext_v(ciphertext_u: &[u8]) -> [u8; DIGEST_LEN] {
     let mut hasher = Sha256::new();
-    hasher.update(b"ciphertext-v1");
+    hasher.update(b"pvthfhe/ciphertext-v/v1");
     hasher.update(ciphertext_u);
     hasher.finalize().into()
 }
@@ -1398,6 +1423,7 @@ pub fn canonical_bfv_params_digest() -> [u8; DIGEST_LEN] {
 fn compute_commitment_seed(
     stmt: &ShareNizkStatement,
     track_domain_tag: Option<&[u8]>,
+    nonce: &[u8; DIGEST_LEN],
 ) -> [u8; DIGEST_LEN] {
     let mut hasher = Sha256::new();
     hasher.update(b"greco-bfv-commitment-seed-v2");
@@ -1408,6 +1434,7 @@ fn compute_commitment_seed(
     if let Some(tag) = track_domain_tag {
         hasher.update(tag);
     }
+    hasher.update(nonce);
     hasher.finalize().into()
 }
 
@@ -1504,6 +1531,7 @@ fn encode_opened_proof_body(opened: &ShareNizkOpenedProof) -> Result<Vec<u8>, Pv
     encode_bytes(&mut out, opened.statement.share_commitment.as_slice())?;
     encode_bytes(&mut out, opened.commitment_bytes.as_slice())?;
     out.extend_from_slice(&opened.commitment_seed);
+    out.extend_from_slice(&opened.commitment_nonce);
     out.extend_from_slice(&opened.commitment_binding);
     out.extend_from_slice(&opened.challenge);
     out.extend_from_slice(&opened.lattice_binding);
@@ -1538,6 +1566,7 @@ fn decode_opened_proof_body(bytes: &[u8]) -> Result<ShareNizkOpenedProof, PvssEr
     let share_commitment = cursor.read_vec()?;
     let commitment_bytes = cursor.read_vec()?;
     let commitment_seed = cursor.read_array::<DIGEST_LEN>()?;
+    let commitment_nonce = cursor.read_array::<DIGEST_LEN>()?;
     let commitment_binding = cursor.read_array::<DIGEST_LEN>()?;
     let challenge = cursor.read_array::<CHALLENGE_LEN>()?;
     let lattice_binding = cursor.read_array::<DIGEST_LEN>()?;
@@ -1561,6 +1590,7 @@ fn decode_opened_proof_body(bytes: &[u8]) -> Result<ShareNizkOpenedProof, PvssEr
         },
         commitment_bytes: ProtocolBytes(commitment_bytes),
         commitment_seed,
+        commitment_nonce,
         commitment_binding,
         challenge,
         lattice_binding,

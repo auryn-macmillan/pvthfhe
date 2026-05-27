@@ -5,6 +5,7 @@ use pvthfhe_fhe::{
     FheBackend, FheError,
 };
 use rand::thread_rng;
+use sha2::{Digest, Sha256};
 
 const CANONICAL_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
 const DEGREE: usize = 8192;
@@ -29,7 +30,9 @@ fn encoding_golden_real_ascii_roundtrip() {
         .collect::<Result<Vec<_>, _>>()
         .expect("keygen shares");
     let pk = backend.aggregate_keygen(&shares).expect("aggregate keygen");
-    backend.setup_threshold(3, 2).expect("setup threshold");
+    backend
+        .setup_threshold(3, 2, Sha256::digest(session_id).into())
+        .expect("setup threshold");
 
     let plaintext = b"non-trivial ascii plaintext";
     let ciphertext = backend.encrypt(&pk, plaintext, &mut rng).expect("encrypt");

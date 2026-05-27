@@ -11,7 +11,7 @@ No deferrals. Full wiring into demo-e2e, per-node, and aggregator.
 
 ### Implementation
 1. In `full_pipeline.rs`, after keygen (line ~242), set `PK_CONTRIBUTION_DATA` with per-party data
-2. Create `SonobeCompressor::<KeyContributionStepCircuit<Fr>>::new(...)` once
+2. Create `NovaCompressor::<KeyContributionStepCircuit<Fr>>::new(...)` once
 3. For each party, populate thread-local, call `compressor.prove()`, verify
 4. Store `pk_contribution_hash` in `PipelineReport`
 5. Add `pk_contribution_hash` to `pipeline_integrity_hash` chain (C1 slot already reserved)
@@ -36,7 +36,7 @@ No deferrals. Full wiring into demo-e2e, per-node, and aggregator.
 
 ### Implementation
 1. In `full_pipeline.rs`, after dkg_aggregate (line ~493), set `DKG_AGG_DATA` with per-recipient shares
-2. Create `SonobeCompressor::<DkgAggregationStepCircuit<Fr>>::new(...)` once
+2. Create `NovaCompressor::<DkgAggregationStepCircuit<Fr>>::new(...)` once
 3. For each recipient, populate thread-local, call `compressor.prove()`
 4. Fold into Nova IVC accumulator
 5. Store `dkg_agg_hash` in `PipelineReport`
@@ -79,22 +79,22 @@ No deferrals. Full wiring into demo-e2e, per-node, and aggregator.
 
 ## Gap P3: SNARK On-Chain Verification
 
-**Current**: KZG switch done. `snark_bridge.rs` has `wrap_nova_instance()`. `sonobe_state_commitment` Noir dual-mode. Extended `CompressedProof` format with SNARK trailer. Keccak256 IVC proof binding in prove method.
+**Current**: KZG switch done. `snark_bridge.rs` has `wrap_nova_instance()`. `nova_state_commitment` Noir dual-mode. Extended `CompressedProof` format with SNARK trailer. Keccak256 IVC proof binding in prove method.
 **Target**: Full DeciderEth Groth16 SNARK wrapping wired at compressor call site.
 
 ### Implementation
-1. In `sonobe/mod.rs` prove method (line ~1100), after `nova.ivc_proof()`:
+1. In `nova/mod.rs` prove method (line ~1100), after `nova.ivc_proof()`:
    ```rust
-   #[cfg(feature = "sonobe-snark")]
+   #[cfg(feature = "nova-snark")]
    let snark_bytes = snark_bridge::wrap_nova_instance(nova, &self.verifier_key_bytes, state_len, seed)?;
    let snark_ref = Some(snark_bytes.snark_proof_bytes.as_slice());
-   #[cfg(not(feature = "sonobe-snark"))]
+   #[cfg(not(feature = "nova-snark"))]
    let snark_ref: Option<&[u8]> = None;
    ```
-2. The Keccak256 binding currently in prove (P3-lite) serves as fallback when `sonobe-snark` not enabled
-3. Wire via feature flag: `cargo build --features sonobe-snark` enables full DeciderEth
-4. Update `sonobe_state_commitment` Noir circuit: SNARK mode already implemented (dual-mode)
-5. Test via `demo-e2e` with `sonobe-snark` feature
+2. The Keccak256 binding currently in prove (P3-lite) serves as fallback when `nova-snark` not enabled
+3. Wire via feature flag: `cargo build --features nova-snark` enables full DeciderEth
+4. Update `nova_state_commitment` Noir circuit: SNARK mode already implemented (dual-mode)
+5. Test via `demo-e2e` with `nova-snark` feature
 
 ## Gap: Per-Party Accountability
 

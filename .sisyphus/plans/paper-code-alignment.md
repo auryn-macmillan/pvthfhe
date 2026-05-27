@@ -2,7 +2,7 @@
 
 **Created**: 2026-05-13
 **Trigger**: Deep comparison of `paper/main.tex` (278 lines, 20 theorems) against current codebase state (post Round 3 remediation).
-**Key Finding**: Paper describes a research prototype with surrogates. Code has moved past that — real BFV sigma proof (v4), committed smudge, two-track DKG, real Sonobe Nova IVC with verify_shares enabled. The paper header is frozen at a pre-remediation state.
+**Key Finding**: Paper describes a research prototype with surrogates. Code has moved past that — real BFV sigma proof (v4), committed smudge, two-track DKG, real Nova Nova IVC with verify_shares enabled. The paper header is frozen at a pre-remediation state.
 
 ---
 
@@ -20,7 +20,7 @@ Plus a deep review of the `paper/claims-table.md` (22 formal claims) against cod
 
 ### A.1 — Update paper header surrogate claims (lines 3-8)
 - [x] **File**: `paper/main.tex` lines 3-8
-- [x] **Change**: Replace the stale header comment with current reality (BFV sigma v4, Sonobe Nova IVC, G2 in-circuit Poseidon, real HonkVerifier.sol)
+- [x] **Change**: Replace the stale header comment with current reality (BFV sigma v4, Nova Nova IVC, G2 in-circuit Poseidon, real HonkVerifier.sol)
 - [x] **Gate**: Paper header reflects current code reality; "do not use for The Interfold" warning preserved
 
 ### A.2 — Update architecture section (§1, lines 40-49) to reflect current state
@@ -41,9 +41,9 @@ Plus a deep review of the `paper/claims-table.md` (22 formal claims) against cod
   - Deterministic masking upgraded to OsRng (round 1 remediation)
 - [ ] **Gate**: P1 section accurately describes BOTH sigma protocols in use
 
-### A.4 — Update P3 description (§7) to note Sonobe IVC, not ecrecover-only
+### A.4 — Update P3 description (§7) to note Nova IVC, not ecrecover-only
 - [ ] **File**: `paper/main.tex` §7 (lines 181-222)
-- [ ] **Change**: The paper describes P3 as an `ecrecover`-based ECDSA surrogate. Update to mention that Sonobe Nova IVC (`CycloFoldStepCircuit`) is now the active compression path, with the ecrecover path retained as a fallback. Note `compressor.verify()` and external verification via `external_verify_compressed_proof()`.
+- [ ] **Change**: The paper describes P3 as an `ecrecover`-based ECDSA surrogate. Update to mention that Nova Nova IVC (`CycloFoldStepCircuit`) is now the active compression path, with the ecrecover path retained as a fallback. Note `compressor.verify()` and external verification via `external_verify_compressed_proof()`.
 - [ ] **Gate**: P3 section accurately describes current compressor + verifier state
 
 ---
@@ -54,13 +54,13 @@ Plus a deep review of the `paper/claims-table.md` (22 formal claims) against cod
 - [ ] **File**: `paper/claims-table.md`
 - [ ] **Change**: Add a column indicating whether each theorem's proof is for:
   - **TARGET** (the target Architecture B: Lattice PVSS + LatticeFold+ + MicroNova + UltraHonk)
-  - **SURROGATE** (the current implementation: Sonobe Nova, SHA-256 hash, ecrecover)
+  - **SURROGATE** (the current implementation: Nova Nova, SHA-256 hash, ecrecover)
   - **BOTH** (proved for both target and surrogate)
 - [ ] **Gate**: Every claim has a provenance column
 
 ### B.2 — Reclassify P2-T1, P2-T3, P2-T5 as SURROGATE
 - [ ] **File**: `paper/claims-table.md` rows P2-T1, P2-T3, P2-T5
-- [ ] **Change**: Status → add `(SURROGATE: Sonobe Nova SHA-256 hash accumulation)` qualifier. The existing PROVED status remains accurate for the surrogate path.
+- [ ] **Change**: Status → add `(SURROGATE: Nova Nova SHA-256 hash accumulation)` qualifier. The existing PROVED status remains accurate for the surrogate path.
 - [ ] **Gate**: Claims table is honest about what each PROVED status actually covers
 
 ### B.3 — Reclassify P3-T1, P3-T2, P3-T5 as SURROGATE
@@ -94,11 +94,11 @@ Plus a deep review of the `paper/claims-table.md` (22 formal claims) against cod
 
 ---
 
-## Batch D — Dual-track paper: describe BOTH Sonobe (achieved) and LatticeFold+ (target)
+## Batch D — Dual-track paper: describe BOTH Nova (achieved) and LatticeFold+ (target)
 
 The paper should present two parallel architectures, not one:
 
-1. **Concrete instantiation (achieved, benchmarked)**: Sonobe Nova IVC + CycloFoldStepCircuit + ecrecover attestation
+1. **Concrete instantiation (achieved, benchmarked)**: Nova Nova IVC + CycloFoldStepCircuit + ecrecover attestation
 2. **Theoretical target (aspirational, blocked on Lemma 9)**: LatticeFold+ over RLWE + MicroNova + UltraHonk
 
 Each gets its own theorem statements, proof sketches, and benchmark results.
@@ -106,20 +106,20 @@ Each gets its own theorem statements, proof sketches, and benchmark results.
 ### D.1 — Restructure paper architecture section for dual-track
 - [ ] **File**: `paper/main.tex` §4–§7
 - [ ] **Change**: Refactor the P1→P2→P3 pipeline description into two parallel tracks:
-  - **Track A (concrete)**: P4 (PVSS) → P1 (bfv_sigma + SLAP sigma) → P2-A (Sonobe Nova IVC with CycloFoldStepCircuit) → P3-A (ecrecover attestation + off-chain Sonobe verification)
+  - **Track A (concrete)**: P4 (PVSS) → P1 (bfv_sigma + SLAP sigma) → P2-A (Nova Nova IVC with CycloFoldStepCircuit) → P3-A (ecrecover attestation + off-chain Nova verification)
   - **Track B (target)**: P4 (PVSS) → P1 (bfv_sigma + SLAP sigma) → P2-B (LatticeFold+ over RLWE) → P3-B (MicroNova + UltraHonk on-chain)
   - Note: Track A and Track B share P4 and P1 (implemented identically). They diverge at P2/P3.
 - [ ] **Gate**: Architecture section clearly describes both tracks; the concrete track is the one with benchmarks
 
-### D.2 — Write P2 Track A proof section (Sonobe — proved)
-- [ ] **File**: `paper/main.tex` — new §6.A (Track A: Sonobe Nova IVC)
-- [ ] **Change**: Describe the current Cyclo folding + Sonobe compression as a valid concrete instantiation:
-  - **P2-A-T1** (Sonobe Folding Completeness): Honest Cyclo fold instances produce valid Sonobe Nova IVC step witnesses. Proved by `p2/T1.md` (VERDICT: APPROVE).
-  - **P2-A-T2** (Sonobe Knowledge Soundness): The Sonobe Nova IVC verifier accepts only valid folded CCS instances. Proved via standard Nova IVC soundness (not LatticeFold+ Lemma 9).
-  - **P2-A-T3** (Sonobe ZK Preservation): The CycloFoldStepCircuit operates on hashed accumulator state (3 Fr scalars), preserving ZK of the underlying witness. Proved by `p2/T3.md`.
-  - **P2-A-T4** (Sonobe Accumulator Binding): SHA-256 hash commitment. Proved by `p2/T4.md` (CONDITIONAL).
-  - **Benchmarks**: Reference `paper/figures/p2-bench.tex` for Sonobe IVC timing.
-- [ ] **Gate**: §6.A clearly describes the working Sonobe path with proved theorems
+### D.2 — Write P2 Track A proof section (Nova — proved)
+- [ ] **File**: `paper/main.tex` — new §6.A (Track A: Nova Nova IVC)
+- [ ] **Change**: Describe the current Cyclo folding + Nova compression as a valid concrete instantiation:
+  - **P2-A-T1** (Nova Folding Completeness): Honest Cyclo fold instances produce valid Nova Nova IVC step witnesses. Proved by `p2/T1.md` (VERDICT: APPROVE).
+  - **P2-A-T2** (Nova Knowledge Soundness): The Nova Nova IVC verifier accepts only valid folded CCS instances. Proved via standard Nova IVC soundness (not LatticeFold+ Lemma 9).
+  - **P2-A-T3** (Nova ZK Preservation): The CycloFoldStepCircuit operates on hashed accumulator state (3 Fr scalars), preserving ZK of the underlying witness. Proved by `p2/T3.md`.
+  - **P2-A-T4** (Nova Accumulator Binding): SHA-256 hash commitment. Proved by `p2/T4.md` (CONDITIONAL).
+  - **Benchmarks**: Reference `paper/figures/p2-bench.tex` for Nova IVC timing.
+- [ ] **Gate**: §6.A clearly describes the working Nova path with proved theorems
 
 ### D.3 — Write P2 Track B theory section (LatticeFold+ — target)
 - [ ] **File**: `paper/main.tex` — new §6.B (Track B: LatticeFold+ over RLWE)
@@ -132,18 +132,18 @@ Each gets its own theorem statements, proof sketches, and benchmark results.
 - [ ] **Gate**: §6.B clearly distinguishes LatticeFold+ as theoretical with explicit conjecture dependency
 
 ### D.4 — Write P3 Track A/B proof sections
-- [ ] **File**: `paper/main.tex` — new §7.A (Track A: ecrecover + off-chain Sonobe), §7.B (Track B: UltraHonk on-chain)
+- [ ] **File**: `paper/main.tex` — new §7.A (Track A: ecrecover + off-chain Nova), §7.B (Track B: UltraHonk on-chain)
 - [ ] **Change**:
-  - **Track A**: ecrecover-based ECDSA attestation (5,273 gas). Proved theorems P3-A-T1 through P3-A-T5 (all PROVED per `p3/adviser-verdict.md`). Off-chain Sonobe verification via `offchain-verifier`. Benchmarks: 5,273 gas (ecrecover), off-chain verification time in `paper/figures/p3-bench.tex`.
+  - **Track A**: ecrecover-based ECDSA attestation (5,273 gas). Proved theorems P3-A-T1 through P3-A-T5 (all PROVED per `p3/adviser-verdict.md`). Off-chain Nova verification via `offchain-verifier`. Benchmarks: 5,273 gas (ecrecover), off-chain verification time in `paper/figures/p3-bench.tex`.
   - **Track B**: UltraHonk + MicroNova on-chain verification (39,687 gas). Proofs are skeletons. Deferred to `.sisyphus/plans/p3-micronova-target.md`.
 - [ ] **Gate**: §7.A/B clearly distinguished both paths with track-specific theorem statuses
 
 ### D.5 — Update claims table for dual-track
 - [ ] **File**: `paper/claims-table.md`
 - [ ] **Change**: Add a second provenance column. Each claim now has:
-  - **Track A status** (Sonobe — current code): PROVED / CONDITIONAL / etc.
+  - **Track A status** (Nova — current code): PROVED / CONDITIONAL / etc.
   - **Track B status** (LatticeFold+ — target): ASPIRATIONAL / CONTINGENT / SKELETON
-  - P2 and P3 claims are split: P2-A-T1 through P2-A-T5 (proved for Sonobe), P2-B-T1 through P2-B-T5 (target for LatticeFold+)
+  - P2 and P3 claims are split: P2-A-T1 through P2-A-T5 (proved for Nova), P2-B-T1 through P2-B-T5 (target for LatticeFold+)
 - [ ] **Gate**: Claims table is honest about both tracks
 
 ### D.6 — Create deferred implementation plans (track B)
@@ -163,7 +163,7 @@ Each gets its own theorem statements, proof sketches, and benchmark results.
   ```
   With:
   ```
-  P2 uses a Sonobe Nova IVC surrogate (CycloFoldStepCircuit proving hash-state accumulation, not Ajtai fold).
+  P2 uses a Nova Nova IVC surrogate (CycloFoldStepCircuit proving hash-state accumulation, not Ajtai fold).
   P3 uses the ecrecover/ECDSA attestation surrogate for on-chain acceptance.
   Post-remediation (3 audit rounds): BFV sigma v4, committed-smudge, two-track DKG enabled.
   P1 masking seeds upgraded to OsRng.

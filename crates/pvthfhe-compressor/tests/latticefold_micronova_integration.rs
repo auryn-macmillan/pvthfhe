@@ -1,15 +1,15 @@
 //! P2-M5 LatticeFold+ to MicroNova integration tests.
 
 use ark_bn254::Fr;
-use pvthfhe_compressor::sonobe::{
+use pvthfhe_compressor::nova::{
     encode_triple, latticefold_hashes_to_inputs, ExternalInputs3, FoldVerifierStepCircuit,
-    SonobeCompressor,
+    NovaCompressor,
 };
 
 #[test]
 fn latticefold_accumulate_then_verify() {
     let epoch = [5u8; 32];
-    let compressor = SonobeCompressor::<FoldVerifierStepCircuit<Fr>>::new(epoch, 1).unwrap();
+    let compressor = NovaCompressor::<FoldVerifierStepCircuit<Fr>>::new(epoch, 1).unwrap();
     let left = [1u8; 32];
     let right = [2u8; 32];
     let parent = [3u8; 32];

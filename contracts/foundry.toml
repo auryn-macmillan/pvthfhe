@@ -13,6 +13,6 @@ fs_permissions = [
     { access = "read", path = "test/goldens" },
     { access = "read", path = "src" },
     { access = "read", path = "../circuits/target" },
-    { access = "read", path = "../circuits/sonobe_state_commitment/target" },
+    { access = "read", path = "../circuits/nova_state_commitment/target" },
     { access = "read-write", path = "../bench/results" },
 ]

@@ -6,7 +6,7 @@
 
 ## Goal
 
-Replace the Sonobe Nova IVC surrogate (Track A) with a native LatticeFold+ accumulation scheme that folds RLWE ciphertext witnesses via algebraic relations over the Cyclo CCS encoding.
+Replace the Nova Nova IVC surrogate (Track A) with a native LatticeFold+ accumulation scheme that folds RLWE ciphertext witnesses via algebraic relations over the Cyclo CCS encoding.
 
 ## Blocked Dependencies
 
@@ -36,7 +36,7 @@ Replace the Sonobe Nova IVC surrogate (Track A) with a native LatticeFold+ accum
 ## Cross-references
 
 - `docs/security-proofs/lemma9.md` — Lemma 9 conjecture details
-- `docs/security-proofs/p2/T1.md` — Folding completeness (VERDICT: APPROVE for Sonobe)
+- `docs/security-proofs/p2/T1.md` — Folding completeness (VERDICT: APPROVE for Nova)
 - `docs/security-proofs/p2/T4.md` — Accumulator binding (CONDITIONAL)
 - `.sisyphus/plans/p3-micronova-target.md` — P3 Track B plan
 - `.sisyphus/design/spec-real-p2p3.md` — P2/P3 real specification

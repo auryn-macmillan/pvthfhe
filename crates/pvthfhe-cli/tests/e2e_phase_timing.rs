@@ -271,11 +271,11 @@ fn cyclo_fold_ms_populated() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
-fn noir_sonobe_wrap_ms_present() -> Result<(), Box<dyn std::error::Error>> {
+fn noir_nova_wrap_ms_present() -> Result<(), Box<dyn std::error::Error>> {
     let (timings, _) = run_e2e_and_bench()?;
 
-    assert!(phase_f64(&timings, "noir_sonobe_wrap", "total_ms") >= 0.0);
-    assert_eq!(phase_u64(&timings, "noir_sonobe_wrap", "instances_run"), 1);
+    assert!(phase_f64(&timings, "noir_nova_wrap", "total_ms") >= 0.0);
+    assert_eq!(phase_u64(&timings, "noir_nova_wrap", "instances_run"), 1);
 
     Ok(())
 }

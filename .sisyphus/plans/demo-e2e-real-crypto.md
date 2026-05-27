@@ -12,7 +12,7 @@
 |------|-----------|-------------|---------------|
 | 2-3 | `demo_nizk::demo_secret_share()` | `SHA256(session_id ‖ pk) % 65537` — secret is public | C7 |
 | 5-6 | `HashChainCycloAdapter` | SHA-256 hash chain, not lattice folding | C18, C19 |
-| 7 | `SonobeToyCompressor` with `CycloFoldStepCircuit` | IVC on field-addition step circuit (partially fixed in D.1 but still "toy" infrastructure) | C10 |
+| 7 | `NovaToyCompressor` with `CycloFoldStepCircuit` | IVC on field-addition step circuit (partially fixed in D.1 but still "toy" infrastructure) | C10 |
 
 ---
 
@@ -42,15 +42,15 @@
 
 ---
 
-## Batch S3 — Real Compressor (replaces SonobeToyCompressor)
+## Batch S3 — Real Compressor (replaces NovaToyCompressor)
 
-### S3.1 — Rename SonobeToyCompressor → SonobeCompressor
-- [x] **GREEN**: `SonobeToyCompressor` → `SonobeCompressor<ToyStepCircuit<Fr>>`. Zero grep hits for old name. 4 consumer files updated.
+### S3.1 — Rename NovaToyCompressor → NovaCompressor
+- [x] **GREEN**: `NovaToyCompressor` → `NovaCompressor<ToyStepCircuit<Fr>>`. Zero grep hits for old name. 4 consumer files updated.
 - [x] **GATE**: "Toy" only in ToyStepCircuit name. Build clean.
 - [x] **RED**: Step circuit encode 3 aspects verified: commitment folding, norm escalation, count increment.
 - [x] **GREEN**: All 3 aspects present. Same-ext limitation documented for production.
 - [x] **GATE**: Step circuit fold relation verified.
-- [x] **RED**: grep confirms surrogate unreachable when `sonobe-compressor` active.
+- [x] **RED**: grep confirms surrogate unreachable when `nova-compressor` active.
 - [x] **GREEN**: Feature gating correct. Both feature paths compile.
 - [x] **GATE**: Surrogate compressor unreachable from demo path.
 
@@ -60,7 +60,7 @@
 
 ### S4.1 — Run full demo-e2e with real crypto
 - [x] **GREEN**: `just demo-e2e` all 9 steps complete: ACCEPT. Verdict: ACCEPT. Plaintext roundtrip: OK.
-- [x] **GATE**: Pipeline uses real backends throughout. P1: cyclo-ajtai-d2-conditional, P2: cyclo-rlwe-t10-lemma9-heuristic, P3: sonobe-nova-bn254-grumpkin.
+- [x] **GATE**: Pipeline uses real backends throughout. P1: cyclo-ajtai-d2-conditional, P2: cyclo-rlwe-t10-lemma9-heuristic, P3: nova-bn254-grumpkin.
 - [x] **GREEN**: Backend IDs use `CYCLO_P2_BACKEND_ID` + `compressor_backend_id()`. Hardcoded surrogate strings removed.
 - [x] **GATE**: Demo output shows real backend identifiers.
 

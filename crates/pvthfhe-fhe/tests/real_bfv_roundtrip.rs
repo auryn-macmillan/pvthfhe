@@ -14,6 +14,7 @@ use fhe::bfv::Ciphertext as BfvCiphertext;
 use fhe_traits::DeserializeParametrized;
 use pvthfhe_fhe::{fhers::FhersBackend, FheBackend, FheError};
 use rand::thread_rng;
+use sha2::{Digest, Sha256};
 
 const CANONICAL_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
 
@@ -29,7 +30,8 @@ fn roundtrip_bfv(n: usize, t: usize, plaintext: &[u8]) -> Result<Vec<u8>, FheErr
         .collect::<Result<_, _>>()?;
 
     let pk = backend.aggregate_keygen(&shares)?;
-    backend.setup_threshold(n, t)?;
+    let session_seed: [u8; 32] = Sha256::digest(session_id).into();
+    backend.setup_threshold(n, t, session_seed)?;
     let ct = backend.encrypt(&pk, plaintext, &mut rng)?;
 
     let decrypt_shares: Vec<_> = (1u32..=t as u32)
@@ -147,7 +149,10 @@ fn real_bfv_rejects_party_id_zero() {
         .expect("keygen");
 
     let pk = backend.aggregate_keygen(&shares).expect("aggregate");
-    backend.setup_threshold(3, 2).expect("setup threshold");
+    let session_seed3: [u8; 32] = Sha256::digest(session_id).into();
+    backend
+        .setup_threshold(3, 2, session_seed3)
+        .expect("setup threshold");
     let ct = backend.encrypt(&pk, b"test", &mut rng).expect("encrypt");
 
     let share_1 = backend.partial_decrypt(&ct, 1, &mut rng).expect("share 1");
@@ -197,7 +202,10 @@ fn real_bfv_roundtrip_uses_different_parties_for_distinct_quorums() {
         .collect::<Result<_, _>>()
         .expect("keygen");
     let pk = backend.aggregate_keygen(&shares).expect("aggregate");
-    backend.setup_threshold(7, 4).expect("setup threshold");
+    let session_seed7: [u8; 32] = Sha256::digest(session_id).into();
+    backend
+        .setup_threshold(7, 4, session_seed7)
+        .expect("setup threshold");
 
     let plaintext = b"two-quorum-test";
     let ct = backend.encrypt(&pk, plaintext, &mut rng).expect("encrypt");

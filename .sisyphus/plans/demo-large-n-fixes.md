@@ -173,7 +173,7 @@ Initially RED: current message is generic; redacted Display also blocks the asse
 
 ### RED-3: CLI `--n 256` exits with informative error before any phase
 File: `crates/pvthfhe-cli/tests/demo_n_cap.rs`
-Spawns `cargo run -- demo --n 256 --threshold 129 --seed 1` (release+sonobe-compressor) via `assert_cmd`, asserts:
+Spawns `cargo run -- demo --n 256 --threshold 129 --seed 1` (release+nova-compressor) via `assert_cmd`, asserts:
 - non-zero exit
 - stderr contains `"255"` and either `"Shamir"`, `"GF(256)"`, or `"maximum"`
 - stderr does **not** contain `"step 4/9"` (failure must be early, before any phase ran)
@@ -239,8 +239,8 @@ Each step below is one TDD slice: write the RED test → observe RED → make th
 
 ### Step 5 — RED-3 lands
 
-- Add `crates/pvthfhe-cli/tests/demo_n_cap.rs` (uses `assert_cmd` like `tests/demo_threshold.rs`). Build with `--features sonobe-compressor`.
-- Run `cargo test -p pvthfhe-cli --features sonobe-compressor --release --test demo_n_cap` → MUST FAIL (today the CLI lets the call through to PVSS).
+- Add `crates/pvthfhe-cli/tests/demo_n_cap.rs` (uses `assert_cmd` like `tests/demo_threshold.rs`). Build with `--features nova-compressor`.
+- Run `cargo test -p pvthfhe-cli --features nova-compressor --release --test demo_n_cap` → MUST FAIL (today the CLI lets the call through to PVSS).
 
 ### Step 6 — Implement D2 part 2 (CLI early guard) + D5 (clap docstring)
 
@@ -255,12 +255,12 @@ Each step below is one TDD slice: write the RED test → observe RED → make th
   ```
 - Edit `Demo { n, .. }` clap doc (line ~78) to read `/// Number of parties (maximum 255).`.
 - Run RED-3 → MUST PASS.
-- Run `cargo test -p pvthfhe-cli --features sonobe-compressor --release` (full crate) → MUST PASS (especially `demo_threshold.rs`, which uses small n).
+- Run `cargo test -p pvthfhe-cli --features nova-compressor --release` (full crate) → MUST PASS (especially `demo_threshold.rs`, which uses small n).
 
 ### Step 7 — RED-4 lands
 
 - Add `crates/pvthfhe-cli/tests/demo_large_n.rs` calling `run_full_pipeline` in-process (no subprocess) for `n=128, t=65, seed=1`.
-- Run `cargo test -p pvthfhe-cli --features sonobe-compressor --release --test demo_large_n` → MUST FAIL with `NormBoundExceeded` from cyclo.
+- Run `cargo test -p pvthfhe-cli --features nova-compressor --release --test demo_large_n` → MUST FAIL with `NormBoundExceeded` from cyclo.
 
 ### Step 8 — Implement D3 (fix stub witness bytes in pipeline)
 
@@ -269,7 +269,7 @@ Each step below is one TDD slice: write the RED test → observe RED → make th
   ccs_witness_bytes: vec![1u8; 32],
   ```
 - Run RED-4 → MUST PASS.
-- Run `cargo test -p pvthfhe-cli --features sonobe-compressor --release` (full crate) → MUST PASS.
+- Run `cargo test -p pvthfhe-cli --features nova-compressor --release` (full crate) → MUST PASS.
 - Run `cargo test -p pvthfhe-cyclo` → MUST PASS (sanity — should be untouched).
 - Run `cargo test -p pvthfhe-aggregator` → MUST PASS (folding wiring).
 
@@ -293,7 +293,7 @@ Run **all** invariants:
 - I1 (lsp_diagnostics): zero new errors on the four edited files (`lib.rs`, `encrypt.rs`, `main.rs`, `full_pipeline.rs`).
 - I2 (no new `#[allow]`): `policy_invariants::no_new_allow_attributes_*` GREEN.
 - I3 (full pvthfhe-pvss tests): `cargo test -p pvthfhe-pvss` GREEN.
-- I4 (full pvthfhe-cli tests release+sonobe-compressor): `cargo test -p pvthfhe-cli --features sonobe-compressor --release` GREEN.
+- I4 (full pvthfhe-cli tests release+nova-compressor): `cargo test -p pvthfhe-cli --features nova-compressor --release` GREEN.
 - I5 (full pvthfhe-bench tests): `cargo test -p pvthfhe-bench` GREEN.
 - I6 (full pvthfhe-aggregator tests): `cargo test -p pvthfhe-aggregator` GREEN.
 - I7 (full pvthfhe-cyclo tests): `cargo test -p pvthfhe-cyclo` GREEN.

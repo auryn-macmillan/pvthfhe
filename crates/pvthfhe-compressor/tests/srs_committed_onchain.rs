@@ -1,11 +1,11 @@
 //! R5.3 RED: compressor exposes srsHash() for on-chain commitment.
 //!
 //! This test must FAIL (compile error) against current main because
-//! `SonobeCompressor` has no `srs_hash()` method.
+//! `NovaCompressor` has no `srs_hash()` method.
 
 use ark_bn254::Fr;
-use pvthfhe_compressor::sonobe::SonobeCompressor;
-use pvthfhe_compressor::sonobe::ToyStepCircuit;
+use pvthfhe_compressor::nova::NovaCompressor;
+use pvthfhe_compressor::nova::ToyStepCircuit;
 
 #[test]
 fn srs_hash_method_exists_and_is_deterministic() {
@@ -13,7 +13,7 @@ fn srs_hash_method_exists_and_is_deterministic() {
 
     // RED: `new` does not accept `[u8; 32]` on main, and `srs_hash()` does not exist.
     let compressor =
-        SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch, 4).expect("construct compressor");
+        NovaCompressor::<ToyStepCircuit<Fr>>::new(epoch, 4).expect("construct compressor");
 
     // srsHash() returns a 32-byte hash.
     let hash = compressor.srs_hash();
@@ -21,7 +21,7 @@ fn srs_hash_method_exists_and_is_deterministic() {
 
     // Same epoch → same srsHash (deterministic).
     let compressor2 =
-        SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch, 4).expect("construct second compressor");
+        NovaCompressor::<ToyStepCircuit<Fr>>::new(epoch, 4).expect("construct second compressor");
     assert_eq!(
         hash,
         compressor2.srs_hash(),
@@ -30,7 +30,7 @@ fn srs_hash_method_exists_and_is_deterministic() {
 
     // Different epoch → different srsHash.
     let other_epoch: [u8; 32] = [0x5Bu8; 32];
-    let compressor3 = SonobeCompressor::<ToyStepCircuit<Fr>>::new(other_epoch, 4)
+    let compressor3 = NovaCompressor::<ToyStepCircuit<Fr>>::new(other_epoch, 4)
         .expect("construct third compressor");
     assert_ne!(
         hash,
@@ -52,7 +52,7 @@ fn srs_committed_onchain_contract_has_matching_hash() {
     // public API. The actual on-chain matching is tested in R6.
     let epoch: [u8; 32] = [0xAAu8; 32];
     let compressor =
-        SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch, 4).expect("construct compressor");
+        NovaCompressor::<ToyStepCircuit<Fr>>::new(epoch, 4).expect("construct compressor");
 
     let _hash = compressor.srs_hash();
 }

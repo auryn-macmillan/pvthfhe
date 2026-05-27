@@ -14,7 +14,7 @@ Added `// allow-seeded-rng:` inline annotations to 4 seeded-RNG callsites:
 3. `crates/pvthfhe-nizk/src/adapter.rs:335`
    `// allow-seeded-rng: CCS matrix seeded from canonical instance id`
 
-4. `crates/pvthfhe-compressor/src/sonobe/mod.rs:213`
+4. `crates/pvthfhe-compressor/src/nova/mod.rs:213`
    `// allow-seeded-rng: SRS seeded from compressor epoch hash`
 
 ### Verification
@@ -51,11 +51,11 @@ Since >10 unique warnings and >20 total instances, followed the fallback path fr
 - `crates/pvthfhe-circuit-tests/src/witness_gen.rs`: 33 `writeln!(...).expect(...)` → `let _ = writeln!(...)`; 2 inverse expects → match; parse/Poseidon expects → match; as_conversions suppressed on constant-using functions
 - `crates/pvthfhe-types/src/witness_language.rs`: `to_u16(&self)` → `to_u16(self)`; `to_u32(&self)` → `to_u32(self)` with match (avoid as_conversions)
 - `crates/pvthfhe-keygen-spec/src/lib.rs`: 3 as_conversions → safe conversions
-- `crates/pvthfhe-compressor/src/sonobe/mod.rs`: needless_borrows, type_complexity (type aliases), as_conversions (allow)
+- `crates/pvthfhe-compressor/src/nova/mod.rs`: needless_borrows, type_complexity (type aliases), as_conversions (allow)
 - `crates/pvthfhe-nizk/src/ajtai.rs`: should_implement_trait → derived PartialEq, Eq
 - `crates/pvthfhe-nizk/src/bfv_sigma.rs`: too_many_arguments, as_conversions (allow attributes)
 - `crates/pvthfhe-aggregator/build.rs`: missing-docs → #![allow(missing_docs)]
-- `crates/pvthfhe-compressor/src/bin/sonobe_min.rs`: expect → #[allow(clippy::expect_used)]
+- `crates/pvthfhe-compressor/src/bin/nova_min.rs`: expect → #[allow(clippy::expect_used)]
 - `crates/pvthfhe-fhe/src/fhers.rs`: expect → #[allow(clippy::expect_used)] on test modules + checked-above case
 - `crates/pvthfhe-fhe/src/wire.rs`: expects → proper error propagation or #[allow]
 - `crates/pvthfhe-cyclo/src/ccs_encode.rs`: unwrap → proper error propagation; test expects → #[allow]

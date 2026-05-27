@@ -2,7 +2,9 @@ use ark_bn254::Fr;
 use ark_ff::Field;
 use pvthfhe_compressor::merkle::{build_merkle_tree, prove_merkle_path, verify_merkle_proof};
 use pvthfhe_compressor::poly_eval::eval_poly_bn254;
-use pvthfhe_compressor::sonobe::{c7_fold_witnesses, encode_triple, C7DecryptAggregationCircuit, SonobeCompressor};
+use pvthfhe_compressor::nova::{
+    c7_fold_witnesses, encode_triple, C7DecryptAggregationCircuit, NovaCompressor,
+};
 use pvthfhe_compressor::witness::{hash_all_coeffs, C7WitnessSet};
 
 const N: usize = 8192;
@@ -117,9 +119,7 @@ fn c7_nova_fold_n8192_4_steps() {
     let num_participants = 4;
 
     let share = generate_coeffs(10);
-    let shares: Vec<Vec<Fr>> = (0..num_participants)
-        .map(|_| share.clone())
-        .collect();
+    let shares: Vec<Vec<Fr>> = (0..num_participants).map(|_| share.clone()).collect();
 
     let lagrange: Vec<Fr> = (0..num_participants)
         .map(|i| {
@@ -134,11 +134,14 @@ fn c7_nova_fold_n8192_4_steps() {
     let challenge_r = Fr::from(7u64);
     let witnesses = C7WitnessSet::new(&shares, &lagrange, challenge_r);
 
-    assert!(witnesses.verify_commitments(), "all commitments must verify before folding");
+    assert!(
+        witnesses.verify_commitments(),
+        "all commitments must verify before folding"
+    );
 
     let compressor =
-        SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch(), num_participants)
-            .expect("construct C7 sonobe compressor");
+        NovaCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch(), num_participants)
+            .expect("construct C7 nova compressor");
 
     let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
 
@@ -149,18 +152,24 @@ fn c7_nova_fold_n8192_4_steps() {
 
     let vk = compressor.verifier_key();
 
-    let coeffs: Vec<Vec<Fr>> = witnesses.participants.iter()
+    let coeffs: Vec<Vec<Fr>> = witnesses
+        .participants
+        .iter()
         .map(|w| w.coeffs.clone())
         .collect();
-    let derived_r = hash_all_coeffs(&[witnesses.participants[0].coeff_commitment, dkg_root_hash, Fr::from(0u64)]); // G.5: TODO: pass real d_commitment
+    let derived_r = hash_all_coeffs(&[
+        witnesses.participants[0].coeff_commitment,
+        dkg_root_hash,
+        Fr::from(0u64),
+    ]); // G.5: TODO: pass real d_commitment
 
-    let steps: Vec<pvthfhe_compressor::sonobe::ExternalInputs5<Fr>> = witnesses
+    let steps: Vec<pvthfhe_compressor::nova::ExternalInputs5<Fr>> = witnesses
         .participants
         .iter()
         .enumerate()
         .map(|(i, w)| {
             let share_eval = eval_poly_bn254(&coeffs[i], derived_r);
-            pvthfhe_compressor::sonobe::ExternalInputs5(
+            pvthfhe_compressor::nova::ExternalInputs5(
                 share_eval,
                 w.lagrange_coeff,
                 w.coeff_commitment,

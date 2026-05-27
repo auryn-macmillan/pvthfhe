@@ -65,14 +65,14 @@ AjtaiCommitmentStepCircuit (FCircuit)
     └─ 500K constraints: NTT ring-op A_i · s_i → commitment_i
     └─ State: [accumulated_commitment_hash, step_count]
     ↓
-Nova fold n steps → compressed proof (SonobeCompressor)
+Nova fold n steps → compressed proof (NovaCompressor)
     ↓
 aggregator_final receives: combined_commitment_hash
     ↓
 On-chain: HonkVerifier.sol checks accumulator matches d_commitment
 ```
 
-Reuses existing infrastructure: ExternalInputs6, SonobeCompressor, prove_steps pattern, pipeline wiring — all already built for G.12.
+Reuses existing infrastructure: ExternalInputs6, NovaCompressor, prove_steps pattern, pipeline wiring — all already built for G.12.
 
 ## Implementation (if pursued)
 
@@ -97,7 +97,7 @@ Reuses existing infrastructure: ExternalInputs6, SonobeCompressor, prove_steps p
 - [x] Hash commitment → compare with expected
 - [x] State: [accumulated_commitment_hash, step_count]
 
-### Phase 4c: SonobeCompressor + pipeline wiring (~1 day)
+### Phase 4c: NovaCompressor + pipeline wiring (~1 day)
 - [x] `prove_steps_ajtai` method (pattern identical to `prove_steps_share_verify`)
 - [x] Witness generation: `AjtaiCommitmentWitness` struct
 - [x] Pipeline: compute `combined_commitment_hash` and pass to Prover.toml

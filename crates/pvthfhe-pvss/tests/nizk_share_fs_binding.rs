@@ -152,7 +152,8 @@ fn valid_v3_proof_fails_closed_until_bfv_relation_exists() {
         encryption_randomness: EncRandomness::new(enc_seed.to_vec()),
     };
 
-    let proof = ShareNizkProver::prove(&backend, &stmt, &witness, None).expect("prover must succeed");
+    let proof =
+        ShareNizkProver::prove(&backend, &stmt, &witness, None).expect("prover must succeed");
 
     let result = ShareNizkVerifier::verify(&backend, &stmt, &proof);
     assert!(

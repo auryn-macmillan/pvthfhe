@@ -63,7 +63,7 @@
 | Task | Files | Effort |
 |------|-------|--------|
 | C.1 | Replace `epoch_hash = [0u8; 32]` in 6 files with session-derived SHA-256 | 6 files | 1 day |
-| C.2 | Add OsRng nonce mixing to seeded ChaCha20Rng in prove_step | `sonobe/mod.rs:376-378,552-554,686-688` | 0.5 day |
+| C.2 | Add OsRng nonce mixing to seeded ChaCha20Rng in prove_step | `nova/mod.rs:376-378,552-554,686-688` | 0.5 day |
 | C.3 | Replace micronova XOR with real Cyclo fold | `micronova/tree.rs:29-30` | 1 day |
 | C.4 | Fix sequential `.iter()` → `.par_iter()` for share evaluation | `full_pipeline.rs:1371` | 0.5 day |
 | C.5 | Make LegacyLocalSmudge fallback emit `tracing::warn!` or hard-error | `full_pipeline.rs:697-715` | 0.5 day |

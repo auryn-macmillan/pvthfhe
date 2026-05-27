@@ -9,10 +9,10 @@ Replace Groth16 trusted ceremony with transparent IVC serialization, apply Schwa
 ## Phases
 
 ### Phase 1 — Transparent IVC (no Groth16)
-- [x] 1.1: Update Cargo.toml — remove sonobe-snark, add transparent-decider
+- [x] 1.1: Update Cargo.toml — remove nova-snark, add transparent-decider
 - [x] 1.2: Rewrite snark_bridge.rs — always produce IVC proof hash
 - [x] 1.3: Update compressor glue — pp_hash as ivc_snark_proof_hash
-- [x] 1.4: Remove sonobe-snark feature from CLI
+- [x] 1.4: Remove nova-snark feature from CLI
 - [x] Build: cargo build ✅ cargo test: 36 passed ✅
 
 ### Phase 2 — Schwartz-Zippel Sigma Optimization

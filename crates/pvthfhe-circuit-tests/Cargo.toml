@@ -23,8 +23,8 @@ name = "aggregator_final_full_dim"
 path = "tests/aggregator_final_full_dim.rs"
 
 [[test]]
-name = "sonobe_state_commitment_full"
-path = "tests/sonobe_state_commitment_full.rs"
+name = "nova_state_commitment_full"
+path = "tests/nova_state_commitment_full.rs"
 
 [lints]
 workspace = true
@@ -34,5 +34,5 @@ name = "gen_witness"
 path = "src/bin/gen_witness.rs"
 
 [[bin]]
-name = "gen_sonobe_state_witness"
-path = "src/bin/gen_sonobe_state_witness.rs"
+name = "gen_nova_state_witness"
+path = "src/bin/gen_nova_state_witness.rs"

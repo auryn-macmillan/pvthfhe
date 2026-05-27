@@ -334,7 +334,9 @@ fn verify_fold_inner(
     }
 
     if instances.is_empty() {
-        return Ok(());
+        return Err(CycloError::InvalidInstance(
+            "cannot verify empty instance list",
+        ));
     }
 
     for inst in &instances {

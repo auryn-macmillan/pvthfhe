@@ -10,7 +10,7 @@ The `DealerParityStepCircuit` has 2 + n multiplications — for n=64, ~66 constr
 A KZG SRS of 2¹⁴ (16k) covers all practical party sizes up to n=4096.
 
 ### Change
-1. `/home/dev/pvthfhe/crates/pvthfhe-compressor/src/sonobe/snark_bridge.rs`
+1. `/home/dev/pvthfhe/crates/pvthfhe-compressor/src/nova/snark_bridge.rs`
    Change `DECIDER_N = 1 << 17` to `1 << 14` (still powers entries up to 16384).
    The KZG::setup runtime is ~proportional to SRS size.
 
@@ -21,16 +21,16 @@ A KZG SRS of 2¹⁴ (16k) covers all practical party sizes up to n=4096.
 
 ## Option 2: Batch Parity Proofs (One KZG Setup for All Dealers)
 
-Currently: `for each dealer: new SonobeCompressor → KZG::setup → prove_step → ivc_proof`
+Currently: `for each dealer: new NovaCompressor → KZG::setup → prove_step → ivc_proof`
 The KZG setup runs n times. The Nova prover/verifier key is RECREATED per dealer.
 
-Fix: create ONE `SonobeCompressor` before the dealer loop, reuse it.
-`SonobeCompressor::prove` reads `DEALER_PARITY_DATA` from thread-locals, so
+Fix: create ONE `NovaCompressor` before the dealer loop, reuse it.
+`NovaCompressor::prove` reads `DEALER_PARITY_DATA` from thread-locals, so
 one compressor can handle multiple dealers with different share data.
 
 ### Changes
 1. `/home/dev/pvthfhe/crates/pvthfhe-cli/src/full_pipeline.rs`
-   Move `SonobeCompressor::<DealerParityStepCircuit<Fr>>::new(...)` from inside
+   Move `NovaCompressor::<DealerParityStepCircuit<Fr>>::new(...)` from inside
    the dealer loop (~line 380) to before the loop.
    Inside the loop: just call `compressor.prove(&acc, &pi)` for each dealer.
 

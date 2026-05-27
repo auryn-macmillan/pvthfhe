@@ -42,10 +42,32 @@ fn decrypt_roundtrip_golden() {
     let dkg_root = [0u8; 32];
     let ciphertext_hash = [0u8; 32];
     let party_pk = vec![0u8; 32];
-    let share1 =
-        partial_decrypt(&backend, &ct, 1, &dkg_root, &ciphertext_hash, 1, &party_pk, None, &mut rng).unwrap();
-    let share2 =
-        partial_decrypt(&backend, &ct, 2, &dkg_root, &ciphertext_hash, 1, &party_pk, None, &mut rng).unwrap();
+    let share1 = partial_decrypt(
+        &backend,
+        &ct,
+        1,
+        &dkg_root,
+        &ciphertext_hash,
+        1,
+        &party_pk,
+        None,
+        None,
+        &mut rng,
+    )
+    .unwrap();
+    let share2 = partial_decrypt(
+        &backend,
+        &ct,
+        2,
+        &dkg_root,
+        &ciphertext_hash,
+        1,
+        &party_pk,
+        None,
+        None,
+        &mut rng,
+    )
+    .unwrap();
 
     let threshold = 2;
     let allowed_parties = vec![1, 2, 3];

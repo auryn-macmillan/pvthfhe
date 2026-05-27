@@ -20,7 +20,7 @@ The demo uses `FhersBackend` which wraps real `gnosisguild/fhe.rs` but the mock 
 | Aggregate Decrypt | XOR reconstruction | Real BFV Lagrange reconstruction over R_q |
 | NIZK | Real witness (S1), but seeded randomness | Real witness + OsRng randomness |
 | Fold | Real Cyclo CCS (S2) | Same — already real |
-| Compress | Real Sonobe Nova (S3) | Same — already real |
+| Compress | Real Nova Nova (S3) | Same — already real |
 | Verify | Compressed proof verified locally | Compressed proof + on-chain verifier ready |
 
 ---

@@ -157,15 +157,15 @@ contract PvtFheVerifierTest is BaseVerifierTest {
     // Helper: builds a valid AttestationBundle with an ECDSA signature
     // -------------------------------------------------------------------------
 
-    function _buildSignedAttestation(bytes32 sonobeCommitment, bytes32 cycloCommitment, bytes32 sessionId)
+    function _buildSignedAttestation(bytes32 novaCommitment, bytes32 cycloCommitment, bytes32 sessionId)
         internal
         view
         returns (AttestationBundle memory)
     {
-        bytes32 hash = keccak256(abi.encode(sonobeCommitment, cycloCommitment, sessionId, TEST_ATTESTOR));
+        bytes32 hash = keccak256(abi.encode(novaCommitment, cycloCommitment, sessionId, TEST_ATTESTOR));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(ATTESTOR_SK, hash);
         return AttestationBundle({
-            sonobeStateCommitment: sonobeCommitment,
+            novaStateCommitment: novaCommitment,
             cycloAggregateCommitment: cycloCommitment,
             sessionId: sessionId,
             signer: TEST_ATTESTOR,
@@ -179,13 +179,13 @@ contract PvtFheVerifierTest is BaseVerifierTest {
         publicInputs[1] = bytes32(uint256(1));
         publicInputs[2] = bytes32(uint256(2));
         publicInputs[3] = bytes32(uint256(3));
-        bytes32 sonobeCommitment = bytes32(uint256(4));
+        bytes32 novaCommitment = bytes32(uint256(4));
         bytes32 cycloCommitment = bytes32(uint256(5));
-        publicInputs[4] = sonobeCommitment;
+        publicInputs[4] = novaCommitment;
         publicInputs[5] = cycloCommitment;
 
         AttestationBundle memory attestation =
-            _buildSignedAttestation(sonobeCommitment, cycloCommitment, bytes32(uint256(6)));
+            _buildSignedAttestation(novaCommitment, cycloCommitment, bytes32(uint256(6)));
 
         bool valid = verifier.verifyWithAttestation(sampleProof, publicInputs, attestation);
         assertTrue(valid, "matching attestation and proof must verify");
@@ -194,15 +194,15 @@ contract PvtFheVerifierTest is BaseVerifierTest {
     function test_verifyWithAttestation_invalid_attestor_reverts() public {
         bytes32[] memory publicInputs = new bytes32[](6);
         publicInputs[0] = keccak256(sampleProof);
-        bytes32 sonobeCommitment = bytes32(uint256(4));
+        bytes32 novaCommitment = bytes32(uint256(4));
         bytes32 cycloCommitment = bytes32(uint256(5));
-        publicInputs[4] = sonobeCommitment;
+        publicInputs[4] = novaCommitment;
         publicInputs[5] = cycloCommitment;
 
         // Build a validly-signed attestation but swap the signer to an unauthorized address.
-        AttestationBundle memory base = _buildSignedAttestation(sonobeCommitment, cycloCommitment, bytes32(uint256(6)));
+        AttestationBundle memory base = _buildSignedAttestation(novaCommitment, cycloCommitment, bytes32(uint256(6)));
         AttestationBundle memory attestation = AttestationBundle({
-            sonobeStateCommitment: base.sonobeStateCommitment,
+            novaStateCommitment: base.novaStateCommitment,
             cycloAggregateCommitment: base.cycloAggregateCommitment,
             sessionId: base.sessionId,
             signer: address(0xBEEF),
@@ -216,12 +216,12 @@ contract PvtFheVerifierTest is BaseVerifierTest {
     function test_verifyWithAttestation_commitment_mismatch_reverts() public {
         bytes32[] memory publicInputs = new bytes32[](6);
         publicInputs[0] = keccak256(sampleProof);
-        bytes32 sonobeCommitment = bytes32(uint256(4));
+        bytes32 novaCommitment = bytes32(uint256(4));
         bytes32 cycloCommitment = bytes32(uint256(5));
-        publicInputs[4] = sonobeCommitment;
+        publicInputs[4] = novaCommitment;
         publicInputs[5] = cycloCommitment;
 
-        // Build attestation with a different sonobeStateCommitment
+        // Build attestation with a different novaStateCommitment
         AttestationBundle memory attestation = _buildSignedAttestation(
             bytes32(uint256(44)), // MISMATCH
             cycloCommitment,
@@ -237,14 +237,14 @@ contract PvtFheVerifierTest is BaseVerifierTest {
         // publicInputs[0] is the "hash" that HonkVerifier checks against keccak256(proof).
         // Use a value that DOES NOT match keccak256(sampleProof) to trigger proof failure.
         publicInputs[0] = bytes32(uint256(1));
-        bytes32 sonobeCommitment = bytes32(uint256(4));
+        bytes32 novaCommitment = bytes32(uint256(4));
         bytes32 cycloCommitment = bytes32(uint256(5));
-        publicInputs[4] = sonobeCommitment;
+        publicInputs[4] = novaCommitment;
         publicInputs[5] = cycloCommitment;
 
         // Valid signature — the test ensures proof failure, not signature failure.
         AttestationBundle memory attestation =
-            _buildSignedAttestation(sonobeCommitment, cycloCommitment, bytes32(uint256(6)));
+            _buildSignedAttestation(novaCommitment, cycloCommitment, bytes32(uint256(6)));
 
         vm.expectRevert(bytes("InvalidProof"));
         verifier.verifyWithAttestation(sampleProof, publicInputs, attestation);

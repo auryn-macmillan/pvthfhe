@@ -8,7 +8,7 @@
 
 ## Nova Constraint Structure Constraint
 - Nova requires identical constraint structure between preprocessing and proving
-- BFV data must be set BEFORE SonobeCompressor::new() for consistent constraint count
+- BFV data must be set BEFORE NovaCompressor::new() for consistent constraint count
 - When no data, `bfv_encryption_verify_step` returns `FpVar::one()` (Track A compatible, no constraints)
 
 ## Adversarial Verification

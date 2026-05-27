@@ -17,7 +17,7 @@ and writes valid JSON and Markdown output. The benchmark exercises:
 
 | Probe | Return Code | Notes |
 |-------|-------------|-------|
-| `full_current_one_track_probe` | 0 | pvthfhe-e2e with sonobe-compressor, dry-run |
+| `full_current_one_track_probe` | 0 | pvthfhe-e2e with nova-compressor, dry-run |
 | `one_track_proof_producer_demo_seeded_fallback` | 0 | Fallback path with demo-seeded-rng |
 | `two_track_batched_share_proof_focused_probe` | 0 | Focused PVSS batched proof test |
 | `committed_smudge_decrypt_focused_probe` | 0 | Focused committed-smudge test |

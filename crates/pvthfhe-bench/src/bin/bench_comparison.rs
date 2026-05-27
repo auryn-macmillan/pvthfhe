@@ -12,7 +12,7 @@ use std::{
 const NIZK_BACKEND_ID: &str = "cyclo-ajtai-d2-conditional";
 const FOLDING_BACKEND_ID: &str = "cyclo-rlwe-t10-lemma9-heuristic";
 #[cfg(feature = "sonobe-compressor")]
-const COMPRESSOR_BACKEND_ID: &str = "sonobe-nova-bn254-grumpkin";
+const COMPRESSOR_BACKEND_ID: &str = "nova-bn254-grumpkin";
 #[cfg(all(feature = "surrogate-compressor", not(feature = "sonobe-compressor")))]
 const COMPRESSOR_BACKEND_ID: &str = "sha256-surrogate-compressor";
 #[cfg(not(any(feature = "sonobe-compressor", feature = "surrogate-compressor")))]

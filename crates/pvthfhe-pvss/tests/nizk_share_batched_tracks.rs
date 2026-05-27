@@ -462,9 +462,8 @@ fn sk_only_batched_proof_accepted() {
         esm_slots: vec![],
     };
 
-    let proof =
-        ShareNizkProver::prove_batched(&backend, &batched_stmt, &sk_witness, &[])
-            .expect("batched prover must succeed for sk-only");
+    let proof = ShareNizkProver::prove_batched(&backend, &batched_stmt, &sk_witness, &[])
+        .expect("batched prover must succeed for sk-only");
 
     // Verify batched proof structure: must contain exactly 1 track
     let proof_bytes = proof.proof_bytes.as_slice();

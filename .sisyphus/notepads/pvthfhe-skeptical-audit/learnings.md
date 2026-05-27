@@ -228,4 +228,4 @@ is intentionally RED but must not block CI.
   - Document bundle (audit report, threat model, assumptions ledger, security proofs, proof boundary, design specs, soundness budgets, benchmarks, codebase map)
   - Quick-start guide for auditors (5-step process)
   - Key cryptographic parameters table
-  - Critical open items for external review (P1, P2, P3, Sonobe substitution, on-chain vacuity, DKG break, end-to-end decoupling)
+  - Critical open items for external review (P1, P2, P3, Nova substitution, on-chain vacuity, DKG break, end-to-end decoupling)

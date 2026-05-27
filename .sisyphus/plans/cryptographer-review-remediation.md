@@ -30,7 +30,7 @@ Despite all gap-closure tasks being checked ✅, the fundamental cryptographic n
 
 ### C5: Four proving backends used ✅ CONFIRMED
 
-Cyclo (ring/sigma), Sonobe (Nova fold), Noir (UltraHonk), on-chain (HonkVerifier.sol). Not "Noir for the whole pipeline" as claimed.
+Cyclo (ring/sigma), Nova (Nova fold), Noir (UltraHonk), on-chain (HonkVerifier.sol). Not "Noir for the whole pipeline" as claimed.
 
 ### C6: Lattice commitments only in NIZK layer ✅ CONFIRMED
 
@@ -109,7 +109,7 @@ The Nova-folded CycloFold proof's final 7-field state (hash, fold_count, ring_ve
 
 **Reference answered**: Cite Kothapalli-Setty-Tzialla (CRYPTO 2022, ePrint 2021/370) directly. The paper proves knowledge soundness for folding a single function F applied repeatedly — NOT for arbitrary sequences of different step circuits. Our CycloFoldStepCircuit uses the SAME R1CS structure at every step (state_len=7, 8192-coefficient witness), which matches Nova's assumption.
 
-The polynomial-depth knowledge soundness gap (Lee-Seo 2024/232) applies but at our recursion depth (~10 fold steps), bounded-depth analysis suffices. The Nguyen-Boneh-Setty 2-cycle vulnerability (2023/969) was fixed in Sonobe.
+The polynomial-depth knowledge soundness gap (Lee-Seo 2024/232) applies but at our recursion depth (~10 fold steps), bounded-depth analysis suffices. The Nguyen-Boneh-Setty 2-cycle vulnerability (2023/969) was fixed in Nova.
 
 Thread-local SIGMA_RESPONSE_DATA is non-deterministic advice within a step that does NOT change the R1CS structure — it's part of the input encoding.
 

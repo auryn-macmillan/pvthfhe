@@ -9,9 +9,9 @@
 
 ## Context
 
-### Current state: Sonobe Nova IVC (Track A surrogate)
+### Current state: Nova Nova IVC (Track A surrogate)
 
-The Track A pipeline uses `SonobeCompressor` with `CycloFoldStepCircuit` (hash-then-fold) to compress DKG accumulator state. This produces a Nova IVC proof that is then UltraHonk-wrapped. The proof is verified off-chain.
+The Track A pipeline uses `NovaCompressor` with `CycloFoldStepCircuit` (hash-then-fold) to compress DKG accumulator state. This produces a Nova IVC proof that is then UltraHonk-wrapped. The proof is verified off-chain.
 
 ### Target state: MicroNova + UltraHonk on-chain
 
@@ -52,7 +52,7 @@ For M1, simplify to: verify that two accumulator states (left, right) correctly 
 
 ### P3-M1.2 — Implement FoldVerifierStepCircuit
 
-**File**: `crates/pvthfhe-compressor/src/sonobe/fold_verifier_circuit.rs` (new)
+**File**: `crates/pvthfhe-compressor/src/nova/fold_verifier_circuit.rs` (new)
 
 A Nova step circuit that verifies one LatticeFold+ folding step:
 
@@ -102,7 +102,7 @@ pub fn compress_latticefold_tree(
 
 | Test | Description |
 |------|-------------|
-| `fold_verifier_compiles` | SonobeCompressor::new with FoldVerifier succeeds |
+| `fold_verifier_compiles` | NovaCompressor::new with FoldVerifier succeeds |
 | `fold_verifier_state_len_two` | state_len() == 2 |
 | `fold_verifier_accepts_honest_fold` | Two valid accumulators fold correctly |
 | `fold_verifier_rejects_inconsistent_fold` | Mismatched accumulators → verification fails |
@@ -121,7 +121,7 @@ pub fn compress_latticefold_tree(
 
 - [ ] FoldVerifierStepCircuit implements FCircuit + StepCircuit
 - [ ] 6 RED tests pass (including recursive tree compression)
-- [ ] Existing Sonobe tests pass
+- [ ] Existing Nova tests pass
 - [ ] Demo ACCEPT (Track A unchanged)
 - [ ] Plan notes that full MicroNova (heterogeneous circuits) is deferred to M2
 
@@ -134,10 +134,10 @@ pub fn compress_latticefold_tree(
 
 ## Estimated Effort
 
-~1-2 weeks. The FoldVerifierStepCircuit is a 3-external-input Nova circuit following the established pattern (ToyStepCircuit, C7DecryptAggregationCircuit). The recursive compression pipeline wraps the existing Sonobe infrastructure.
+~1-2 weeks. The FoldVerifierStepCircuit is a 3-external-input Nova circuit following the established pattern (ToyStepCircuit, C7DecryptAggregationCircuit). The recursive compression pipeline wraps the existing Nova infrastructure.
 
 ## Dependencies
 
 - P2-M1 CycloCCSAdapter (for the CCS verifier equation)
 - Lemmma 9 (accepted as documented assumption)
-- Existing Sonobe Nova infrastructure (`SonobeCompressor`, `FCircuit`, `StepCircuit`)
+- Existing Nova Nova infrastructure (`NovaCompressor`, `FCircuit`, `StepCircuit`)

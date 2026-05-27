@@ -278,6 +278,12 @@ impl FhersBackend {
             }
         })?;
 
+        // L4: reject trivially-zero public keys (defense-in-depth)
+        let all_zero = c.c.iter().all(|p| p.coefficients().iter().all(|&v| v == 0));
+        if all_zero {
+            return Err(FheError::MalformedPublicKey);
+        }
+
         Ok(BfvPublicKey {
             par: self.bfv_params.clone(),
             c,
@@ -395,7 +401,12 @@ impl FhersBackend {
             })
     }
 
-    fn compute_party_sk_sums(&self, n: usize, t: usize) -> Result<(), FheError> {
+    fn compute_party_sk_sums(
+        &self,
+        n: usize,
+        t: usize,
+        session_seed: [u8; 32],
+    ) -> Result<(), FheError> {
         tracing::debug!(
             n_participants = n,
             threshold = t,
@@ -458,7 +469,19 @@ impl FhersBackend {
                     .map_err(|err| FheError::Backend {
                         reason: err.to_string(),
                     })?;
-                let mut rng = StdRng::seed_from_u64(party_id as u64);
+                // M3: Use full 256-bit deterministic seed bound to session_seed
+                // so that Shamir shares differ across DKG ceremonies.
+                let mut h = Sha256::new();
+                h.update(b"pvthfhe-share-rng-seed-v2");
+                h.update(session_seed);
+                h.update(&party_id.to_be_bytes());
+                h.update(&n.to_be_bytes());
+                h.update(&threshold.to_be_bytes());
+                h.update(&bfv_params.degree().to_be_bytes());
+                let digest = h.finalize();
+                let mut seed = [0u8; 32];
+                seed.copy_from_slice(&digest);
+                let mut rng = StdRng::from_seed(seed);
                 let shares = sm
                     .generate_secret_shares_from_poly(sk_poly, &mut rng)
                     .map_err(|err| FheError::Backend {
@@ -757,7 +780,7 @@ impl FheBackend for FhersBackend {
         self.party_keygen_witness(party_id)
     }
 
-    fn setup_threshold(&self, n: usize, t: usize) -> Result<(), FheError> {
+    fn setup_threshold(&self, n: usize, t: usize, session_seed: [u8; 32]) -> Result<(), FheError> {
         if t == 0 || t > n {
             return Err(FheError::Backend {
                 reason: format!("invalid threshold parameters: n={n}, t={t}"),
@@ -770,7 +793,7 @@ impl FheBackend for FhersBackend {
             });
         }
         if std::env::var("PVTHFHE_SKIP_SETUP_THRESHOLD").as_deref() != Ok("1") {
-            self.compute_party_sk_sums(n, t)?;
+            self.compute_party_sk_sums(n, t, session_seed)?;
         } else {
             tracing::info!("PVTHFHE_SKIP_SETUP_THRESHOLD=1: skipping O(n²) Shamir regeneration (coeffs→poly deferred to partial_decrypt)");
         }
@@ -1949,7 +1972,9 @@ variance = 10
             .aggregate_keygen(&[share1, share2, share3, share4, share5])
             .expect("aggregate_keygen");
         let ct = backend.encrypt(&pk, plaintext, &mut rng).expect("encrypt");
-        backend.setup_threshold(n, t).expect("setup_threshold");
+        backend
+            .setup_threshold(n, t, [0u8; 32])
+            .expect("setup_threshold");
         let ds1 = backend
             .partial_decrypt(&ct, 1, &mut rng)
             .expect("partial_decrypt(1)");

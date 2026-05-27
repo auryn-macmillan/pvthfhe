@@ -7,7 +7,7 @@
 
 | ID | Severity | Theorem | Issue |
 |----|----------|---------|-------|
-| P1 | FAIL | P2-A-T2 (Sonobe Knowledge Soundness) | Paper claims PROVED via Nova IVC soundness reduction. Proof file `p2/T2.md` proves LatticeFold+ ternary extractor — different argument for different system |
+| P1 | FAIL | P2-A-T2 (Nova Knowledge Soundness) | Paper claims PROVED via Nova IVC soundness reduction. Proof file `p2/T2.md` proves LatticeFold+ ternary extractor — different argument for different system |
 | P2 | FAIL | P2-A-T5 (On-chain Compatibility) | Paper claims PROVED. Proof file shows 2/6 obligations discharged; 4 are Phase D design targets |
 | P3 | MEDIUM | P4-T4 (Abort-with-Blame) | Missing `\begin{proof}` block in paper; proof file exists |
 | P4 | MEDIUM | P1-T2/P1-T3 tension | Extraction and ZK proved for incompatible proof objects; never reconciled |
@@ -26,7 +26,7 @@
 | ID | Severity | Documents | Issue |
 |----|----------|-----------|-------|
 | D1 | HIGH | SECURITY.md vs paper/claims-table.md | P1/P2/P3 OPEN vs Track A PROVED (14 theorems) |
-| D2 | HIGH | ARCHITECTURE.md vs paper | "Sonobe substitutes" / "critical surrogates" vs Track A primary/PROVED |
+| D2 | HIGH | ARCHITECTURE.md vs paper | "Nova substitutes" / "critical surrogates" vs Track A primary/PROVED |
 | D3 | HIGH | WARNING.md vs paper | "No real security" vs "All 19 theorems proved" |
 | D4 | HIGH | interfold-equivalence.md vs paper | C3 partial (D.1 blocker) vs P1-T2 PROVED |
 | D5 | MEDIUM | SECURITY.md internal | Line 17 "Implemented" vs line 48 "deferred" |

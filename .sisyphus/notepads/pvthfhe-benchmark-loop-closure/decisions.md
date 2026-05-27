@@ -3,7 +3,7 @@
 ## 2026-05-06
 
 - FHE backend: gnosisguild/fhe.rs (locked, AGENTS.md)
-- Folding compressor: Sonobe Nova (substituting MicroNova), bounded migration surface
+- Folding compressor: Nova Nova (substituting MicroNova), bounded migration surface
 - Path A for PVSS (lattice PVSS), gated on P0a feasibility spike
 - Full-dim Noir + real BB-generated UltraHonk, gated on N3a feasibility spike
 - Baseline: Interfold published results only (no rerun)

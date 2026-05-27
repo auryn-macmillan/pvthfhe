@@ -16,10 +16,10 @@ use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_relations::gr1cs::ConstraintSystem;
 use folding_schemes::frontend::FCircuit;
-use pvthfhe_compressor::sonobe::poseidon_gadget::hash256_native;
-use pvthfhe_compressor::sonobe::ring_verifier::RingVerifierCircuit;
-use pvthfhe_compressor::sonobe::RingEqExternalInputs5;
-use pvthfhe_compressor::sonobe::RingEqExternalInputs5Var;
+use pvthfhe_compressor::nova::poseidon_gadget::hash256_native;
+use pvthfhe_compressor::nova::ring_verifier::RingVerifierCircuit;
+use pvthfhe_compressor::nova::RingEqExternalInputs5;
+use pvthfhe_compressor::nova::RingEqExternalInputs5Var;
 
 /// Build honest ring elements for N=256 where c=1 equation holds.
 /// zs[k] + ze[k] == t[k] + d[k] for all k.
@@ -33,7 +33,7 @@ fn honest_ring_coeffs_c1() -> (Vec<Fr>, Vec<Fr>, Vec<Fr>, Vec<Fr>) {
         zs[k] = Fr::from((k + 5) as u64);
         ze[k] = Fr::from((k + 15) as u64);
         t[k] = Fr::from((k + 3) as u64);
-        d[k] = Fr::from((k + 17) as u64);  // zs+ze = 2k+20 = t+d = (k+3)+(k+17)
+        d[k] = Fr::from((k + 17) as u64); // zs+ze = 2k+20 = t+d = (k+3)+(k+17)
     }
     (zs, ze, t, d)
 }

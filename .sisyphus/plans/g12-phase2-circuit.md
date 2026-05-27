@@ -15,7 +15,7 @@ ShareVerificationStepCircuit (FCircuit)
     └─ 7K constraints: Poseidon sponge hash of share coefficients
     └─ State: [accumulated_share_hash, step_count]
     ↓
-Nova fold n steps → compressed proof (SonobeCompressor)
+Nova fold n steps → compressed proof (NovaCompressor)
     ↓
 aggregator_final receives: combined_share_hash + proof_hash
 ```
@@ -23,7 +23,7 @@ aggregator_final receives: combined_share_hash + proof_hash
 ## Tasks
 
 ### Task 5: Create ShareVerificationStepCircuit (FCircuit)
-- [x] File: `crates/pvthfhe-compressor/src/sonobe/share_verification_circuit.rs`
+- [x] File: `crates/pvthfhe-compressor/src/nova/share_verification_circuit.rs`
 - [x] FCircuit trait impl with ExternalInputs4: (sig_r, sig_s, pk, share_points)
 - [x] State: [accumulated_hash, step_count]
 - [x] In-circuit: Schnorr verify + Poseidon sponge share hash
@@ -41,15 +41,15 @@ aggregator_final receives: combined_share_hash + proof_hash
 - [x] Witness-to-ExternalInputs conversion
 - [x] `verify_commitments` for witness integrity
 
-### Task 8: SonobeCompressor prove/verify integration
-- [x] `mod.rs`: add `ShareVerificationStepCircuit` to `SonobeCompressor` generic impls
+### Task 8: NovaCompressor prove/verify integration
+- [x] `mod.rs`: add `ShareVerificationStepCircuit` to `NovaCompressor` generic impls
 - [x] `prove_steps` support for ShareVerification step arrays
 - [x] `verify` path accepts compressed proof
 - [x] Track compatibility: `prove_steps_share_verify` function
 
 ### Task 9: Pipeline wiring (full_pipeline.rs)
 - [x] After Schnorr signing (Phase 1.3), build `ShareVerificationWitnessSet`
-- [x] Call `SonobeCompressor::prove_steps_share_verify` to fold n steps
+- [x] Call `NovaCompressor::prove_steps_share_verify` to fold n steps
 - [x] Extract `combined_share_hash` from final accumulator state
 - [x] Pass to `aggregator_final` via Prover.toml (already wired in Task 4)
 

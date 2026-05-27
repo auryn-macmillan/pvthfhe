@@ -20,9 +20,9 @@ use {
     ark_bn254::Fr,
     ark_ff::{PrimeField, Zero},
     pvthfhe_compressor::{
-        sonobe::{
+        nova::{
             encode_triple, hash8_native, C7DecryptAggregationCircuit, C7MerkleExternalInputs,
-            C7MerkleStepCircuit, ExternalInputs5, MerkleWitnessData, SonobeCompressor,
+            C7MerkleStepCircuit, ExternalInputs5, MerkleWitnessData, NovaCompressor,
         },
         witness::hash_all_coeffs,
     },
@@ -59,7 +59,7 @@ struct Args {
     params: String,
 }
 
-const SAFE_DEFAULT_TRACING_FILTER: &str = "pvthfhe_cli=info,pvthfhe_compressor=info,pvthfhe_fhe=info,pvthfhe_lattice_pvss=info,pvthfhe_aggregator=info,pvthfhe_pvss=info,pvthfhe_bench=info,sonobe=info";
+const SAFE_DEFAULT_TRACING_FILTER: &str = "pvthfhe_cli=info,pvthfhe_compressor=info,pvthfhe_fhe=info,pvthfhe_lattice_pvss=info,pvthfhe_aggregator=info,pvthfhe_pvss=info,pvthfhe_bench=info,nova=info";
 
 fn build_env_filter() -> tracing_subscriber::EnvFilter {
     match std::env::var("RUST_LOG") {
@@ -190,7 +190,7 @@ fn print_phase_markers() {
     println!("compressor_verify");
     println!("noir_decrypt_share");
     println!("noir_aggregator_final");
-    println!("noir_sonobe_wrap");
+    println!("noir_nova_wrap");
     println!("onchain_verify");
     println!("c7_merkle_aggregation");
 }
@@ -216,7 +216,7 @@ impl BenchObserver {
     fn finish(mut self, report: PipelineReport) -> anyhow::Result<()> {
         // Deferred phases (not yet implemented — see deferred plans):
         //   - noir_decrypt_share  (Noir decrypt-share circuit)
-        //   - noir_sonobe_wrap    (Sonobe wrap circuit)
+        //   - noir_nova_wrap    (Nova wrap circuit)
         //   - onchain_verify      (on-chain UltraHonk verification)
         // These print phase markers only; no actual work is performed.
         self.timings.phases.pvss_share_encrypt = report.timings.phases.pvss_share_encrypt.clone();
@@ -246,12 +246,12 @@ impl BenchObserver {
         self.timings.phases.noir_aggregator_final.instances_run = 1;
 
         // Phase marker only — not implemented. See deferred plans.
-        println!("noir_sonobe_wrap");
+        println!("noir_nova_wrap");
 
         // Phase marker only — not implemented. See deferred plans.
         println!("onchain_verify");
 
-        let (c7_ms, c7_ran) = run_c7_sonobe_optional(self.timings.n, self.timings.seed);
+        let (c7_ms, c7_ran) = run_c7_nova_optional(self.timings.n, self.timings.seed);
         if c7_ran {
             println!("c7_decrypt_aggregation");
             self.timings.phases.c7_decrypt_aggregation.total_ms = c7_ms;
@@ -475,7 +475,7 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
 fn run_noir_aggregator_final_optional(_report: &PipelineReport) {}
 
 #[cfg(feature = "sonobe-compressor")]
-fn run_c7_sonobe_optional(n: usize, seed: u64) -> (f64, bool) {
+fn run_c7_nova_optional(n: usize, seed: u64) -> (f64, bool) {
     if std::env::var("PVTHFHE_RUN_C7_SONOBE").unwrap_or_default() != "1" {
         return (0.0, false);
     }
@@ -484,8 +484,8 @@ fn run_c7_sonobe_optional(n: usize, seed: u64) -> (f64, bool) {
     let epoch_hash: [u8; 32] = Sha256::digest(&seed_bytes).into();
 
     let start = Instant::now();
-    let compressor = SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch_hash, n)
-        .expect("C7 sonobe compressor construction failed");
+    let compressor = NovaCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch_hash, n)
+        .expect("C7 nova compressor construction failed");
     let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
     let coeff_commitment = hash_all_coeffs(&vec![Fr::from(0u64); 8192]);
     let derived_r = hash_all_coeffs(&[coeff_commitment, Fr::from(0u64)]);
@@ -501,17 +501,17 @@ fn run_c7_sonobe_optional(n: usize, seed: u64) -> (f64, bool) {
     ];
     let proof = compressor
         .prove_steps_c7(&acc, &steps)
-        .expect("C7 sonobe prove failed");
+        .expect("C7 nova prove failed");
     let vk = compressor.verifier_key();
     let _ = compressor
         .verify_steps_c7(&vk, &proof, &steps)
-        .expect("C7 sonobe verify failed");
+        .expect("C7 nova verify failed");
     let ms = start.elapsed().as_secs_f64() * 1_000.0;
     (ms, true)
 }
 
 #[cfg(not(feature = "sonobe-compressor"))]
-fn run_c7_sonobe_optional(_n: usize, _seed: u64) -> (f64, bool) {
+fn run_c7_nova_optional(_n: usize, _seed: u64) -> (f64, bool) {
     (0.0, false)
 }
 
@@ -525,8 +525,8 @@ fn run_c7_merkle_optional(n: usize, seed: u64) -> (f64, bool) {
     let epoch_hash: [u8; 32] = Sha256::digest(&seed_bytes).into();
 
     let start = Instant::now();
-    let compressor = SonobeCompressor::<C7MerkleStepCircuit<Fr>>::new(epoch_hash, n)
-        .expect("C7 merkle sonobe compressor construction failed");
+    let compressor = NovaCompressor::<C7MerkleStepCircuit<Fr>>::new(epoch_hash, n)
+        .expect("C7 merkle nova compressor construction failed");
     let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
 
     let steps: Vec<C7MerkleExternalInputs<Fr>> = (0..n)
@@ -557,11 +557,11 @@ fn run_c7_merkle_optional(n: usize, seed: u64) -> (f64, bool) {
 
     let proof = compressor
         .prove_steps_merkle(&acc, &steps)
-        .expect("C7 merkle sonobe prove failed");
+        .expect("C7 merkle nova prove failed");
     let vk = compressor.verifier_key();
     let valid = compressor
         .verify_steps_merkle(&vk, &proof, &steps)
-        .expect("C7 merkle sonobe verify failed");
+        .expect("C7 merkle nova verify failed");
     assert!(valid, "Merkle proof must verify");
     let ms = start.elapsed().as_secs_f64() * 1_000.0;
     (ms, true)

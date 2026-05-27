@@ -21,7 +21,7 @@ norm_range_check(&r1_eval, w.sz_r1_eval[limb], &FpVar::constant(r1_bound), ...)?
 
 Add a range check on `sz_r1_eval` after line 619 in `sigma_verify_step`:
 
-File: `crates/pvthfhe-compressor/src/sonobe/mod.rs`, after line 619
+File: `crates/pvthfhe-compressor/src/nova/mod.rs`, after line 619
 
 Add:
 ```rust

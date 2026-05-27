@@ -43,7 +43,7 @@ The value RLWE_N=1024 (illustrative; see Canonical Parameters and `parameters.to
 - **Parameter renegotiation**: Locked except through the escape hatches in §9.
 - **Implementation**: No Rust/Noir/Solidity code is written here. Phase 1 starts
   from these interfaces.
-- **KZG ceremony selection**: Implemented (Phase 4). Sonobe Nova uses `KZG<'static, Bn254>` for CS1 with runtime SRS generation via `KZG::<Bn254>::setup(rng, 1 << 17)`. The `bench/srs/bn254.srs` file is a text-only stub — production requires a real MPC ceremony output. `DeciderEth` Groth16 SNARK bridge is feature-gated on `sonobe-snark`.
+- **KZG ceremony selection**: Implemented (Phase 4). Nova Nova uses `KZG<'static, Bn254>` for CS1 with runtime SRS generation via `KZG::<Bn254>::setup(rng, 1 << 17)`. The `bench/srs/bn254.srs` file is a text-only stub — production requires a real MPC ceremony output. `DeciderEth` Groth16 SNARK bridge is feature-gated on `nova-snark`.
 
 ---
 
@@ -283,11 +283,11 @@ PVTHFHE constraints in `nizk-selection.md` §6.4:
 > `beta_at_t_10 = 1344` (= 1024 + 10·2·16); verifier checks `norm_bound ≤ beta_at_t`,
 > not `norm_bound ≤ B`.
 
-### 4.2 Sonobe substitute
+### 4.2 Nova substitute
 
 `ProofCompressor` is the frozen backend boundary for the P2→P3 compression layer.
-The implementation may use Sonobe today, but the contract is intentionally
-defined as **migration: sonobe → micronova** with a **bounded migration surface**.
+The implementation may use Nova today, but the contract is intentionally
+defined as **migration: nova → micronova** with a **bounded migration surface**.
 Only the backend-specific adapter behind the trait may change; the external
 step-circuit/public-input contract stays fixed.
 
@@ -303,20 +303,20 @@ callers' signatures.
 
 The step circuit remains backend-agnostic. Input/output state width,
 public-input layout, and the per-step relation are described as a shared R1CS
-`StepCircuit` shape that both Sonobe and a future MicroNova backend must accept
+`StepCircuit` shape that both Nova and a future MicroNova backend must accept
 without changing the surrounding PVTHFHE call graph.
 
 #### Invariant 3 — Accumulator-state encoding
 
 Accumulator bytes are frozen at the trait boundary: byte layout, BN254 scalar
 field choice, and Poseidon parameterisation follow the Construction 1 bridge in
-`micronova-digest.md`, so Sonobe-specific wrappers must convert to a
+`micronova-digest.md`, so Nova-specific wrappers must convert to a
 MicroNova-compatible encoding before crossing the `ProofCompressor` boundary.
 
 #### Invariant 4 — Setup artifacts
 
 Setup is exposed only through a `CompressorSetup` trait returning
-`(prover_key_bytes, verifier_key_bytes, srs_id)`. Sonobe may source these bytes
+`(prover_key_bytes, verifier_key_bytes, srs_id)`. Nova may source these bytes
 using its own setup flow, but the exported artifact surface is the same one a
 future MicroNova implementation must satisfy.
 
@@ -327,7 +327,7 @@ A future MicroNova backend that preserves the same step circuit and SRS identity
 must remain byte-compatible at the `public_inputs` boundary even though proof
 encodings differ.
 
-The bounded migration surface is tracked in `.sisyphus/design/sonobe-migration.md`.
+The bounded migration surface is tracked in `.sisyphus/design/nova-migration.md`.
 That document enumerates every file touched by a future compressor-backend swap
 and keeps the migration count intentionally small.
 
@@ -553,25 +553,25 @@ single-track fold paths.
 
 > **DEFERRED (2026-05-12)**: The `MicroNovaAdapter` trait described in §7.1
 > (`crates/pvthfhe-p3-encoder/`) is **not yet implemented**. The current
-> codebase uses **Sonobe Nova IVC** directly via the `ProofCompressor` trait
-> (`crates/pvthfhe-compressor/src/lib.rs`). Sonobe Nova serves as a
+> codebase uses **Nova Nova IVC** directly via the `ProofCompressor` trait
+> (`crates/pvthfhe-compressor/src/lib.rs`). Nova Nova serves as a
 > substitute for MicroNova in the P2→P3 compression layer. The migration
-> plan from Sonobe/Nova to MicroNova is tracked in
-> `.sisyphus/design/sonobe-migration.md`. The 5 migration invariants in
+> plan from Nova/Nova to MicroNova is tracked in
+> `.sisyphus/design/nova-migration.md`. The 5 migration invariants in
 > §4.2 remain the frozen boundary contract.
 >
 > The P3 on-chain verifier (§6) currently uses the BB `HonkVerifier.sol`
 > path (Option B infrastructure) but the proof it verifies is produced by
-> Sonobe Nova, not MicroNova. This distinction is cosmetic at the ABI level
+> Nova Nova, not MicroNova. This distinction is cosmetic at the ABI level
 > because both backends expose the same `ProofCompressor` trait surface.
 >
 > **P2/P3 structural gap — CycloFoldStepCircuit**: The current `CycloFoldStepCircuit`
-> (Sonobe Nova step circuit in `crates/pvthfhe-compressor/src/sonobe/mod.rs`) folds
+> (Nova Nova step circuit in `crates/pvthfhe-compressor/src/nova/mod.rs`) folds
 > 3 hashed field elements — `(commitment_hash, norm, fold_count)` — derived from
 > SHA-256 of the Cyclo accumulator commitments. It does **not** perform full Ajtai
 > commitment folding over `R_{q_commit}` within the IVC step. The design intentionally
 > hashes the accumulator down before entering the IVC because lattice-native Ajtai
-> folding is infeasible inside a Sonobe Nova step circuit (P2 OPEN). This means:
+> folding is infeasible inside a Nova Nova step circuit (P2 OPEN). This means:
 > - The compressed proof verifies hash-state consistency, not the full Cyclo
 >   accumulator relation (Ajtai commitment check, norm-bound range checks, sum-check
 >   transcript verification).
@@ -580,7 +580,7 @@ single-track fold paths.
 > - Full Ajtai folding remains an open problem (P2) tracked in the
 >   `interfold-equivalent-pvss` plan §Batch H.
 > - This is a documented limitation; the same gap exists in the P2→P3 interface
->   regardless of whether Sonobe or MicroNova is the backend.
+>   regardless of whether Nova or MicroNova is the backend.
 
 **Chosen target**: R1CS over the BN254 scalar field `F_p` (p ≈ 2^254), consumed
 by MicroNova as an IVC step function.
@@ -894,9 +894,9 @@ pub trait CycloAdapter {  // REPLACES SurrogateAdapter / FoldingScheme
 // --- P2→P3 Encoding (DEFERRED — c.f. §5.1 note) ---
 //
 // The `MicroNovaAdapter` trait and `crates/pvthfhe-p3-encoder/` crate are
-// DEFERRED. Current implementation uses Sonobe Nova IVC directly via the
+// DEFERRED. Current implementation uses Nova Nova IVC directly via the
 // `ProofCompressor` trait in `crates/pvthfhe-compressor/src/lib.rs`.
-// See `.sisyphus/design/sonobe-migration.md` for migration plan.
+// See `.sisyphus/design/nova-migration.md` for migration plan.
 //
 // pub trait MicroNovaAdapter {
 //     fn encode_accumulator(acc_bytes: &[u8], public_inputs: &[u8; 7 * 32])
@@ -989,7 +989,7 @@ and must not be performed ad hoc in implementation code.
 | Exact BB UltraHonk version pin for Noir circuit | Phase 1 | Must match `REPRODUCING.md` toolchain pin; current stub uses nightly.20260324 |
 | Exact a' (extended commitment rank) value from Cyclo ePrint §C.1 | Phase 1 | Required for accurate proof-size and performance estimates |
 | Concrete M-SIS security estimate at (φ=256, q_commit≈2^50, a=13) | Phase 1 | Required for §8 PASS/FAIL for PQ security row |
-| KZG ceremony selection (Powers-of-Tau source) | Phase 4 | Implemented: Sonobe Nova CS1 = `KZG<'static, Bn254>`, runtime SRS via `KZG::<Bn254>::setup(rng, 1<<17)`. Production ceremony still deferred (see `bench/srs/bn254.srs`). |
+| KZG ceremony selection (Powers-of-Tau source) | Phase 4 | Implemented: Nova Nova CS1 = `KZG<'static, Bn254>`, runtime SRS via `KZG::<Bn254>::setup(rng, 1<<17)`. Production ceremony still deferred (see `bench/srs/bn254.srs`). |
 | Formal T2 joint extractor (RLWE ∘ M-SIS ∘ Cyclo T3) | Phase 4+ | Tabled per P1 policy; status remains `skeleton` |
 | QROM analysis for Cyclo FS transcript | Phase 4+ | Not blocked; ROM baseline sufficient for Phases 1–3 |
 | NTT-domain vs coefficient-domain CCS template | Phase 1 | Affects per-share witness packing strategy (nizk-selection.md §7 Q1) |

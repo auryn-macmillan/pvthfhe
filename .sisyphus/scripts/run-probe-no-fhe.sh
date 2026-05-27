@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run the Sonobe-only no-FHE probe with a strict virtual-memory cap and
+# Run the Nova-only no-FHE probe with a strict virtual-memory cap and
 # sample VmRSS from /proc/<pid>/status every 5s.
 # Detached usage:
 #   setsid nohup .sisyphus/scripts/run-probe-no-fhe.sh </dev/null >.../launcher.out 2>&1 & disown
@@ -29,7 +29,7 @@ export EVIDENCE
 
 cd "$ROOT"
 
-/usr/bin/time -v -o "$TIME_LOG" bash -lc 'printf "%s\n" "$$" > "$EVIDENCE/bin.pid"; exec ./target/release/sonobe-min' > "$LOG" 2>&1 &
+/usr/bin/time -v -o "$TIME_LOG" bash -lc 'printf "%s\n" "$$" > "$EVIDENCE/bin.pid"; exec ./target/release/nova-min' > "$LOG" 2>&1 &
 TIME_PID=$!
 
 while [ ! -s "$BIN_PID_FILE" ]; do

@@ -128,13 +128,13 @@ Verification:
 
 ### Batch M4 — Nova folding with N=8192 witnesses
 
-**File**: `crates/pvthfhe-compressor/src/sonobe/c7_circuit.rs` (extend)
+**File**: `crates/pvthfhe-compressor/src/nova/c7_circuit.rs` (extend)
 
 Add:
 ```rust
 impl C7DecryptAggregationCircuit<Fr> {
     pub fn fold_witnesses(
-        compressor: &SonobeCompressor<Self>,
+        compressor: &NovaCompressor<Self>,
         witnesses: &C7WitnessSet,
     ) -> Result<(Vec<u8>, Vec<u8>), CompressorError> {
         // Verify all Merkle proofs first (security check!)

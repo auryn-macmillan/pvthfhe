@@ -5,5 +5,5 @@
 - just demo-e2e ACCEPTS; it still logs the pre-existing non-fatal Noir plaintext_hash mismatch noted on 2026-05-17.
 - cargo test -p pvthfhe-nizk passes with pre-existing warnings about missing docs in integration tests and unused variables in a sigma test.
 ## 2026-05-18 — G7 compressor sigma issues
-- `cargo test -p pvthfhe-compressor` exceeded the 600s tool timeout in the long c7_nova_fold_n8192_4_steps integration test; targeted modified tests and sonobe_roundtrip passed, and just demo-e2e reached ACCEPT.
+- `cargo test -p pvthfhe-compressor` exceeded the 600s tool timeout in the long c7_nova_fold_n8192_4_steps integration test; targeted modified tests and nova_roundtrip passed, and just demo-e2e reached ACCEPT.
 - just demo-e2e still logs the pre-existing Noir aggregator_final plaintext hash mismatch warning, but the demo completes with verify: ACCEPT.

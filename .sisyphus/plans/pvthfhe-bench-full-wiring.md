@@ -22,7 +22,7 @@ Produced by every `pvthfhe-e2e` run (when not `--dry-run`). Schema:
   "n": 3,
   "t": 1,
   "seed": 1,
-  "compressor_backend_id": "sonobe-nova-bn254-grumpkin",
+  "compressor_backend_id": "nova-bn254-grumpkin",
   "phases": {
     "keygen":               { "total_ms": <f64>, "instances_run": 1 },
     "nizk_prove":           { "total_ms": <f64>, "instances_run": <N>, "per_instance_ms": [<f64>; N] },
@@ -34,7 +34,7 @@ Produced by every `pvthfhe-e2e` run (when not `--dry-run`). Schema:
     "compressor_verify":    { "total_ms": <f64>, "instances_run": 1 },
     "partial_decrypt":      { "total_ms": <f64>, "instances_run": <t>, "per_instance_ms": [<f64>; t] },
     "aggregate_decrypt":    { "total_ms": <f64>, "instances_run": 1 },
-    "noir_sonobe_wrap":     { "total_ms": <f64>, "instances_run": 1 },
+    "noir_nova_wrap":     { "total_ms": <f64>, "instances_run": 1 },
     "onchain_verify":       { "total_ms": <f64>, "instances_run": 1 }
   },
   "produced_at_unix_secs": <u64>,
@@ -184,7 +184,7 @@ Each task: instrument the e2e phase with `Instant::now()` / `elapsed()`, populat
 | **ID** | B2 |
 | **Depends on** | A4 |
 
-**RED test**: `tests/integration/e2e_phase_timing.rs::onchain_verify_ms_populated`. Asserts `phases.onchain_verify.total_ms > 0.0` and the onchain_verify comparison row shows `real-fallback` (because N3a verdict is NoGo per `sonobe-wrap-feasibility.md`) and the gate accepts it.
+**RED test**: `tests/integration/e2e_phase_timing.rs::onchain_verify_ms_populated`. Asserts `phases.onchain_verify.total_ms > 0.0` and the onchain_verify comparison row shows `real-fallback` (because N3a verdict is NoGo per `nova-wrap-feasibility.md`) and the gate accepts it.
 
 **GREEN criteria**: `Instant::now()` wraps the **second** `compressor.verify` call in `pvthfhe_e2e.rs:~219-221` (the one logged as `onchain_verify`). `row_for("onchain_verify")` reads `phases.onchain_verify.total_ms`. Status = `real-fallback` (gate already permits this on the on-chain row when verdict=NoGo). `gap_reason` updated to clarify the fallback path rather than removed.
 
@@ -283,16 +283,16 @@ Each task: instrument the e2e phase with `Instant::now()` / `elapsed()`, populat
 
 ---
 
-### Task C5 — `noir_sonobe_wrap` instrumentation ✅ DONE
+### Task C5 — `noir_nova_wrap` instrumentation ✅ DONE
 
 | Field | Value |
 |---|---|
 | **ID** | C5 |
 | **Depends on** | B5 |
 
-**RED test**: `phases.noir_sonobe_wrap.total_ms >= 0.0` and the artifact field is present. (No comparison row maps directly — this is for completeness and future on-chain wiring.)
+**RED test**: `phases.noir_nova_wrap.total_ms >= 0.0` and the artifact field is present. (No comparison row maps directly — this is for completeness and future on-chain wiring.)
 
-**GREEN criteria**: instrument the `noir_sonobe_wrap` info marker in `pvthfhe_e2e.rs:~217`. Currently this phase logs a digest but does no real work distinct from `compressor_prove`/`onchain_verify`. Decision: capture the wall time between the marker and the next phase start (effectively zero for now). Document in `comparability_note` that this stage is currently a marker, not measurable work, and may be unified with `noir_aggregator_final` in a future revision. **Acceptance**: artifact field present, even if 0.0; no comparison row affected.
+**GREEN criteria**: instrument the `noir_nova_wrap` info marker in `pvthfhe_e2e.rs:~217`. Currently this phase logs a digest but does no real work distinct from `compressor_prove`/`onchain_verify`. Decision: capture the wall time between the marker and the next phase start (effectively zero for now). Document in `comparability_note` that this stage is currently a marker, not measurable work, and may be unified with `noir_aggregator_final` in a future revision. **Acceptance**: artifact field present, even if 0.0; no comparison row affected.
 
 ---
 
@@ -390,7 +390,7 @@ A1 ─► A2 ─► A3 ─► A4 ──┬─► B1 ──┐
 | Justfile runs e2e 3× → 3 overwrites of artifact; only last counts | Documented "last writer wins"; future Phase F could median across runs |
 | Cyclo merge confusion (one timing → two rows) | Explicit `comparability_note` on both rows; `no_unwired_rows.rs` allows `merged` substring |
 | `compressor.verify` is called twice in e2e (compressor_verify + onchain_verify) | Two distinct `Instant::now()` blocks; two distinct artifact fields |
-| `noir_sonobe_wrap` has no measurable distinct work | Acceptance allows 0.0 with a note; no comparison row mapped |
+| `noir_nova_wrap` has no measurable distinct work | Acceptance allows 0.0 with a note; no comparison row mapped |
 | Test churn: shape/order tests may need updating | Done in A1 fixture; subsequent tasks only update field values |
 | Removing `measure_pvss()` orphans existing bench code paths | A3 deletes the call site and function atomically; no external callers exist (verified in exploration) |
 

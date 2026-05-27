@@ -9,12 +9,12 @@ fn demo_prints_banner_and_backend_ids() {
     let mut cmd = Command::cargo_bin("pvthfhe-cli").expect("pvthfhe-cli binary");
 
     // Keep the smoke test on the smallest full-pipeline path shared with
-    // demo_runs_full_pipeline to avoid expensive larger-N Sonobe runs.
+    // demo_runs_full_pipeline to avoid expensive larger-N Nova runs.
     cmd.args(["demo", "--n", "5", "--threshold", "2", "--seed", "0"])
         .assert()
         .success()
         .stdout(contains("backend_id_p2: cyclo-rlwe-t10-lemma9-heuristic"))
-        .stdout(contains("backend_id_p3: sonobe-nova-bn254-grumpkin"))
+        .stdout(contains("backend_id_p3: nova-nova-bn254-grumpkin"))
         .stdout(contains(
             "note: on-chain Solidity verify is NOT run by demo (use bench-comparison)",
         ))

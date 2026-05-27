@@ -14,6 +14,7 @@ fn cli_demo_nizk_statement_uses_canonical_params() {
             bytes: vec![1, 2, 3, 4],
         },
         pk_i_hash: [9; 32],
+        commitment_nonce: [0u8; 32],
         commitment: [8; 32],
         poly_commit: [7; 32],
         encrypted_shares: Default::default(),

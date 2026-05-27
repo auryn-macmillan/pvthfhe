@@ -71,7 +71,7 @@ Phase Ω6: Infrastructure completion (weeks–months)
 | Document | Lines | Reviewer | Action |
 |----------|-------|----------|--------|
 | `dkg-construction.md` | 641 | External cryptographer (not on build team) | Read, file written comments with file:line citations. Verify Pedersen-DKG over BFV/RLWE soundness ≥ 2⁻¹²⁸. |
-| `fold-construction.md` | 390 | Same reviewer | Verify Sonobe Nova substitution is sound for current parameter regime. |
+| `fold-construction.md` | 390 | Same reviewer | Verify Nova Nova substitution is sound for current parameter regime. |
 | `nizk-construction.md` | 493 | Same reviewer | Verify Greco NIZK is the correct construction; MPCitH fallback trigger criteria are sound. |
 | `nizk-witness-language.md` | 288 | Same reviewer | Verify schema bridges R3↔R4↔R5 without semantic gaps. |
 | `pre-reveal-binding.md` | 273 | Same reviewer | Verify full tuple binding prevents plaintext extraction without proof. |
@@ -136,7 +136,7 @@ All oracle reviews use `subagent_type="oracle"` in fresh sessions. Each reads th
 
 ### Ω4.2 — R2 GATEs (Cyclo/Folding)
 
-- [ ] **R2.0 GATE**: Oracle re-reviews `fold-construction.md`. Sonobe-only decision holds? → APPROVE/REJECT
+- [ ] **R2.0 GATE**: Oracle re-reviews `fold-construction.md`. Nova-only decision holds? → APPROVE/REJECT
 - [ ] **R2.1 GATE**: Oracle verifies every fold callsite uses `range_check::infinity_norm`. CI lint `forbid::bytes_iter_max_in_norm` exits 0. → APPROVE/REJECT
 - [ ] **R2.2 GATE**: Oracle verifies soundness budget `const SOUNDNESS_BITS: u32 = 128` asserted in code. → APPROVE/REJECT
 - [ ] **R2.3 GATE**: Oracle verifies CCS positive + negative test green. Benchmark overhead documented. → APPROVE/REJECT

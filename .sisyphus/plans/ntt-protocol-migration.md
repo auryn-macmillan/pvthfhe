@@ -89,7 +89,7 @@ version. Fix by using the correct import path or cloning differently.
 - `cargo test -p pvthfhe-compressor --test dealer_parity_works`
 - `cargo test -p pvthfhe-pvss --lib -- parity`
 - `nargo test` in `circuits/aggregator_final`
-- `nargo test` in `circuits/sonobe_state_commitment`
+- `nargo test` in `circuits/nova_state_commitment`
 
 ### End-to-end
 - `just demo-e2e 5 2 1` → ACCEPT

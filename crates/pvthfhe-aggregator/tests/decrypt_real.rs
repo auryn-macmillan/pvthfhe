@@ -39,7 +39,11 @@ fn decrypt_real_smoke_test() {
         KeygenResult::Blamed(blamed) => panic!("expected complete transcript, blamed: {blamed:?}"),
     };
 
-    must(backend.setup_threshold(8, 3), "setup threshold state");
+    let session_seed: [u8; 32] = Sha256::digest(&transcript.transcript_hash).into();
+    must(
+        backend.setup_threshold(8, 3, session_seed),
+        "setup threshold state",
+    );
 
     let mut rng = thread_rng();
     let plaintext = [0u8; 64];
@@ -70,6 +74,7 @@ fn decrypt_real_smoke_test() {
                 1,
                 &party_pk,
                 sk_bytes.as_deref(),
+                None,
                 &mut rng,
             )
         })
@@ -85,6 +90,7 @@ fn decrypt_real_smoke_test() {
             &transcript.participant_set,
             &transcript.dkg_root,
             &ciphertext_hash,
+            "test-session",
             1,
         ),
         "aggregate decrypt",

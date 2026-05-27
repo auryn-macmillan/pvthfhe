@@ -1,7 +1,7 @@
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
 
-use crate::sonobe::hash8_native;
+use crate::nova::hash8_native;
 
 /// A Merkle proof for a single leaf in an 8-ary tree.
 #[derive(Clone, Debug)]

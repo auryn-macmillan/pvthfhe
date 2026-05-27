@@ -14,9 +14,9 @@
 
 **per_aggregator.rs**: Measures wall time for the aggregator at arbitrary n and t.
 - Setup: Runs full KeygenSimulator at given n (expensive but needed for valid data)
-- Compressor: `SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new()` with ceil(n/10) steps, then `prove_steps()` with synthetic inputs
+- Compressor: `NovaCompressor::<CycloFoldStepCircuit<Fr>>::new()` with ceil(n/10) steps, then `prove_steps()` with synthetic inputs
 - Aggregate decrypt: `backend.aggregate_decrypt()` with t shares
-- C7: Tree path: per-leaf `SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch_hash, 1)` + `prove_steps_c7()` (1 step each), then `CompressionTree::build(leaf_hashes)`. Falls back to flat Nova IVC (t steps) on any leaf failure or tree build failure.
+- C7: Tree path: per-leaf `NovaCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch_hash, 1)` + `prove_steps_c7()` (1 step each), then `CompressionTree::build(leaf_hashes)`. Falls back to flat Nova IVC (t steps) on any leaf failure or tree build failure.
 
 ### Dependency additions
 
@@ -42,7 +42,7 @@
 
 - Added `just per-node n t seed` and `just aggregator n t seed` recipes to Justfile
 - Both use `cargo run --release --bin <name>` with `--n`, `--threshold`, `--seed` args
-- No explicit `--features` flag needed since `with-fhe` and `sonobe-compressor` are both in default features
+- No explicit `--features` flag needed since `with-fhe` and `nova-compressor` are both in default features
 - Cargo.toml already had `[[bin]]` entries for both binaries with correct `required-features`
 - Commit: 82045fd — 7 files, single commit as per task instructions
 
@@ -56,7 +56,7 @@ tree path. The flat Nova fallback (lines 207-233) DID prove, but the tree path w
 ### Fix
 Replaced the dummy-hash tree path with per-leaf C7 Nova proving:
 1. For each leaf `i` in `0..args.threshold`:
-   - Create `SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch_hash, 1)` (leaf_count=1)
+   - Create `NovaCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch_hash, 1)` (leaf_count=1)
    - Create 1 `ExternalInputs5` step with dummy [42+i, 1, coeff_commitment, 0, derived_r]
    - Call `compressor.prove_steps_c7(&acc, &[step])` — actual Nova proving
    - Hash proof bytes via SHA-256 for leaf hash

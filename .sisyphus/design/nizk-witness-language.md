@@ -3,7 +3,7 @@
 Status: **draft — awaiting RED+GREEN implementation**.
 
 Scope: define the canonical witness-language schema that bridges R3 NIZKs to the
-R4 aggregator and R5 Sonobe step circuit, fixing the R3↔R4/R5 handoff gap.
+R4 aggregator and R5 Nova step circuit, fixing the R3↔R4/R5 handoff gap.
 
 Non-scope: Greco/MPCitH implementation, CRS binding, actual NIZK proof
 generation/verification.
@@ -18,7 +18,7 @@ The witness-language schema is the canonical contract between three phases:
 |-------|------|----------|
 | R3 (NIZK) | Produces proofs over witness-language statements | Schema types for statement construction |
 | R4 (Aggregator) | Folds per-party NIZK instances | Schema types for deserializing witnesses |
-| R5 (Compressor) | Wraps folded instance into Sonobe step circuit | Schema types for circuit public inputs |
+| R5 (Compressor) | Wraps folded instance into Nova step circuit | Schema types for circuit public inputs |
 
 All three phases share a single source of truth in `crates/pvthfhe-types/src/witness_language.rs`
 — no ad-hoc byte layouts, no diverging serialization formats.
@@ -269,9 +269,9 @@ and replaces its current `ShareNizkStatement` with the schema types.
 `WitnessCommitment`, `BfvParameters` and uses the schema serialization to
 deserialize per-party statements before folding.
 
-### 8.4 Phase R5.2 (Sonobe Step Circuit)
+### 8.4 Phase R5.2 (Nova Step Circuit)
 
-`crates/pvthfhe-compressor/src/sonobe/` imports `WitnessStatement`,
+`crates/pvthfhe-compressor/src/nova/` imports `WitnessStatement`,
 `BfvParameters` and uses schema types for public input transformation.
 
 ---

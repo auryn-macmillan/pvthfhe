@@ -41,7 +41,7 @@ The compressed Nova proof hides individual witness data behind folding — the o
 
 ## Fix 1: Track A Always-Increment
 
-**File**: `crates/pvthfhe-compressor/src/sonobe/mod.rs`
+**File**: `crates/pvthfhe-compressor/src/nova/mod.rs`
 
 **Change A**: Line 665-668 — `ring_inc` should always be `FpVar::one()`. The ring equation constraints at lines 659-663 ALREADY enforce the equation (for Track B with data) or trivially pass (Track A with all-zero default witnesses). The counter should always increment:
 

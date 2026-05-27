@@ -123,7 +123,7 @@ Batch I (audit-I): Dependency hygiene
 - [x] **RED**: Same-seed same-ciphertext test. GREEN: thread_rng→ChaCha8Rng::from_rng(rng). H4 resolved.
 - [x] **GATE**: F.1-F.3 pass. C6 resolved.
 - [x] **GREEN**: flyingnobita fork rationale documented in Cargo.toml.
-- [x] **GREEN**: Sonobe pin documented; upstream renamed to privacy-ethereum. Open issue #239 noted.
+- [x] **GREEN**: Nova pin documented; upstream renamed to privacy-ethereum. Open issue #239 noted.
 
 ---
 

@@ -32,7 +32,7 @@ For an 8-ary Merkle tree of depth 5 (N=8192 leaves), each Merkle proof has:
 - Plus: leaf_index (1), share_eval (1), λ_i (1), merkle_root (1)
 - Total: ~39 external inputs per step
 
-**Poseidon in R1CS**: The `folding_schemes` crate already imports `poseidon_canonical_config::<Fr>()` (used in `sonobe/mod.rs`). This provides a Poseidon sponge over Fr. The step circuit's `generate_step_constraints` needs to:
+**Poseidon in R1CS**: The `folding_schemes` crate already imports `poseidon_canonical_config::<Fr>()` (used in `nova/mod.rs`). This provides a Poseidon sponge over Fr. The step circuit's `generate_step_constraints` needs to:
 1. Absorb sibling hashes into the sponge
 2. Compress to Merkle root
 3. Compare with `merkle_root` from external inputs
@@ -46,7 +46,7 @@ For an 8-ary Merkle tree of depth 5 (N=8192 leaves), each Merkle proof has:
 
 ### P3.1 — Poseidon R1CS gadget
 
-**File**: `crates/pvthfhe-compressor/src/sonobe/poseidon_gadget.rs` (new)
+**File**: `crates/pvthfhe-compressor/src/nova/poseidon_gadget.rs` (new)
 
 Check `folding_schemes` for Poseidon R1CS support:
 - `folding_schemes::transcript::poseidon::PoseidonTranscript` — does it have `absorb`/`squeeze` in R1CS?
@@ -56,7 +56,7 @@ Check `folding_schemes` for Poseidon R1CS support:
 
 ### P3.2 — Extended external inputs
 
-**File**: `crates/pvthfhe-compressor/src/sonobe/mod.rs` (extend)
+**File**: `crates/pvthfhe-compressor/src/nova/mod.rs` (extend)
 
 Create `ExternalInputsC7` struct:
 ```rust
@@ -73,7 +73,7 @@ Implement `AllocVar<ExternalInputsC7<F>, F>` for an R1CS variable wrapper.
 
 ### P3.3 — C7MerkleStepCircuit
 
-**File**: `crates/pvthfhe-compressor/src/sonobe/c7_merkle_circuit.rs` (new)
+**File**: `crates/pvthfhe-compressor/src/nova/c7_merkle_circuit.rs` (new)
 
 New circuit `C7MerkleStepCircuit<F>` implementing `FCircuit<F>`:
 - State: same as `C7DecryptAggregationCircuit` [acc_eval, lagrange_sum, step_count]
@@ -89,12 +89,12 @@ New circuit `C7MerkleStepCircuit<F>` implementing `FCircuit<F>`:
 
 | Test | Description |
 |------|-------------|
-| `merkle_circuit_compiles` | SonobeCompressor::new succeeds |
+| `merkle_circuit_compiles` | NovaCompressor::new succeeds |
 | `merkle_circuit_honest` | Valid Merkle proof + correct eval → proof passes |
 | `merkle_circuit_wrong_leaf_rejected` | Tampered leaf value → proof fails |
 | `merkle_circuit_wrong_sibling_rejected` | Tampered sibling hash → proof fails |
 | `merkle_circuit_wrong_root_rejected` | Wrong merkle_root claim → proof fails |
-| `merkle_circuit_roundtrip` | Full Sonobe prove/verify with 4 steps |
+| `merkle_circuit_roundtrip` | Full Nova prove/verify with 4 steps |
 
 ### P3.5 — Benchmark integration
 
@@ -122,7 +122,7 @@ Wire `C7MerkleStepCircuit` into e2e benchmark as `PVTHFHE_RUN_C7_MERKLE=1`.
 ## Dependencies
 
 - `ark-crypto-primitives` or `folding_schemes` Poseidon R1CS gadgets (check availability)
-- Existing `ExternalInputs3` pattern in `sonobe/mod.rs`
+- Existing `ExternalInputs3` pattern in `nova/mod.rs`
 
 ## Non-Goals
 
@@ -139,7 +139,7 @@ Wire `C7MerkleStepCircuit` into e2e benchmark as `PVTHFHE_RUN_C7_MERKLE=1`.
 
 ### Completed
 
-- **P3.1**: `C7MerkleStepCircuit` created in `crates/pvthfhe-compressor/src/sonobe/c7_merkle_circuit.rs`
+- **P3.1**: `C7MerkleStepCircuit` created in `crates/pvthfhe-compressor/src/nova/c7_merkle_circuit.rs`
   - Implements `FCircuit<F>` with Merkle verification in step constraints
   - State: 3 elements [acc_eval, lagrange_sum, step_count]
   - External inputs: 12 field elements for depth-1 (share_eval, lagrange_coeff, merkle_root, leaf_value, leaf_index, 7 siblings)
@@ -159,6 +159,6 @@ Wire `C7MerkleStepCircuit` into e2e benchmark as `PVTHFHE_RUN_C7_MERKLE=1`.
 
 ### Design Decisions
 
-- **SonobeCompressor struct bounds relaxed** from `ExternalInputs = ExternalInputs3<Fr>` to any `ExternalInputs` type. New `impl` blocks added for Merkle-specific `prove_steps_merkle`/`verify_steps_merkle` methods. Existing API unchanged.
+- **NovaCompressor struct bounds relaxed** from `ExternalInputs = ExternalInputs3<Fr>` to any `ExternalInputs` type. New `impl` blocks added for Merkle-specific `prove_steps_merkle`/`verify_steps_merkle` methods. Existing API unchanged.
 - **Depth-1 default** (7 siblings, 12-total external inputs) for quick prove/verify cycles. Scaling to depth-5 (35 siblings, 40 external inputs) is a parameter change.
 - All 19+ pre-existing tests continue to pass.

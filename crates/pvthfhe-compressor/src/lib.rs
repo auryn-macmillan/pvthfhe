@@ -9,9 +9,8 @@ pub mod poly_eval;
 /// Witness generation pipeline for C7 decryption aggregation.
 pub mod witness;
 
-/// Sonobe-backed proof compressor implementation.
-pub mod sonobe;
-pub use sonobe::heterogeneous;
+/// Nova-backed proof compressor (nova-snark).
+pub mod nova;
 
 /// MicroNova recursive compression (P3-M2).
 pub mod micronova;
@@ -22,7 +21,7 @@ pub mod micronova;
 /// SNARK wrapping proof (Groth16/PLONK) of the final relaxed R1CS instance.
 /// When `snark_len == 0`, no SNARK wrapper is present and the on-chain
 /// verifier falls back to the Poseidon hash shortcut
-/// (see `circuits/sonobe_state_commitment/src/main.nr`).
+/// (see `circuits/nova_state_commitment/src/main.nr`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompressedProof {
     /// Serialized proof bytes (IVC + optional SNARK).
@@ -30,7 +29,7 @@ pub struct CompressedProof {
     /// Hash of the transparent IVC proof (Keccak256 of serialized IVC bytes).
     /// Populated after `wrap_nova_instance` in the compressor prove path.
     /// Used for on-chain verification via the Poseidon hash shortcut
-    /// (see `circuits/sonobe_state_commitment/src/main.nr`).
+    /// (see `circuits/nova_state_commitment/src/main.nr`).
     pub ivc_proof_hash: Option<[u8; 32]>,
 }
 
@@ -59,11 +58,9 @@ impl CompressedProof {
 }
 
 fn parse_snark_present(data: &[u8]) -> bool {
-    // Use the extended proof parser to check for SNARK bytes.
-    data.len() > 76
-        && crate::sonobe::parse_proof(data)
-            .map(|p| p.snark_bytes.is_some())
-            .unwrap_or(false)
+    crate::nova::parse_proof(data)
+        .map(|p| p.snark_bytes.is_some())
+        .unwrap_or(false)
 }
 
 /// Shared verifier-key metadata for proof-compression backends.

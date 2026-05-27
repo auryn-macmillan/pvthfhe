@@ -1,10 +1,10 @@
 # Nova Profiling Guide
 
-How to profile the Sonobe Nova hot path in PVTHFHE for C7 decryption aggregation.
+How to profile the Nova Nova hot path in PVTHFHE for C7 decryption aggregation.
 
 ## Why Profile Nova
 
-The C7 decryption aggregation pipeline folds `t` per-party decryption shares through Sonobe Nova IVC over the BN254/Grumpkin cycle. At `t=250`, this means 250 sequential `prove_step` calls, each performing:
+The C7 decryption aggregation pipeline folds `t` per-party decryption shares through Nova Nova IVC over the BN254/Grumpkin cycle. At `t=250`, this means 250 sequential `prove_step` calls, each performing:
 
 1. Fiat-Shamir challenge derivation (Poseidon sponge permutation)
 2. R1CS witness generation (`generate_step_constraints`)
@@ -102,9 +102,9 @@ Output: `flamegraph.svg` (open in any browser).
 
 When examining the profile output, focus on these call chains:
 
-### 1. `SonobeCompressor::prove_steps`
+### 1. `NovaCompressor::prove_steps`
 
-**Location**: `crates/pvthfhe-compressor/src/sonobe/mod.rs:568`
+**Location**: `crates/pvthfhe-compressor/src/nova/mod.rs:568`
 
 This is the top-level Nova IVC loop. Each iteration calls `nova.prove_step()` which internally:
 
@@ -117,7 +117,7 @@ This is the top-level Nova IVC loop. Each iteration calls `nova.prove_step()` wh
 
 ### 2. `PoseidonSpongeVar::permute` / `permute` (R1CS gadget)
 
-**Location**: `crates/pvthfhe-compressor/src/sonobe/poseidon_gadget.rs:66`
+**Location**: `crates/pvthfhe-compressor/src/nova/poseidon_gadget.rs:66`
 
 The Poseidon permutation runs inside R1CS for every step's Fiat-Shamir challenge. Parameters: `t=5` (rate=4, capacity=1), 8 full rounds + 60 partial rounds, alpha=5.
 
@@ -132,9 +132,9 @@ The Poseidon permutation runs inside R1CS for every step's Fiat-Shamir challenge
 
 ### 3. `FCircuit::generate_step_constraints`
 
-**Location (C7 circuit)**: `crates/pvthfhe-compressor/src/sonobe/c7_circuit.rs:53`
+**Location (C7 circuit)**: `crates/pvthfhe-compressor/src/nova/c7_circuit.rs:53`
 
-**Location (CycloFold circuit)**: `crates/pvthfhe-compressor/src/sonobe/mod.rs:185`
+**Location (CycloFold circuit)**: `crates/pvthfhe-compressor/src/nova/mod.rs:185`
 
 For the C7 circuit, this is lightweight: one field multiplication (`ext.1 * ext.0`) plus two additions. For the CycloFold circuit, it is four field additions.
 
@@ -252,7 +252,7 @@ perf report --sort symbol -n --stdio | head -30
 perf report -g 'graph,0.5,caller' --symbol-filter='prove_step'
 
 # Annotate source (requires debug info)
-perf annotate -s 'SonobeCompressor::prove_steps'
+perf annotate -s 'NovaCompressor::prove_steps'
 ```
 
 ## Reducing Profiling Noise
@@ -290,9 +290,9 @@ The Merkle path adds ~3000-6000 R1CS constraints per step (depending on tree dep
 
 ## References
 
-- **Sonobe Nova IVC**: `crates/pvthfhe-compressor/src/sonobe/mod.rs`
-- **C7 circuit**: `crates/pvthfhe-compressor/src/sonobe/c7_circuit.rs`
-- **Poseidon gadget**: `crates/pvthfhe-compressor/src/sonobe/poseidon_gadget.rs`
+- **Nova Nova IVC**: `crates/pvthfhe-compressor/src/nova/mod.rs`
+- **C7 circuit**: `crates/pvthfhe-compressor/src/nova/c7_circuit.rs`
+- **Poseidon gadget**: `crates/pvthfhe-compressor/src/nova/poseidon_gadget.rs`
 - **Per-node binary**: `crates/pvthfhe-cli/src/bin/per_node.rs`
 - **REPRODUCING.md**: toolchain pins and hardware fingerprint
 - **`.sisyphus/plans/performance-optimization-sub5s.md`**: A.3 batch specification

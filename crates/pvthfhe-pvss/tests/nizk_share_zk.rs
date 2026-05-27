@@ -65,7 +65,8 @@ fn proof_keeps_replay_relation_witness_private() {
         encryption_randomness: EncRandomness::new(randomness.to_vec()),
     };
 
-    let proof = ShareNizkProver::prove(&backend, &stmt, &witness, None).expect("prover must succeed");
+    let proof =
+        ShareNizkProver::prove(&backend, &stmt, &witness, None).expect("prover must succeed");
 
     let opened = proof.decode().expect("proof must decode");
     assert_eq!(opened.domain_separator, SHARE_NIZK_DOMAIN_SEPARATOR);
@@ -152,10 +153,10 @@ fn proof_has_fresh_masks_per_invocation() {
         encryption_randomness: EncRandomness::new(randomness.to_vec()),
     };
 
-    let proof1 = ShareNizkProver::prove(&backend, &stmt, &witness, None)
-        .expect("prover must succeed");
-    let proof2 = ShareNizkProver::prove(&backend, &stmt, &witness, None)
-        .expect("prover must succeed");
+    let proof1 =
+        ShareNizkProver::prove(&backend, &stmt, &witness, None).expect("prover must succeed");
+    let proof2 =
+        ShareNizkProver::prove(&backend, &stmt, &witness, None).expect("prover must succeed");
 
     let opened1 = proof1.decode().expect("decode");
     let opened2 = proof2.decode().expect("decode");
@@ -190,8 +191,8 @@ fn algebraic_proof_bytes_do_not_contain_witness_plaintext() {
         encryption_randomness: EncRandomness::new(randomness.to_vec()),
     };
 
-    let proof = ShareNizkProver::prove(&backend, &stmt, &witness, None)
-        .expect("prover must succeed");
+    let proof =
+        ShareNizkProver::prove(&backend, &stmt, &witness, None).expect("prover must succeed");
     let opened = proof.decode().expect("decode");
 
     let algebraic_bytes = opened.algebraic_proof.as_slice();

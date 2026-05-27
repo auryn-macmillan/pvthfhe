@@ -167,7 +167,7 @@
     "fhe": "fhers-bfv",
     "nizk": "cyclo-ajtai-d2-conditional",
     "folding": "cyclo-rlwe-t10-lemma9-heuristic",
-    "compressor": "sonobe-nova-bn254-grumpkin",
+    "compressor": "nova-bn254-grumpkin",
     "pvss": "lattice-pvss-bfv-d2"
   },
   "commit_sha": "ae40650",

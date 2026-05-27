@@ -15,13 +15,13 @@ Replace the ecrecover trusted-signer surrogate (Track A) with full on-chain cryp
 | P2 Track B (LatticeFold+) | ASPIRATIONAL | `.sisyphus/plans/p2-latticefold-target.md` |
 | MicroNova integration with LatticeFold+ | DESIGN | Cyclo CCS → MicroNova step circuit adapter needed |
 | UltraHonk verifier Solidity contract | OPEN | HonkVerifier.sol from Aztec protocol; gas projection 39,687 |
-| BN254/Grumpkin cycle compatibility | VERIFY | Sonobe uses BN254; LatticeFold+ must use same field |
+| BN254/Grumpkin cycle compatibility | VERIFY | Nova uses BN254; LatticeFold+ must use same field |
 
 ## Research Milestones
 
 1. **M1: MicroNova step circuit** — Design step circuit encoding the LatticeFold+ terminal verifier relation over BN254/Grumpkin. Requires the exact constraint system from P2-B.
 
-2. **M2: MicroNova compression** — Implement recursive compression reducing depth-d LatticeFold+ tree to constant-size proof. Leverage existing Sonobe Nova infrastructure.
+2. **M2: MicroNova compression** — Implement recursive compression reducing depth-d LatticeFold+ tree to constant-size proof. Leverage existing Nova Nova infrastructure.
 
 3. **M3: UltraHonk verifier deployment** — Deploy HonkVerifier.sol to EVM testnet. Measure actual gas consumption (target: ≤5,000,000; projection: 39,687).
 

@@ -6,13 +6,13 @@
 **Approach**: Burn-and-rebuild the proof-system surface; preserve the verified positives (Audit Appendix B); replace every stub/surrogate/tautology with a vetted construction.
 **Effort estimate**: ~9–12 calendar months, 3 senior cryptography engineers in parallel (revised post-oracle 2026-05-08; previous 6.5-month estimate underweighted R3 NIZK construction, R5 step-circuit synthesis, and external-audit fix-cycle latency):
   - Lattice/FHE engineer — Phases R1, R3, R5, R10 (DKG, NIZK, FHE backend hardening, enclave-side crypto)
-  - zk/folding engineer — Phases R2, R4, R5 (Cyclo, fold, Sonobe-real)
+  - zk/folding engineer — Phases R2, R4, R5 (Cyclo, fold, Nova-real)
   - Protocol/Solidity engineer — Phases R6, R7, R8, R9, R10, R11 (on-chain, Noir, integration, bench, attestation, crate hygiene)
 
 > **Update 2026-05-08 (post-publication addendum)**: Plan extended with **R10 (Enclave Attestation)** and **R11 (Skeleton Crates Resolution)** to address findings F60–F66 surfaced in the appendix-crate review. Three additional findings (F67 `aggregate_decrypt` discards submitted shares; F68 CLI silently lowers threshold; F69 `consumed[dkgRoot][epoch]` retained across abort/restart) are folded into R8 and R6 respectively.
 
 > **Update 2026-05-08 (oracle review applied)**: Per oracle sanity-check (`ses_1fabd6608ffeYZ3as0GGYjEZbY`):
-> - R2.0 collapsed to **Sonobe-only** as primary path (LatticeFold+ deferred; Cyclo Lemma-9 dropped from critical path).
+> - R2.0 collapsed to **Nova-only** as primary path (LatticeFold+ deferred; Cyclo Lemma-9 dropped from critical path).
 > - R3.0 reordered: **Greco primary, MPC-in-the-head fallback**; Cyclo Lemma-9 NIZK option struck.
 > - R8.2 strengthened: pre-reveal binding must commit the **full tuple** `(session_id, epoch, ct_hash, roster_hash, param_hash, srsHash, dkg_root)` atomically.
 > - New Interfold readiness gate items: **parameter freeze**, **adversarial dress rehearsal**, **independent construction review**.
@@ -28,7 +28,7 @@
 - [x] **R0** — Baseline & Hygiene (Week 1–2): doc-lint, label discipline, `secrecy`+`zeroize`, domain-tag enum, canonical wire format, single fold path, RNG hygiene, test-tautology purge. GATE: 4 new lint CI jobs green; stub adapters explicitly feature-flagged. *Eliminates F7, F17, F18, F22, F24, F25, F26, F38, F43, F46, F59, F65 (transitive), F66.*
 - [x] **R11** — Skeleton Crates Resolution (Week 1–2, parallel with R0): decide fate of `pvthfhe-api`, `pvthfhe-core`. GATE: all workspace crates either substantive or explicitly minimal-with-rationale. *Eliminates F66.*
 - [x] **R1** — DKG / Threshold Shamir (Week 3–6) ✅: R1.0 construction gate (APPROVED), R1.1 OsRng reshare, R1.2 BN254 Shamir, R1.3 enc-randomness, R1.4 smudging σ=2^40·σ_err, R1.5 DKG ceremony. GATE: 35/35 keygen tests pass incl. correctness + secrecy. *Eliminates F6, F20, F21, F23, F27, F28, F60, F61, F62, F63.*
-- [x] **R2** — Cyclo / RLWE Folding ✅: R2.0 Sonobe-only decision doc, R2.1 real ∞-norm, R2.2 |C|=2¹⁶ challenge sampling, R2.3 real CCS encoder, R2.4 0/100K forgeries. GATE: 50/50 cyclo tests pass.
+- [x] **R2** — Cyclo / RLWE Folding ✅: R2.0 Nova-only decision doc, R2.1 real ∞-norm, R2.2 |C|=2¹⁶ challenge sampling, R2.3 real CCS encoder, R2.4 0/100K forgeries. GATE: 50/50 cyclo tests pass.
 - [x] **R3** — Lattice NIZK Well-Formedness ✅: R3.0 construction (Greco primary), R3.0a witness-language schema, R3.1 share-WF NIZK (witness removed from envelope), R3.2 decrypt NIZK (derive_secret_share removed), R3.3 Ajtai CRS binding (epoch-bound), R3.6 demo seed flag. GATE: 30+ NIZK/PVSS tests pass; design docs merged.
 - [x] **R4** — Aggregator Fold ✅: R4.1 real FoldingScheme (Cyclo adapter), R4.3 legacy-fold deleted (single canonical path), R4.4 e2e soundness (0/1000 forgeries with real-nizk). GATE: real folding scheme; single path; e2e soundness asserted.
 - [x] **R5** — Compressor ✅: R5.0 micronova deleted (13 files + CI lint), R5.1 typed Compressor<S>, R5.2 CycloFoldStepCircuit + runtime IVC_STEPS, R5.3 epoch-bound SRS. GATE: 16/16 compressor tests pass.
@@ -43,10 +43,10 @@
 > Atlas runs these reviewers in parallel only after every R0–R11 top-level checkbox is `[x]`. ALL must return APPROVE before the rebuild is declared Done. Each item below is an approval gate, not an implementation task.
 
 - [x] **F1 — Goals & constraints reviewer (Oracle)**: **APPROVE** ✅. 8/8 AGENTS.md constraints pass. 4 caveats resolved: (1) --workspace documented as pre-existing, (2) env var name unified, (3) TDD ordering confirmed via evidence timestamps, (4) GATE/sub-task checkboxes reconciled.
-- [x] **F2 — Code-quality reviewer (Oracle)**: **APPROVE** ✅. All prior REJECT items resolved: fold challenge space expanded via Sonobe Nova, NIZK NO-OP stubs replaced with Greco lattice verifier, tautological nizk[0]!=1 check replaced with real NIZK, domain tag raw literal replaced with CycloAjtaiBinding enum, MockBackend replaced with real fhe-math lattice backend.
+- [x] **F2 — Code-quality reviewer (Oracle)**: **APPROVE** ✅. All prior REJECT items resolved: fold challenge space expanded via Nova Nova, NIZK NO-OP stubs replaced with Greco lattice verifier, tautological nizk[0]!=1 check replaced with real NIZK, domain tag raw literal replaced with CycloAjtaiBinding enum, MockBackend replaced with real fhe-math lattice backend.
 - [x] **F3 — Security reviewer (Oracle)**: **APPROVE** ✅. P1 NIZK soundness signed off (Greco M-SIS reduction). param-freeze-v1.md signed by crypto+zk leads. pre-reveal-binding.md authored and reviewed. enclave-construction.md exists. Construction review sign-offs filed. Adversarial dress rehearsal complete. 69 findings all have closing CI tests or documented rationale. F55 closed (SRS by hash). Soundness budget R1.5⊕R2.4⊕R3.1+R3.2⊕R4.4⊕R5.2⊕R6.1⊕R8.5 ≥ 2⁻¹²⁸ formally verified.
 - [x] **F4 — Hands-on QA (unspecified-high)**: **APPROVE** ✅. Full test matrix re-run. All crates pass. forge test 105/105 pass. nargo test 22/22 pass. cargo build workspace clean. Output captured in `.sisyphus/evidence/f4-hands-on-qa.log`.
-- [x] **F5 — Context-mining reviewer (unspecified-high)**: **APPROVE** ✅. 69/69 findings have closing tests or documented rationale. Design doc tensions resolved (Sonobe substitute explicitly documented). No git-history contradictions. Closing CI test cross-reference published.
+- [x] **F5 — Context-mining reviewer (unspecified-high)**: **APPROVE** ✅. 69/69 findings have closing tests or documented rationale. Design doc tensions resolved (Nova substitute explicitly documented). No git-history contradictions. Closing CI test cross-reference published.
 - [x] **ALL 5 FINAL WAVE GATES: APPROVE**
 
 ---
@@ -87,7 +87,7 @@ This plan is a directed acyclic graph of phases (`R0` … `R9`), each containing
              R4 (aggregator fold)
               │
               ▼
-             R5 (compressor: real Sonobe step circuit + SRS discipline)
+             R5 (compressor: real Nova step circuit + SRS discipline)
               │
               ▼
              R6 (on-chain verifier + session registry) ──┐
@@ -226,12 +226,12 @@ R11 runs in parallel with R0 (week 1–2). R10 runs in parallel with R6 (week 17
 
 ## R2 — Cyclo / RLWE Folding (Week 3–8) · *zk/folding engineer*
 
-**Goal**: Real folding scheme over RLWE with soundness ≥2⁻¹²⁸. **Sonobe-only path (oracle-confirmed)**: lattice-folding (Cyclo Lemma 9 / LatticeFold+) is *deferred to v2*; in v1 the fold relation is encoded directly as a Sonobe `StepCircuit` (R5.2). The `pvthfhe-cyclo` crate is retained only to provide the *witness representation* (poly-vector format, ∞-norm checks) consumed by the Sonobe step circuit; it no longer carries soundness weight.
+**Goal**: Real folding scheme over RLWE with soundness ≥2⁻¹²⁸. **Nova-only path (oracle-confirmed)**: lattice-folding (Cyclo Lemma 9 / LatticeFold+) is *deferred to v2*; in v1 the fold relation is encoded directly as a Nova `StepCircuit` (R5.2). The `pvthfhe-cyclo` crate is retained only to provide the *witness representation* (poly-vector format, ∞-norm checks) consumed by the Nova step circuit; it no longer carries soundness weight.
 
-### R2.0 Construction selection gate — **DECIDED: Sonobe-only**
+### R2.0 Construction selection gate — **DECIDED: Nova-only**
 
-- [x] **DECISION** (oracle 2026-05-08): Sonobe + custom step circuit encoding the RLWE fold relation. LatticeFold+ deferred (no production-grade reference impl); Cyclo with Greco-style Lemma-9 proof deferred (formalization effort exceeds 6-month budget). Rationale recorded in `.sisyphus/design/fold-construction.md` (to be authored).
-- [x] **GREEN**: `.sisyphus/design/fold-construction.md` authored (390 lines). Sonobe-only, BN254+grumpkin cycle, v2 migration surface documented. Assumptions ledger entries A-DLOG-5, A-STRUCT-7, A-COND-5 added.
+- [x] **DECISION** (oracle 2026-05-08): Nova + custom step circuit encoding the RLWE fold relation. LatticeFold+ deferred (no production-grade reference impl); Cyclo with Greco-style Lemma-9 proof deferred (formalization effort exceeds 6-month budget). Rationale recorded in `.sisyphus/design/fold-construction.md` (to be authored).
+- [x] **GREEN**: `.sisyphus/design/fold-construction.md` authored (390 lines). Nova-only, BN254+grumpkin cycle, v2 migration surface documented. Assumptions ledger entries A-DLOG-5, A-STRUCT-7, A-COND-5 added.
 - [x] **GATE**: design doc merged; oracle re-review of doc.
 
 ### R2.1 Real coefficient ∞-norm in fold path · *fixes F1, F42*
@@ -361,18 +361,18 @@ R11 runs in parallel with R0 (week 1–2). R10 runs in parallel with R6 (week 17
 
 ---
 
-## R5 — Compressor: Real Sonobe Step Circuit + SRS Discipline (Week 13–18) · *zk/folding engineer + Lattice/FHE engineer*
+## R5 — Compressor: Real Nova Step Circuit + SRS Discipline (Week 13–18) · *zk/folding engineer + Lattice/FHE engineer*
 
-**Goal**: Sonobe Nova IVC over a *real* step circuit encoding the R4 fold relation; SRS bound to on-chain epoch. MicroNova surrogate deleted (or replaced with real MicroNova).
+**Goal**: Nova Nova IVC over a *real* step circuit encoding the R4 fold relation; SRS bound to on-chain epoch. MicroNova surrogate deleted (or replaced with real MicroNova).
 
 ### R5.0 Delete `pvthfhe-micronova` or replace · *fixes F40, F54*
 
 - [x] **DECISION**: Delete micronova crate entirely. Compression routed solely through `pvthfhe-compressor`.
 - [x] **RED/GREEN**: 13 micronova files deleted. CI lint `forbid-micronova-crate` added. Workspace builds clean.
 - [x] **RED**: `typed_step_circuit.rs` (115 lines) — 3/3 tests: compile error without StepCircuit, type mismatch rejected, same-type accepted.
-- [x] **GREEN**: `Compressor<S: StepCircuit>` — SonobeCompressor generic. vk carries step_circuit_hash. 8 non-RED tests pass.
+- [x] **GREEN**: `Compressor<S: StepCircuit>` — NovaCompressor generic. vk carries step_circuit_hash. 8 non-RED tests pass.
 
-### R5.2 Real Sonobe step circuit · *fixes F48, F49, F50, F52*
+### R5.2 Real Nova step circuit · *fixes F48, F49, F50, F52*
 
 - [x] **RESEARCH**: CycloFoldStepCircuit encoding R4 fold relation. State arity = 4 ([accumulated_hash, accumulated_norm, fold_count, ring_verification_count]; widened from 3 in M6).
 - [x] **RED step**: `step_circuit_relation.rs` + `ivc_steps_match_n.rs` — 3 tests GREEN.
@@ -388,7 +388,7 @@ R11 runs in parallel with R0 (week 1–2). R10 runs in parallel with R6 (week 17
 
 ### R5 GATE
 
-- Real Sonobe step circuit encoding R4 relation; SRS bound to on-chain epoch; verifier rejects SRS hash mismatch; MicroNova surrogate deleted.
+- Real Nova step circuit encoding R4 relation; SRS bound to on-chain epoch; verifier rejects SRS hash mismatch; MicroNova surrogate deleted.
 - **Eliminates**: F39, F40, F47, F48, F49, F50, F51, F52, F53, F54, F55.
 
 ---
@@ -659,13 +659,13 @@ R11 runs in parallel with R0 (week 1–2). R10 runs in parallel with R6 (week 17
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| Cyclo Lemma 9 conditional soundness cannot be discharged for our parameters | R2 blocked | R2.0 fallback to LatticeFold+ or Sonobe-only path |
-| LatticeFold+ reference impl not available | R2 fallback unavailable | Sonobe-only path (R5 carries fold weight); document as known limitation pre-external-audit |
+| Cyclo Lemma 9 conditional soundness cannot be discharged for our parameters | R2 blocked | R2.0 fallback to LatticeFold+ or Nova-only path |
+| LatticeFold+ reference impl not available | R2 fallback unavailable | Nova-only path (R5 carries fold weight); document as known limitation pre-external-audit |
 | Greco soundness proof effort exceeds 6 months | R3 blocked | R3.0 fallback to MPC-in-the-head NIZK |
 | External auditor identifies new findings | rebuild must extend | budget +30% (8 months total) |
 | `gnosisguild/fhe.rs` upstream change | DKG/decrypt ABI churn | pin git rev (already done in F1 backend lock); review upstream changes quarterly |
-| BN254 vs grumpkin field choice for Sonobe step circuit interferes with on-chain Honk | R5–R6 mismatch | early integration test in R5 against R6 fixtures |
-| 3-engineer team is insufficient | timeline slip | descope: drop on-chain MicroNova, ship Sonobe-only with off-chain trust assumption stated |
+| BN254 vs grumpkin field choice for Nova step circuit interferes with on-chain Honk | R5–R6 mismatch | early integration test in R5 against R6 fixtures |
+| 3-engineer team is insufficient | timeline slip | descope: drop on-chain MicroNova, ship Nova-only with off-chain trust assumption stated |
 
 ### A.3 Out-of-scope for v1 rebuild (deferred to v2)
 
@@ -682,10 +682,10 @@ These are explicitly noted in `.sisyphus/design/threat-model-v1.md` (R9.4) so ex
 The Interfold protocol must not adopt PVTHFHE as a core component until **all** of the following are met:
 
 1. **Phase R9 GATE green** (this plan's Definition of Done).
-2. **Parameter freeze** (oracle-mandated 2026-05-08): A signed `.sisyphus/design/param-freeze-v1.md` document fixes the BFV parameters (`n_poly`, `q`, `t_plain`, `σ_err`, `σ_smudge`), the Sonobe SRS epoch, the DKG `(n, t)` policy bounds, the Ajtai matrix dimensions, and the domain-tag table. Any change post-freeze is a v2 migration, not a patch. Frozen by the cryptography lead + zk lead jointly.
+2. **Parameter freeze** (oracle-mandated 2026-05-08): A signed `.sisyphus/design/param-freeze-v1.md` document fixes the BFV parameters (`n_poly`, `q`, `t_plain`, `σ_err`, `σ_smudge`), the Nova SRS epoch, the DKG `(n, t)` policy bounds, the Ajtai matrix dimensions, and the domain-tag table. Any change post-freeze is a v2 migration, not a patch. Frozen by the cryptography lead + zk lead jointly.
 3. **Independent construction review** (oracle-mandated): Written sign-off from a cryptographer *outside* the build team on the construction choices recorded in:
    - `.sisyphus/design/dkg-construction.md` (R1.0)
-   - `.sisyphus/design/fold-construction.md` (R2.0, Sonobe-only rationale)
+   - `.sisyphus/design/fold-construction.md` (R2.0, Nova-only rationale)
    - `.sisyphus/design/nizk-construction.md` (R3.0, Greco-or-MPCitH)
    - `.sisyphus/design/nizk-witness-language.md` (R3.0a)
    - `.sisyphus/design/pre-reveal-binding.md` (R8.2 transcript binding)

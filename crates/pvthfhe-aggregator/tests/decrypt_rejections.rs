@@ -1,9 +1,9 @@
 //! Integration tests: decrypt_rejections.
 #![allow(clippy::unwrap_used)]
 
-use pvthfhe_types::ProtocolBytes;
 use pvthfhe_aggregator::decrypt::{aggregate_decrypt, partial_decrypt, DecryptError};
 use pvthfhe_fhe::{mock::MockBackend, types::Ciphertext, FheBackend};
+use pvthfhe_types::ProtocolBytes;
 
 fn acknowledge_mock_backend() {
     unsafe {
@@ -23,12 +23,34 @@ fn rejects_malformed_share() {
     let ciphertext_hash = [0u8; 32];
 
     let party_pk = vec![0u8; 32];
-    let mut share1 =
-        partial_decrypt(&backend, &ct, 1, &dkg_root, &ciphertext_hash, 1, &party_pk, None, &mut rng).unwrap();
+    let mut share1 = partial_decrypt(
+        &backend,
+        &ct,
+        1,
+        &dkg_root,
+        &ciphertext_hash,
+        1,
+        &party_pk,
+        None,
+        None,
+        &mut rng,
+    )
+    .unwrap();
     share1.nizk = ProtocolBytes(vec![]);
 
-    let share2 =
-        partial_decrypt(&backend, &ct, 2, &dkg_root, &ciphertext_hash, 1, &party_pk, None, &mut rng).unwrap();
+    let share2 = partial_decrypt(
+        &backend,
+        &ct,
+        2,
+        &dkg_root,
+        &ciphertext_hash,
+        1,
+        &party_pk,
+        None,
+        None,
+        &mut rng,
+    )
+    .unwrap();
 
     let threshold = 2;
     let allowed_parties = vec![1, 2, 3];
@@ -63,8 +85,19 @@ fn rejects_insufficient_shares() {
     let ciphertext_hash = [0u8; 32];
 
     let party_pk = vec![0u8; 32];
-    let share1 =
-        partial_decrypt(&backend, &ct, 1, &dkg_root, &ciphertext_hash, 1, &party_pk, None, &mut rng).unwrap();
+    let share1 = partial_decrypt(
+        &backend,
+        &ct,
+        1,
+        &dkg_root,
+        &ciphertext_hash,
+        1,
+        &party_pk,
+        None,
+        None,
+        &mut rng,
+    )
+    .unwrap();
 
     let threshold = 2;
     let allowed_parties = vec![1, 2, 3];
@@ -99,8 +132,19 @@ fn rejects_duplicate_party() {
     let ciphertext_hash = [0u8; 32];
 
     let party_pk = vec![0u8; 32];
-    let share1 =
-        partial_decrypt(&backend, &ct, 1, &dkg_root, &ciphertext_hash, 1, &party_pk, None, &mut rng).unwrap();
+    let share1 = partial_decrypt(
+        &backend,
+        &ct,
+        1,
+        &dkg_root,
+        &ciphertext_hash,
+        1,
+        &party_pk,
+        None,
+        None,
+        &mut rng,
+    )
+    .unwrap();
 
     let threshold = 2;
     let allowed_parties = vec![1, 2, 3];
@@ -132,10 +176,32 @@ fn rejects_unknown_party() {
     let ciphertext_hash = [0u8; 32];
 
     let party_pk = vec![0u8; 32];
-    let share1 =
-        partial_decrypt(&backend, &ct, 4, &dkg_root, &ciphertext_hash, 1, &party_pk, None, &mut rng).unwrap();
-    let share2 =
-        partial_decrypt(&backend, &ct, 2, &dkg_root, &ciphertext_hash, 1, &party_pk, None, &mut rng).unwrap();
+    let share1 = partial_decrypt(
+        &backend,
+        &ct,
+        4,
+        &dkg_root,
+        &ciphertext_hash,
+        1,
+        &party_pk,
+        None,
+        None,
+        &mut rng,
+    )
+    .unwrap();
+    let share2 = partial_decrypt(
+        &backend,
+        &ct,
+        2,
+        &dkg_root,
+        &ciphertext_hash,
+        1,
+        &party_pk,
+        None,
+        None,
+        &mut rng,
+    )
+    .unwrap();
 
     let threshold = 2;
     let allowed_parties = vec![1, 2, 3];

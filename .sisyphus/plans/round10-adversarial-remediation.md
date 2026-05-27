@@ -37,7 +37,7 @@
 | **F12** | SmudgeSlotRegistry `slot_id` hardcoded to 1. One smudge slot per party per session. DoS risk if proof fails (slot consumed, can't retry). | Participant |
 | **F13** | Two separate SmudgeSlotRegistry implementations (pvss vs keygen-spec). Only pvss version wired. Potential divergence. | Participant |
 | **F14** | Aggregate PK not bound in C7 circuit. Noir circuit partially binds via `r` derivation but `d_commitment` excludes it. | Aggregator |
-| **F15** | C7 verification gated behind `pipeline-extra-checks` + `sonobe-compressor` — in base config, no C7 verification runs. | Aggregator |
+| **F15** | C7 verification gated behind `pipeline-extra-checks` + `nova-compressor` — in base config, no C7 verification runs. | Aggregator |
 
 ### Low (3)
 

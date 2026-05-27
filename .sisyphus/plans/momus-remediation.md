@@ -11,7 +11,7 @@
 
 ### A.1 — Downgrade P2-A-T2 from PROVED to PENDING-NOVA-PROOF
 - [ ] **Code**: No code change. Paper text only.
-- [ ] **Theory**: `docs/security-proofs/p2/T2.md` proves LatticeFold+ ternary extractor — NOT Sonobe Nova IVC soundness. Either write a Nova IVC soundness reduction OR create a new T2-track-a.md proof file.
+- [ ] **Theory**: `docs/security-proofs/p2/T2.md` proves LatticeFold+ ternary extractor — NOT Nova Nova IVC soundness. Either write a Nova IVC soundness reduction OR create a new T2-track-a.md proof file.
 - [ ] **Docs**: `paper/main.tex` §P2 Track A — change `Status: PROVED (via Nova IVC soundness reduction)` to `Status: PENDING — proof file proves LatticeFold+ extractor; Nova IVC soundness reduction to be written.`
 - [ ] **Docs**: `paper/claims-table.md` row 14 — change Track A from PROVED to PENDING-NOVA-PROOF
 - [ ] **Gate**: Paper theorem no longer claims a proof that doesn't exist
@@ -80,7 +80,7 @@
 ### C.3 — Fix ARCHITECTURE.md header self-contradiction
 - [ ] **Docs**: `ARCHITECTURE.md` lines 5-8 — replace the contradictory "critical cryptographic surrogates that provide no real security" + "real UltraHonk verifier" with:
   ```
-  - on-chain cryptographic verification: UltraHonk verifier (Track A: Sonobe attestation surrogate; Track B: MicroNova target — see paper)
+  - on-chain cryptographic verification: UltraHonk verifier (Track A: Nova attestation surrogate; Track B: MicroNova target — see paper)
   - Noir circuits: real aggregation and wrapping logic (not tautological surrogates)
   ```
 - [ ] **Docs**: `WARNING.md` — same fix (identical text)

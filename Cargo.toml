@@ -45,7 +45,7 @@ as_conversions = "allow"
 # Most arkworks crates track the upstream `algebra` / `snark` monorepos and
 # `groth16` / `poly-commit` / `std` standalone repositories. Two forks are
 # needed because the crates.io releases are too old for the workspace Rust
-# version (1.95.0) or for the Sonobe dependency chain:
+# version (1.95.0) or for the Nova dependency chain:
 #
 # flyingnobita/crypto-primitives (rev f559264)
 #   Upstream `ark-crypto-primitives` v0.4.0 on crates.io depends on
@@ -57,7 +57,7 @@ as_conversions = "allow"
 #
 # flyingnobita/r1cs-std_yelhousni (rev b4bab0c)
 #   Upstream `ark-r1cs-std` v0.4.0 also pins `ark-ff = "0.4"` and lacks
-#   the `FieldVar::constant` constructor used by the Sonobe Nova step
+#   the `FieldVar::constant` constructor used by the Nova Nova step
 #   circuit (`CycloFoldStepCircuit`). The fork adds the missing constructor
 #   and migrates to the `ark-ff` 0.5 ecosystem.
 # ──────────────────────────────────────────────────────────────────────────

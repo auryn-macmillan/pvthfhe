@@ -21,7 +21,7 @@
    - "decoded plaintext length 21203 exceeds max 16382"
    - Mock backend limitation on plaintext size
 
-3. **pvthfhe-compressor :: sonobe_isolated_mem**
+3. **pvthfhe-compressor :: nova_isolated_mem**
    - "RED phase: keep failing until the memory fix lands"
    - Test explicitly a RED gate test
 

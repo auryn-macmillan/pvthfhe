@@ -1,9 +1,9 @@
 use ark_bn254::Fr;
 use ark_ff::{AdditiveGroup, Field, Zero};
 use pvthfhe_pvss::share_computation::{
-    compute_esm_secret_commitment, compute_sk_secret_commitment,
-    verify_batched_share_computation, BatchedShareComputationStatement,
-    ESmShareComputationSlot, FieldShare, ShareComputationError, ShareComputationTrack,
+    compute_esm_secret_commitment, compute_sk_secret_commitment, verify_batched_share_computation,
+    BatchedShareComputationStatement, ESmShareComputationSlot, FieldShare, ShareComputationError,
+    ShareComputationTrack,
 };
 use pvthfhe_types::ProtocolBytes;
 
@@ -41,13 +41,8 @@ fn make_statement(
             value: Fr::zero(),
         })
         .collect();
-    let esm_commit = compute_esm_secret_commitment(
-        b"test-session",
-        &[0u8; 32],
-        dealer_id,
-        1,
-        Fr::zero(),
-    );
+    let esm_commit =
+        compute_esm_secret_commitment(b"test-session", &[0u8; 32], dealer_id, 1, Fr::zero());
     BatchedShareComputationStatement {
         session_id: ProtocolBytes::from(b"test-session".to_vec()),
         dkg_root: ProtocolBytes::from(vec![0u8; 32]),
@@ -81,7 +76,10 @@ fn rejects_wrong_secret_commitment() {
     let stmt = make_statement(&shares, wrong_p0, 1, t);
     let result = verify_batched_share_computation(&stmt);
     assert!(
-        matches!(result, Err(ShareComputationError::CommitmentMismatch { .. })),
+        matches!(
+            result,
+            Err(ShareComputationError::CommitmentMismatch { .. })
+        ),
         "should reject wrong P(0) commitment; got {:?}",
         result,
     );

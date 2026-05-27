@@ -131,10 +131,7 @@ pub fn decode_commitment(data: &[u8], m: usize) -> Result<AjtaiCommitment, Cyclo
         ));
     }
 
-    let commitment: Vec<RqPoly> = data
-        .chunks(per_poly)
-        .map(bytes_to_rqpoly)
-        .collect();
+    let commitment: Vec<RqPoly> = data.chunks(per_poly).map(bytes_to_rqpoly).collect();
 
     Ok(AjtaiCommitment { commitment })
 }

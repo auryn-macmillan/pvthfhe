@@ -12,9 +12,9 @@ use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_relations::gr1cs::{ConstraintSystem, ConstraintSystemRef};
 use pvthfhe_aggregator::folding::ring_element::RingElement;
-use pvthfhe_compressor::sonobe::cyclo_verifier::verify_ring_equation;
-use pvthfhe_compressor::sonobe::cyclo_verifier::verify_ring_equation_r1cs;
-use pvthfhe_compressor::sonobe::ring_element_var::RingElementVar;
+use pvthfhe_compressor::nova::cyclo_verifier::verify_ring_equation;
+use pvthfhe_compressor::nova::cyclo_verifier::verify_ring_equation_r1cs;
+use pvthfhe_compressor::nova::ring_element_var::RingElementVar;
 
 fn make_element<F: PrimeField>(vals: &[u64], cs: ConstraintSystemRef<F>) -> RingElementVar<F> {
     let coeffs: Vec<FpVar<F>> = vals
@@ -101,8 +101,10 @@ fn native_broken_ring_equation_fails() {
     let ze = make_native_element(&[2]);
     let t = make_native_element(&[9]);
     let d = make_native_element(&[0]);
-    assert!(!verify_ring_equation(c, &zs, &ze, &t, &d),
-        "native ring equation must reject broken equation (W1: p2-m6 gap closure)");
+    assert!(
+        !verify_ring_equation(c, &zs, &ze, &t, &d),
+        "native ring equation must reject broken equation (W1: p2-m6 gap closure)"
+    );
 }
 
 #[test]

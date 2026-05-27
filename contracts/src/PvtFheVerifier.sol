@@ -4,9 +4,9 @@ pragma solidity ^0.8.24;
 import "./generated/HonkVerifier.sol";
 import "./SessionRegistry.sol";
 
-/// @notice EIP-712 attestation bundle emitted by the off-chain Sonobe verifier.
+/// @notice EIP-712 attestation bundle emitted by the off-chain Nova verifier.
 struct AttestationBundle {
-    bytes32 sonobeStateCommitment;
+    bytes32 novaStateCommitment;
     bytes32 cycloAggregateCommitment;
     bytes32 sessionId;
     address signer;
@@ -61,7 +61,7 @@ interface IPvthfheVerifier {
         bytes calldata proof
     ) external view returns (bool valid);
 
-    /// @notice Verify a sonobe_state_commitment proof with off-chain attestation (NoGo branch).
+    /// @notice Verify a nova_state_commitment proof with off-chain attestation (NoGo branch).
     function verifyWithAttestation(
         bytes calldata proof,
         bytes32[] calldata publicInputs,
@@ -329,7 +329,7 @@ contract PvtFheVerifier is IPvthfheVerifier {
     }
 
     /// @inheritdoc IPvthfheVerifier
-    /// @dev NoGo branch: proof is for the sonobe_state_commitment circuit (6 public inputs).
+    /// @dev NoGo branch: proof is for the nova_state_commitment circuit (6 public inputs).
     ///      B.2: attestation signature is verified via ecrecover over keccak256 of the
     ///      attestation bundle fields (excluding the signature itself). This binds the
     ///      attestor's identity to the specific proof commitments.
@@ -345,7 +345,7 @@ contract PvtFheVerifier is IPvthfheVerifier {
             revert("CommitmentMismatch");
         }
         if (
-            publicInputs[4] != attestation.sonobeStateCommitment
+            publicInputs[4] != attestation.novaStateCommitment
                 || publicInputs[5] != attestation.cycloAggregateCommitment
         ) {
             revert("CommitmentMismatch");
@@ -356,7 +356,7 @@ contract PvtFheVerifier is IPvthfheVerifier {
         // and session, preventing signature replay or impersonation.
         bytes32 attestationHash = keccak256(
             abi.encode(
-                attestation.sonobeStateCommitment,
+                attestation.novaStateCommitment,
                 attestation.cycloAggregateCommitment,
                 attestation.sessionId,
                 attestation.signer

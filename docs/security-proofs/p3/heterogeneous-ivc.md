@@ -13,7 +13,7 @@
 deterministic circuit variants, and let `HeterogeneousStepCircuit<CF>`
 be the dispatcher step circuit that routes each step `i` to
 `CF.circuit_index(i)`. If each individual circuit variant `j ∈ {0, …, n-1}`
-is sound under the underlying Sonobe Nova folding scheme (i.e., any
+is sound under the underlying Nova Nova folding scheme (i.e., any
 accepting IVC proof with step circuit `j` implies existence of a valid
 witness trace for that circuit), then the heterogeneous compressor
 `MicroNovaCompressor` using `HeterogeneousStepCircuit<CF>` preserves
@@ -28,7 +28,7 @@ Pr[ MicroNovaVerify(vk, π, steps) = 1
     ≤ n · ε_nova
 ```
 
-where `ε_nova` is the soundness error bound of the underlying Sonobe Nova
+where `ε_nova` is the soundness error bound of the underlying Nova Nova
 scheme (see P2 soundness budget, `.sisyphus/design/fold-soundness-budget.md`).
 
 ---
@@ -42,7 +42,7 @@ an adversary from using circuit `j` at a step where `j' ≠ j` is expected.
 
 **Step 1 — Verifier key separation.** The `HeterogeneousStepCircuit`
 derives distinct `StepCircuit::circuit_hash()` outputs for each circuit
-variant via `CF.circuit_hash(j)`. The Sonobe verifier key commits to
+variant via `CF.circuit_hash(j)`. The Nova verifier key commits to
 the step circuit hash, binding each variant to a distinct `vk_j`.
 
 **Step 2 — Deterministic dispatch.** The function `CF.circuit_index(i)`
@@ -61,7 +61,7 @@ the adversary's advantage against the heterogeneous scheme is at most
 
 ## Reduction Target
 
-Sonobe Nova soundness over the BN254/Grumpkin cycle (see P2 soundness
+Nova Nova soundness over the BN254/Grumpkin cycle (see P2 soundness
 budget and `.sisyphus/design/fold-soundness-budget.md`). The heterogeneous
 wrapper introduces at most a factor-`n` tightness loss from the union
 bound over circuit variants.
@@ -83,7 +83,7 @@ relative to the underlying Nova soundness margin.
 
 ## Unresolved Lemmas
 
-- **L1 (Nova step-circuit isolation)**: That the Sonobe Nova scheme's
+- **L1 (Nova step-circuit isolation)**: That the Nova Nova scheme's
   soundness composes across distinct step circuits sharing the same
   state structure (state_len = 3, ExternalInputs3). Formal proof requires
   analysis of the Nova accumulation scheme's commitment binding across
@@ -92,8 +92,8 @@ relative to the underlying Nova soundness margin.
 ---
 
 **KNOWN LIMITATION** (2026-05-15): Per-variant verifier key enforcement is
-architecturally impossible in the current Sonobe Nova framework.
-SonobeNova uses a single verifier key; the heterogeneous step circuit
+architecturally impossible in the current Nova Nova framework.
+NovaNova uses a single verifier key; the heterogeneous step circuit
 wrapper produces structurally identical constraints for all variants.
 Security relies on this structural equivalence, which is enforced by
 the LatticeFoldTreeCircuitFamily design (all variants use state_len=2

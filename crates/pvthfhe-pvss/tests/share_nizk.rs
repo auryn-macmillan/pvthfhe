@@ -23,7 +23,9 @@ fn recipient_public_keys(n: usize) -> Vec<Vec<u8>> {
             let share = backend
                 .keygen_share_with_session(&session_id, 1, &mut rng)
                 .expect("keygen share");
-            backend.setup_threshold(1, 1).expect("setup threshold");
+            backend
+                .setup_threshold(1, 1, [0u8; 32])
+                .expect("setup threshold");
             backend
                 .aggregate_keygen(&[share])
                 .expect("aggregate keygen")

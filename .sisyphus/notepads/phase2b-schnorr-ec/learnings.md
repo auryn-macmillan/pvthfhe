@@ -4,9 +4,9 @@
 ### Discovery: Full in-circuit EC arithmetic infeasible
 
 - `ark-bn254` constraints module (`GVar`) uses `Fq` (base field) as constraint field
-- Sonobe Nova circuit runs over `Fr` (scalar field)
+- Nova Nova circuit runs over `Fr` (scalar field)
 - Non-native EC arithmetic requires `EmulatedFpVar<Fq, Fr>` with full point addition + scalar multiplication
-- Sonobe's `NonNativeAffineVar` is explicitly "not intended to perform operations" — only for hashing
+- Nova's `NonNativeAffineVar` is explicitly "not intended to perform operations" — only for hashing
 - Decision: defer EC equality to on-chain Solidity verifier; in-circuit check ensures challenge derivation binds full point coordinates
 
 ### What was implemented
@@ -21,7 +21,7 @@
 
 ### Files changed
 - `crates/pvthfhe-compressor/Cargo.toml` — added `ark-ec = "0.5"`
-- `crates/pvthfhe-compressor/src/sonobe/mod.rs` — ExternalInputs6, encode/decode functions
-- `crates/pvthfhe-compressor/src/sonobe/share_verification_circuit.rs` — ExternalInputs6, y-coords in challenge
+- `crates/pvthfhe-compressor/src/nova/mod.rs` — ExternalInputs6, encode/decode functions
+- `crates/pvthfhe-compressor/src/nova/share_verification_circuit.rs` — ExternalInputs6, y-coords in challenge
 - `crates/pvthfhe-compressor/src/witness.rs` — sig_r_y, pk_y fields
 - `crates/pvthfhe-cli/src/full_pipeline.rs` — y-coordinate extraction, PipelineReport fields

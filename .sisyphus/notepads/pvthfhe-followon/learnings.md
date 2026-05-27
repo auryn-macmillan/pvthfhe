@@ -576,9 +576,9 @@ All five theorems approved. Gas arithmetic independently verified. No open gaps 
 - The quarantine README documents C1–C6 and points to the two red-team plan files for re-audit context.
 
 ## 2026-05-06 — pvthfhe-cli e2e startup fast-path
-- Added `--dry-run` to `pvthfhe-e2e` so tests can assert backend selection without waiting for Sonobe initialization.
+- Added `--dry-run` to `pvthfhe-e2e` so tests can assert backend selection without waiting for Nova initialization.
 - The binary now prints backend IDs before expensive setup, making startup introspection deterministic for both compressor modes.
-- The Sonobe-specific test should use the compiled binary directly and exit immediately via `--dry-run`.
+- The Nova-specific test should use the compiled binary directly and exit immediately via `--dry-run`.
 
 
 ## 2026-05-07 — BFV plaintext modulus alignment rerun
@@ -595,17 +595,17 @@ All five theorems approved. Gas arithmetic independently verified. No open gaps 
 
 ### R5.1 — Typed Compressor<S: StepCircuit>
 - Added `fn circuit_hash(&self) -> [u8; 32]` to `StepCircuit` trait in `lib.rs`.
-- Made `SonobeCompressor` generic: `SonobeCompressor<S: FCircuit<Fr, Params = (), ExternalInputs = Fr> + StepCircuit + Clone + Debug>`.
+- Made `NovaCompressor` generic: `NovaCompressor<S: FCircuit<Fr, Params = (), ExternalInputs = Fr> + StepCircuit + Clone + Debug>`.
   - Associated types on `FCircuit` must be constrained (`Params = ()`, `ExternalInputs = Fr`) for the `prove_step` and `vp_deserialize_with_mode` APIs to type-check.
-- `ToyStepCircuit<Fr>` now implements `StepCircuit`; `circuit_hash()` returns `Keccak256::digest(Tag::SonobeToyStep.as_bytes())`.
+- `ToyStepCircuit<Fr>` now implements `StepCircuit`; `circuit_hash()` returns `Keccak256::digest(Tag::NovaToyStep.as_bytes())`.
 - Removed `STEP_CIRCUIT_TAG` constant and `step_circuit_hash()` free function — hash now derived from `S::circuit_hash()` per instance.
-- Made `ToyStepCircuit` `pub` (was private) so tests can reference it via `SonobeCompressor::<ToyStepCircuit<Fr>>::new(seed)`.
-- Type alias `SonobeNova<S>` replaces hardcoded `SonobeNova`.
+- Made `ToyStepCircuit` `pub` (was private) so tests can reference it via `NovaCompressor::<ToyStepCircuit<Fr>>::new(seed)`.
+- Type alias `NovaNova<S>` replaces hardcoded `NovaNova`.
 - Updated all call sites: 3 test files, 1 bin, 1 example.
 - Wrote 3 GREEN tests in `typed_step_circuit.rs`:
   1. `typed_compressor_roundtrip_with_step_circuit_hash` — prove/verify roundtrip, vk hash non-zero
   2. `verifier_rejects_tampered_step_circuit_hash` — tampered hash causes verify rejection (type mismatch)
-  3. `step_circuit_hash_matches_type_implementation` — vk hash matches canonical Keccak256(Tag::SonobeToyStep)
+  3. `step_circuit_hash_matches_type_implementation` — vk hash matches canonical Keccak256(Tag::NovaToyStep)
 - Existing trait_object test (`proof_compressor_is_object_safe`) still passes — `ProofCompressor` trait remains non-generic for object safety.
-- 2 pre-existing RED tests remain: `sonobe_prove_peak_rss_under_12gb` (R4 memory gate) and `sonobe_proof_bytes_are_deterministic_for_same_seed` (R5.3 SRS discipline — `_seed` unused, `OsRng` produces different keys per instance).
+- 2 pre-existing RED tests remain: `nova_prove_peak_rss_under_12gb` (R4 memory gate) and `nova_proof_bytes_are_deterministic_for_same_seed` (R5.3 SRS discipline — `_seed` unused, `OsRng` produces different keys per instance).
 - Full workspace `cargo build` clean; zero LSP errors.

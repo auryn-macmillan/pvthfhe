@@ -30,9 +30,9 @@
 
 ### D4: Feature gate for ring-equation verification
 - **Decision**: Native ring-equation verification gated behind
-  `#[cfg(all(feature = "pipeline-extra-checks", feature = "sonobe-compressor"))]`.
+  `#[cfg(all(feature = "pipeline-extra-checks", feature = "nova-compressor"))]`.
 - **Rationale**: `verify_ring_equation` lives in `pvthfhe-compressor` which requires
-  `sonobe-compressor` feature. `pipeline-extra-checks` gates the Track B path.
+  `nova-compressor` feature. `pipeline-extra-checks` gates the Track B path.
   When either feature is absent, the check is gracefully omitted (no compilation error).
 
 ### D5: Keep hash-accumulate in CycloFoldStepCircuit

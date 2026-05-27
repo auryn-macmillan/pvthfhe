@@ -18,7 +18,7 @@ fn fhers_party_state_setup_threshold_populates_per_party_sums() {
     }
 
     backend
-        .setup_threshold(5, 3)
+        .setup_threshold(5, 3, [0u8; 32])
         .expect("setup threshold state");
 
     for party_id in 1u32..=5 {

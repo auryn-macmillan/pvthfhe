@@ -36,4 +36,4 @@ soundness applies (1/3 per fold × T=10 → 1.7e-5).
 
 ## Files modified
 1. `crates/pvthfhe-compressor/Cargo.toml` — add ark-ec r1cs
-2. `crates/pvthfhe-compressor/src/sonobe/share_verification_circuit.rs` — add EC check
+2. `crates/pvthfhe-compressor/src/nova/share_verification_circuit.rs` — add EC check

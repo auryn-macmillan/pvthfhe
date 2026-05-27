@@ -30,11 +30,11 @@
 | ID | Finding | Source |
 |----|---------|--------|
 | **F7** | 7 of 13 e2e phases silently pass with no work (markers only) | Demo |
-| **F8** | C7 circuits (Merkle, Sonobe) never run — env vars not set by Justfile | Demo |
+| **F8** | C7 circuits (Merkle, Nova) never run — env vars not set by Justfile | Demo |
 | **F9** | Bench scripts don't use Track B flags or pipeline-extra-checks | Demo |
 | **F10** | Paper P1-T3 scope stale (narrow SLAP-core) — actual scope expanded | Docs |
 | **F11** | Paper "T2/T3 tension" note obsolete — no witness openings exist | Docs |
-| **F12** | ARCHITECTURE.md on-chain description wrong (Sonobe ≠ ecrecover) | Docs |
+| **F12** | ARCHITECTURE.md on-chain description wrong (Nova ≠ ecrecover) | Docs |
 | **F13** | `secret_share_poly` populated from raw bytes, not guaranteed ternary | Bugs |
 
 ### Low (5)
@@ -74,7 +74,7 @@
 | ID | Task | Files |
 |----|------|-------|
 | C.1 | Wire `PVTHFHE_RUN_C7_SONOBE=1` into `demo-e2e` Justfile recipe or create `demo-e2e-c7` variant | `Justfile` |
-| C.2 | Remove or wire silent-pass markers (`noir_decrypt_share`, `noir_sonobe_wrap`, `onchain_verify`) | `pvthfhe_e2e.rs` |
+| C.2 | Remove or wire silent-pass markers (`noir_decrypt_share`, `noir_nova_wrap`, `onchain_verify`) | `pvthfhe_e2e.rs` |
 | C.3 | Add `PVTHFHE_TRACK=B` and `--features pipeline-extra-checks` to bench scripts | `bench/i1_one_vs_two_track.py` |
 | C.4 | Verify `just bench-comparison 10 4 1` works with C7 and Merkle timing | Manual run |
 
@@ -86,7 +86,7 @@
 | D.2 | Replace "straight-line extractor" with "rewinding extractor" | `paper/main.tex`, `claims-table.md`, `T2.md:5`, `obligations.md` |
 | D.3 | Update paper P1-T3 scope (expanded to serialized format) | `paper/main.tex:149-151` |
 | D.4 | Remove obsolete "T2/T3 tension" note | `paper/main.tex:154` |
-| D.5 | Fix ARCHITECTURE.md on-chain description (ecrecover, not Sonobe) | `ARCHITECTURE.md:5` |
+| D.5 | Fix ARCHITECTURE.md on-chain description (ecrecover, not Nova) | `ARCHITECTURE.md:5` |
 | D.6 | Fix ARCHITECTURE.md Track B description (code Track B ≠ architectural Track B) | `ARCHITECTURE.md:193-196` |
 | D.7 | Update claims-table footnote — T2 is proved, not a skeleton | `claims-table.md:37-38` |
 | D.8 | Update SECURITY.md T2 status ("deferred" → "PROVED") | `SECURITY.md:48` |

@@ -40,5 +40,5 @@ Tracked as F5 in the plan.
 - **Scoped imports**: `use rayon::prelude::*;` placed near usage sites (not top-level) since rayon is only used in two isolated functions.
 
 ### Build Result
-- `pvthfhe-cli` builds clean with `--features "sonobe-compressor,demo-seeded-rng,pipeline-extra-checks"`.
+- `pvthfhe-cli` builds clean with `--features "nova-compressor,demo-seeded-rng,pipeline-extra-checks"`.
 - No new warnings introduced; 2 pre-existing warnings at lines 645/652 (unrelated to this change).

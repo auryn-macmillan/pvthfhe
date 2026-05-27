@@ -120,8 +120,8 @@ This eliminates the old "prover-trusted coefficients" pattern where Lagrange coe
 - **Party IDs format (lines 3053-3067)**: 128 entries, active ones first, rest zero-padded
 - **Prover.toml example**: `/home/dev/pvthfhe/circuits/aggregator_final/C7Prover.toml` (line 10 — shows 128 lagrange_coeffs entries, only first 4 non-zero for n=4)
 
-### 4. Sonobe C7 Circuit (Rust-side IVC folding)
-- **File**: `/home/dev/pvthfhe/crates/pvthfhe-compressor/src/sonobe/c7_circuit.rs`
+### 4. Nova C7 Circuit (Rust-side IVC folding)
+- **File**: `/home/dev/pvthfhe/crates/pvthfhe-compressor/src/nova/c7_circuit.rs`
 - **Accumulator state** (lines 252-261): `[acc_eval, lagrange_sum, step_count]`
   - `z'[0] = z[0] + λ_i * eval` (accumulated weighted evaluation)
   - `z'[1] = z[1] + λ_i` (accumulated Lagrange sum)

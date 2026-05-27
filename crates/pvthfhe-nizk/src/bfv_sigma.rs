@@ -194,7 +194,13 @@ pub fn scale_plaintext_to_rns(m_int: &[i64], delta: &[u64]) -> Result<Vec<u64>, 
 }
 
 /// Produce a BFV sigma proof.
+///
+/// `session_id` and `participant_id` are first-class binding parameters
+/// (replacing the fragile `binding_data`-only approach) and are hashed
+/// explicitly into the Fiat-Shamir challenge BEFORE the opaque `binding_data`.
 pub fn prove(
+    session_id: &[u8],
+    participant_id: u32,
     stmt: &BfvSigmaStatement,
     wit: &BfvSigmaWitness,
     binding_data: &[u8],
@@ -246,6 +252,8 @@ pub fn prove(
         &stmt.ct0_rns,
         &stmt.ct1_rns,
         &stmt.delta_limbs,
+        session_id,
+        participant_id,
         binding_data,
     );
 
@@ -279,7 +287,13 @@ pub fn prove(
 }
 
 /// Verify a BFV sigma proof against a statement.
+///
+/// `session_id` and `participant_id` are first-class binding parameters
+/// (replacing the fragile `binding_data`-only approach) and are hashed
+/// explicitly into the Fiat-Shamir challenge BEFORE the opaque `binding_data`.
 pub fn verify(
+    session_id: &[u8],
+    participant_id: u32,
     stmt: &BfvSigmaStatement,
     proof: &BfvSigmaProof,
     binding_data: &[u8],
@@ -319,6 +333,8 @@ pub fn verify(
         &stmt.ct0_rns,
         &stmt.ct1_rns,
         &stmt.delta_limbs,
+        session_id,
+        participant_id,
         binding_data,
     );
     let expected_ch_bytes: Vec<u8> = expected_ch.iter().flat_map(|x| x.to_le_bytes()).collect();
@@ -384,11 +400,9 @@ pub fn verify(
     Ok(())
 }
 
-// The challenge is derived from `binding_data` which must include session_id,
-// participant_id, and epoch binding. The verifier relies on the caller to
-// provide complete binding data — this function does NOT internally bind to
-// any protocol identifiers. Callers in nizk_share.rs and adapter.rs provide
-// full binding via bfv_sigma_binding_data().
+// The challenge is derived from `session_id` and `participant_id` explicitly
+// (first-class params hashed BEFORE the opaque `binding_data`), eliminating the
+// fragile approach where these identifiers were buried inside binding_data.
 #[allow(clippy::too_many_arguments)]
 fn derive_challenge(
     t0_rns: &[u64],
@@ -398,6 +412,8 @@ fn derive_challenge(
     ct0_rns: &[u64],
     ct1_rns: &[u64],
     delta_limbs: &[u64],
+    session_id: &[u8],
+    participant_id: u32,
     binding_data: &[u8],
 ) -> Vec<i64> {
     let mut hasher = Sha256::new();
@@ -417,6 +433,10 @@ fn derive_challenge(
     hasher.update(ct1_bytes);
     let delta_bytes: Vec<u8> = delta_limbs.iter().flat_map(|x| x.to_le_bytes()).collect();
     hasher.update(delta_bytes);
+    // First-class session/party binding — hashed BEFORE the opaque binding_data
+    // to ensure they can never be accidentally omitted.
+    hasher.update(session_id);
+    hasher.update(participant_id.to_be_bytes());
     hasher.update(binding_data);
 
     let mut raw = vec![0u8; rlwe_n() / 8];
@@ -607,17 +627,26 @@ mod tests {
             m: zero_i64_vec(),
         };
 
+        let session_id = b"b1-plaintext-domain-test-session";
+        let participant_id: u32 = 0;
         let binding_data = b"b1-plaintext-domain-test";
 
-        let mut proof =
-            prove(&stmt, &wit, binding_data, &mut rng).expect("prove with zero witness");
+        let mut proof = prove(
+            session_id,
+            participant_id,
+            &stmt,
+            &wit,
+            binding_data,
+            &mut rng,
+        )
+        .expect("prove with zero witness");
 
         // Tamper with m_resp: set every coefficient to t_plain (65536),
         // which exceeds the plaintext half-modulus (32768) and breaks the
         // sigma equation for zero-statement proofs.
         proof.m_resp.iter_mut().for_each(|c| *c = 65536);
 
-        let result = verify(&stmt, &proof, binding_data);
+        let result = verify(session_id, participant_id, &stmt, &proof, binding_data);
 
         assert!(
             result.is_err(),

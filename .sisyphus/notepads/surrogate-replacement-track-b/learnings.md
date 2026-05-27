@@ -5,17 +5,17 @@
 ### L0.1: RingElementVar Extension
 - Added `from_coeffs()` constructor. The `n()` method already existed.
 - `pub coeffs` field allows direct construction, but the constructor improves ergonomics.
-- Located in `crates/pvthfhe-compressor/src/sonobe/ring_element_var.rs`.
+- Located in `crates/pvthfhe-compressor/src/nova/ring_element_var.rs`.
 
 ### L0.2: Native Ring-Equation Verification
 - Replaced the "pending" tracing log in full_pipeline.rs:469-478 with actual native
   `verify_ring_equation()` calls using real witness data.
-- Gate: `#[cfg(all(feature = "pipeline-extra-checks", feature = "sonobe-compressor"))]`
+- Gate: `#[cfg(all(feature = "pipeline-extra-checks", feature = "nova-compressor"))]`
 - Challenge derived deterministically from session_id via SHA-256 → mod 3 mapping to {-1, 0, 1}.
 - z_s and z_e built from witness.secret_share_poly and witness.error (first 256 coefficients as Fr).
 - d (public statement) derived from NIZK statement canonical hash expanded to 256 coefficients.
 - t computed as c·z_s + z_e - c·d (M1 structural check; will be replaced with commitment openings in L3.3).
-- verify_ring_equation imported from `pvthfhe_compressor::sonobe::cyclo_verifier`.
+- verify_ring_equation imported from `pvthfhe_compressor::nova::cyclo_verifier`.
 
 ### L1.2: CCS Matrix Replacement
 - Replaced 1×1 identity surrogate (`build_demo_ccs_matrix`) with 256×256 non-trivial matrix (`build_cyclo_ccs_matrix`).
@@ -37,7 +37,7 @@
 - Enhanced existing `allow-seeded-rng` comments to document the research prototype limitation.
 - Added: "Reproducible folding RNG — bound to session epoch via srs_hash. Acceptable for research
   prototype; production should mix OsRng nonce."
-- Applied to all three occurrences in sonobe/mod.rs (prove, prove_steps, prove_steps_merkle).
+- Applied to all three occurrences in nova/mod.rs (prove, prove_steps, prove_steps_merkle).
 
 ### Key Discoveries
 1. The cyclo fold path (`fold.rs:159-166`) has its own witness norm check separate from the

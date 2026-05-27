@@ -56,7 +56,7 @@
 - Adding a second binary to `pvthfhe-cli` changes `cargo run -p pvthfhe-cli -- ...` behavior unless the package sets `default-run = "pvthfhe-cli"`; preserving the existing demo-oriented integration tests requires that manifest pin.
 - The W4 RED harness expects the executable name `pvthfhe-e2e`, so the new bin needs an explicit `[[bin]]` entry with `name = "pvthfhe-e2e"` even though the source file is `src/bin/pvthfhe_e2e.rs`.
 - For the current pre-S3 state, a lightweight in-crate compressor scaffold can satisfy the phase-coverage contract by deterministically hashing Cyclo fold outputs while still surfacing a startup warning and a stable `compressor_backend_id` in tracing/output.
-- A reserved future feature should fail closed rather than advertise an unimplemented backend: for W4, `sonobe-compressor` now compile-errors until Phase S3 instead of silently reusing the surrogate scaffold under a Sonobe-looking backend id.
+- A reserved future feature should fail closed rather than advertise an unimplemented backend: for W4, `nova-compressor` now compile-errors until Phase S3 instead of silently reusing the surrogate scaffold under a Nova-looking backend id.
 
 ## 2026-05-06 W5 bench-comparison JSON shape
 
@@ -69,11 +69,11 @@
 - `just wire-gate` is currently missing from the Justfile and exits non-zero with: `error: Justfile does not contain recipe \`wire-gate\``.
 - Verified from the repo root with: `just wire-gate >/tmp/wire_gate_red.txt 2>&1`.
 
-## 2026-05-06 S0 Sonobe substitute spec guard
+## 2026-05-06 S0 Nova substitute spec guard
 
 - A minimal doc-only workspace crate can stay dependency-free with just `[lints] workspace = true`, a placeholder `src/lib.rs`, and a crate-local integration test that reads repo files via `Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")`.
-- The S0 RED harness is stable when it reads the spec and migration doc directly with `std::fs::read_to_string`, asserts all required invariant headings/strings, and counts migration touch points from bullet lines in `.sisyphus/design/sonobe-migration.md`.
-- Freezing the Sonobe→MicroNova migration contract in the spec works best as a new `### 4.2 Sonobe substitute` addendum inserted before the existing aggregation details, with later subsection numbers shifted forward to keep section numbering monotonic.
+- The S0 RED harness is stable when it reads the spec and migration doc directly with `std::fs::read_to_string`, asserts all required invariant headings/strings, and counts migration touch points from bullet lines in `.sisyphus/design/nova-migration.md`.
+- Freezing the Nova→MicroNova migration contract in the spec works best as a new `### 4.2 Nova substitute` addendum inserted before the existing aggregation details, with later subsection numbers shifted forward to keep section numbering monotonic.
 
 ## 2026-05-06 S1 compressor trait surface
 
@@ -82,13 +82,13 @@
 - Re-exporting the whole compressor crate from `pvthfhe-core` via `pub use pvthfhe_compressor;` requires a normal `[dependencies]` entry, while `pvthfhe-core`'s existing mock-backend tests also need the `pvthfhe-fhe` dev-dependency to enable the `mock` feature.
 - `cargo test -p pvthfhe-core` currently depends on local mock-backend acknowledgment in its tests; setting `PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK=1` inside the test harness keeps the verification self-contained without changing non-test code.
 
-## 2026-05-06 S2 Sonobe compressor backend
+## 2026-05-06 S2 Nova compressor backend
 
-- The upstream PSE Sonobe crate to use is `folding-schemes` from `privacy-scaling-explorations/sonobe`; there is no crates.io release path for this task, so pinning the git rev (`63f2930d363150d4490ce2c4be8e0c25c2e1d92c`) makes the integration reproducible.
-- Sonobe `main` expects arkworks git patches rather than plain crates.io `0.5` crates; adding the same `[patch.crates-io]` overrides from the upstream workspace was necessary to resolve the `ark-crypto-primitives` feature mismatch (`constraints` vs `r1cs`).
-- A minimal 4-step Nova roundtrip can stop at Sonobe's `IVCProof` layer: `PreprocessorParam::new(...)`, `Nova::preprocess`, `Nova::init`, `prove_step` four times, `ivc_proof().serialize_with_mode(...)`, and `Nova::verify(...)` are sufficient without invoking a Decider.
-- A tiny additive `ToyStepCircuit` works well for the compressor boundary: start from `acc` as the initial BN254 scalar state, use `public_inputs` as the per-step external input, and accept verification only when `z_i = z_0 + 4 * public_input` and the serialized Sonobe proof still satisfies `Nova::verify`.
-- To keep the trait boundary deterministic and reject cheating inputs, wrapping the serialized Sonobe IVC bytes with a stable header plus keccak hashes of normalized `(acc, public_inputs)` bytes gives deterministic proof bytes for a fixed seed and lets `verify` reject wrong public inputs or tampered proof payloads before/alongside Sonobe verification.
+- The upstream PSE Nova crate to use is `folding-schemes` from `privacy-scaling-explorations/nova`; there is no crates.io release path for this task, so pinning the git rev (`63f2930d363150d4490ce2c4be8e0c25c2e1d92c`) makes the integration reproducible.
+- Nova `main` expects arkworks git patches rather than plain crates.io `0.5` crates; adding the same `[patch.crates-io]` overrides from the upstream workspace was necessary to resolve the `ark-crypto-primitives` feature mismatch (`constraints` vs `r1cs`).
+- A minimal 4-step Nova roundtrip can stop at Nova's `IVCProof` layer: `PreprocessorParam::new(...)`, `Nova::preprocess`, `Nova::init`, `prove_step` four times, `ivc_proof().serialize_with_mode(...)`, and `Nova::verify(...)` are sufficient without invoking a Decider.
+- A tiny additive `ToyStepCircuit` works well for the compressor boundary: start from `acc` as the initial BN254 scalar state, use `public_inputs` as the per-step external input, and accept verification only when `z_i = z_0 + 4 * public_input` and the serialized Nova proof still satisfies `Nova::verify`.
+- To keep the trait boundary deterministic and reject cheating inputs, wrapping the serialized Nova IVC bytes with a stable header plus keccak hashes of normalized `(acc, public_inputs)` bytes gives deterministic proof bytes for a fixed seed and lets `verify` reject wrong public inputs or tampered proof payloads before/alongside Nova verification.
 - The proof wrapper parser must reject any payload shorter than the full fixed header (`76` bytes here) before slicing fixed offsets; otherwise truncated attacker-controlled proofs can panic the verifier instead of returning `InvalidProof`.
 - The negative roundtrip coverage is stronger when it tampers the accumulator-binding region (`acc_hash`) separately from malformed/truncated proof bytes; that exercises the intended integrity checks rather than only the magic-header fast path.
 
@@ -101,7 +101,7 @@
 ## 2026-05-06 S5 compressor gate
 
 - `compressor-gate` fits the existing Justfile style as a simple recipe placed immediately after `wire-gate` with tab-indented commands.
-- The gate verifies the three phase-S commands directly: `pvthfhe-compressor`, `e2e_uses_sonobe` under `sonobe-compressor`, and `pvthfhe-micronova --test no_consumers`.
+- The gate verifies the three phase-S commands directly: `pvthfhe-compressor`, `e2e_uses_nova` under `nova-compressor`, and `pvthfhe-micronova --test no_consumers`.
 
 ## 2026-05-06 N0 circuit-test harness
 
@@ -111,14 +111,14 @@
 - The smoke test can skip cleanly in toolchain-less environments by checking PATH for both `nargo` and `bb`, printing a skip reason with `eprintln!`, and returning `Ok(())`.
 
 
-## 2026-05-06 N3a Sonobe wrap feasibility spike
+## 2026-05-06 N3a Nova wrap feasibility spike
 
-- The in-tree Sonobe backend (`pvthfhe-compressor`) currently produces serialized Nova IVC proof bytes only; it does not expose a Sonobe decider proof or any Noir verifier gadget path.
-- A direct measurement of the in-tree 4-step Sonobe toy proof gave `proof_bytes = 7_129_316` and `vk_bytes = 2_162_768`, which is already far larger than the existing Noir wrap surrogate artifacts.
-- The current Noir workspace has no Sonobe/Nova/BN254/Grumpkin verifier dependency; `circuits/micronova_wrap` depends only on `poseidon`, so there is no in-repo path to attempt a real Sonobe verifier circuit.
-- Upstream Sonobe's documented Noir integration uses `NoirFCircuit` as a frontend for folded programs, but the final verification path is Rust `DeciderEth` + Solidity verifier generation rather than a Noir circuit verifying the final Sonobe proof.
+- The in-tree Nova backend (`pvthfhe-compressor`) currently produces serialized Nova IVC proof bytes only; it does not expose a Nova decider proof or any Noir verifier gadget path.
+- A direct measurement of the in-tree 4-step Nova toy proof gave `proof_bytes = 7_129_316` and `vk_bytes = 2_162_768`, which is already far larger than the existing Noir wrap surrogate artifacts.
+- The current Noir workspace has no Nova/Nova/BN254/Grumpkin verifier dependency; `circuits/micronova_wrap` depends only on `poseidon`, so there is no in-repo path to attempt a real Nova verifier circuit.
+- Upstream Nova's documented Noir integration uses `NoirFCircuit` as a frontend for folded programs, but the final verification path is Rust `DeciderEth` + Solidity verifier generation rather than a Noir circuit verifying the final Nova proof.
 - External Noir BN254 pairing support appears immature for this use case: the public `onurinanc/noir-bn254` library is experimental, requires a forked `noir-bigint`, targets older Noir, and reports roughly 0.5 h compile time for a single pairing on 16 GB RAM.
-- For a lower-bound floor only, the existing `micronova_wrap` surrogate measured at 1,150 ACIR opcodes with `nargo execute` 0.16 s / 89,048 KiB RSS, `bb write_vk` 0.05 s / 20,128 KiB RSS, and `bb prove` 0.14 s / 32,084 KiB RSS; these numbers are not evidence that a real Sonobe verifier is feasible.
+- For a lower-bound floor only, the existing `micronova_wrap` surrogate measured at 1,150 ACIR opcodes with `nargo execute` 0.16 s / 89,048 KiB RSS, `bb write_vk` 0.05 s / 20,128 KiB RSS, and `bb prove` 0.14 s / 32,084 KiB RSS; these numbers are not evidence that a real Nova verifier is feasible.
 
 ## 2026-05-06 N1 circuit feasibility analysis
 
@@ -181,22 +181,22 @@
 - `nargo execute --package aggregator_final --prover-name Aggregator_final`, canonical `bb write_vk/prove/verify`, `cargo test -p pvthfhe-circuit-tests --test aggregator_final_full_dim`, and `cargo test -p pvthfhe-circuit-tests --test harness_smoke` all pass; `target/public_inputs` is 224 bytes = 7 fields.
 - Running heavy Noir harness tests in parallel is unsafe because the temporary `Aggregator_final.toml` copy in the harness can race; run the aggregator-related cargo tests sequentially.
 
-## 2026-05-06 N3' GREEN — sonobe_state_commitment circuit + offchain verifier
+## 2026-05-06 N3' GREEN — nova_state_commitment circuit + offchain verifier
 
-- `circuits/micronova_wrap` was renamed in git to `circuits/sonobe_state_commitment`, and the Noir circuit now constrains two Poseidon `hash_4` commitments plus non-zero session/context fields while keeping the frozen six public inputs from spec §3.7.
-- `pvthfhe-circuit-tests` now generates the Sonobe witness with `light-poseidon`, writes both `Prover.toml` and the derived `Sonobe_state_commitment.toml`, and the canonical `nargo execute` + `bb write_vk/prove/verify` flow passes with `target/public_inputs = 192` bytes (6 fields) in well under 30 seconds.
-- Added `pvthfhe-offchain-verifier` as a workspace crate with a small CLI that verifies a serialized Sonobe proof envelope via `SonobeCompressor` and emits a deterministic placeholder attestation bundle keyed by Keccak digests for local testing.
+- `circuits/micronova_wrap` was renamed in git to `circuits/nova_state_commitment`, and the Noir circuit now constrains two Poseidon `hash_4` commitments plus non-zero session/context fields while keeping the frozen six public inputs from spec §3.7.
+- `pvthfhe-circuit-tests` now generates the Nova witness with `light-poseidon`, writes both `Prover.toml` and the derived `Nova_state_commitment.toml`, and the canonical `nargo execute` + `bb write_vk/prove/verify` flow passes with `target/public_inputs = 192` bytes (6 fields) in well under 30 seconds.
+- Added `pvthfhe-offchain-verifier` as a workspace crate with a small CLI that verifies a serialized Nova proof envelope via `NovaCompressor` and emits a deterministic placeholder attestation bundle keyed by Keccak digests for local testing.
 
 ## 2026-05-06 N4' GREEN — UltraHonkVerifier.sol generated
 
-- `nargo execute --package sonobe_state_commitment --prover-name Sonobe_state_commitment` writes fresh `target/sonobe_state_commitment.{json,gz}` under the workspace `circuits/target/`, so the regeneration script must copy those artifacts into `circuits/sonobe_state_commitment/target/` before package-local BB commands.
-- For this repo's pinned BB CLI (`5.0.0-nightly.20260324`), `bb write_solidity_verifier --scheme ultra_honk -k sonobe_state_commitment/target/vk ...` still fails on the state-commitment VK with `verification key has wrong size: expected 1888, got 3680`; the checked-in NoGo fallback therefore keeps a commitment-binding Solidity verifier in place while `bench/scripts/gen_verifier.sh` records the canonical failing command.
-- The `sonobe_state_commitment` proof/public-input fixtures generated by BB are stable enough for Foundry: `proof` lives at `circuits/sonobe_state_commitment/target/proof`, `public_inputs` is exactly 192 bytes = 6 field elements, and the fallback Solidity verifier can bind them by matching `keccak256(proof)` plus the six frozen field words.
+- `nargo execute --package nova_state_commitment --prover-name Nova_state_commitment` writes fresh `target/nova_state_commitment.{json,gz}` under the workspace `circuits/target/`, so the regeneration script must copy those artifacts into `circuits/nova_state_commitment/target/` before package-local BB commands.
+- For this repo's pinned BB CLI (`5.0.0-nightly.20260324`), `bb write_solidity_verifier --scheme ultra_honk -k nova_state_commitment/target/vk ...` still fails on the state-commitment VK with `verification key has wrong size: expected 1888, got 3680`; the checked-in NoGo fallback therefore keeps a commitment-binding Solidity verifier in place while `bench/scripts/gen_verifier.sh` records the canonical failing command.
+- The `nova_state_commitment` proof/public-input fixtures generated by BB are stable enough for Foundry: `proof` lives at `circuits/nova_state_commitment/target/proof`, `public_inputs` is exactly 192 bytes = 6 field elements, and the fallback Solidity verifier can bind them by matching `keccak256(proof)` plus the six frozen field words.
 
 
 ## 2026-05-06 N4' BLOCKER — bb write_solidity_verifier VK size mismatch
 - `bb write_solidity_verifier --scheme ultra_honk -k <vk> -o <sol>` fails: "verification key has wrong size: expected 1888, got 3680"
-- Root cause: BB 5.0.0-nightly.20260324 expects VK size 1888 for write_solidity_verifier but nargo produces VK size 3680 for the sonobe_state_commitment circuit
+- Root cause: BB 5.0.0-nightly.20260324 expects VK size 1888 for write_solidity_verifier but nargo produces VK size 3680 for the nova_state_commitment circuit
 - Workaround: UltraHonkVerifier.sol is a hardcoded-hash placeholder for the specific test proof; HonkVerifier.sol reverted to keccak prototype
 - Resolution: requires BB upgrade or circuit restructuring to produce a smaller VK
 - N4' is marked DONE with this documented limitation (real-fallback status)
@@ -309,7 +309,7 @@
 
 - `bench-comparison-gate` fits the existing Justfile gate style as a simple recipe that runs `cargo test -p pvthfhe-bench` first, then shells out to a comparison-report check.
 - The gate should inspect the latest `bench/results/comparison-*.md` artifact and fail only if any non-`real-fallback` row still contains `surrogate`; the current comparison report has zero `surrogate` rows.
-- `verdict: NoGo` in `.sisyphus/research/sonobe-wrap-feasibility.md` is the only condition that allows `real-fallback`, and only on the on-chain row.
+- `verdict: NoGo` in `.sisyphus/research/nova-wrap-feasibility.md` is the only condition that allows `real-fallback`, and only on the on-chain row.
 - Verified from repo root: `just bench-comparison-gate` exits 0 on the current state.
 
 

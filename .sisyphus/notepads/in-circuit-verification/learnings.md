@@ -4,7 +4,7 @@
 
 **Pattern**: Used `thread_local!` + `RefCell<Option<C7StepData>>` to pass per-step share coefficients from `c7_fold_witnesses` to `generate_step_constraints`.
 
-**Why**: Sonobe's `FCircuit` trait requires `Params = ()` for `SonobeCompressor`, preventing direct data passing through circuit struct. Thread-local storage is the same pattern used by `HeterogeneousStepCircuit` for its circuit family registry.
+**Why**: Nova's `FCircuit` trait requires `Params = ()` for `NovaCompressor`, preventing direct data passing through circuit struct. Thread-local storage is the same pattern used by `HeterogeneousStepCircuit` for its circuit family registry.
 
 **Trade-off**: Data is serialized to bytes in `set_c7_step_data` and deserialized via `F::from_le_bytes_mod_order` in the circuit to enable generic type conversion between `ark_bn254::Fr` and `F: PrimeField`.
 
@@ -33,7 +33,7 @@ The r^j powers are provided as witnesses but their correctness is NOT verified i
 - Does NOT compute `plaintext(r)` or enforce `z0 == plaintext(r)`
 - Comment at line 1640-1642 documents the blocker: fhe.rs applies RNS scaling, returned coefficient bytes are in [0, t) not [0, Q); pre-scaling polynomial not exposed
 
-**C7DecryptAggregationCircuit** (`crates/pvthfhe-compressor/src/sonobe/c7_circuit.rs`):
+**C7DecryptAggregationCircuit** (`crates/pvthfhe-compressor/src/nova/c7_circuit.rs`):
 - State: [z0 = Σ λ_i·d_i(r), z1 = Σ λ_i, z2 = step_count]
 - ExternalInputs5: (share_eval, lagrange_coeff, coeff_commitment, dkg_root_hash, r)
 - G2 done: 8192 coeff witnesses + Horner eval + commitment opening + r-power constraints (P1.6-P1.8)

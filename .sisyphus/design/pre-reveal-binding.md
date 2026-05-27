@@ -11,7 +11,7 @@
 
 In the PVTHFHE threshold decryption pipeline, the aggregator collects partial
 decryption shares from ≥t parties, folds them through the aggregation layer (P2,
-Cyclo/Sonobe), compresses the fold witness (P3, MicroNova/UltraHonk), and
+Cyclo/Nova), compresses the fold witness (P3, MicroNova/UltraHonk), and
 produces a final proof for on-chain verification. **The plaintext MUST NOT be
 released until every step of this chain has been cryptographically verified.**
 
@@ -52,7 +52,7 @@ transcript, sourced from the RED test `pre_reveal_binding_tuple.rs` (102 lines,
 | 3 | `ct_hash` | `bytes32` | `sha256_bytes(&ciphertext.bytes)` at `full_pipeline.rs:202` |
 | 4 | `roster_hash` | `bytes32` | Maps to `participant_set_hash: [u8; 32]` — Keccak256 of ABI-encoded participant set, produced by `KeygenSimulator::participant_set_hash()` in `keygen/simulator.rs:85`. Corresponds to proof-boundary public input #6. |
 | 5 | `param_hash` | `bytes32` | SHA-256 of `parameters.toml` canonical encoding (or `CycloParams` canonical bytes when Cyclo is the fold backend) |
-| 6 | `srsHash` | `bytes32` | SRS commitment hash from `Compressor::srs_hash()` at `compressor/src/sonobe/mod.rs:232` — Keccak256 of (epoch, step-circuit hash, backend ID) |
+| 6 | `srsHash` | `bytes32` | SRS commitment hash from `Compressor::srs_hash()` at `compressor/src/nova/mod.rs:232` — Keccak256 of (epoch, step-circuit hash, backend ID) |
 | 7 | `dkg_root` | `bytes32` | DKG transcript Merkle root from keygen — corresponds to proof-boundary public input #4 |
 
 ### 2.2 Binding Construction
@@ -270,4 +270,4 @@ The pre-reveal binding closes the gap between three enforcement layers
 | `crates/pvthfhe-cli/tests/pre_reveal_binding_tuple.rs` | RED test: 7-field tuple check (102 lines) |
 | `crates/pvthfhe-cli/tests/atomic_decrypt.rs` | RED/GREEN test: tampered NIZK → no plaintext (78 lines) |
 | `crates/pvthfhe-fhe/tests/aggregate_uses_submitted_shares.rs` | F67 test: submitted shares, not internal state (78 lines) |
-| `crates/pvthfhe-compressor/src/sonobe/mod.rs` | `srs_hash()` method at L232 |
+| `crates/pvthfhe-compressor/src/nova/mod.rs` | `srs_hash()` method at L232 |

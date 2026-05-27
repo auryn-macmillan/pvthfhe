@@ -27,7 +27,7 @@
 
 1. **witness.rs**: Added `AjtaiCommitmentWitness` struct (coeffs, expected_commitment_hash, matrix_seed) and `AjtaiCommitmentWitnessSet` with `verify_commitments()` — placed after `ShareVerificationWitnessSet`, following identical pattern.
 
-2. **mod.rs**: Added `prove_steps_ajtai` method to `SonobeCompressor<CycloFoldStepCircuit<Fr>>` — placed after `prove_steps_share_verify`. Delegates to `self.prove_steps()` using `ExternalInputs4<Fr>`.
+2. **mod.rs**: Added `prove_steps_ajtai` method to `NovaCompressor<CycloFoldStepCircuit<Fr>>` — placed after `prove_steps_share_verify`. Delegates to `self.prove_steps()` using `ExternalInputs4<Fr>`.
 
 ### Type mismatch resolved
 
@@ -71,10 +71,10 @@ Warning about unused `combined_commitment_hash` is expected (field not constrain
 
 1. **full_pipeline.rs (lines 283-336)**: Added Phase 4 Ajtai commitment folding block after share provenance checks.
    - Builds `AjtaiCommitmentWitnessSet` from `sk_commitments`
-   - Folds via `SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new()` + `.prove_steps_ajtai()`
+   - Folds via `NovaCompressor::<CycloFoldStepCircuit<Fr>>::new()` + `.prove_steps_ajtai()`
    - Computes `combined_commitment_hash` via `poseidon_sponge_hash_native` over all sk_commitments as Fr
    - Falls back to `Fr::zero()` on errors (with `tracing::warn`)
-   - Gated behind `#[cfg(feature = "sonobe-compressor")]`
+   - Gated behind `#[cfg(feature = "nova-compressor")]`
 
 2. **build_c7_prover_toml** (line 2151): Added `combined_commitment_hash: Fr` parameter.
    - Written to TOML as `combined_commitment_hash = "0x..."` (after share_verification_proof_hash)
@@ -86,7 +86,7 @@ Warning about unused `combined_commitment_hash` is expected (field not constrain
 
 ### Key adaptation from task pseudo-code
 
-- Task pseudo-code used `AjtaiCommitmentStepCircuit<Fr>` as type param, but `prove_steps_ajtai` is only available on `impl SonobeCompressor<CycloFoldStepCircuit<Fr>>` (line 1465 of sonobe/mod.rs). Used `CycloFoldStepCircuit<Fr>` instead.
+- Task pseudo-code used `AjtaiCommitmentStepCircuit<Fr>` as type param, but `prove_steps_ajtai` is only available on `impl NovaCompressor<CycloFoldStepCircuit<Fr>>` (line 1465 of nova/mod.rs). Used `CycloFoldStepCircuit<Fr>` instead.
 - Task pseudo-code used `?` operator for `CompressorError` but that error type doesn't implement `std::error::Error`. Used `.map_err(|e| anyhow::anyhow!(...))` instead.
 - Task pseudo-code used `proof.accumulator` and `initial_acc()` which don't exist. Used Poseidon hash of all commitment Fr values as the `combined_commitment_hash`.
 

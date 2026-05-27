@@ -42,7 +42,7 @@
 - [x] **Gate**: `cargo test -p pvthfhe-types --test secret_types_present` passes
 
 ### B.2 — Fix `forbid-seeded-rng-outside-demo` violations (11 annotations)
-- [x] **Files**: ajtai.rs (cyclo), encrypt.rs, nizk_share.rs, adapter.rs, sonobe/mod.rs
+- [x] **Files**: ajtai.rs (cyclo), encrypt.rs, nizk_share.rs, adapter.rs, nova/mod.rs
 - [x] **Gate**: `cargo test -p pvthfhe-rng --test no_seeded_rng_outside_demo` passes
 
 ### B.3 — Fix `forge-test` UltraHonk fixture failure

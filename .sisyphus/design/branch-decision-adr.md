@@ -24,13 +24,13 @@ The Phase 0 design freeze (`spec-real-p2p3.md §1.3` and §6.4) heavily signaled
 **BRANCH-B: Nova/HyperNova via Noir + UltraHonk**
 
 ## Rationale
-BRANCH-B overwhelmingly wins on implementation feasibility and toolchain fit. The Phase 0 `spec-real-p2p3.md` already designated MicroNova wrapped in a Noir UltraHonk circuit as the chosen path. Branch B allows us to leverage existing mature curve-based folding crates (`sonobe`, `microsoft/nova`) and fits perfectly into our canonical `nargo execute -> bb write_vk -> bb prove -> bb verify` pipeline.
+BRANCH-B overwhelmingly wins on implementation feasibility and toolchain fit. The Phase 0 `spec-real-p2p3.md` already designated MicroNova wrapped in a Noir UltraHonk circuit as the chosen path. Branch B allows us to leverage existing mature curve-based folding crates (`nova`, `microsoft/nova`) and fits perfectly into our canonical `nargo execute -> bb write_vk -> bb prove -> bb verify` pipeline.
 
 ## Branch-Specific Task Matrix
 
 | Task | Branch-A Scope | Branch-B Scope |
 |------|---------------|----------------|
-| T1: Real folding | Custom LatticeFold+ Rust impl | Wire sonobe/nova crate to fhe-math types |
+| T1: Real folding | Custom LatticeFold+ Rust impl | Wire nova/nova crate to fhe-math types |
 | T2: Noir circuits | Noir circuits for lattice acc relations | Noir circuits for Nova/HyperNova step fn |
 | T3: NIZK Fiat-Shamir | Same | Same |
 | T4: On-chain registry | Same | Same |

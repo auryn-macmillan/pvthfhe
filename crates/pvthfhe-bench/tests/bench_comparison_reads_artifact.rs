@@ -41,7 +41,7 @@ fn valid_e2e_timings_fixture() -> Value {
         "n": 3,
         "t": 1,
         "seed": 1,
-        "compressor_backend_id": "sonobe-nova-bn254-grumpkin",
+        "compressor_backend_id": "nova-bn254-grumpkin",
         "phases": {
             "keygen": { "total_ms": 10.0, "instances_run": 1 },
             "nizk_prove": { "total_ms": 11.0, "instances_run": 3, "per_instance_ms": [3.0, 4.0, 4.0] },
@@ -59,7 +59,7 @@ fn valid_e2e_timings_fixture() -> Value {
             "compressor_verify": { "total_ms": 16.0, "instances_run": 1 },
             "partial_decrypt": { "total_ms": 17.0, "instances_run": 3, "per_instance_ms": [5.0, 6.0, 6.0] },
             "aggregate_decrypt": { "total_ms": 18.0, "instances_run": 1 },
-            "noir_sonobe_wrap": { "total_ms": 19.0, "instances_run": 1 },
+            "noir_nova_wrap": { "total_ms": 19.0, "instances_run": 1 },
             "onchain_verify": { "total_ms": 20.0, "instances_run": 1 }
         },
         "produced_at_unix_secs": 1,

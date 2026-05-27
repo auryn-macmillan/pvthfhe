@@ -70,7 +70,7 @@ This module uses a **different hash function entirely**:
 
 **File:** `crates/pvthfhe-domain-tags/src/lib.rs`
 
-This crate defines string-based domain tags (e.g., `b"pvthfhe/sonobe/cyclo-fold/v1"`) used for:
+This crate defines string-based domain tags (e.g., `b"pvthfhe/nova/cyclo-fold/v1"`) used for:
 - Wire protocol versioning
 - NIZK transcript binding
 - Cyclo Ajtai commitment tracking

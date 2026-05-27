@@ -7,8 +7,8 @@
 //! 4. The full coefficient check flow produces 0 mismatches
 
 use fhe::bfv::{Encoding, Plaintext, PublicKey, SecretKey};
-use fhe_math::rq::{Poly, Representation};
 use fhe_math::rq::traits::TryConvertFrom;
+use fhe_math::rq::{Poly, Representation};
 use fhe_traits::{FheEncoder, FheEncrypter, Serialize};
 use pvthfhe_fhe::fhers::FhersBackend;
 use pvthfhe_fhe::FheBackend;
@@ -46,8 +46,14 @@ fn poly_power_basis_coeff_count() {
 
     let n_coeffs = ctx.degree;
     let n_moduli = ctx.q.len();
-    assert_eq!(coeffs.len(), n_coeffs * n_moduli,
-        "should return {} residues ({} coeffs × {} moduli)", n_coeffs * n_moduli, n_coeffs, n_moduli);
+    assert_eq!(
+        coeffs.len(),
+        n_coeffs * n_moduli,
+        "should return {} residues ({} coeffs × {} moduli)",
+        n_coeffs * n_moduli,
+        n_coeffs,
+        n_moduli
+    );
 
     // Verify residues are in valid non-negative range
     for &c in &coeffs {
@@ -66,9 +72,14 @@ fn crt_reconstruct_known_values() {
     // All residues = 1 (every coefficient is 1 modulo every modulus)
     let residues: Vec<i64> = vec![1i64; n_coeffs * n_moduli];
 
-    let reconstructed = backend.crt_reconstruct_coeffs(&residues).expect("CRT reconstruct");
-    assert_eq!(reconstructed.len(), n_coeffs,
-        "CRT should produce one integer per coefficient");
+    let reconstructed = backend
+        .crt_reconstruct_coeffs(&residues)
+        .expect("CRT reconstruct");
+    assert_eq!(
+        reconstructed.len(),
+        n_coeffs,
+        "CRT should produce one integer per coefficient"
+    );
 
     for (i, &val) in reconstructed.iter().enumerate() {
         assert_eq!(val, 1, "CRT(1,1,1) must equal 1 for coeff {i}, got {val}");
@@ -99,8 +110,10 @@ fn lagrange_fr_to_i64_for_t4() {
     let expected: [i64; 4] = [4, -6, 4, -1];
     for (i, (&e, &f)) in expected.iter().zip(coeffs.iter()).enumerate() {
         let extracted = fr_to_i64_small(f);
-        assert_eq!(extracted, e,
-            "Lagrange coefficient {i}: expected {e}, got {extracted}");
+        assert_eq!(
+            extracted, e,
+            "Lagrange coefficient {i}: expected {e}, got {extracted}"
+        );
     }
 }
 
@@ -152,9 +165,8 @@ fn c7_coeff_check_zero_mismatches() {
     for i in 0..threshold {
         // Dummy Shamir share: multiply sk coeffs by i+1
         let share_coeffs: Vec<i64> = sk_coeffs.iter().map(|c| c * (i as i64 + 1)).collect();
-        let poly = Poly::try_convert_from(
-            &share_coeffs, &ctx, false, Representation::PowerBasis
-        ).expect("convert share poly");
+        let poly = Poly::try_convert_from(&share_coeffs, &ctx, false, Representation::PowerBasis)
+            .expect("convert share poly");
         share_polys.push(poly);
     }
 
@@ -177,8 +189,11 @@ fn c7_coeff_check_zero_mismatches() {
     }
 
     let n_coeffs = share_coeffs[0].len();
-    assert_eq!(n_coeffs, ctx.degree * ctx.q.len(),
-        "residue count should be degree × num_moduli");
+    assert_eq!(
+        n_coeffs,
+        ctx.degree * ctx.q.len(),
+        "residue count should be degree × num_moduli"
+    );
 
     // Compute integer Lagrange coefficients for party IDs [1, 2]
     let lagrange_coeffs_int: Vec<i64> = {
@@ -224,8 +239,10 @@ fn c7_coeff_check_zero_mismatches() {
         .filter(|&k| computed_sum[k] != reference_sum[k])
         .count();
 
-    assert_eq!(mismatches, 0,
-        "coefficient check must have 0 mismatches, got {mismatches}");
+    assert_eq!(
+        mismatches, 0,
+        "coefficient check must have 0 mismatches, got {mismatches}"
+    );
 
     // Sanity: the sums should not be all zero
     let has_nonzero = reference_sum.iter().any(|&s| s != 0);

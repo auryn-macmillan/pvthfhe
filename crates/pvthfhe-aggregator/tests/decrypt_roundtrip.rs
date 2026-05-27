@@ -51,6 +51,7 @@ fn decrypt_roundtrip_golden() {
         1,
         &party_pk,
         None,
+        None,
         &mut rng,
     )
     .unwrap();
@@ -62,6 +63,7 @@ fn decrypt_roundtrip_golden() {
         &ciphertext_hash,
         1,
         &party_pk,
+        None,
         None,
         &mut rng,
     )

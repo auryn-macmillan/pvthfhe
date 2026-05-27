@@ -2071,6 +2071,7 @@ dependencies = [
  "pvthfhe-cyclo",
  "pvthfhe-domain-tags",
  "pvthfhe-fhe",
+ "pvthfhe-keygen-spec",
  "pvthfhe-nizk",
  "pvthfhe-pvss",
  "pvthfhe-types",

@@ -32,6 +32,7 @@ fn rejects_malformed_share() {
         1,
         &party_pk,
         None,
+        None,
         &mut rng,
     )
     .unwrap();
@@ -45,6 +46,7 @@ fn rejects_malformed_share() {
         &ciphertext_hash,
         1,
         &party_pk,
+        None,
         None,
         &mut rng,
     )
@@ -92,6 +94,7 @@ fn rejects_insufficient_shares() {
         1,
         &party_pk,
         None,
+        None,
         &mut rng,
     )
     .unwrap();
@@ -138,6 +141,7 @@ fn rejects_duplicate_party() {
         1,
         &party_pk,
         None,
+        None,
         &mut rng,
     )
     .unwrap();
@@ -181,6 +185,7 @@ fn rejects_unknown_party() {
         1,
         &party_pk,
         None,
+        None,
         &mut rng,
     )
     .unwrap();
@@ -192,6 +197,7 @@ fn rejects_unknown_party() {
         &ciphertext_hash,
         1,
         &party_pk,
+        None,
         None,
         &mut rng,
     )

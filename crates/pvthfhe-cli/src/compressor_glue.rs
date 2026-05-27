@@ -188,6 +188,10 @@ pub fn compressor_inputs(
     let mut public_hasher = Sha256::new();
     let mut total_fold_depth: u64 = 0;
     let mut total_norm: u64 = 0;
+    // T4 domain-separator: hash accumulator count before the loop
+    let num_accumulators = report.accumulators().len();
+    acc_hasher.update(&(num_accumulators as u64).to_be_bytes());
+    public_hasher.update(&(num_accumulators as u64).to_be_bytes());
     for accumulator in report.accumulators() {
         acc_hasher.update(&accumulator.acc_commitment_bytes);
         public_hasher.update(&accumulator.acc_public_io_bytes);

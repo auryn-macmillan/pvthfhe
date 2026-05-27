@@ -70,6 +70,7 @@ fn decrypt_real_smoke_test() {
                 1,
                 &party_pk,
                 sk_bytes.as_deref(),
+                None,
                 &mut rng,
             )
         })
@@ -85,6 +86,7 @@ fn decrypt_real_smoke_test() {
             &transcript.participant_set,
             &transcript.dkg_root,
             &ciphertext_hash,
+            "test-session",
             1,
         ),
         "aggregate decrypt",

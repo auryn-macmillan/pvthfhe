@@ -4,6 +4,7 @@ use pvthfhe_fhe::{
     types::{Ciphertext, DecryptShare},
     FheBackend, FheError,
 };
+use pvthfhe_keygen_spec::DkgAnchorSet;
 use pvthfhe_pvss::{
     dkg_aggregation::{compute_esm_aggregate_commitment, compute_sk_aggregate_commitment},
     nizk_decrypt::{
@@ -139,6 +140,7 @@ pub fn partial_decrypt(
     epoch: u64,
     party_pk_bytes: &[u8],
     secret_key_bytes: Option<&[u8]>,
+    dkg_anchors: Option<&DkgAnchorSet>,
     rng: &mut dyn RngCore,
 ) -> anyhow::Result<DecryptSharePayload> {
     let (share, witness) = match backend.partial_decrypt_with_witness(ct, party_id, rng) {
@@ -174,16 +176,31 @@ pub fn partial_decrypt(
 
             let decryption_noise_bytes = witness.esm_noise_poly_bytes.clone();
 
-            let expected_sk_agg_share =
-                pvthfhe_pvss::nizk_decrypt::derive_party_binding(party_pk_bytes);
-            let dealer_index = pvthfhe_pvss::derive_dealer_index(&session_id);
-
-            // R10: LegacyLocalSmudge deprecated for production.
-            // The Legacy path uses public-key-derived binding which ANY key can satisfy.
-            // CommittedSmudge enforces DKG-anchored sk_agg_share/sk_agg_commit binding.
-            // See round10-adversarial-remediation F5.
             let participant_id =
                 u16::try_from(party_index.saturating_add(1)).context("party_index overflow u16")?;
+
+            let expected_sk_agg_share = dkg_anchors
+                .and_then(|anchors| {
+                    anchors
+                        .sk_agg_commits
+                        .iter()
+                        .find(|c| c.recipient_id == participant_id)
+                        .map(|agg_commit| {
+                            let digest_bytes =
+                                hex::decode(&agg_commit.commitment.digest.0).unwrap_or_default();
+                            let mut hasher = Sha256::new();
+                            hasher.update(b"pvthfhe-decrypt-dkg-anchored-binding-v2");
+                            hasher.update(&digest_bytes);
+                            let hash: [u8; 32] = hasher.finalize().into();
+                            u64::from_be_bytes(hash[..8].try_into().unwrap_or([0u8; 8]))
+                        })
+                })
+                .unwrap_or_else(|| {
+                    // R10: LegacyLocalSmudge deprecated for production. Fallback only when DKG
+                    // anchors are unavailable; see round10-adversarial-remediation F5.
+                    pvthfhe_pvss::nizk_decrypt::derive_party_binding(party_pk_bytes)
+                });
+            let dealer_index = pvthfhe_pvss::derive_dealer_index(&session_id);
             let accepted_participant_ids = vec![participant_id];
             let mode = if witness.esm_committed {
                 let ciphertext_hash = compute_decrypt_ciphertext_hash(&ciphertext_u, &ciphertext_v);

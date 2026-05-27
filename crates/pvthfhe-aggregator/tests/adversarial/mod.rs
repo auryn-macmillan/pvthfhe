@@ -76,6 +76,7 @@ fn decrypt_fixture(seed: u64) -> DecryptFixture {
                 epoch,
                 &party_pk,
                 None,
+                None,
                 &mut share_rng,
             )
             .unwrap()

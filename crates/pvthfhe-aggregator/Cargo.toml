@@ -13,6 +13,7 @@ pvthfhe-cyclo = { path = "../pvthfhe-cyclo" }
 pvthfhe-domain-tags = { path = "../pvthfhe-domain-tags" }
 pvthfhe-nizk = { path = "../pvthfhe-nizk" }
 pvthfhe-pvss = { path = "../pvthfhe-pvss" }
+pvthfhe-keygen-spec = { path = "../pvthfhe-keygen-spec" }
 pvthfhe-types = { path = "../pvthfhe-types" }
 anyhow = "1"
 tokio = { version = "1", features = ["rt", "macros"] }

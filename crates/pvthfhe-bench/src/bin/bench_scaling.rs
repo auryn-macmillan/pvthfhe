@@ -186,7 +186,7 @@ fn run_pipeline_with_backend<B: FheBackend + Clone + 'static>(
                 .map(|msg| msg.pk_i.bytes.clone())
                 .unwrap_or_default();
             partial_decrypt(
-                backend, &ct, pid, &dkg_root, &ct_hash, 1, &party_pk, None, &mut rng,
+                backend, &ct, pid, &dkg_root, &ct_hash, 1, &party_pk, None, None, &mut rng,
             )
             .map_err(|err| format!("partial_decrypt party {pid}: {err}"))
         })

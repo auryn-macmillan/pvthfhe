@@ -1,1 +1,19 @@
-{}
+{
+  "active_plan": "/home/dev/pvthfhe/.sisyphus/plans/mpc-audit-post-migration.md",
+  "started_at": "2026-05-27T19:57:07.624Z",
+  "session_ids": [
+    "ses_1e864f9f1ffecXRmG0OjbjoCa3",
+    "ses_194fc6203ffe3lvtcXiVJigfc6",
+    "ses_194fc4bdbffe1DY6Nxe2JkAySU",
+    "ses_194fc35c2ffe6DEpl8Evb5J9za"
+  ],
+  "session_origins": {
+    "ses_1e864f9f1ffecXRmG0OjbjoCa3": "direct",
+    "ses_194fc6203ffe3lvtcXiVJigfc6": "appended",
+    "ses_194fc4bdbffe1DY6Nxe2JkAySU": "appended",
+    "ses_194fc35c2ffe6DEpl8Evb5J9za": "appended"
+  },
+  "plan_name": "mpc-audit-post-migration",
+  "agent": "atlas",
+  "task_sessions": {}
+}

@@ -66,7 +66,12 @@ fn native_permute(state: &mut [Fr], params: &PoseidonParams<Fr>) {
     }
 }
 
-// ── hash_all_coeffs / poseidon_sponge_hash_native ─────────────────────────
+// ── Domain separation constants ─────────────────────────────────────────
+
+/// Domain tag for coefficient commitment hashing in C7WitnessSet.
+pub const DOMAIN_COEFF_COMMITMENT: Fr = Fr::ONE;
+
+// ── hash_all_coeffs / hash_all_coeffs_with_domain / poseidon_sponge_hash_native
 
 /// Compute a Poseidon sponge hash over an arbitrary slice of field elements.
 ///
@@ -77,23 +82,38 @@ fn native_permute(state: &mut [Fr], params: &PoseidonParams<Fr>) {
 ///
 /// Canonical BN254 Poseidon config: rate = 4, capacity = 1, t = 5.
 pub fn poseidon_sponge_hash_native(fields: &[Fr]) -> Fr {
-    hash_all_coeffs(fields)
+    hash_all_coeffs_with_domain(fields, Fr::zero())
 }
 
-/// Compute a Poseidon sponge hash of all share coefficients.
+/// Compute a Poseidon sponge hash of all share coefficients (backward-compat).
+///
+/// This is a convenience wrapper that calls [`hash_all_coeffs_with_domain`]
+/// with a zero domain tag. Prefer [`hash_all_coeffs_with_domain`] with an
+/// explicit domain constant for context-specific hashing.
+pub fn hash_all_coeffs(coeffs: &[Fr]) -> Fr {
+    hash_all_coeffs_with_domain(coeffs, Fr::zero())
+}
+
+/// Compute a Poseidon sponge hash of all share coefficients with domain separation.
 ///
 /// Absorbs every element in `coeffs` into a Poseidon sponge and squeezes
 /// one field element.  This matches the in-circuit `PoseidonSpongeVar`
 /// absorb-then-squeeze behaviour exactly: rate = 4, capacity = 1, t = 5
 /// (canonical BN254 Poseidon config).
 ///
+/// The `domain_tag` is written into the capacity element before the first
+/// absorption, providing domain separation between different protocol contexts.
+///
 /// This is the native counterpart of the in-circuit commitment opening
 /// (G2a) that will replace the current Merkle-tree commitment.
-pub fn hash_all_coeffs(coeffs: &[Fr]) -> Fr {
+pub fn hash_all_coeffs_with_domain(coeffs: &[Fr], domain_tag: Fr) -> Fr {
     let params = PoseidonParams::<Fr>::canonical();
     let capacity = params.capacity;
     let rate = params.rate;
     let mut state = vec![Fr::zero(); params.t];
+
+    // Domain separation: capacity element encodes the protocol context.
+    state[capacity] = domain_tag;
 
     let mut offset = 0;
     while offset < coeffs.len() {
@@ -178,7 +198,7 @@ impl C7WitnessSet {
         let mut participants = Vec::with_capacity(shares.len());
 
         for (i, coeffs) in shares.iter().enumerate() {
-            let coeff_commitment = hash_all_coeffs(coeffs);
+            let coeff_commitment = hash_all_coeffs_with_domain(coeffs, DOMAIN_COEFF_COMMITMENT);
             let share_eval = eval_poly_bn254(coeffs, challenge_r);
 
             participants.push(C7Witness {
@@ -203,7 +223,9 @@ impl C7WitnessSet {
     /// Must be called before Nova folding to ensure input integrity.
     pub fn verify_commitments(&self) -> bool {
         for witness in &self.participants {
-            if hash_all_coeffs(&witness.coeffs) != witness.coeff_commitment {
+            if hash_all_coeffs_with_domain(&witness.coeffs, DOMAIN_COEFF_COMMITMENT)
+                != witness.coeff_commitment
+            {
                 return false;
             }
         }

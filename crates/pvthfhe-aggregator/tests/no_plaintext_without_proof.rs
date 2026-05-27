@@ -35,6 +35,7 @@ fn no_plaintext_without_valid_nizk_proof() {
         42,
         &party_pk,
         None,
+        None,
         &mut rng,
     )
     .expect("partial decrypt share 1");
@@ -47,6 +48,7 @@ fn no_plaintext_without_valid_nizk_proof() {
         &ciphertext_hash,
         42,
         &party_pk,
+        None,
         None,
         &mut rng,
     )

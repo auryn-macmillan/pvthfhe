@@ -3,21 +3,21 @@
 **Status**: PLAN
 **Root Cause**: Nova R1CS preprocessing builds constraint matrices while thread-local data (DKG_AGG_DATA, PK_AGG_DATA) is empty → 288 constraints. During prove, data is populated → 291 constraints. Verify checks against preprocessing R1CS → fail.
 
-## Fix: Pre-seed thread-locals before SonobeCompressor::new()
+## Fix: Pre-seed thread-locals before NovaCompressor::new()
 
 ### C4 — DKG Aggregation
 
-File: `crates/pvthfhe-cli/src/full_pipeline.rs`, before `c4_compressor = SonobeCompressor::new(...)`
+File: `crates/pvthfhe-cli/src/full_pipeline.rs`, before `c4_compressor = NovaCompressor::new(...)`
 
 Add dummy data to set the correct constraint count:
 ```rust
 // P3: Pre-seed DKG_AGG_DATA to match prove-time constraint count.
 // Without this, preprocess builds R1CS with empty data → constraint mismatch.
-pvthfhe_compressor::sonobe::set_dkg_agg_data(vec![
+pvthfhe_compressor::nova::set_dkg_agg_data(vec![
     (Fr::from(1u64), Fr::from(1u64), Fr::from(1u64), Fr::from(1u64), Fr::from(1u64), Fr::from(1u64))
 ]);
 // ... create compressor ...
-pvthfhe_compressor::sonobe::clear_dkg_agg_data();
+pvthfhe_compressor::nova::clear_dkg_agg_data();
 ```
 
 ### C5 — PK Aggregation

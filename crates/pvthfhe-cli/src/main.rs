@@ -115,7 +115,7 @@ enum Commands {
     },
 }
 
-const SAFE_DEFAULT_TRACING_FILTER: &str = "pvthfhe_cli=warn,pvthfhe_compressor=warn,pvthfhe_fhe=warn,pvthfhe_lattice_pvss=warn,pvthfhe_aggregator=warn,pvthfhe_pvss=warn,pvthfhe_bench=warn,sonobe=warn";
+const SAFE_DEFAULT_TRACING_FILTER: &str = "pvthfhe_cli=warn,pvthfhe_compressor=warn,pvthfhe_fhe=warn,pvthfhe_lattice_pvss=warn,pvthfhe_aggregator=warn,pvthfhe_pvss=warn,pvthfhe_bench=warn,nova=warn";
 
 fn build_env_filter() -> tracing_subscriber::EnvFilter {
     match std::env::var("RUST_LOG") {
@@ -168,14 +168,16 @@ fn main() -> anyhow::Result<()> {
 
             #[cfg(feature = "sonobe-compressor")]
             {
-                use pvthfhe_compressor::sonobe::{CycloFoldStepCircuit, SonobeCompressor};
+                use pvthfhe_compressor::nova::{CycloFoldStepCircuit, NovaCompressor};
                 use pvthfhe_compressor::{CompressedProof, ProofCompressor};
                 let compressor =
-                    SonobeCompressor::<CycloFoldStepCircuit<ark_bn254::Fr>>::new([0u8; 32], 1)
+                    NovaCompressor::<CycloFoldStepCircuit<ark_bn254::Fr>>::new([0u8; 32], 1)
                         .map_err(|e| anyhow::anyhow!("compressor init: {e:?}"))?;
                 let vk = compressor.verifier_key();
                 let compressed_proof = CompressedProof::new(proof_bytes);
-                match compressor.verify(&vk, &compressed_proof, &[]) {
+                let zero_acc = vec![0u8; 256];
+                let zero_pi = vec![0u8; 128];
+                match compressor.verify(&vk, &compressed_proof, &zero_acc, &zero_pi) {
                     Ok(true) => println!("verify: ACCEPT"),
                     Ok(false) => println!("verify: REJECT"),
                     Err(e) => println!("verify: ERROR ({e:?})"),
@@ -183,7 +185,7 @@ fn main() -> anyhow::Result<()> {
             }
             #[cfg(not(feature = "sonobe-compressor"))]
             {
-                println!("verify: UNSUPPORTED (sonobe-compressor feature required)");
+                println!("verify: UNSUPPORTED (nova-compressor feature required)");
             }
         }
         Commands::Demo {
@@ -432,7 +434,7 @@ fn run_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
 
 #[cfg(not(all(feature = "with-fhe", feature = "sonobe-compressor")))]
 fn run_demo(_n: usize, _threshold: usize, _seed: u64) -> anyhow::Result<()> {
-    anyhow::bail!("demo requires the `with-fhe` and `sonobe-compressor` features")
+    anyhow::bail!("demo requires the `with-fhe` and `nova-compressor` features")
 }
 
 #[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]

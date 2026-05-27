@@ -48,24 +48,24 @@ contract AttestationSignatureTest is Test {
     // -------------------------------------------------------------------------
 
     /// @dev Computes the attestation hash that the contract SHOULD verify against.
-    ///      Matches: keccak256(abi.encode(sonobeStateCommitment, cycloAggregateCommitment, sessionId, signer))
+    ///      Matches: keccak256(abi.encode(novaStateCommitment, cycloAggregateCommitment, sessionId, signer))
     function computeAttestationHash(
-        bytes32 sonobeStateCommitment,
+        bytes32 novaStateCommitment,
         bytes32 cycloAggregateCommitment,
         bytes32 sessionId,
         address signer
     ) internal pure returns (bytes32) {
-        return keccak256(abi.encode(sonobeStateCommitment, cycloAggregateCommitment, sessionId, signer));
+        return keccak256(abi.encode(novaStateCommitment, cycloAggregateCommitment, sessionId, signer));
     }
 
     /// @dev Builds a complete attestation with a valid ECDSA signature.
     function buildValidAttestation(
-        bytes32 sonobeCommitment,
+        bytes32 novaCommitment,
         bytes32 cycloCommitment,
         bytes32 sessionId
     ) internal view returns (AttestationBundle memory) {
         bytes32 hash = computeAttestationHash(
-            sonobeCommitment,
+            novaCommitment,
             cycloCommitment,
             sessionId,
             ATTESTOR_ADDR
@@ -75,7 +75,7 @@ contract AttestationSignatureTest is Test {
         require(signature.length == 65, "sig length");
 
         return AttestationBundle({
-            sonobeStateCommitment: sonobeCommitment,
+            novaStateCommitment: novaCommitment,
             cycloAggregateCommitment: cycloCommitment,
             sessionId: sessionId,
             signer: ATTESTOR_ADDR,
@@ -89,7 +89,7 @@ contract AttestationSignatureTest is Test {
 
     /// @notice RED: verifyWithAttestation with valid ECDSA signature should pass.
     function test_valid_signature_passes() public {
-        bytes32 sonobeCommitment = bytes32(uint256(4));
+        bytes32 novaCommitment = bytes32(uint256(4));
         bytes32 cycloCommitment = bytes32(uint256(5));
         bytes32 sessionId = bytes32(uint256(6));
 
@@ -98,11 +98,11 @@ contract AttestationSignatureTest is Test {
         publicInputs[1] = bytes32(uint256(1));
         publicInputs[2] = bytes32(uint256(2));
         publicInputs[3] = bytes32(uint256(3));
-        publicInputs[4] = sonobeCommitment;
+        publicInputs[4] = novaCommitment;
         publicInputs[5] = cycloCommitment;
 
         AttestationBundle memory attestation = buildValidAttestation(
-            sonobeCommitment,
+            novaCommitment,
             cycloCommitment,
             sessionId
         );
@@ -122,7 +122,7 @@ contract AttestationSignatureTest is Test {
 
     /// @notice RED: verifyWithAttestation with tampered signature must revert.
     function test_invalid_signature_reverts() public {
-        bytes32 sonobeCommitment = bytes32(uint256(4));
+        bytes32 novaCommitment = bytes32(uint256(4));
         bytes32 cycloCommitment = bytes32(uint256(5));
         bytes32 sessionId = bytes32(uint256(6));
 
@@ -131,12 +131,12 @@ contract AttestationSignatureTest is Test {
         publicInputs[1] = bytes32(uint256(1));
         publicInputs[2] = bytes32(uint256(2));
         publicInputs[3] = bytes32(uint256(3));
-        publicInputs[4] = sonobeCommitment;
+        publicInputs[4] = novaCommitment;
         publicInputs[5] = cycloCommitment;
 
         // Build a valid attestation, then corrupt the signature
         AttestationBundle memory attestation = buildValidAttestation(
-            sonobeCommitment,
+            novaCommitment,
             cycloCommitment,
             sessionId
         );
@@ -146,7 +146,7 @@ contract AttestationSignatureTest is Test {
         corruptedSig[0] = bytes1(uint8(corruptedSig[0]) ^ 0xFF);
 
         AttestationBundle memory badAttestation = AttestationBundle({
-            sonobeStateCommitment: sonobeCommitment,
+            novaStateCommitment: novaCommitment,
             cycloAggregateCommitment: cycloCommitment,
             sessionId: sessionId,
             signer: ATTESTOR_ADDR,
@@ -166,7 +166,7 @@ contract AttestationSignatureTest is Test {
 
     /// @notice RED: Signature over different data must not verify.
     function test_signature_for_wrong_message_reverts() public {
-        bytes32 sonobeCommitment = bytes32(uint256(4));
+        bytes32 novaCommitment = bytes32(uint256(4));
         bytes32 cycloCommitment = bytes32(uint256(5));
         bytes32 sessionId = bytes32(uint256(6));
 
@@ -179,15 +179,15 @@ contract AttestationSignatureTest is Test {
         publicInputs[4] = bytes32(uint256(999));  // MISMATCH with signed value
         publicInputs[5] = cycloCommitment;
 
-        // Attestation was signed for sonobeCommitment=4, but publicInputs[4]=999
+        // Attestation was signed for novaCommitment=4, but publicInputs[4]=999
         AttestationBundle memory attestation = buildValidAttestation(
-            sonobeCommitment,    // signed this
+            novaCommitment,    // signed this
             cycloCommitment,
             sessionId
         );
         // Override to match publicInputs[4] — but the SIGNATURE was over the original
-        // (sonobeCommitment=4). So the attestation hash won't match the signed message.
-        attestation.sonobeStateCommitment = bytes32(uint256(999));
+        // (novaCommitment=4). So the attestation hash won't match the signed message.
+        attestation.novaStateCommitment = bytes32(uint256(999));
 
         vm.expectRevert(bytes("InvalidAttestationSignature"));
         verifier.verifyWithAttestation(sampleProof, publicInputs, attestation);
@@ -199,7 +199,7 @@ contract AttestationSignatureTest is Test {
 
     /// @notice GREEN helper: signature by wrong key must fail.
     function test_signature_by_wrong_signer_reverts() public {
-        bytes32 sonobeCommitment = bytes32(uint256(4));
+        bytes32 novaCommitment = bytes32(uint256(4));
         bytes32 cycloCommitment = bytes32(uint256(5));
         bytes32 sessionId = bytes32(uint256(6));
 
@@ -208,12 +208,12 @@ contract AttestationSignatureTest is Test {
         publicInputs[1] = bytes32(uint256(1));
         publicInputs[2] = bytes32(uint256(2));
         publicInputs[3] = bytes32(uint256(3));
-        publicInputs[4] = sonobeCommitment;
+        publicInputs[4] = novaCommitment;
         publicInputs[5] = cycloCommitment;
 
         // Build valid attestation for ATTESTOR_ADDR
         AttestationBundle memory attestation = buildValidAttestation(
-            sonobeCommitment,
+            novaCommitment,
             cycloCommitment,
             sessionId
         );
@@ -223,7 +223,7 @@ contract AttestationSignatureTest is Test {
         verifier.addAttestor(otherAttestor);
 
         AttestationBundle memory badAttestation = AttestationBundle({
-            sonobeStateCommitment: sonobeCommitment,
+            novaStateCommitment: novaCommitment,
             cycloAggregateCommitment: cycloCommitment,
             sessionId: sessionId,
             signer: otherAttestor,  // signature was by ATTESTOR_ADDR, not this

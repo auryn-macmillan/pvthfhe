@@ -50,7 +50,7 @@
 
 - **No change needed.** The C7 decryption aggregation verification block (lines 757–777) is already unconditional — no `#[cfg(feature = "pipeline-extra-checks")]` gate wraps it.
 - The `aggregate_decrypt` code (lines 730–745) does have a `pipeline-extra-checks` gate, but that's separate from C7 verification.
-- The `sonobe-compressor` gate on `run_c7_verification` function definition (line 1257) is kept as instructed (Nova dependency).
+- The `nova-compressor` gate on `run_c7_verification` function definition (line 1257) is kept as instructed (Nova dependency).
 - Verified via full `#[cfg]` grep: no cfg attributes between lines 750–778.
 
 ### C.2: slot_id parameter

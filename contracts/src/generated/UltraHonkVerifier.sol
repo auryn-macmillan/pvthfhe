@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 /// @title UltraHonkVerifier_N4
 /// @notice Temporary NoGo-branch commitment verifier for the
-///         `sonobe_state_commitment` circuit. It binds the known BB-generated
+///         `nova_state_commitment` circuit. It binds the known BB-generated
 ///         proof bytes to the six frozen public inputs until
 ///         `bb write_solidity_verifier` supports this verification key shape.
 contract UltraHonkVerifier_N4 {

@@ -5,7 +5,7 @@
 
 use ark_bn254::Fr;
 use folding_schemes::frontend::FCircuit;
-use pvthfhe_compressor::sonobe::CycloFoldStepCircuit;
+use pvthfhe_compressor::nova::CycloFoldStepCircuit;
 use pvthfhe_compressor::StepCircuit;
 
 #[test]

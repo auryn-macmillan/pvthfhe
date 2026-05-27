@@ -18,14 +18,14 @@ additions to wiring fixes.
 **Status**: Verifier exists natively in [`dkg_aggregation.rs`](file:///home/dev/pvthfhe/crates/pvthfhe-pvss/src/dkg_aggregation.rs) but is listed as "Verifiers Exist,
 Not Called" in ARCHITECTURE.md and has no in-circuit equivalent.
 
-**Approach**: Add `DkgAggregationStepCircuit` (Sonobe FCircuit) wrapping the existing
+**Approach**: Add `DkgAggregationStepCircuit` (Nova FCircuit) wrapping the existing
 `verify_recipient_dkg_aggregation` logic. Wire it into `full_pipeline.rs` after DKG
 aggregation.
 
-1. Create `dkg_aggregation_circuit.rs` in compressor's sonobe module
+1. Create `dkg_aggregation_circuit.rs` in compressor's nova module
 2. Thread-local: `DKG_AGG_DATA` storing per-recipient `(DealerDkgShare, sk_commitment, esm_commitment)`
 3. FCircuit step verifies share aggregation + commitment consistency in R1CS
-4. Wire into `full_pipeline.rs` → SonobeCompressor prove after `dkg_aggregate`
+4. Wire into `full_pipeline.rs` → NovaCompressor prove after `dkg_aggregate`
 5. Track state: (agg_hash, step_count). Final agg_hash bound into PipelineReport
 6. Add test: `dkg_aggregation_works.rs`
 7. Test via `cargo test -p pvthfhe-compressor --test dkg_aggregation_works`
@@ -39,26 +39,26 @@ aggregation.
 ### G2: P3 — Wire DeciderEth SNARK at Compressor Call Site (1 day)
 
 **Status**: KZG switch done, `snark_bridge.rs` has `wrap_nova_instance()` documented with
-correct DeciderEth type patterns. The call site in `SonobeCompressor::prove` does NOT call
+correct DeciderEth type patterns. The call site in `NovaCompressor::prove` does NOT call
 `wrap_nova_instance()`.
 
-**Approach**: Add `#[cfg(feature = "sonobe-snark")]` call to `wrap_nova_instance()` after
+**Approach**: Add `#[cfg(feature = "nova-snark")]` call to `wrap_nova_instance()` after
 `nova.ivc_proof()` in the prove method. Embed the SNARK bytes in the extended
 `CompressedProof` format.
 
-1. In `sonobe/mod.rs`, after `nova.ivc_proof()` in ExternalInputs3 prove method:
-   - `#[cfg(feature = "sonobe-snark")]` call `snark_bridge::wrap_nova_instance(nova, &self.verifier_key_bytes, state_len, seed)`
-   - `#[cfg(not(feature = "sonobe-snark"))]` keep current behavior (no SNARK)
+1. In `nova/mod.rs`, after `nova.ivc_proof()` in ExternalInputs3 prove method:
+   - `#[cfg(feature = "nova-snark")]` call `snark_bridge::wrap_nova_instance(nova, &self.verifier_key_bytes, state_len, seed)`
+   - `#[cfg(not(feature = "nova-snark"))]` keep current behavior (no SNARK)
 2. Use `snark_bridge::serialize_wrapped_proof()` to extend the proof bytes
 3. Implementation note: `wrap_nova_instance` currently returns empty SNARK bytes (placeholder).
    The actual DeciderEth flow requires adding concrete type annotations at the call site.
    The placeholder is acceptable for wiring — it makes the extended format functional while
-   full DeciderEth integration waits for the Sonobe `sonobe-snark` feature stabilization.
+   full DeciderEth integration waits for the Nova `nova-snark` feature stabilization.
 4. Test via `cargo test -p pvthfhe-compressor --test dealer_parity_works` (should still pass)
 5. Verify via `PVTHFHE_ALLOW_RESEARCH_BUILD=1 just demo-e2e 5 2 1` → ACCEPT
 
 **Success criteria**:
-- `CompressedProof::has_snark()` returns true when `sonobe-snark` enabled
+- `CompressedProof::has_snark()` returns true when `nova-snark` enabled
 - Extended proof format roundtrip (prove+verify with SNARK trailer)
 - Backward compat: existing proofs without SNARK still verify
 
@@ -178,7 +178,7 @@ Solidity contract changes + Noir signature verification circuit).
 ## Execution Order
 
 1. **G1 (C4 wiring)** — highest ROI, existing verifier just needs Nova wrapper
-2. **G2 (P3 SNARK wiring)** — completes Phase 4, enables `sonobe-snark` feature
+2. **G2 (P3 SNARK wiring)** — completes Phase 4, enables `nova-snark` feature
 3. **G3 (C3 binding)** — partial D.1 fix, native verifier only
 4. **G4 (cross-circuit chain)** — pipeline integrity hash, ties C0→C6 together
 5. **G5 (C1+C5 design)** — design docs, no code

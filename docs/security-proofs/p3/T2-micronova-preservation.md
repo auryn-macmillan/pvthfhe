@@ -74,7 +74,7 @@ The PVTHFHE Nova IVC chain has length 1. This is an important structural simplif
 - The concrete MicroNova soundness bound (ε_mn) for the specific Cyclo verifier circuit has not been computed numerically. This requires the final circuit's R1CS constraint count from P3-M2.
 - MicroNova's ePrint paper (2024/2099) provides asymptotic bounds; a concrete-security analysis for the PVTHFHE parameter choice is not yet written.
 - The MicroNova verifier circuit has not been built. The single-step Nova chain claim depends on the correctness of the `CycloFoldStepCircuit` encoding.
-- The MicroNova-to-Nova reduction has not been formalised for the specific BN254/Grumpkin cycle used by Sonobe/Nova in the PVTHFHE stack.
+- The MicroNova-to-Nova reduction has not been formalised for the specific BN254/Grumpkin cycle used by Nova/Nova in the PVTHFHE stack.
 
 ## Measurement Status
 
@@ -84,7 +84,7 @@ G2 full in-circuit Poseidon commitment verification has been implemented: the No
 - A MicroNova compressed proof (the middle layer between Cyclo accumulator and UltraHonk wrap) has not yet been produced. The current pipeline goes directly from aggregator_final to UltraHonk without a MicroNova compression step.
 - The MicroNova verifier circuit (the circuit that the UltraHonk Noir wrapper will verify) has not been implemented.
 - The concrete MicroNova soundness bound (ε_mn) for the specific Cyclo verifier circuit has not been computed numerically.
-- The MicroNova-to-Nova reduction has not been formalised for the specific BN254/Grumpkin cycle used by Sonobe/Nova in the PVTHFHE stack.
+- The MicroNova-to-Nova reduction has not been formalised for the specific BN254/Grumpkin cycle used by Nova/Nova in the PVTHFHE stack.
 - The Nova IVC soundness analysis for the specific Cyclo step circuit depends on P2's own soundness theorems, which are under active development.
 
 ---

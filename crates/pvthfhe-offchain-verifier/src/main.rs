@@ -1,15 +1,16 @@
-//! CLI for verifying Sonobe proofs and emitting an attestation bundle.
+//! CLI for verifying Nova proofs and emitting an attestation bundle.
 
 use std::{fs, path::PathBuf};
 
-use ark_bn254::Fr;
 use clap::Parser;
-use pvthfhe_compressor::{
-    sonobe::{SonobeCompressor, ToyStepCircuit},
-    CompressedProof, ProofCompressor,
-};
+use pvthfhe_compressor::{CompressedProof, ProofCompressor};
 use serde::Deserialize;
 use sha3::{Digest, Keccak256};
+#[cfg(feature = "legacy-nova")]
+use {
+    ark_bn254::Fr, pvthfhe_compressor::nova::NovaCompressor,
+    pvthfhe_compressor::nova::ToyStepCircuit,
+};
 
 use pvthfhe_offchain_verifier::{attestation::AttestationBundle, check_srs_hash};
 
@@ -29,15 +30,15 @@ fn default_ivc_steps() -> usize {
     4
 }
 
-/// Verify a serialized Sonobe proof and emit an attestation bundle.
+/// Verify a serialized Nova proof and emit an attestation bundle.
 #[derive(Debug, Parser)]
 #[command(
     name = "pvthfhe-offchain-verifier",
     version,
-    about = "Verify a Sonobe proof and emit an attestation bundle"
+    about = "Verify a Nova proof and emit an attestation bundle"
 )]
 struct Args {
-    /// Path to the serialized Sonobe proof bytes.
+    /// Path to the serialized Nova proof bytes.
     #[arg(long)]
     proof: PathBuf,
     /// Path to write the emitted attestation bundle JSON.
@@ -51,29 +52,36 @@ fn main() -> Result<(), String> {
     let proof_bytes = decode_hex_field(&envelope.proof)?;
     let public_inputs = decode_hex_field(&envelope.public_inputs)?;
 
-    let epoch_hash = decode_epoch_hash(&envelope.epoch_hash)?;
+    #[cfg(feature = "legacy-nova")]
+    {
+        let epoch_hash = decode_epoch_hash(&envelope.epoch_hash)?;
 
-    let expected_srs_hash = decode_epoch_hash(&envelope.expected_srs_hash)
-        .map_err(|error| format!("expected_srs_hash: {error}"))?;
+        let expected_srs_hash = decode_epoch_hash(&envelope.expected_srs_hash)
+            .map_err(|error| format!("expected_srs_hash: {error}"))?;
 
-    let compressor = SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch_hash, envelope.ivc_steps)
-        .map_err(|error| format!("failed to initialize verifier: {error:?}"))?;
+        let compressor = NovaCompressor::<ToyStepCircuit<Fr>>::new(epoch_hash, envelope.ivc_steps)
+            .map_err(|error| format!("failed to initialize verifier: {error:?}"))?;
 
-    check_srs_hash(&compressor.srs_hash(), &expected_srs_hash)
-        .map_err(|error| format!("SRS hash mismatch: {error}"))?;
+        check_srs_hash(&compressor.srs_hash(), &expected_srs_hash)
+            .map_err(|error| format!("SRS hash mismatch: {error}"))?;
 
-    let proof = CompressedProof(proof_bytes.clone());
-    let vk = compressor.verifier_key();
+        let proof = CompressedProof::new(proof_bytes.clone());
+        let vk = compressor.verifier_key();
 
-    let is_valid = compressor
-        .verify(&vk, &proof, &public_inputs)
-        .map_err(|error| format!("proof verification failed: {error:?}"))?;
-    if !is_valid {
-        return Err("proof verification returned false".to_string());
+        let is_valid = compressor
+            .verify(&vk, &proof, &public_inputs)
+            .map_err(|error| format!("proof verification failed: {error:?}"))?;
+        if !is_valid {
+            return Err("proof verification returned false".to_string());
+        }
+    }
+    #[cfg(not(feature = "legacy-nova"))]
+    {
+        return Err("legacy-nova feature required for offchain verification".to_string());
     }
 
     let bundle = AttestationBundle {
-        sonobe_final_state_commitment: to_hex(Keccak256::digest(&proof_bytes)),
+        nova_final_state_commitment: to_hex(Keccak256::digest(&proof_bytes)),
         cyclo_aggregate_commitment: to_hex(Keccak256::digest(
             [proof_bytes.as_slice(), b"cyclo"].concat(),
         )),

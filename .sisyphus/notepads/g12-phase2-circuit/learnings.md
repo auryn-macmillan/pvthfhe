@@ -17,8 +17,8 @@
 ### Completed
 - Added `ShareVerificationWitness`/`ShareVerificationWitnessSet` import from `pvthfhe_compressor::witness`
 - Built `ShareVerificationWitnessSet` after Schnorr signing (line ~870)
-- Created `SonobeCompressor<CycloFoldStepCircuit<Fr>>` for share verification folding after CycloFold compressor
-- Changed to `CycloFoldStepCircuit<Fr>` type param because `prove_steps_share_verify` is defined on `impl SonobeCompressor<CycloFoldStepCircuit<Fr>>`
+- Created `NovaCompressor<CycloFoldStepCircuit<Fr>>` for share verification folding after CycloFold compressor
+- Changed to `CycloFoldStepCircuit<Fr>` type param because `prove_steps_share_verify` is defined on `impl NovaCompressor<CycloFoldStepCircuit<Fr>>`
 - Called `prove_steps_share_verify(&sv_acc, &sv_witness_set)` with encoded quad accumulator
 - Computed `combined_share_hash` natively using `poseidon_sponge_hash_native` matching the circuit's accumulator logic
 - Added `combined_share_hash: Fr` field to `PipelineReport`
@@ -26,11 +26,11 @@
 - Wrote `combined_share_hash` to Prover.toml output
 - Updated e2e binary call site
 - Updated test
-- Gated under `#[cfg(feature = "sonobe-compressor")]` with fallback to `Fr::from(0u64)` for surrogate path
+- Gated under `#[cfg(feature = "nova-compressor")]` with fallback to `Fr::from(0u64)` for surrogate path
 
 ### Gotchas
-- `SonobeCompressor::new` returns `Result<Self, CompressorError>`, not `anyhow::Result` — must use `.map_err()` not `.context()`
-- `prove_steps_share_verify` is on `SonobeCompressor<CycloFoldStepCircuit<Fr>>`, not `ShareVerificationStepCircuit<Fr>` (stub design)
+- `NovaCompressor::new` returns `Result<Self, CompressorError>`, not `anyhow::Result` — must use `.map_err()` not `.context()`
+- `prove_steps_share_verify` is on `NovaCompressor<CycloFoldStepCircuit<Fr>>`, not `ShareVerificationStepCircuit<Fr>` (stub design)
 - No `initial_acc()` method exists — must create accumulator as `encode_quad((Fr::zero(), Fr::zero(), Fr::zero(), Fr::zero())).to_vec()`
 - Existing dead code warnings (`vector_hash_8`, `bind_8_with_domain_native`, `combine_hashes_8`) became unused after replacing old share hash computation
 

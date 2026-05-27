@@ -25,7 +25,7 @@ Six crates were flagged by the R11.1 RED lint on 2026-05-08:
 | `pvthfhe-core` | 9 | YES (skeleton) | **POPULATE rationale header** | `lib.rs` is empty but the crate hosts substantive `tests/vectors/*.json` consumed cross-crate (e.g. `pvthfhe-aggregator/tests/decrypt_roundtrip.rs`). Crate exists to host shared test fixtures; lib intentionally trivial. |
 | `pvthfhe-circuits` | 6 | NO | **POPULATE rationale header** | Façade crate for Noir circuit Rust bindings. Real circuits live in `circuits/` (Noir workspace). Rust crate exists for `Cargo.toml` integration only. |
 | `pvthfhe-cli` | 19 | NO | **POPULATE rationale header** | CLI façade. Real logic lives in feature-gated modules (`pvss_support`, `demo_nizk`, `compressor_glue`, `full_pipeline`) and the binary entry-points in `src/bin/`. The `lib.rs` itself is intentionally a thin module-export shim. |
-| `pvthfhe-offchain-verifier` | 3 | NO | **POPULATE rationale header** | Crate hosts a Sonobe attestation helper module (`attestation.rs`) and a binary (`main.rs`). `lib.rs` only re-exports `attestation`; intentionally minimal. |
+| `pvthfhe-offchain-verifier` | 3 | NO | **POPULATE rationale header** | Crate hosts a Nova attestation helper module (`attestation.rs`) and a binary (`main.rs`). `lib.rs` only re-exports `attestation`; intentionally minimal. |
 | `pvthfhe-rng` | 9 | NO (R0.7 deliverable) | **POPULATE rationale header** | Façade crate created by R0.7. Sole purpose: re-export `rand::rngs::OsRng` and provide the `production_rng()` factory function so all production callsites can be enforced via `cargo deny` / lint to depend only on this crate. Intentionally trivial; expanding it would dilute the lint's utility. |
 
 ## Workspace `Cargo.toml` impact

@@ -1,9 +1,1 @@
-{
-  "active_plan": "/home/dev/pvthfhe/.sisyphus/plans/migrate-to-microsoft-nova.md",
-  "started_at": "2026-05-26T20:20:00.000Z",
-  "session_ids": ["ses_19a51fdd1ffeAAbN01r8sB4wO8"],
-  "plan_name": "migrate-to-microsoft-nova",
-  "status": "active",
-  "progress": "0/16 — Phase 1 research",
-  "branch": "feat/migrate-to-microsoft-nova"
-}
+{}

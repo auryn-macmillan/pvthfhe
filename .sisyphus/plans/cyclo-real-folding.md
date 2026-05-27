@@ -1,7 +1,7 @@
 # Plan: Real Cyclo Folding + Multi-Input Step Circuit
 
 **Plan**: `cyclo-real-folding`
-**Goal**: Replace SHA-256 hash-chain folding surrogate with real Cyclo/LatticeFold+ Ajtai commitments, and fix the Sonobe step circuit to receive separate commitment/norm/count inputs.
+**Goal**: Replace SHA-256 hash-chain folding surrogate with real Cyclo/LatticeFold+ Ajtai commitments, and fix the Nova step circuit to receive separate commitment/norm/count inputs.
 **Reference**: `osdnk/cyclo` (research artifact, Rust + HEXL) and `NethermindEth/latticefold` (Rust PoC).
 
 ---
@@ -39,7 +39,7 @@ Compressor: CycloFoldStepCircuit with ExternalInputs = (commitment: Fr, norm: Fr
 ## Batch P3 — Multi-Input Step Circuit (unblocks P2 by removing the limitation)
 
 ### P3.1 — Expand ExternalInputs to tuple
-- [x] **File**: `crates/pvthfhe-compressor/src/sonobe/mod.rs` — `ExternalInputs = (F, F, F)` with local `ExternalInputs3Var` newtype (orphan rule workaround). ToyStepCircuit expanded to 3-state.
+- [x] **File**: `crates/pvthfhe-compressor/src/nova/mod.rs` — `ExternalInputs = (F, F, F)` with local `ExternalInputs3Var` newtype (orphan rule workaround). ToyStepCircuit expanded to 3-state.
 - [x] **RED**: `multi_input_step_circuit.rs` — test with separate inputs. GREEN: test passes.
 - [x] **GATE**: `cargo build -p pvthfhe-compressor` clean. 15 files changed across compressor + compressor_glue.
 - [x] **File**: `crates/pvthfhe-cli/src/compressor_glue.rs` — `compressor_inputs` produces 96-byte encodings of (commitment, norm, count).
@@ -55,7 +55,7 @@ Compressor: CycloFoldStepCircuit with ExternalInputs = (commitment: Fr, norm: Fr
 - [x] **GATE**: Zero SHA-256 in fold.rs. All fold tests pass.
 - [x] **Change**: `CycloTernaryTranscript` with domain separator `"pvthfhe-cyclo-fs-v2"`. `sample_challenge()` returns −1/0/+1 with probability 1/3 each.
 - [x] **RED**: `cyclo_ternary_transcript.rs` — challenge distribution verified.
-- [x] **GATE**: Sonobe v1 transcript unchanged.
+- [x] **GATE**: Nova v1 transcript unchanged.
 
 ---
 
@@ -93,7 +93,7 @@ Compressor: CycloFoldStepCircuit with ExternalInputs = (commitment: Fr, norm: Fr
 - [x] **GATE**: Aggregator pipeline works with real Cyclo folding.
 
 ### P2C.3 — Update compressor step circuit for real RLWE relation
-- [x] **File**: `crates/pvthfhe-compressor/src/sonobe/mod.rs`
+- [x] **File**: `crates/pvthfhe-compressor/src/nova/mod.rs`
 - [x] **Change**: `CycloFoldStepCircuit::ExternalInputs` receives the actual Ajtai commitment, norm bound, and counter as separate tuple elements (P3.1 delivers this).
 - [x] **Change**: `generate_step_constraints` encodes:
   - `z_i[0] * external_inputs.0` (Ajtai commitment fold — real multiplicative constraint)
@@ -113,7 +113,7 @@ Compressor: CycloFoldStepCircuit with ExternalInputs = (commitment: Fr, norm: Fr
 
 ### D1 — Update fold-construction.md
 - [x] **File**: `.sisyphus/design/fold-construction.md`
-- [x] **Change**: Update status from "Sonobe substitute" to "Cyclo Ajtai commitments active". Document the concrete Ajtai parameters used.
+- [x] **Change**: Update status from "Nova substitute" to "Cyclo Ajtai commitments active". Document the concrete Ajtai parameters used.
 - [x] **GATE**: Doc reflects current implementation.
 
 ### D2 — Update README

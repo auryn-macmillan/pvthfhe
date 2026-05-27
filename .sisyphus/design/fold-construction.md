@@ -1,6 +1,6 @@
-# Fold Construction — Sonobe-Only Folding Path (R2.0)
+# Fold Construction — Nova-Only Folding Path (R2.0)
 
-> **Status**: R2.0 design freeze. Documents the Sonobe Nova substitution for the
+> **Status**: R2.0 design freeze. Documents the Nova Nova substitution for the
 > P2 folding layer. Read-only; updates only via plan amendment or escape hatches
 > in `spec-real-p2p3.md §9`.
 
@@ -36,24 +36,24 @@ security at the folding layer.
   encoder is a multi-engineer-month effort that does not fit the current phase
   budget.
 
-**Decision**: The P2 folding layer uses **Sonobe Nova** (an R1CS-based folding
+**Decision**: The P2 folding layer uses **Nova Nova** (an R1CS-based folding
 scheme over the BN254/Grumpkin elliptic-curve cycle) as a **substitute** for the
 lattice-native folding that was planned. This is not a permanent decision; it is
 a bounded migration surface with a documented upgrade path (§4).
 
-The Sonobe substitution is **not** claimed to provide post-quantum security at
+The Nova substitution is **not** claimed to provide post-quantum security at
 the P2 layer. The P1 NIZK layer remains lattice-based and post-quantum. The P3
 on-chain layer is already non-post-quantum (BN254/UltraHonk) by design. The P2
-Sonobe substitution effectively reduces the post-quantum coverage of the folding
+Nova substitution effectively reduces the post-quantum coverage of the folding
 layer from "lattice-native" to "non-PQ, like P3."
 
 ---
 
 ## 2. Construction
 
-### 2.1 Sonobe Nova Over BN254/Grumpkin
+### 2.1 Nova Nova Over BN254/Grumpkin
 
-The folding engine is **Sonobe Nova**, an implementation of the Nova folding
+The folding engine is **Nova Nova**, an implementation of the Nova folding
 scheme (Kothapalli–Setty–Tzialla, CRYPTO 2022) that operates over a cycle of
 elliptic curves:
 
@@ -103,26 +103,26 @@ layer, not for its folding implementation:
   (φ=256, q_commit≈2^50, a=13, T=10, β_10=1344).
 - **∞-norm checks**: The `CycloAdapter::fold_one` and `verify_accumulator`
   methods enforce the norm bound `norm_bound_current ≤ β_at_t` on the supplied
-  witness. This check is reused by the Sonobe StepCircuit to gate per-step
+  witness. This check is reused by the Nova StepCircuit to gate per-step
   acceptance.
 - **SHA-256 binding tag**: `CcsPShareInstance::sha256_binding_bytes` ties each
   instance to the session transcript; the tag is checked by the aggregator
   (outside the folding circuit) before the fold step.
 
 The actual folding computation in `fold_one` / `fold_all` is **not** the Cyclo
-folding; it is the Sonobe Nova fold, invoked through the `CycloAdapter` trait
-boundary. This keeps the trait surface stable while the backend is a Sonobe
+folding; it is the Nova Nova fold, invoked through the `CycloAdapter` trait
+boundary. This keeps the trait surface stable while the backend is a Nova
 substitute.
 
 ### 2.3 R2.1–R2.4 Implications
 
-These R2 sub-items define the concrete requirements for the Sonobe substitution
+These R2 sub-items define the concrete requirements for the Nova substitution
 to be sound:
 
 #### R2.1 — ∞-Norm Checks
 
 Every per-share witness `(s_i, e_i)` must satisfy `‖e_i‖_∞ ≤ B_e = 16` and
-`‖s_i‖_∞ ≤ 1` (ternary secret). The Sonobe StepCircuit must enforce these
+`‖s_i‖_∞ ≤ 1` (ternary secret). The Nova StepCircuit must enforce these
 ∞-norm bounds through:
 
 1. **Bit-decomposition constraints** per coefficient: each e_i coefficient
@@ -137,17 +137,17 @@ substitute for a proper L∞ norm check.
 
 #### R2.2 — Challenge Sampling
 
-Sonobe Nova's challenge sampling follows the standard Nova protocol:
+Nova Nova's challenge sampling follows the standard Nova protocol:
 
 - The primary circuit's Fiat-Shamir challenge is derived from Poseidon-hashing
   the current accumulator commitment + the new instance witness. The domain
-  separator is `"pvthfhe/sonobe-nova/v1/" ∥ session_id ∥ "/" ∥ fold_depth`.
+  separator is `"pvthfhe/nova-nova/v1/" ∥ session_id ∥ "/" ∥ fold_depth`.
 - The randomness is sourced from `pvthfhe_rng::OsRng` at the prover entry point;
   the FS transcript determinism within the fold is provided by the prover-side
   RNG stream derived from the transcript state.
 
 This differs from Cyclo's biased-ternary challenge (p=1/3, subject to Lemma 9
-invertibility). Sonobe Nova uses uniform random challenges in F_p, which avoids
+invertibility). Nova Nova uses uniform random challenges in F_p, which avoids
 the Lemma 9 heuristic entirely — at the cost of moving the folding soundness
 from lattice assumptions (M-SIS) to discrete-log assumptions (DLOG on
 BN254/Grumpkin).
@@ -156,10 +156,10 @@ BN254/Grumpkin).
 
 The Cyclo-native plan required a **CCS (Customizable Constraint System) encoder**
 to translate the RLWE fold relation into the CCS format consumed by the Cyclo
-prover. Under the Sonobe substitution:
+prover. Under the Nova substitution:
 
 - **No CCS encoder is required.** The StepCircuit is expressed directly in R1CS,
-  which is Sonobe's native constraint format.
+  which is Nova's native constraint format.
 - The per-share witness `(s_i, e_i)` is packed into the R1CS witness vector
   without an intermediate CCS encoding layer.
 - If and when the codebase migrates to Cyclo-native folding, a CCS encoder
@@ -168,7 +168,7 @@ prover. Under the Sonobe substitution:
 
 #### R2.4 — Forgery Resistance
 
-The Sonobe substitution's forgery resistance depends on:
+The Nova substitution's forgery resistance depends on:
 
 1. **DLOG hardness on BN254/Grumpkin** (assumption ID: A-DLOG-1 through
    A-DLOG-4 in `assumptions-ledger.md`). A successful forgery would require
@@ -183,7 +183,7 @@ The Sonobe substitution's forgery resistance depends on:
    malicious prover can fold a witness with an unbounded noise term.
 
 Forgery resistance testing (`pvthfhe-aggregator/tests/cyclo_forgery_resistance.rs`
-or equivalent) must test the full Sonobe pipeline against the following adversary
+or equivalent) must test the full Nova pipeline against the following adversary
 models:
 
 - **Model 1 (raw-witness injection)**: Attempt to fold a witness with
@@ -203,7 +203,7 @@ models:
 
 ### 3.1 Discrete-Log Soundness
 
-Sonobe Nova's soundness over BN254/Grumpkin is estimated at **≈ 2⁻¹²⁸** with
+Nova Nova's soundness over BN254/Grumpkin is estimated at **≈ 2⁻¹²⁸** with
 T ≥ 10 rounds, based on:
 
 - BN254 scalar field size: p ≈ 2²⁵⁴ → 254 bits
@@ -216,7 +216,7 @@ T ≥ 10 rounds, based on:
 
 **Comparison with Cyclo soundness budget** (from `spec-real-p2p3.md` §4.4):
 
-| Property | Cyclo (lattice-native) | Sonobe Nova (substitute) |
+| Property | Cyclo (lattice-native) | Nova Nova (substitute) |
 |----------|----------------------|---------------------------|
 | Underlying assumption | M-SIS over R_{q_commit} (A-LATTICE-1) | DLOG on BN254/Grumpkin (A-DLOG-1–A-DLOG-4) |
 | Post-quantum | Yes (≥128-bit PQ target) | No (classical only) |
@@ -236,16 +236,16 @@ T ≥ 10 rounds, based on:
 | SHA-256 binding tag inclusion (public input, not constraint) | 0 (pub input only) |
 | **Total per-fold step** | **≈ 1.5M R1CS gates** |
 
-Sonobe Nova at 1.5M gates per fold step, T=10 sequential folds: total prover
+Nova Nova at 1.5M gates per fold step, T=10 sequential folds: total prover
 work ≈ 10 × (1.5M R1CS constraint evaluations + NIFS overhead). This is within
-the Sonobe benchmark range (≤ 2^21 R1CS constraints total = 2M constraints).
+the Nova benchmark range (≤ 2^21 R1CS constraints total = 2M constraints).
 
 The compressed Nova proof (after T=10 folds) is O(log₁₀) ≈ 15–20 KB in size,
 smaller than the Cyclo accumulator (~50–60 KB, `spec-real-p2p3.md` §4.6).
 
 ---
 
-## 4. v2 Migration Surface (Sonobe → Lattice-Folding)
+## 4. v2 Migration Surface (Nova → Lattice-Folding)
 
 When a production-grade lattice folding backend becomes available (Cyclo Lemma 9
 formalized and audited, or LatticeFold+ reference implementation stabilized),
@@ -253,22 +253,22 @@ the migration path is:
 
 ### 4.1 Traits That Change
 
-| Trait / Type | Current (Sonobe) | v2 (Cyclo-native) | Migration Shape |
+| Trait / Type | Current (Nova) | v2 (Cyclo-native) | Migration Shape |
 |-------------|-------------------|-------------------|-----------------|
-| `CycloAdapter::fold_one` | Delegates to Sonobe Nova fold | Implements real Cyclo fold over R_{q_commit} | Swap internal implementation; trait signature unchanged |
+| `CycloAdapter::fold_one` | Delegates to Nova Nova fold | Implements real Cyclo fold over R_{q_commit} | Swap internal implementation; trait signature unchanged |
 | `CycloAccumulator` | Stores R1CS-encoded accumulator state | Stores CCS accumulator over R_{q_commit} (`acc_commitment` in R_{q_commit}^a) | Type remains; serialization changes `acc_commitment_bytes` from R1CS to CCS format |
 | `CcsPShareInstance` | Wraps R1CS witness bytes | Wraps CCS witness over R_{q_commit} | Type unchanged; encoding changes from R1CS to CCS |
-| `ProofCompressor` trait | Sonobe adapter (`sonobe/mod.rs`) | Cyclo-native adapter | Trait surface preserved; backend-specific impl swapped |
+| `ProofCompressor` trait | Nova adapter (`nova/mod.rs`) | Cyclo-native adapter | Trait surface preserved; backend-specific impl swapped |
 
 ### 4.2 Files Touched
 
-From `sonobe-migration.md` — the bounded migration surface:
+From `nova-migration.md` — the bounded migration surface:
 
 | File | Change |
 |------|--------|
-| `crates/pvthfhe-compressor/src/lib.rs` | Swap backend selector from Sonobe to Cyclo-native |
+| `crates/pvthfhe-compressor/src/lib.rs` | Swap backend selector from Nova to Cyclo-native |
 | `crates/pvthfhe-compressor/src/step_circuit.rs` | **Unchanged** — step-circuit shape is backend-agnostic per Invariant 2 |
-| `crates/pvthfhe-compressor/src/sonobe/mod.rs` | Replaced by `cyclo/mod.rs` implementing the CCS adapter |
+| `crates/pvthfhe-compressor/src/nova/mod.rs` | Replaced by `cyclo/mod.rs` implementing the CCS adapter |
 | `crates/pvthfhe-cyclo/src/adapter.rs` | Current `LegacyHashChainAdapter` replaced with `CycloFoldingAdapter` implementing real Cyclo fold |
 | `crates/pvthfhe-cyclo/src/ccs_encode.rs` | CCS encoder for RLWE relation over R_{q_commit} (scaffolded, previously a stub) |
 | `crates/pvthfhe-cyclo/src/fold.rs` | Real Cyclo folding step (caller-agnostic), replacing stub |
@@ -290,13 +290,13 @@ verifier, Solidity contracts, Noir circuits, or FHE backend.
 - **Rust aggregator** (blame bookkeeping, transcript validation): unchanged.
 - **Cyclo parameter struct** (`CycloParams`, `PVTHFHE_CYCLO_PARAMS`): the
   locked parameters (φ=256, a=13, T=10, β_10=1344) are the **v2 target**
-  parameters — useful as a sizing budget even during the Sonobe phase.
+  parameters — useful as a sizing budget even during the Nova phase.
 - **∞-norm CI lint** (`forbid::bytes_iter_max_in_norm`): unchanged — enforced
-  in both Sonobe and Cyclo-native phases.
+  in both Nova and Cyclo-native phases.
 
 ### 4.4 Migration Triggers
 
-The migration from Sonobe to lattice-native folding is unlocked when **any** of
+The migration from Nova to lattice-native folding is unlocked when **any** of
 the following conditions are met:
 
 1. **Cyclo Lemma 9 formalized and audited**: An independent re-implementation
@@ -311,7 +311,7 @@ the following conditions are met:
    `‖e_i‖_∞ ≤ B_e`) is available as a standalone crate and has passed oracle
    review.
 
-Until any of these conditions are met, the Sonobe substitution remains in place
+Until any of these conditions are met, the Nova substitution remains in place
 with the discrete-log soundness budget documented in §3.
 
 ---
@@ -328,7 +328,7 @@ the following reasons, ranked by severity:
 | **Lemma 9 formalization exceeds budget** | Blocker | Lemma 9 (invertibility heuristic for biased ternary challenges in power-of-two cyclotomics) is formalized in the paper but has no independent re-implementation or audit. Verifying the bound κ_nu ≈ 2⁻⁹⁴ for φ=256 is a research project in itself. |
 | **CCS encoder design is a separate engineering task** | High | The RLWE fold relation must be expressed as a CCS (Customizable Constraint System) over R_{q_commit}. This requires designing a CCS encoding for polynomial arithmetic modulo X^256+1 with 50-bit coefficients — a task that touches `ccs_encode.rs`, `range_check.rs`, and `extension.rs` in the `pvthfhe-cyclo` crate. |
 | **No NTT acceleration for Cyclo ring** | Medium | The commitment ring R_{q_commit} = Z_{q_commit}[X]/(X^256+1) uses very small degree (φ=256), making NTT-based acceleration less efficient than for large NTT-friendly moduli. The `fhe-math` ring backend provides Poly/Rq arithmetic but may need optimization for this specific ring size. |
-| **FS transcript domain separation is Cyclo-specific** | Low | The FS domain separator `"pvthfhe/cyclo-ajtai-d2/v1/" ∥ session_id ∥ "/" ∥ participant_id_decimal` is designed for Cyclo's transcript format. Sonobe uses a different separator. |
+| **FS transcript domain separation is Cyclo-specific** | Low | The FS domain separator `"pvthfhe/cyclo-ajtai-d2/v1/" ∥ session_id ∥ "/" ∥ participant_id_decimal` is designed for Cyclo's transcript format. Nova uses a different separator. |
 
 ---
 
@@ -354,9 +354,9 @@ This document adds the following entries to the assumptions ledger
 
 | ID | Statement | Added By |
 |----|-----------|----------|
-| **A-DLOG-5** | **Sonobe Nova soundness over BN254/Grumpkin cycle.** With T ≥ 10 sequential fold rounds, the knowledge soundness error of the Nova folding scheme instantiated over BN254 (primary) and Grumpkin (secondary) is ≤ 10 × 2⁻¹²⁸. This assumes DLOG hardness on both curves (A-DLOG-1 through A-DLOG-4) and Poseidon collision resistance (A-HASH-2). | R2.0, §3.1 |
+| **A-DLOG-5** | **Nova Nova soundness over BN254/Grumpkin cycle.** With T ≥ 10 sequential fold rounds, the knowledge soundness error of the Nova folding scheme instantiated over BN254 (primary) and Grumpkin (secondary) is ≤ 10 × 2⁻¹²⁸. This assumes DLOG hardness on both curves (A-DLOG-1 through A-DLOG-4) and Poseidon collision resistance (A-HASH-2). | R2.0, §3.1 |
 | **A-STRUCT-7** | **StepCircuit exactness.** The R1CS circuit encoding the per-party RLWE decryption-share relation exactly captures the statement `d_i = c·s_i + e_i ∧ ‖e_i‖_∞ ≤ 16 ∧ ‖s_i‖_∞ ≤ 1` with no under-constrained gates. Any deviation risks forgery. | R2.0, §2.3 |
-| **A-COND-5** | **Sonobe substitution is a temporary surrogate.** The Sonobe-based P2 folding layer is NOT post-quantum. It is accepted as a temporary substitute for the lattice-native folding (Cyclo/LatticeFold+) that was originally planned. The migration path is documented in §4. | R2.0, §1 |
+| **A-COND-5** | **Nova substitution is a temporary surrogate.** The Nova-based P2 folding layer is NOT post-quantum. It is accepted as a temporary substitute for the lattice-native folding (Cyclo/LatticeFold+) that was originally planned. The migration path is documented in §4. | R2.0, §1 |
 
 ---
 
@@ -365,7 +365,7 @@ This document adds the following entries to the assumptions ledger
 | Lint | Scope | Test File |
 |------|-------|-----------|
 | `forbid::bytes_iter_max_in_norm` | All production crates | Flag any `bytes.iter().max()` used as norm check substitute |
-| `forbid::raw_pvthfhe_domain_tag` (R0.4, reused) | Enforced for Sonobe-specific domain separators | `pvthfhe-domain-tags/tests/exhaustive.rs` |
+| `forbid::raw_pvthfhe_domain_tag` (R0.4, reused) | Enforced for Nova-specific domain separators | `pvthfhe-domain-tags/tests/exhaustive.rs` |
 
 ---
 
@@ -376,10 +376,10 @@ This document adds the following entries to the assumptions ledger
 | Cyclo ePrint 2026/359 | Garreta, Lipmaa, Luhaäär, Osadnik — "Cyclo: Lightweight Lattice-based Folding via Partial Range Checks", IACR ePrint 2026/359 (Eurocrypt 2026) |
 | LatticeFold+ ePrint 2025/247 | Boneh, Chen — "LatticeFold+", IACR ePrint 2025/247 (CRYPTO 2025) |
 | Nova (CRYPTO 2022) | Kothapalli, Setty, Tzialla — "Nova: Recursive Zero-Knowledge Arguments from Folding Schemes" |
-| Sonobe | https://github.com/privacy-scaling-explorations/sonobe — Rust library for folding schemes including Nova over BN254/Grumpkin |
+| Nova | https://github.com/privacy-scaling-explorations/nova — Rust library for folding schemes including Nova over BN254/Grumpkin |
 | spec-real-p2p3.md | `.sisyphus/design/spec-real-p2p3.md` — Real P2 + P3 Joint Freeze (L4) |
 | assumptions-ledger.md | `.sisyphus/design/assumptions-ledger.md` — Assumptions Ledger (L5) |
-| sonobe-migration.md | `.sisyphus/design/sonobe-migration.md` — Bounded migration surface for compressor backend swap |
+| nova-migration.md | `.sisyphus/design/nova-migration.md` — Bounded migration surface for compressor backend swap |
 | proof-boundary.md | `.sisyphus/design/proof-boundary.md` — PVTHFHE Proof Boundary Freeze (T25) |
 
 ---

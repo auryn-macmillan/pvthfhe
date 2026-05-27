@@ -13,7 +13,7 @@ The following table compares the proof count model for a system with $n$ parties
 | **Public Key Aggregation** | 1 threshold PK circuit (C5) | 1 aggregation instance |
 | **Partial Decryption** | $t$ decryption circuits (C6) | $t$ decryption instances |
 | **Final Aggregation** | 1 final aggregation circuit (C7) | 1 final aggregation instance |
-| **Proof Compression** | Recursive wrapper circuits | Sonobe Nova IVC (Folding) |
+| **Proof Compression** | Recursive wrapper circuits | Nova Nova IVC (Folding) |
 | **Verifier Cost** | Depends on recursion depth | $O(\text{polylog } n)$ or constant |
 
 ### Batched Two Track Design

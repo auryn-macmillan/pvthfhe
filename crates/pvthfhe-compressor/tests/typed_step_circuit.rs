@@ -1,6 +1,6 @@
-//! Typed step-circuit tests for the Sonobe-backed compressor.
+//! Typed step-circuit tests for the Nova-backed compressor.
 //!
-//! RED phase: these tests assert that SonobeCompressor is parameterized
+//! RED phase: these tests assert that NovaCompressor is parameterized
 //! by a step-circuit type S, the verifier key carries a step_circuit_hash
 //! derived from S, and the verifier rejects mismatched vk hashes (type mismatch).
 
@@ -12,13 +12,13 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
 use folding_schemes::frontend::FCircuit;
 use pvthfhe_compressor::{
-    sonobe::{ExternalInputs3, ExternalInputs3Var, SonobeCompressor, ToyStepCircuit},
+    nova::{ExternalInputs3, ExternalInputs3Var, NovaCompressor, ToyStepCircuit},
     ProofCompressor, StepCircuit, StepCircuitDescriptor,
 };
 use sha3::{Digest, Keccak256};
 
 fn encode_triple(a: u64, b: u64, c: u64) -> Vec<u8> {
-    use pvthfhe_compressor::sonobe::encode_triple;
+    use pvthfhe_compressor::nova::encode_triple;
     encode_triple((Fr::from(a), Fr::from(b), Fr::from(c))).to_vec()
 }
 
@@ -73,8 +73,8 @@ impl<F: PrimeField> StepCircuit for AltStepCircuit<F> {
 
 #[test]
 fn typed_compressor_roundtrip_with_step_circuit_hash() {
-    let compressor = SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch(), 4)
-        .expect("construct typed sonobe compressor");
+    let compressor = NovaCompressor::<ToyStepCircuit<Fr>>::new(epoch(), 4)
+        .expect("construct typed nova compressor");
     let vk = compressor.verifier_key();
 
     assert_ne!(
@@ -92,8 +92,8 @@ fn typed_compressor_roundtrip_with_step_circuit_hash() {
 
 #[test]
 fn verifier_rejects_tampered_step_circuit_hash() {
-    let compressor = SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch(), 4)
-        .expect("construct typed sonobe compressor");
+    let compressor = NovaCompressor::<ToyStepCircuit<Fr>>::new(epoch(), 4)
+        .expect("construct typed nova compressor");
     let mut vk = compressor.verifier_key();
     let acc = encode_triple(5, 0, 0);
     let public_inputs = encode_triple(11, 1, 1);
@@ -110,11 +110,11 @@ fn verifier_rejects_tampered_step_circuit_hash() {
 
 #[test]
 fn step_circuit_hash_matches_type_implementation() {
-    let compressor = SonobeCompressor::<ToyStepCircuit<Fr>>::new(epoch(), 4)
-        .expect("construct typed sonobe compressor");
+    let compressor = NovaCompressor::<ToyStepCircuit<Fr>>::new(epoch(), 4)
+        .expect("construct typed nova compressor");
     let vk = compressor.verifier_key();
 
-    let expected_tag_hash = Keccak256::digest(pvthfhe_domain_tags::Tag::SonobeToyStep.as_bytes());
+    let expected_tag_hash = Keccak256::digest(pvthfhe_domain_tags::Tag::NovaToyStep.as_bytes());
     let expected: [u8; 32] = expected_tag_hash.into();
     assert_eq!(
         vk.step_circuit_hash, expected,

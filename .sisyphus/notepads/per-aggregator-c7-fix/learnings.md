@@ -2,7 +2,7 @@
 
 ## Issue
 The per_aggregator C7 tree path was ~327s for 8 leaves because it was double-proving:
-1. Per-leaf Nova proving via `SonobeCompressor<C7DecryptAggregationCircuit>` + `prove_steps_c7`
+1. Per-leaf Nova proving via `NovaCompressor<C7DecryptAggregationCircuit>` + `prove_steps_c7`
 2. Then `CompressionTree::build` which internally does Nova proving via `MicroNovaCompressor::prove_tree`
 
 The demo-e2e pipeline (full_pipeline.rs) correctly only hashes leaf data and calls
@@ -21,7 +21,7 @@ Replaced the per-leaf Nova proving loop with:
 
 ## Files Changed
 - `crates/pvthfhe-cli/src/bin/per_aggregator.rs`: Replaced tree path (old lines 175-237)
-  - Removed per-leaf `SonobeCompressor<C7DecryptAggregationCircuit>` loop
+  - Removed per-leaf `NovaCompressor<C7DecryptAggregationCircuit>` loop
   - Added parallel leaf hash computation with `rayon::par_iter`
   - Moved `hash_all_coeffs` computation into flat Nova fallback block
   - Added `use ark_ff::{BigInteger, PrimeField}` at module level

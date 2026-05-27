@@ -158,11 +158,11 @@ Do NOT fix code without updating the theory and docs that reference it. Do NOT u
 - [ ] **Code**: `crates/pvthfhe-cli/src/full_pipeline.rs` — after `compressor.verify()`, optionally serialize proof and call off-chain verifier as independent check
 - [ ] **Theory**: `.sisyphus/design/spec-real-p2p3.md` §5 — add note: "Compressor proof is verified in-process during demo. External verification via off-chain verifier CLI is available as a separate step."
 - [ ] **Docs**: `README.md` — add compressor verification section noting the two-tier verification (in-process + optional external)
-- [ ] **Gate**: `cargo run --release -p pvthfhe-cli --features "sonobe-compressor" -- verify-proof --proof-path /tmp/compressed.proof` succeeds (new `verify-proof` subcommand or equivalent external invocation). Until the CLI subcommand is built, gate is: `compressor.verify()` is called AND a second independent `SonobeNova::verify()` is executed from a separate code path (simulating external verification).
+- [ ] **Gate**: `cargo run --release -p pvthfhe-cli --features "nova-compressor" -- verify-proof --proof-path /tmp/compressed.proof` succeeds (new `verify-proof` subcommand or equivalent external invocation). Until the CLI subcommand is built, gate is: `compressor.verify()` is called AND a second independent `NovaNova::verify()` is executed from a separate code path (simulating external verification).
 
 ### F.2 — Document CycloFoldStepCircuit gap in theory
 - [ ] **Theory**: `.sisyphus/design/spec-real-p2p3.md` §P3 — document that `CycloFoldStepCircuit` proves field arithmetic on 3 Fr scalars (hash of commitments), NOT full Ajtai commitment folding. The real fold verification is deterministic recomputation in `verify_fold()`.
-- [ ] **Theory**: `docs/security-proofs/interfold-equivalent-pvss.md` — add §P3: "Sonobe Nova step circuit does not prove lattice Ajtai fold. The IVC proves hash-accumulate correctness, not ring-element folding. See open problem P2/P3."
+- [ ] **Theory**: `docs/security-proofs/interfold-equivalent-pvss.md` — add §P3: "Nova Nova step circuit does not prove lattice Ajtai fold. The IVC proves hash-accumulate correctness, not ring-element folding. See open problem P2/P3."
 - [ ] **Docs**: `README.md` — update P2/P3 status to reflect this gap is documented but not closed
 - [ ] **Gate**: Documentation update only.
 
@@ -228,7 +228,7 @@ Before closing the remediation, verify that every fixed code path is exercised b
 - [ ] **Gate**: `just demo-e2e 10` passes with clean output.
 
 ### H.2 — Verify force-large-n still works
-- [ ] **Verify**: `cargo run --release -p pvthfhe-cli --features "sonobe-compressor,demo-seeded-rng" -- demo --n 231 --threshold 4 --seed 1 --force-large-n` succeeds
+- [ ] **Verify**: `cargo run --release -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng" -- demo --n 231 --threshold 4 --seed 1 --force-large-n` succeeds
 - [ ] **Gate**: Same as H.1 but for n=231.
 
 ### H.3 — Run comparative benchmark before and after

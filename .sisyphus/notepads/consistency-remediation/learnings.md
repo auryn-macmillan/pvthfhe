@@ -9,12 +9,12 @@
 
 ### Pattern
 - Replace "not yet implemented" claim about Greco/NIZK with "Implemented (CycloNizkAdapter + bfv_sigma.rs, conditional soundness — see P1)"
-- Replace "no on-chain cryptographic verification — verifier accepts any proof bytes" with "on-chain cryptographic verification: real UltraHonk verifier (committing to Sonobe state) + off-chain attestation"
+- Replace "no on-chain cryptographic verification — verifier accepts any proof bytes" with "on-chain cryptographic verification: real UltraHonk verifier (committing to Nova state) + off-chain attestation"
 - Replace "Noir circuits are tautological surrogates" with "Noir circuits: real aggregation and wrapping logic (not tautological surrogates)"
 
 ### Notes
 - ARCHITECTURE.md had a sed artifact (`->` prefix) that needed a follow-up fix
-- The header line "This repository contains critical cryptographic surrogates that provide no real security" was left intact — it still applies to other surrogates (Sonobe substitution for P2/P3)
+- The header line "This repository contains critical cryptographic surrogates that provide no real security" was left intact — it still applies to other surrogates (Nova substitution for P2/P3)
 
 ## E.1 & E.5 — demo_nizk.rs changes (2026-05-12)
 

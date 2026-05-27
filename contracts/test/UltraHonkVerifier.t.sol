@@ -13,11 +13,11 @@ contract UltraHonkVerifierTest is Test {
     function setUp() public {
         verifier = new UltraHonkVerifier_N4();
         proof = vm.readFileBinary(
-            string.concat(vm.projectRoot(), "/../circuits/sonobe_state_commitment/target/proof")
+            string.concat(vm.projectRoot(), "/../circuits/nova_state_commitment/target/proof")
         );
         publicInputs = _decodePublicInputs(
             vm.readFileBinary(
-                string.concat(vm.projectRoot(), "/../circuits/sonobe_state_commitment/target/public_inputs")
+                string.concat(vm.projectRoot(), "/../circuits/nova_state_commitment/target/public_inputs")
             )
         );
     }

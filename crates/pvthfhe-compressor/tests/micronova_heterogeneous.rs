@@ -2,14 +2,14 @@
 //!
 //! Tests the [`HeterogeneousCircuitFamily`] trait, the
 //! [`LatticeFoldTreeCircuitFamily`], and the [`HeterogeneousStepCircuit`]
-//! integrated with [`SonobeCompressor`].
+//! integrated with [`NovaCompressor`].
 
 use ark_bn254::Fr;
 use ark_ff::Zero;
-use pvthfhe_compressor::sonobe::{
+use pvthfhe_compressor::nova::{
     encode_triple, heterogeneous::HeterogeneousCircuitFamily,
     latticefold_circuit_family::LatticeFoldTreeCircuitFamily, ExternalInputs3,
-    HeterogeneousStepCircuit, SonobeCompressor,
+    HeterogeneousStepCircuit, NovaCompressor,
 };
 
 // Helper: call trait methods with concrete Fr type to resolve the generic F.
@@ -40,7 +40,7 @@ fn heterogeneous_two_level_tree_folds() {
     let family = LatticeFoldTreeCircuitFamily { depth: 2 };
     HeterogeneousStepCircuit::<Fr>::set_family(family);
 
-    let compressor = SonobeCompressor::<HeterogeneousStepCircuit<Fr>>::new([1u8; 32], 3).unwrap();
+    let compressor = NovaCompressor::<HeterogeneousStepCircuit<Fr>>::new([1u8; 32], 3).unwrap();
     let acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
     let steps: Vec<ExternalInputs3<Fr>> = (0..3)
         .map(|i| ExternalInputs3(Fr::from(1u64), Fr::from((i + 1) as u64), Fr::zero()))
@@ -67,7 +67,7 @@ fn heterogeneous_depth_three_tree_folds() {
     let family = LatticeFoldTreeCircuitFamily { depth: 3 };
     HeterogeneousStepCircuit::<Fr>::set_family(family);
 
-    let compressor = SonobeCompressor::<HeterogeneousStepCircuit<Fr>>::new([2u8; 32], 7).unwrap();
+    let compressor = NovaCompressor::<HeterogeneousStepCircuit<Fr>>::new([2u8; 32], 7).unwrap();
     let acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
     let steps: Vec<ExternalInputs3<Fr>> = (0..7)
         .map(|i| ExternalInputs3(Fr::from(1u64), Fr::from(2u64), Fr::from((i + 1) as u64)))
@@ -84,7 +84,7 @@ fn heterogeneous_depth_four_tree_folds() {
     let family = LatticeFoldTreeCircuitFamily { depth: 4 };
     HeterogeneousStepCircuit::<Fr>::set_family(family);
 
-    let compressor = SonobeCompressor::<HeterogeneousStepCircuit<Fr>>::new([3u8; 32], 15).unwrap();
+    let compressor = NovaCompressor::<HeterogeneousStepCircuit<Fr>>::new([3u8; 32], 15).unwrap();
     let acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
     let steps: Vec<ExternalInputs3<Fr>> = (0..15)
         .map(|i| ExternalInputs3(Fr::from(1u64), Fr::from(2u64), Fr::from((i + 1) as u64)))

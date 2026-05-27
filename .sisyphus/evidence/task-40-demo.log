@@ -1,31 +1,29 @@
 warning: patch `ark-bn254 v0.6.0 (https://github.com/arkworks-rs/algebra#3b2a1249)` was not used in the crate graph
+warning: patch `ark-crypto-primitives v0.5.0 (https://github.com/flyingnobita/crypto-primitives?rev=f559264#f5592640)` was not used in the crate graph
 warning: patch `ark-ec v0.6.0 (https://github.com/arkworks-rs/algebra#3b2a1249)` was not used in the crate graph
 warning: patch `ark-ff v0.6.0 (https://github.com/arkworks-rs/algebra#3b2a1249)` was not used in the crate graph
+warning: patch `ark-groth16 v0.5.0 (https://github.com/arkworks-rs/groth16?rev=b3b4a15#b3b4a152)` was not used in the crate graph
 warning: patch `ark-grumpkin v0.6.0 (https://github.com/arkworks-rs/algebra#3b2a1249)` was not used in the crate graph
 warning: patch `ark-poly v0.6.0 (https://github.com/arkworks-rs/algebra#3b2a1249)` was not used in the crate graph
+warning: patch `ark-poly-commit v0.5.0 (https://github.com/arkworks-rs/poly-commit#a05ec99d)` was not used in the crate graph
 warning: patch `ark-serialize v0.6.0 (https://github.com/arkworks-rs/algebra#3b2a1249)` was not used in the crate graph
+warning: patch `ark-snark v0.5.1 (https://github.com/arkworks-rs/snark#845ce9d5)` was not used in the crate graph
 help: Check that the patched package version and available features are compatible
       with the dependency requirements. If the patch has a different version from
       what is locked in the Cargo.lock file, run `cargo update` to use the new
       version. This may also occur with an optional dependency that is not enabled.
 warning: pvthfhe-fhe@0.1.0: MOCK BACKEND ACTIVE — XOR/SHA256 ONLY. Set PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK=1 to use.
 warning: pvthfhe-aggregator@0.1.0: aggregator: folding uses CycloFoldStepCircuit with real Ajtai commitments (CycloNizkAdapter)
-   Compiling pvthfhe-cli v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-cli)
-    Finished `release` profile [optimized] target(s) in 26.23s
-     Running `target/release/pvthfhe-cli demo --n 10 --threshold 4 --seed 1`
-demo: n=10 threshold=4 seed=1
+    Finished `release` profile [optimized] target(s) in 0.10s
+     Running `target/release/pvthfhe-cli demo --n 32 --threshold 15 --seed 1`
+demo: n=32 threshold=15 seed=1
 pvss_backend_id=lattice-pvss-bfv-d2
 backend_id == "cyclo-ajtai-d2-conditional"
 backend_id_p2: cyclo-rlwe-t10-lemma9-heuristic
-backend_id_p3: sonobe-nova-bn254-grumpkin
+backend_id_p3: nova-bn254-grumpkin
 note: on-chain Solidity verify is NOT run by demo (use bench-comparison)
 pvss_backend_id=lattice-pvss-bfv-d2
-[2m2026-05-26T19:05:44.595043Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m seed flag ignored in production path; will require --insecure-seed in future R3.6
-step 1/14: keygen (n=10 t=4 seed=1)
-keygen: complete (1841.120 ms)
-step 2/14: dkg_deal (n=10 dealers)
-dkg_deal: complete (80643.190 ms)
-step 3/14: dkg_aggregate (n=10 recipients)
-dkg_aggregate: complete (0.120 ms)
-[2m2026-05-26T19:07:13.341415Z[0m [33m WARN[0m [2mpvthfhe_compressor::sonobe[0m[2m:[0m Nova::verify failed: IVCVerificationFail
-Error: c4: DKG aggregation IVC verification FAILED
+[2m2026-05-27T19:51:06.806423Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m seed flag ignored in production path; will require --insecure-seed in future R3.6
+step 1/14: keygen (n=32 t=15 seed=1)
+keygen: complete (19963.836 ms)
+step 2/14: dkg_deal (n=32 dealers)

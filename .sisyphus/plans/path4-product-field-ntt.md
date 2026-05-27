@@ -117,7 +117,7 @@ which internally use NTT. No API changes.
 - `ntt_shamir` (2 tests)
 - Parity tests (8 tests)
 - Noir aggregator_final (12 tests)
-- Noir sonobe_state_commitment (7 tests)
+- Noir nova_state_commitment (7 tests)
 
 ### End-to-end
 - `demo-e2e 5 2 1` → ACCEPT

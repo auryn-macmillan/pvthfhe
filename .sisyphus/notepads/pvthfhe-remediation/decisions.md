@@ -16,7 +16,7 @@ These three gates are explicitly outside this plan's scope per the plan's §A.4 
 **Per-phase oracle review checkpoints** (mandatory before marking phase `[x]`):
 - R1.0 construction selection
 - R1.5 DKG secrecy adversary model
-- R2.0 Sonobe-only design doc
+- R2.0 Nova-only design doc
 - R2.4 Cyclo forgery resistance test adversary model
 - R3.0 NIZK construction selection
 - R3.0a witness-language schema design
@@ -24,7 +24,7 @@ These three gates are explicitly outside this plan's scope per the plan's §A.4 
 - R3.3 Ajtai CRS binding
 - R4.1 real `FoldingScheme` impl
 - R4.4 fold e2e soundness
-- R5.2 Sonobe step circuit
+- R5.2 Nova step circuit
 - R5.3 SRS discipline
 - R8.2 atomic plaintext release API surface + transcript binding
 - R8.5 e2e soundness
@@ -131,7 +131,7 @@ Oracle session ses_1fabd6608ffeYZ3as0GGYjEZbY recommended Option (C) with these 
 1. `crates/pvthfhe-cli/src/full_pipeline.rs:101,178,190,236` (4×) → OsRng
 2. `crates/pvthfhe-fhe/src/fhers.rs:256` → OsRng
 3. `crates/pvthfhe-bench/src/backends/fhe_rs.rs:136` → OsRng (this is in production lib path, not a bench bin)
-4. `crates/pvthfhe-compressor/src/sonobe/mod.rs:81,176` → OsRng (sonobe substitution, but production path)
+4. `crates/pvthfhe-compressor/src/nova/mod.rs:81,176` → OsRng (nova substitution, but production path)
 5. `crates/pvthfhe-pvss/src/encrypt.rs:128,269` → OsRng (F20 fix; transcript-derived encryption RNG is BROKEN per oracle)
 6. `crates/pvthfhe-pvss/src/nizk_decrypt.rs:101` → OsRng UNLESS prover-side determinism is proven secure (default: migrate)
 7. `crates/pvthfhe-nizk/src/{adapter.rs:294, ajtai.rs:183}` → KEEP deterministic with `// allow-seeded-rng: CRS-bound Ajtai matrix per R3.5` annotation
@@ -299,36 +299,36 @@ The Rényi divergence approach (ePrint 2022/1625) requires σ_smudge ≥ σ_err 
 
 ## 2026-05-08 — R2.0 fold-construction.md authored
 
-### Decision: Sonobe Nova substitution for P2 folding (documented)
+### Decision: Nova Nova substitution for P2 folding (documented)
 
 **File**: `.sisyphus/design/fold-construction.md` (390 lines).
 
-**Summary**: The P2 folding layer uses Sonobe Nova over BN254/Grumpkin as a temporary substitute for lattice-native folding (Cyclo/LatticeFold+). The Cyclo crate is retained for witness representation (poly-vector format, ∞-norm checks, parameter structure) but the actual folding computation is delegated to Sonobe.
+**Summary**: The P2 folding layer uses Nova Nova over BN254/Grumpkin as a temporary substitute for lattice-native folding (Cyclo/LatticeFold+). The Cyclo crate is retained for witness representation (poly-vector format, ∞-norm checks, parameter structure) but the actual folding computation is delegated to Nova.
 
 **Key architectural decisions documented**:
 
-1. **Why Sonobe**: Cyclo and LatticeFold+ lack production-grade reference implementations. Cyclo Lemma 9 formalization exceeds PVTHFHE budget. Both require a CCS encoder for the RLWE relation that has not been designed.
+1. **Why Nova**: Cyclo and LatticeFold+ lack production-grade reference implementations. Cyclo Lemma 9 formalization exceeds PVTHFHE budget. Both require a CCS encoder for the RLWE relation that has not been designed.
 
 2. **StepCircuit design**: The RLWE decryption-share relation `d_i = c·s_i + e_i` with `‖e_i‖_∞ ≤ 16` is encoded as an R1CS circuit over BN254's scalar field. Estimated ~1.5M R1CS gates per fold step. ∞-norm checks are enforced in-circuit (not only off-chain).
 
-3. **Soundness assumption**: Sonobe Nova over BN254/Grumpkin with T ≥ 10 rounds yields soundness error ≈ 10 × 2⁻¹²⁸ ≪ 2⁻¹²⁰. This relies on DLOG hardness (A-DLOG-1 through A-DLOG-4) and Poseidon collision resistance (A-HASH-2). NOT post-quantum — this is accepted per the existing P3 non-PQ disposition.
+3. **Soundness assumption**: Nova Nova over BN254/Grumpkin with T ≥ 10 rounds yields soundness error ≈ 10 × 2⁻¹²⁸ ≪ 2⁻¹²⁰. This relies on DLOG hardness (A-DLOG-1 through A-DLOG-4) and Poseidon collision resistance (A-HASH-2). NOT post-quantum — this is accepted per the existing P3 non-PQ disposition.
 
-4. **Migration surface** (9 files): When lattice-folding becomes production-ready, swap the adapter behind `CycloAdapter` trait, implement CCS encoder for RLWE relation, and replace `sonobe/mod.rs` with `cyclo/mod.rs`. No changes to P1 NIZK, P3 verifier, Solidity contracts, Noir circuits, or FHE backend.
+4. **Migration surface** (9 files): When lattice-folding becomes production-ready, swap the adapter behind `CycloAdapter` trait, implement CCS encoder for RLWE relation, and replace `nova/mod.rs` with `cyclo/mod.rs`. No changes to P1 NIZK, P3 verifier, Solidity contracts, Noir circuits, or FHE backend.
 
 5. **R2.1–R2.4 implications**:
    - R2.1 ∞-norm checks: enforced in StepCircuit via bit-decomposition (49K gates for e_i, 16K for s_i); CI lint `forbid::bytes_iter_max_in_norm` enforced
    - R2.2 Challenge sampling: uniform random in F_p (Poseidon-derived), avoiding Cyclo's biased ternary + Lemma 9 heuristic
-   - R2.3 CCS encoder: NOT needed under Sonobe (R1CS is native); required only for v2 migration
+   - R2.3 CCS encoder: NOT needed under Nova (R1CS is native); required only for v2 migration
    - R2.4 Forgery resistance: 4 adversary models documented (raw-witness injection, wrong-relation, fold-depth overflow, commitment mismatch)
 
-6. **New assumptions**: A-DLOG-5 (Sonobe Nova soundness over BN254/Grumpkin), A-STRUCT-7 (StepCircuit exactness), A-COND-5 (Sonobe is temporary surrogate, non-PQ at P2).
+6. **New assumptions**: A-DLOG-5 (Nova Nova soundness over BN254/Grumpkin), A-STRUCT-7 (StepCircuit exactness), A-COND-5 (Nova is temporary surrogate, non-PQ at P2).
 
 **Oracle review required**: R2.0 checkbox cannot be marked complete until oracle reviews `.sisyphus/design/fold-construction.md` and returns APPROVE.
 
 ### Design tensions noted
-- Cyclo crate: contains both witness representation (kept) and folding scaffolding (stubbed for Sonobe). In a v2 migration, the folding scaffolding becomes the real Cyclo fold.
-- Soundness comparison: Sonobe has tighter concrete soundness (2⁻¹²⁸) than Cyclo (κ_nu ≈ 2⁻⁹⁴ + other error terms), but at the cost of post-quantum coverage.
-- The `PVTHFHE_CYCLO_PARAMS` constant (T=10, β_10=1344) is used as a sizing budget even during the Sonobe phase — the StepCircuit enforces the same norm growth schedule.
+- Cyclo crate: contains both witness representation (kept) and folding scaffolding (stubbed for Nova). In a v2 migration, the folding scaffolding becomes the real Cyclo fold.
+- Soundness comparison: Nova has tighter concrete soundness (2⁻¹²⁸) than Cyclo (κ_nu ≈ 2⁻⁹⁴ + other error terms), but at the cost of post-quantum coverage.
+- The `PVTHFHE_CYCLO_PARAMS` constant (T=10, β_10=1344) is used as a sizing budget even during the Nova phase — the StepCircuit enforces the same norm growth schedule.
 
 ## [2026-05-09] R3.0 NIZK construction selection
 
@@ -422,7 +422,7 @@ fold-compressed proof verifies, and (c) the full binding tuple matches.
 
 3. **Field name mappings against codebase**:
    - `roster_hash` → `participant_set_hash: [u8; 32]` from `keygen/simulator.rs:85`
-   - `srsHash` → `Compressor::srs_hash()` from `compressor/src/sonobe/mod.rs:232`
+   - `srsHash` → `Compressor::srs_hash()` from `compressor/src/nova/mod.rs:232`
    - `dkg_root` → NOT YET PRODUCED by current pipeline (requires R1 DKG)
    - `session_id` → exists as `keygen_session_id()` at `full_pipeline.rs:307` but not in binding hasher
    - `param_hash` → NOT YET computed in pipeline
@@ -457,7 +457,7 @@ R8.2 → `.sisyphus/design/pre-reveal-binding.md` independent review (per decisi
 
 **Frozen parameters:**
 1. **BFV:** n=8192, log₂Q=174, t_plain=65536 (2¹⁶), 3×58-bit NTT moduli (q₀=288230376173076481, q₁=288230376167047169, q₂=288230376161280001), ternary secrets, σ=3.19 error.
-2. **SRS:** `H(epoch ‖ "pvthfhe-srs-v1")` → transparent Pedersen SRS, deterministic CSPRNG expansion. Domain tag: `pvthfhe/sonobe/srs/v1`.
+2. **SRS:** `H(epoch ‖ "pvthfhe-srs-v1")` → transparent Pedersen SRS, deterministic CSPRNG expansion. Domain tag: `pvthfhe/nova/srs/v1`.
 3. **DKG:** default (n=10, t=7), max n=256, t floor = ⌊n/2⌋+1, quorum ⌈2t/3⌉.
 4. **Ajtai matrix:** m=2048 rows, n=1024 cols, q≈2⁶⁰, domain tag: `pvthfhe/cyclo-ajtai-binding/v1`.
 5. **Domain tags:** All 13 Tag enum variants mapped to protocol phases (Phase 0–3 + Testing).

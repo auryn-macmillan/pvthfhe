@@ -17,7 +17,7 @@
 
 ## C.4: Deterministic Nova benchmarks
 - Replaced all 3 `let mut rng = OsRng;` with `ChaCha20Rng::from_seed(self.srs_hash)`.
-- `srs_hash` is a `[u8; 32]` field on `SonobeCompressor`, derived from epoch_hash at construction.
+- `srs_hash` is a `[u8; 32]` field on `NovaCompressor`, derived from epoch_hash at construction.
 - `ChaCha20Rng` and `SeedableRng` were already imported. Removed now-unused `pvthfhe_rng::OsRng` import.
 - `rand_chacha = "0.3"` was already in Cargo.toml — no dependency changes needed.
 

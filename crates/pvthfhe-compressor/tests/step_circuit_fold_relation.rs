@@ -6,7 +6,7 @@ use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_relations::gr1cs::ConstraintSystem;
 use folding_schemes::frontend::FCircuit;
-use pvthfhe_compressor::sonobe::{CycloFoldStepCircuit, ExternalInputs3Var, SonobeCompressor};
+use pvthfhe_compressor::nova::{CycloFoldStepCircuit, ExternalInputs3Var, NovaCompressor};
 use pvthfhe_compressor::ProofCompressor;
 
 fn epoch() -> [u8; 32] {
@@ -26,7 +26,7 @@ fn encode_triple(a: u64, b: u64, c: u64) -> Vec<u8> {
 
 #[test]
 fn cyclo_fold_fails_closed_without_ring_and_sigma_witnesses() {
-    let compressor = SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch(), 2)
+    let compressor = NovaCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch(), 2)
         .expect("construct cyclo fold compressor");
     let acc = encode_triple(0, 0, 0);
     let public_inputs = encode_triple(3, 1, 1);
@@ -35,7 +35,7 @@ fn cyclo_fold_fails_closed_without_ring_and_sigma_witnesses() {
     assert!(compressor
         .verify(&vk, &proof, &public_inputs)
         .expect("verify"));
-    assert_eq!(compressor.backend_id(), "sonobe-nova-bn254-grumpkin");
+    assert_eq!(compressor.backend_id(), "nova-bn254-grumpkin");
 }
 
 #[test]

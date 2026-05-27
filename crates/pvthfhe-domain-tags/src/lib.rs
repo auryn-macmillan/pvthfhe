@@ -14,12 +14,12 @@ pub enum Tag {
     KeygenSimulatorSession,
     /// `pvthfhe/proof-tag/v1` — aggregator e2e_real test fixture proof tag.
     ProofTag,
-    /// `pvthfhe/sonobe/toy-step/v1` — Sonobe surrogate toy-step circuit.
-    SonobeToyStep,
-    /// `pvthfhe/sonobe/cyclo-fold/v1` — Sonobe Cyclo fold step circuit (R5.2).
-    SonobeCycloFold,
-    /// `pvthfhe/sonobe/srs/v1` — Sonobe SRS domain separator.
-    SonobeSrs,
+    /// `pvthfhe/nova/toy-step/v1` — Nova surrogate toy-step circuit.
+    NovaToyStep,
+    /// `pvthfhe/nova/cyclo-fold/v1` — Nova Cyclo fold step circuit (R5.2).
+    NovaCycloFold,
+    /// `pvthfhe/nova/srs/v1` — Nova SRS domain separator.
+    NovaSrs,
     /// `pvthfhe/wire/test-payload/v1` — pvthfhe-wire canonicality tests.
     WireTestPayload,
     /// `pvthfhe/wire/fhe-keygen-share/v1` — FHE keygen-share wire payload.
@@ -50,8 +50,8 @@ pub enum Tag {
     PvssC7MerkleDecryptAggregation,
     /// `pvthfhe/p3/fold-verifier/v1` — P3 LatticeFold+ terminal verifier step circuit.
     PvssFoldVerifier,
-    /// `pvthfhe/sonobe/ring-verifier/v1` — Sonobe ring equation verifier circuit (G1).
-    SonobeRingVerifier,
+    /// `pvthfhe/nova/ring-verifier/v1` — Nova ring equation verifier circuit (G1).
+    NovaRingVerifier,
 }
 
 impl Tag {
@@ -60,9 +60,9 @@ impl Tag {
             Tag::Finalize => b"pvthfhe/finalize/v1",
             Tag::KeygenSimulatorSession => b"pvthfhe/keygen-simulator/session/v1",
             Tag::ProofTag => b"pvthfhe/proof-tag/v1",
-            Tag::SonobeToyStep => b"pvthfhe/sonobe/toy-step/v1",
-            Tag::SonobeCycloFold => b"pvthfhe/sonobe/cyclo-fold/v1",
-            Tag::SonobeSrs => b"pvthfhe/sonobe/srs/v1",
+            Tag::NovaToyStep => b"pvthfhe/nova/toy-step/v1",
+            Tag::NovaCycloFold => b"pvthfhe/nova/cyclo-fold/v1",
+            Tag::NovaSrs => b"pvthfhe/nova/srs/v1",
             Tag::WireTestPayload => b"pvthfhe/wire/test-payload/v1",
             Tag::WireFheKeygenShare => b"pvthfhe/wire/fhe-keygen-share/v1",
             Tag::WireFhePublicKey => b"pvthfhe/wire/fhe-public-key/v1",
@@ -82,7 +82,7 @@ impl Tag {
             Tag::PvssC7DecryptAggregation => b"pvthfhe/pvss/c7-decrypt-aggregation/v1",
             Tag::PvssC7MerkleDecryptAggregation => b"pvthfhe/pvss/c7-merkle-decrypt-aggregation/v1",
             Tag::PvssFoldVerifier => b"pvthfhe/p3/fold-verifier/v1",
-            Tag::SonobeRingVerifier => b"pvthfhe/sonobe/ring-verifier/v1",
+            Tag::NovaRingVerifier => b"pvthfhe/nova/ring-verifier/v1",
         }
     }
 
@@ -91,9 +91,9 @@ impl Tag {
             Tag::Finalize.as_bytes(),
             Tag::KeygenSimulatorSession.as_bytes(),
             Tag::ProofTag.as_bytes(),
-            Tag::SonobeToyStep.as_bytes(),
-            Tag::SonobeCycloFold.as_bytes(),
-            Tag::SonobeSrs.as_bytes(),
+            Tag::NovaToyStep.as_bytes(),
+            Tag::NovaCycloFold.as_bytes(),
+            Tag::NovaSrs.as_bytes(),
             Tag::WireTestPayload.as_bytes(),
             Tag::WireFheKeygenShare.as_bytes(),
             Tag::WireFhePublicKey.as_bytes(),
@@ -109,7 +109,7 @@ impl Tag {
             Tag::PvssC7DecryptAggregation.as_bytes(),
             Tag::PvssC7MerkleDecryptAggregation.as_bytes(),
             Tag::PvssFoldVerifier.as_bytes(),
-            Tag::SonobeRingVerifier.as_bytes(),
+            Tag::NovaRingVerifier.as_bytes(),
         ];
         &ALL
     }

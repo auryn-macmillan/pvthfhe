@@ -13,18 +13,18 @@
 
 | Task | Files | Effort |
 |------|-------|--------|
-| L0.1 | Implement `RingElementVar<F>` — FpVar-based ring arithmetic (add, sub, negate) over N=256 | `sonobe/ring_element_var.rs` (extend existing) | 2 days |
-| L0.2 | Implement `verify_ring_equation_r1cs()` in `CycloFoldStepCircuit::generate_step_constraints` — ternary c means zero multiplications (only addition and negation across 256 coefficients) | `sonobe/mod.rs:177-196`, `sonobe/cyclo_verifier.rs:33-81` | 2 days |
+| L0.1 | Implement `RingElementVar<F>` — FpVar-based ring arithmetic (add, sub, negate) over N=256 | `nova/ring_element_var.rs` (extend existing) | 2 days |
+| L0.2 | Implement `verify_ring_equation_r1cs()` in `CycloFoldStepCircuit::generate_step_constraints` — ternary c means zero multiplications (only addition and negation across 256 coefficients) | `nova/mod.rs:177-196`, `nova/cyclo_verifier.rs:33-81` | 2 days |
 | L0.3 | 4 RED tests: honest R1CS passes, wrong witness fails, c=-1/0/1 cases | `tests/cyclo_r1cs_verifier.rs` | 1 day |
 
 ## Layer 1: Compressor — Real Lattice Folding in Nova
 
 | Task | Files | Effort |
 |------|-------|--------|
-| L1.1 | Inject `RingElementVar`-based external inputs into `CycloFoldStepCircuit` state — state grows from 3 Fr to 3+N×2 Fr (3 + 512 = 515) or use a polynomial-element encoding | `sonobe/mod.rs:177-210` | 3 days |
+| L1.1 | Inject `RingElementVar`-based external inputs into `CycloFoldStepCircuit` state — state grows from 3 Fr to 3+N×2 Fr (3 + 512 = 515) or use a polynomial-element encoding | `nova/mod.rs:177-210` | 3 days |
 | L1.2 | Replace 1×1 identity CCS matrix with real Cyclo verifier matrix derived from `CycloVerifierCCS::to_ccs_matrix()` — encode ring equation as actual CCS constraints | `full_pipeline.rs:779-794` | 2 days |
 | L1.3 | Replace zero CCS witness with real witness from `RealNizkAdapter` proof secret-share/error values | `full_pipeline.rs:828-840` | 1 day |
-| L1.4 | Replace deterministic ChaCha20Rng with `OsRng` for Nova prove_step (or keep ChaCha20 seeded from per-session nonce — document choice) | `sonobe/mod.rs:376,550,682` | 0.5 day |
+| L1.4 | Replace deterministic ChaCha20Rng with `OsRng` for Nova prove_step (or keep ChaCha20 seeded from per-session nonce — document choice) | `nova/mod.rs:376,550,682` | 0.5 day |
 | L1.5 | 6 RED tests: R1CS ring equation passes with real data, rejects tampered witness, CCS satisfiability non-trivial, OsRng proof differs per run | Tests | 2 days |
 
 ## Layer 2: MicroNova Circuits — Real Heterogeneous Verification

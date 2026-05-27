@@ -1,9 +1,9 @@
-# Plan: Heterogeneous IVC (MicroNova) in Sonobe Fork
+# Plan: Heterogeneous IVC (MicroNova) in Nova Fork
 
 **Plan**: `micronova-heterogeneous-ivc`
 **Status**: COMPLETE
 **Created**: 2026-05-14
-**Goal**: Implement heterogeneous incremental verifiable computation in our sonobe fork, enabling MicroNova-style folding where each step can use a different circuit from a circuit family.
+**Goal**: Implement heterogeneous incremental verifiable computation in our nova fork, enabling MicroNova-style folding where each step can use a different circuit from a circuit family.
 
 ---
 
@@ -60,12 +60,12 @@ For backward compatibility, a single-circuit wrapper implements `FCircuit` by de
 
 ### MicroNovaCompressor
 
-Wraps multiple `SonobeCompressor` instances, one per circuit in the family:
+Wraps multiple `NovaCompressor` instances, one per circuit in the family:
 
 ```rust
 pub struct MicroNovaCompressor<F: PrimeField, CF: HeterogeneousCircuitFamily<F>> {
     pub circuit_family: CF,
-    pub compressors: Vec<SonobeCompressor<SingleCircuitWrapper<F, CF>>>,
+    pub compressors: Vec<NovaCompressor<SingleCircuitWrapper<F, CF>>>,
     pub depth: usize,
     pub leaf_count: usize,
 }
@@ -80,13 +80,13 @@ Verifier: checks each step against the correct verifier key.
 
 ### MN.1 — HeterogeneousCircuitFamily trait
 
-**File**: `crates/pvthfhe-compressor/src/sonobe/heterogeneous.rs` (new)
+**File**: `crates/pvthfhe-compressor/src/nova/heterogeneous.rs` (new)
 
 Define the trait and a single-circuit adapter that implements the existing `FCircuit`.
 
 ### MN.2 — LatticeFoldTreeCircuitFamily
 
-**File**: `crates/pvthfhe-compressor/src/sonobe/latticefold_circuit_family.rs` (new)
+**File**: `crates/pvthfhe-compressor/src/nova/latticefold_circuit_family.rs` (new)
 
 Implement `HeterogeneousCircuitFamily` for the 3-level LatticeFold+ tree:
 
@@ -154,7 +154,7 @@ match std::env::var("PVTHFHE_COMPRESSOR").as_deref() {
         // Use MicroNovaCompressor with LatticeFoldTreeCircuitFamily
     }
     _ => {
-        // Use existing SonobeCompressor with CycloFoldStepCircuit (Track A/B)
+        // Use existing NovaCompressor with CycloFoldStepCircuit (Track A/B)
     }
 }
 ```
@@ -190,7 +190,7 @@ match std::env::var("PVTHFHE_COMPRESSOR").as_deref() {
 
 ## Dependencies
 
-- Existing `SonobeCompressor`, `FCircuit`, `ExternalInputs3` in our sonobe fork
+- Existing `NovaCompressor`, `FCircuit`, `ExternalInputs3` in our nova fork
 - `FoldVerifierCircuit` (P3-M1, already implemented)
 - `CycloVerifierCCS` (P2-M1, already implemented)
 - Lemma 9 (accepted as documented assumption)

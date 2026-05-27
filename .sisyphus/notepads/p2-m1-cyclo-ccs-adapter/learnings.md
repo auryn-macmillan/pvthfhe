@@ -84,12 +84,12 @@
 
 ### Files Created
 
-- `crates/pvthfhe-compressor/src/sonobe/cyclo_verifier.rs` — `verify_ring_equation()` free function wrapping `CycloVerifierCCS::verify_native()`
+- `crates/pvthfhe-compressor/src/nova/cyclo_verifier.rs` — `verify_ring_equation()` free function wrapping `CycloVerifierCCS::verify_native()`
 
 ### Files Modified
 
 - `crates/pvthfhe-compressor/Cargo.toml` — added `pvthfhe-aggregator` dependency
-- `crates/pvthfhe-compressor/src/sonobe/mod.rs` — updated `CycloFoldStepCircuit`:
+- `crates/pvthfhe-compressor/src/nova/mod.rs` — updated `CycloFoldStepCircuit`:
   - `state_len()` 3 → 4 (added `ring_verification_count`)
   - `descriptor().width` 3 → 4
   - `generate_step_constraints` now returns 4 elements with M1 placeholder comment
@@ -122,16 +122,16 @@
 
 ### Updated
 
-- `crates/pvthfhe-compressor/src/sonobe/mod.rs`: CycloFoldStepCircuit docstring now documents the 4-element state layout, M1 ring verification placeholder, and Track A/B coexistence.
-- `crates/pvthfhe-compressor/src/sonobe/cyclo_verifier.rs`: full module and function docstrings explaining the M1 ring-equation verification and M2 deferral.
-- `crates/pvthfhe-compressor/src/sonobe/c7_merkle_circuit.rs`: fixed pre-existing missing `use ark_bn254::Fr;` in test module.
+- `crates/pvthfhe-compressor/src/nova/mod.rs`: CycloFoldStepCircuit docstring now documents the 4-element state layout, M1 ring verification placeholder, and Track A/B coexistence.
+- `crates/pvthfhe-compressor/src/nova/cyclo_verifier.rs`: full module and function docstrings explaining the M1 ring-equation verification and M2 deferral.
+- `crates/pvthfhe-compressor/src/nova/c7_merkle_circuit.rs`: fixed pre-existing missing `use ark_bn254::Fr;` in test module.
 - `crates/pvthfhe-compressor/tests/multi_input_step_circuit.rs`: updated to 4-element state with ring_verification_count assertions.
 
 ### Verification
 
 - `cargo build --workspace`: passes
 - `cargo test -p pvthfhe-aggregator --test cyclo_ccs_adapter`: 7/7 passed
-- `cargo test -p pvthfhe-compressor`: passes (pre-existing RED `sonobe_isolated_mem` test excepted)
+- `cargo test -p pvthfhe-compressor`: passes (pre-existing RED `nova_isolated_mem` test excepted)
 - `cargo test -p pvthfhe-aggregator --test folding_relation --test cyclo_wire`: passes
 - `just demo-e2e`: ACCEPT
 - LSP diagnostics: 0 errors across all changed files

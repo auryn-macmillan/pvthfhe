@@ -37,7 +37,7 @@ Layer 1: Rust native checks (full_pipeline.rs)
          → EXTENSIVE but deletable by malicious prover
          → NOT reflected in any VK
 
-Layer 2: Sonobe Nova compressor (CycloFoldStepCircuit)
+Layer 2: Nova Nova compressor (CycloFoldStepCircuit)
          → Hash-only accumulator with prover-trusted counters
          → Enforces NO cryptographic properties beyond Nova folding soundness
 

@@ -56,9 +56,9 @@ The circuit derives `r` from the commitment: `r = Poseidon::hash(coeff_commitmen
 
 **Files affected**:
 - `crates/pvthfhe-compressor/src/witness.rs` — C7WitnessSet, C7Witness
-- `crates/pvthfhe-compressor/src/sonobe/c7_circuit.rs` — C7DecryptAggregationCircuit
-- `crates/pvthfhe-compressor/src/sonobe/mod.rs` — ExternalInputs4 → ExternalInputs5
-- `crates/pvthfhe-compressor/src/sonobe/poseidon_gadget.rs` — Expose `PoseidonSpongeVar` for direct use
+- `crates/pvthfhe-compressor/src/nova/c7_circuit.rs` — C7DecryptAggregationCircuit
+- `crates/pvthfhe-compressor/src/nova/mod.rs` — ExternalInputs4 → ExternalInputs5
+- `crates/pvthfhe-compressor/src/nova/poseidon_gadget.rs` — Expose `PoseidonSpongeVar` for direct use
 - `crates/pvthfhe-cli/src/full_pipeline.rs` — Witness construction
 
 ### Task Breakdown

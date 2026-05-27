@@ -26,8 +26,8 @@ path = "src/bin/per_aggregator.rs"
 required-features = ["with-fhe", "sonobe-compressor"]
 
 [[bin]]
-name = "sonobe-min"
-path = "src/bin/sonobe_min.rs"
+name = "nova-min"
+path = "src/bin/nova_min.rs"
 required-features = ["sonobe-compressor"]
 
 [lints]

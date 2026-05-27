@@ -35,7 +35,7 @@
 ## G.17: FoldVerifierStepCircuit deferred documentation (2026-05-18)
 
 ### Why deferred
-The `FoldVerifierStepCircuit` in `crates/pvthfhe-compressor/src/sonobe/fold_verifier_circuit.rs` has only degenerate constraints (counter increments). Security review finding D.2 flagged that left/right accumulator hashes are received as external inputs but never verified against any folding relation. Real fold verification requires verifying Nova accumulation of CycloFold proofs, checking accumulator hash consistency, and enforcing the Nova recurrence relation. This awaits the Interfold/composite IVC design phase (G.16).
+The `FoldVerifierStepCircuit` in `crates/pvthfhe-compressor/src/nova/fold_verifier_circuit.rs` has only degenerate constraints (counter increments). Security review finding D.2 flagged that left/right accumulator hashes are received as external inputs but never verified against any folding relation. Real fold verification requires verifying Nova accumulation of CycloFold proofs, checking accumulator hash consistency, and enforcing the Nova recurrence relation. This awaits the Interfold/composite IVC design phase (G.16).
 
 ### What was done
 - Added prominent `## Status: DEFERRED (G.17, security review finding D.2)` doc comment at the top of the file listing the four requirements for real fold verification.
@@ -45,7 +45,7 @@ The `FoldVerifierStepCircuit` in `crates/pvthfhe-compressor/src/sonobe/fold_veri
 ## G.18: LatticeFoldTreeCircuitFamily DEFERRED documentation (2026-05-18)
 
 ### What was done
-Added prominent DEFERRED documentation to `crates/pvthfhe-compressor/src/sonobe/latticefold_circuit_family.rs`:
+Added prominent DEFERRED documentation to `crates/pvthfhe-compressor/src/nova/latticefold_circuit_family.rs`:
 - File-level doc comment now starts with `## Status: DEFERRED (G.18, security review finding D.3)` explaining that both circuit variants produce identical 0-R1CS-mult constraints (degenerate placeholders).
 - Listed the three real constraints needed: (1) P1 ring equation enforcement over witness data, (2) parent hash commits to child hashes, (3) distinct constraint shapes for leaf vs internal within Gaussian IVC.
 - Added inline `// PLACEHOLDER` comment above the `match circuit_idx` block in `generate_step_constraints`.

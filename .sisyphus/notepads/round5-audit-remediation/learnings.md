@@ -6,8 +6,8 @@
 - **D.2**: 5 files — "straight-line extractor" → "rewinding extractor" (paper/main.tex ×2, claims-table.md, T2.md, obligations.md)
 - **D.3**: paper/main.tex:149-151 — P1-T3 scope updated from narrow SLAP-core to full serialized ShareNizkProof format
 - **D.4**: paper/main.tex:154 — Removed obsolete T2/T3 tension note entirely
-- **D.5**: ARCHITECTURE.md:5 — "Sonobe attestation" → "ECDSA/ecrecover attestation"
-- **D.6**: ARCHITECTURE.md:193-194 — Track B default clarified as "norm-enforced Sonobe Nova path" with LatticeFold+ deferred
+- **D.5**: ARCHITECTURE.md:5 — "Nova attestation" → "ECDSA/ecrecover attestation"
+- **D.6**: ARCHITECTURE.md:193-194 — Track B default clarified as "norm-enforced Nova Nova path" with LatticeFold+ deferred
 - **D.7**: claims-table.md:37-38 — "skeleton" → "PROVED (rewinding extractor, ROM, forking lemma)"
 - **D.8**: SECURITY.md:48 — "deferred" → "PROVED — rewinding extractor"
 - **D.9**: interfold-threat-model.md:77 — "a skeleton" → "PROVED (rewinding extractor)"
@@ -20,7 +20,7 @@
 - SECURITY.md — T2 no longer "deferred" ✅
 
 ### Out-of-Scope Stale References (not in Batch D)
-- WARNING.md:3 still says "Sonobe attestation" (not targeted)
+- WARNING.md:3 still says "Nova attestation" (not targeted)
 - soundness-budget-reconciliation.md:65 still says "downgraded to Conjecture 9" (not targeted)
 
 ## Batch A — Critical Fixes (2026-05-14)
@@ -76,25 +76,25 @@ New: "Both tracks use the Cyclo Ajtai commitment format. Track B AjtaiMatrix int
 
 ## Batch C Learnings (2026-05-14)
 
-### C.1: Enable C7 Sonobe in demo-e2e
+### C.1: Enable C7 Nova in demo-e2e
 - Added `export PVTHFHE_RUN_C7_SONOBE=1` before the cargo run in the `demo-e2e` recipe (Justfile line 30).
-- The env var is read by `run_c7_sonobe_optional()` in pvthfhe_e2e.rs (line 376).
-- Previously, C7 Sonobe never ran during `just demo-e2e` because the env var defaulted to empty/"0".
+- The env var is read by `run_c7_nova_optional()` in pvthfhe_e2e.rs (line 376).
+- Previously, C7 Nova never ran during `just demo-e2e` because the env var defaulted to empty/"0".
 
 ### C.2: Silent-pass markers
 - Documented three deferred phases in `finish()`:
   - `noir_decrypt_share` — Noir decrypt-share circuit not implemented
-  - `noir_sonobe_wrap` — Sonobe wrap circuit not implemented
+  - `noir_nova_wrap` — Nova wrap circuit not implemented
   - `onchain_verify` — on-chain UltraHonk verification not implemented
 - Added a block comment at the top of `finish()` listing all deferred phases.
-- Removed misleading timing blocks (Instant::now + elapsed) for `noir_sonobe_wrap` and `onchain_verify` that were printing 0.0 ms measurements of nothing.
+- Removed misleading timing blocks (Instant::now + elapsed) for `noir_nova_wrap` and `onchain_verify` that were printing 0.0 ms measurements of nothing.
 - Added inline `// Phase marker only — not implemented. See deferred plans.` on each marker println.
 
 ### C.3: Track B comment in bench script
 - Added a comment to `bench/i1_one_vs_two_track.py` noting that:
-  - Track B benchmarking requires `--features pipeline-extra-checks,sonobe-compressor` and `PVTHFHE_TRACK=B`
+  - Track B benchmarking requires `--features pipeline-extra-checks,nova-compressor` and `PVTHFHE_TRACK=B`
   - The current benchmark uses Track A only (default)
   - Users should see `just bench-comparison` for the full Track B feature set
 
 ### C.4: bench-comparison features verified
-- Confirmed `just bench-comparison` recipe (Justfile line 51) has: `sonobe-compressor,demo-seeded-rng,pipeline-extra-checks` — correct per plan.
+- Confirmed `just bench-comparison` recipe (Justfile line 51) has: `nova-compressor,demo-seeded-rng,pipeline-extra-checks` — correct per plan.

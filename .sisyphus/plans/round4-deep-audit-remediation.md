@@ -117,7 +117,7 @@ Cross-referencing NIZK-soundness (bg_65e16803), PVSS-guarantees (bg_cc84f44b), E
 **F15 — bench-comparison recipe missing demo-seeded-rng feature**
 - Source: Bug surface (observed during baseline)
 - File: `Justfile:45`
-- Gap: `pvthfhe-e2e` binary requires `--features demo-seeded-rng` for seed!=0, but recipe only passes `--features sonobe-compressor`.
+- Gap: `pvthfhe-e2e` binary requires `--features demo-seeded-rng` for seed!=0, but recipe only passes `--features nova-compressor`.
 - Fix: Add `demo-seeded-rng` to the feature list.
 
 **F16 — unwrap_or(u32::MAX) patterns in 7+ locations**

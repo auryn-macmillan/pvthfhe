@@ -12,9 +12,9 @@
 - PVSS share algebraic verification now delegates to sigma::verify_scalar instead of reconstructing the removed binary-polynomial challenge path.
 ## 2026-05-18 — G7 compressor sigma in-circuit pass
 - CycloFoldStepCircuit is now state_len=5; state[4] is sigma_verification_count and verifier rejects unless fold_count == ring_verification_count == sigma_verification_count.
-- Sonobe preprocessing and proving must see the same sigma witness allocation shape. c_ntt was allocated as a witness rather than a constant to keep setup independent of per-run NIZK values while still constraining the algebraic equation.
+- Nova preprocessing and proving must see the same sigma witness allocation shape. c_ntt was allocated as a witness rather than a constant to keep setup independent of per-run NIZK values while still constraining the algebraic equation.
 - In-circuit sigma uses NTT-domain limbs from pvthfhe_nizk::sigma::compute_sigma_ntt_data and adds quotient witnesses so the RNS equation is enforced modulo each q_i inside BN254.
-- Full pipeline Track B extracts c_rns/d_rns/SigmaProof from NIZK proof bytes, converts to compressor SigmaWitness values, and populates set_sigma_data before SonobeCompressor::new/prove.
+- Full pipeline Track B extracts c_rns/d_rns/SigmaProof from NIZK proof bytes, converts to compressor SigmaWitness values, and populates set_sigma_data before NovaCompressor::new/prove.
 
 ## G-LAGRANGE and G-PLAINTEXT Closure (2026-05-18)
 

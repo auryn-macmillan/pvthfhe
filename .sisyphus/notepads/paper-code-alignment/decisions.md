@@ -2,11 +2,11 @@
 
 ## P4 Provenance: BOTH
 **Decision**: All P4 claims (PVSS) marked BOTH.
-**Rationale**: P4 is the PVSS infrastructure layer — SHA-256 commitments, BN254 Shamir secret sharing. It is shared between both the concrete Sonobe track and the theoretical LatticeFold+ track. No track divergence at P4.
+**Rationale**: P4 is the PVSS infrastructure layer — SHA-256 commitments, BN254 Shamir secret sharing. It is shared between both the concrete Nova track and the theoretical LatticeFold+ track. No track divergence at P4.
 
 ## P2-T2 Provenance: TARGET (not SURROGATE)
 **Decision**: P2-T2 marked TARGET rather than SURROGATE.
-**Rationale**: The proof file explicitly states "LatticeFold+ refinement" and "contingent on Lemma 9 (CONJECTURE)". While the current code uses Sonobe, the formal theorem statement and proof skeleton are written for the target LatticeFold+ system. B.2 only instructs reclassifying T1/T3/T5 as SURROGATE — T2 was already CONTINGENT and is target-specific.
+**Rationale**: The proof file explicitly states "LatticeFold+ refinement" and "contingent on Lemma 9 (CONJECTURE)". While the current code uses Nova, the formal theorem statement and proof skeleton are written for the target LatticeFold+ system. B.2 only instructs reclassifying T1/T3/T5 as SURROGATE — T2 was already CONTINGENT and is target-specific.
 
 ## P2-T4 Provenance: TARGET (not SURROGATE)
 **Decision**: P2-T4 marked TARGET rather than SURROGATE.
@@ -29,7 +29,7 @@
 **Decision**: Track A theorems use P2-A-T1..T5, P3-A-T1..T5. Track B uses P2-B-T1..T5, P3-B-T1..T5. LaTeX labels use lowercase: `thm:p2a-t1` etc. This avoids namespace collisions with old labels (`thm:p2-t1` etc.) which were removed.
 
 ### D.4: P3 Track A content
-**Decision**: Merged the updated P3 text from Batch A (mentioning Sonobe Nova IVC compression) with the dual-track structure. The Track A subsection acknowledges both the ecrecover on-chain surrogate and the Sonobe off-chain verifier.
+**Decision**: Merged the updated P3 text from Batch A (mentioning Nova Nova IVC compression) with the dual-track structure. The Track A subsection acknowledges both the ecrecover on-chain surrogate and the Nova off-chain verifier.
 
 ### D.5: Claims table dual-column approach
 **Decision**: Used two separate status columns (Track A Status, Track B Status) rather than splitting into separate rows. This keeps one row per claim while clearly showing track-specific status. P4/P1 rows use "(shared)" designation since both tracks use the same implementations.

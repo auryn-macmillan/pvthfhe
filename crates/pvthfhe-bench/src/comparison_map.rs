@@ -88,12 +88,12 @@ pub const CIRCUIT_MAP: &[CircuitMapping] = &[
     },
     CircuitMapping {
         interfold_name: "ZkDkgAggregation",
-        pvthfhe_name: "Sonobe wrap",
+        pvthfhe_name: "Nova wrap",
         cardinality: "1:1",
         aggregation_rule: "n/a",
         gap_reason: None,
         proof_system_note: Some(
-            "PVTHFHE uses a Sonobe wrap in place of Interfold's final UltraHonk aggregation over BFV state",
+            "PVTHFHE uses a Nova wrap in place of Interfold's final UltraHonk aggregation over BFV state",
         ),
     },
     CircuitMapping {
@@ -114,7 +114,7 @@ pub const CIRCUIT_MAP: &[CircuitMapping] = &[
     },
     CircuitMapping {
         interfold_name: "ZkDecryptedSharesAggregation",
-        pvthfhe_name: "Cyclo + Sonobe decrypt aggregation",
+        pvthfhe_name: "Cyclo + Nova decrypt aggregation",
         cardinality: "2:2 split-merge",
         aggregation_rule: "sum",
         gap_reason: Some("merged into single PVTHFHE aggregate_decrypt pass"),
@@ -122,12 +122,12 @@ pub const CIRCUIT_MAP: &[CircuitMapping] = &[
     },
     CircuitMapping {
         interfold_name: "ZkDecryptionAggregation",
-        pvthfhe_name: "Cyclo + Sonobe decrypt aggregation",
+        pvthfhe_name: "Cyclo + Nova decrypt aggregation",
         cardinality: "2:2 split-merge",
         aggregation_rule: "sum",
         gap_reason: Some("merged into single PVTHFHE aggregate_decrypt pass"),
         proof_system_note: Some(
-            "PVTHFHE's final decrypt aggregation inherits the Sonobe-vs-Interfold proof-system asymmetry",
+            "PVTHFHE's final decrypt aggregation inherits the Nova-vs-Interfold proof-system asymmetry",
         ),
     },
     CircuitMapping {

@@ -29,7 +29,7 @@ Each recipient verifies THEIR share by checking the parity proof includes their 
 All tasks implemented, tested, and verified end-to-end:
 
 - **Native parity**: `crates/pvthfhe-pvss/src/parity.rs` — `prove_parity()`, `verify_parity()`, matrix generation, serialization. Tests: `cargo test -p pvthfhe-pvss --lib -- parity` (8 passing).
-- **In-circuit parity**: `crates/pvthfhe-compressor/src/sonobe/dealer_parity_circuit.rs` — `DealerParityStepCircuit` verifies H·shares == 0 in R1CS via Schwartz-Zippel + P(0) commitment binding. Test: `cargo test -p pvthfhe-compressor --test dealer_parity_works`.
+- **In-circuit parity**: `crates/pvthfhe-compressor/src/nova/dealer_parity_circuit.rs` — `DealerParityStepCircuit` verifies H·shares == 0 in R1CS via Schwartz-Zippel + P(0) commitment binding. Test: `cargo test -p pvthfhe-compressor --test dealer_parity_works`.
 - **Pipeline wiring**: `full_pipeline.rs` calls `prove_parity` per dealer; parity checks pass for all dealers in `demo-e2e 10 4 1` → ACCEPT.
 - **Native commitment binding**: `crates/pvthfhe-pvss/src/share_computation.rs` — `verify_batched_share_computation` binds interpolated P(0) to public secret commitment. Tests: `share_computation_commitment_binding.rs` (3 passing).
 - **coefficient_bound**: `u64::MAX` sentinel allows full-field DKG polynomial coefficients.

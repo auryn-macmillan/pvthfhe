@@ -38,7 +38,7 @@
 - [ ] **Gate**: KAT tests pass. No hex-label stubs remain in BFVPublicKey derivation.
 
 ### B.3 — Document onchain/noir stubs
-- [ ] **Docs**: `SECURITY.md` — add note: "`onchain_verify`, `noir_decrypt_share`, `noir_aggregator_final`, `noir_sonobe_wrap` phases in the bench binary are timing-only markers. No Solidity verifier or Noir circuit is executed." 
+- [ ] **Docs**: `SECURITY.md` — add note: "`onchain_verify`, `noir_decrypt_share`, `noir_aggregator_final`, `noir_nova_wrap` phases in the bench binary are timing-only markers. No Solidity verifier or Noir circuit is executed." 
 - [ ] **Gate**: Documentation only.
 
 ---

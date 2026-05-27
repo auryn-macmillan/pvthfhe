@@ -7,8 +7,8 @@
 use ark_bn254::Fr;
 use ark_ff::{Field, Zero};
 
+use crate::nova::poseidon_gadget::PoseidonParams;
 use crate::poly_eval::eval_poly_bn254;
-use crate::sonobe::poseidon_gadget::PoseidonParams;
 
 // ── Native Poseidon permutation (duplicated from poseidon_gadget.rs) ────
 // These match the private native helpers in poseidon_gadget.rs exactly.
@@ -285,7 +285,7 @@ impl AjtaiCommitmentWitnessSet {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sonobe::poseidon_gadget::PoseidonSpongeVar;
+    use crate::nova::poseidon_gadget::PoseidonSpongeVar;
     use ark_r1cs_std::alloc::AllocVar;
     use ark_r1cs_std::fields::fp::FpVar;
     use ark_r1cs_std::GR1CSVar;

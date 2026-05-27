@@ -31,7 +31,7 @@ M5 composes the LatticeFold+ accumulator with the FoldVerifierStepCircuit so tha
 
 ### P2-M5.1 — Folding-to-Verifier bridge
 
-**File**: `crates/pvthfhe-compressor/src/sonobe/latticefold_adapter.rs` (new)
+**File**: `crates/pvthfhe-compressor/src/nova/latticefold_adapter.rs` (new)
 
 Convert LatticeFold+ accumulator state to FoldVerifierStepCircuit external inputs:
 

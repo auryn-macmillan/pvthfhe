@@ -414,10 +414,10 @@ P1 Sigma Protocol                    CCS Matrices
 |--------|-------------|
 | `cyclo-digest.md` §4.1, §6.2 | Cyclo folding relation and ring parameters |
 | `spec-real-p2p3.md` §4.1 | Locked Cyclo parameters ($\phi=256$, $q_{commit} \approx 2^{50}$, ternary challenge) |
-| `spec-real-p2p3.md` §4.2 | Sonobe substitute context |
+| `spec-real-p2p3.md` §4.2 | Nova substitute context |
 | `spec-real-p2p3.md` §3.1 | P1 statement and witness shape |
 | `spec-real-p2p3.md` §3.2 | Cyclo-companion Ajtai NIZK construction summary |
-| `fold-construction.md` §2.3 | CCS encoder role under Sonobe substitution |
+| `fold-construction.md` §2.3 | CCS encoder role under Nova substitution |
 | `fold-construction.md` §4.2 | v2 migration surface |
 | `p2-m1-cyclo-ccs-adapter.md` | Parent plan (P2-M1) |
 | `ccs_rlwe.rs` | Existing CCS RLWE relation encoding (for future composition) |

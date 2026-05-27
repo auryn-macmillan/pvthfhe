@@ -32,7 +32,7 @@ fn e2e_invokes_all_phases() -> Result<(), Box<dyn std::error::Error>> {
         "compressor_verify",
         "noir_decrypt_share",
         "noir_aggregator_final",
-        "noir_sonobe_wrap",
+        "noir_nova_wrap",
         "onchain_verify",
     ] {
         assert!(

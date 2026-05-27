@@ -13,7 +13,7 @@
 
 | ID | Finding |
 |----|---------|
-| **F1** | MicroNova `verify_tree` per-variant hash check is logging-only — no enforcement. SonobeNova::verify has no per-step circuit identity check. |
+| **F1** | MicroNova `verify_tree` per-variant hash check is logging-only — no enforcement. NovaNova::verify has no per-step circuit identity check. |
 
 ### High (1)
 

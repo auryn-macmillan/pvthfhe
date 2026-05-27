@@ -9,7 +9,7 @@
 **Fix**: Remove `unwrap_or_else` — propagate errors.
 
 ## Finding 3 (HIGH): SNARK Error Swallowing
-`sonobe/mod.rs:1126-1133`: `unwrap_or_else` on SNARK wrapping.
+`nova/mod.rs:1126-1133`: `unwrap_or_else` on SNARK wrapping.
 **Fix**: Return `CompressorError` on wrap failure.
 
 ## Finding 4 (HIGH): per_aggregator Dummy Data
@@ -39,7 +39,7 @@ Schnorr uses `thread_rng()`, NIZK uses `OsRng`.
 ## Success Criteria
 - [x] F1: Real error polynomial in keygen NIZK (`_error_bytes` removed from keygen_witness)
 - [x] F2: No silent stub fallbacks (errors propagate via `?` in simulator.rs)
-- [x] F3: SNARK errors propagate (unwrap_or_else removed in sonobe/mod.rs)
+- [x] F3: SNARK errors propagate (unwrap_or_else removed in nova/mod.rs)
 - [x] F4: per_aggregator uses real data (2026-05-25: 9 synthetic locations replaced with real transcript-derived data; cargo check clean)
 - [x] F5: per_node runs all instances (2026-05-25: 6 synthetic locations replaced with real ceremony-derived data; removed make_synthetic_nizk_* functions; cargo check clean)
 - [x] F6-F9: Docs updated (SECURITY.md, ARCHITECTURE.md, WARNING.md, README.md, interfold-equivalence.md)

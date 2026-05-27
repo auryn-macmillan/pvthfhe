@@ -56,7 +56,7 @@ Resolution options documented in test: upgrade BB, adjust circuit, or patch gene
 
 ### Changes
 - `PvtFheVerifier.sol:verifyWithAttestation()`: added ECDSA signature verification
-  via `ecrecover` over `keccak256(abi.encode(sonobeStateCommitment,
+  via `ecrecover` over `keccak256(abi.encode(novaStateCommitment,
   cycloAggregateCommitment, sessionId, signer))`
 - New `_verifyAttestationSignature()` helper: extracts (v, r, s) from 65-byte
   calldata signature, normalizes v to {27,28}, calls ecrecover

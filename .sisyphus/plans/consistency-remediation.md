@@ -22,7 +22,7 @@ Address all discrepancies identified in the five-dimensional consistency review:
 
 ### A.2 — Fix WARNING.md: remove stale surrogates claims
 - [x] **File**: `WARNING.md`
-- [x] **Change**: Remove "Noir circuits are tautological surrogates" and "verifier accepts any proof bytes". Replace with accurate summary of current pipeline: Sonobe Nova IVC over ToyStepCircuit, conditional soundness, on-chain verify not run by demo.
+- [x] **Change**: Remove "Noir circuits are tautological surrogates" and "verifier accepts any proof bytes". Replace with accurate summary of current pipeline: Nova Nova IVC over ToyStepCircuit, conditional soundness, on-chain verify not run by demo.
 - [x] **Gate**: Manual review
 
 ### A.3 — Fix STATUS.md: identical stale claims to WARNING.md
@@ -76,7 +76,7 @@ Address all discrepancies identified in the five-dimensional consistency review:
 
 ### B.8 — Fix `SECURITY-ADVISORY-001.md`: mark as RESOLVED or update exploit sketches
 - [x] **File**: `SECURITY-ADVISORY-001.md`
-- [x] **Change**: Either close as RESOLVED with a post-remediation note, or update exploit sketches C1/C2/C3 to reflect that real constraints now exist (circuits have Poseidon/Lagrange, fold has Ajtai commitments, verifier has real Sonobe Nova). Remove `STATUS: DRAFT` line.
+- [x] **Change**: Either close as RESOLVED with a post-remediation note, or update exploit sketches C1/C2/C3 to reflect that real constraints now exist (circuits have Poseidon/Lagrange, fold has Ajtai commitments, verifier has real Nova Nova). Remove `STATUS: DRAFT` line.
 - [x] **Gate**: Manual review
 
 ### B.9 — Fix `docs/security-proofs/interfold-equivalent-pvss.md` line 11: ghost references
@@ -108,7 +108,7 @@ Address all discrepancies identified in the five-dimensional consistency review:
 
 ### C.5 — Remove or mark `MicroNovaAdapter` / `pvthfhe-p3-encoder` as deferred
 - [x] **Files**: `.sisyphus/design/spec-real-p2p3.md` §5, §7.1
-- [x] **Change**: Mark `MicroNovaAdapter` trait and `pvthfhe-p3-encoder` crate as **DEFERRED** with a note that the current implementation uses Sonobe Nova directly via `ProofCompressor` trait without an intermediate P2→P3 encoding crate.
+- [x] **Change**: Mark `MicroNovaAdapter` trait and `pvthfhe-p3-encoder` crate as **DEFERRED** with a note that the current implementation uses Nova Nova directly via `ProofCompressor` trait without an intermediate P2→P3 encoding crate.
 - [x] **Gate**: Manual review
 
 ### C.6 — Document PVSS `encrypt.rs` in `interfold-equivalence.md`
@@ -141,8 +141,8 @@ Address all discrepancies identified in the five-dimensional consistency review:
 - [x] **Gate**: `cargo test -p pvthfhe-cli --test demo_banner` and demo-e2e run still pass
 
 ### E.2 — Wire `CycloFoldStepCircuit` into compressor (replacing ToyStepCircuit)
-- [x] **File**: `crates/pvthfhe-cli/src/compressor_glue.rs` and `crates/pvthfhe-compressor/src/sonobe/mod.rs`
-- [x] **Change**: Line 55 — `SonobeCompressor::<ToyStepCircuit<Fr>>` → `SonobeCompressor::<CycloFoldStepCircuit<Fr>>`. The `CycloFoldStepCircuit` already exists at `sonobe/mod.rs:122-167` and encodes `folded_hash = z[0] * ext[0] + z[0]` — it needs to be extended to encode the actual Ajtai commitment folding relation (commitment hash + norm escalation + accumulator parity). If full commitment folding is too heavy for a Sonobe step circuit, document the gap and keep `CycloFoldStepCircuit` with a clear caveat comment.
+- [x] **File**: `crates/pvthfhe-cli/src/compressor_glue.rs` and `crates/pvthfhe-compressor/src/nova/mod.rs`
+- [x] **Change**: Line 55 — `NovaCompressor::<ToyStepCircuit<Fr>>` → `NovaCompressor::<CycloFoldStepCircuit<Fr>>`. The `CycloFoldStepCircuit` already exists at `nova/mod.rs:122-167` and encodes `folded_hash = z[0] * ext[0] + z[0]` — it needs to be extended to encode the actual Ajtai commitment folding relation (commitment hash + norm escalation + accumulator parity). If full commitment folding is too heavy for a Nova step circuit, document the gap and keep `CycloFoldStepCircuit` with a clear caveat comment.
 - [x] **VERIFY**: Demo-e2e still passes with new step circuit; IVC step count, RSS, and timing within acceptable bounds.
 
 ### E.3 — Switch demo decrypt to committed_smudge mode
@@ -150,7 +150,7 @@ Address all discrepancies identified in the five-dimensional consistency review:
 
 ### E.4 — Fix `demo_banner.rs` test backend ID expectation
 - [x] **File**: `crates/pvthfhe-cli/tests/demo_banner.rs`
-- [x] **Change**: Line 16 — `contains("backend_id_p3: ultra-honk-micronova")` → `contains("backend_id_p3: sonobe-nova-bn254-grumpkin")`
+- [x] **Change**: Line 16 — `contains("backend_id_p3: ultra-honk-micronova")` → `contains("backend_id_p3: nova-bn254-grumpkin")`
 - [x] **Gate**: `cargo test -p pvthfhe-cli --test demo_banner` passes
 
 ### E.5 — Fix seed-flag behavior to match RED test expectation

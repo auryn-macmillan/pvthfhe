@@ -60,9 +60,9 @@ The output `srs_bytes` is expanded deterministically via a CSPRNG (e.g., ChaCha1
 
 | Property | Value |
 |----------|-------|
-| Domain tag | `pvthfhe/sonobe/srs/v1` (Tag::SonobeSrs) |
+| Domain tag | `pvthfhe/nova/srs/v1` (Tag::NovaSrs) |
 | SRS type | Transparent Pedersen (hash-to-curve, no trusted setup) |
-| Curve | TBD (pairing-friendly; referenced by `SonobeSrs` tag) |
+| Curve | TBD (pairing-friendly; referenced by `NovaSrs` tag) |
 | Derivation | Deterministic from `epoch` seed |
 
 ---
@@ -111,15 +111,15 @@ where `A ∈ Z_q^{m×n}` is a structured random matrix (R3 CRS), `m ∈ Z_qⁿ` 
 
 | Tag Variant | Domain Tag | Protocol Phase | Purpose |
 |-------------|-----------|----------------|---------|
-| `SonobeSrs` | `pvthfhe/sonobe/srs/v1` | Phase 0: Setup | SRS domain separator |
+| `NovaSrs` | `pvthfhe/nova/srs/v1` | Phase 0: Setup | SRS domain separator |
 | `CycloAjtaiBinding` | `pvthfhe/cyclo-ajtai-binding/v1` | Phase 0: Setup | Ajtai commitment binding domain tag |
 | `WireTestPayload` | `pvthfhe/wire/test-payload/v1` | Phase 0: Testing | pvthfhe-wire canonicality tests |
 | `KeygenSimulatorSession` | `pvthfhe/keygen-simulator/session/v1` | Phase 1: Keygen | Keygen simulator session label |
 | `WireFheKeygenShare` | `pvthfhe/wire/fhe-keygen-share/v1` | Phase 1: Keygen | FHE keygen-share wire payload |
 | `WireFhePublicKey` | `pvthfhe/wire/fhe-public-key/v1` | Phase 1: Keygen | FHE public-key wire payload |
 | `WirePvssShareOpenedProof` | `pvthfhe/wire/pvss-share-opened-proof/v1` | Phase 1: Keygen | PVSS share proof envelope |
-| `SonobeToyStep` | `pvthfhe/sonobe/toy-step/v1` | Phase 2: Folding | Sonobe surrogate toy-step circuit |
-| `SonobeCycloFold` | `pvthfhe/sonobe/cyclo-fold/v1` | Phase 2: Folding | Sonobe Cyclo fold step circuit |
+| `NovaToyStep` | `pvthfhe/nova/toy-step/v1` | Phase 2: Folding | Nova surrogate toy-step circuit |
+| `NovaCycloFold` | `pvthfhe/nova/cyclo-fold/v1` | Phase 2: Folding | Nova Cyclo fold step circuit |
 | `Finalize` | `pvthfhe/finalize/v1` | Phase 2–3: Aggregation | Aggregator finalize-phase transcript |
 | `ProofTag` | `pvthfhe/proof-tag/v1` | Phase 2–3: Aggregation | Aggregator e2e proof tag |
 | `WireFheDecryptShare` | `pvthfhe/wire/fhe-decrypt-share/v1` | Phase 3: Decryption | FHE decrypt-share wire payload |

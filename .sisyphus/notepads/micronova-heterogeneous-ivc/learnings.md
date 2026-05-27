@@ -4,9 +4,9 @@
 
 ### Architecture Decision: `Params = ()` constraint workaround
 
-**Problem**: SonobeCompressor requires `FCircuit<Fr, Params = ()>`, but the task specified
+**Problem**: NovaCompressor requires `FCircuit<Fr, Params = ()>`, but the task specified
 `HeterogeneousStepCircuit` with `type Params = CF` (the circuit family). Since
-`SonobeCompressor::new` calls `S::new(())`, the family cannot be passed through the
+`NovaCompressor::new` calls `S::new(())`, the family cannot be passed through the
 standard Params mechanism.
 
 **Solution**: Used `thread_local!` + `RefCell<Option<LatticeFoldTreeCircuitFamily>>` to
@@ -31,7 +31,7 @@ Helper functions in tests and unit test modules wrap these calls.
 
 The task specifies `state_len = 2`, but all existing circuits (`ToyStepCircuit`,
 `CycloFoldStepCircuit`, `FoldVerifierStepCircuit`) use `state_len = 3`, and
-`SonobeCompressor` initializes state with a triple. Using `state_len = 3` throughout
+`NovaCompressor` initializes state with a triple. Using `state_len = 3` throughout
 maintains compatibility.
 
 ### Tests
@@ -39,15 +39,15 @@ maintains compatibility.
 - 5 integration tests in `tests/micronova_heterogeneous.rs` — all pass
 - 3 unit tests in `latticefold_circuit_family.rs` — all pass  
 - Existing tests: `fold_verifier_step` (6/6), `micronova_compression` (2/2),
-  `latticefold_micronova_integration` (1/1), `sonobe_roundtrip` (4/4) — all pass
+  `latticefold_micronova_integration` (1/1), `nova_roundtrip` (4/4) — all pass
 - Test runtime: ~126s for 5 micronova_heterogeneous tests (Nova preprocessing + IVC)
 
 ### Files created/modified
 
-- `crates/pvthfhe-compressor/src/sonobe/heterogeneous.rs` — trait + HeterogeneousStepCircuit (NEW)
-- `crates/pvthfhe-compressor/src/sonobe/latticefold_circuit_family.rs` — LatticeFoldTreeCircuitFamily (NEW)
+- `crates/pvthfhe-compressor/src/nova/heterogeneous.rs` — trait + HeterogeneousStepCircuit (NEW)
+- `crates/pvthfhe-compressor/src/nova/latticefold_circuit_family.rs` — LatticeFoldTreeCircuitFamily (NEW)
 - `crates/pvthfhe-compressor/src/micronova/compressor.rs` — MicroNovaCompressor wrapper (NEW)
-- `crates/pvthfhe-compressor/src/sonobe/mod.rs` — module declarations + exports (MODIFIED)
+- `crates/pvthfhe-compressor/src/nova/mod.rs` — module declarations + exports (MODIFIED)
 - `crates/pvthfhe-compressor/src/micronova/mod.rs` — compressor module (MODIFIED)
-- `crates/pvthfhe-compressor/src/lib.rs` — pub use sonobe::heterogeneous (MODIFIED)
+- `crates/pvthfhe-compressor/src/lib.rs` — pub use nova::heterogeneous (MODIFIED)
 - `crates/pvthfhe-compressor/tests/micronova_heterogeneous.rs` — 5 integration tests (NEW)

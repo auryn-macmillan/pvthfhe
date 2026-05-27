@@ -1,8 +1,8 @@
 use ark_bn254::Fr;
 use ark_ff::{Field, One, Zero};
-use pvthfhe_compressor::sonobe::{
+use pvthfhe_compressor::nova::{
     bfv_encryption_circuit::{BFV_L, BFV_Q, BFV_STEP_DATA_LEN, B_U},
-    encode_hex, encode_quad, set_bfv_encryption_data, CycloFoldStepCircuit, SonobeCompressor,
+    encode_hex, encode_quad, set_bfv_encryption_data, CycloFoldStepCircuit, NovaCompressor,
 };
 use pvthfhe_compressor::ProofCompressor;
 
@@ -57,7 +57,7 @@ fn honest_bfv_encryption_prove_accepts() {
     set_bfv_encryption_data(data);
 
     let compressor =
-        SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new([0u8; 32], 1).expect("compressor");
+        NovaCompressor::<CycloFoldStepCircuit<Fr>>::new([0u8; 32], 1).expect("compressor");
 
     let acc = encode_hex((
         Fr::zero(),
@@ -83,7 +83,7 @@ fn tampered_pk0_rejected() {
     set_bfv_encryption_data(data);
 
     let compressor =
-        SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new([0u8; 32], 1).expect("compressor");
+        NovaCompressor::<CycloFoldStepCircuit<Fr>>::new([0u8; 32], 1).expect("compressor");
     let acc = encode_hex((
         Fr::zero(),
         Fr::zero(),
@@ -99,7 +99,7 @@ fn tampered_pk0_rejected() {
     let proof = compressor.prove(&acc, &pi);
     if proof.is_ok() {
         let vk = compressor.verifier_key();
-        let verify_result = compressor.verify(&vk, proof.as_ref().unwrap(), &pi);
+        let verify_result = compressor.verify(&vk, proof.as_ref().unwrap(), &acc, &pi);
         assert!(
             verify_result.is_err() || verify_result == Ok(false),
             "tampered pk0 must fail verification: {verify_result:?}"
@@ -115,7 +115,7 @@ fn tampered_u_norm_bound_rejected() {
     set_bfv_encryption_data(data);
 
     let compressor =
-        SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new([0u8; 32], 1).expect("compressor");
+        NovaCompressor::<CycloFoldStepCircuit<Fr>>::new([0u8; 32], 1).expect("compressor");
     let acc = encode_hex((
         Fr::zero(),
         Fr::zero(),
@@ -131,7 +131,7 @@ fn tampered_u_norm_bound_rejected() {
     let proof = compressor.prove(&acc, &pi);
     if proof.is_ok() {
         let vk = compressor.verifier_key();
-        let verify_result = compressor.verify(&vk, proof.as_ref().unwrap(), &pi);
+        let verify_result = compressor.verify(&vk, proof.as_ref().unwrap(), &acc, &pi);
         assert!(
             verify_result.is_err() || verify_result == Ok(false),
             "norm bound violation must fail verification: {verify_result:?}"
@@ -147,7 +147,7 @@ fn tampered_ct0_rejected() {
     set_bfv_encryption_data(data);
 
     let compressor =
-        SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new([0u8; 32], 1).expect("compressor");
+        NovaCompressor::<CycloFoldStepCircuit<Fr>>::new([0u8; 32], 1).expect("compressor");
     let acc = encode_hex((
         Fr::zero(),
         Fr::zero(),
@@ -163,7 +163,7 @@ fn tampered_ct0_rejected() {
     let proof = compressor.prove(&acc, &pi);
     if proof.is_ok() {
         let vk = compressor.verifier_key();
-        let verify_result = compressor.verify(&vk, proof.as_ref().unwrap(), &pi);
+        let verify_result = compressor.verify(&vk, proof.as_ref().unwrap(), &acc, &pi);
         assert!(
             verify_result.is_err() || verify_result == Ok(false),
             "tampered ct0 must fail verification: {verify_result:?}"
@@ -176,7 +176,7 @@ fn empty_data_no_constraint_violation() {
     set_bfv_encryption_data(vec![]);
 
     let compressor =
-        SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new([0u8; 32], 1).expect("compressor");
+        NovaCompressor::<CycloFoldStepCircuit<Fr>>::new([0u8; 32], 1).expect("compressor");
     let acc = encode_hex((
         Fr::zero(),
         Fr::zero(),

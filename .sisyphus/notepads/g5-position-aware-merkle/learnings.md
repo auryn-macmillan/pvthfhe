@@ -8,7 +8,7 @@
 - Renamed `leaf_index` param to `_leaf_index` to suppress unused variable warning
 
 ## Files Modified
-- `crates/pvthfhe-compressor/src/sonobe/c7_merkle_circuit.rs`
+- `crates/pvthfhe-compressor/src/nova/c7_merkle_circuit.rs`
 - `crates/pvthfhe-compressor/tests/c7_merkle_circuit.rs`
 
 ## Verification

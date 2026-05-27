@@ -39,8 +39,8 @@ stack backtrace:
 **Critical observations**:
 1. `after_pvss=46MB` was logged at line 169 of `pvthfhe_e2e.rs`.
 2. The next checkpoint `after_compressor_new` (line 175) was **never** logged.
-3. The `sonobe: params serialized` log emitted INSIDE `SonobeCompressor::new` (sonobe/mod.rs:99) was **also never** logged.
-4. Therefore the failure is INSIDE `SonobeNova::preprocess` (sonobe/mod.rs:81–85), called from `SonobeCompressor::new`.
+3. The `nova: params serialized` log emitted INSIDE `NovaCompressor::new` (nova/mod.rs:99) was **also never** logged.
+4. Therefore the failure is INSIDE `NovaNova::preprocess` (nova/mod.rs:81–85), called from `NovaCompressor::new`.
 
 ## Refuted Hypotheses
 
@@ -51,17 +51,17 @@ stack backtrace:
 
 ## Discrepancy: Same Code, 100x Different Memory
 
-`SonobeCompressor::new(1)` is called identically from:
-- `examples/sonobe_isolated.rs` line 29 → peak ~93 MB, completes in <1s ✅
+`NovaCompressor::new(1)` is called identically from:
+- `examples/nova_isolated.rs` line 29 → peak ~93 MB, completes in <1s ✅
 - `pvthfhe_e2e.rs` line 172 → consumes >12.6 GB before aborting ❌
 
 Same seed, same code, same release profile, same features. The ONLY difference is what runs before it in the same process.
 
 ## New Hypotheses
 
-- **H8** — Heap state pollution from prior phases (FHE backend init, KeygenSimulator, NIZK proofs, PVSS) somehow induces catastrophic allocation patterns inside `SonobeNova::preprocess`. Mechanism unclear (allocator fragmentation alone shouldn't cause linear monotonic growth).
+- **H8** — Heap state pollution from prior phases (FHE backend init, KeygenSimulator, NIZK proofs, PVSS) somehow induces catastrophic allocation patterns inside `NovaNova::preprocess`. Mechanism unclear (allocator fragmentation alone shouldn't cause linear monotonic growth).
 - **H9** — Environment variable inheritance: pvthfhe-e2e is launched via `target/release/pvthfhe-e2e`, while the example is launched via `cargo run --release --example`. Cargo sets env vars (CARGO_*, RUSTFLAGS, etc.) that may propagate. Less likely but cheap to test.
-- **H10** — Static state / thread-local pollution from arkworks: some arkworks types use thread-local FFT/MSM caches. If FHE/PVSS code touched those caches with N=8192-sized objects, Sonobe's preprocess might allocate based on cached sizing rather than the toy circuit's sizing.
+- **H10** — Static state / thread-local pollution from arkworks: some arkworks types use thread-local FFT/MSM caches. If FHE/PVSS code touched those caches with N=8192-sized objects, Nova's preprocess might allocate based on cached sizing rather than the toy circuit's sizing.
 
 ## Discriminating Probe (next)
 
@@ -87,7 +87,7 @@ Plan `.sisyphus/plans/bench-comparison-memory-investigation.md` does not contain
 **Start RSS**: 4 MB (immediately after `Args::parse()`, before any FHE/keygen/NIZK/PVSS)
 **Growth**: ~5.5 GB/min linear, IDENTICAL pattern to Run #1
 **Last log**: `probe_before_compressor_new rss_mb=4` — `probe_after_compressor_new` never reached
-**Crash site**: inside `SonobeCompressor::new` → `SonobeNova::preprocess` (unchanged from Run #1)
+**Crash site**: inside `NovaCompressor::new` → `NovaNova::preprocess` (unchanged from Run #1)
 
 ### Hypothesis Verdicts
 
@@ -99,65 +99,65 @@ Plan `.sisyphus/plans/bench-comparison-memory-investigation.md` does not contain
 
 ### Confirmed Source: BUILD CONFIGURATION
 
-Same `SonobeCompressor::new(1)` call:
-- Built into `pvthfhe-compressor/examples/sonobe_isolated.rs` → 93 MB ✅
+Same `NovaCompressor::new(1)` call:
+- Built into `pvthfhe-compressor/examples/nova_isolated.rs` → 93 MB ✅
 - Built into `pvthfhe-cli/src/bin/pvthfhe_e2e.rs` → 12.65 GB ❌
 
 State-pollution at runtime is eliminated. The delta MUST be one of:
-- **H11** — Cargo feature unification: `pvthfhe-cli` pulls deps that activate features on `sonobe`/`ark-*`/`fhe-rs` causing larger preprocess buffers
+- **H11** — Cargo feature unification: `pvthfhe-cli` pulls deps that activate features on `nova`/`ark-*`/`fhe-rs` causing larger preprocess buffers
 - **H12** — Different transitive dep versions resolved when building from `pvthfhe-cli` vs from `pvthfhe-compressor` example
 - **H13** — Codegen/profile delta (LTO, codegen-units, opt-level differences between bin and example)
-- **H14** — Type monomorphization / generic instantiation: `pvthfhe-cli` instantiates Sonobe generics with curve/params different from the example, even though both call `SonobeCompressor::new(seed)` with the same surface API
+- **H14** — Type monomorphization / generic instantiation: `pvthfhe-cli` instantiates Nova generics with curve/params different from the example, even though both call `NovaCompressor::new(seed)` with the same surface API
 
 ### Next Discriminator (Probe P6)
 
 Compare the two builds' resolved feature sets and dep graphs:
-1. `cargo tree -p pvthfhe-cli --target-dir /tmp/t1 -e features --no-default-features --features ...` (capture features active on `sonobe`, `ark-*`, `fhe`)
+1. `cargo tree -p pvthfhe-cli --target-dir /tmp/t1 -e features --no-default-features --features ...` (capture features active on `nova`, `ark-*`, `fhe`)
 2. Same for `pvthfhe-compressor` example
 3. Diff
 4. If features identical: check `cargo build -p pvthfhe-cli --bin pvthfhe-e2e --release -v` vs example for codegen flags
-5. Hypothesis H14 test: copy example source byte-for-byte into `pvthfhe-cli/src/bin/sonobe_min.rs` and run — if it OOMs, monomorphization context is the cause; if it's fine, something else in `pvthfhe-cli`'s dep set inflates Sonobe.
+5. Hypothesis H14 test: copy example source byte-for-byte into `pvthfhe-cli/src/bin/nova_min.rs` and run — if it OOMs, monomorphization context is the cause; if it's fine, something else in `pvthfhe-cli`'s dep set inflates Nova.
 
 ## 2026-05-07T15:35Z — Probe P6 result: cargo tree feature comparison
 
 Both `pvthfhe-cli` and `pvthfhe-compressor` resolve folding-schemes/ark-* through the same workspace `[patch]` overrides. `cargo tree -p pvthfhe-cli -e features --depth 6` confirms:
-- pvthfhe-cli pulls `pvthfhe-compressor` (default features) via `pvthfhe-bench` → `sonobe-compressor` feature ✓
+- pvthfhe-cli pulls `pvthfhe-compressor` (default features) via `pvthfhe-bench` → `nova-compressor` feature ✓
 - pvthfhe-cli ALSO pulls `fhe v0.1.0-beta.7` and `fhe-math v0.1.0-beta.7` from gnosisguild
 - pvthfhe-compressor (and its example) does NOT pull `fhe`/`fhe-math`
 
-Cargo feature unification: when `pvthfhe-cli` is built, `fhe-math` and Sonobe BOTH depend on workspace-patched `ark-poly`, `ark-ff`, `ark-ec`. Whatever features either side requests get unified into a single resolved set for the `ark-*` crates compiled into the binary. The example has no such union with `fhe-math`.
+Cargo feature unification: when `pvthfhe-cli` is built, `fhe-math` and Nova BOTH depend on workspace-patched `ark-poly`, `ark-ff`, `ark-ec`. Whatever features either side requests get unified into a single resolved set for the `ark-*` crates compiled into the binary. The example has no such union with `fhe-math`.
 
 This is consistent with H11/H14 but does NOT yet identify the smoking gun.
 
 ## Probe P7 design (next, decisive for H14 vs H11)
 
-Create `crates/pvthfhe-cli/src/bin/sonobe_min.rs` byte-for-byte equivalent to `crates/pvthfhe-compressor/examples/sonobe_isolated.rs`, plus a feature-gated entry. Build with `--bin sonobe_min` from the same `pvthfhe-cli` package (same dep resolution as `pvthfhe-e2e`).
+Create `crates/pvthfhe-cli/src/bin/nova_min.rs` byte-for-byte equivalent to `crates/pvthfhe-compressor/examples/nova_isolated.rs`, plus a feature-gated entry. Build with `--bin nova_min` from the same `pvthfhe-cli` package (same dep resolution as `pvthfhe-e2e`).
 
 Outcomes:
-- If `sonobe_min` OOMs (>1 GB): **H11 confirmed** — feature unification (likely from fhe-math) inflates Sonobe preprocess buffers. Mitigation: split Sonobe into a separate workspace package or move the bench-comparison driver into pvthfhe-compressor (no fhe-rs deps).
-- If `sonobe_min` stays <500 MB: **H14 confirmed** — generic monomorphization context within `pvthfhe-cli` (likely Sonobe Nova types reaching deeper instantiation due to other `pvthfhe-cli` types) inflates buffers. Mitigation: move Compressor::new + prove into a shim binary that has minimal dep graph and pipe artifacts via files.
+- If `nova_min` OOMs (>1 GB): **H11 confirmed** — feature unification (likely from fhe-math) inflates Nova preprocess buffers. Mitigation: split Nova into a separate workspace package or move the bench-comparison driver into pvthfhe-compressor (no fhe-rs deps).
+- If `nova_min` stays <500 MB: **H14 confirmed** — generic monomorphization context within `pvthfhe-cli` (likely Nova Nova types reaching deeper instantiation due to other `pvthfhe-cli` types) inflates buffers. Mitigation: move Compressor::new + prove into a shim binary that has minimal dep graph and pipe artifacts via files.
 
 Implementation scope:
-- Add 1 file: `crates/pvthfhe-cli/src/bin/sonobe_min.rs` (~30 LOC, copy of example main)
+- Add 1 file: `crates/pvthfhe-cli/src/bin/nova_min.rs` (~30 LOC, copy of example main)
 - Add bin entry in `crates/pvthfhe-cli/Cargo.toml`
-- Build with `cargo build --release -p pvthfhe-cli --bin sonobe_min`
+- Build with `cargo build --release -p pvthfhe-cli --bin nova_min`
 - Run via `setsid nohup ... ulimit -v 16777216` capture peak RSS
-- Evidence: `.sisyphus/evidence/bench-comparison-mem/probe-sonobe-min/`
+- Evidence: `.sisyphus/evidence/bench-comparison-mem/probe-nova-min/`
 
 This is a DELEGATABLE task (modifies non-`.sisyphus/` source).
 
 ## 2026-05-07T15:46:11Z — Probe P7 launched
-- Build: success (`cargo build --release -p pvthfhe-cli --bin sonobe-min`)
+- Build: success (`cargo build --release -p pvthfhe-cli --bin nova-min`)
 - Detached PID: 395521
-- Evidence: `.sisyphus/evidence/bench-comparison-mem/probe-sonobe-min/`
+- Evidence: `.sisyphus/evidence/bench-comparison-mem/probe-nova-min/`
 - Status: launched, detached via `setsid nohup ... & disown`
 
 ## 2026-05-07T15:48Z — Probe P7 RESULT (DECISIVE)
 
 **Outcome**: rc=134 SIGABRT, peak_rss_kb=12,648,376 (12.65 GiB), wall=2:10.67
-- `sonobe-min` does ONLY `SonobeCompressor::new(1)` then exits (32 LOC, byte-equivalent to working example)
+- `nova-min` does ONLY `NovaCompressor::new(1)` then exits (32 LOC, byte-equivalent to working example)
 - Built inside `pvthfhe-cli` dep graph (same as `pvthfhe-e2e`)
-- Same code path crashes here that succeeded in `examples/sonobe_isolated.rs` (93 MB)
+- Same code path crashes here that succeeded in `examples/nova_isolated.rs` (93 MB)
 
 **Backtrace pinpoint**: `Nova::preprocess` → `AugmentedFCircuit::compute_next_state` → `PoseidonSpongeVar::absorb` (constraint generation phase, not commitment setup)
 
@@ -180,9 +180,9 @@ This is a DELEGATABLE task (modifies non-`.sisyphus/` source).
 
 **Option A (clean)**: Move bench-comparison driver out of `pvthfhe-cli` into a new `pvthfhe-bench-driver` binary in `pvthfhe-compressor` (or new crate). Driver shells out to `pvthfhe-e2e` and `fhe-baseline` via subprocess, never co-links with `fhe-math`.
 
-**Option B (surgical)**: Make `pvthfhe-cli` invoke Sonobe via subprocess too. Split `pvthfhe-e2e` into:
-- `pvthfhe-e2e-phases` (FHE/PVSS/NIZK/keygen, links fhe-math, NO sonobe)
-- `pvthfhe-fold` (Sonobe only, links pvthfhe-compressor, NO fhe-math)
+**Option B (surgical)**: Make `pvthfhe-cli` invoke Nova via subprocess too. Split `pvthfhe-e2e` into:
+- `pvthfhe-e2e-phases` (FHE/PVSS/NIZK/keygen, links fhe-math, NO nova)
+- `pvthfhe-fold` (Nova only, links pvthfhe-compressor, NO fhe-math)
 - `pvthfhe-e2e` orchestrates via `Command::spawn`, passing artifacts via temp files
 
 **Option C (investigatory, may not work)**: Set `RAYON_NUM_THREADS=1` everywhere AND find/disable the offending ark feature. P1 Run #1 already had RAYON_NUM_THREADS=1 set in the runner — but the unified build still has the asm/parallel code paths compiled in even if rayon doesn't fan out at runtime. So this likely won't help.
@@ -198,8 +198,8 @@ This is a DELEGATABLE task (modifies non-`.sisyphus/` source).
 
 ## 2026-05-07T16:04:18Z — Probe P8 launched
 - Cargo.toml change: added `probe-no-fhe` feature; gated FHE-linked deps behind `with-fhe`; `pvthfhe-cli`/`pvthfhe-e2e` require `with-fhe`
-- Build: success (`cargo build --release -p pvthfhe-cli --bin sonobe-min --no-default-features --features probe-no-fhe,sonobe-compressor`)
-- Cargo tree check: `cargo tree -p pvthfhe-cli --no-default-features --features probe-no-fhe,sonobe-compressor 2>&1 | grep -E fhe-math|^fhe ` returned no matches
+- Build: success (`cargo build --release -p pvthfhe-cli --bin nova-min --no-default-features --features probe-no-fhe,nova-compressor`)
+- Cargo tree check: `cargo tree -p pvthfhe-cli --no-default-features --features probe-no-fhe,nova-compressor 2>&1 | grep -E fhe-math|^fhe ` returned no matches
 - Detached PID: 400371
 - Evidence: `.sisyphus/evidence/bench-comparison-mem/probe-no-fhe/`
 - Status: launched, detached via `setsid nohup ... & disown`
@@ -214,11 +214,11 @@ This is a DELEGATABLE task (modifies non-`.sisyphus/` source).
 
 | H  | Hypothesis | Verdict | Evidence |
 |----|-----------|---------|----------|
-| H11 | fhe-math feature unification inflates ark-* | **REFUTED** | sonobe-min OOMs identically with NO fhe-math co-resolved |
+| H11 | fhe-math feature unification inflates ark-* | **REFUTED** | nova-min OOMs identically with NO fhe-math co-resolved |
 
 ### P8 Follow-up: dep tree diff
-`cargo tree -p pvthfhe-cli --no-default-features --features probe-no-fhe,sonobe-compressor -e features --no-dedupe | grep -E '^(ark-|folding-schemes|rayon|crossbeam)'` vs same for `pvthfhe-compressor`:
-**94 lines each, ZERO diff.** Ark/folding feature graphs are byte-identical between the OOM build (cli sonobe-min) and the 93 MB build (compressor example).
+`cargo tree -p pvthfhe-cli --no-default-features --features probe-no-fhe,nova-compressor -e features --no-dedupe | grep -E '^(ark-|folding-schemes|rayon|crossbeam)'` vs same for `pvthfhe-compressor`:
+**94 lines each, ZERO diff.** Ark/folding feature graphs are byte-identical between the OOM build (cli nova-min) and the 93 MB build (compressor example).
 
 ### Discriminator narrowed
 Same crate-level deps, same features, same versions. Difference must be:
@@ -231,14 +231,14 @@ Same crate-level deps, same features, same versions. Difference must be:
 
 **Goal**: Isolate target-kind vs package-membership.
 
-**Action**: Add `[[bin]] name = "sonobe-min-compressor"` to `pvthfhe-compressor/Cargo.toml`, drop byte-identical `sonobe_min.rs` into `crates/pvthfhe-compressor/src/bin/sonobe_min.rs`, build with `cargo build --release -p pvthfhe-compressor --bin sonobe-min-compressor`, run under same `ulimit -v 16777216` regime.
+**Action**: Add `[[bin]] name = "nova-min-compressor"` to `pvthfhe-compressor/Cargo.toml`, drop byte-identical `nova_min.rs` into `crates/pvthfhe-compressor/src/bin/nova_min.rs`, build with `cargo build --release -p pvthfhe-compressor --bin nova-min-compressor`, run under same `ulimit -v 16777216` regime.
 
 **Outcomes**:
-- If peak_rss < 500 MB → target-kind irrelevant; **package-membership** is the cause (H15). Mitigation: split Sonobe driver out of pvthfhe-cli into its own crate (mirrors Option B from prior recommendation).
+- If peak_rss < 500 MB → target-kind irrelevant; **package-membership** is the cause (H15). Mitigation: split Nova driver out of pvthfhe-cli into its own crate (mirrors Option B from prior recommendation).
 - If peak_rss > 1 GB → target-kind irrelevant too; cause is something else (H17 most likely). Run unfiltered `cargo tree --no-dedupe` diff next.
 
 **Implementation scope**:
-- Add 1 file: `crates/pvthfhe-compressor/src/bin/sonobe_min.rs` (32 LOC, byte-identical to `crates/pvthfhe-cli/src/bin/sonobe_min.rs`)
+- Add 1 file: `crates/pvthfhe-compressor/src/bin/nova_min.rs` (32 LOC, byte-identical to `crates/pvthfhe-cli/src/bin/nova_min.rs`)
 - Add bin entry in `crates/pvthfhe-compressor/Cargo.toml`
 - Build + run + capture peak RSS
 - Evidence: `.sisyphus/evidence/bench-comparison-mem/probe-compressor-bin/`
@@ -248,9 +248,9 @@ This is DELEGATABLE (modifies non-`.sisyphus/` source).
 ## 2026-05-07T16:18Z — Probe P9 RESULT (target-kind/package-membership check)
 
 **Setup**:
-- Source clone: `crates/pvthfhe-compressor/src/bin/sonobe_min.rs` (byte-identical copy of `pvthfhe-cli` version)
-- Bin target: `sonobe-min-compressor` in `pvthfhe-compressor`
-- Build: `cargo build --release -p pvthfhe-compressor --bin sonobe-min-compressor`
+- Source clone: `crates/pvthfhe-compressor/src/bin/nova_min.rs` (byte-identical copy of `pvthfhe-cli` version)
+- Bin target: `nova-min-compressor` in `pvthfhe-compressor`
+- Build: `cargo build --release -p pvthfhe-compressor --bin nova-min-compressor`
 - Run: detached via `setsid nohup ... & disown` under `ulimit -v 16777216`
 - Evidence: `.sisyphus/evidence/bench-comparison-mem/probe-compressor-bin/`
 
@@ -262,9 +262,9 @@ This is DELEGATABLE (modifies non-`.sisyphus/` source).
 ## 2026-05-07T16:25Z — Probe P10 RESULT (trait-eagerness)
 
 **Setup**:
-- Source: `crates/pvthfhe-compressor/src/bin/sonobe_min.rs`
+- Source: `crates/pvthfhe-compressor/src/bin/nova_min.rs`
 - Change: imported `ProofCompressor`, renamed `_compressor` → `compressor`, added `compressor.verifier_key()` and `compressor.vk_bytes()` after `new(1)` plus `rss_kb stage=after_vk`
-- Build: `cargo build --release -p pvthfhe-compressor --bin sonobe-min-compressor`
+- Build: `cargo build --release -p pvthfhe-compressor --bin nova-min-compressor`
 - Run: detached via `setsid nohup ... & disown` under `ulimit -v 16777216`
 - Evidence: `.sisyphus/evidence/bench-comparison-mem/probe-trait-ref/`
 
@@ -285,13 +285,13 @@ This is DELEGATABLE (modifies non-`.sisyphus/` source).
 
 After 13+ refuted hypotheses, careful side-by-side of the only two files that exercise this code path inside `pvthfhe-compressor`:
 
-| Aspect | `examples/sonobe_isolated.rs` (✅ 244 MB) | `src/bin/sonobe_min.rs` (❌ 12.65 GB) |
+| Aspect | `examples/nova_isolated.rs` (✅ 244 MB) | `src/bin/nova_min.rs` (❌ 12.65 GB) |
 |---|---|---|
 | Imports `ProofCompressor` trait | YES (line 7) | NO |
 | Calls `compressor.prove(...)` | YES | NO |
 | Calls `compressor.verify(...)` | YES | NO |
 | Calls `compressor.verifier_key()` / `compressed_proof_bytes()` | YES | NO |
-| Calls `SonobeCompressor::new(1)` | YES | YES |
+| Calls `NovaCompressor::new(1)` | YES | YES |
 
 **The version that does MORE work (full prove+verify) uses 50× LESS memory than the version that only constructs.** This contradicts every reasonable allocation model.
 
@@ -299,7 +299,7 @@ After 13+ refuted hypotheses, careful side-by-side of the only two files that ex
 P9's `mem.log` shows the child's `/proc/self/status` `VmRSS` stays at **1624 KB** for the full 2:11 wall, while `/usr/bin/time -v` reports peak = 12,647,692 KB and system `MemAvailable` drops 5.5 GB/min in lockstep. Memory is real but not attributed to the launched binary's own status file. Possibilities:
 - Forked rayon/arkworks worker thread/process accumulating memory
 - mmap'd anonymous regions counted by `time -v` (rusage) but not by `VmRSS`
-- Launcher polls statm of the launcher shell, not the actual binary, due to `bash -lc 'exec ./target/release/sonobe-min-compressor'` indirection
+- Launcher polls statm of the launcher shell, not the actual binary, due to `bash -lc 'exec ./target/release/nova-min-compressor'` indirection
 
 ### Hypothesis H18 (new)
 **Symbol-tree pruning / lazy monomorphization**: Rust's release codegen may not instantiate certain generics from `folding-schemes` unless trait methods are referenced in the binary's call graph. The 12.65 GB OOM happens INSIDE `Nova::preprocess` (per P7 backtrace: `compute_next_state → PoseidonSpongeVar::absorb`). When `prove`/`verify` ARE referenced, the compiler may instantiate a different (smaller) specialization or precompute commitment caches that short-circuit the preprocess allocation. When ONLY `new()` is referenced, a worst-case generic path is monomorphized.
@@ -308,7 +308,7 @@ This is exotic but explains the inverted memory law. **Probe P10** discriminates
 
 ## Probe P10 design (next)
 
-**Action**: Modify `crates/pvthfhe-compressor/src/bin/sonobe_min.rs` to add `use pvthfhe_compressor::ProofCompressor;` and one trivial reference: `let _vk = compressor.verifier_key();` after `new()`. Build & run under same regime.
+**Action**: Modify `crates/pvthfhe-compressor/src/bin/nova_min.rs` to add `use pvthfhe_compressor::ProofCompressor;` and one trivial reference: `let _vk = compressor.verifier_key();` after `new()`. Build & run under same regime.
 
 **Outcomes**:
 - If peak < 500 MB → **H18 confirmed**: trait-method reference flips codegen path. Mitigation: ensure call sites in `pvthfhe-cli` reference the trait methods (which they already do — `pvthfhe_e2e.rs` calls `compressor.prove`). If H18 is true the e2e SHOULD be 244 MB, but it isn't, so H18 must combine with another factor.
@@ -338,15 +338,15 @@ This is exotic but explains the inverted memory law. **Probe P10** discriminates
 ### Affected default filters
 - `crates/pvthfhe-cli/src/bin/pvthfhe_e2e.rs:69` → `EnvFilter::new("info")` ❌ (matches arkworks)
 - `crates/pvthfhe-cli/src/main.rs:108` → `EnvFilter::new("info")` ❌
-- `crates/pvthfhe-compressor/examples/sonobe_isolated.rs:20` → `EnvFilter::new("pvthfhe_compressor=info")` ✅ (target-scoped)
-- `crates/pvthfhe-compressor/src/bin/sonobe_min.rs:20` → `EnvFilter::new("pvthfhe_compressor=info")` ✅
-- `crates/pvthfhe-cli/src/bin/sonobe_min.rs:20` → `EnvFilter::new("pvthfhe_compressor=info")` ✅
-- `crates/pvthfhe-cli/tests/e2e_*.rs` → `.env("RUST_LOG", "info")` ❌ (will OOM if those tests ever run with sonobe-compressor)
+- `crates/pvthfhe-compressor/examples/nova_isolated.rs:20` → `EnvFilter::new("pvthfhe_compressor=info")` ✅ (target-scoped)
+- `crates/pvthfhe-compressor/src/bin/nova_min.rs:20` → `EnvFilter::new("pvthfhe_compressor=info")` ✅
+- `crates/pvthfhe-cli/src/bin/nova_min.rs:20` → `EnvFilter::new("pvthfhe_compressor=info")` ✅
+- `crates/pvthfhe-cli/tests/e2e_*.rs` → `.env("RUST_LOG", "info")` ❌ (will OOM if those tests ever run with nova-compressor)
 
 ### Fix
 Change unscoped `info` defaults to target-scoped filter excluding arkworks/folding-schemes:
 ```
-EnvFilter::new("pvthfhe_cli=info,pvthfhe_compressor=info,pvthfhe_fhe=info,pvthfhe_lattice_pvss=info,pvthfhe_aggregator=info,pvthfhe_pvss=info,pvthfhe_bench=info,sonobe=info")
+EnvFilter::new("pvthfhe_cli=info,pvthfhe_compressor=info,pvthfhe_fhe=info,pvthfhe_lattice_pvss=info,pvthfhe_aggregator=info,pvthfhe_pvss=info,pvthfhe_bench=info,nova=info")
 ```
 And in tests: `.env("RUST_LOG", "pvthfhe_cli=info,pvthfhe_compressor=info,...")`.
 
@@ -357,7 +357,7 @@ RED test should assert peak<500 MB for `pvthfhe_e2e --probe-compressor-only` to 
 
 ### TDD evidence
 - **RED** (`.sisyphus/evidence/bench-comparison-mem/red-test-before-fix.log`):
-  - `cargo test -p pvthfhe-cli --test e2e_memory_budget --features sonobe-compressor`
+  - `cargo test -p pvthfhe-cli --test e2e_memory_budget --features nova-compressor`
   - Subprocess: `pvthfhe-e2e --probe-compressor-only --n 3 --t 1 --seed 1` with `RUST_LOG=info`, `ulimit -v 16777216`
   - Result: SIGABRT (signal 6), peak RSS = **12,652,960 KB** (12.65 GiB), wall ≈ 9:39
   - Test FAILED on `subprocess did not exit successfully` assertion
@@ -367,26 +367,26 @@ RED test should assert peak<500 MB for `pvthfhe_e2e --probe-compressor-only` to 
   - Test PASSED — both exit-success and `<500_000 KB` budget assertions green
 
 ### Files modified
-- **NEW** `crates/pvthfhe-cli/tests/e2e_memory_budget.rs` — RED-first regression test (Linux + sonobe-compressor gated)
+- **NEW** `crates/pvthfhe-cli/tests/e2e_memory_budget.rs` — RED-first regression test (Linux + nova-compressor gated)
 - `crates/pvthfhe-cli/src/bin/pvthfhe_e2e.rs` — replaced unscoped `EnvFilter::new("info")` fallback with target-scoped filter, added `build_env_filter()` that sanitizes a bare `RUST_LOG=info|debug|trace|warn|error` global level back to the safe scoped filter (so user-set RUST_LOG=info no longer reintroduces the OOM)
 - `crates/pvthfhe-cli/src/main.rs` — same `build_env_filter()` change
 
 ### Notes
 - 68× memory reduction (12,652,960 KB → 185,736 KB) at the same workload, confirming H_TRACING is the sole cause.
 - 49× wall-clock reduction (9:39 → 11.79 s) because the constraint-system Debug walk was the dominant CPU cost too.
-- `RUST_LOG=info` in tests is sanitized by the binary (treated as the safe scoped default). Users who want full granularity can still set `RUST_LOG=pvthfhe_cli=debug,sonobe=debug` etc.
-- `cargo test -p pvthfhe-cli --lib --bins` and `cargo test -p pvthfhe-cli --test e2e_uses_sonobe` both still pass.
+- `RUST_LOG=info` in tests is sanitized by the binary (treated as the safe scoped default). Users who want full granularity can still set `RUST_LOG=pvthfhe_cli=debug,nova=debug` etc.
+- `cargo test -p pvthfhe-cli --lib --bins` and `cargo test -p pvthfhe-cli --test e2e_uses_nova` both still pass.
 - No `#[allow(...)]` added; no stub files touched; no plan files modified.
 
 ## [2026-05-07T17:05Z] FIX VERIFIED END-TO-END
 
 ### Test outcomes
-- `cargo test -p pvthfhe-cli --test e2e_memory_budget --features sonobe-compressor` → PASS in 0.88s, peak 175,840 KB (172 MB), well under 500 MB budget
+- `cargo test -p pvthfhe-cli --test e2e_memory_budget --features nova-compressor` → PASS in 0.88s, peak 175,840 KB (172 MB), well under 500 MB budget
 - `just bench-comparison 3 1 1` → rc=0, peak 841,780 KB (822 MB) for entire pipeline, wall ≈3 min
-- `just bench-comparison-gate` → PASS (no surrogate rows; sole real-fallback is OnChainUltraHonkVerify which is permitted per sonobe-wrap-feasibility verdict NoGo)
+- `just bench-comparison-gate` → PASS (no surrogate rows; sole real-fallback is OnChainUltraHonkVerify which is permitted per nova-wrap-feasibility verdict NoGo)
 - Final artifact: `bench/results/comparison-5d7853a.md` with 12/12 rows (11 real, 1 real-fallback)
 
-### Memory profile (sonobe path) under fix, IVC_STEPS=4
+### Memory profile (nova path) under fix, IVC_STEPS=4
 - params serialized: rss_kb=135,144
 - pp_deserialize done: 139,636
 - vp_deserialize done: 190,696
@@ -394,7 +394,7 @@ RED test should assert peak<500 MB for `pvthfhe_e2e --probe-compressor-only` to 
 - prove_step 0..3: 253,636 → 260,804
 - ivc proof serialized: 260,804 (7,129,240 bytes)
 
-This baseline is now the canonical "healthy" curve for the sonobe IVC path.
+This baseline is now the canonical "healthy" curve for the nova IVC path.
 
 ### Defense-in-depth
 The `build_env_filter()` helper sanitizes bare global `RUST_LOG` levels (`trace`/`debug`/`info`/`warn`/`error`) by substituting the safe scoped filter. This is critical because:
@@ -404,9 +404,9 @@ The `build_env_filter()` helper sanitizes bare global `RUST_LOG` levels (`trace`
 
 ### What other binaries are at risk?
 Searched the workspace for `EnvFilter::new("info")` patterns. Already-safe binaries (use scoped filter):
-- `crates/pvthfhe-compressor/examples/sonobe_isolated.rs`
-- `crates/pvthfhe-compressor/src/bin/sonobe_min.rs`
-- `crates/pvthfhe-cli/src/bin/sonobe_min.rs`
+- `crates/pvthfhe-compressor/examples/nova_isolated.rs`
+- `crates/pvthfhe-compressor/src/bin/nova_min.rs`
+- `crates/pvthfhe-cli/src/bin/nova_min.rs`
 Now-safe (this fix):
 - `crates/pvthfhe-cli/src/bin/pvthfhe_e2e.rs`
 - `crates/pvthfhe-cli/src/main.rs`

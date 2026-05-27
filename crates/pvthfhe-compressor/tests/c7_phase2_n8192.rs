@@ -2,8 +2,8 @@ use ark_bn254::Fr;
 use ark_ff::Field;
 use pvthfhe_compressor::merkle::{build_merkle_tree, prove_merkle_path, verify_merkle_proof};
 use pvthfhe_compressor::poly_eval::eval_poly_bn254;
-use pvthfhe_compressor::sonobe::{
-    c7_fold_witnesses, encode_triple, C7DecryptAggregationCircuit, SonobeCompressor,
+use pvthfhe_compressor::nova::{
+    c7_fold_witnesses, encode_triple, C7DecryptAggregationCircuit, NovaCompressor,
 };
 use pvthfhe_compressor::witness::{hash_all_coeffs, C7WitnessSet};
 
@@ -140,8 +140,8 @@ fn c7_nova_fold_n8192_4_steps() {
     );
 
     let compressor =
-        SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch(), num_participants)
-            .expect("construct C7 sonobe compressor");
+        NovaCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch(), num_participants)
+            .expect("construct C7 nova compressor");
 
     let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
 
@@ -163,13 +163,13 @@ fn c7_nova_fold_n8192_4_steps() {
         Fr::from(0u64),
     ]); // G.5: TODO: pass real d_commitment
 
-    let steps: Vec<pvthfhe_compressor::sonobe::ExternalInputs5<Fr>> = witnesses
+    let steps: Vec<pvthfhe_compressor::nova::ExternalInputs5<Fr>> = witnesses
         .participants
         .iter()
         .enumerate()
         .map(|(i, w)| {
             let share_eval = eval_poly_bn254(&coeffs[i], derived_r);
-            pvthfhe_compressor::sonobe::ExternalInputs5(
+            pvthfhe_compressor::nova::ExternalInputs5(
                 share_eval,
                 w.lagrange_coeff,
                 w.coeff_commitment,

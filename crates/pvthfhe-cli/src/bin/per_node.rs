@@ -53,7 +53,7 @@ struct Args {
     #[arg(long, default_value = "A")]
     track: String,
 
-    /// Enable C7 Merkle tree folding (requires sonobe-compressor feature).
+    /// Enable C7 Merkle tree folding (requires nova-compressor feature).
     #[arg(long, default_value_t = false)]
     use_c7_tree: bool,
 }
@@ -402,8 +402,8 @@ fn main() -> anyhow::Result<()> {
     #[cfg(feature = "sonobe-compressor")]
     let dkg_fold_ms = {
         use ark_bn254::Fr;
-        use pvthfhe_compressor::sonobe::CycloFoldStepCircuit;
-        use pvthfhe_compressor::sonobe::{encode_hex, SonobeCompressor};
+        use pvthfhe_compressor::nova::CycloFoldStepCircuit;
+        use pvthfhe_compressor::nova::{encode_hex, NovaCompressor};
         use pvthfhe_compressor::witness::hash_all_coeffs;
         use pvthfhe_compressor::witness::{AjtaiCommitmentWitness, AjtaiCommitmentWitnessSet};
 
@@ -430,7 +430,7 @@ fn main() -> anyhow::Result<()> {
             .collect();
         let witness_set = AjtaiCommitmentWitnessSet { witnesses };
         let ajtai_compressor =
-            SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, args.n)
+            NovaCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, args.n)
                 .map_err(|e| anyhow::anyhow!("dkg fold compressor init: {e:?}"))?;
         let acc = encode_hex((
             Fr::from(0u64),
@@ -664,7 +664,7 @@ fn time_c7_tree_folding(t: usize, _seed: u64, _pk_hash: &[u8; 32]) -> anyhow::Re
     use ark_bn254::Fr;
     use ark_ff::PrimeField;
     use pvthfhe_compressor::micronova::tree::CompressionTree;
-    use pvthfhe_compressor::sonobe::encode_scalar;
+    use pvthfhe_compressor::nova::encode_scalar;
     use pvthfhe_compressor::witness::hash_all_coeffs;
 
     let leaf_count = t.next_power_of_two().max(1);

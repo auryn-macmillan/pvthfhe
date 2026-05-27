@@ -3,7 +3,7 @@
 > ⚠️  **DO NOT DEPLOY — RESEARCH PROTOTYPE ONLY**
 >
 > This repository contains a **research implementation** of private-verifiable threshold FHE:
-> - **on-chain verifier uses Sonobe substitution (off-chain Sonobe + on-chain commitment)**
+> - **on-chain verifier uses Nova substitution (off-chain Nova + on-chain commitment)**
 > - **Noir circuits implement the real aggregation and wrapping logic**
 > - **do not use for The Interfold or any production deployment**
 >
@@ -15,8 +15,8 @@ This document outlines the security model, assumptions, and limitations of the P
 
 - **FHE backend**: real threshold BFV via `gnosisguild/fhe.rs`, under an **honest-but-curious** threat model.
 - **Greco / well-formedness ZK proofs**: **Implemented** (code exists: CycloNizkAdapter + bfv_sigma.rs). Formal joint-extractor proof is OPEN (P1, line 48).
-- **Folding accumulator**: implemented via Sonobe substitution.
-- **On-chain verifier**: real UltraHonk verifier (committing to Sonobe state) + off-chain attestation.
+- **Folding accumulator**: implemented via Nova substitution.
+- **On-chain verifier**: real UltraHonk verifier (committing to Nova state) + off-chain attestation.
 
 ## Threat Model
 
@@ -48,8 +48,8 @@ This is a research prototype and contains components where formal soundness proo
 - **P1 (CRITICAL)**: **Lattice NIZK Soundness** — Trust boundary documented (T3). Per-share RLWE NIZK knowledge soundness is conditional on (a) Module-SIS hardness over R_{q_commit}, (b) Cyclo Theorem 3 soundness (ePrint 2026/359), and (c) collision resistance of SHA-256 for the P4 commitment domain. T2 is PROVED — rewinding extractor (ROM, forking lemma, Lemma 9 accepted assumption) (code exists, see §Implementation status line 17). Any relying party must treat per-share proofs as computationally binding under these assumptions only. **Zero-knowledge**: The serialized proof achieves computational ZK — fresh random masks (OsRng, non-deterministic) per invocation; masked sigma transcript (z_s, z_e, t_bytes) reveals nothing about the witness. No witness openings (secret_share, error, randomness) are serialized. Struct-level regression test (`nizk_share_no_witness_leak.rs`) and byte-level tests (`nizk_share_zk.rs`) enforce ZK. **Keygen NIZK (C0)**: BFV keypair correctness NIZK implemented at `crates/pvthfhe-pvss/src/nizk_keygen.rs` using `sigma::prove` with the RLWE relation `pk_0 = pk_1·sk + e`. The `KeygenSimulator` calls `generate_keygen_nizk()` which produces a real sigma proof from the party's secret key and error polynomial. Falls back to stub `vec![0x00, 0x01]` only on error. See `crates/pvthfhe-fhe/src/fhers.rs` for `party_keygen_witness` retrieval and `crates/pvthfhe-aggregator/src/keygen/simulator.rs` for wiring. **R4 fixes applied**: (i) Algebraic sigma equation `c*z_s+z_e == t+ch*d_i` now verified in `verify_algebraic_relation` (was missing; `2fd44e5`). (ii) BFV plaintext domain check `|z_m_i| < t/2` enforced in `bfv_sigma::verify` (`5dee0f8`). (iii) 8 soundness RED tests added confirming tampered d_rns/z_s rejection. **D.2 batched share-encryption proof** (`aadabff`): batched verifier covers sk+esm tracks with independent commitments via `batch_verify_share_encryption`; tampering one track while keeping the other valid fails the batched check (see `crates/pvthfhe-pvss/tests/nizk_share_batched_tracks.rs`). **D.3 domain separation** (`a8e2db2`): per-track domain tags in `pvthfhe-domain-tags` prevent cross-track proof replay (sk proof cannot be replayed as e\_sm proof).
 **Share provenance (R5 CLOSED)**: Per-party secret key commitments `sk_commit_i = AjtaiHash(sk_i)` are published during DKG. The verifier checks `proof.pvss_commitment == sk_commitments[party_index]` in the pipeline. `combined_sk_commitment_hash` (Poseidon of all sk_commitments) is a Noir aggregator_final public input, enabling on-chain share provenance verification.
 - **P2 (HIGH)**: **LatticeFold+ Linearity** — Trust boundary documented (T3). Real — Cyclo LatticeFold+ over RLWE, T=10. Lemma 9 is accepted as a documented protocol assumption (see `docs/security-proofs/lemma9.md` §0): formal proof deferred; the risk of a non-invertible challenge difference in the Cyclo commitment ring (φ=256, q≈2^50) is believed negligible. Soundness remains conditional on M-SIS hardness over R_{q_commit}, Cyclo Theorem 3 (ePrint 2026/359), and the Lemma 9 invertibility assumption.
-- **P3 (MEDIUM)**: **MicroNova-lattice Encoding** — Trust boundary documented (T3). Substituted by off-chain Sonobe + on-chain commitment topology. The aggregator submits an UltraHonk proof of the Sonobe state commitment, which is checked on-chain alongside an off-chain attestation. MicroNova heterogeneous IVC is available as an opt-in compressor via `PVTHFHE_COMPRESSOR=micronova` (`HeterogeneousCircuitFamily` + `LatticeFoldTreeCircuitFamily`). See ARCHITECTURE.md §MicroNova.
-  MicroNova per-variant verifier enforcement is a known Sonobe architecture
+- **P3 (MEDIUM)**: **MicroNova-lattice Encoding** — Trust boundary documented (T3). Substituted by off-chain Nova + on-chain commitment topology. The aggregator submits an UltraHonk proof of the Nova state commitment, which is checked on-chain alongside an off-chain attestation. MicroNova heterogeneous IVC is available as an opt-in compressor via `PVTHFHE_COMPRESSOR=micronova` (`HeterogeneousCircuitFamily` + `LatticeFoldTreeCircuitFamily`). See ARCHITECTURE.md §MicroNova.
+  MicroNova per-variant verifier enforcement is a known Nova architecture
   limitation — the current framework uses a single verifier key for all
   circuit variants. See heterogeneous-ivc.md:96-99 for details.
 - **C5 (PK Aggregation Gap)**: **No verifiable PK aggregation proof**. The DKG ceremony aggregates public keys internally via `ShareManager` without producing a public transcript or verifiable proof that `pk_agg = Σ pk_i` for the accepted participant set. Neither the DKG ceremony nor the aggregator folding produces a C5-equivalent proof. See `interfold-equivalence.md` §C5.
@@ -58,7 +58,7 @@ This is a research prototype and contains components where formal soundness proo
 - **C3 (Share Encryption Binding)**: **Fully implemented (native adapter)**. The `CycloNizkAdapter::verify` at `adapter.rs:192` enforces `pvss_commitment` hash binding via `ct_eq`. The pipeline `run_full_pipeline` (lines 641-653) adds a secondary assertion `statement.pvss_commitment == sk_commitments[party_index]` to catch share provenance mismatches. A tampered commitment triggers verification failure in both paths. The D.1 containment holds at the adapter and pipeline layers. **R10 parity-check hardening**: Cross-share RS parity checks (`parity.rs`) validate that all n encrypted shares are evaluations of a single degree-≤t polynomial, catching structural deviations. Each dealer generates ONE parity proof replacing per-recipient NIZK proofs.
 R10 hardening: cross-share RS parity check is now unconditional (with parity-check proofs, see C3 above). Decrypt byte cross-validation added. LegacyLocalSmudge deprecated for production.
 - **C2 (Encryption Correctness Gap)**: **Encryption is trusted; no verifiable proof of correct encryption exists**. `backend.encrypt()` produces a ciphertext without a proof that it matches the plaintext under the aggregate key. A malicious encryptor can produce a semantically incorrect ciphertext. Mitigation: the semantic roundtrip check detects errors at the aggregate level only. See `threat-model-v1.md` §7.2 item 12.
-- **C7 (Final Aggregation Gap)**: **Partially addressed**. C7 Sonobe step circuit (P1.3) folds Lagrange recombination into Nova accumulator at N=8. Phase 2 N=8192 off-circuit Merkle-proof verification implemented (8-ary Keccak256 Merkle tree; `verify_merkle_proofs()` called before Nova folding; trust boundary: if Merkle verifier is executed, Nova external inputs are sound). Phase B (real Poseidon R1CS) is complete. `C7MerkleStepCircuit` at depth-5 (N=8192) uses real Poseidon hash in R1CS constraints. See `c7-phase3-in-circuit-merkle.md`. Noir aggregator_final circuit provides standalone verification. **C7 Phase B**: Real Poseidon R1CS in-circuit Merkle verification is implemented (`poseidon_gadget.rs`, `c7_merkle_circuit.rs`). G18 real tree constraints (leaf share-accumulation + internal Poseidon hashing) are code-complete. Noir aggregator_final circuit uses MAX_PARTICIPANTS=128.
+- **C7 (Final Aggregation Gap)**: **Partially addressed**. C7 Nova step circuit (P1.3) folds Lagrange recombination into Nova accumulator at N=8. Phase 2 N=8192 off-circuit Merkle-proof verification implemented (8-ary Keccak256 Merkle tree; `verify_merkle_proofs()` called before Nova folding; trust boundary: if Merkle verifier is executed, Nova external inputs are sound). Phase B (real Poseidon R1CS) is complete. `C7MerkleStepCircuit` at depth-5 (N=8192) uses real Poseidon hash in R1CS constraints. See `c7-phase3-in-circuit-merkle.md`. Noir aggregator_final circuit provides standalone verification. **C7 Phase B**: Real Poseidon R1CS in-circuit Merkle verification is implemented (`poseidon_gadget.rs`, `c7_merkle_circuit.rs`). G18 real tree constraints (leaf share-accumulation + internal Poseidon hashing) are code-complete. Noir aggregator_final circuit uses MAX_PARTICIPANTS=128.
 
 ### R6 Adversarial Audit Findings (2026-05-14)
 
@@ -103,7 +103,7 @@ trust model assumes:
 5. **Pipeline integration**: The `c7_fold_witnesses` function enforces the Merkle
    check before any Nova operations occur, providing a defense-in-depth barrier.
 
-- **Bench stub phases**: `onchain_verify`, `noir_decrypt_share`, `noir_aggregator_final`, `noir_sonobe_wrap` phases in the bench binary (`pvthfhe_e2e.rs`) are timing-only markers when the `sonobe-snark` feature is disabled. With the feature enabled, Groth16 wrapping is available. See `.sisyphus/design/spec-real-p2p3.md` §6 for the production verification plan.
+- **Bench stub phases**: `onchain_verify`, `noir_decrypt_share`, `noir_aggregator_final`, `noir_nova_wrap` phases in the bench binary (`pvthfhe_e2e.rs`) are timing-only markers when the `nova-snark` feature is disabled. With the feature enabled, Groth16 wrapping is available. See `.sisyphus/design/spec-real-p2p3.md` §6 for the production verification plan.
 
 ## Trust Boundary — In-Circuit vs Native
 
@@ -117,9 +117,9 @@ All other protocol proofs run natively and are NOT verifiable by the on-chain ve
 | ciphertext_hash ≠ plaintext_hash | ✓ | — | Weak check (≠ only) |
 | BFV encryption sigma | — | ✓ | Native NIZK via pvthfhe-nizk |
 | PVSS DKG NIZK | — | ✓ | Native DKG ceremony |
-| Share Schnorr signatures | — | ✓ | Folded via Sonobe Nova |
+| Share Schnorr signatures | — | ✓ | Folded via Nova Nova |
 | Cyclo NIZK (lattice fold) | — | ✓ | CycloFoldStepCircuit |
-| Sonobe Nova fold soundness | — | ✓ | Native Sonobe IVC |
+| Nova Nova fold soundness | — | ✓ | Native Nova IVC |
 | Ajtai commitment verification | — | ✓ | Native Nova-folded |
 | C7 decryption aggregation | — | ✓ | CompressionTree (native) |
 | Epoch replay protection | — | ✓ | On-chain SessionRegistry |
@@ -129,7 +129,7 @@ All other protocol proofs run natively and are NOT verifiable by the on-chain ve
 | Backend | Role | Technology |
 |---------|------|-----------|
 | Cyclo (fhe-math) | Ring equation + Ajtai commitment | Lattice-native |
-| Sonobe Nova (folding-schemes) | IVC folding + C7 aggregation | R1CS Nova |
+| Nova Nova (folding-schemes) | IVC folding + C7 aggregation | R1CS Nova |
 | Noir + BB UltraHonk | Final Lagrange recombination | Noir R1CS → Honk |
 | HonkVerifier.sol | On-chain verification | Solidity |
 
@@ -149,7 +149,7 @@ AjtaiCommitmentStepCircuit folds n per-recipient verifications into one compress
 
 ### Track A Deprecated
 
-Track A (Sonobe hash-then-fold) is deprecated. Track B (norm enforcement, tree-based C7, on-chain UltraHonk) is the sole production path. All new development targets Track B only.
+Track A (Nova hash-then-fold) is deprecated. Track B (norm enforcement, tree-based C7, on-chain UltraHonk) is the sole production path. All new development targets Track B only.
 
 ## Logging Hygiene
 

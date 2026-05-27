@@ -10,8 +10,8 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::GR1CSVar;
 use ark_relations::gr1cs::ConstraintSystem;
 use folding_schemes::frontend::FCircuit;
-use pvthfhe_compressor::sonobe::{
-    encode_triple, ExternalInputs3, ExternalInputs3Var, FoldVerifierStepCircuit, SonobeCompressor,
+use pvthfhe_compressor::nova::{
+    encode_triple, ExternalInputs3, ExternalInputs3Var, FoldVerifierStepCircuit, NovaCompressor,
     ToyStepCircuit,
 };
 use pvthfhe_compressor::{ProofCompressor, StepCircuit};
@@ -24,13 +24,13 @@ fn encode_triple_scalar(a: u64, b: u64, c: u64) -> Vec<u8> {
     encode_triple((Fr::from(a), Fr::from(b), Fr::from(c))).to_vec()
 }
 
-/// Test 1: SonobeCompressor compiles with FoldVerifierStepCircuit.
+/// Test 1: NovaCompressor compiles with FoldVerifierStepCircuit.
 #[test]
 fn fold_verifier_compiles() {
-    let compressor = SonobeCompressor::<FoldVerifierStepCircuit<Fr>>::new(epoch(), 4)
-        .expect("construct fold verifier sonobe compressor");
+    let compressor = NovaCompressor::<FoldVerifierStepCircuit<Fr>>::new(epoch(), 4)
+        .expect("construct fold verifier nova compressor");
     let vk = compressor.verifier_key();
-    assert_eq!(vk.backend_id, "sonobe-nova-bn254-grumpkin");
+    assert_eq!(vk.backend_id, "nova-bn254-grumpkin");
 }
 
 /// Test 2: state_len is 3.
@@ -43,8 +43,8 @@ fn fold_verifier_state_len_three() {
 /// Test 3: Accepts honest fold with same external inputs for all steps.
 #[test]
 fn fold_verifier_accepts_honest_fold() {
-    let compressor = SonobeCompressor::<FoldVerifierStepCircuit<Fr>>::new(epoch(), 4)
-        .expect("construct fold verifier sonobe compressor");
+    let compressor = NovaCompressor::<FoldVerifierStepCircuit<Fr>>::new(epoch(), 4)
+        .expect("construct fold verifier nova compressor");
     let acc = encode_triple_scalar(0, 0, 0);
     let public_inputs = encode_triple_scalar(1, 2, 3);
     let proof = compressor
@@ -60,8 +60,8 @@ fn fold_verifier_accepts_honest_fold() {
 /// Test 4: Full roundtrip prove/verify with per-step external inputs.
 #[test]
 fn fold_verifier_roundtrip() {
-    let compressor = SonobeCompressor::<FoldVerifierStepCircuit<Fr>>::new(epoch(), 4)
-        .expect("construct fold verifier sonobe compressor");
+    let compressor = NovaCompressor::<FoldVerifierStepCircuit<Fr>>::new(epoch(), 4)
+        .expect("construct fold verifier nova compressor");
     let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64))).to_vec();
     let steps = vec![
         ExternalInputs3(Fr::from(1u64), Fr::from(2u64), Fr::from(3u64)),
@@ -75,7 +75,7 @@ fn fold_verifier_roundtrip() {
     let vk = compressor.verifier_key();
 
     assert!(compressor
-        .verify_steps(&vk, &proof, &steps)
+        .verify_steps(&vk, &proof, &acc, &steps)
         .expect("verify fold verifier steps"));
 }
 

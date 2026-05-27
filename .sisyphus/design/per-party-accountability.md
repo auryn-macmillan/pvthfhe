@@ -13,7 +13,7 @@ on-chain consequence.
 
 ### Signature Scheme
 
-- Use EdDSA over Grumpkin (the Sonobe cycle curve for G2), which has Noir
+- Use EdDSA over Grumpkin (the Nova cycle curve for G2), which has Noir
   standard library support (`std::eddsa`).
 - Each party generates an EdDSA keypair `(sk_eddsa, pk_eddsa)` during keygen.
 - `pk_eddsa` is published in the DKG transcript `Round1Message`.

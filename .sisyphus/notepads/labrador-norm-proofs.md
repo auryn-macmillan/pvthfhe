@@ -66,7 +66,7 @@ communication.
 - **Module compatibility**: Labrador is stated for module lattices; adapting to the specific
   Cyclo commitment ring X^256+1 with q≈2^50 requires verification.
 - **Implementation complexity**: Labrador requires new cryptographic primitives (norm map,
-  compressed proofs) that don't currently exist in the Sonobe/R1CS toolchain.
+  compressed proofs) that don't currently exist in the Nova/R1CS toolchain.
 
 ## 4. References
 

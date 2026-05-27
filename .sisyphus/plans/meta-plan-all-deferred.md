@@ -155,8 +155,8 @@ These are tracked in `pvthfhe-followon.md` (183 items, 9-18 months calendar):
 | ID | Problem | Status |
 |----|---------|--------|
 | **P1** | Lattice NIZK well-formedness soundness (Greco M-SIS reduction) | OPEN |
-| **P2** | LatticeFold+ over RLWE (Cyclo Theorem 3 / Lemma 9) | OPEN (Sonobe substitute in use) |
-| **P3** | Parameterized Sonobe step circuit verification (ext-scaling) | OPEN (documented limitation) |
+| **P2** | LatticeFold+ over RLWE (Cyclo Theorem 3 / Lemma 9) | OPEN (Nova substitute in use) |
+| **P3** | Parameterized Nova step circuit verification (ext-scaling) | OPEN (documented limitation) |
 | **P4** | Hermine PVSS upgrade | FUTURE |
 
 ---

@@ -37,9 +37,9 @@
 
 | Task | Files | Effort |
 |------|-------|--------|
-| A.1 | Document architecture limitation: `SonobeNova` uses single verifier key — per-variant enforcement requires heterogeneous verifier keys, which Nova doesn't support. Add comment to `verify_tree` explaining this is a known Sonobe surrogate limitation. | `compressor.rs:108-127` | 0.5 day |
+| A.1 | Document architecture limitation: `NovaNova` uses single verifier key — per-variant enforcement requires heterogeneous verifier keys, which Nova doesn't support. Add comment to `verify_tree` explaining this is a known Nova surrogate limitation. | `compressor.rs:108-127` | 0.5 day |
 | A.2 | Add RED test confirming limitation: verify_tree with wrong circuit variant still passes (documents gap, prevents regression) | `micronova_heterogeneous` tests | 0.5 day |
-| A.3 | Update `docs/security-proofs/p3/heterogeneous-ivc.md` line 96-99: replace "planned" with "KNOWN LIMITATION — requires architectural changes to Sonobe Nova" | `heterogeneous-ivc.md:96-99` | 0.5 day |
+| A.3 | Update `docs/security-proofs/p3/heterogeneous-ivc.md` line 96-99: replace "planned" with "KNOWN LIMITATION — requires architectural changes to Nova Nova" | `heterogeneous-ivc.md:96-99` | 0.5 day |
 | A.4 | Update SECURITY.md P3 section to document the limitation | `SECURITY.md` | 0.5 day |
 
 ## Batch B: NizkWitness Zeroize (F2)
@@ -74,7 +74,7 @@
 
 ## Acceptance Criteria
 
-- [ ] F1 documented as known Sonobe architecture limitation
+- [ ] F1 documented as known Nova architecture limitation
 - [ ] F2: Both NizkWitness structs zeroized on drop
 - [ ] F3: NIZK verify speedup ≥ 4× on 8-core for n=32
 - [ ] F4: Integration test passes with real data

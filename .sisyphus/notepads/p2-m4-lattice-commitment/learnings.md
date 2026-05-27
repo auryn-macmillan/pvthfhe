@@ -18,8 +18,8 @@
 - Track A is never affected
 
 ### Pre-existing issue
-- Step 7 (compressor_verify) fails with "sonobe compressed proof verification failed" — confirmed pre-existing via git stash test
-- Unrelated to this change; only affects the Sonobe Nova compressor
+- Step 7 (compressor_verify) fails with "nova compressed proof verification failed" — confirmed pre-existing via git stash test
+- Unrelated to this change; only affects the Nova Nova compressor
 
 ## 2026-05-16: Gate removal fix
 

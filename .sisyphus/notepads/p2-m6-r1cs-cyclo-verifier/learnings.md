@@ -1,7 +1,7 @@
 # Learnings — P2-M6 R1CS Cyclo Ring Equation Verifier
 
 ## Module structure
-- `ark_relations::gr1cs` (not `r1cs`) is the constraint system module used by Sonobe
+- `ark_relations::gr1cs` (not `r1cs`) is the constraint system module used by Nova
 - `ark_r1cs_std::eq::EqGadget` must be imported for `enforce_equal` on `FpVar`
 - `ark_r1cs_std::fields::FieldVar` must be imported for `FpVar::constant()`
 - The existing codebase uses `ConstraintSystemRef` via `ConstraintSystem::new_ref()`
@@ -35,7 +35,7 @@
 - fold_count now hardcoded as `z_i[2] + FpVar::one()` in generate_step_constraints
 
 ### Verifier move semantics
-- `SonobeNova::verify()` moves `ivc_proof`, so ring check values must be captured BEFORE the verify call
+- `NovaNova::verify()` moves `ivc_proof`, so ring check values must be captured BEFORE the verify call
 - Pattern: `let ring_check = if self.state_len >= 4 { Some((z_i[2], z_i[3])) } else { None };`
 - Guard: only check `fold_count == verification_count` for state_len >= 4 circuits
 - State_len=3 circuits (ToyStepCircuit, HeterogeneousStepCircuit) skip the ring check

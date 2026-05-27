@@ -21,9 +21,8 @@ use sha2::{Digest, Sha256};
 use std::time::Instant;
 
 #[cfg(feature = "sonobe-compressor")]
-use pvthfhe_compressor::sonobe::{
-    encode_hex, encode_triple, C7DecryptAggregationCircuit, CycloFoldStepCircuit, ExternalInputs3,
-    ExternalInputs4, ExternalInputs5, SonobeCompressor,
+use pvthfhe_compressor::nova::{
+    encode_hex, encode_triple, CycloFoldStepCircuit, ExternalInputs3, NovaCompressor,
 };
 
 const DEMO_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 131072\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
@@ -48,7 +47,7 @@ struct Args {
     #[arg(long, default_value = "1")]
     seed: u64,
 
-    /// Use MicroNova heterogeneous IVC compressor instead of standard Sonobe.
+    /// Use MicroNova heterogeneous IVC compressor instead of standard Nova.
     #[arg(long, default_value_t = false)]
     use_micronova: bool,
 }
@@ -279,7 +278,7 @@ fn main() -> anyhow::Result<()> {
             time_micronova_compressor(epoch_hash, batch_count)?;
         } else {
             let compressor =
-                SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, batch_count)
+                NovaCompressor::<pvthfhe_compressor::nova::dkg_aggregation_circuit::DkgAggregationStepCircuit<Fr>>::new(epoch_hash, batch_count)
                     .map_err(|e| anyhow::anyhow!("compressor init: {e:?}"))?;
             let acc = encode_hex((
                 Fr::from(0u64),
@@ -291,16 +290,14 @@ fn main() -> anyhow::Result<()> {
                 Fr::from(0u64),
                 Fr::from(0u64),
             ));
-            let steps: Vec<ExternalInputs4<Fr>> = (0..batch_count)
+            let steps: Vec<ExternalInputs3<Fr>> = (0..batch_count)
                 .map(|i| {
-                    // Field 0: party identity derived from real DKG transcript PK hash.
                     let party_id_fr = if i < transcript.round1_messages.len() {
                         Fr::from(transcript.round1_messages[i].party_id as u64)
                     } else {
                         Fr::from_be_bytes_mod_order(&Sha256::digest(transcript.dkg_root))
                     };
-                    // Field 1: one contribution per batch (matches full_pipeline.rs pattern).
-                    ExternalInputs4(party_id_fr, Fr::from(1u64), agg_pk_hash_fr, dkg_root_fr)
+                    ExternalInputs3(party_id_fr, Fr::from(1u64), agg_pk_hash_fr)
                 })
                 .collect();
             let _prove_result = compressor
@@ -376,29 +373,21 @@ fn main() -> anyhow::Result<()> {
             use pvthfhe_compressor::witness::hash_all_coeffs;
             let coeff_commitment = hash_all_coeffs(&vec![agg_pk_hash_fr]);
             let derived_r = hash_all_coeffs(&[coeff_commitment, dkg_root_fr]);
-            let c7_compressor = SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(
-                epoch_hash,
-                args.threshold,
-            )
+            let c7_compressor = NovaCompressor::<
+                pvthfhe_compressor::nova::dkg_aggregation_circuit::DkgAggregationStepCircuit<Fr>,
+            >::new(epoch_hash, args.threshold)
             .map_err(|e| anyhow::anyhow!("C7 compressor init: {e:?}"))?;
             let c7_acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
-            let c7_steps: Vec<ExternalInputs5<Fr>> = (0..args.threshold)
+            let c7_steps: Vec<ExternalInputs3<Fr>> = (0..args.threshold)
                 .map(|i| {
-                    // Share evaluation derived from real DKG transcript PK hash.
                     let share_eval = Fr::from_be_bytes_mod_order(&Sha256::digest(
                         transcript.round1_messages[i].pk_i.bytes.as_slice(),
                     ));
-                    ExternalInputs5(
-                        share_eval,
-                        lagrange_coeffs[i],
-                        coeff_commitment,
-                        dkg_root_fr,
-                        derived_r,
-                    )
+                    ExternalInputs3(share_eval, lagrange_coeffs[i], coeff_commitment)
                 })
                 .collect();
             let _c7_result = c7_compressor
-                .prove_steps_c7(&c7_acc, &c7_steps)
+                .prove_steps(&c7_acc, &c7_steps)
                 .map_err(|e| anyhow::anyhow!("C7 prove_steps: {e:?}"))?;
             (ms + elapsed_ms(t2b), 0usize, leaves)
         } else {
@@ -437,9 +426,8 @@ fn main() -> anyhow::Result<()> {
             })
             .collect();
         let witness_set = AjtaiCommitmentWitnessSet { witnesses };
-        let ajtai_compressor =
-            SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, args.n)
-                .map_err(|e| anyhow::anyhow!("ajtai compressor init: {e:?}"))?;
+        let ajtai_compressor = NovaCompressor::<pvthfhe_compressor::nova::dkg_aggregation_circuit::DkgAggregationStepCircuit<Fr>>::new(epoch_hash, args.n)
+            .map_err(|e| anyhow::anyhow!("ajtai compressor init: {e:?}"))?;
         let acc = encode_hex((
             Fr::from(0u64),
             Fr::from(0u64),

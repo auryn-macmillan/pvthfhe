@@ -17,5 +17,8 @@ hex = "0.4"
 sha3 = "0.10"
 clap = { version = "4", features = ["derive"] }
 
+[features]
+legacy-nova = ["pvthfhe-compressor/legacy-nova"]
+
 [lints]
 workspace = true

@@ -1,14 +1,14 @@
-//! Spec guard for the Sonobe substitute addendum.
+//! Spec guard for the Nova substitute addendum.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
 const SPEC_PATH: &str = ".sisyphus/design/spec-real-p2p3.md";
-const MIGRATION_PATH: &str = ".sisyphus/design/sonobe-migration.md";
+const MIGRATION_PATH: &str = ".sisyphus/design/nova-migration.md";
 const REQUIRED_SPEC_STRINGS: [&str; 9] = [
-    "### 4.2 Sonobe substitute",
+    "### 4.2 Nova substitute",
     "ProofCompressor",
-    "migration: sonobe → micronova",
+    "migration: nova → micronova",
     "bounded migration surface",
     "#### Invariant 1 — Trait surface",
     "#### Invariant 2 — Step-circuit shape",
@@ -53,10 +53,10 @@ fn spec_addendum_and_migration_contract_are_present() {
     let touch_point_count = migration_touch_point_count(&migration);
     assert!(
         touch_point_count <= 8,
-        "sonobe migration doc must enumerate at most 8 touch points, found {touch_point_count}"
+        "nova migration doc must enumerate at most 8 touch points, found {touch_point_count}"
     );
     assert!(
         touch_point_count >= 1,
-        "sonobe migration doc must enumerate at least one touch point"
+        "nova migration doc must enumerate at least one touch point"
     );
 }

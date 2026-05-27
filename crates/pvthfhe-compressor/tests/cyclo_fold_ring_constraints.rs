@@ -3,9 +3,9 @@ use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_relations::gr1cs::ConstraintSystem;
 use folding_schemes::frontend::FCircuit;
-use pvthfhe_compressor::sonobe::{
+use pvthfhe_compressor::nova::{
     clear_cyclo_ring_data, encode_triple, set_cyclo_ring_data, CycloFoldStepCircuit,
-    CycloRingWitness, ExternalInputs3, ExternalInputs3Var, SonobeCompressor,
+    CycloRingWitness, ExternalInputs3, ExternalInputs3Var, NovaCompressor,
 };
 use pvthfhe_compressor::ProofCompressor;
 
@@ -62,7 +62,7 @@ fn cyclo_fold_rejects_invalid_ring_witness_in_constraints() {
 fn cyclo_fold_proves_with_ring_data_available_for_preprocess() {
     clear_cyclo_ring_data();
     set_cyclo_ring_data(vec![valid_witness(Fr::from(1u64))]);
-    let compressor = SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new([0x32u8; 32], 1)
+    let compressor = NovaCompressor::<CycloFoldStepCircuit<Fr>>::new([0x32u8; 32], 1)
         .expect("construct compressor with ring data available for preprocessing");
 
     let acc = encode_triple((Fr::from(5u64), Fr::from(0u64), Fr::from(0u64))).to_vec();
@@ -77,7 +77,7 @@ fn cyclo_fold_proves_with_ring_data_available_for_preprocess() {
 
     let vk = compressor.verifier_key();
     assert!(
-        compressor.verify_steps(&vk, &proof, &steps).unwrap(),
+        compressor.verify_steps(&vk, &proof, &acc, &steps).unwrap(),
         "G7: ring-only in-circuit witness must fail without sigma witness"
     );
 }
@@ -85,7 +85,7 @@ fn cyclo_fold_proves_with_ring_data_available_for_preprocess() {
 #[test]
 fn track_a_no_ring_data_ignores_ext2_and_increments_verification_count() {
     clear_cyclo_ring_data();
-    let compressor = SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new([0x33u8; 32], 1)
+    let compressor = NovaCompressor::<CycloFoldStepCircuit<Fr>>::new([0x33u8; 32], 1)
         .expect("construct track A compressor");
     let acc = encode_triple((Fr::from(5u64), Fr::from(0u64), Fr::from(0u64))).to_vec();
     let public_inputs = encode_triple((Fr::from(7u64), Fr::from(1u64), Fr::from(0u64))).to_vec();
@@ -96,7 +96,9 @@ fn track_a_no_ring_data_ignores_ext2_and_increments_verification_count() {
     let vk = compressor.verifier_key();
 
     assert!(
-        compressor.verify(&vk, &proof, &public_inputs).unwrap(),
+        compressor
+            .verify(&vk, &proof, &acc, &public_inputs)
+            .unwrap(),
         "G7: Track A must fail closed when ring/sigma witness data is absent"
     );
 }

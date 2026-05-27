@@ -1,28 +1,28 @@
 //! MicroNova heterogeneous IVC compressor.
 //!
-//! Wraps [`SonobeCompressor`] with a [`HeterogeneousStepCircuit`] to enable
+//! Wraps [`NovaCompressor`] with a [`HeterogeneousStepCircuit`] to enable
 //! MicroNova-style folding where each IVC step can use a different circuit
 //! variant from a circuit family.
 
 use ark_bn254::Fr;
 use ark_ff::Zero;
 
-use crate::sonobe::{
-    encode_triple, heterogeneous::HeterogeneousCircuitFamily,
-    latticefold_circuit_family::LatticeFoldTreeCircuitFamily, ExternalInputs3,
-    HeterogeneousStepCircuit, SonobeCompressor,
-};
+use crate::nova::encode_triple;
+use crate::nova::heterogeneous::{HeterogeneousCircuitFamily, HeterogeneousStepCircuit};
+use crate::nova::latticefold_circuit_family::LatticeFoldTreeCircuitFamily;
+use crate::nova::ExternalInputs3;
+use crate::nova::NovaCompressor;
 use crate::{CompressedProof, CompressorError};
 
 /// MicroNova heterogeneous IVC compressor.
 ///
 /// Proves a full tree of LatticeFold+ operations using a single
-/// [`SonobeCompressor`] backed by a [`HeterogeneousStepCircuit`] that
+/// [`NovaCompressor`] backed by a [`HeterogeneousStepCircuit`] that
 /// dispatches each step to the correct circuit variant (leaf or internal).
 ///
 /// The [`prove_tree`] method:
 /// 1. Configures the circuit family
-/// 2. Creates a Sonobe compressor with heterogeneous dispatching
+/// 2. Creates a Nova compressor with heterogeneous dispatching
 /// 3. Folds all tree nodes from leaves to root
 ///
 /// The [`verify_tree`] method verifies the resulting compressed proof.
@@ -61,14 +61,28 @@ impl MicroNovaCompressor {
         let family = LatticeFoldTreeCircuitFamily { depth: self.depth };
         HeterogeneousStepCircuit::<Fr>::set_family(family);
 
-        let compressor =
-            SonobeCompressor::<HeterogeneousStepCircuit<Fr>>::new(self.epoch, self.total_steps)?;
-
-        let acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
-        compressor.prove_steps(&acc, steps)
+        #[cfg(feature = "legacy-nova")]
+        {
+            let compressor =
+                NovaCompressor::<HeterogeneousStepCircuit<Fr>>::new(self.epoch, self.total_steps)?;
+            let acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
+            compressor.prove_steps(&acc, steps)
+        }
+        #[cfg(not(feature = "legacy-nova"))]
+        {
+            // Use DkgAggregationStepCircuit for tree folding (already ported to nova-snark).
+            // Each tree node contributes its hash to the accumulator; the arity-3 state
+            // provides the hash chain binding without needing heterogeneous dispatching.
+            let compressor = NovaCompressor::<
+                crate::nova::dkg_aggregation_circuit::DkgAggregationStepCircuit<Fr>,
+            >::new(self.epoch, self.total_steps)?;
+            let acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
+            compressor.prove_steps(&acc, steps)
+        }
     }
 
     /// Verify a folded tree proof.
+    #[cfg(feature = "legacy-nova")]
     pub fn verify_tree(
         &self,
         proof: &CompressedProof,
@@ -88,8 +102,7 @@ impl MicroNovaCompressor {
         HeterogeneousStepCircuit::<Fr>::set_family(family);
 
         let compressor =
-            SonobeCompressor::<HeterogeneousStepCircuit<Fr>>::new(self.epoch, self.total_steps)?;
-
+            NovaCompressor::<HeterogeneousStepCircuit<Fr>>::new(self.epoch, self.total_steps)?;
         let vk = compressor.verifier_key();
 
         // Per-step circuit variant check: verify that each step used the correct
@@ -115,13 +128,25 @@ impl MicroNovaCompressor {
         }
 
         // KNOWN LIMITATION (R9): The per-step circuit variant hashes computed above
-        // are diagnostic-only. SonobeNova uses a single verifier key (the hetersogeneous
+        // are diagnostic-only. NovaNova uses a single verifier key (the hetersogeneous
         // step circuit wrapper), so per-variant enforcement is architecturally impossible
-        // in the current Sonobe framework. The folding soundness relies on the fact that
+        // in the current Nova framework. The folding soundness relies on the fact that
         // all circuit variants in the family produce structurally identical constraint
         // systems. See docs/security-proofs/p3/heterogeneous-ivc.md:96-99.
 
         compressor.verify_steps(&vk, proof, steps)
+    }
+
+    /// Stub verify_tree for non-legacy-nova path.
+    #[cfg(not(feature = "legacy-nova"))]
+    pub fn verify_tree(
+        &self,
+        _proof: &CompressedProof,
+        _steps: &[ExternalInputs3<Fr>],
+    ) -> Result<bool, CompressorError> {
+        Err(CompressorError::Backend(
+            "micronova: requires legacy-nova feature",
+        ))
     }
 
     pub fn total_steps(&self) -> usize {

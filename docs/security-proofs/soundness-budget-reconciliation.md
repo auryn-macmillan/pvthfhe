@@ -67,16 +67,16 @@ heuristic), which is **unproven** for the power-of-two cyclotomic X²⁵⁶+1.
 | **What's unproven** | Lemma 9 invertibility heuristic: "biased ternary challenge differences are always invertible in X²⁵⁶+1 except with probability κ_nu ≈ 2⁻⁹⁴". The general cyclotomic case is unproven; the power-of-two case relies on a heuristic. |
 | **Assumptions relied upon** | A-LATTICE-4 (Lemma 9 heuristic, CONDITIONAL), A-LATTICE-1 (M-SIS, ASSUMED), A-MODEL-1 (ROM for FS challenges, ASSUMED) |
 | **Residual risk** | If Lemma 9 fails (non-invertible challenges occur more frequently), the soundness error could exceed 2⁻¹²⁸. The linear bound (1.5×10⁻⁴) is already above target, so the entire folding soundness rests on the exponential model being valid in practice — which depends on Lemma 9. |
-| **Sonobe substitution note** | Current prototype uses Sonobe Nova (over BN254+Grumpkin) in place of Cyclo lattice-native folding. Sonobe Nova has its own soundness assumptions (see §2.4). |
+| **Nova substitution note** | Current prototype uses Nova Nova (over BN254+Grumpkin) in place of Cyclo lattice-native folding. Nova Nova has its own soundness assumptions (see §2.4). |
 | **References** | `fold-soundness-budget.md`, `lemma9.md`, `assumptions-ledger.md §A-LATTICE-4`, Cyclo ePrint 2026/359 Theorem 3 |
 
-### 2.4 Sonobe Nova — IVC Compression (P3)
+### 2.4 Nova Nova — IVC Compression (P3)
 
 | Aspect | Value |
 |--------|-------|
 | **Claimed soundness** | ≥ 2⁻¹²⁸ (P3 in composed bound) |
 | **Actual status** | **CONDITIONAL** — P3 OPEN (documented limitation) |
-| **What's proven** | Sonobe Nova IVC soundness over BN254+Grumpkin cycle (standard Nova security reduction under DLOG and ROM); external verifier wired (F.1) |
+| **What's proven** | Nova Nova IVC soundness over BN254+Grumpkin cycle (standard Nova security reduction under DLOG and ROM); external verifier wired (F.1) |
 | **What's unproven** | CycloFoldStepCircuit folds 3 hashed field elements (commitment_hash, norm, fold_count) — **not** full Ajtai commitment folding. Compressed proof verifies hash-state consistency, not the raw Cyclo accumulator relation (Ajtai commitment check, norm-bound range checks for β_T=1344, sum-check over ~60 KB of F_{q^e} elements). This is the P2/P3 structural gap. |
 | **Assumptions relied upon** | A-DLOG-1 (KZG binding, ASSUMED), A-DLOG-2 (DLOG on BN254, ASSUMED), A-DLOG-3 (DLOG on Grumpkin, ASSUMED), A-MODEL-1 (ROM, ASSUMED) |
 | **Residual risk** | Malicious prover who can find SHA-256 preimage of accumulator commitment (but not valid Cyclo accumulator) could produce a passing compressing proof. Mitigated by off-chain Cyclo `verify_fold` check before compression. |
@@ -152,7 +152,7 @@ Composed Soundness (≥ 2⁻¹²⁸, aspirational)
    would apply, making the folding layer unsound at any reasonable security level.
 
 4. **Explicitly note the post-quantum boundary.** The DLOG/pairing assumptions in P3
-   (Sonobe Nova, on-chain UltraHonk) are NOT post-quantum secure. An attacker with
+   (Nova Nova, on-chain UltraHonk) are NOT post-quantum secure. An attacker with
    a quantum computer could forge on-chain proofs even if the underlying FHE
    ciphertexts remain secure.
 

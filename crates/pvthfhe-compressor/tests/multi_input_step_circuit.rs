@@ -4,7 +4,7 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::GR1CSVar;
 use ark_relations::gr1cs::ConstraintSystem;
 use folding_schemes::frontend::FCircuit;
-use pvthfhe_compressor::sonobe::{CycloFoldStepCircuit, ExternalInputs3Var};
+use pvthfhe_compressor::nova::{CycloFoldStepCircuit, ExternalInputs3Var};
 
 #[test]
 fn cyclo_fold_accepts_tuple_external_inputs() {

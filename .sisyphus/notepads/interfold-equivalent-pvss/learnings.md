@@ -33,16 +33,16 @@
 - Updated SECURITY.md with C5 gap in Known Limitations
 
 ### F.1 — External Compressor Verifier
-- Added `verify_external` method to `SonobeCompressor` in `crates/pvthfhe-compressor/src/sonobe/mod.rs`
+- Added `verify_external` method to `NovaCompressor` in `crates/pvthfhe-compressor/src/nova/mod.rs`
   - Independent deserialization + verification path
   - Fresh verifier params deserialization from key bytes
 - Added `external_verify_compressed_proof` function to `crates/pvthfhe-cli/src/compressor_glue.rs`
-  - Gated behind `#[cfg(feature = "sonobe-compressor")]`
+  - Gated behind `#[cfg(feature = "nova-compressor")]`
 - Updated `crates/pvthfhe-cli/src/full_pipeline.rs`:
   - Added `compressor_verify_external` phase after primary verify
-  - Gated with `#[cfg(feature = "sonobe-compressor")]`
+  - Gated with `#[cfg(feature = "nova-compressor")]`
   - Updated test expectations
-- Build verified: `cargo build -p pvthfhe-cli --features "sonobe-compressor"` passes
+- Build verified: `cargo build -p pvthfhe-cli --features "nova-compressor"` passes
 - Gate verified: `cargo build -p pvthfhe-compressor --lib` passes
 
 ### F.2 — P2/P3 Gap Documentation
@@ -50,13 +50,13 @@
   - Added P2/P3 structural gap note: CycloFoldStepCircuit folds 3 hashed field elements, not full Ajtai commitment folding
   - Documented that compressed proof verifies hash-state consistency, not Cyclo accumulator relation
 - Added §4.5 to `docs/security-proofs/interfold-equivalent-pvss.md`:
-  - P2 gap: Sonobe Nova substitutes for lattice-native folding
+  - P2 gap: Nova Nova substitutes for lattice-native folding
   - P3 gap: compressed proof verifies hash-state, not full Ajtai/range-check/sum-check
   - Current flow: Cyclo verify_fold runs off-chain, state digest enters IVC
 - Updated README.md P2/P3 status rows to reflect hash-accumulate limitation
 
 ### Verification
-- `cargo build -p pvthfhe-cli --features "sonobe-compressor"` — clean (pre-existing warnings only)
+- `cargo build -p pvthfhe-cli --features "nova-compressor"` — clean (pre-existing warnings only)
 - `cargo build -p pvthfhe-compressor --lib` — clean
 - LSP diagnostics: zero errors across all modified Rust files
 - All pre-existing tests pass; pre-existing RED tests (D.1 fail-closed, memory limit) remain

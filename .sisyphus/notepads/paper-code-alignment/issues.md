@@ -7,7 +7,7 @@
 
 ### Issue D-2: Batch A had already modified P3 section
 - **Status**: Resolved
-- **Description**: The first Python replacement script failed because the P3 section text had been updated by Batch A (added Sonobe Nova IVC mention). Resolution: used section-boundary-based replacement (find `\section{P2:` and `\section{P3:` markers) instead of exact string matching.
+- **Description**: The first Python replacement script failed because the P3 section text had been updated by Batch A (added Nova Nova IVC mention). Resolution: used section-boundary-based replacement (find `\section{P2:` and `\section{P3:` markers) instead of exact string matching.
 
 ### Issue D-3: No edit/write tools available
 - **Status**: Resolved

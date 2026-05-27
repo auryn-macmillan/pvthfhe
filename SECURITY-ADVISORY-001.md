@@ -17,12 +17,12 @@ An adversary can successfully submit forged or garbage proofs to the on-chain ve
 ### C1: On-chain Verification Topology [RESOLVED]
 **Location:** `contracts/src/PvtFheVerifier.sol`
 
-The research prototype uses an off-chain Sonobe + on-chain commitment topology (N3a NoGo path). While this replaces the Stage 0 killswitch, it shifts the trust assumption to a combination of an UltraHonk proof (verifying the Sonobe state commitment) and an off-chain attestation bundle.
+The research prototype uses an off-chain Nova + on-chain commitment topology (N3a NoGo path). While this replaces the Stage 0 killswitch, it shifts the trust assumption to a combination of an UltraHonk proof (verifying the Nova state commitment) and an off-chain attestation bundle.
 
-### C2: Sonobe Substitution [RESOLVED]
-**Location:** `circuits/sonobe_wrap/`
+### C2: Nova Substitution [RESOLVED]
+**Location:** `circuits/nova_wrap/`
 
-Noir circuits now implement the real aggregation and wrapping logic, substituting MicroNova with Sonobe. The previously used `assert(false)` killswitches and tautological constraints have been replaced by real constraints that verify the Sonobe state transition and commitment.
+Noir circuits now implement the real aggregation and wrapping logic, substituting MicroNova with Nova. The previously used `assert(false)` killswitches and tautological constraints have been replaced by real constraints that verify the Nova state transition and commitment.
 
 ### C3: SHA-256 Surrogate for Lattice Folding [DOCUMENTED — P2 open problem]
 **Location:** `crates/pvthfhe-cyclo/src/fold.rs`.
@@ -64,20 +64,20 @@ The CVSS score of 10.0 is justified by the following factors:
 
 ## Mitigation
 Stage 0 red-team efforts have implemented the following emergency mitigations:
-- **Verifier Remediation**: `PvtFheVerifier.sol` uses the off-chain Sonobe + on-chain commitment topology.
-- **Circuit Implementation**: Real constraints have been implemented in the aggregation circuits using Sonobe.
+- **Verifier Remediation**: `PvtFheVerifier.sol` uses the off-chain Nova + on-chain commitment topology.
+- **Circuit Implementation**: Real constraints have been implemented in the aggregation circuits using Nova.
 - **Documentation**: README and source files have been updated with "DO NOT DEPLOY" banners and explicit surrogate disclosures.
 
 ## Trust assumption: NoGo branch (N3a verdict)
 
-Under the NoGo branch (N3a verdict: Sonobe-in-UltraHonk infeasible), on-chain verification
+Under the NoGo branch (N3a verdict: Nova-in-UltraHonk infeasible), on-chain verification
 uses `verifyWithAttestation` which combines:
-1. A UltraHonk proof for the `sonobe_state_commitment` circuit (6 public inputs)
+1. A UltraHonk proof for the `nova_state_commitment` circuit (6 public inputs)
 2. An off-chain attestation bundle from `pvthfhe-offchain-verifier`
 
 This shifts trust from purely cryptographic verification to attestation-augmented verification.
 The attestor set is stored in contract state and administered on-chain. Key rotation is flagged
-for follow-on work. See `.sisyphus/research/sonobe-wrap-feasibility.md` for the N3a feasibility
+for follow-on work. See `.sisyphus/research/nova-wrap-feasibility.md` for the N3a feasibility
 analysis.
 
 ## Deployment Warning

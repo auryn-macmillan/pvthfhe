@@ -9,7 +9,7 @@ use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField, Zero};
 
 use crate::micronova::compressor::MicroNovaCompressor;
-use crate::sonobe::ExternalInputs3;
+use crate::nova::ExternalInputs3;
 use crate::witness::hash_all_coeffs;
 use crate::{CompressedProof, CompressorError};
 
@@ -17,7 +17,7 @@ use crate::{CompressedProof, CompressorError};
 ///
 /// For a tree with `2^depth` leaves, there are `2^(depth+1) - 1` total nodes
 /// (internal + leaves). Nodes are ordered level-by-level from root to leaves,
-/// matching the [`crate::sonobe::latticefold_circuit_family::LatticeFoldTreeCircuitFamily`]
+/// matching the [`crate::nova::latticefold_circuit_family::LatticeFoldTreeCircuitFamily`]
 /// indexing scheme.
 pub struct CompressionTree {
     /// Number of internal levels above the leaves.

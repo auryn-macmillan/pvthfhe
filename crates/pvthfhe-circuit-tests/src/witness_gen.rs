@@ -98,7 +98,7 @@ pub struct AggregatorFinalWitness {
 
 /// Fully materialized witness in Noir `Prover.toml` string form.
 #[derive(Debug, Clone)]
-pub struct SonobeStateCommitmentWitness {
+pub struct NovaStateCommitmentWitness {
     /// Public commitment to the aggregate public key context.
     pub commit_pk: String,
     /// Public commitment to the input ciphertext context.
@@ -107,12 +107,12 @@ pub struct SonobeStateCommitmentWitness {
     pub commit_ct_out: String,
     /// Public session identifier.
     pub session_id: String,
-    /// Public Poseidon commitment to the Sonobe final-state preimage.
-    pub sonobe_final_state_commitment: String,
+    /// Public Poseidon commitment to the Nova final-state preimage.
+    pub nova_final_state_commitment: String,
     /// Public Poseidon commitment to the Cyclo aggregate preimage.
     pub cyclo_aggregate_commitment: String,
-    /// Private Sonobe final-state preimage.
-    pub sonobe_state_preimage: Vec<String>,
+    /// Private Nova final-state preimage.
+    pub nova_state_preimage: Vec<String>,
     /// Private Cyclo aggregate preimage.
     pub cyclo_aggregate_preimage: Vec<String>,
 }
@@ -192,7 +192,7 @@ impl AggregatorFinalWitness {
     }
 }
 
-impl SonobeStateCommitmentWitness {
+impl NovaStateCommitmentWitness {
     /// Serializes the witness into Noir `Prover.toml` syntax.
     pub fn to_toml(&self) -> String {
         let mut output = String::new();
@@ -202,8 +202,8 @@ impl SonobeStateCommitmentWitness {
         let _ = writeln!(&mut output, "session_id = \"{}\"", self.session_id);
         let _ = writeln!(
             &mut output,
-            "sonobe_final_state_commitment = \"{}\"",
-            self.sonobe_final_state_commitment
+            "nova_final_state_commitment = \"{}\"",
+            self.nova_final_state_commitment
         );
         let _ = writeln!(
             &mut output,
@@ -212,8 +212,8 @@ impl SonobeStateCommitmentWitness {
         );
         let _ = writeln!(
             &mut output,
-            "sonobe_state_preimage = [{}]",
-            quoted_array(&self.sonobe_state_preimage)
+            "nova_state_preimage = [{}]",
+            quoted_array(&self.nova_state_preimage)
         );
         let _ = writeln!(
             &mut output,
@@ -405,9 +405,9 @@ pub fn generate_aggregator_final_witness() -> AggregatorFinalWitness {
     }
 }
 
-/// Generates a valid witness for the `sonobe_state_commitment` circuit.
-pub fn generate_sonobe_state_commitment_witness() -> SonobeStateCommitmentWitness {
-    let sonobe_state_preimage_raw = [
+/// Generates a valid witness for the `nova_state_commitment` circuit.
+pub fn generate_nova_state_commitment_witness() -> NovaStateCommitmentWitness {
+    let nova_state_preimage_raw = [
         Fr::from(10u64),
         Fr::from(20u64),
         Fr::from(30u64),
@@ -420,18 +420,18 @@ pub fn generate_sonobe_state_commitment_witness() -> SonobeStateCommitmentWitnes
         Fr::from(80u64),
     ];
 
-    SonobeStateCommitmentWitness {
+    NovaStateCommitmentWitness {
         commit_pk: field_to_decimal(Fr::from(1u64)),
         commit_ct_in: field_to_decimal(Fr::from(2u64)),
         commit_ct_out: field_to_decimal(Fr::from(3u64)),
         session_id: field_to_decimal(Fr::from(1u64)),
-        sonobe_final_state_commitment: field_to_decimal(poseidon_hash_4(
-            &sonobe_state_preimage_raw,
+        nova_final_state_commitment: field_to_decimal(poseidon_hash_4(
+            &nova_state_preimage_raw,
         )),
         cyclo_aggregate_commitment: field_to_decimal(poseidon_hash_4(
             &cyclo_aggregate_preimage_raw,
         )),
-        sonobe_state_preimage: sonobe_state_preimage_raw
+        nova_state_preimage: nova_state_preimage_raw
             .into_iter()
             .map(field_to_decimal)
             .collect(),

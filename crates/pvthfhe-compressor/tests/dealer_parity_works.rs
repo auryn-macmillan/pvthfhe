@@ -1,8 +1,8 @@
 use ark_bn254::Fr;
 use ark_ff::{AdditiveGroup, Field, PrimeField, UniformRand, Zero};
-use pvthfhe_compressor::sonobe::{
+use pvthfhe_compressor::nova::{
     clear_dealer_parity_data, encode_triple, set_dealer_parity_data, DealerParityStepCircuit,
-    SonobeCompressor,
+    NovaCompressor,
 };
 use pvthfhe_compressor::ProofCompressor;
 use rand::SeedableRng;
@@ -73,7 +73,7 @@ fn dealer_parity_circuit_roundtrip() {
         .fold(Fr::ZERO, |acc, x| acc + x);
     assert!(native_dot.is_zero());
     set_dealer_parity_data(share_values.clone(), factors.clone(), Some(secret));
-    let compressor = SonobeCompressor::<DealerParityStepCircuit<Fr>>::new([0u8; 32], 1)
+    let compressor = NovaCompressor::<DealerParityStepCircuit<Fr>>::new([0u8; 32], 1)
         .expect("construct compressor");
     let acc = encode_triple((Fr::ZERO, Fr::ZERO, Fr::ZERO));
     let pi = encode_triple((r, secret, Fr::from(n as u64)));

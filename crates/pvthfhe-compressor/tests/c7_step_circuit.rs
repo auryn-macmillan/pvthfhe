@@ -2,9 +2,9 @@
 
 use ark_bn254::Fr;
 use folding_schemes::frontend::FCircuit;
-use pvthfhe_compressor::sonobe::{
+use pvthfhe_compressor::nova::{
     clear_c7_step_data, encode_triple, set_c7_step_data, C7DecryptAggregationCircuit,
-    ExternalInputs5, SonobeCompressor, ToyStepCircuit,
+    ExternalInputs5, NovaCompressor, ToyStepCircuit,
 };
 use pvthfhe_compressor::witness::hash_all_coeffs;
 use pvthfhe_compressor::StepCircuit;
@@ -32,13 +32,13 @@ fn build_trivial_coeffs(num_steps: usize, ext_0_value: Fr) -> Vec<Vec<Fr>> {
     coeffs_per_step
 }
 
-/// Test 1: C7 step circuit compiles with Sonobe.
+/// Test 1: C7 step circuit compiles with Nova.
 #[test]
-fn c7_step_circuit_compiles_with_sonobe() {
-    let compressor = SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch(), 4)
-        .expect("construct C7 sonobe compressor");
+fn c7_step_circuit_compiles_with_nova() {
+    let compressor = NovaCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch(), 4)
+        .expect("construct C7 nova compressor");
     let vk = compressor.verifier_key();
-    assert_eq!(vk.backend_id, "sonobe-nova-bn254-grumpkin");
+    assert_eq!(vk.backend_id, "nova-bn254-grumpkin");
 }
 
 /// Test 2: state_len is 3.
@@ -77,8 +77,8 @@ fn c7_roundtrip_prove_verify() {
     let ext_0 = Fr::from(42u64);
     let num_steps = 4;
 
-    let compressor = SonobeCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch(), num_steps)
-        .expect("construct C7 sonobe compressor");
+    let compressor = NovaCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch(), num_steps)
+        .expect("construct C7 nova compressor");
 
     let coeffs = build_trivial_coeffs(num_steps, ext_0);
 
@@ -102,7 +102,7 @@ fn c7_roundtrip_prove_verify() {
 
     let vk = compressor.verifier_key();
     eprintln!("vk.backend_id={}", vk.backend_id);
-    assert_eq!(vk.backend_id, "sonobe-nova-bn254-grumpkin");
+    assert_eq!(vk.backend_id, "nova-bn254-grumpkin");
 
     let verify_result = compressor.verify_steps_c7(&vk, &proof, &steps);
     eprintln!("verify_result={verify_result:?}");

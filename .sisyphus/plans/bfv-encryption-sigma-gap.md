@@ -9,7 +9,7 @@
 Circuit path (on-chain anchor):
   CycloFoldStepCircuit → sigma_verify_step → R1CS enforces d_i = c·s_i + e_i  ✅
   DealerParityStepCircuit → R1CS enforces H·shares == 0                   ✅
-  sonobe_state_commitment Noir → verifies Nova state hash                  ✅
+  nova_state_commitment Noir → verifies Nova state hash                  ✅
 
 Native path (NOT on-chain):
   bfv_sigma::verify → Rust verifier → Poseidon(result) → adapter binding  ❌
@@ -19,7 +19,7 @@ The BFV encryption relation `ct0 = pk0·u + e0 + Δ·m` is checked by a Rust fun
 
 ## Solution: Step Circuit for BFV Sigma Verification
 
-Create `BfvEncryptionStepCircuit` — a Sonobe Nova FCircuit that verifies the BFV encryption relation in R1CS. Fold into the existing CycloFoldStepCircuit or run as a separate Nova chain.
+Create `BfvEncryptionStepCircuit` — a Nova Nova FCircuit that verifies the BFV encryption relation in R1CS. Fold into the existing CycloFoldStepCircuit or run as a separate Nova chain.
 
 ### Circuit design
 
@@ -49,7 +49,7 @@ The challenge `γ` is derived via Fiat-Shamir: `γ = Poseidon(ciphertext_hash, p
 
 ## Implementation Steps
 
-### 1. `bfv_encryption_circuit.rs` — New Sonobe FCircuit
+### 1. `bfv_encryption_circuit.rs` — New Nova FCircuit
 
 ```rust
 struct BfvEncryptionStepCircuit<F: PrimeField> {
@@ -116,13 +116,13 @@ After `nizk_prove` phase (line ~660 in full_pipeline.rs), set `BFV_ENCRYPTION_DA
 
 **Option A**: Add to existing `CycloFoldStepCircuit` — extend state width from 7 to 8, add `bfv_encryption_verification_count` field. Increases per-step R1CS but avoids extra compressor.
 
-**Option B**: Create separate `SonobeCompressor<BfvEncryptionStepCircuit>` — independent Nova chain. Cleaner separation but requires additional compressor instance.
+**Option B**: Create separate `NovaCompressor<BfvEncryptionStepCircuit>` — independent Nova chain. Cleaner separation but requires additional compressor instance.
 
 Choose Option A (simpler, fewer instances).
 
 ### 5. On-chain anchor
 
-The `CycloFoldStepCircuit` state accumulator (state[0]) absorbs the BFV verification result hash. The final Nova state is checked by `sonobe_state_commitment` Noir circuit → UltraHonk → Solidity verifier.
+The `CycloFoldStepCircuit` state accumulator (state[0]) absorbs the BFV verification result hash. The final Nova state is checked by `nova_state_commitment` Noir circuit → UltraHonk → Solidity verifier.
 
 **Verification**: `demo-e2e 5 2 1` → ACCEPT. Tamper BFV sigma witness → prove_step fails.
 

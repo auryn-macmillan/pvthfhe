@@ -10,8 +10,8 @@ use {
     ark_bn254::Fr,
     ark_ff::PrimeField,
     pvthfhe_compressor::{
-        sonobe::{encode_hex, encode_quad, CycloFoldStepCircuit, SonobeCompressor},
-        CompressedProof as SonobeProof, ProofCompressor, VerifierKey,
+        nova::{encode_hex, encode_quad, encode_triple, DkgAggregationStepCircuit, NovaCompressor},
+        CompressedProof as NovaProof, ProofCompressor, VerifierKey,
     },
 };
 
@@ -19,9 +19,9 @@ use {
 #[cfg(feature = "surrogate-compressor")]
 pub const SURROGATE_COMPRESSOR_ID: &str = "sha256-surrogate-compressor";
 
-/// Sonobe compressor backend identifier.
+/// Nova compressor backend identifier.
 #[cfg(feature = "sonobe-compressor")]
-pub const SONOBE_COMPRESSOR_ID: &str = "sonobe-nova-bn254-grumpkin";
+pub const SONOBE_COMPRESSOR_ID: &str = "nova-bn254-grumpkin";
 
 /// Compressed proof representation used by the e2e pipeline.
 #[derive(Debug)]
@@ -32,16 +32,16 @@ pub struct E2eCompressedProof {
     /// [`CompressedProof::ivc_proof_hash`] after `wrap_nova_instance`.
     pub ivc_proof_hash: Option<[u8; 32]>,
     #[cfg(feature = "sonobe-compressor")]
-    pub sonobe_proof: Option<SonobeProof>,
+    pub nova_proof: Option<NovaProof>,
 }
 
 /// Compressor backend selector.
 pub enum Compressor {
-    /// Real Sonobe compressor backend.
+    /// Real Nova compressor backend.
     #[cfg(feature = "sonobe-compressor")]
-    Sonobe {
-        /// Inner Sonobe compressor instance.
-        inner: SonobeCompressor<CycloFoldStepCircuit<Fr>>,
+    Nova {
+        /// Inner Nova compressor instance.
+        inner: NovaCompressor<DkgAggregationStepCircuit<Fr>>,
         /// Verifier key derived during compressor initialization.
         verifier_key: VerifierKey,
     },
@@ -59,12 +59,12 @@ impl Compressor {
             // state (3 Fr elements: commitment_hash, norm, fold_count).  It does NOT perform
             // full Ajtai commitment folding — the design intentionally hashes the
             // accumulator down to 3 field elements before entering the IVC because
-            // lattice-native folding is infeasible inside a Sonobe Nova step circuit.
+            // lattice-native folding is infeasible inside a Nova Nova step circuit.
             // Full Ajtai folding remains an open problem (P2).
-            let inner = SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, ivc_steps)
+            let inner = NovaCompressor::<DkgAggregationStepCircuit<Fr>>::new(epoch_hash, ivc_steps)
                 .map_err(compressor_error_to_anyhow)?;
             let verifier_key = inner.verifier_key();
-            return Ok(Self::Sonobe {
+            return Ok(Self::Nova {
                 inner,
                 verifier_key,
             });
@@ -81,7 +81,7 @@ impl Compressor {
     pub fn backend_id(&self) -> &'static str {
         match self {
             #[cfg(feature = "sonobe-compressor")]
-            Self::Sonobe { .. } => SONOBE_COMPRESSOR_ID,
+            Self::Nova { .. } => SONOBE_COMPRESSOR_ID,
             #[cfg(all(feature = "surrogate-compressor", not(feature = "sonobe-compressor")))]
             Self::Surrogate => SURROGATE_COMPRESSOR_ID,
         }
@@ -97,7 +97,7 @@ impl Compressor {
     ) -> anyhow::Result<E2eCompressedProof> {
         match self {
             #[cfg(feature = "sonobe-compressor")]
-            Self::Sonobe { inner, .. } => {
+            Self::Nova { inner, .. } => {
                 let (acc, public_inputs) = compressor_inputs(report, c7_final_hash);
                 let proof = inner
                     .prove(&acc, &public_inputs)
@@ -106,7 +106,7 @@ impl Compressor {
                 Ok(E2eCompressedProof {
                     digest: sha256_bytes(inner.compressed_proof_bytes(&proof)),
                     ivc_proof_hash: ivc_hash,
-                    sonobe_proof: Some(proof),
+                    nova_proof: Some(proof),
                 })
             }
             #[cfg(all(feature = "surrogate-compressor", not(feature = "sonobe-compressor")))]
@@ -122,7 +122,7 @@ impl Compressor {
                     digest: hasher.finalize().into(),
                     ivc_proof_hash: None,
                     #[cfg(feature = "sonobe-compressor")]
-                    sonobe_proof: None,
+                    nova_proof: None,
                 })
             }
         }
@@ -137,21 +137,21 @@ impl Compressor {
     ) -> anyhow::Result<()> {
         match self {
             #[cfg(feature = "sonobe-compressor")]
-            Self::Sonobe {
+            Self::Nova {
                 inner,
                 verifier_key,
             } => {
-                let (_, public_inputs) = compressor_inputs(report, c7_final_hash);
-                let Some(sonobe_proof) = proof.sonobe_proof.as_ref() else {
-                    anyhow::bail!("missing sonobe compressed proof bytes");
+                let (acc, public_inputs) = compressor_inputs(report, c7_final_hash);
+                let Some(nova_proof) = proof.nova_proof.as_ref() else {
+                    anyhow::bail!("missing nova compressed proof bytes");
                 };
                 let verified = inner
-                    .verify(verifier_key, sonobe_proof, &public_inputs)
+                    .verify(verifier_key, nova_proof, &acc, &public_inputs)
                     .map_err(compressor_error_to_anyhow)?;
                 if !verified {
-                    anyhow::bail!("sonobe compressed proof verification failed");
+                    anyhow::bail!("nova compressed proof verification failed");
                 }
-                let expected_digest = sha256_bytes(inner.compressed_proof_bytes(sonobe_proof));
+                let expected_digest = sha256_bytes(inner.compressed_proof_bytes(nova_proof));
                 if expected_digest != proof.digest {
                     anyhow::bail!("compressed proof digest mismatch");
                 }
@@ -197,22 +197,17 @@ pub fn compressor_inputs(
     let acc_commitment_hash: [u8; 32] = acc_hasher.finalize().into();
     let public_io_hash: [u8; 32] = public_hasher.finalize().into();
 
-    let acc = encode_hex((
+    let acc = encode_triple((
         Fr::from_le_bytes_mod_order(&acc_commitment_hash),
         Fr::from(total_norm),
-        Fr::from(0u64),
-        Fr::from(0u64),
-        Fr::from(0u64),
-        Fr::from(0u64),
-        Fr::from(0u64),
         Fr::from(0u64),
     ))
     .to_vec();
     let public_inputs = encode_quad((
         Fr::from_le_bytes_mod_order(&public_io_hash),
         Fr::from(total_norm),
-        Fr::from(1u64), // M6: ring verification result (1 = passed; pipeline checks before prove)
-        c7_final_hash,  // G.16: hash(C7_final_state) binds the two circuits
+        Fr::from(1u64),
+        c7_final_hash,
     ))
     .to_vec();
     (acc, public_inputs)
@@ -243,7 +238,7 @@ pub fn compressor_backend_id() -> &'static str {
 
 /// Run an independent external verification of the compressed proof.
 ///
-/// Uses a separate deserialization path (SonobeCompressor::verify_external) that
+/// Uses a separate deserialization path (NovaCompressor::verify_external) that
 /// re-parses proof bytes and builds a fresh verifier from key bytes, providing a
 /// second verification that does not share state with the primary `verify` call.
 #[cfg(feature = "sonobe-compressor")]
@@ -254,17 +249,17 @@ pub fn external_verify_compressed_proof(
     c7_final_hash: Fr,
 ) -> anyhow::Result<()> {
     match compressor {
-        Compressor::Sonobe { inner, .. } => {
-            let (_, public_inputs) = compressor_inputs(report, c7_final_hash);
-            let Some(sonobe_proof) = proof.sonobe_proof.as_ref() else {
-                anyhow::bail!("missing sonobe compressed proof bytes for external verification");
+        Compressor::Nova { inner, .. } => {
+            let (acc, public_inputs) = compressor_inputs(report, c7_final_hash);
+            let Some(nova_proof) = proof.nova_proof.as_ref() else {
+                anyhow::bail!("missing nova compressed proof bytes for external verification");
             };
-            let proof_bytes = inner.compressed_proof_bytes(sonobe_proof);
+            let proof_bytes = inner.compressed_proof_bytes(nova_proof);
             let verified = inner
-                .verify_external(proof_bytes, &public_inputs)
+                .verify_external(proof_bytes, &acc, &public_inputs)
                 .map_err(compressor_error_to_anyhow)?;
             if !verified {
-                anyhow::bail!("external sonobe compressed proof verification failed");
+                anyhow::bail!("external nova compressed proof verification failed");
             }
             Ok(())
         }
@@ -282,7 +277,7 @@ pub fn log_compressor_mode() {
     #[cfg(feature = "sonobe-compressor")]
     info!(
         compressor_backend_id = SONOBE_COMPRESSOR_ID,
-        "sonobe-compressor active"
+        "nova-compressor active"
     );
 
     #[cfg(all(feature = "surrogate-compressor", not(feature = "sonobe-compressor")))]

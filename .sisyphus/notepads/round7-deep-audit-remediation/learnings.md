@@ -14,7 +14,7 @@
 
 **C.2 — T3.md self-contradiction**: Added update note clarifying that code inspection confirmed the serialized format has no witness openings and the sigma transcript is computationally ZK.
 
-**C.3 — ARCHITECTURE.md Track B collision**: Changed table header from "Track" to "Target Track" and added note explaining runtime PVTHFHE_TRACK uses different naming (A=Sonobe surrogate, B=norm-enforced Sonobe).
+**C.3 — ARCHITECTURE.md Track B collision**: Changed table header from "Track" to "Target Track" and added note explaining runtime PVTHFHE_TRACK uses different naming (A=Nova surrogate, B=norm-enforced Nova).
 
 **C.4 — SECURITY.md C7 Poseidon**: Updated from "Poseidon placeholder / Phase B deferred" to "Phase B complete, real Poseidon R1CS at depth-5".
 

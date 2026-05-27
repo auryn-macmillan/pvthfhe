@@ -14,7 +14,7 @@ LatticePvssBfvAdapter constructor: LatticePvssBfvAdapter::new() -> Result<Self, 
 - The targeted `context_too_large` test passes once the error string includes both the offending `n` and the supported-party cap.
 ## 2026-05-07 — RED-3 demo n-cap test scaffold
 
-- Added `crates/pvthfhe-cli/tests/demo_n_cap.rs` to exercise `cargo run -p pvthfhe-cli -- demo --n 256 --threshold 129 --seed 1` without `sonobe-compressor`.
+- Added `crates/pvthfhe-cli/tests/demo_n_cap.rs` to exercise `cargo run -p pvthfhe-cli -- demo --n 256 --threshold 129 --seed 1` without `nova-compressor`.
 - The test checks for non-success exit, mentions the `255` cap, and rejects `step 4/9` in stderr.
 
 ## 2026-05-07 — D2 part 2 demo n-cap guard

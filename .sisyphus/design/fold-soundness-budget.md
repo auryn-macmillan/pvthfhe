@@ -186,9 +186,9 @@ ensures per-round challenge independence in the random oracle model.
 
 ---
 
-## 5. Comparison with Sonobe Nova (R2.0 Substitute)
+## 5. Comparison with Nova Nova (R2.0 Substitute)
 
-The Sonobe Nova substitution (`fold-construction.md §2.1`) uses uniform random
+The Nova Nova substitution (`fold-construction.md §2.1`) uses uniform random
 challenges in F_p (p ≈ 2^254), giving |C| ≈ 2^254 ≫ 2^128. This is overkill
 from a challenge-space perspective but is the natural consequence of using
 F_p field elements.

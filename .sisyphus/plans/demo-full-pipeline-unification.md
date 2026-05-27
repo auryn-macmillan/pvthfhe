@@ -17,8 +17,8 @@ It silently **omits** the heaviest cryptographic phases that `pvthfhe-e2e` (the 
 binary) actually exercises:
 
 - Cyclo RLWE folding (`CycloFoldingAdapter::fold_all`, `verify_fold_all`)
-- Sonobe Nova compressor preprocess (`Compressor::new`)
-- Sonobe Nova IVC `prove` over `IVC_STEPS=4` (the dominant cost)
+- Nova Nova compressor preprocess (`Compressor::new`)
+- Nova Nova IVC `prove` over `IVC_STEPS=4` (the dominant cost)
 - Compressor verify
 - Wrap-to-Honk marker
 - On-chain verify (currently mapped to `compressor.verify` again)
@@ -48,8 +48,8 @@ same backends.
 |---|---|---|
 | D1 | **Refactor: shared core library** | Single source of truth; eliminates drift permanently. |
 | D2 | **Defaults: `n=8 t=5`** | Demonstrates real threshold cryptography; faster than n=32, slower than n=3. |
-| D3 | **Run real Sonobe verify only; drop on-chain Solidity step from demo** | Heavy crypto is real; surrogate Solidity verify is misleading and the bench gate already rejects surrogate rows. |
-| D4 | **Single recipe, `--release`, `sonobe-compressor` feature** | Fast (release), all phases, one entry point. |
+| D3 | **Run real Nova verify only; drop on-chain Solidity step from demo** | Heavy crypto is real; surrogate Solidity verify is misleading and the bench gate already rejects surrogate rows. |
+| D4 | **Single recipe, `--release`, `nova-compressor` feature** | Fast (release), all phases, one entry point. |
 
 Out of scope: changing the bench binary's defaults; changing
 `bench-comparison`'s recipe; touching the surrogate-compressor feature path.
@@ -109,12 +109,12 @@ The function executes, in order:
 7. `encrypt`
 8. `cyclo_fold` (`CycloFoldingAdapter::fold_all`)
 9. `cyclo_fold_verify` (`verify_fold_all`)
-10. `compressor_new` (Sonobe preprocess)
+10. `compressor_new` (Nova preprocess)
 11. `compressor_prove`
 12. `compressor_verify`
 13. `partial_decrypt` per party
 14. `aggregate_decrypt` + plaintext-roundtrip check
-15. `noir_sonobe_wrap` marker (records elapsed wall-clock around marker only;
+15. `noir_nova_wrap` marker (records elapsed wall-clock around marker only;
     no separate work — matches current bench semantics, comment retained)
 
 Observer pattern lets the two callers customize narration without forking
@@ -184,17 +184,17 @@ The `Compressor` enum and its helpers (`compressor_inputs`,
 ```just
 demo-e2e n="8" t="5" seed="1":
     @echo "*** PVTHFHE end-to-end demo (research prototype) ***"
-    @echo "* Real cryptography: keygen, NIZK, RLWE folding, Sonobe Nova compression *"
+    @echo "* Real cryptography: keygen, NIZK, RLWE folding, Nova Nova compression *"
     @echo "* On-chain Solidity verify is NOT run by this demo (use bench-comparison) *"
     @echo "* DO NOT DEPLOY — research prototype only                                 *"
     mkdir -p .sisyphus/evidence
-    cargo run --release -p pvthfhe-cli --features sonobe-compressor -- \
+    cargo run --release -p pvthfhe-cli --features nova-compressor -- \
         demo --n {{n}} --threshold {{t}} --seed {{seed}} \
         2>&1 | tee .sisyphus/evidence/task-40-demo.log
 ```
 
-Note: `pvthfhe-cli`'s `default = ["with-fhe", "sonobe-compressor"]` already
-includes the feature, but we pass `--features sonobe-compressor` explicitly
+Note: `pvthfhe-cli`'s `default = ["with-fhe", "nova-compressor"]` already
+includes the feature, but we pass `--features nova-compressor` explicitly
 for clarity and to prevent silent breakage if defaults change.
 
 ## 6. Test strategy (TDD — RED before every implementation step)
@@ -221,12 +221,12 @@ plaintext_roundtrip: OK
 ```
 
 This is the same set as `e2e_invokes_all_phases.rs` minus the on-chain
-markers (`noir_sonobe_wrap`, `noir_aggregator_final`, `noir_decrypt_share`,
+markers (`noir_nova_wrap`, `noir_aggregator_final`, `noir_decrypt_share`,
 `onchain_verify`) per D3.
 
 **Currently RED**: demo today doesn't emit `cyclo_fold`, `compressor_prove`,
 `compressor_verify`, `pvss_share_encrypt`. Verified by inspection of
-`main.rs::run_demo` (zero matches for `fold|compressor|sonobe`).
+`main.rs::run_demo` (zero matches for `fold|compressor|nova`).
 
 ### RED-2: Update `e2e_invokes_all_phases.rs`
 
@@ -262,7 +262,7 @@ the existing `n/2+1` rule for n=8 → 5), and `seed=0`.
 - `e2e_writes_timings.rs` — must still see `bench/results/e2e_timings.json` ✅
 - `e2e_phase_timing.rs` — phase timing fields populated ✅
 - `e2e_uses_lattice_pvss.rs` — pvss backend ID ✅
-- `e2e_uses_sonobe.rs` — sonobe backend ID ✅
+- `e2e_uses_nova.rs` — nova backend ID ✅
 - `e2e_memory_budget.rs` — RSS budget regression ✅
 - `params_consistency.rs` — NIZK params ✅
 - `run_demo_invokes_nizk.rs` — **MUST UPDATE**: counts will change
@@ -279,10 +279,10 @@ the existing `n/2+1` rule for n=8 → 5), and `seed=0`.
 
 | # | Step | RED test | Files touched |
 |---|---|---|---|
-| 1 | Land RED-3 (`full_pipeline.rs` skeleton with empty `run_full_pipeline` returning `unimplemented!()`); module added to `lib.rs` behind `#[cfg(feature = "with-fhe")]` and `#[cfg(feature = "sonobe-compressor")]`. | RED-3 fails to compile / unimplemented. | `crates/pvthfhe-cli/src/full_pipeline.rs` (new), `crates/pvthfhe-cli/src/lib.rs` |
+| 1 | Land RED-3 (`full_pipeline.rs` skeleton with empty `run_full_pipeline` returning `unimplemented!()`); module added to `lib.rs` behind `#[cfg(feature = "with-fhe")]` and `#[cfg(feature = "nova-compressor")]`. | RED-3 fails to compile / unimplemented. | `crates/pvthfhe-cli/src/full_pipeline.rs` (new), `crates/pvthfhe-cli/src/lib.rs` |
 | 2 | Move `Compressor` enum and helpers from `pvthfhe_e2e.rs` to new private `crates/pvthfhe-cli/src/compressor_glue.rs`; reexport. RED-3 still red. | RED-3 still red. | `compressor_glue.rs` (new), `pvthfhe_e2e.rs` (delete moved code, add `use`), `lib.rs` |
-| 3 | Implement `run_full_pipeline` body by lifting `run_e2e` from `pvthfhe_e2e.rs`. Use `PipelineObserver` for narration. Drop `noir_decrypt_share`, `noir_aggregator_final`, `noir_sonobe_wrap`, `onchain_verify` markers from the pipeline (they belong only in the bench observer per D3). | RED-3 GREEN. | `full_pipeline.rs` |
-| 4 | Add `BenchObserver` to `pvthfhe_e2e.rs`; refactor `run_e2e` to: parse args → build observer → call `run_full_pipeline` → write JSON → print markers. The bench binary's observer is the one responsible for printing the four extra `noir_*`/`onchain_verify` marker lines (so `e2e_invokes_all_phases.rs` stays GREEN). | `e2e_invokes_all_phases.rs` GREEN; `e2e_writes_timings.rs` GREEN; `e2e_phase_timing.rs` GREEN; `e2e_uses_lattice_pvss.rs` GREEN; `e2e_uses_sonobe.rs` GREEN; `e2e_memory_budget.rs` GREEN. | `pvthfhe_e2e.rs` |
+| 3 | Implement `run_full_pipeline` body by lifting `run_e2e` from `pvthfhe_e2e.rs`. Use `PipelineObserver` for narration. Drop `noir_decrypt_share`, `noir_aggregator_final`, `noir_nova_wrap`, `onchain_verify` markers from the pipeline (they belong only in the bench observer per D3). | RED-3 GREEN. | `full_pipeline.rs` |
+| 4 | Add `BenchObserver` to `pvthfhe_e2e.rs`; refactor `run_e2e` to: parse args → build observer → call `run_full_pipeline` → write JSON → print markers. The bench binary's observer is the one responsible for printing the four extra `noir_*`/`onchain_verify` marker lines (so `e2e_invokes_all_phases.rs` stays GREEN). | `e2e_invokes_all_phases.rs` GREEN; `e2e_writes_timings.rs` GREEN; `e2e_phase_timing.rs` GREEN; `e2e_uses_lattice_pvss.rs` GREEN; `e2e_uses_nova.rs` GREEN; `e2e_memory_budget.rs` GREEN. | `pvthfhe_e2e.rs` |
 | 5 | Add RED-1 (`demo_runs_full_pipeline.rs`) — verify it's RED against current `main.rs::run_demo`. | RED-1 fails. | `crates/pvthfhe-cli/tests/demo_runs_full_pipeline.rs` (new) |
 | 6 | Add RED-4 (defaults guard). | RED-4 fails. | inline test in `main.rs` or new `tests/demo_defaults.rs` |
 | 7 | Refactor `main.rs::run_demo` to: build `DemoObserver` → call `run_full_pipeline` → render report. Update `Demo` clap defaults to `n=8`. Update banner per D3. Delete `run_demo_keygen_nizk`, `demo_keygen_session_id`, `build_demo_nizk_inputs` (the local one — shared helper stays). | RED-1, RED-4, `demo_threshold.rs`, `run_demo_invokes_nizk.rs` GREEN. | `main.rs` |
@@ -299,7 +299,7 @@ the existing `n/2+1` rule for n=8 → 5), and `seed=0`.
 | I3 | Bench timings JSON unchanged in shape | Diff `bench/results/e2e_timings.json` schema before/after; `cargo test -p pvthfhe-bench` GREEN |
 | I4 | `bench-comparison-gate` still passes | `just bench-comparison-gate` GREEN |
 | I5 | `wire-gate` still passes | `just wire-gate` GREEN (note: it currently uses `--features surrogate-compressor` for the e2e probe, which is independent of demo path) |
-| I6 | Memory regression test passes at n=3 t=2 (existing test) | `cargo test -p pvthfhe-cli --test e2e_memory_budget --features sonobe-compressor` GREEN |
+| I6 | Memory regression test passes at n=3 t=2 (existing test) | `cargo test -p pvthfhe-cli --test e2e_memory_budget --features nova-compressor` GREEN |
 | I7 | No new `#[allow(...)]` attributes | `git diff --stat` and `grep` |
 | I8 | `params_consistency` test still GREEN | `cargo test -p pvthfhe-cli --test params_consistency` |
 
@@ -309,7 +309,7 @@ the existing `n/2+1` rule for n=8 → 5), and `seed=0`.
 |---|---|---|---|
 | `demo_threshold.rs` (which uses `cargo run` without `--release`) becomes too slow at n=4 t=3 with full Nova | High | CI timeout / flake | Step 7 keeps the test running; if it times out, follow-up adds `--release` flag or env-gated fast path. Document in plan as known follow-up. |
 | Memory regression at n=8 t=5 (vs current n=3 t=2 budget) | Medium | OOM on `just demo-e2e` | Smoke-test n=8 in step 9 manually with `ulimit -v 16777216` and `setsid nohup … & disown`. If it OOMs, adjust default to n=6 or n=4 with documented justification. |
-| `Compressor` move breaks `sonobe-min` binary or other downstream | Low | compile error | `cargo build -p pvthfhe-cli --all-features` after step 2; check `sonobe_min.rs` (it's a separate bin, likely independent — confirmed: `glob` shows it doesn't import `Compressor`). |
+| `Compressor` move breaks `nova-min` binary or other downstream | Low | compile error | `cargo build -p pvthfhe-cli --all-features` after step 2; check `nova_min.rs` (it's a separate bin, likely independent — confirmed: `glob` shows it doesn't import `Compressor`). |
 | Existing `demo_banner.rs` strings get out-of-sync with reality | Medium | Misleading user-facing claims | Step 8 explicitly updates the test alongside the banner copy. |
 | Drift between two binaries returns | Low (after refactor) | Defeats the point | Future-proofing: a regression test could assert phase-name parity between demo-observer and bench-observer. Out of scope for this plan; noted as follow-up. |
 
@@ -337,7 +337,7 @@ just demo-e2e          # uses defaults n=8 t=5 seed=1
    `pvss_share_encrypt`, `cyclo_fold`, `compressor_prove`, `compressor_verify`,
    `partial_decrypt`, `aggregate_decrypt`, `plaintext_roundtrip: OK`.
 3. NOT produce surrogate-warning lines that claim cryptography is fake
-   (Sonobe IS real; only the on-chain step is dropped, with that fact
+   (Nova IS real; only the on-chain step is dropped, with that fact
    explicitly stated in the new banner).
 4. Tee output to `.sisyphus/evidence/task-40-demo.log`.
 

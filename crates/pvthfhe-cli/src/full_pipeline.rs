@@ -14,12 +14,12 @@ use pvthfhe_aggregator::{
 };
 use pvthfhe_bench::e2e_timings::E2eTimings;
 #[cfg(feature = "sonobe-compressor")]
-use pvthfhe_compressor::sonobe::{
+use pvthfhe_compressor::nova::{
     bfv_encryption_circuit::set_bfv_encryption_data, clear_cyclo_ring_data,
     clear_dealer_parity_data, clear_sigma_data, cyclo_verifier::verify_ring_equation, encode_hex,
     encode_triple, set_cyclo_ring_data, set_dealer_parity_data, set_sigma_data,
     set_sigma_response_data, CycloFoldStepCircuit, CycloRingWitness, DealerParityStepCircuit,
-    ExternalInputs3, SigmaWitness as CompressorSigmaWitness, SonobeCompressor,
+    ExternalInputs3, NovaCompressor, SigmaWitness as CompressorSigmaWitness,
 };
 #[cfg(feature = "sonobe-compressor")]
 use pvthfhe_compressor::witness::{
@@ -65,12 +65,12 @@ const NOIR_MAX_PARTICIPANTS: usize = 128;
 
 /// Pipeline track selector.
 ///
-/// Track A: Sonobe Nova hash-then-fold (current behavior, unchanged).
+/// Track A: Nova Nova hash-then-fold (current behavior, unchanged).
 /// Track B: LatticeFold+ / MicroNova with AjtaiMatrix, norm enforcement,
 ///          R1CS hash-and-verify compressor (default with `pipeline-extra-checks`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Track {
-    /// Sonobe Nova hash-then-fold.
+    /// Nova Nova hash-then-fold.
     A,
     /// LatticeFold+ / MicroNova with AjtaiMatrix, norm enforcement, R1CS hash-and-verify.
     B,
@@ -145,7 +145,7 @@ pub struct PipelineReport {
     /// Always populated — no Groth16 ceremony is required. The pp_hash binds
     /// the IVC proof bytes to the compressed proof format for on-chain
     /// verification via the Poseidon hash shortcut.
-    /// (see circuits/sonobe_state_commitment/src/main.nr).
+    /// (see circuits/nova_state_commitment/src/main.nr).
     pub ivc_snark_proof_hash: Option<[u8; 32]>,
     /// G.12: Per-party Schnorr signature s-values.
     pub share_sig_ss: Vec<Fr>,
@@ -307,24 +307,23 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     // ── C1: PK contribution IVC verification ──
     #[cfg(feature = "sonobe-compressor")]
     {
-        use pvthfhe_compressor::sonobe::pk_contribution_circuit::{
+        use pvthfhe_compressor::nova::pk_contribution_circuit::{
             clear_pk_contribution_data, set_pk_contribution_data, KeyContributionStepCircuit,
         };
-        use pvthfhe_compressor::ProofCompressor;
         let party_ids: Vec<Fr> = (0..cfg.n).map(|i| Fr::from((i + 1) as u64)).collect();
         set_pk_contribution_data(party_ids, cfg.n);
-        let c1_compressor =
-            SonobeCompressor::<KeyContributionStepCircuit<Fr>>::new([0u8; 32], cfg.n)
-                .map_err(|e| anyhow::anyhow!("c1 compressor: {e:?}"))?;
+        let c1_compressor = NovaCompressor::<KeyContributionStepCircuit<Fr>>::new([0u8; 32], cfg.n)
+            .map_err(|e| anyhow::anyhow!("c1 compressor: {e:?}"))?;
         let c1_acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
-        let c1_pi = encode_triple((Fr::from(1u64), Fr::zero(), Fr::from(cfg.n as u64)));
+        let c1_steps: Vec<ExternalInputs3<Fr>> =
+            vec![ExternalInputs3(Fr::from(1u64), Fr::zero(), Fr::from(cfg.n as u64)); cfg.n];
         let c1_proof = c1_compressor
-            .prove(&c1_acc, &c1_pi)
+            .prove_steps(&c1_acc, &c1_steps)
             .map_err(|e| anyhow::anyhow!("c1 prove: {e:?}"))?;
         clear_pk_contribution_data();
         let c1_vk = c1_compressor.verifier_key();
         let c1_verified = c1_compressor
-            .verify(&c1_vk, &c1_proof, &c1_pi)
+            .verify_steps(&c1_vk, &c1_proof, &c1_acc, &c1_steps)
             .map_err(|e| anyhow::anyhow!("c1 verify: {e:?}"))?;
         assert!(c1_verified);
         tracing::info!("c1: PK contribution IVC verified ({} parties)", cfg.n);
@@ -416,7 +415,6 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
             #[cfg(feature = "sonobe-compressor")]
             {
-                use pvthfhe_compressor::ProofCompressor;
                 use pvthfhe_pvss::encrypt::compute_poly_factors;
                 let r = Fr::from_be_bytes_mod_order(&Sha256::digest(
                     format!("parity-r-{dkg_session_id}-{dealer_id}").as_bytes(),
@@ -442,23 +440,24 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                     Some(reconstruct_p0(&shares_fr, t)),
                 );
 
-                let parity_compressor = SonobeCompressor::<DealerParityStepCircuit<Fr>>::new(
+                let parity_compressor = NovaCompressor::<DealerParityStepCircuit<Fr>>::new(
                     [0u8; 32], 1,
                 )
                 .map_err(|e| anyhow::anyhow!("parity compressor (dealer={dealer_id}): {e:?}"))?;
 
                 let acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
                 let p0 = reconstruct_p0(&shares_fr, t);
-                let public_inputs = encode_triple((r, p0, Fr::from(n as u64)));
+                let pn = Fr::from(n as u64);
+                let steps = vec![ExternalInputs3(r, p0, pn)];
                 let parity_result = parity_compressor
-                    .prove(&acc, &public_inputs)
+                    .prove_steps(&acc, &steps)
                     .map_err(|e| anyhow::anyhow!("parity prove (dealer={dealer_id}): {e:?}"))?;
 
                 clear_dealer_parity_data();
 
                 let vk = parity_compressor.verifier_key();
                 let verified = parity_compressor
-                    .verify(&vk, &parity_result, &public_inputs)
+                    .verify_steps(&vk, &parity_result, &acc, &steps)
                     .map_err(|e| anyhow::anyhow!("parity verify (dealer={dealer_id}): {e:?}"))?;
 
                 if verified {
@@ -557,10 +556,9 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         // ── C4: DKG aggregation IVC verification ──
         #[cfg(feature = "sonobe-compressor")]
         {
-            use pvthfhe_compressor::sonobe::dkg_aggregation_circuit::{
+            use pvthfhe_compressor::nova::dkg_aggregation_circuit::{
                 clear_dkg_agg_data, set_dkg_agg_data, DkgAggregationStepCircuit,
             };
-            use pvthfhe_compressor::ProofCompressor;
             let grouped_by_recipient: Vec<Vec<Fr>> = (0..n)
                 .map(|recipient_id| {
                     (0..n)
@@ -568,14 +566,13 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                         .collect()
                 })
                 .collect();
-            // P3 (known limitation): Sonobe Nova IVC verification has a pre-existing
+            // P3 (known limitation): Nova Nova IVC verification has a pre-existing
             // hash-mismatch bug (expected_u_i_x != u_i.x[0] in verify). C4/C5 verify
             // failures are logged but non-fatal — the pipeline integrity hash provides
             // defense-in-depth. See .sisyphus/plans/fix-ivc-verify-p3.md.
             set_dkg_agg_data(grouped_by_recipient);
-            let c4_compressor =
-                SonobeCompressor::<DkgAggregationStepCircuit<Fr>>::new([0u8; 32], n)
-                    .map_err(|e| anyhow::anyhow!("c4 compressor: {e:?}"))?;
+            let c4_compressor = NovaCompressor::<DkgAggregationStepCircuit<Fr>>::new([0u8; 32], n)
+                .map_err(|e| anyhow::anyhow!("c4 compressor: {e:?}"))?;
             let c4_acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
             let external_inputs: Vec<ExternalInputs3<Fr>> = (0..n)
                 .map(|_| ExternalInputs3(Fr::from(1u64), Fr::zero(), Fr::from(n as u64)))
@@ -586,10 +583,10 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             clear_dkg_agg_data();
             let c4_vk = c4_compressor.verifier_key();
             let c4_verified = c4_compressor
-                .verify_steps(&c4_vk, &c4_proof, &external_inputs)
+                .verify_steps(&c4_vk, &c4_proof, &c4_acc, &external_inputs)
                 .map_err(|e| anyhow::anyhow!("c4 verify: {e:?}"))?;
             if !c4_verified {
-                tracing::warn!("c4: DKG aggregation IVC verification FAILED (known P3 limitation — Sonobe Nova verify bug)");
+                tracing::warn!("c4: DKG aggregation IVC verification FAILED (known P3 limitation — Nova Nova verify bug)");
             } else {
                 tracing::info!("c4: DKG aggregation IVC verified ({} recipients)", n);
             }
@@ -606,7 +603,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             use pvthfhe_compressor::witness::{AjtaiCommitmentWitness, AjtaiCommitmentWitnessSet};
 
             let epoch_hash: [u8; 32] = Sha256::digest(cfg.seed.to_be_bytes()).into();
-            let ajtai_compressor = SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, n)
+            let ajtai_compressor = NovaCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, n)
                 .map_err(|e| anyhow::anyhow!("ajtai compressor init: {e:?}"))?;
             let acc = encode_hex((
                 Fr::zero(),
@@ -784,7 +781,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 witnesses: ajtai_witnesses,
             };
             let ajtai_result = (|| -> anyhow::Result<Fr> {
-                let ajtai_compressor = SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new(
+                let ajtai_compressor = NovaCompressor::<CycloFoldStepCircuit<Fr>>::new(
                     epoch,
                     witness_set.witnesses.len(),
                 )
@@ -982,10 +979,9 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     // ── C5: PK aggregation IVC verification ──
     #[cfg(feature = "sonobe-compressor")]
     {
-        use pvthfhe_compressor::sonobe::pk_aggregation_circuit::{
+        use pvthfhe_compressor::nova::pk_aggregation_circuit::{
             clear_pk_agg_data, set_pk_agg_data, PkAggregationStepCircuit,
         };
-        use pvthfhe_compressor::ProofCompressor;
         let per_party_pks: Vec<Vec<Fr>> = transcript
             .round1_messages
             .iter()
@@ -994,22 +990,23 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 vec![Fr::from_be_bytes_mod_order(&pk_hash)]
             })
             .collect();
-        // P3 (known limitation): same Sonobe Nova verify bug as C4.
+        // P3 (known limitation): same Nova Nova verify bug as C4.
         set_pk_agg_data(per_party_pks);
-        let c5_compressor = SonobeCompressor::<PkAggregationStepCircuit<Fr>>::new([0u8; 32], cfg.n)
+        let c5_compressor = NovaCompressor::<PkAggregationStepCircuit<Fr>>::new([0u8; 32], cfg.n)
             .map_err(|e| anyhow::anyhow!("c5 compressor: {e:?}"))?;
         let c5_acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
-        let c5_pi = encode_triple((Fr::from(1u64), Fr::zero(), Fr::from(cfg.n as u64)));
+        let c5_steps: Vec<ExternalInputs3<Fr>> =
+            vec![ExternalInputs3(Fr::from(1u64), Fr::zero(), Fr::from(cfg.n as u64)); cfg.n];
         let c5_proof = c5_compressor
-            .prove(&c5_acc, &c5_pi)
+            .prove_steps(&c5_acc, &c5_steps)
             .map_err(|e| anyhow::anyhow!("c5 prove: {e:?}"))?;
         clear_pk_agg_data();
         let c5_vk = c5_compressor.verifier_key();
         let c5_verified = c5_compressor
-            .verify(&c5_vk, &c5_proof, &c5_pi)
+            .verify_steps(&c5_vk, &c5_proof, &c5_acc, &c5_steps)
             .map_err(|e| anyhow::anyhow!("c5 verify: {e:?}"))?;
         if !c5_verified {
-            tracing::warn!("c5: PK aggregation IVC verification FAILED (known P3 limitation — Sonobe Nova verify bug)");
+            tracing::warn!("c5: PK aggregation IVC verification FAILED (known P3 limitation — Nova Nova verify bug)");
         } else {
             tracing::info!("c5: PK aggregation IVC verified ({} parties)", cfg.n);
         }
@@ -1300,7 +1297,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
         // G2-ng: populate thread-local ring data before compressor preprocessing
         // and proving. The ternary branch fixes the R1CS linear-combination
-        // shape, so Sonobe parameters must be generated with the same per-step
+        // shape, so Nova parameters must be generated with the same per-step
         // ring witness metadata that proving will use.
         set_cyclo_ring_data(ring_witnesses);
         set_sigma_data(sigma_witnesses);
@@ -1715,7 +1712,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     #[cfg(feature = "sonobe-compressor")]
     if compressor_mode == "micronova" {
         tracing::info!("MicroNova: heterogeneous IVC compressor active");
-        use pvthfhe_compressor::sonobe::{
+        use pvthfhe_compressor::nova::{
             heterogeneous::HeterogeneousCircuitFamily,
             latticefold_circuit_family::LatticeFoldTreeCircuitFamily,
         };
@@ -1818,9 +1815,9 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
     #[cfg(feature = "sonobe-compressor")]
     let cyclo_state = {
-        use pvthfhe_compressor::sonobe::extract_cyclo_state;
+        use pvthfhe_compressor::nova::extract_cyclo_state;
         compressed
-            .sonobe_proof
+            .nova_proof
             .as_ref()
             .map(|p| match extract_cyclo_state(p) {
                 Ok(state) => state,
@@ -1838,9 +1835,9 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     #[cfg(feature = "sonobe-compressor")]
     let combined_share_hash = {
         use pvthfhe_compressor::witness::poseidon_sponge_hash_native;
-        observer.phase_start("share_verify_fold", Some("sonobe-nova-share-verify"));
+        observer.phase_start("share_verify_fold", Some("nova-nova-share-verify"));
         let sv_fold_started = Instant::now();
-        let sv_compressor = SonobeCompressor::<CycloFoldStepCircuit<Fr>>::new(
+        let sv_compressor = NovaCompressor::<CycloFoldStepCircuit<Fr>>::new(
             epoch_hash,
             sv_witness_set.witnesses.len(),
         )
@@ -1902,7 +1899,14 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     // Compute all fields for the simplified C7 Noir circuit (aggregator_final)
     let ciphertext_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(session_id.as_bytes()));
     let aggregate_pk_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(&aggregate_pk.bytes));
-    let decrypt_nizk_hash_field = Fr::from_be_bytes_mod_order(&decrypt_nizk_hash);
+    // C6: Bind decrypt_nizk_hash to sigma fold hash.
+    // Without this, an adversary could submit any non-zero NIZK hash and pass the != 0 check.
+    // Poseidon(decrypt_nizk_hash_raw, combined_share_hash) ensures the prover
+    // must produce BOTH a valid NIZK and a valid sigma fold.
+    let decrypt_nizk_hash_field = poseidon_sponge_native_noir(&[
+        Fr::from_be_bytes_mod_order(&decrypt_nizk_hash),
+        combined_share_hash,
+    ]);
     let dkg_transcript_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(
         format!("dkg-transcript-{session_id}").as_bytes(),
     ));

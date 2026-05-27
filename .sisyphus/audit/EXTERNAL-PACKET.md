@@ -66,7 +66,7 @@ An internal skeptical audit (2026-05-08) catalogued **69 findings** (26 CRITICAL
 | **DKG / Keygen** | `pvthfhe-keygen`, `pvthfhe-pvss` | — | — |
 | **NIZK (P1)** | `pvthfhe-nizk` | `circuits/share_wf/` | — |
 | **Folding (P2)** | `pvthfhe-cyclo`, `pvthfhe-aggregator` | — | — |
-| **Compression (P3)** | `pvthfhe-compressor` (Sonobe), `pvthfhe-micronova` | `circuits/sonobe_state_commitment/` | — |
+| **Compression (P3)** | `pvthfhe-compressor` (Nova), `pvthfhe-micronova` | `circuits/nova_state_commitment/` | — |
 | **Verifier (P3)** | `pvthfhe-offchain-verifier` | `circuits/aggregator_final/`, `circuits/decrypt_share/` | `contracts/src/PvtFheVerifier.sol` |
 | **Pipeline** | `pvthfhe-cli`, `pvthfhe-bench` | — | — |
 
@@ -94,7 +94,7 @@ An internal skeptical audit (2026-05-08) catalogued **69 findings** (26 CRITICAL
 - Soundness budgets per layer (P1: 2⁻¹²⁸, P2: 2⁻¹⁶⁰, P3: 2⁻¹²⁸)
 - Enforcement layer per property (proof boundary)
 - Open problems (P1: NIZK well-formedness, P2: LatticeFold+ RLWE, P3: MicroNova encoding)
-- Residual assumptions (smudging, ROM, Sonobe substitution, FHE backend trust)
+- Residual assumptions (smudging, ROM, Nova substitution, FHE backend trust)
 
 ### 3. Verify the Assumptions
 
@@ -154,7 +154,7 @@ just bench-scaling           # Scaling from n=128 to n=1024
 
 3. **P3 — MicroNova lattice encoding**: The correctness of the accumulator-to-SNARK encoding (mapping lattice accumulator state to SNARK witness) is a research conjecture, not a proven theorem.
 
-4. **Sonobe substitution**: The current prototype uses Sonobe (field-based Nova) as a substitute for LatticeFold+. The migration boundary and soundness implications of this substitution are documented but not formally analyzed.
+4. **Nova substitution**: The current prototype uses Nova (field-based Nova) as a substitute for LatticeFold+. The migration boundary and soundness implications of this substitution are documented but not formally analyzed.
 
 5. **On-chain verifier vacuity**: `P3RealVerifier.sol` is an ECDSA authenticator, not a cryptographic verifier of FHE computation. The target design's on-chain verifier is not implemented.
 

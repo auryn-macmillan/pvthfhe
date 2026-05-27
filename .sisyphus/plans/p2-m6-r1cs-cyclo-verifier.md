@@ -35,7 +35,7 @@ For $N = 256$: at most $4 \times 256 = 1024$ R1CS additions per step (additions 
 
 ### P2-M6.1 — R1CS RingElementVar
 
-**File**: `crates/pvthfhe-compressor/src/sonobe/ring_element_var.rs` (new)
+**File**: `crates/pvthfhe-compressor/src/nova/ring_element_var.rs` (new)
 
 ```rust
 use ark_ff::PrimeField;
@@ -50,7 +50,7 @@ pub struct RingElementVar<F: PrimeField> {
 
 ### P2-M6.2 — R1CS CycloVerifier
 
-**File**: `crates/pvthfhe-compressor/src/sonobe/cyclo_verifier.rs` (extend)
+**File**: `crates/pvthfhe-compressor/src/nova/cyclo_verifier.rs` (extend)
 
 Add `verify_constraints` that verifies the ring equation in R1CS without multiplications (since c is ternary):
 
@@ -76,7 +76,7 @@ Replace hash-then-fold with constraint verification in `generate_step_constraint
 | `r1cs_ring_equation_passes_for_honest` | Honest witness → R1CS verifier accepts |
 | `r1cs_ring_equation_rejects_wrong_z_s` | Tampered z_s → constraint failure |
 | `r1cs_ternary_challenge_cases` | All three challenge values (-1, 0, 1) verify |
-| `r1cs_cyclo_fold_step_roundtrip` | Full SonobeCompressor prove/verify with R1CS |
+| `r1cs_cyclo_fold_step_roundtrip` | Full NovaCompressor prove/verify with R1CS |
 
 ### P2-M6.5 — Documentation
 

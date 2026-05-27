@@ -1,7 +1,7 @@
 //! RED test: CycloTernaryTranscript produces biased ternary challenges.
 //!
 //! P2A.3: Verify the `CycloTernaryTranscript` struct from `fiat_shamir`:
-//! 1. Domain separator is "pvthfhe-cyclo-fs-v2" (different from Sonobe v1)
+//! 1. Domain separator is "pvthfhe-cyclo-fs-v2" (different from Nova v1)
 //! 2. sample_challenge returns only -1, 0, or 1
 //! 3. Distribution is roughly uniform (statistical test)
 
@@ -20,20 +20,20 @@ fn ternary_challenges_are_in_valid_range() {
 }
 
 #[test]
-fn domain_separator_differs_from_sonobe_v1() {
+fn domain_separator_differs_from_nova_v1() {
     let mut t2 = CycloTernaryTranscript::new("test-session", 0);
     t2.absorb(b"fold-data");
 
     let ternary = t2.sample_challenge();
 
-    let sonobe_hash = challenge_v1("test-session", 0, b"fold-data", b"", b"");
+    let nova_hash = challenge_v1("test-session", 0, b"fold-data", b"", b"");
 
-    // The ternary challenge (i8 in {-1,0,1}) and the Sonobe challenge
+    // The ternary challenge (i8 in {-1,0,1}) and the Nova challenge
     // (u16 from SHA-256) are fundamentally different types and values.
     // At minimum, the transcripts use different domain separators
     // ("pvthfhe-cyclo-fs-v2" vs "pvthfhe-cyclo-fs-v1") so their
     // hash outputs must differ.
-    let sonobe_u16 = u16::from_le_bytes([sonobe_hash[0], sonobe_hash[1]]);
+    let nova_u16 = u16::from_le_bytes([nova_hash[0], nova_hash[1]]);
     let ternary_as_u16 = match ternary {
         -1 => 65535u16,
         0 => 0u16,
@@ -43,8 +43,8 @@ fn domain_separator_differs_from_sonobe_v1() {
 
     assert_ne!(
         u32::from(ternary_as_u16),
-        u32::from(sonobe_u16),
-        "CycloTernaryTranscript domain separator must differ from Sonobe v1"
+        u32::from(nova_u16),
+        "CycloTernaryTranscript domain separator must differ from Nova v1"
     );
 }
 

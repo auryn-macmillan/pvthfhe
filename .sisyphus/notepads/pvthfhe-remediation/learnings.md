@@ -92,17 +92,17 @@ So R0+R11 only fully closes ~10 of the 69 findings. The other ~59 remain open an
   - `pvthfhe/finalize/v1`
   - `pvthfhe/keygen-simulator/session/v1`
   - `pvthfhe/proof-tag/v1`
-  - `pvthfhe/sonobe/toy-step/v1`
+  - `pvthfhe/nova/toy-step/v1`
 
 ## 2026-05-08 — R0.4 GREEN domain-tag enum populated
-- Tag enum variants: Finalize, KeygenSimulatorSession, ProofTag, SonobeToyStep.
+- Tag enum variants: Finalize, KeygenSimulatorSession, ProofTag, NovaToyStep.
 - Callsites migrated:
   - `crates/pvthfhe-aggregator/src/folding/mod.rs`
   - `crates/pvthfhe-aggregator/src/keygen/simulator.rs`
   - `crates/pvthfhe-aggregator/tests/e2e_real.rs`
-  - `crates/pvthfhe-compressor/src/sonobe/mod.rs`
+  - `crates/pvthfhe-compressor/src/nova/mod.rs`
 - Verification: `cargo test -p pvthfhe-domain-tags --test exhaustive` => PASS.
-- Aggregator build/test green; compressor build green, but `cargo test -p pvthfhe-compressor` still has pre-existing `sonobe_prove_peak_rss_under_12gb` failure (memory ceiling test).
+- Aggregator build/test green; compressor build green, but `cargo test -p pvthfhe-compressor` still has pre-existing `nova_prove_peak_rss_under_12gb` failure (memory ceiling test).
 - Raw `b"pvthfhe/..."` literals no longer appear outside `crates/pvthfhe-domain-tags/**`.
 
 ## 2026-05-08 — R0.4 GATE forbid::raw_pvthfhe_domain_tag CI lint
@@ -135,7 +135,7 @@ So R0+R11 only fully closes ~10 of the 69 findings. The other ~59 remain open an
   - `crates/pvthfhe-cli/src/full_pipeline.rs` lines 104, 181, 193, 239 (StdRng::seed_from_u64 → OsRng).
   - `crates/pvthfhe-fhe/src/fhers.rs:257` (ChaCha8Rng::seed_from_u64(party_id) → OsRng).
   - `crates/pvthfhe-bench/src/backends/fhe_rs.rs:135` (ChaCha8Rng::seed_from_u64(seed) → OsRng).
-  - `crates/pvthfhe-compressor/src/sonobe/mod.rs` lines 79, 173 (ChaCha20Rng::seed_from_u64 → OsRng).
+  - `crates/pvthfhe-compressor/src/nova/mod.rs` lines 79, 173 (ChaCha20Rng::seed_from_u64 → OsRng).
   - `crates/pvthfhe-pvss/src/encrypt.rs` lines 128, 269 (ChaCha8Rng::from_seed(derive_seed(...)) → OsRng; F20 fix).
   - `crates/pvthfhe-pvss/src/nizk_decrypt.rs:100` (ChaCha8Rng::from_seed(derive_rng_seed(...)) → OsRng).
 - 4 construction-required callsites annotated with `// allow-seeded-rng:`:
@@ -151,15 +151,15 @@ So R0+R11 only fully closes ~10 of the 69 findings. The other ~59 remain open an
   - `cargo test -p pvthfhe-fhe` => PASS.
   - `cargo test -p pvthfhe-cli --lib` => PASS (full_pipeline lib test 45s, 2/2 ok).
   - `cargo test -p pvthfhe-nizk --lib` => PASS (0 lib tests; integration tests skipped due to >2min runtime, untouched by R0.7).
-  - `lsp_diagnostics severity=error` on every modified file (full_pipeline.rs, fhers.rs, fhe_rs.rs, sonobe/mod.rs, encrypt.rs, nizk_decrypt.rs, adapter.rs, ajtai.rs) => clean.
-- Pre-existing failures untouched: `sonobe_prove_peak_rss_under_12gb` OOM, `UltraHonkVerifier.t.sol` forge.
+  - `lsp_diagnostics severity=error` on every modified file (full_pipeline.rs, fhers.rs, fhe_rs.rs, nova/mod.rs, encrypt.rs, nizk_decrypt.rs, adapter.rs, ajtai.rs) => clean.
+- Pre-existing failures untouched: `nova_prove_peak_rss_under_12gb` OOM, `UltraHonkVerifier.t.sol` forge.
 - Out of scope (separate task): Stage 0 demo `--insecure-seed` tripwire (R3.6 / R8.4); CI lint job for the GATE.
 
 ## [2026-05-08] R0.7 GREEN VERIFIED
 
 - Lint test: `cargo test -p pvthfhe-rng --test no_seeded_rng_outside_demo` → PASS (0 violations, was 15)
 - Diff: 15 files, +41/-64 (orphaned `derive_seed`/`derive_rng_seed` helpers in pvss deleted)
-- Migrations (11): cli/full_pipeline.rs ×4, fhe/fhers.rs:256, bench/backends/fhe_rs.rs:136, compressor/sonobe/mod.rs ×2, pvss/encrypt.rs ×2, pvss/nizk_decrypt.rs ×1
+- Migrations (11): cli/full_pipeline.rs ×4, fhe/fhers.rs:256, bench/backends/fhe_rs.rs:136, compressor/nova/mod.rs ×2, pvss/encrypt.rs ×2, pvss/nizk_decrypt.rs ×1
 - Annotations (4) `// allow-seeded-rng: <reason>`: nizk/adapter.rs:294,339; nizk/ajtai.rs:180,183 (CRS-bound per R3.5)
 - Builds clean: cli, fhe, bench, pvss, nizk, compressor (all 6 -p builds finished)
 - Lib tests pass: cli (2/2), fhe (5/5), bench (9/9), pvss (0/0), nizk (0/0)
@@ -677,7 +677,7 @@ The fold path and CCS path consume witness bytes differently:
 - `pvthfhe-pvss/src/nizk_share.rs`: added schema import (R3.1) with `const _` type-ref block
 - `pvthfhe-pvss/src/nizk_decrypt.rs`: added schema import (R3.2) with `const _` type-ref block
 - `pvthfhe-aggregator/src/folding/mod.rs`: added schema import (R4.1) with `const _` type-ref block
-- `pvthfhe-compressor/src/sonobe/mod.rs`: added schema import (R5.2) with `const _` type-ref block
+- `pvthfhe-compressor/src/nova/mod.rs`: added schema import (R5.2) with `const _` type-ref block
 - All four crates can access `BfvParameters`, `R3Relation`, `WitnessStatement`, `WitnessCommitment` from `pvthfhe_types::witness_language`. Actual migration in R3.1/R3.2/R4.1/R5.2 GREEN phases.
 
 ### Verification
@@ -853,7 +853,7 @@ These tests were broken by the R4.1 GREEN rewrite (working-tree state before R4.
 - LSP diagnostics: clean on both files
 - No `#[allow(...)]` in either file
 
-## 2026-05-09 — R5.2 RED+GREEN Real Sonobe step circuit (CycloFoldStepCircuit)
+## 2026-05-09 — R5.2 RED+GREEN Real Nova step circuit (CycloFoldStepCircuit)
 
 ### RED tests created
 - `step_circuit_relation.rs` (1 test): asserts CycloFoldStepCircuit exists with state_len=3 and non-zero circuit hash. RED via compile error (type didn't exist).
@@ -861,25 +861,25 @@ These tests were broken by the R4.1 GREEN rewrite (working-tree state before R4.
 
 ### GREEN implementation
 - **CycloFoldStepCircuit**: New struct with `state_len() = 3`: [accumulated_instance_hash, accumulated_norm, fold_count]. Step function accumulates hashes and norms, increments fold counter.
-- **Circuit hash**: Uses `Tag::SonobeCycloFold` domain tag (not the toy-step tag).
-- **SonobeCompressor struct**: Added fields `ivc_steps: usize`, `state_len: usize`, `srs_hash: [u8; 32]`.
+- **Circuit hash**: Uses `Tag::NovaCycloFold` domain tag (not the toy-step tag).
+- **NovaCompressor struct**: Added fields `ivc_steps: usize`, `state_len: usize`, `srs_hash: [u8; 32]`.
 - **`new()` signature**: Changed from `(_seed: u64)` to `(epoch_hash: [u8; 32], ivc_steps: usize)`.
 - **IVC_STEPS**: Removed the `const IVC_STEPS: usize = 4`. `prove()` now uses `self.ivc_steps`.
-- **`srs_hash()` method**: Returns `Keccak256(epoch_hash || Tag::SonobeSrs)` — 32-byte hash usable by on-chain verifiers.
+- **`srs_hash()` method**: Returns `Keccak256(epoch_hash || Tag::NovaSrs)` — 32-byte hash usable by on-chain verifiers.
 - **`ivc_steps()` method**: Returns the stored runtime parameter.
-- **SRS generation**: Uses `ChaCha20Rng::from_seed(Keccak256(epoch_hash || Tag::SonobeSrs || "-seed"))` for deterministic, reproducible SRS derived from epoch hash.
+- **SRS generation**: Uses `ChaCha20Rng::from_seed(Keccak256(epoch_hash || Tag::NovaSrs || "-seed"))` for deterministic, reproducible SRS derived from epoch hash.
 - **`prove()` multi-state**: Constructs initial state of correct length (state_len) from single scalar.
 - **`verify()`**: Checks `z_0.len() == state_len` and `z_i.len() == state_len` (not hardcoded to 1). Removed circuit-specific `expected_state` check; relies on Nova::verify for IVC soundness.
 
 ### Existing test migration
-- `sonobe_roundtrip.rs`: Changed `new(seed)` to `new(epoch_hash, 4)`. Replaced flaky "deterministic proof bytes" test with deterministic SRS test.
+- `nova_roundtrip.rs`: Changed `new(seed)` to `new(epoch_hash, 4)`. Replaced flaky "deterministic proof bytes" test with deterministic SRS test.
 - `typed_step_circuit.rs`: Changed `new(42)` to `new(epoch(), 4)`.
-- `sonobe_isolated_mem.rs`: Changed `new(1)` to `new([0u8; 32], 4)`.
-- `examples/sonobe_isolated.rs`: Same migration.
-- `src/bin/sonobe_min.rs`: Same migration.
+- `nova_isolated_mem.rs`: Changed `new(1)` to `new([0u8; 32], 4)`.
+- `examples/nova_isolated.rs`: Same migration.
+- `src/bin/nova_min.rs`: Same migration.
 
 ### Domain tags
-- Added `SonobeCycloFold` and `SonobeSrs` variants to `Tag` enum.
+- Added `NovaCycloFold` and `NovaSrs` variants to `Tag` enum.
 - `ALL` const array grew from 10 to 12 entries.
 
 ### Test results
@@ -940,7 +940,7 @@ These tests were broken by the R4.1 GREEN rewrite (working-tree state before R4.
 
 ### bb write_solidity_verifier BLOCKED
 - BB version: 5.0.0-nightly.20260324
-- All circuits (sonobe_state_commitment, share_wf, decrypt_share, aggregator_final) produce 3680-byte VKs
+- All circuits (nova_state_commitment, share_wf, decrypt_share, aggregator_final) produce 3680-byte VKs
 - `bb write_solidity_verifier` expects 1888-byte VKs → fails with "verification key has wrong size: expected 1888, got 3680"
 - Tried: evm, evm-no-zk targets; chonk and avm schemes not available for solidity export
 - The canonical Noir+BB flow (nargo execute → bb write_vk → bb prove → bb verify) works; only the Solidity export is blocked
@@ -1110,7 +1110,7 @@ These tests were broken by the R4.1 GREEN rewrite (working-tree state before R4.
 
 ### Verification
 - `cargo test -p pvthfhe-cli --test fold_inputs_real` → 7/7 PASS (0 failures)
-- `cargo build -p pvthfhe-cli --features with-fhe,sonobe-compressor` → clean (pre-existing warnings only)
+- `cargo build -p pvthfhe-cli --features with-fhe,nova-compressor` → clean (pre-existing warnings only)
 - `lsp_diagnostics` on `fold_inputs_real.rs` → clean (0 errors)
 - No `#[allow(...)]` attributes added
 - No plan checkboxes modified
@@ -1228,12 +1228,12 @@ These tests were broken by the R4.1 GREEN rewrite (working-tree state before R4.
 - **GREEN main.rs**: 
   - Removed `DEFAULT_SEED`, `DEFAULT_SIGNER`, `DEFAULT_SIGNATURE` constants.
   - Changed `ProofEnvelope`: removed `seed: u64`, added `epoch_hash: String` + `ivc_steps: usize`.
-  - Changed `SonobeCompressor::new(envelope.seed)` → `SonobeToyCompressor::new(epoch_hash, ivc_steps)` (type alias needed because `SonobeCompressor<S>` has ambiguous `S` when both `ToyStepCircuit` and `CycloFoldStepCircuit` implement `FCircuit<Fr>`).
-  - Added SRS hash matching: computes expected hash via `Keccak256(epoch_hash || Tag::SonobeSrs)` and calls `check_srs_hash()`.
+  - Changed `NovaCompressor::new(envelope.seed)` → `NovaToyCompressor::new(epoch_hash, ivc_steps)` (type alias needed because `NovaCompressor<S>` has ambiguous `S` when both `ToyStepCircuit` and `CycloFoldStepCircuit` implement `FCircuit<Fr>`).
+  - Added SRS hash matching: computes expected hash via `Keccak256(epoch_hash || Tag::NovaSrs)` and calls `check_srs_hash()`.
   - Removed placeholder signer/signature values → `String::new()`.
   - Removed `default_seed()` function, added `decode_epoch_hash()` helper.
   - Added `pvthfhe-domain-tags` dependency to `pvthfhe-offchain-verifier/Cargo.toml`.
-- **Type inference issue**: `SonobeCompressor::new(...)` fails with `E0283` because both `ToyStepCircuit<Fr>` and `CycloFoldStepCircuit<Fr>` satisfy the `FCircuit<Fr>` bound. Solution: use concrete type alias `SonobeToyCompressor`.
+- **Type inference issue**: `NovaCompressor::new(...)` fails with `E0283` because both `ToyStepCircuit<Fr>` and `CycloFoldStepCircuit<Fr>` satisfy the `FCircuit<Fr>` bound. Solution: use concrete type alias `NovaToyCompressor`.
 - Verification: `cargo test -p pvthfhe-offchain-verifier --test srs_hash_match` → 2/2 PASS.
 
 ### C. R0.4 fix-forward: cyclo-ajtai-binding domain tag
@@ -1484,7 +1484,7 @@ check could disagree on whether a witness was valid.
 - Test compilation requires: `ark_r1cs_std::alloc::AllocVar`, `ark_relations::gr1cs::ConstraintSystem::new_ref()`, `cs.num_constraints()` (direct method on ConstraintSystemRef, not borrow().unwrap()).
 
 ### GREEN implementation
-- **`sonobe/mod.rs:107-128`**: Rewrote `generate_step_constraints` to encode:
+- **`nova/mod.rs:107-128`**: Rewrote `generate_step_constraints` to encode:
   1. **Commitment folding**: `z_i[0] * external_inputs + z_i[0]` — multiplicative fold via `FpVar::*` which allocates a constraint in the CS
   2. **Norm escalation**: `z_i[1] + external_inputs` — additive norm accumulation
   3. **Count increment**: `z_i[2] + 1`
@@ -1501,12 +1501,12 @@ check could disagree on whether a witness was valid.
 ### Test results
 - All 15 compressor tests pass (2 new + 13 existing)
 - `step_circuit_allocates_nonzero_constraints`: PASS (allocated_in_step > 0) ✓
-- Pre-existing memory ceiling test `sonobe_prove_peak_rss_under_12gb` still fails (unrelated)
+- Pre-existing memory ceiling test `nova_prove_peak_rss_under_12gb` still fails (unrelated)
 - `cargo build -p pvthfhe-compressor`: clean
-- LSP diagnostics on `sonobe/mod.rs`: clean
+- LSP diagnostics on `nova/mod.rs`: clean
 
 ### Files changed
-- `crates/pvthfhe-compressor/src/sonobe/mod.rs` — lines 107-128 (generate_step_constraints rewrite)
+- `crates/pvthfhe-compressor/src/nova/mod.rs` — lines 107-128 (generate_step_constraints rewrite)
 - `crates/pvthfhe-compressor/tests/step_circuit_fold_relation.rs` — NEW (74 lines)
 
 ## 2026-05-10 — D.2 SRS hash from on-chain
@@ -1514,7 +1514,7 @@ check could disagree on whether a witness was valid.
 ### Implementation
 - **`offchain-verifier/src/main.rs`**: 
   - Added `expected_srs_hash: String` field to `ProofEnvelope` struct (with `#[serde(default)]`)
-  - Removed local derivation: `Keccak256::digest(&[&epoch_hash[..], Tag::SonobeSrs.as_bytes()].concat())`
+  - Removed local derivation: `Keccak256::digest(&[&epoch_hash[..], Tag::NovaSrs.as_bytes()].concat())`
   - Now decodes `expected_srs_hash` from the envelope via `decode_epoch_hash()` (32-byte hex)
   - Compares against `compressor.srs_hash()` via `check_srs_hash()`
   - Removed `pvthfhe_domain_tags::Tag` import (no longer needed)
@@ -1633,13 +1633,13 @@ check could disagree on whether a witness was valid.
 
 - Added header comment block in `/home/dev/pvthfhe/Cargo.toml` above `[patch.crates-io]` documenting both flyingnobita forks:
   - `crypto-primitives` (rev f559264): resolves ark-ff 0.4→0.5 migration conflict with workspace dependencies
-  - `r1cs-std_yelhousni` (rev b4bab0c): adds missing `FieldVar::constant` constructor for Sonobe Nova step circuit + ark-ff 0.5 migration
+  - `r1cs-std_yelhousni` (rev b4bab0c): adds missing `FieldVar::constant` constructor for Nova Nova step circuit + ark-ff 0.5 migration
 - **Key finding**: Both forks exist solely to bridge the ark-ff 0.4→0.5 API gap. Once upstream arkworks releases 0.5-compatible versions of these crates, the forks can be dropped.
 
-### I.2: Check Sonobe upstream for security patches
+### I.2: Check Nova upstream for security patches
 
 - Current pin: `63f2930d363150d4490ce2c4be8e0c25c2e1d92c` (README-only commit about audit plans)
-- **Repository moved**: `privacy-scaling-explorations/sonobe` → `privacy-ethereum/sonobe`. Updated git URL in dependency.
+- **Repository moved**: `privacy-scaling-explorations/nova` → `privacy-ethereum/nova`. Updated git URL in dependency.
 - **Security finding**: Open issue #239 (2026-01-24) "Public input concatenation enables memory DoS" — may affect PVTHFHE if untrusted public inputs accepted without length bounds. The `main` branch is pre-audit; active dev on `staging` branch for external audit of Nova+CycleFold.
 - **Decision**: Keep current pin (pre-audit). Added Cargo.toml comment documenting the security note and migration path (update to post-audit release commit when available). The repository's own README warns "experimental code, do not use in production."
 
@@ -1710,31 +1710,31 @@ check could disagree on whether a witness was valid.
 - These changes ensure the NIZK proofs in the CLI demo are bound to the actual secret key material rather than public data.
 - Verified that `cargo build -p pvthfhe-cli` succeeds and existing NIZK-related tests (`params_consistency`) pass.
 
-## 2026-05-11 — S3.1 rename SonobeToyCompressor → concrete SonobeCompressor<ToyStepCircuit<Fr>>
+## 2026-05-11 — S3.1 rename NovaToyCompressor → concrete NovaCompressor<ToyStepCircuit<Fr>>
 
 ### What was done
-- Removed the `SonobeToyCompressor` type alias from `crates/pvthfhe-compressor/src/sonobe/mod.rs`
-- Updated all 4 consumer sites to use the concrete type `SonobeCompressor<ToyStepCircuit<Fr>>` directly:
+- Removed the `NovaToyCompressor` type alias from `crates/pvthfhe-compressor/src/nova/mod.rs`
+- Updated all 4 consumer sites to use the concrete type `NovaCompressor<ToyStepCircuit<Fr>>` directly:
   - `crates/pvthfhe-cli/src/compressor_glue.rs`: inner field type + constructor call
-  - `crates/pvthfhe-cli/src/bin/sonobe_min.rs`: import + constructor
+  - `crates/pvthfhe-cli/src/bin/nova_min.rs`: import + constructor
   - `crates/pvthfhe-offchain-verifier/src/main.rs`: import + constructor
-  - `crates/pvthfhe-compressor/src/sonobe/mod.rs`: removed alias only (internal bin already used concrete)
+  - `crates/pvthfhe-compressor/src/nova/mod.rs`: removed alias only (internal bin already used concrete)
 - Added `ark-bn254 = "0.5"` dependency to `pvthfhe-offchain-verifier/Cargo.toml` and `pvthfhe-cli/Cargo.toml` (needed for `Fr` type parameter)
-- Zero grep hits for `SonobeToyCompressor` across workspace
-- "Toy" only remains in `ToyStepCircuit` (step circuit struct, not compressor struct/enum name) and `SonobeToyStep` (domain tag variant) — both acceptable per task spec
+- Zero grep hits for `NovaToyCompressor` across workspace
+- "Toy" only remains in `ToyStepCircuit` (step circuit struct, not compressor struct/enum name) and `NovaToyStep` (domain tag variant) — both acceptable per task spec
 
 ### Files changed
-- `crates/pvthfhe-compressor/src/sonobe/mod.rs` — removed type alias
+- `crates/pvthfhe-compressor/src/nova/mod.rs` — removed type alias
 - `crates/pvthfhe-cli/src/compressor_glue.rs` — updated imports + variant type + constructor
-- `crates/pvthfhe-cli/src/bin/sonobe_min.rs` — updated imports + constructor
+- `crates/pvthfhe-cli/src/bin/nova_min.rs` — updated imports + constructor
 - `crates/pvthfhe-offchain-verifier/src/main.rs` — updated imports + constructor
 - `crates/pvthfhe-offchain-verifier/Cargo.toml` — added ark-bn254 dep
 - `crates/pvthfhe-cli/Cargo.toml` — added ark-bn254 dep
-- `crates/pvthfhe-cli/Cargo.toml` — added `required-features = ["sonobe-compressor"]` to sonobe-min binary
+- `crates/pvthfhe-cli/Cargo.toml` — added `required-features = ["nova-compressor"]` to nova-min binary
 
 ### Verification
 - `cargo build -p pvthfhe-compressor` → green
-- `cargo build -p pvthfhe-cli --features sonobe-compressor` → green
+- `cargo build -p pvthfhe-cli --features nova-compressor` → green
 - `cargo build -p pvthfhe-offchain-verifier` → green
 - `cargo build --workspace` → green (pre-existing warnings only)
 
@@ -1747,7 +1747,7 @@ The `CycloFoldStepCircuit` encodes three aspects of the fold relation:
 3. **Count increment**: `count_inc = z_i[2] + 1` — counter advances by 1 per step ✓
 
 ### Issue noted (not blocking for S3.2 scope)
-Both commitment folding (1) and norm escalation (2) use the SAME `external_inputs` scalar. In a proper fold relation, the commitment contribution and norm contribution are distinct values. This conflation is a soundness concern for the real path but is acceptable for the Sonobe stub phase. The `FCircuit` trait only provides one `ExternalInputs` value; packing multiple values would require field-element bit-packing or a different circuit architecture.
+Both commitment folding (1) and norm escalation (2) use the SAME `external_inputs` scalar. In a proper fold relation, the commitment contribution and norm contribution are distinct values. This conflation is a soundness concern for the real path but is acceptable for the Nova stub phase. The `FCircuit` trait only provides one `ExternalInputs` value; packing multiple values would require field-element bit-packing or a different circuit architecture.
 
 ### Conclusion
 The circuit DOES encode all three required aspects (commitment folding, norm binding, count increment). No code changes needed at this time — noted for future soundness hardening.
@@ -1757,19 +1757,19 @@ The circuit DOES encode all three required aspects (commitment folding, norm bin
 ### Current state
 The `Surrogate` variant in `Compressor` enum (`compressor_glue.rs`) is already properly gated:
 ```rust
-#[cfg(all(feature = "surrogate-compressor", not(feature = "sonobe-compressor")))]
+#[cfg(all(feature = "surrogate-compressor", not(feature = "nova-compressor")))]
 Surrogate,
 ```
-- When `sonobe-compressor` is active (default): `Surrogate` is not compiled in — unreachable ✓
-- When only `surrogate-compressor` is active: `Surrogate` is compiled in, `Sonobe` is not ✓
+- When `nova-compressor` is active (default): `Surrogate` is not compiled in — unreachable ✓
+- When only `surrogate-compressor` is active: `Surrogate` is compiled in, `Nova` is not ✓
 - All match arms (`backend_id`, `prove`, `verify`) use matching cfg gating ✓
 
 ### Fix applied
-Added `required-features = ["sonobe-compressor"]` to the `sonobe-min` binary in `pvthfhe-cli/Cargo.toml` — the binary unconditionally imported from `pvthfhe_compressor` which is gated on the `sonobe-compressor` feature. This was a pre-existing issue that became visible during surrogate-only build verification.
+Added `required-features = ["nova-compressor"]` to the `nova-min` binary in `pvthfhe-cli/Cargo.toml` — the binary unconditionally imported from `pvthfhe_compressor` which is gated on the `nova-compressor` feature. This was a pre-existing issue that became visible during surrogate-only build verification.
 
 ### Verification
-- `cargo build -p pvthfhe-cli` (default features, sonobe-compressor active) → green
-- `cargo build -p pvthfhe-cli --no-default-features --features surrogate-compressor` → green (sonobe-min binary skipped via required-features)
+- `cargo build -p pvthfhe-cli` (default features, nova-compressor active) → green
+- `cargo build -p pvthfhe-cli --no-default-features --features surrogate-compressor` → green (nova-min binary skipped via required-features)
 
 ## 2026-05-11 — R1.1 Mock vs Real Backend Dispatch Mechanism
 
@@ -2012,7 +2012,7 @@ was updated to encode `Fr::ZERO` as the demo witness.
 - Made `build_c7_prover_toml` public and exported from `full_pipeline`
 - Added `share_coeffs`, `lagrange_coeffs`, `aggregate_pk_bytes`, `session_id` fields to `PipelineReport` to carry data from `run_full_pipeline` to the e2e observer
 - Updated `run_noir_aggregator_final_optional` to accept `&PipelineReport`, generate Prover.toml dynamically via `build_c7_prover_toml`, write it, then use it
-- Both `#[cfg(feature = "sonobe-compressor")]` and `#[cfg(not(...))]` stubs updated for signature compatibility
+- Both `#[cfg(feature = "nova-compressor")]` and `#[cfg(not(...))]` stubs updated for signature compatibility
 - `pvthfhe-aggregator` has pre-existing build failures (unrelated anyhow import issues) — not caused by these changes
 
 ### Pattern: Data passing through PipelineReport

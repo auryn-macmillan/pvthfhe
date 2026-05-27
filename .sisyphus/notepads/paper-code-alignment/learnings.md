@@ -3,7 +3,7 @@
 
 ### A.1 — Paper header update
 - Replaced stale 8-line header claiming "no on-chain cryptographic verification" and "Noir circuits are tautological surrogates"
-- New 3-line header reflects current state: BFV sigma v4, Sonobe Nova IVC, committed-smudge, research prototype warning preserved
+- New 3-line header reflects current state: BFV sigma v4, Nova Nova IVC, committed-smudge, research prototype warning preserved
 - Line count reduction intentional — the old header had excessive detail that was factually wrong
 
 ### A.2 — Architecture/Introduction update
@@ -19,7 +19,7 @@
 
 ### A.4 — P3 section update
 - Replaced implementation note describing ecrecover-only with dual-path description
-- Sonobe Nova IVC with CycloFoldStepCircuit is the active compression path
+- Nova Nova IVC with CycloFoldStepCircuit is the active compression path
 - compressor.verify() and external_verify_compressed_proof() mentioned
 - ecrecover path retained as on-chain surrogate (5,273 gas)
 - P3-T1 theorem text still says "deferred" — addressed in Batch D (dual-track theorems)
@@ -32,15 +32,15 @@
 
 ## B.1 — Provenance column
 - Added "Provenance" column between "Status" and "Paper Section" in claims-table.md.
-- Three values: TARGET (Architecture B: LatticeFold+/MicroNova/UltraHonk), SURROGATE (Sonobe Nova/ecrecover), BOTH (proved for both paths).
+- Three values: TARGET (Architecture B: LatticeFold+/MicroNova/UltraHonk), SURROGATE (Nova Nova/ecrecover), BOTH (proved for both paths).
 - P4 rows (infrastructure PVSS): all BOTH — the PVSS layer is shared between both tracks.
 - P1 rows: all TARGET (with [^p1] footnote) — lattice-native BFV sigma protocol, real crypto but conditional soundness.
 
 ## B.2 — P2 reclassification
-- P2-T1, P2-T3, P2-T5: SURROGATE — proved for Sonobe Nova SHA-256 hash accumulation path.
+- P2-T1, P2-T3, P2-T5: SURROGATE — proved for Nova Nova SHA-256 hash accumulation path.
 - P2-T2: TARGET — CONTINGENT on LatticeFold+ Lemma 9 (proof file explicitly says "LatticeFold+ refinement").
 - P2-T4: TARGET — CONDITIONAL on lattice commitment replacement; designed for RingSIS/M-SIS.
-- Rationale: T2 and T4 are about the target LatticeFold+ system even though current code uses Sonobe surrogate.
+- Rationale: T2 and T4 are about the target LatticeFold+ system even though current code uses Nova surrogate.
 
 ## B.3 — P3 reclassification
 - P3-T1, P3-T2, P3-T5: SURROGATE — proved for ecrecover/ECDSA attestation path.
@@ -89,7 +89,7 @@
 
 ### E.1 — Updated Conclusion
 - Replaced vague "P2 and P3 currently use cryptographic surrogates" with specific
-  mention: Sonobe Nova IVC, CycloFoldStepCircuit, ecrecover/ECDSA, BFV sigma v4,
+  mention: Nova Nova IVC, CycloFoldStepCircuit, ecrecover/ECDSA, BFV sigma v4,
   committed-smudge, two-track DKG, OsRng masking
 
 ### E.2 — Remediation Log Appendix
@@ -103,7 +103,7 @@
 
 ### D.1 - D.4: Dual-track paper architecture
 - Restructured §6 (P2) and §7 (P3) in paper/main.tex into dual-track subsections
-- §6.A: Sonobe Nova IVC (Track A — proved, concrete)
+- §6.A: Nova Nova IVC (Track A — proved, concrete)
 - §6.B: LatticeFold+ over RLWE (Track B — aspirational, target)
 - §7.A: ECDSA/ecrecover attestation (Track A — proved, concrete)
 - §7.B: UltraHonk + MicroNova (Track B — skeleton, target)
@@ -113,7 +113,7 @@
 ### D.5: Claims table dual-track
 - Added "Track A Status" and "Track B Status" columns
 - P4/P1 rows: both tracks share same status
-- P2 rows: Track A = PROVED (Sonobe), Track B = ASPIRATIONAL/CONTINGENT
+- P2 rows: Track A = PROVED (Nova), Track B = ASPIRATIONAL/CONTINGENT
 - P3 rows: Track A = PROVED (ecrecover), Track B = SKELETON
 - Added provenance legend explaining all status values
 - Added P1 criticality footnote from SECURITY.md

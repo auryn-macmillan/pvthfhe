@@ -57,6 +57,6 @@ for non-mock backends. The check remains active for mock backends where the XOR 
 
 ### Verification
 - `cargo test -p pvthfhe-pvss --features "pvthfhe-fhe/mock" --test nizk_share_real_verify`: PASS
-- `cargo run -p pvthfhe-cli --features "mock,sonobe-compressor" -- demo --n 10 --threshold 4`:
+- `cargo run -p pvthfhe-cli --features "mock,nova-compressor" -- demo --n 10 --threshold 4`:
   Step 4 (pvss_share_encrypt) passes without D2 hash binding error
 - `just demo-e2e`: Step 4 passes (still fails at step 9 with unrelated aggregate_decrypt error)

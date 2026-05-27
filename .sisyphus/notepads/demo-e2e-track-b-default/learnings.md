@@ -44,15 +44,15 @@
 - **Critical fix**: Original AjtaiMatrix path produced Fr field-element commitments (32 bytes for m=1), but Cyclo fold expects Cyclo ring-element commitments (26624 bytes: 13×256×8). This caused "commitment wire bytes have wrong length" error.
 - **Solution**: Rewrote Track B path to use Cyclo ring arithmetic (`ntt_mul`, `ring_add_poly`) with SHA-256 deterministic matrix derivation (AjtaiMatrix-style epoch-based hashing). Matrix entries are 13×32 RqPoly elements, each with 256 u64 coefficients derived from SHA-256(epoch_hash, row, col, coeff_idx). This preserves the verifiability intent of AjtaiMatrix (SHA-256 > ChaCha20) while producing Cyclo-compatible output.
 - No `use std::env;` import needed removal — all std::env uses are fully-qualified path style and other uses remain (lines 129, 446, 794).
-- Demo result: cyclo_fold (step 5) passes, compressor_prove (step 6) passes with native ring equation verification for all 10 parties. compressor_verify (step 7) fails — pre-existing Sonobe Nova issue.
+- Demo result: cyclo_fold (step 5) passes, compressor_prove (step 6) passes with native ring equation verification for all 10 parties. compressor_verify (step 7) fails — pre-existing Nova Nova issue.
 
 ## D.6 — compressor_verify fix (2026-05-16)
 
 ### Bug Diagnosis
-- **Symptom**: `step 7/10: compressor_verify` failed with "sonobe compressed proof verification failed"
+- **Symptom**: `step 7/10: compressor_verify` failed with "nova compressed proof verification failed"
 - **NOT** a `state_len` mismatch: both z_0.len() and z_i.len() equal self.state_len (=4)
-- **NOT** a SonobeNova::verify failure: the IVC proof structural verification passed
-- **ACTUAL root cause**: `fold_count != verification_count` check in `SonobeCompressor::verify()` at `mod.rs:473`
+- **NOT** a NovaNova::verify failure: the IVC proof structural verification passed
+- **ACTUAL root cause**: `fold_count != verification_count` check in `NovaCompressor::verify()` at `mod.rs:473`
   - `fold_count=11`, `verification_count=1` for n=10 demo
 
 ### Cause
@@ -63,7 +63,7 @@ Changed `compressor_glue.rs:189` from `Fr::from(total_fold_depth)` to `Fr::from(
 
 ### Files Changed
 - `crates/pvthfhe-cli/src/compressor_glue.rs` — line 189 value fix + docstring update
-- `crates/pvthfhe-compressor/src/sonobe/mod.rs` — temporary debug prints (removed)
+- `crates/pvthfhe-compressor/src/nova/mod.rs` — temporary debug prints (removed)
 
 ### Verification
 - `cargo test -p pvthfhe-cli --test demo_runs_full_pipeline` → ✅ PASS

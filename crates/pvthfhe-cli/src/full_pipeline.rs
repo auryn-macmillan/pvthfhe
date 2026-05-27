@@ -234,6 +234,15 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         crate::compressor_glue::compressor_backend_id(),
     );
 
+    // Nova IVC verification flags (C1, C4, C5). Default true — set to
+    // actual verification result inside the sonobe-compressor cfg blocks.
+    #[allow(unused_mut)]
+    let mut c1_passed = true;
+    #[allow(unused_mut)]
+    let mut c4_passed = true;
+    #[allow(unused_mut)]
+    let mut c5_passed = true;
+
     if cfg.seed != 0 {
         tracing::warn!(
             "seed flag ignored in production path; will require --insecure-seed in future R3.6"
@@ -322,10 +331,10 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             .map_err(|e| anyhow::anyhow!("c1 prove: {e:?}"))?;
         clear_pk_contribution_data();
         let c1_vk = c1_compressor.verifier_key();
-        let c1_verified = c1_compressor
+        c1_passed = c1_compressor
             .verify_steps(&c1_vk, &c1_proof, &c1_acc, &c1_steps)
             .map_err(|e| anyhow::anyhow!("c1 verify: {e:?}"))?;
-        assert!(c1_verified);
+        assert!(c1_passed);
         tracing::info!("c1: PK contribution IVC verified ({} parties)", cfg.n);
     }
 
@@ -582,10 +591,10 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 .map_err(|e| anyhow::anyhow!("c4 prove: {e:?}"))?;
             clear_dkg_agg_data();
             let c4_vk = c4_compressor.verifier_key();
-            let c4_verified = c4_compressor
+            c4_passed = c4_compressor
                 .verify_steps(&c4_vk, &c4_proof, &c4_acc, &external_inputs)
                 .map_err(|e| anyhow::anyhow!("c4 verify: {e:?}"))?;
-            if !c4_verified {
+            if !c4_passed {
                 tracing::warn!("c4: DKG aggregation IVC verification FAILED (known P3 limitation — Nova Nova verify bug)");
             } else {
                 tracing::info!("c4: DKG aggregation IVC verified ({} recipients)", n);
@@ -1003,10 +1012,10 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             .map_err(|e| anyhow::anyhow!("c5 prove: {e:?}"))?;
         clear_pk_agg_data();
         let c5_vk = c5_compressor.verifier_key();
-        let c5_verified = c5_compressor
+        c5_passed = c5_compressor
             .verify_steps(&c5_vk, &c5_proof, &c5_acc, &c5_steps)
             .map_err(|e| anyhow::anyhow!("c5 verify: {e:?}"))?;
-        if !c5_verified {
+        if !c5_passed {
             tracing::warn!("c5: PK aggregation IVC verification FAILED (known P3 limitation — Nova Nova verify bug)");
         } else {
             tracing::info!("c5: PK aggregation IVC verified ({} parties)", cfg.n);
@@ -2129,7 +2138,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let mut report = PipelineReport {
         timings,
         plaintext_roundtrip_ok,
-        all_verifications_passed: noir_passed,
+        all_verifications_passed: noir_passed && c1_passed && c4_passed && c5_passed,
         aggregate_pk_hash_hex,
         ciphertext_hash_hex,
         compressed_proof_digest_hex: hex::encode(compressed.digest),

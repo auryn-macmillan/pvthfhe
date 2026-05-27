@@ -83,8 +83,9 @@ fn main() -> anyhow::Result<()> {
         KeygenResult::Blamed(blamed) => anyhow::bail!("keygen blamed: {blamed:?}"),
     };
 
+    let session_seed: [u8; 32] = Sha256::digest(&transcript.transcript_hash).into();
     backend
-        .setup_threshold(args.n, args.threshold)
+        .setup_threshold(args.n, args.threshold, session_seed)
         .context("setup_threshold")?;
 
     let aggregate_keygen_shares: Vec<_> = transcript
@@ -277,9 +278,10 @@ fn main() -> anyhow::Result<()> {
         if args.use_micronova {
             time_micronova_compressor(epoch_hash, batch_count)?;
         } else {
-            let compressor =
-                NovaCompressor::<pvthfhe_compressor::nova::dkg_aggregation_circuit::DkgAggregationStepCircuit<Fr>>::new(epoch_hash, batch_count)
-                    .map_err(|e| anyhow::anyhow!("compressor init: {e:?}"))?;
+            let compressor = NovaCompressor::<
+                pvthfhe_compressor::nova::dkg_aggregation_circuit::DkgAggregationStepCircuit<Fr>,
+            >::new(epoch_hash, batch_count)
+            .map_err(|e| anyhow::anyhow!("compressor init: {e:?}"))?;
             let acc = encode_hex((
                 Fr::from(0u64),
                 Fr::from(0u64),
@@ -426,8 +428,10 @@ fn main() -> anyhow::Result<()> {
             })
             .collect();
         let witness_set = AjtaiCommitmentWitnessSet { witnesses };
-        let ajtai_compressor = NovaCompressor::<pvthfhe_compressor::nova::dkg_aggregation_circuit::DkgAggregationStepCircuit<Fr>>::new(epoch_hash, args.n)
-            .map_err(|e| anyhow::anyhow!("ajtai compressor init: {e:?}"))?;
+        let ajtai_compressor = NovaCompressor::<
+            pvthfhe_compressor::nova::dkg_aggregation_circuit::DkgAggregationStepCircuit<Fr>,
+        >::new(epoch_hash, args.n)
+        .map_err(|e| anyhow::anyhow!("ajtai compressor init: {e:?}"))?;
         let acc = encode_hex((
             Fr::from(0u64),
             Fr::from(0u64),

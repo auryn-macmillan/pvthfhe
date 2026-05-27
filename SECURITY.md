@@ -60,6 +60,30 @@ R10 hardening: cross-share RS parity check is now unconditional (with parity-che
 - **C2 (Encryption Correctness Gap)**: **Encryption is trusted; no verifiable proof of correct encryption exists**. `backend.encrypt()` produces a ciphertext without a proof that it matches the plaintext under the aggregate key. A malicious encryptor can produce a semantically incorrect ciphertext. Mitigation: the semantic roundtrip check detects errors at the aggregate level only. See `threat-model-v1.md` §7.2 item 12.
 - **C7 (Final Aggregation Gap)**: **Partially addressed**. C7 Nova step circuit (P1.3) folds Lagrange recombination into Nova accumulator at N=8. Phase 2 N=8192 off-circuit Merkle-proof verification implemented (8-ary Keccak256 Merkle tree; `verify_merkle_proofs()` called before Nova folding; trust boundary: if Merkle verifier is executed, Nova external inputs are sound). Phase B (real Poseidon R1CS) is complete. `C7MerkleStepCircuit` at depth-5 (N=8192) uses real Poseidon hash in R1CS constraints. See `c7-phase3-in-circuit-merkle.md`. Noir aggregator_final circuit provides standalone verification. **C7 Phase B**: Real Poseidon R1CS in-circuit Merkle verification is implemented (`poseidon_gadget.rs`, `c7_merkle_circuit.rs`). G18 real tree constraints (leaf share-accumulation + internal Poseidon hashing) are code-complete. Noir aggregator_final circuit uses MAX_PARTICIPANTS=128.
 
+### P1 Soundness Budget
+
+The ternary scalar challenge (`ch ∈ {-1,0,1}`) used in `derive_challenge_scalar`
+(`crates/pvthfhe-nizk/src/sigma.rs`) provides approximately log₂(3) ≈ 1.58 bits of
+soundness per execution. With a single round, the soundness error is 2/3 — a malicious
+prover can guess the challenge correctly 66% of the time and produce a convincing
+transcript.
+
+| Round count | Soundness error | Effective bits |
+|------------|----------------|----------------|
+| 1          | 2/3 (≈ 0.67)   | ~1.58          |
+| 10         | (2/3)¹⁰ ≈ 0.017 | ~15.8          |
+| 45         | (2/3)⁴⁵ ≈ 2⁻⁶⁶ | ~71.2          |
+| 90         | (2/3)⁹⁰ ≈ 2⁻¹³² | ~142.4         |
+| 137        | (2/3)¹³⁷ ≈ 2⁻²⁰⁰ | ~216.9         |
+
+**Resolution paths** (both deferred):
+1. **Parallel repetition**: ~90 non-interactive rounds to achieve 2⁻¹²⁸ soundness via
+   sequential Fiat-Shamir hashing. Adds linear overhead per proof.
+2. **Binary polynomial challenges**: Switch to `ch ∈ {0,1}^N` (2^N challenge space) with
+   NTT-optimized gadgets for sub-linear proof growth.
+
+Tracked as **OPEN PROBLEM P1** (critical). See `crates/pvthfhe-nizk/src/sigma.rs:derive_challenge_scalar`.
+
 ### R6 Adversarial Audit Findings (2026-05-14)
 
 SmudgeSlotRegistry enforcement is now unconditional (was gated behind pipeline-extra-checks). See round6-adversarial-remediation.md.

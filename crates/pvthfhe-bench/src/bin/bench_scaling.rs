@@ -163,8 +163,12 @@ fn run_pipeline_with_backend<B: FheBackend + Clone + 'static>(
         KeygenResult::Blamed(ids) => return Err(format!("keygen blamed: {ids:?}")),
     };
 
+    let session_seed: [u8; 32] = Sha256::digest(
+        format!("bench-scaling-session-v1/{n_parties}/{backend_threshold}").as_bytes(),
+    )
+    .into();
     backend
-        .setup_threshold(n_parties, backend_threshold)
+        .setup_threshold(n_parties, backend_threshold, session_seed)
         .map_err(|err| format!("setup_threshold: {err}"))?;
 
     let aggregate_pk = &transcript.round3_aggregate.aggregate_pk;

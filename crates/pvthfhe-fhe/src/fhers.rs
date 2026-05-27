@@ -401,7 +401,12 @@ impl FhersBackend {
             })
     }
 
-    fn compute_party_sk_sums(&self, n: usize, t: usize) -> Result<(), FheError> {
+    fn compute_party_sk_sums(
+        &self,
+        n: usize,
+        t: usize,
+        session_seed: [u8; 32],
+    ) -> Result<(), FheError> {
         tracing::debug!(
             n_participants = n,
             threshold = t,
@@ -464,13 +469,11 @@ impl FhersBackend {
                     .map_err(|err| FheError::Backend {
                         reason: err.to_string(),
                     })?;
-                // M1-fix: Use full 256-bit deterministic seed instead of ~10-bit seed.
-                // session_id is not available at this call site (setup_threshold
-                // signature does not accept it). Derive instance-bound seed from
-                // party_id, n, threshold, and bfv_params.degree for >10 bits while
-                // preserving determinism needed for parallel reproducible execution.
+                // M3: Use full 256-bit deterministic seed bound to session_seed
+                // so that Shamir shares differ across DKG ceremonies.
                 let mut h = Sha256::new();
-                h.update(b"pvthfhe-share-rng-seed-v1");
+                h.update(b"pvthfhe-share-rng-seed-v2");
+                h.update(session_seed);
                 h.update(&party_id.to_be_bytes());
                 h.update(&n.to_be_bytes());
                 h.update(&threshold.to_be_bytes());
@@ -777,7 +780,7 @@ impl FheBackend for FhersBackend {
         self.party_keygen_witness(party_id)
     }
 
-    fn setup_threshold(&self, n: usize, t: usize) -> Result<(), FheError> {
+    fn setup_threshold(&self, n: usize, t: usize, session_seed: [u8; 32]) -> Result<(), FheError> {
         if t == 0 || t > n {
             return Err(FheError::Backend {
                 reason: format!("invalid threshold parameters: n={n}, t={t}"),
@@ -790,7 +793,7 @@ impl FheBackend for FhersBackend {
             });
         }
         if std::env::var("PVTHFHE_SKIP_SETUP_THRESHOLD").as_deref() != Ok("1") {
-            self.compute_party_sk_sums(n, t)?;
+            self.compute_party_sk_sums(n, t, session_seed)?;
         } else {
             tracing::info!("PVTHFHE_SKIP_SETUP_THRESHOLD=1: skipping O(n²) Shamir regeneration (coeffs→poly deferred to partial_decrypt)");
         }
@@ -1969,7 +1972,9 @@ variance = 10
             .aggregate_keygen(&[share1, share2, share3, share4, share5])
             .expect("aggregate_keygen");
         let ct = backend.encrypt(&pk, plaintext, &mut rng).expect("encrypt");
-        backend.setup_threshold(n, t).expect("setup_threshold");
+        backend
+            .setup_threshold(n, t, [0u8; 32])
+            .expect("setup_threshold");
         let ds1 = backend
             .partial_decrypt(&ct, 1, &mut rng)
             .expect("partial_decrypt(1)");

@@ -36,6 +36,7 @@ use {
     pvthfhe_keygen::dkg::{DkgCeremony, DkgParams},
     pvthfhe_rng::OsRng,
     rand_core::RngCore,
+    sha2::{Digest, Sha256},
 };
 
 /// PVTHFHE command-line interface.
@@ -265,7 +266,10 @@ fn r8_partial_decrypt(party_id: u32, ciphertext_hex: &str) -> anyhow::Result<()>
             .context("keygen share")?;
         keygen_shares.push(share);
     }
-    backend.setup_threshold(n, t).context("setup_threshold")?;
+    let session_seed: [u8; 32] = Sha256::digest(session_id).into();
+    backend
+        .setup_threshold(n, t, session_seed)
+        .context("setup_threshold")?;
 
     let ct = pvthfhe_fhe::Ciphertext { bytes: ct_bytes };
     let mut rng = OsRng;
@@ -304,7 +308,10 @@ fn r8_aggregate(ciphertext_hex: &str, shares_hex: &str, threshold: usize) -> any
             .context("keygen share")?;
         keygen_shares.push(share);
     }
-    backend.setup_threshold(n, t).context("setup_threshold")?;
+    let session_seed2: [u8; 32] = Sha256::digest(session_id).into();
+    backend
+        .setup_threshold(n, t, session_seed2)
+        .context("setup_threshold")?;
 
     let mut shares = Vec::with_capacity(share_hex_list.len());
     for (i, hex_str) in share_hex_list.iter().enumerate() {

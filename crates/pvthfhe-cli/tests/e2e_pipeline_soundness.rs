@@ -13,6 +13,7 @@ mod tests {
     use pvthfhe_cli::full_pipeline::{run_full_pipeline, PipelineConfig, PipelineObserver};
     use pvthfhe_fhe::{fhers::FhersBackend, FheBackend};
     use pvthfhe_rng::OsRng;
+    use sha2::{Digest, Sha256};
     use std::collections::BTreeMap;
 
     #[derive(Default)]
@@ -74,7 +75,10 @@ mod tests {
                 .expect("keygen share");
             keygen_shares.push(share);
         }
-        backend.setup_threshold(n, t).expect("setup_threshold");
+        let session_seed: [u8; 32] = Sha256::digest(session_id).into();
+        backend
+            .setup_threshold(n, t, session_seed)
+            .expect("setup_threshold");
 
         let pk = backend
             .aggregate_keygen(&keygen_shares)

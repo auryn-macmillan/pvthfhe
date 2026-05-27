@@ -2,6 +2,7 @@ use pvthfhe_aggregator::keygen::simulator::{KeygenResult, KeygenSimulator};
 use pvthfhe_fhe::{fhers::FhersBackend, FheBackend, FheError};
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
+use sha2::{Digest, Sha256};
 use std::{
     env, fs,
     path::Path,
@@ -75,7 +76,10 @@ fn run_benchmark(n: usize, t: usize) -> Result<BenchRow, FheError> {
             });
         }
     };
-    backend.setup_threshold(n, backend_threshold)?;
+    let session_seed: [u8; 32] =
+        Sha256::digest(format!("fhe-baseline-session-v1/{n}/{backend_threshold}").as_bytes())
+            .into();
+    backend.setup_threshold(n, backend_threshold, session_seed)?;
     let keygen_total_s = elapsed_seconds(keygen_started);
 
     let aggregate_pk = transcript.round3_aggregate.aggregate_pk;

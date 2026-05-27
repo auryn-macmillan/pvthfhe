@@ -76,7 +76,15 @@ pub trait FheBackend: Send + Sync {
     }
 
     /// Prepare threshold-decryption state after all keygen shares exist.
-    fn setup_threshold(&self, _n: usize, _t: usize) -> Result<(), FheError> {
+    ///
+    /// `session_seed` binds the Shamir RNG to a specific DKG session,
+    /// ensuring that shares are different across different ceremonies.
+    fn setup_threshold(
+        &self,
+        _n: usize,
+        _t: usize,
+        _session_seed: [u8; 32],
+    ) -> Result<(), FheError> {
         Ok(())
     }
 

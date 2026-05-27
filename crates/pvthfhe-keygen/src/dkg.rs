@@ -11,6 +11,7 @@ use pvthfhe_fhe::{
 };
 use pvthfhe_rng::OsRng;
 use rand_core::RngCore;
+use sha2::{Digest, Sha256};
 
 const CANONICAL_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
 
@@ -103,7 +104,8 @@ impl DkgCeremony {
             self.keygen_shares.push(share);
         }
 
-        self.backend.setup_threshold(self.n, self.t)?;
+        let session_seed: [u8; 32] = Sha256::digest(self.session_id).into();
+        self.backend.setup_threshold(self.n, self.t, session_seed)?;
 
         let pk = self.backend.aggregate_keygen(&self.keygen_shares)?;
         self.public_key = Some(pk);

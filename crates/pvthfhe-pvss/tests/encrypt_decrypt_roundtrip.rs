@@ -26,7 +26,7 @@ fn recipient_keypair(seed: u64, session_byte: u8) -> (MockBackend, Vec<u8>) {
         .aggregate_keygen(&[share])
         .expect("aggregate keygen");
     backend
-        .setup_threshold(1, 1)
+        .setup_threshold(1, 1, [0u8; 32])
         .expect("setup single-party threshold");
     (backend, public_key.bytes)
 }

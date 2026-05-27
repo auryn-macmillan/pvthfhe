@@ -928,8 +928,9 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         Some(&format!("backend_threshold={backend_threshold}")),
     );
     let setup_started = Instant::now();
+    let session_seed: [u8; 32] = Sha256::digest(session_id.as_bytes()).into();
     backend
-        .setup_threshold(cfg.n, backend_threshold)
+        .setup_threshold(cfg.n, backend_threshold, session_seed)
         .context("setup_threshold")?;
     observer.phase_end("setup_threshold", elapsed_ms(setup_started));
 

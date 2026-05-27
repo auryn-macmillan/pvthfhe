@@ -833,8 +833,15 @@ fn encode_bfv_encryption_proof_from_witness(
     let mut proof_rng = ChaCha20Rng::from_rng(&mut OsRng).expect("OsRng available"); // allow-seeded-rng: (removed — now uses OsRng)
     let d_commitment = compute_share_d_commitment(stmt);
     let binding_data = bfv_sigma_binding_data(stmt, &d_commitment);
-    let proof = bfv_sigma::prove(&bfv_stmt, &bfv_wit, &binding_data, &mut proof_rng)
-        .map_err(|_| PvssError::InvalidShare)?;
+    let proof = bfv_sigma::prove(
+        stmt.session_id.as_slice(),
+        stmt.dealer_index as u32,
+        &bfv_stmt,
+        &bfv_wit,
+        &binding_data,
+        &mut proof_rng,
+    )
+    .map_err(|_| PvssError::InvalidShare)?;
 
     let encoded_proof = encode_bfv_sigma_proof(&proof);
 
@@ -955,17 +962,27 @@ pub fn verify_bfv_encryption_proof(
 
     let d_commitment = compute_share_d_commitment(stmt);
     let binding_data = bfv_sigma_binding_data(stmt, &d_commitment);
-    bfv_sigma::verify(&bfv_stmt, &bfv_proof, &binding_data).map_err(|_| {
+    bfv_sigma::verify(
+        stmt.session_id.as_slice(),
+        stmt.dealer_index as u32,
+        &bfv_stmt,
+        &bfv_proof,
+        &binding_data,
+    )
+    .map_err(|_| {
         eprintln!("[NIZK-VERIFY] FAIL: bfv_sigma::verify failed");
         PvssError::BfvEncryptionProofFailed
     })
 }
 
+/// Build opaque binding data for the BFV sigma protocol.
+///
+/// `session_id` and `dealer_index` are intentionally NOT included here — they
+/// are now first-class params passed directly to `bfv_sigma::prove`/`verify`,
+/// ensuring they cannot be accidentally omitted.
 fn bfv_sigma_binding_data(stmt: &ShareNizkStatement, d_commitment: &[u8; 32]) -> Vec<u8> {
     let mut h = Sha256::new();
     h.update(b"pvthfhe-share-bfv-sigma-binding-v5");
-    h.update(stmt.session_id.as_slice());
-    h.update(stmt.dealer_index.to_be_bytes());
     h.update(stmt.recipient_index.to_be_bytes());
     h.update(stmt.bfv_params_digest.as_slice());
     h.update(stmt.dkg_root.as_slice());

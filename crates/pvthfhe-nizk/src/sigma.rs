@@ -510,6 +510,13 @@ pub fn poly_mul_rq_to_int(
 /// Domain separator for scalar-challenge sigma protocol (v2).
 const SCALAR_CHALLENGE_DOMAIN: &[u8] = b"pvthfhe/sigma-scalar-challenge/v2";
 
+// P1 OPEN PROBLEM: Ternary scalar challenge (ch ∈ {-1,0,1}) provides ~1.58 bits
+// of soundness per execution. With one round, the soundness error is 2/3 —
+// an adversary succeeds 66% of the time by guessing the challenge.
+// Resolution pending: either parallel repetition (~90 rounds for 2^-128) or
+// switching to binary polynomial challenges in {0,1}^N with NTT-optimized gadgets.
+// Tracked as OPEN PROBLEM P1 in SECURITY.md.
+
 /// Derive a scalar ternary challenge ch ∈ {-1, 0, 1} using Fiat-Shamir with
 /// Poseidon over BN254 (with SHA-256 field compression).
 ///

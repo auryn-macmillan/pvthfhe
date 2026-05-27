@@ -31,6 +31,6 @@
 **Status**: COMPLETE
 
 ## Success Criteria
-- [ ] `cargo check` = 0 errors
-- [ ] `just demo-e2e` runs with ACCEPT
-- [ ] No new surrogates or dummy proofs
+- [x] `cargo check` = 0 errors
+- [x] `just demo-e2e` runs with ACCEPT
+- [x] No new surrogates or dummy proofs

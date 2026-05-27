@@ -1,17 +1,1 @@
-{
-  "active_plan": "/home/dev/pvthfhe/.sisyphus/plans/mpc-audit-final-pass.md",
-  "started_at": "2026-05-27T23:12:24.035Z",
-  "session_ids": [
-    "ses_1e864f9f1ffecXRmG0OjbjoCa3",
-    "ses_194498a26ffeT47DfEqUInkdms",
-    "ses_194496d19ffea1XX0aRGbPpeeg"
-  ],
-  "session_origins": {
-    "ses_1e864f9f1ffecXRmG0OjbjoCa3": "direct",
-    "ses_194498a26ffeT47DfEqUInkdms": "appended",
-    "ses_194496d19ffea1XX0aRGbPpeeg": "appended"
-  },
-  "plan_name": "mpc-audit-final-pass",
-  "agent": "atlas",
-  "task_sessions": {}
-}
+{}

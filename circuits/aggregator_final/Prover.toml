@@ -1,0 +1,13 @@
+aggregate_pk_hash = 0
+ciphertext_hash = 0
+decrypt_nizk_hash = 0
+dkg_transcript_hash = 0
+epoch = 0
+ivc_snark_proof_hash = 0
+n_participants = 0
+nova_final_plaintext = [0, 0, 0, 0, 0, 0, 0, 0]
+nova_share_chain_hash = 0
+participant_set_hash = 0
+plaintext_commitment = 0
+return = [0, 0, 0, 0, 0, 0, 0, 0]
+threshold = 0

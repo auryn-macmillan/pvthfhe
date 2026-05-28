@@ -7,7 +7,8 @@ use std::{
 
 use pvthfhe_circuit_tests::{bb, nargo};
 
-const EXPECTED_PUBLIC_INPUTS: usize = 6;
+/// P4: public input count expanded from 6 to 12 to include IVC proof binding data.
+const EXPECTED_PUBLIC_INPUTS: usize = 12;
 
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
@@ -48,7 +49,7 @@ fn nova_state_commitment_full_dim_harness_runs_canonical_bb_flow(
     assert_eq!(
         public_inputs.len() / 32,
         EXPECTED_PUBLIC_INPUTS,
-        "nova_state_commitment public input count should remain frozen at six fields"
+        "nova_state_commitment public input count should be 12 (6 original + 6 IVC binding)"
     );
 
     Ok(())

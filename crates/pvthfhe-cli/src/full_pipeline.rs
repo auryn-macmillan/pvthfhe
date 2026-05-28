@@ -141,12 +141,8 @@ pub struct PipelineReport {
     pub share_sig_rs: Vec<Fr>,
     /// G.12: Per-party Schnorr signature R-points (G1Affine y-coordinate as Fr).
     pub share_sig_rys: Vec<Fr>,
-    /// Phase 4: SHA-256 hash of the transparent IVC proof (pp_hash from Nova).
-    /// Always populated — no Groth16 ceremony is required. The pp_hash binds
-    /// the IVC proof bytes to the compressed proof format for on-chain
-    /// verification via the Poseidon hash shortcut.
-    /// (see circuits/nova_state_commitment/src/main.nr).
     pub ivc_snark_proof_hash: Option<[u8; 32]>,
+    pub ivc_binding: Option<pvthfhe_compressor::nova::snark_bridge::IvcBindingData>,
     /// G.12: Per-party Schnorr signature s-values.
     pub share_sig_ss: Vec<Fr>,
     pub node_schnorr_pks: Vec<Fr>,
@@ -2131,6 +2127,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         recipient_parity_proof_hashes,
         d_commitment_verified: Some(false),
         ivc_snark_proof_hash: compressed.ivc_proof_hash,
+        ivc_binding: compressed.ivc_binding.clone(),
         pipeline_integrity_hash,
     };
 

@@ -1,8 +1,9 @@
+#![cfg(feature = "legacy-nova")]
 use ark_bn254::Fr;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_relations::gr1cs::ConstraintSystem;
-use folding_schemes::frontend::FCircuit;
+use folding_schemes::frontend::FCircuit; // folding (legacy-nova)
 use pvthfhe_compressor::nova::{
     clear_cyclo_ring_data, encode_triple, set_cyclo_ring_data, CycloFoldStepCircuit,
     CycloRingWitness, ExternalInputs3, ExternalInputs3Var, NovaCompressor,

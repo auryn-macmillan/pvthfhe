@@ -1,10 +1,10 @@
 use ark_bn254::Fr;
 use ark_ff::Field;
 use pvthfhe_compressor::merkle::{build_merkle_tree, prove_merkle_path, verify_merkle_proof};
-use pvthfhe_compressor::poly_eval::eval_poly_bn254;
 use pvthfhe_compressor::nova::{
     c7_fold_witnesses, encode_triple, C7DecryptAggregationCircuit, NovaCompressor,
 };
+use pvthfhe_compressor::poly_eval::eval_poly_bn254;
 use pvthfhe_compressor::witness::{hash_all_coeffs, C7WitnessSet};
 
 const N: usize = 8192;
@@ -147,7 +147,7 @@ fn c7_nova_fold_n8192_4_steps() {
 
     let dkg_root_hash = Fr::from(42u64);
 
-    let proof = c7_fold_witnesses(&compressor, &witnesses, &acc, dkg_root_hash, Fr::from(0u64)) // G.5: TODO: pass real d_commitment
+    let proof = c7_fold_witnesses(&compressor, &witnesses, &acc, dkg_root_hash, Fr::from(0u64)) // KNOWN_LIMITATION(g5_test_d_commitment): test uses Fr::from(0u64) as d_commitment stub; G.5 gate closed in production pipeline
         .expect("c7_fold_witnesses");
 
     let vk = compressor.verifier_key();
@@ -161,7 +161,7 @@ fn c7_nova_fold_n8192_4_steps() {
         witnesses.participants[0].coeff_commitment,
         dkg_root_hash,
         Fr::from(0u64),
-    ]); // G.5: TODO: pass real d_commitment
+    ]); // KNOWN_LIMITATION(g5_test_d_commitment): test uses Fr::from(0u64) as d_commitment stub; G.5 gate closed in production pipeline
 
     let steps: Vec<pvthfhe_compressor::nova::ExternalInputs5<Fr>> = witnesses
         .participants

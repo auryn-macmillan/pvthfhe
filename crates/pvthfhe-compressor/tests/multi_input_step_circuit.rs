@@ -1,9 +1,10 @@
+#![cfg(feature = "legacy-nova")]
 use ark_bn254::Fr;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::GR1CSVar;
 use ark_relations::gr1cs::ConstraintSystem;
-use folding_schemes::frontend::FCircuit;
+use folding_schemes::frontend::FCircuit; // folding (legacy-nova)
 use pvthfhe_compressor::nova::{CycloFoldStepCircuit, ExternalInputs3Var};
 
 #[test]

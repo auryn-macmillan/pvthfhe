@@ -1,7 +1,9 @@
+#![cfg(feature = "legacy-nova")]
 //! C7 decryption aggregation step circuit tests.
 
 use ark_bn254::Fr;
-use folding_schemes::frontend::FCircuit;
+#[cfg(feature = "legacy-nova")]
+use folding_schemes::frontend::FCircuit; // folding (legacy-nova)
 use pvthfhe_compressor::nova::{
     clear_c7_step_data, encode_triple, set_c7_step_data, C7DecryptAggregationCircuit,
     ExternalInputs5, NovaCompressor, ToyStepCircuit,

@@ -1,1 +1,19 @@
-{}
+{
+  "active_plan": "/home/dev/pvthfhe/.sisyphus/plans/production-readiness.md",
+  "started_at": "2026-05-28T00:27:30.942Z",
+  "session_ids": [
+    "ses_1e864f9f1ffecXRmG0OjbjoCa3",
+    "ses_1940488c4ffeeYbyibdMSosf5U",
+    "ses_194046c03ffeB0xqJzF5QfqN5Z",
+    "ses_194044f30ffeDoJRhnKF1xdytY"
+  ],
+  "session_origins": {
+    "ses_1e864f9f1ffecXRmG0OjbjoCa3": "direct",
+    "ses_1940488c4ffeeYbyibdMSosf5U": "appended",
+    "ses_194046c03ffeB0xqJzF5QfqN5Z": "appended",
+    "ses_194044f30ffeDoJRhnKF1xdytY": "appended"
+  },
+  "plan_name": "production-readiness",
+  "agent": "atlas",
+  "task_sessions": {}
+}

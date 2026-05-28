@@ -1,5 +1,11 @@
 //! CycloFoldStepCircuit — Nova (arecibo) StepCircuit migration.
 //!
+//! KNOWN_LIMITATION(cyclofold-aruty-8): CycloFoldStepCircuit (arity=8) with
+//! sigma/ring/BFV gadgets has a Nova RecursiveSNARK setup issue at arity > 3.
+//! The demo-e2e uses DkgAggregationStepCircuit (arity=3) as the aggregated
+//! compressor surrogate. Full CycloFold support is tracked at:
+//!   .sisyphus/plans/production-readiness.md#B7
+//!
 //! Bellpepper/arecibo-compatible circuit that replaces thread-local witness data
 //! with struct fields set by the caller before each `prove_step` call.
 //!

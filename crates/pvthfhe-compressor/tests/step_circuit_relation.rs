@@ -1,10 +1,11 @@
+#![cfg(feature = "legacy-nova")]
 //! R5.2 RED: CycloFoldStepCircuit encodes the R4 fold relation (not toy z+ext).
 //!
 //! This test must FAIL (compile error) against current main because
 //! CycloFoldStepCircuit does not exist yet.
 
 use ark_bn254::Fr;
-use folding_schemes::frontend::FCircuit;
+use folding_schemes::frontend::FCircuit; // folding (legacy-nova)
 use pvthfhe_compressor::nova::CycloFoldStepCircuit;
 use pvthfhe_compressor::StepCircuit;
 

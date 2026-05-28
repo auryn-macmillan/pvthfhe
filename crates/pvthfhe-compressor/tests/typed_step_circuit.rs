@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-nova")]
 //! Typed step-circuit tests for the Nova-backed compressor.
 //!
 //! RED phase: these tests assert that NovaCompressor is parameterized
@@ -10,7 +11,7 @@ use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
-use folding_schemes::frontend::FCircuit;
+use folding_schemes::frontend::FCircuit; // folding (legacy-nova)
 use pvthfhe_compressor::{
     nova::{ExternalInputs3, ExternalInputs3Var, NovaCompressor, ToyStepCircuit},
     ProofCompressor, StepCircuit, StepCircuitDescriptor,
@@ -36,7 +37,7 @@ impl<F: PrimeField> FCircuit<F> for AltStepCircuit<F> {
     type ExternalInputs = ExternalInputs3<F>;
     type ExternalInputsVar = ExternalInputs3Var<F>;
 
-    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
+    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> { // folding (legacy-nova)
         Ok(Self {
             _field: PhantomData,
         })

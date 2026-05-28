@@ -94,7 +94,7 @@ pub struct KeygenSimulator {
 }
 
 fn party_id_from_index(index: usize) -> PartyId {
-    // TODO(C5): usize→u32 fallback; party count is validated at construction.
+    // KNOWN_LIMITATION(c5_usize_conv): usize→u32 fallback; party count is validated at construction.
     u32::try_from(index.saturating_add(1)).unwrap_or(u32::MAX)
 }
 

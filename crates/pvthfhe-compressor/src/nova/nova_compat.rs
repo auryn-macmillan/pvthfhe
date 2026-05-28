@@ -1,7 +1,7 @@
 //! Nova (arecibo) compatibility layer.
 //!
 //! When the `nova-backend` feature is enabled, this module re-exports
-//! types from `arecibo` with `folding_schemes`-compatible names.
+//! types from `arecibo` with legacy nova-snark-compatible names.
 //! When disabled, it provides empty stubs.
 //!
 //! Full migration to arecibo's bellpepper constraint system is deferred

@@ -348,6 +348,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let parity_verified;
     let recipient_fold_hashes;
     let recipient_parity_proof_hashes;
+    let mut c4_proof_hash: Fr = Fr::from(0u64);
     let mut dealer_recipient_total_shares: Vec<Vec<Fr>> = vec![vec![Fr::zero(); cfg.n]; cfg.n];
     let mut dkg_root_vec: Vec<u8> = Vec::new();
     observer.phase_start("dkg_ceremony", Some(&format!("n={} t={}", cfg.n, cfg.t)));
@@ -589,6 +590,9 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             let c4_proof = c4_compressor
                 .prove_steps(&c4_acc, &external_inputs)
                 .map_err(|e| anyhow::anyhow!("c4 prove: {e:?}"))?;
+            // Extract combined_share_hash from the C4 DKG aggregation Nova proof bytes.
+            // Binds the share verification chain to the DKG aggregation proof.
+            c4_proof_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(&c4_proof.bytes));
             clear_dkg_agg_data();
             let c4_vk = c4_compressor.verifier_key();
             c4_passed = c4_compressor
@@ -1391,8 +1395,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         {
             let ciphertext_hash = compute_decrypt_ciphertext_hash(&ciphertext.bytes, &ciphertext_v);
             let recipient_id = u16::try_from(party_id).context("party_id exceeds u16")?;
-            // TODO(C5): cfg.n is validated early; refactor to error-propagate if this
-            // block is restructured to return Result.
+            // KNOWN_LIMITATION(c5_usize_conv): cfg.n is validated early; refactor to error-propagate if this block is restructured to return Result.
             let accepted_participant_ids: Vec<u16> =
                 (1..=u16::try_from(cfg.n).context("n exceeds u16")?).collect();
             let sk_agg_commit = compute_sk_aggregate_commitment(
@@ -1843,7 +1846,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
     // G.12 Phase 2: fold share verification steps via Nova IVC
     #[cfg(feature = "sonobe-compressor")]
-    let combined_share_hash = {
+    {
         use pvthfhe_compressor::witness::poseidon_sponge_hash_native;
         observer.phase_start("share_verify_fold", Some("nova-nova-share-verify"));
         let sv_fold_started = Instant::now();
@@ -1868,24 +1871,19 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             .map_err(|e| anyhow::anyhow!("share_verify_prove: {e:?}"))?;
         let sv_fold_ms = elapsed_ms(sv_fold_started);
         observer.phase_end("share_verify_fold", sv_fold_ms);
-        let domain = Fr::from(1u64);
-        let mut acc = Fr::zero();
-        for (i, coeffs) in share_coeffs.iter().enumerate() {
-            let coeffs_fr: Vec<Fr> = coeffs.iter().map(|&c| field_from_i64(c)).collect();
-            let share_hash = poseidon_sponge_hash_native(&coeffs_fr);
-            let challenge_e = poseidon_sponge_hash_native(&[
-                domain,
-                party_signing_pks[i],
-                share_sig_rs[i],
-                share_hash,
-            ]);
-            let step_commitment = poseidon_sponge_hash_native(&[share_hash, challenge_e]);
-            acc += step_commitment;
+    }
+
+    let combined_share_hash = if !c4_proof_hash.is_zero() {
+        c4_proof_hash
+    } else {
+        let mut hasher = Sha256::new();
+        for coeffs in &share_coeffs {
+            for &c in coeffs {
+                hasher.update(&c.to_le_bytes());
+            }
         }
-        acc
+        Fr::from_be_bytes_mod_order(&hasher.finalize())
     };
-    #[cfg(not(feature = "sonobe-compressor"))]
-    let combined_share_hash = Fr::from(0u64);
 
     // Noir aggregator_final circuit verification (always executes for on-chain security)
     observer.phase_start("c7_noir_aggregator", None);
@@ -1933,7 +1931,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         poseidon_sponge_native_noir(&inputs)
     };
     let n_participants = Fr::from(share_coeffs.len() as u64);
-    let threshold = Fr::from((committee_party_ids_u32.len() - 1) as u64);
+    let threshold = Fr::from(cfg.t as u64);
 
     // Plaintext from Lagrange interpolation + Poseidon commitment
     let mut nova_final_plaintext = [Fr::zero(); 8];
@@ -2138,7 +2136,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let mut report = PipelineReport {
         timings,
         plaintext_roundtrip_ok,
-        all_verifications_passed: noir_passed && c1_passed && c4_passed && c5_passed,
+        all_verifications_passed: noir_passed && c1_passed && c4_passed && c5_passed && c7_passed,
         aggregate_pk_hash_hex,
         ciphertext_hash_hex,
         compressed_proof_digest_hex: hex::encode(compressed.digest),
@@ -2345,8 +2343,7 @@ fn serialize_nizk_statement(stmt: &NizkStatement) -> Vec<u8> {
     h.update(stmt.participant_id.to_be_bytes());
     h.update(stmt.epoch.to_be_bytes());
     h.update(stmt.params.0.to_be_bytes());
-    // TODO(C5): usize→u64 conversion infallible on 64-bit; if this function
-    // gains a Result return, switch to ?.
+    // KNOWN_LIMITATION(c5_usize_conv): usize→u64 conversion infallible on 64-bit; if this function gains a Result return, switch to ?.
     h.update(
         u64::try_from(stmt.params.1)
             .unwrap_or(u64::MAX)

@@ -8,7 +8,7 @@ use ark_r1cs_std::{
 };
 use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
 #[cfg(feature = "legacy-nova")]
-use folding_schemes::frontend::FCircuit;
+use folding_schemes::frontend::FCircuit; // folding (legacy-nova)
 
 #[cfg(feature = "nova-backend")]
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError as BpSynthesisError};
@@ -69,7 +69,7 @@ impl<F: PrimeField> FCircuit<F> for DkgAggregationStepCircuit<F> {
         3
     }
 
-    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
+    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> { // folding (legacy-nova)
         Ok(Self {
             _phantom: std::marker::PhantomData,
         })

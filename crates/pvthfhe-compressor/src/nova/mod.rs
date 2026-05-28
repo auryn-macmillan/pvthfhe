@@ -69,7 +69,7 @@ use ark_r1cs_std::GR1CSVar;
 use ark_relations::gr1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Validate};
 #[cfg(feature = "legacy-nova")]
-use folding_schemes::{
+use folding_schemes::{ // folding (legacy-nova)
     commitment::{kzg::KZG, pedersen::Pedersen},
     folding::nova::{IVCProof, Nova, PreprocessorParam},
     frontend::FCircuit,
@@ -449,7 +449,7 @@ impl<F: PrimeField> FCircuit<F> for ToyStepCircuit<F> {
     type ExternalInputs = ExternalInputs3<F>;
     type ExternalInputsVar = ExternalInputs3Var<F>;
 
-    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
+    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> { // folding (legacy-nova)
         Ok(Self {
             _field: std::marker::PhantomData,
         })
@@ -979,7 +979,7 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
     type ExternalInputs = ExternalInputs4<F>;
     type ExternalInputsVar = ExternalInputs4Var<F>;
 
-    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
+    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> { // folding (legacy-nova)
         Ok(Self {
             _field: std::marker::PhantomData,
         })

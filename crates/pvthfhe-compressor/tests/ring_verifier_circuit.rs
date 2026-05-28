@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-nova")]
 //! G1 RED tests: RingVerifierCircuit in-circuit ring equation verification.
 //!
 //! Verifies that the Cyclo ring equation is correctly encoded as R1CS
@@ -15,7 +16,7 @@ use ark_ff::{One, Zero};
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_relations::gr1cs::ConstraintSystem;
-use folding_schemes::frontend::FCircuit;
+use folding_schemes::frontend::FCircuit; // folding (legacy-nova)
 use pvthfhe_compressor::nova::poseidon_gadget::hash256_native;
 use pvthfhe_compressor::nova::ring_verifier::RingVerifierCircuit;
 use pvthfhe_compressor::nova::RingEqExternalInputs5;

@@ -82,6 +82,12 @@ demo-seeded-rng = []
 # Enable extra pipeline verification checks (E.1 share-computation + E.2 DKG-aggregation).
 # Requires with-fhe (default). Opt-in; existing demo behavior unchanged without this flag.
 pipeline-extra-checks = []
+# Symphony feature flags (pass-through to pvthfhe-compressor)
+symphony-t1 = ["pvthfhe-compressor/symphony-t1"]
+symphony-t2 = ["pvthfhe-compressor/symphony-t2"]
+symphony-t3 = ["pvthfhe-compressor/symphony-t3"]
+symphony-t4 = ["pvthfhe-compressor/symphony-t4", "pvthfhe-compressor/symphony-t3"]
+symphony-all = ["symphony-t1", "symphony-t2", "symphony-t3", "symphony-t4"]
 
 [dev-dependencies]
 assert_cmd = "2"

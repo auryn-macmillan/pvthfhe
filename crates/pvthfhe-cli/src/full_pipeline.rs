@@ -326,6 +326,11 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         let c1_acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
         let c1_steps: Vec<ExternalInputs3<Fr>> =
             vec![ExternalInputs3(Fr::from(1u64), Fr::zero(), Fr::from(cfg.n as u64)); cfg.n];
+        #[cfg(feature = "symphony-t1")]
+        let c1_proof = c1_compressor
+            .prove_steps_high_arity(&c1_acc, &c1_steps)
+            .map_err(|e| anyhow::anyhow!("c1 prove: {e:?}"))?;
+        #[cfg(not(feature = "symphony-t1"))]
         let c1_proof = c1_compressor
             .prove_steps(&c1_acc, &c1_steps)
             .map_err(|e| anyhow::anyhow!("c1 prove: {e:?}"))?;
@@ -583,6 +588,11 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             let external_inputs: Vec<ExternalInputs3<Fr>> = (0..n)
                 .map(|_| ExternalInputs3(Fr::from(1u64), Fr::zero(), Fr::from(n as u64)))
                 .collect();
+            #[cfg(feature = "symphony-t1")]
+            let c4_proof = c4_compressor
+                .prove_steps_high_arity(&c4_acc, &external_inputs)
+                .map_err(|e| anyhow::anyhow!("c4 prove: {e:?}"))?;
+            #[cfg(not(feature = "symphony-t1"))]
             let c4_proof = c4_compressor
                 .prove_steps(&c4_acc, &external_inputs)
                 .map_err(|e| anyhow::anyhow!("c4 prove: {e:?}"))?;
@@ -1007,6 +1017,11 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         let c5_acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
         let c5_steps: Vec<ExternalInputs3<Fr>> =
             vec![ExternalInputs3(Fr::from(1u64), Fr::zero(), Fr::from(cfg.n as u64)); cfg.n];
+        #[cfg(feature = "symphony-t1")]
+        let c5_proof = c5_compressor
+            .prove_steps_high_arity(&c5_acc, &c5_steps)
+            .map_err(|e| anyhow::anyhow!("c5 prove: {e:?}"))?;
+        #[cfg(not(feature = "symphony-t1"))]
         let c5_proof = c5_compressor
             .prove_steps(&c5_acc, &c5_steps)
             .map_err(|e| anyhow::anyhow!("c5 prove: {e:?}"))?;

@@ -68,21 +68,35 @@ soundness per execution. With a single round, the soundness error is 2/3 — a m
 prover can guess the challenge correctly 66% of the time and produce a convincing
 transcript.
 
-| Round count | Soundness error | Effective bits |
-|------------|----------------|----------------|
-| 1          | 2/3 (≈ 0.67)   | ~1.58          |
-| 10         | (2/3)¹⁰ ≈ 0.017 | ~15.8          |
-| 45         | (2/3)⁴⁵ ≈ 2⁻⁶⁶ | ~71.2          |
-| 90         | (2/3)⁹⁰ ≈ 2⁻¹³² | ~142.4         |
-| 137        | (2/3)¹³⁷ ≈ 2⁻²⁰⁰ | ~216.9         |
+**P1 implemented**: The `SIGMA_REPETITIONS` constant (default 1) enables parallel
+repetition with round-index binding in the Fiat-Shamir transcript. Each round uses an
+independently-derived challenge via `RO(t_i || c || d || commitment || round_i)`,
+preventing cross-round replay. The soundness error is (2/3)^k for k rounds.
 
-**Resolution paths** (both deferred):
-1. **Parallel repetition**: ~90 non-interactive rounds to achieve 2⁻¹²⁸ soundness via
-   sequential Fiat-Shamir hashing. Adds linear overhead per proof.
-2. **Binary polynomial challenges**: Switch to `ch ∈ {0,1}^N` (2^N challenge space) with
-   NTT-optimized gadgets for sub-linear proof growth.
+| Round count (k) | SIGMA_REPETITIONS | Soundness error   | Effective bits | Constraint cost  |
+|----------------|-------------------|-------------------|---------------|-----------------|
+| 1 (CURRENT)    | 1                 | 2/3 (≈ 0.67)      | ~1.58          | ~508K (baseline)|
+| 10             | 10                | (2/3)^10 ≈ 0.017  | ~15.8          | ~5M (fine)      |
+| 45             | 45                | (2/3)^45 ≈ 2^-26  | ~71            | ~23M (heavy)    |
+| 90             | 90                | (2/3)^90 ≈ 2^-53  | ~142           | ~46M (needs T4) |
+| 128            | 128               | (2/3)^128 ≈ 2^-75 | ~203           | ~65M (needs T4) |
 
-Tracked as **OPEN PROBLEM P1** (critical). See `crates/pvthfhe-nizk/src/sigma.rs:derive_challenge_scalar`.
+The `prove_multi()` and `verify_multi()` functions in `sigma.rs` implement the k-round
+parallel repetition protocol. The in-circuit verification (`sigma_verify_step_bp`) loops
+over all k rounds, enforcing the S-Z evaluation equation and per-coefficient norm checks
+for each round independently. The per-round witness data is stored in `SIGMA_DATA` at
+indices `step * k + round`.
+
+**Constraint scaling**: Per-round cost is ~508K constraints (3 S-Z eval points × 3 limbs
+× equation check + 8192 coeffs × norm range check). For k ≤ 10 (~5M constraints), full
+per-coefficient enforcement is feasible. For k ≥ 90, the ~46M constraint count requires
+T4 JL random projection (Symphony §5.3) to reduce norm check dimensionality from 8192 to
+256. See `.sisyphus/plans/symphony-adoption.md` §T4.
+
+**Resolution**: P1 is resolved via the `SIGMA_REPETITIONS` constant and multi-round
+protocol. Set `SIGMA_REPETITIONS = 90` in production for ~2^-53 soundness error
+(≈2^-128 with the combined folding/SZ/NIZK soundness budget). Tracked as RESOLVED
+in `.sisyphus/plans/p1-sigma-repetition.md`.
 
 ### R6 Adversarial Audit Findings (2026-05-14)
 

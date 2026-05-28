@@ -13,180 +13,216 @@ pub fn sigma_verify_step_bp<CS: ConstraintSystem<NovaScalar>>(
 ) -> Result<AllocatedNum<NovaScalar>, SynthesisError> {
     use super::SIGMA_DATA;
 
-    let has_data = SIGMA_DATA.with(|cell| {
-        let data = cell.inner().borrow();
-        data.get(step)
-            .or_else(|| step.checked_sub(1).and_then(|zb| data.get(zb)))
-            .is_some()
+    let num_rounds = super::SIGMA_REPETITIONS;
+    if num_rounds == 0 {
+        return AllocatedNum::alloc(cs.namespace(|| "sigma_zero"), || Ok(NovaScalar::from(0u64)));
+    }
+
+    // Check if any round has data for this step
+    let has_data = (0..num_rounds).any(|r| {
+        let data_idx = step * num_rounds + r;
+        SIGMA_DATA.with(|cell| {
+            let data = cell.inner().borrow();
+            data.get(data_idx)
+                .or_else(|| step.checked_sub(1).and_then(|zb| data.get(zb)))
+                .is_some()
+        })
     });
 
     if !has_data {
         return AllocatedNum::alloc(cs.namespace(|| "sigma_zero"), || Ok(NovaScalar::from(0u64)));
     }
 
-    let witness_opt = SIGMA_DATA.with(|cell| {
-        let data = cell.inner().borrow();
-        data.get(step)
-            .or_else(|| step.checked_sub(1).and_then(|zb| data.get(zb)))
-            .cloned()
-    });
+    for round in 0..num_rounds {
+        let data_idx = step * num_rounds + round;
+        let witness_opt = SIGMA_DATA.with(|cell| {
+            let data = cell.inner().borrow();
+            data.get(data_idx)
+                .or_else(|| {
+                    step.checked_sub(1)
+                        .and_then(|zb| data.get(zb * num_rounds + round))
+                })
+                .cloned()
+        });
 
-    let w = match witness_opt {
-        Some(w) => w,
-        None => {
-            return AllocatedNum::alloc(cs.namespace(|| "sigma_zero"), || {
-                Ok(NovaScalar::from(0u64))
-            });
-        }
-    };
-
-    let commitment_binding = super::sigma_transcript_commitment_scalar(&w);
-    AllocatedNum::alloc(cs.namespace(|| "sigma_t2_commitment_binding"), || {
-        Ok(commitment_binding)
-    })?;
-
-    let f_ch: NovaScalar = ark_to_nova_scalar(w.ch);
-    let ch_var = AllocatedNum::alloc(cs.namespace(|| "sigma_ch"), || Ok(f_ch))?;
-
-    for eval_idx in 0..3 {
-        for limb in 0..3 {
-            let idx = eval_idx * 3 + limb;
-
-            if idx >= w.sz_c_eval.len()
-                || idx >= w.sz_zs_eval.len()
-                || idx >= w.sz_ze_eval.len()
-                || idx >= w.sz_t_eval.len()
-                || idx >= w.sz_di_eval.len()
-                || idx >= w.sz_r1_eval.len()
-            {
-                let one = AllocatedNum::alloc(cs.namespace(|| "sigma_fail"), || {
-                    Ok(NovaScalar::from(1u64))
-                })?;
-                let zero = AllocatedNum::alloc(cs.namespace(|| "sigma_fail_zero"), || {
-                    Ok(NovaScalar::from(0u64))
-                })?;
+        let w = match witness_opt {
+            Some(w) => w,
+            None => {
+                let one = AllocatedNum::alloc(
+                    cs.namespace(|| format!("sigma_no_data_r{round}")),
+                    || Ok(NovaScalar::from(1u64)),
+                )?;
+                let zero = AllocatedNum::alloc(
+                    cs.namespace(|| format!("sigma_no_data_zero_r{round}")),
+                    || Ok(NovaScalar::from(0u64)),
+                )?;
                 cs.enforce(
-                    || "sigma bounds fail",
+                    || format!("sigma_no_data_fail_r{round}"),
                     |lc| lc + CS::one(),
                     |lc| lc + one.get_variable(),
                     |lc| lc + zero.get_variable(),
                 );
                 continue;
             }
+        };
 
-            let sz_c_eval = AllocatedNum::alloc(
-                cs.namespace(|| format!("sz_c_eval_{eval_idx}_{limb}")),
-                || Ok(NovaScalar::from(w.sz_c_eval[idx])),
-            )?;
-            let sz_zs_eval = AllocatedNum::alloc(
-                cs.namespace(|| format!("sz_zs_eval_{eval_idx}_{limb}")),
-                || Ok(NovaScalar::from(w.sz_zs_eval[idx])),
-            )?;
-            let sz_ze_eval = AllocatedNum::alloc(
-                cs.namespace(|| format!("sz_ze_eval_{eval_idx}_{limb}")),
-                || Ok(NovaScalar::from(w.sz_ze_eval[idx])),
-            )?;
-            let sz_t_eval = AllocatedNum::alloc(
-                cs.namespace(|| format!("sz_t_eval_{eval_idx}_{limb}")),
-                || Ok(NovaScalar::from(w.sz_t_eval[idx])),
-            )?;
-            let sz_di_eval = AllocatedNum::alloc(
-                cs.namespace(|| format!("sz_di_eval_{eval_idx}_{limb}")),
-                || Ok(NovaScalar::from(w.sz_di_eval[idx])),
-            )?;
-            let sz_r1_eval = AllocatedNum::alloc(
-                cs.namespace(|| format!("sz_r1_eval_{eval_idx}_{limb}")),
-                || Ok(NovaScalar::from(w.sz_r1_eval[idx])),
-            )?;
+        let commitment_binding = super::sigma_transcript_commitment_scalar(&w);
+        AllocatedNum::alloc(
+            cs.namespace(|| format!("sigma_t2_commitment_binding_r{round}")),
+            || Ok(commitment_binding),
+        )?;
 
-            let q_const = AllocatedNum::alloc(
-                cs.namespace(|| format!("q_const_{eval_idx}_{limb}")),
-                || Ok(NovaScalar::from(super::SIGMA_RNS_MODULI[limb])),
-            )?;
+        let f_ch: NovaScalar = ark_to_nova_scalar(w.ch);
+        let ch_var =
+            AllocatedNum::alloc(cs.namespace(|| format!("sigma_ch_r{round}")), || Ok(f_ch))?;
 
-            let c_mul_zs = sz_c_eval.mul(
-                cs.namespace(|| format!("c_mul_zs_{eval_idx}_{limb}")),
-                &sz_zs_eval,
-            )?;
-            let lhs = c_mul_zs.add(
-                cs.namespace(|| format!("sigma_lhs_{eval_idx}_{limb}")),
-                &sz_ze_eval,
-            )?;
+        for eval_idx in 0..3 {
+            for limb in 0..3 {
+                let idx = eval_idx * 3 + limb;
 
-            let ch_mul_di = ch_var.mul(
-                cs.namespace(|| format!("ch_mul_di_{eval_idx}_{limb}")),
-                &sz_di_eval,
-            )?;
-            let t_plus_chdi = sz_t_eval.add(
-                cs.namespace(|| format!("t_plus_chdi_{eval_idx}_{limb}")),
-                &ch_mul_di,
-            )?;
-            let q_mul_r1 = q_const.mul(
-                cs.namespace(|| format!("q_mul_r1_{eval_idx}_{limb}")),
-                &sz_r1_eval,
-            )?;
-            let rhs = t_plus_chdi.add(
-                cs.namespace(|| format!("sigma_rhs_{eval_idx}_{limb}")),
-                &q_mul_r1,
-            )?;
+                if idx >= w.sz_c_eval.len()
+                    || idx >= w.sz_zs_eval.len()
+                    || idx >= w.sz_ze_eval.len()
+                    || idx >= w.sz_t_eval.len()
+                    || idx >= w.sz_di_eval.len()
+                    || idx >= w.sz_r1_eval.len()
+                {
+                    let one = AllocatedNum::alloc(
+                        cs.namespace(|| format!("sigma_fail_r{round}_{eval_idx}_{limb}")),
+                        || Ok(NovaScalar::from(1u64)),
+                    )?;
+                    let zero = AllocatedNum::alloc(
+                        cs.namespace(|| format!("sigma_fail_zero_r{round}_{eval_idx}_{limb}")),
+                        || Ok(NovaScalar::from(0u64)),
+                    )?;
+                    cs.enforce(
+                        || format!("sigma_bounds_fail_r{round}_{eval_idx}_{limb}"),
+                        |lc| lc + CS::one(),
+                        |lc| lc + one.get_variable(),
+                        |lc| lc + zero.get_variable(),
+                    );
+                    continue;
+                }
 
-            cs.enforce(
-                || format!("sigma_eq_{eval_idx}_{limb}"),
-                |lc| lc + CS::one(),
-                |lc| lc + lhs.get_variable(),
-                |lc| lc + rhs.get_variable(),
-            );
+                let sz_c_eval = AllocatedNum::alloc(
+                    cs.namespace(|| format!("sz_c_eval_r{round}_{eval_idx}_{limb}")),
+                    || Ok(NovaScalar::from(w.sz_c_eval[idx])),
+                )?;
+                let sz_zs_eval = AllocatedNum::alloc(
+                    cs.namespace(|| format!("sz_zs_eval_r{round}_{eval_idx}_{limb}")),
+                    || Ok(NovaScalar::from(w.sz_zs_eval[idx])),
+                )?;
+                let sz_ze_eval = AllocatedNum::alloc(
+                    cs.namespace(|| format!("sz_ze_eval_r{round}_{eval_idx}_{limb}")),
+                    || Ok(NovaScalar::from(w.sz_ze_eval[idx])),
+                )?;
+                let sz_t_eval = AllocatedNum::alloc(
+                    cs.namespace(|| format!("sz_t_eval_r{round}_{eval_idx}_{limb}")),
+                    || Ok(NovaScalar::from(w.sz_t_eval[idx])),
+                )?;
+                let sz_di_eval = AllocatedNum::alloc(
+                    cs.namespace(|| format!("sz_di_eval_r{round}_{eval_idx}_{limb}")),
+                    || Ok(NovaScalar::from(w.sz_di_eval[idx])),
+                )?;
+                let sz_r1_eval = AllocatedNum::alloc(
+                    cs.namespace(|| format!("sz_r1_eval_r{round}_{eval_idx}_{limb}")),
+                    || Ok(NovaScalar::from(w.sz_r1_eval[idx])),
+                )?;
 
-            norm_range_check_bp(
-                cs,
-                &sz_r1_eval,
-                w.sz_r1_eval[idx],
-                1u64,
-                &format!("sz_r1_range_{eval_idx}_{limb}"),
-            )?;
+                let q_const = AllocatedNum::alloc(
+                    cs.namespace(|| format!("q_const_r{round}_{eval_idx}_{limb}")),
+                    || Ok(NovaScalar::from(super::SIGMA_RNS_MODULI[limb])),
+                )?;
+
+                let c_mul_zs = sz_c_eval.mul(
+                    cs.namespace(|| format!("c_mul_zs_r{round}_{eval_idx}_{limb}")),
+                    &sz_zs_eval,
+                )?;
+                let lhs = c_mul_zs.add(
+                    cs.namespace(|| format!("sigma_lhs_r{round}_{eval_idx}_{limb}")),
+                    &sz_ze_eval,
+                )?;
+
+                let ch_mul_di = ch_var.mul(
+                    cs.namespace(|| format!("ch_mul_di_r{round}_{eval_idx}_{limb}")),
+                    &sz_di_eval,
+                )?;
+                let t_plus_chdi = sz_t_eval.add(
+                    cs.namespace(|| format!("t_plus_chdi_r{round}_{eval_idx}_{limb}")),
+                    &ch_mul_di,
+                )?;
+                let q_mul_r1 = q_const.mul(
+                    cs.namespace(|| format!("q_mul_r1_r{round}_{eval_idx}_{limb}")),
+                    &sz_r1_eval,
+                )?;
+                let rhs = t_plus_chdi.add(
+                    cs.namespace(|| format!("sigma_rhs_r{round}_{eval_idx}_{limb}")),
+                    &q_mul_r1,
+                )?;
+
+                cs.enforce(
+                    || format!("sigma_eq_r{round}_{eval_idx}_{limb}"),
+                    |lc| lc + CS::one(),
+                    |lc| lc + lhs.get_variable(),
+                    |lc| lc + rhs.get_variable(),
+                );
+
+                norm_range_check_bp(
+                    cs,
+                    &sz_r1_eval,
+                    w.sz_r1_eval[idx],
+                    1u64,
+                    &format!("sz_r1_range_r{round}_{eval_idx}_{limb}"),
+                )?;
+            }
         }
-    }
 
-    let n = super::SIGMA_VERIFY_COEFFS;
-    let n_power = n.min(w.z_s_power.len()).min(w.z_e_power.len());
-    if n_power > 0 {
-        const B_Z_S: u64 = 131_072;
-        const B_Z_E: u64 = 131_072;
+        let n = super::SIGMA_VERIFY_COEFFS;
+        let n_power = n.min(w.z_s_power.len()).min(w.z_e_power.len());
+        if n_power > 0 {
+            const B_Z_S: u64 = 131_072;
+            const B_Z_E: u64 = 131_072;
 
-        for k in 0..n_power {
-            let zs_val = w.z_s_power[k].unsigned_abs();
-            let ze_val = w.z_e_power[k].unsigned_abs();
+            for k in 0..n_power {
+                let zs_val = w.z_s_power[k].unsigned_abs();
+                let ze_val = w.z_e_power[k].unsigned_abs();
 
-            if zs_val > B_Z_S || ze_val > B_Z_E {
-                let one = AllocatedNum::alloc(cs.namespace(|| format!("norm_fail_z_{k}")), || {
-                    Ok(NovaScalar::from(1u64))
-                })?;
-                let zero =
-                    AllocatedNum::alloc(cs.namespace(|| format!("norm_fail_zero_{k}")), || {
-                        Ok(NovaScalar::from(0u64))
+                if zs_val > B_Z_S || ze_val > B_Z_E {
+                    let one = AllocatedNum::alloc(
+                        cs.namespace(|| format!("norm_fail_z_r{round}_{k}")),
+                        || Ok(NovaScalar::from(1u64)),
+                    )?;
+                    let zero = AllocatedNum::alloc(
+                        cs.namespace(|| format!("norm_fail_zero_r{round}_{k}")),
+                        || Ok(NovaScalar::from(0u64)),
+                    )?;
+                    cs.enforce(
+                        || format!("norm_bound_fail_r{round}_{k}"),
+                        |lc| lc + CS::one(),
+                        |lc| lc + one.get_variable(),
+                        |lc| lc + zero.get_variable(),
+                    );
+                    continue;
+                }
+
+                let zs_var =
+                    AllocatedNum::alloc(cs.namespace(|| format!("zs_power_r{round}_{k}")), || {
+                        Ok(NovaScalar::from(zs_val))
                     })?;
-                cs.enforce(
-                    || format!("norm_bound_fail_{k}"),
-                    |lc| lc + CS::one(),
-                    |lc| lc + one.get_variable(),
-                    |lc| lc + zero.get_variable(),
-                );
-                continue;
+                let ze_var =
+                    AllocatedNum::alloc(cs.namespace(|| format!("ze_power_r{round}_{k}")), || {
+                        Ok(NovaScalar::from(ze_val))
+                    })?;
+
+                norm_range_check_bp(cs, &zs_var, zs_val, B_Z_S, &format!("zs_norm_r{round}_{k}"))?;
+                norm_range_check_bp(cs, &ze_var, ze_val, B_Z_E, &format!("ze_norm_r{round}_{k}"))?;
             }
-
-            let zs_var = AllocatedNum::alloc(cs.namespace(|| format!("zs_power_{k}")), || {
-                Ok(NovaScalar::from(zs_val))
-            })?;
-            let ze_var = AllocatedNum::alloc(cs.namespace(|| format!("ze_power_{k}")), || {
-                Ok(NovaScalar::from(ze_val))
-            })?;
-
-            norm_range_check_bp(cs, &zs_var, zs_val, B_Z_S, &format!("zs_norm_{k}"))?;
-            norm_range_check_bp(cs, &ze_var, ze_val, B_Z_E, &format!("ze_norm_{k}"))?;
         }
     }
 
-    AllocatedNum::alloc(cs.namespace(|| "sigma_ok"), || Ok(NovaScalar::from(1u64)))
+    AllocatedNum::alloc(cs.namespace(|| "sigma_ok"), || {
+        Ok(NovaScalar::from(num_rounds as u64))
+    })
 }
 
 #[cfg(feature = "symphony-t4")]

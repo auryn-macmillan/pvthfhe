@@ -649,6 +649,10 @@ pub struct SigmaWitness<F: PrimeField> {
 /// Number of coefficients per limb checked in-circuit for sigma verification.
 const SIGMA_VERIFY_COEFFS: usize = 8192;
 
+/// Number of parallel sigma protocol repetitions (must match pvthfhe-nizk).
+/// See `pvthfhe_nizk::sigma::SIGMA_REPETITIONS` for documentation.
+const SIGMA_REPETITIONS: usize = 1;
+
 const SIGMA_RNS_MODULI: [u64; 3] = [
     288_230_376_173_076_481,
     288_230_376_167_047_169,
@@ -812,203 +816,205 @@ pub(crate) fn sigma_verify_step<F: PrimeField>(
     cs: ConstraintSystemRef<F>,
     step: usize,
 ) -> Result<FpVar<F>, SynthesisError> {
-    let has_data = SIGMA_DATA.with(|cell| {
-        let data = cell.inner().borrow();
-        let witness_opt = data
-            .get(step)
-            .or_else(|| step.checked_sub(1).and_then(|zb| data.get(zb)));
-        witness_opt.is_some()
+    let num_rounds = SIGMA_REPETITIONS;
+    if num_rounds == 0 {
+        return Ok(FpVar::<F>::zero());
+    }
+
+    let has_data = (0..num_rounds).any(|round| {
+        let data_idx = step * num_rounds + round;
+        SIGMA_DATA.with(|cell| {
+            let data = cell.inner().borrow();
+            data.get(data_idx)
+                .or_else(|| {
+                    step.checked_sub(1)
+                        .and_then(|zb| data.get(zb * num_rounds + round))
+                })
+                .is_some()
+        })
     });
 
     if !has_data {
         return Ok(FpVar::<F>::zero());
     }
 
-    // Allocate witness variables from sigma data and enforce equation
-    SIGMA_DATA.with(|cell| {
-        let data = cell.inner().borrow();
-        let witness_opt = data
-            .get(step)
-            .or_else(|| step.checked_sub(1).and_then(|zb| data.get(zb)));
-        let w = match witness_opt {
-            Some(w) => w,
-            None => return Ok(()),
-        };
-        let n = SIGMA_VERIFY_COEFFS;
-        let f_ch: F = fr_to_f(&w.ch);
+    for round in 0..num_rounds {
+        let data_idx = step * num_rounds + round;
+        // Allocate witness variables from sigma data and enforce equation
+        SIGMA_DATA.with(|cell| {
+            let data = cell.inner().borrow();
+            let witness_opt = data.get(data_idx).or_else(|| {
+                step.checked_sub(1)
+                    .and_then(|zb| data.get(zb * num_rounds + round))
+            });
+            let w = match witness_opt {
+                Some(w) => w,
+                None => return Ok(()),
+            };
+            let n = SIGMA_VERIFY_COEFFS;
+            let f_ch: F = fr_to_f(&w.ch);
 
-        for limb in 0..3 {
-            // Bounds check: ensure data arrays have sufficient length
-            if limb >= w.z_s_ntt.len()
-                || limb >= w.z_e_ntt.len()
-                || limb >= w.t_ntt.len()
-                || limb >= w.d_i_ntt.len()
-                || limb >= w.c_ntt.len()
-            {
-                let one = FpVar::<F>::one();
-                let zero = FpVar::<F>::zero();
-                one.enforce_equal(&zero)?;
-                continue;
-            }
+            for limb in 0..3 {
+                if limb >= w.z_s_ntt.len()
+                    || limb >= w.z_e_ntt.len()
+                    || limb >= w.t_ntt.len()
+                    || limb >= w.d_i_ntt.len()
+                    || limb >= w.c_ntt.len()
+                {
+                    let one = FpVar::<F>::one();
+                    let zero = FpVar::<F>::zero();
+                    one.enforce_equal(&zero)?;
+                    continue;
+                }
 
-            if w.z_s_ntt[limb].len() < n
-                || w.z_e_ntt[limb].len() < n
-                || w.t_ntt[limb].len() < n
-                || w.d_i_ntt[limb].len() < n
-                || w.c_ntt[limb].len() < n
-            {
-                FpVar::<F>::one().enforce_equal(&FpVar::<F>::zero())?;
-                continue;
-            }
+                if w.z_s_ntt[limb].len() < n
+                    || w.z_e_ntt[limb].len() < n
+                    || w.t_ntt[limb].len() < n
+                    || w.d_i_ntt[limb].len() < n
+                    || w.c_ntt[limb].len() < n
+                {
+                    FpVar::<F>::one().enforce_equal(&FpVar::<F>::zero())?;
+                    continue;
+                }
 
-            let ch_var = FpVar::new_witness(cs.clone(), || Ok(f_ch))?;
-            let q_const = FpVar::constant(F::from(SIGMA_RNS_MODULI[limb]));
+                let ch_var = FpVar::new_witness(cs.clone(), || Ok(f_ch))?;
+                let q_const = FpVar::constant(F::from(SIGMA_RNS_MODULI[limb]));
 
-            // SOUNDNESS: 3 independent S-Z evaluation points per limb.
-            // Composite false-pass probability ≤ (N/|F|)^3 ≤ (8192/2^58)^3 ≈ 2^-135.
-            // Target is 2^-128, achieved with 3 points.
-            for eval_idx in 0..3 {
-                let idx = eval_idx * 3 + limb; // 3*L layout: eval-major, then limb
-                let sz_c_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_c_eval[idx])))?;
-                let sz_zs_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_zs_eval[idx])))?;
-                let sz_ze_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_ze_eval[idx])))?;
-                let sz_t_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_t_eval[idx])))?;
-                let sz_di_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_di_eval[idx])))?;
-                let sz_r1_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_r1_eval[idx])))?;
+                for eval_idx in 0..3 {
+                    let idx = eval_idx * 3 + limb;
+                    let sz_c_eval =
+                        FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_c_eval[idx])))?;
+                    let sz_zs_eval =
+                        FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_zs_eval[idx])))?;
+                    let sz_ze_eval =
+                        FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_ze_eval[idx])))?;
+                    let sz_t_eval =
+                        FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_t_eval[idx])))?;
+                    let sz_di_eval =
+                        FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_di_eval[idx])))?;
+                    let sz_r1_eval =
+                        FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_r1_eval[idx])))?;
 
-                let sz_lhs = &sz_c_eval * &sz_zs_eval + &sz_ze_eval;
-                let sz_rhs = &sz_t_eval + &ch_var * &sz_di_eval + &q_const * &sz_r1_eval;
-                sz_lhs.enforce_equal(&sz_rhs)?;
+                    let sz_lhs = &sz_c_eval * &sz_zs_eval + &sz_ze_eval;
+                    let sz_rhs = &sz_t_eval + &ch_var * &sz_di_eval + &q_const * &sz_r1_eval;
+                    sz_lhs.enforce_equal(&sz_rhs)?;
 
-                // Quotient witness range check: r1(g) = (c(g)*z_s(g) + z_e(g) - t(g) - ch*d_i(g)) / Q
-                // Since all terms are norm-bounded (B_Z_S = 131072) and Q approx 2^58,
-                // the quotient is bounded to 0 or 1. Range-checking prevents adversarial
-                // quotient inflation that would break S-Z soundness.
-                norm_range_check(
-                    &sz_r1_eval,
-                    w.sz_r1_eval[idx],
-                    &FpVar::constant(F::one()),
-                    1u64,
-                )?;
-            }
-
-            // NOTE: Cyclotomic quotient r2(γ) is currently zeroed. The RNS CRT
-            // isomorphism (per-modulus correctness ≡ ring correctness) makes the
-            // full cyclo constraint redundant. When r2 is populated, the full
-            // equation becomes:
-            //   c(γ)·z_s(γ) + z_e(γ) = t(γ) + ch·d_i(γ) + Q·r1(γ) + cyclo(γ)·r2(γ)
-            // where cyclo(γ) = γ^N + 1 mod q. See SigmaWitness::sz_r2_eval.
-
-            // G7b: Norm enforcement on power-basis coefficients
-            if limb == 0 {
-                let n_power = n.min(w.z_s_power.len()).min(w.z_e_power.len());
-                let z_s_power_vars: Vec<FpVar<F>> = w.z_s_power[..n_power]
-                    .iter()
-                    .map(|&v| {
-                        let val = F::from(v.unsigned_abs());
-                        FpVar::new_witness(cs.clone(), || Ok(val))
-                    })
-                    .collect::<Result<_, _>>()?;
-                let z_e_power_vars: Vec<FpVar<F>> = w.z_e_power[..n_power]
-                    .iter()
-                    .map(|&v| {
-                        let val = F::from(v.unsigned_abs());
-                        FpVar::new_witness(cs.clone(), || Ok(val))
-                    })
-                    .collect::<Result<_, _>>()?;
-
-                // P1-tight: B_Z_S/E synced with sigma.rs rejection sampling
-                const B_Z_S: u64 = 131_072;
-                const B_Z_E: u64 = 131_072;
-                let b_zs = F::from(B_Z_S);
-                let b_ze = F::from(B_Z_E);
-                let bound_zs = FpVar::constant(b_zs);
-                let bound_ze = FpVar::constant(b_ze);
-
-                for k in 0..n_power {
-                    if w.z_s_power[k].unsigned_abs() > B_Z_S {
-                        FpVar::<F>::one().enforce_equal(&FpVar::<F>::zero())?;
-                    }
-                    if w.z_e_power[k].unsigned_abs() > B_Z_E {
-                        FpVar::<F>::one().enforce_equal(&FpVar::<F>::zero())?;
-                    }
                     norm_range_check(
-                        &z_s_power_vars[k],
-                        w.z_s_power[k].unsigned_abs(),
-                        &bound_zs,
-                        B_Z_S,
-                    )?;
-                    norm_range_check(
-                        &z_e_power_vars[k],
-                        w.z_e_power[k].unsigned_abs(),
-                        &bound_ze,
-                        B_Z_E,
+                        &sz_r1_eval,
+                        w.sz_r1_eval[idx],
+                        &FpVar::constant(F::one()),
+                        1u64,
                     )?;
                 }
 
-                // G7b-laBRADOR: JL projection constraint.
-                let (p_s_vec, p_e_vec, jl_entries) = SIGMA_RESPONSE_DATA.with(|cell| {
-                    let data = cell.inner().borrow();
-                    if let Some((_, _, ref p_s, ref p_e, ref entries)) = data.get(step) {
-                        (p_s.clone(), p_e.clone(), entries.clone())
-                    } else {
-                        (vec![], vec![], vec![])
+                if limb == 0 {
+                    let n_power = n.min(w.z_s_power.len()).min(w.z_e_power.len());
+                    let z_s_power_vars: Vec<FpVar<F>> = w.z_s_power[..n_power]
+                        .iter()
+                        .map(|&v| {
+                            let val = F::from(v.unsigned_abs());
+                            FpVar::new_witness(cs.clone(), || Ok(val))
+                        })
+                        .collect::<Result<_, _>>()?;
+                    let z_e_power_vars: Vec<FpVar<F>> = w.z_e_power[..n_power]
+                        .iter()
+                        .map(|&v| {
+                            let val = F::from(v.unsigned_abs());
+                            FpVar::new_witness(cs.clone(), || Ok(val))
+                        })
+                        .collect::<Result<_, _>>()?;
+
+                    const B_Z_S: u64 = 131_072;
+                    const B_Z_E: u64 = 131_072;
+                    let b_zs = F::from(B_Z_S);
+                    let b_ze = F::from(B_Z_E);
+                    let bound_zs = FpVar::constant(b_zs);
+                    let bound_ze = FpVar::constant(b_ze);
+
+                    for k in 0..n_power {
+                        if w.z_s_power[k].unsigned_abs() > B_Z_S {
+                            FpVar::<F>::one().enforce_equal(&FpVar::<F>::zero())?;
+                        }
+                        if w.z_e_power[k].unsigned_abs() > B_Z_E {
+                            FpVar::<F>::one().enforce_equal(&FpVar::<F>::zero())?;
+                        }
+                        norm_range_check(
+                            &z_s_power_vars[k],
+                            w.z_s_power[k].unsigned_abs(),
+                            &bound_zs,
+                            B_Z_S,
+                        )?;
+                        norm_range_check(
+                            &z_e_power_vars[k],
+                            w.z_e_power[k].unsigned_abs(),
+                            &bound_ze,
+                            B_Z_E,
+                        )?;
                     }
-                });
 
-                if !p_s_vec.is_empty() && !p_e_vec.is_empty() && !jl_entries.is_empty() {
-                    let z_s_signed: Vec<FpVar<F>> = w.z_s_power[..n_power]
-                        .iter()
-                        .map(|&v| {
-                            let f = if v < 0 {
-                                -F::from((-v) as u64)
-                            } else {
-                                F::from(v as u64)
-                            };
-                            FpVar::new_witness(cs.clone(), || Ok(f))
-                        })
-                        .collect::<Result<_, _>>()?;
-                    let z_e_signed: Vec<FpVar<F>> = w.z_e_power[..n_power]
-                        .iter()
-                        .map(|&v| {
-                            let f = if v < 0 {
-                                -F::from((-v) as u64)
-                            } else {
-                                F::from(v as u64)
-                            };
-                            FpVar::new_witness(cs.clone(), || Ok(f))
-                        })
-                        .collect::<Result<_, _>>()?;
+                    let (p_s_vec, p_e_vec, jl_entries) = SIGMA_RESPONSE_DATA.with(|cell| {
+                        let data = cell.inner().borrow();
+                        if let Some((_, _, ref p_s, ref p_e, ref entries)) = data.get(data_idx) {
+                            (p_s.clone(), p_e.clone(), entries.clone())
+                        } else {
+                            (vec![], vec![], vec![])
+                        }
+                    });
 
-                    let bound = jl_entries.len().min(p_s_vec.len()).min(p_e_vec.len());
-                    for k in 0..bound {
-                        let mut raw_sum_s = FpVar::<F>::zero();
-                        let mut raw_sum_e = FpVar::<F>::zero();
-                        for &(j, sign) in &jl_entries[k] {
-                            if j < n_power {
-                                if sign {
-                                    raw_sum_s += z_s_signed[j].clone();
-                                    raw_sum_e += z_e_signed[j].clone();
+                    if !p_s_vec.is_empty() && !p_e_vec.is_empty() && !jl_entries.is_empty() {
+                        let z_s_signed: Vec<FpVar<F>> = w.z_s_power[..n_power]
+                            .iter()
+                            .map(|&v| {
+                                let f = if v < 0 {
+                                    -F::from((-v) as u64)
                                 } else {
-                                    raw_sum_s -= z_s_signed[j].clone();
-                                    raw_sum_e -= z_e_signed[j].clone();
+                                    F::from(v as u64)
+                                };
+                                FpVar::new_witness(cs.clone(), || Ok(f))
+                            })
+                            .collect::<Result<_, _>>()?;
+                        let z_e_signed: Vec<FpVar<F>> = w.z_e_power[..n_power]
+                            .iter()
+                            .map(|&v| {
+                                let f = if v < 0 {
+                                    -F::from((-v) as u64)
+                                } else {
+                                    F::from(v as u64)
+                                };
+                                FpVar::new_witness(cs.clone(), || Ok(f))
+                            })
+                            .collect::<Result<_, _>>()?;
+
+                        let bound = jl_entries.len().min(p_s_vec.len()).min(p_e_vec.len());
+                        for k in 0..bound {
+                            let mut raw_sum_s = FpVar::<F>::zero();
+                            let mut raw_sum_e = FpVar::<F>::zero();
+                            for &(j, sign) in &jl_entries[k] {
+                                if j < n_power {
+                                    if sign {
+                                        raw_sum_s += z_s_signed[j].clone();
+                                        raw_sum_e += z_e_signed[j].clone();
+                                    } else {
+                                        raw_sum_s -= z_s_signed[j].clone();
+                                        raw_sum_e -= z_e_signed[j].clone();
+                                    }
                                 }
                             }
-                        }
 
-                        let expected_s = signed_i128_to_f::<F>(p_s_vec[k] as i128);
-                        let expected_e = signed_i128_to_f::<F>(p_e_vec[k] as i128);
-                        let expected_s_var = FpVar::new_witness(cs.clone(), || Ok(expected_s))?;
-                        let expected_e_var = FpVar::new_witness(cs.clone(), || Ok(expected_e))?;
-                        raw_sum_s.enforce_equal(&expected_s_var)?;
-                        raw_sum_e.enforce_equal(&expected_e_var)?;
+                            let expected_s = signed_i128_to_f::<F>(p_s_vec[k] as i128);
+                            let expected_e = signed_i128_to_f::<F>(p_e_vec[k] as i128);
+                            let expected_s_var = FpVar::new_witness(cs.clone(), || Ok(expected_s))?;
+                            let expected_e_var = FpVar::new_witness(cs.clone(), || Ok(expected_e))?;
+                            raw_sum_s.enforce_equal(&expected_s_var)?;
+                            raw_sum_e.enforce_equal(&expected_e_var)?;
+                        }
                     }
                 }
             }
-        }
 
-        Ok(())
-    })?;
+            Ok(())
+        })?;
+    }
 
     Ok(FpVar::<F>::one())
 }
@@ -2709,10 +2715,10 @@ fn verify_ivc_core<S: FCircuit<Fr, Params = ()>>(
     }
 
     if let Some((fold_count, sigma_count)) = sigma_check {
-        // Only enforce sigma_count == fold_count when sigma data was actually
-        // populated. If sigma_count is 0, assume the pipeline path doesn't
-        // include sigma verification (Track A / data-absent paths).
-        if sigma_count != Fr::zero() && fold_count != sigma_count {
+        // With SIGMA_REPETITIONS rounds per fold step, sigma_count accumulates
+        // k per step instead of 1. Check fold_count * k == sigma_count.
+        let expected_sigma_count = fold_count * Fr::from(SIGMA_REPETITIONS as u64);
+        if sigma_count != Fr::zero() && expected_sigma_count != sigma_count {
             tracing::warn!(
                 "fold_count {:?} != sigma_verification_count {:?}",
                 fold_count,

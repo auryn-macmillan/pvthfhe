@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-nova")]
 //! Peak RSS gate for isolated Nova proving.
 
 use std::{

@@ -42,7 +42,8 @@ impl<F: PrimeField> FCircuit<F> for AjtaiCommitmentStepCircuit<F> {
     fn state_len(&self) -> usize {
         2
     }
-    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> { // folding (legacy-nova)
+    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
+        // folding (legacy-nova)
         Ok(Self {
             _phantom: std::marker::PhantomData,
         })
@@ -87,7 +88,7 @@ impl<F: PrimeField> StepCircuit for AjtaiCommitmentStepCircuit<F> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "legacy-nova"))]
 mod tests {
     use super::*;
     use ark_ff::{One, Zero};

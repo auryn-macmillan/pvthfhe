@@ -1,9 +1,0 @@
-    Blocking waiting for file lock on package cache
-    Blocking waiting for file lock on package cache
-    Blocking waiting for file lock on package cache
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.05s
-     Running `target/debug/folding_bench --verify-only`
-verified fold_count=16 accumulator_bytes=280 final_snark_bytes=320
-verified fold_count=64 accumulator_bytes=280 final_snark_bytes=384
-verified fold_count=256 accumulator_bytes=280 final_snark_bytes=448
-verified fold_count=1024 accumulator_bytes=280 final_snark_bytes=512

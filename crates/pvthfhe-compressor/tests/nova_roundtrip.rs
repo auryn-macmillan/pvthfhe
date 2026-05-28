@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-nova")]
 //! Roundtrip tests for the Nova-backed compressor.
 
 use ark_bn254::Fr;

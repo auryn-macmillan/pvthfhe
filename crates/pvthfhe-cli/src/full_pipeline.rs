@@ -338,11 +338,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         tracing::info!("c1: PK contribution IVC verified ({} parties)", cfg.n);
     }
 
-    // ── DKG Ceremony (dealer → recipient share distribution, d=n) ──
-    // Each party is both dealer and recipient.
-    // Dealer splits their secret key via Shamir, encrypts shares for each recipient.
-    // Recipient verifies each share, aggregates to reconstruct their final key.
-    // Verifies aggregate matches aggregate public key via dkg_aggregation.
+    // DKG Ceremony: each party dealer+recipient, Shamir split, encrypted shares.
     let dkg_verified;
     let dkg_share_count;
     let parity_verified;
@@ -1084,12 +1080,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
             let s = RingElement { coeffs: s_coeffs };
             let e = RingElement { coeffs: e_coeffs };
-            // APPROXIMATION (L3): z_s ≈ s, z_e ≈ e. The true masked values are
-            // z_s = y_s + c·s and z_e = y_e + c·e. The random masks y_s, y_e are
-            // generated inside RealNizkAdapter::prove() and not exposed.
-            // Since ‖z_s‖_∞ ≤ ‖y_s‖_∞ + ‖s‖_∞ and B_z has slack, this approximation
-            // is conservative (real z_s has MORE noise than s).
-            // Full fix requires RealNizkAdapter to expose masked values alongside proof.
+            // APPROXIMATION (L3): z_s≈s, z_e≈e (conservative; masks not exposed by RealNizkAdapter).
             let zs = RingElement {
                 coeffs: s.coeffs.clone(),
             };
@@ -1151,11 +1142,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     }
     observer.phase_end("cyclo_fold_verify", elapsed_ms(cyclo_verify_started));
 
-    // D.2 — Track B: native ring-equation verification before compressor setup/prove()
-    // M6 hash-and-verify: ring equation verified natively (c·z_s + z_e - t - c·d ≡ 0).
-    // The R1CS path in CycloFoldStepCircuit stays hash-accumulate.
-    // Track B closes the surrogate gap by verifying the ring equation off-circuit
-    // with real witness data, while the circuit folds hashed state.
+    // D.2 Track B: native ring-equation verification (hash-and-verify) before compressor.
     #[cfg(all(feature = "pipeline-extra-checks", feature = "sonobe-compressor"))]
     {
         clear_cyclo_ring_data();
@@ -1309,10 +1296,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             });
         }
 
-        // G2-ng: populate thread-local ring data before compressor preprocessing
-        // and proving. The ternary branch fixes the R1CS linear-combination
-        // shape, so Nova parameters must be generated with the same per-step
-        // ring witness metadata that proving will use.
+        // G2-ng: populate thread-local ring/sigma data before compressor preprocessing.
         set_cyclo_ring_data(ring_witnesses);
         set_sigma_data(sigma_witnesses);
 
@@ -1323,21 +1307,9 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             challenge
         );
     }
-    // The native ring check above gates pipeline acceptance.
-    // If it fails, the anyhow::bail! above returns an error and the pipeline stops.
-    // This closes the p2-m6 gap where the compressor verifier enforces
-    // verification_count == fold_count (mod.rs:462-478) but the pipeline
-    // never independently checked it post-prove. The compressor's internal
-    // ring equation check provides defense-in-depth when ext.2 is properly
-    // populated from CCS instance construction.
-    // See final-wiring-demo-pernode.md W1.
+    // The native ring check above gates pipeline acceptance (closes p2-m6 gap).
 
-    // G7: Post-hoc NIZK verification binding.
-    // The compressor hashes NIZK proof bytes into the CCS binding.
-    // Re-verify NIZK proofs natively after compressor verify to close
-    // the forgery gap where a malicious prover provides garbage NIZK proof bytes.
-    // This verification is UNCONDITIONAL — it runs in the compressor verify
-    // path and cannot be skipped.
+    // G7: Post-hoc NIZK verification binding — re-verify NIZK proofs natively after compressor verify.
     {
         let g7_started = Instant::now();
         for (party_id, stmt, _witness, proof) in &nizk_outputs {
@@ -1492,9 +1464,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
     observer.phase_start("aggregate_decrypt", None);
     let aggregate_decrypt_started = Instant::now();
-    // G3: Always obtain plaintext polynomial bytes for the post-Nova Schwartz-Zippel check.
-    // aggregate_decrypt_with_poly returns both the decoded plaintext and the raw
-    // polynomial coefficients — the latter enables verifying Σ λ_i·d_i(r) == plaintext(r).
+    // G3: obtain plaintext polynomial bytes for post-Nova Schwartz-Zippel check.
     let (aggregate_plaintext, _plaintext_poly_bytes) = backend
         .aggregate_decrypt_with_poly(
             &ciphertext,
@@ -1515,8 +1485,6 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     }
 
     // M2: verify decrypt share participants are a valid subset of DKG participants.
-    // This ensures only parties who contributed key shares during DKG can participate
-    // in threshold decryption, linking decryption to the DKG ceremony.
     {
         use std::collections::HashSet;
         let dkg_parties: HashSet<u32> = transcript.participant_set.iter().copied().collect();
@@ -1554,9 +1522,6 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     }
 
     // G.12: Generate Schnorr signing keypairs and sign each share.
-    // Each party signs a SHA-256 hash of their share coefficients, binding
-    // the decrypt share to the party's identity. Keypairs and signatures are
-    // stored in PipelineReport for downstream Noir circuit verification.
     let mut rng = rand::thread_rng();
     let mut party_signing_pks: Vec<Fr> = Vec::with_capacity(share_coeffs.len());
     let mut party_signing_pkys: Vec<Fr> = Vec::with_capacity(share_coeffs.len());
@@ -1630,17 +1595,13 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         }
     };
 
-    // G3: CRT-reconstruct share coefficients for correct polynomial evaluation.
-    // The raw i64 values are RNS residues (24576 values = 8192 coeffs × 3 moduli).
-    // CRT reconstruction recovers the actual integer coefficients for Horner eval.
+    // G3: CRT-reconstruct share coefficients from RNS residues for polynomial evaluation.
     let share_coeffs_fr: Vec<Vec<Fr>> = share_coeffs
         .iter()
         .map(|residues| backend.poly_coeffs_fr_reconstruct(residues))
         .collect();
 
-    // G.5: Compute ciphertext commitment for cross-circuit binding.
-    // Convert ciphertext bytes to Fr field elements (max 8 for Poseidon rate-4 sponge)
-    // and compute a Poseidon hash commitment.
+    // G.5: Compute ciphertext commitment (Poseidon) for cross-circuit binding.
     let d_commitment = {
         let ct_bytes_fr: Vec<Fr> = ciphertext
             .bytes
@@ -1690,8 +1651,6 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     }
 
     // G.16: compute hash(C7_final_state) for cross-circuit binding.
-    // The C7 final state is (z0, z1) where z0 = Σ λ_i·d_i(r) and z1 = Σ λ_i.
-    // We evaluate shares at the challenge point r and hash the accumulated state.
     let c7_final_hash = {
         use ark_bn254::Fr;
         use ark_ff::Zero;

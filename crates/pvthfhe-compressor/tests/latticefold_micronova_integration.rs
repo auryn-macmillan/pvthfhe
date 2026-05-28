@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-nova")]
 //! P2-M5 LatticeFold+ to MicroNova integration tests.
 
 use ark_bn254::Fr;

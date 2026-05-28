@@ -296,7 +296,8 @@ pub struct C7MerkleStepCircuit<F: PrimeField> {
 
 impl<F: PrimeField> C7MerkleStepCircuit<F> {
     #[cfg(feature = "legacy-nova")]
-    pub fn new_with_depth(depth: usize, arity: usize) -> Result<Self, folding_schemes::Error> { // folding (legacy-nova)
+    pub fn new_with_depth(depth: usize, arity: usize) -> Result<Self, folding_schemes::Error> {
+        // folding (legacy-nova)
         Ok(Self {
             _field: std::marker::PhantomData,
             merkle_depth: depth,
@@ -315,7 +316,8 @@ impl<F: PrimeField> FCircuit<F> for C7MerkleStepCircuit<F> {
     type ExternalInputs = C7MerkleExternalInputs<F>;
     type ExternalInputsVar = C7MerkleExternalInputsVar<F>;
 
-    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> { // folding (legacy-nova)
+    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
+        // folding (legacy-nova)
         Self::new_with_depth(5, 8)
     }
 
@@ -371,7 +373,7 @@ impl<F: PrimeField> StepCircuit for C7MerkleStepCircuit<F> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "legacy-nova"))]
 mod tests {
     use super::*;
     use crate::merkle::{build_merkle_tree, prove_merkle_path, verify_merkle_proof};

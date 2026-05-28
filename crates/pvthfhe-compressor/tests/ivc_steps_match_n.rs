@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-nova")]
 //! R5.2 RED: IVC_STEPS is a runtime parameter, not a constant 4.
 //!
 //! This test must FAIL (compile error) against current main because

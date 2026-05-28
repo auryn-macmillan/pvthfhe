@@ -1,4 +1,0 @@
-PASS: KeygenMsg3 has valid fixed or length-prefixed wire format documentation
-PASS: KeygenMsg1 has valid fixed or length-prefixed wire format documentation
-PASS: KeygenMsg2 has valid fixed or length-prefixed wire format documentation
-PASS: All message types have correct wire format documentation.

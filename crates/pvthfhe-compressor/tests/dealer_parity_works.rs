@@ -1,3 +1,5 @@
+#![cfg(feature = "legacy-nova")]
+
 use ark_bn254::Fr;
 use ark_ff::{AdditiveGroup, Field, PrimeField, UniformRand, Zero};
 use pvthfhe_compressor::nova::{

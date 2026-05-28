@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-nova")]
 //! R5.3 RED: SRS is bound to on-chain epoch, not a seed: u64.
 //!
 //! This test must FAIL (compile error) against current main because

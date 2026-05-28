@@ -1,8 +1,0 @@
-log-log fit for per_fold_ms vs fold_count
-- folding-16.json: N=16 per_fold_ms=0.165794 predicted=0.166308
-- folding-64.json: N=64 per_fold_ms=0.167291 predicted=0.164971
-- folding-256.json: N=256 per_fold_ms=0.160620 predicted=0.163645
-- folding-1024.json: N=1024 per_fold_ms=0.163597 predicted=0.162329
-slope=-0.005823
-intercept=-1.777769
-sublinear=true

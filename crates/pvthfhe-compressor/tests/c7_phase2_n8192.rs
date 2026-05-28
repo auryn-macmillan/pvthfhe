@@ -1,3 +1,5 @@
+#![cfg(feature = "legacy-nova")]
+
 use ark_bn254::Fr;
 use ark_ff::Field;
 use pvthfhe_compressor::merkle::{build_merkle_tree, prove_merkle_path, verify_merkle_proof};

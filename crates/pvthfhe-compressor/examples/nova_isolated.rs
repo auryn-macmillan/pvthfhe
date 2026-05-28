@@ -1,15 +1,19 @@
-//! Isolated Nova compressor reproducer for memory profiling.
-//! Run: cargo run --release --example nova_isolated -p pvthfhe-compressor
-//! Captures RSS at each stage and prints to stdout.
+//! Isolated Nova compressor reproducer for memory profiling (requires legacy-nova feature).
 
 use std::fs;
 
+#[cfg(feature = "legacy-nova")]
 use ark_bn254::Fr;
+#[cfg(feature = "legacy-nova")]
 use pvthfhe_compressor::nova::{encode_triple, NovaCompressor, ToyStepCircuit};
+#[cfg(feature = "legacy-nova")]
 use pvthfhe_compressor::ProofCompressor;
+#[cfg(feature = "legacy-nova")]
 use sha2::{Digest, Sha256};
+#[cfg(feature = "legacy-nova")]
 use tracing_subscriber::EnvFilter;
 
+#[cfg(feature = "legacy-nova")]
 fn rss_kb() -> u64 {
     fs::read_to_string("/proc/self/statm")
         .ok()
@@ -18,6 +22,7 @@ fn rss_kb() -> u64 {
         .unwrap_or(0)
 }
 
+#[cfg(feature = "legacy-nova")]
 fn main() {
     let env_filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("pvthfhe_compressor=info"));

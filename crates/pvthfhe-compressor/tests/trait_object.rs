@@ -1,3 +1,5 @@
+#![cfg(feature = "legacy-nova")]
+
 use pvthfhe_compressor::{CompressedProof, CompressorError, ProofCompressor, VerifierKey};
 
 struct NoopCompressor {

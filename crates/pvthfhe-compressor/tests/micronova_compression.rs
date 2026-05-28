@@ -1,3 +1,5 @@
+#![cfg(feature = "legacy-nova")]
+
 use pvthfhe_compressor::micronova::tree::CompressionTree;
 
 #[test]

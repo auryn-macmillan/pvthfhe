@@ -15,160 +15,85 @@ help: Check that the patched package version and available features are compatib
 warning: pvthfhe-fhe@0.1.0: MOCK BACKEND ACTIVE — XOR/SHA256 ONLY. Set PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK=1 to use.
 warning: pvthfhe-aggregator@0.1.0: aggregator: folding uses CycloFoldStepCircuit with real Ajtai commitments (CycloNizkAdapter)
    Compiling pvthfhe-compressor v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-compressor)
-error[E0425]: cannot find type `NovaScalar` in this scope
-  --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:20:53
-   |
-20 | pub fn monomial_range_check_bp<CS: ConstraintSystem<NovaScalar>>(
-   |                                                     ^^^^^^^^^^ not found in this scope
-   |
-help: consider importing this type alias
-   |
- 1 + use crate::nova::NovaScalar;
-   |
-
-error[E0425]: cannot find type `NovaScalar` in this scope
-  --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:22:30
-   |
-22 |     value_var: &AllocatedNum<NovaScalar>,
-   |                              ^^^^^^^^^^ not found in this scope
-   |
-help: consider importing this type alias
-   |
- 1 + use crate::nova::NovaScalar;
-   |
-
-error[E0433]: cannot find type `NovaScalar` in this scope
-  --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:29:16
-   |
-29 |             Ok(NovaScalar::from(1u64))
-   |                ^^^^^^^^^^ use of undeclared type `NovaScalar`
-   |
-help: consider importing this type alias
-   |
- 1 + use crate::nova::NovaScalar;
-   |
-
-error[E0433]: cannot find type `NovaScalar` in this scope
-  --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:33:20
-   |
-33 |                 Ok(NovaScalar::from(0u64))
-   |                    ^^^^^^^^^^ use of undeclared type `NovaScalar`
-   |
-help: consider importing this type alias
-   |
- 1 + use crate::nova::NovaScalar;
-   |
-
-error[E0425]: cannot find type `NovaScalar` in this scope
-  --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:46:32
-   |
-46 |     let bits: Vec<AllocatedNum<NovaScalar>> = (0..num_bits)
-   |                                ^^^^^^^^^^ not found in this scope
-   |
-help: consider importing this type alias
-   |
- 1 + use crate::nova::NovaScalar;
-   |
-
-error[E0433]: cannot find type `NovaScalar` in this scope
-  --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:48:27
-   |
-48 |             let bit_val = NovaScalar::from(((value >> idx) & 1) as u64);
-   |                           ^^^^^^^^^^ use of undeclared type `NovaScalar`
-   |
-help: consider importing this type alias
-   |
- 1 + use crate::nova::NovaScalar;
-   |
-
-error[E0433]: cannot find type `NovaScalar` in this scope
-  --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:56:23
-   |
-56 |         let bit_val = NovaScalar::from(((value >> idx) & 1) as u64);
-   |                       ^^^^^^^^^^ use of undeclared type `NovaScalar`
-   |
-help: consider importing this type alias
-   |
- 1 + use crate::nova::NovaScalar;
-   |
-
-error[E0433]: cannot find type `NovaScalar` in this scope
-  --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:58:47
-   |
-58 |         let bit_minus_one_val = if bit_val == NovaScalar::ONE {
-   |                                               ^^^^^^^^^^ use of undeclared type `NovaScalar`
-   |
-help: consider importing this type alias
-   |
- 1 + use crate::nova::NovaScalar;
-   |
-
-error[E0433]: cannot find type `NovaScalar` in this scope
-  --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:59:13
-   |
-59 |             NovaScalar::ZERO
-   |             ^^^^^^^^^^ use of undeclared type `NovaScalar`
-   |
-help: consider importing this type alias
-   |
- 1 + use crate::nova::NovaScalar;
-   |
-
-error[E0433]: cannot find type `NovaScalar` in this scope
-  --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:61:14
-   |
-61 |             -NovaScalar::ONE
-   |              ^^^^^^^^^^ use of undeclared type `NovaScalar`
-   |
-help: consider importing this type alias
-   |
- 1 + use crate::nova::NovaScalar;
-   |
-
-error[E0433]: cannot find type `NovaScalar` in this scope
-  --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:81:16
-   |
-81 |             Ok(NovaScalar::ZERO)
-   |                ^^^^^^^^^^ use of undeclared type `NovaScalar`
-   |
-help: consider importing this type alias
-   |
- 1 + use crate::nova::NovaScalar;
-   |
-
-error[E0433]: cannot find type `NovaScalar` in this scope
-  --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:92:12
-   |
-92 |         Ok(NovaScalar::ZERO)
-   |            ^^^^^^^^^^ use of undeclared type `NovaScalar`
-   |
-help: consider importing this type alias
-   |
- 1 + use crate::nova::NovaScalar;
-   |
-
-error[E0433]: cannot find type `NovaScalar` in this scope
-  --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:94:20
-   |
-94 |     let mut pow2 = NovaScalar::ONE;
-   |                    ^^^^^^^^^^ use of undeclared type `NovaScalar`
-   |
-help: consider importing this type alias
-   |
- 1 + use crate::nova::NovaScalar;
-   |
-
-error[E0433]: cannot find type `NovaScalar` in this scope
-   --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:117:28
-    |
-117 |                         Ok(NovaScalar::ZERO)
-    |                            ^^^^^^^^^^ use of undeclared type `NovaScalar`
-    |
-help: consider importing this type alias
-    |
-  1 + use crate::nova::NovaScalar;
-    |
-
-Some errors have detailed explanations: E0425, E0433.
-For more information about an error, try `rustc --explain E0425`.
-error: could not compile `pvthfhe-compressor` (lib) due to 14 previous errors
+   Compiling pvthfhe-bench v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-bench)
+   Compiling pvthfhe-cli v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-cli)
+    Finished `release` profile [optimized] target(s) in 26.14s
+     Running `target/release/pvthfhe-cli demo --n 10 --threshold 4 --seed 1`
+demo: n=10 threshold=4 seed=1
+pvss_backend_id=lattice-pvss-bfv-d2
+backend_id == "cyclo-ajtai-d2-conditional"
+backend_id_p2: cyclo-rlwe-t10-lemma9-heuristic
+backend_id_p3: nova-bn254-grumpkin
+note: on-chain Solidity verify is NOT run by demo (use bench-comparison)
+pvss_backend_id=lattice-pvss-bfv-d2
+[2m2026-05-28T21:45:54.061382Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m seed flag ignored in production path; will require --insecure-seed in future R3.6
+step 1/14: keygen (n=10 t=4 seed=1)
+keygen: complete (3145.542 ms)
+step 2/14: dkg_deal (n=10 dealers)
+dkg_deal: complete (80514.658 ms)
+step 3/14: dkg_aggregate (n=10 recipients)
+dkg_aggregate: complete (0.112 ms)
+step 4/14: dkg_fold (n=10 recipients)
+step 5/14: nizk_prove (dealer=1)
+step 6/14: nizk_verify (dealer=1 recipient=1)
+step 7/14: pvss_share_encrypt (lattice-pvss-bfv-d2)
+pvss_share_encrypt: complete (530.051 ms)
+setup_threshold: complete (272.565 ms)
+step 8/14: cyclo_fold (cyclo-rlwe-t10-lemma9-heuristic)
+cyclo_fold: complete (16.594 ms)
+step 9/14: partial_decrypt (party_id=1)
+partial_decrypt: complete (2.716 ms)
+partial_decrypt: complete (2.687 ms)
+partial_decrypt: complete (2.628 ms)
+partial_decrypt: complete (2.715 ms)
+step 10/14: aggregate_decrypt
+aggregate_decrypt: complete (24.002 ms)
+step 11/14: c7_decrypt_aggregation
+c7_decrypt_aggregation: complete (1925.404 ms)
+step 12/14: compressor_prove (nova-bn254-grumpkin)
+compressor_prove: complete (26.311 ms)
+step 13/14: compressor_verify (nova-bn254-grumpkin)
+compressor_verify: complete (18.549 ms)
+step 14/14: c7_noir_aggregator
+[2m2026-05-28T21:47:44.483356Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m PVTHFHE_NARGO_PATH not set; resolving nargo from PATH (PATH injection risk)
+[aggregator_final] Circuit witness successfully solved
+[aggregator_final] Witness saved to target/aggregator_final.gz
+[aggregator_final] Circuit output: [0x03fe11121a8c2f08, 0x0961af653976c7f5, 0x0802f4fc99377638, 0x180039f4d0c47663, 0x08009a2e764b029d, 0x30644e72e131a029b85045b68181585d2833e84879b970913fe159b33dcbd672, 0x0400dd759d7414c3, 0x30644e72e131a029b85045b68181585d2833e84879b970913be14daa49f4a3e0]
+[2m2026-05-28T21:47:44.843745Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m PVTHFHE_BB_PATH not set; resolving bb from PATH (PATH injection risk)
+Scheme is: ultra_honk, num threads: 8 (mem: 322.89 MiB)
+CircuitProve: Proving key computed in 43 ms (mem: 322.89 MiB)
+VK saved to "target/vk" (mem: 322.89 MiB)
+VK Hash saved to "target/vk_hash" (mem: 322.89 MiB)
+[2m2026-05-28T21:47:44.970777Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m PVTHFHE_BB_PATH not set; resolving bb from PATH (PATH injection risk)
+Scheme is: ultra_honk, num threads: 8 (mem: 322.89 MiB)
+CircuitProve: Proving key computed in 12 ms (mem: 322.89 MiB)
+Public inputs saved to "target/public_inputs" (mem: 322.89 MiB)
+Proof saved to "target/proof" (mem: 322.89 MiB)
+[2m2026-05-28T21:47:45.114474Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m PVTHFHE_BB_PATH not set; resolving bb from PATH (PATH injection risk)
+Scheme is: ultra_honk, num threads: 8 (mem: 322.89 MiB)
+Proof verified successfully (mem: 322.89 MiB)
+c7_noir_aggregator: complete (654.705 ms)
+plaintext_roundtrip: OK
+aggregate_pk_hash: 4f909b5d1cd153cebca8024ed33abed3fa3599d95b6a48917859119b373a5a8a
+ciphertext_hash: 92c6c91309bae7521604cef05226a1029b22a70e6a71eefb91d96e99a74bf5cd
+compressed_proof_digest: 5f08cd10aae58c7d0ef6b67264f75a0451690a867d2520a781bdca071c339600
+keygen_ms=3145.54196
+aggregate_keygen_ms=5.6858059999999995
+dkg_deal_ms=80514.65774400001
+dkg_aggregate_ms=0.112056
+encrypt_ms=3.466074
+share_encryption_proof_ms=274
+partial_decrypt_ms=10.746509999999999
+aggregate_decrypt_ms=24.001915
+decrypt_ms=34.748425
+threshold=4
+n=10
+per_node_keygen_ms=314.6
+per_node_dkg_deal_ms=8051.5
+per_node_partial_decrypt_ms=2.7
+aggregator_total_ms=91.1
+distributed_estimate_ms=8142.6
+recipient_fold_hashes=[21266655171593599588417040976767884616173872614745248232880481339490046796022, 6776844571069931574978523343828192158029234743236366734974999997542002239111, 3078280436924751609063761279501147648968466308262201834725692964363013323257, 15407765170933303805526106865926818359380118496220732130181125740348453401820, 3627848592945605593595073688665903099027615812534772604688645104574185911507, 11722881932460234905410787354752577283483076788631557031817677195296642356930, 9474955274359569590405922406890292440383913285329494111558066407027926818702, 19771114694585295387782659385317311115433952122081560752447787218549385058344, 9764182337359491218912213555642622791986164761172495762208658014069410546906, 15359382740111831423049653017683072550172884050814556348567698074804794587751]
+recipient_parity_proof_hashes=[21266655171593599588417040976767884616173872614745248232880481339490046796022, 6776844571069931574978523343828192158029234743236366734974999997542002239111, 3078280436924751609063761279501147648968466308262201834725692964363013323257, 15407765170933303805526106865926818359380118496220732130181125740348453401820, 3627848592945605593595073688665903099027615812534772604688645104574185911507, 11722881932460234905410787354752577283483076788631557031817677195296642356930, 9474955274359569590405922406890292440383913285329494111558066407027926818702, 19771114694585295387782659385317311115433952122081560752447787218549385058344, 9764182337359491218912213555642622791986164761172495762208658014069410546906, 15359382740111831423049653017683072550172884050814556348567698074804794587751]
+verify: ACCEPT
+pvss_backend_id=lattice-pvss-bfv-d2

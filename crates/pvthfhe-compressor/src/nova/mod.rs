@@ -32,7 +32,7 @@ pub use ajtai_commitment_circuit::{
     clear_ajtai_witness_data, set_ajtai_witness_data, AjtaiCommitmentStepCircuit,
 };
 pub use bfv_encryption_circuit::{
-    clear_bfv_encryption_data, set_bfv_encryption_data, BFV_STEP_DATA_LEN,
+    clear_bfv_encryption_data, set_bfv_encryption_data, BfvEncryptionStepCircuit, BFV_STEP_DATA_LEN,
 };
 #[cfg(feature = "legacy-nova")]
 pub use c7_circuit::c7_fold_witnesses;

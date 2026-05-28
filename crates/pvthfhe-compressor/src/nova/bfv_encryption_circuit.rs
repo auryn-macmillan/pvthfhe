@@ -20,7 +20,11 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::GR1CSVar;
 use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
+use sha3::{Digest, Keccak256};
 use std::cell::RefCell;
+use std::marker::PhantomData;
+
+use crate::{StepCircuit, StepCircuitDescriptor};
 
 /// Number of CRT moduli (RNS limbs).
 pub const BFV_L: usize = 3;
@@ -65,6 +69,87 @@ pub fn set_bfv_encryption_data(data: Vec<Vec<ark_bn254::Fr>>) {
 
 pub fn clear_bfv_encryption_data() {
     BFV_ENCRYPTION_DATA.with(|cell| cell.borrow_mut().clear());
+}
+
+thread_local! {
+    /// Per-step counter for BfvEncryptionStepCircuit synthesize calls.
+    /// Reset to 0 when `set_bfv_encryption_data` is called; incremented by
+    /// each `synthesize` invocation to index into `BFV_ENCRYPTION_DATA`.
+    pub(crate) static BFV_STEP_COUNTER: RefCell<usize> = RefCell::new(0);
+}
+
+fn reset_bfv_step_counter() {
+    BFV_STEP_COUNTER.with(|cell| *cell.borrow_mut() = 0);
+}
+
+/// Standalone BFV encryption verification step circuit.
+///
+/// Verifies the BFV encryption relation in-circuit using Schwartz-Zippel
+/// batched verification across L=3 RNS moduli.
+///
+/// ## State (arity=1)
+///
+/// `z[0]` = `bfv_count` — accumulated count of passing BFV verification steps.
+/// Each step reads from `BFV_ENCRYPTION_DATA` and increments `bfv_count` by 1
+/// if the ciphertext satisfies the BFV encryption equation.
+#[derive(Clone, Debug, Default)]
+pub struct BfvEncryptionStepCircuit<F> {
+    _phantom: PhantomData<F>,
+}
+
+impl
+    nova_snark::traits::circuit::StepCircuit<
+        <nova_snark::provider::Bn256EngineKZG as nova_snark::traits::Engine>::Scalar,
+    >
+    for BfvEncryptionStepCircuit<
+        <nova_snark::provider::Bn256EngineKZG as nova_snark::traits::Engine>::Scalar,
+    >
+{
+    fn arity(&self) -> usize {
+        1
+    }
+
+    fn synthesize<
+        CS: nova_snark::frontend::ConstraintSystem<
+            <nova_snark::provider::Bn256EngineKZG as nova_snark::traits::Engine>::Scalar,
+        >,
+    >(
+        &self,
+        cs: &mut CS,
+        z: &[nova_snark::frontend::num::AllocatedNum<
+            <nova_snark::provider::Bn256EngineKZG as nova_snark::traits::Engine>::Scalar,
+        >],
+    ) -> Result<
+        Vec<
+            nova_snark::frontend::num::AllocatedNum<
+                <nova_snark::provider::Bn256EngineKZG as nova_snark::traits::Engine>::Scalar,
+            >,
+        >,
+        nova_snark::frontend::SynthesisError,
+    > {
+        let step = BFV_STEP_COUNTER.with(|cell| {
+            let mut c = cell.borrow_mut();
+            let s = *c;
+            *c = s + 1;
+            s
+        });
+
+        let bfv_ok = crate::nova::nova_gadgets::bfv_verify_step_bp(cs, step)?;
+
+        let new_count = z[0].add(cs.namespace(|| "bfv_count_inc"), &bfv_ok)?;
+
+        Ok(vec![new_count])
+    }
+}
+
+impl<F> StepCircuit for BfvEncryptionStepCircuit<F> {
+    fn descriptor(&self) -> StepCircuitDescriptor {
+        StepCircuitDescriptor { width: 1 }
+    }
+
+    fn circuit_hash(&self) -> [u8; 32] {
+        Keccak256::digest(b"pvthfhe/bfv-encryption/v1").into()
+    }
 }
 
 /// In-circuit BFV encryption verification step.

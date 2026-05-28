@@ -5,7 +5,7 @@ use nova_snark::frontend::{ConstraintSystem, SynthesisError};
 
 use ark_ff::BigInteger;
 use ark_ff::PrimeField as ArkPrimeField;
-use ff::Field;
+use bp_ff::Field;
 
 pub fn sigma_verify_step_bp<CS: ConstraintSystem<NovaScalar>>(
     cs: &mut CS,

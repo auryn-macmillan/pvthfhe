@@ -3,13 +3,16 @@
 > ⚠️ **RESEARCH PROTOTYPE — NOT PRODUCTION-READY**
 >
 > This repository contains a **research implementation** of private-verifiable threshold FHE.
-> Two security audits (2026-05-08: 70 findings; 2026-05-09: 188 findings) have been
-> completed and all automatable findings have been remediated. Three open cryptographic
-> problems remain (see §Open Problems). The end-to-end pipeline is **not** a formally
-> verified cryptographic artifact and has **not** undergone adversarial dress rehearsal.
+> Two security audits (2026-05-08: 70 findings; 2026-05-09: 188 findings) and three MPC
+> audits (22+ findings across threshold, sigma, and aggregation layers) have been completed
+> and all automatable findings have been remediated. Three open cryptographic problems remain
+> (see §Open Problems). The end-to-end pipeline is **not** a formally verified cryptographic
+> artifact and has **not** undergone adversarial dress rehearsal.
 >
-> See [SECURITY.md](SECURITY.md), [WARNING.md](WARNING.md), and
-> [`.sisyphus/audit/AUDIT-2026-05-08.md`](.sisyphus/audit/AUDIT-2026-05-08.md) for details.
+> See [SECURITY.md](SECURITY.md), [WARNING.md](WARNING.md),
+> [`.sisyphus/audit/AUDIT-2026-05-08.md`](.sisyphus/audit/AUDIT-2026-05-08.md),
+> [`.sisyphus/audit/AUDIT-2026-05-09.md`](.sisyphus/audit/AUDIT-2026-05-09.md), and
+> [`.sisyphus/audit/EXTERNAL-PACKET.md`](.sisyphus/audit/EXTERNAL-PACKET.md) for details.
 
 Research prototype for private-verifiable threshold Fully Homomorphic Encryption (FHE).
 
@@ -22,20 +25,22 @@ verifier cost. The current prototype uses:
 |-------|---------------|--------|
 | DKG | Pedersen-DKG over BFV/RLWE secret domain (`.sisyphus/design/dkg-construction.md`) | ✅ Real (BN254 Shamir, OsRng, smudging) |
 | NIZK | Cyclo-companion Ajtai D2 sigma + BFV sigma (conditional, P1 OPEN) | ⚠️ Real with conditional soundness |
-| Folding (P2) | Nova Nova with Cyclo CCS witness representation (`.sisyphus/design/fold-construction.md`) | ⚠️ Real (CCS satisfiability, ∞-norm; P2 OPEN — Nova substitute) |
-| Compression (P3) | Nova Nova IVC with KZG<Bn254> commitments + CycloFoldStepCircuit | ⚠️ Real (P3 OPEN — DeciderEth SNARK bridge feature-gated) |
+| Folding (P2) | nova-snark (Microsoft) Nova IVC with Cyclo CCS witness representation (`.sisyphus/design/fold-construction.md`) | ⚠️ Real (CCS satisfiability, ∞-norm; P2 OPEN — Nova substitute) |
+| Compression (P3) | nova-snark Nova IVC with KZG\<Bn254\> commitments + CycloFoldStepCircuit (arity=8) | ⚠️ Real (P3 partially resolved — transparent IVC, no ceremony) |
 | On-chain verifier | OpenZeppelin AccessControl + TimelockController | ✅ Real (AccessControl, multisig, runId) |
-| IVC SNARK (P4) | Extended `CompressedProof` format + DeciderEth Groth16 bridge (`nova-snark` feature) + dual-mode Noir circuit (`nova_state_commitment`) | ⚠️ Partially implemented (Poseidon legacy + public-input-binding; full Groth16 verification deferred) |
+| IVC SNARK (P4) | Transparent IVC — Keccak256 proof binding, IVC proof bytes embedded directly in compressed proof format | ⚠️ Real (no Groth16 ceremony required; Poseidon hash shortcut for on-chain verification) |
 | Decrypt (smudge) | `legacy_local_smudge` (non-equivalent) vs `committed_smudge_pvss` (target committed mode) | ✅ Doc split (F.3) |
 | Shamir/RS validity (C2) | BN254-scalar Shamir + P(0) commitment binding + batched sk/e_sm share-computation relation | ✅ Implemented (`share_computation.rs`, `dealer_parity_circuit.rs`) |
 | Share encryption (C3) | BFV sigma + Ajtai commitment; verifier lacks BFV encryption relation | ⚠️ Partial (D.1 blocker — see §C3 in interfold-equivalence.md) |
-| Keygen NIZK (C0) | BFV keypair correctness NIZK via `sigma::prove` (`nizk_keygen.rs`) | ✅ Implemented (replaces `vec![0x00, 0x01]` stub) |
+| Keygen NIZK (C0) | BFV keypair correctness NIZK via `sigma::prove` (`sigma.rs`, keygen NIZK integrated) | ✅ Implemented (replaces `vec![0x00, 0x01]` stub) |
 | Parity check (C2) | In-circuit H·shares==0 via Schwartz-Zippel + Poseidon P(0) binding | ✅ Implemented (`dealer_parity_circuit.rs`, `parity.rs`) |
 | Final aggregation (C7) | Nova C7DecryptAggregationCircuit (N=8) + C7MerkleStepCircuit (N=8192, Poseidon R1CS) + Noir aggregator_final | ✅ Implemented (Nova C7DecryptAggregationCircuit N=8 + C7MerkleStepCircuit N=8192 Poseidon R1CS + Noir aggregator_final) |
 
 ## Audit Status
 
-**Two audits completed. All automatable findings remediated.**
+**Two security audits and three MPC audits completed. All automatable findings remediated.**
+
+### Security Audits
 
 | Layer | Post-Remediation Status |
 |-------|--------------------------|
@@ -51,17 +56,39 @@ verifier cost. The current prototype uses:
 
 † FHE backend assumes honest-but-curious threshold parties (see SECURITY.md §Threat Model).
 
+### MPC Audits (3 passes)
+
+| Pass | Findings | Status |
+|------|----------|--------|
+| MPC Audit I (threshold layer) | 14 findings (6 HIGH, 4 MEDIUM, 4 LOW) | ✅ All remediated |
+| MPC Audit II (post-migration) | 8 findings (4 HIGH, 4 MEDIUM) | 📋 Plan (`.sisyphus/plans/mpc-audit-post-migration.md`) |
+| MPC Audit III (final pass) | 3 findings (1 HIGH, 2 MEDIUM) | 📋 Plan (`.sisyphus/plans/mpc-audit-final-pass.md`) |
+
 **Remediation plans**: `.sisyphus/plans/pvthfhe-remediation.md` (179/179 ✅) and
 `.sisyphus/plans/audit-2026-05-09-remediation.md` (55/55 ✅). All gate-level checkboxes
 are closed under `.sisyphus/plans/pvthfhe-gate-resolution.md`.
+
+## Symphony Techniques (Feature-Gated)
+
+The compressor crate supports four optional optimization techniques from the Symphony
+paper, toggleable via Cargo features:
+
+| Technique | Feature flag | Description |
+|-----------|-------------|-------------|
+| **T1: High-arity folding** | `symphony-t1` | Batches n iterative `prove_step` calls into a single fold using random linear combination β (Symphony §4) |
+| **T2: FS outside circuit** | `symphony-t2` | Moves Fiat-Shamir hashing outside the Nova circuit via identity step circuits with Keccak256 commitments to step inputs (Symphony §6) |
+| **T3: Monomial embedding range proofs** | `symphony-t3` | Replaces fixed 31-bit decomposition with adaptive bit-count range checks based on monomial embedding (Symphony §5.2) |
+| **T4: Random projection** | `symphony-t4` | Reduces sigma witness size by ~n/256× using JL projection J∈{0,±1}^\{256×n\}; verifies norms on projected vectors. Requires `symphony-t3` (Symphony §5.3) |
+
+These features are **disabled by default**. Enable with e.g. `--features symphony-t1,symphony-t2`.
 
 ## Soundness Budget
 
 | Parameter | Value | Source |
 |-----------|-------|--------|
-| Folding soundness (ε_fold) | 2⁻¹⁶⁰ (exponential bound, 10 rounds, 2¹⁶ challenges) (aspirational — depends on P1, P2, P3 resolution) | `.sisyphus/design/fold-soundness-budget.md` |
+| Folding soundness (ε_fold) | 2⁻¹⁶⁰ (exponential bound, 10 rounds, 2¹⁶ challenges; aspirational — P1 OPEN, P2 Nova substitute, P3 partially resolved) | `.sisyphus/design/fold-soundness-budget.md` |
 | DKG secrecy | ≤ 2⁻¹²⁸ (t−1 shares indistinguishable from uniform) | `pvthfhe-keygen/tests/dkg_secrecy.rs` |
-| Composed soundness | R1.5 ⊕ R2.4 ⊕ R3.1+R3.2 ⊕ R4.4 ⊕ R5.2 ⊕ R6.1 ⊕ R8.5 ≥ 2⁻¹²⁸ (aspirational — depends on P1, P2, P3 resolution) | Plan gate-level verification |
+| Composed soundness | R1.5 ⊕ R2.4 ⊕ R3.1+R3.2 ⊕ R4.4 ⊕ R5.2 ⊕ R6.1 ⊕ R8.5 ≥ 2⁻¹²⁸ (aspirational — P1 OPEN, P2 Nova substitute, P3 partially resolved) | Plan gate-level verification |
 | BFV parameters | n=8192, log₂q=174, σ_smudge=2⁴⁰·σ_err | `.sisyphus/design/smudging.md` |
 
 ### Open Problems
@@ -70,7 +97,7 @@ are closed under `.sisyphus/plans/pvthfhe-gate-resolution.md`.
 |----|---------|--------|
 | P1 | Lattice NIZK well-formedness soundness (Greco M-SIS reduction for BFV) | **OPEN** |
 | P2 | Lattice folding over RLWE (LatticeFold+/Cyclo Lemma 9) | **OPEN** (Nova substitute) |
-| P3 | Parametrized Nova step circuit verification (same ext-scaling) | **OPEN** (documented limitation) |
+| P3 | Parametrized Nova step circuit verification (same ext-scaling) | **PARTIALLY RESOLVED** — Nova IVC works end-to-end; CycloFoldStepCircuit arity=8 fixed |
 
 ## Threat Model
 
@@ -84,7 +111,8 @@ See [`.sisyphus/design/threat-model-v1.md`](.sisyphus/design/threat-model-v1.md)
 - **NOT a formally verified cryptographic artifact.**
 - **NOT battle-tested** (no adversarial dress rehearsal).
 - **FHE backend**: Real `gnosisguild/fhe.rs` BFV library. Parameters are production-grade but have not undergone independent parameter review.
-- Folding uses **Nova Nova** as a substitute for lattice-native folding (P2). Soundness budget assumes Nova soundness over BN254+grumpkin cycle.
+- Folding uses **nova-snark (Microsoft) Nova IVC** as a substitute for lattice-native folding (P2). Soundness budget assumes Nova soundness over BN254+grumpkin cycle.
+- **Transparent IVC**: No Groth16 trusted ceremony required. IVC proof bytes are hashed with Keccak256 and embedded directly in the compressed proof format for on-chain verification via the Poseidon hash shortcut.
 - **Stage 0 Build-time Tripwire**: Release builds require `PVTHFHE_ALLOW_RESEARCH_BUILD=1`. See `SECURITY.md`.
 - **Benchmarks**: Need re-running against the rebuilt pipeline. See `bench/results/`.
 
@@ -113,10 +141,26 @@ just demo-e2e
 
 The demo exercises the current threshold-FHE pipeline end-to-end using real cryptographic
 primitives. **The NIZK witness uses real BFV secret key material. The folding path uses real
-CCS satisfiability. The compressor uses real Nova Nova IVC.** See `WARNING.md` for
-known limitations.
+CCS satisfiability. The compressor uses nova-snark (Microsoft) Nova IVC with transparent
+decider (no Groth16 ceremony).** See `WARNING.md` for known limitations.
 
 Verified at up to n=128. Larger n may exceed practical wall time due to O(n²) threshold setup.
+
+### Per-Node Timing Output
+
+The end-to-end demo reports per-node distributed timing estimates for O(n) work scaling:
+
+```
+per_node_keygen_ms=12.3
+per_node_dkg_deal_ms=45.7
+per_node_partial_decrypt_ms=8.1
+aggregator_total_ms=234.0
+distributed_estimate_ms=279.7
+```
+
+Per-node work is dominated by `dkg_deal` (BFV encryption + sigma NIZK proof generation).
+The aggregator serial bottleneck (compressor prove + verify, cyclo fold, key aggregation)
+is the only O(polylog n) component.
 
 ## Key Commands
 
@@ -134,6 +178,10 @@ Verified at up to n=128. Larger n may exceed practical wall time due to O(n²) t
 - [WARNING.md](WARNING.md): Known cryptographic surrogates and their status.
 - [`.sisyphus/audit/AUDIT-2026-05-08.md`](.sisyphus/audit/AUDIT-2026-05-08.md): First audit (70 findings).
 - [`.sisyphus/audit/AUDIT-2026-05-09.md`](.sisyphus/audit/AUDIT-2026-05-09.md): Second audit (188 findings).
+- [`.sisyphus/audit/EXTERNAL-PACKET.md`](.sisyphus/audit/EXTERNAL-PACKET.md): External audit packet bundle.
+- [`.sisyphus/plans/mpc-audit-remediation.md`](.sisyphus/plans/mpc-audit-remediation.md): MPC audit I — 14 findings.
+- [`.sisyphus/plans/mpc-audit-post-migration.md`](.sisyphus/plans/mpc-audit-post-migration.md): MPC audit II — 8 findings.
+- [`.sisyphus/plans/mpc-audit-final-pass.md`](.sisyphus/plans/mpc-audit-final-pass.md): MPC audit III — 3 findings.
 - [`.sisyphus/design/threat-model-v1.md`](.sisyphus/design/threat-model-v1.md): Formal threat model and soundness budget.
 - [`.sisyphus/design/`](.sisyphus/design/): Design documents (DKG, folding, NIZK, smudging, parameter freeze).
 

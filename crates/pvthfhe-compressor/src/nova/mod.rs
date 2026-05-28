@@ -69,7 +69,8 @@ use ark_r1cs_std::GR1CSVar;
 use ark_relations::gr1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Validate};
 #[cfg(feature = "legacy-nova")]
-use folding_schemes::{ // folding (legacy-nova)
+use folding_schemes::{
+    // folding (legacy-nova)
     commitment::{kzg::KZG, pedersen::Pedersen},
     folding::nova::{IVCProof, Nova, PreprocessorParam},
     frontend::FCircuit,
@@ -449,7 +450,8 @@ impl<F: PrimeField> FCircuit<F> for ToyStepCircuit<F> {
     type ExternalInputs = ExternalInputs3<F>;
     type ExternalInputsVar = ExternalInputs3Var<F>;
 
-    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> { // folding (legacy-nova)
+    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
+        // folding (legacy-nova)
         Ok(Self {
             _field: std::marker::PhantomData,
         })
@@ -979,7 +981,8 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
     type ExternalInputs = ExternalInputs4<F>;
     type ExternalInputsVar = ExternalInputs4Var<F>;
 
-    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> { // folding (legacy-nova)
+    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
+        // folding (legacy-nova)
         Ok(Self {
             _field: std::marker::PhantomData,
         })
@@ -1397,6 +1400,15 @@ where
         header.extend_from_slice(&proof_bytes);
 
         Ok(CompressedProof::new(header))
+    }
+
+    #[cfg(feature = "symphony-t1")]
+    pub fn prove_steps_high_arity(
+        &self,
+        acc: &[u8],
+        steps: &[ExternalInputs3<ark_bn254::Fr>],
+    ) -> Result<CompressedProof, CompressorError> {
+        self.prove_steps(acc, steps)
     }
 
     pub fn verify_steps(

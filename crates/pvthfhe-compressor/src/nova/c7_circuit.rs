@@ -114,7 +114,8 @@ impl<F: PrimeField> FCircuit<F> for C7DecryptAggregationCircuit<F> {
     type ExternalInputs = ExternalInputs5<F>;
     type ExternalInputsVar = ExternalInputs5Var<F>;
 
-    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> { // folding (legacy-nova)
+    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
+        // folding (legacy-nova)
         Ok(Self {
             _field: std::marker::PhantomData,
         })

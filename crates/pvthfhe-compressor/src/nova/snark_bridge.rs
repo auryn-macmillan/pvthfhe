@@ -3,7 +3,8 @@ use ark_bn254::Fr;
 use ark_grumpkin::Projective as G2;
 use ark_serialize::CanonicalSerialize;
 #[cfg(feature = "legacy-nova")]
-use folding_schemes::{ // folding (legacy-nova)
+use folding_schemes::{
+    // folding (legacy-nova)
     commitment::{kzg::KZG, pedersen::Pedersen},
     folding::nova::Nova,
     frontend::FCircuit,

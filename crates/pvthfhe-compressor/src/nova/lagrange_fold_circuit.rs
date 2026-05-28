@@ -62,7 +62,8 @@ impl<F: PrimeField> FCircuit<F> for LagrangeFoldStepCircuit<F> {
     fn state_len(&self) -> usize {
         3
     }
-    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> { // folding (legacy-nova)
+    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
+        // folding (legacy-nova)
         Ok(Self {
             _phantom: std::marker::PhantomData,
         })

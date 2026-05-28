@@ -147,7 +147,8 @@ impl<F: PrimeField> FCircuit<F> for HeterogeneousStepCircuit<F> {
     type ExternalInputs = ExternalInputs3<F>;
     type ExternalInputsVar = ExternalInputs3Var<F>;
 
-    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> { // folding (legacy-nova)
+    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
+        // folding (legacy-nova)
         Ok(Self {
             _field: std::marker::PhantomData,
         })

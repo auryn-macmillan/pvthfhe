@@ -61,8 +61,8 @@ verifier cost. The current prototype uses:
 | Pass | Findings | Status |
 |------|----------|--------|
 | MPC Audit I (threshold layer) | 14 findings (6 HIGH, 4 MEDIUM, 4 LOW) | ✅ All remediated |
-| MPC Audit II (post-migration) | 8 findings (4 HIGH, 4 MEDIUM) | 📋 Plan (`.sisyphus/plans/mpc-audit-post-migration.md`) |
-| MPC Audit III (final pass) | 3 findings (1 HIGH, 2 MEDIUM) | 📋 Plan (`.sisyphus/plans/mpc-audit-final-pass.md`) |
+| MPC Audit II (post-migration) | 8 findings (4 HIGH, 4 MEDIUM) | ✅ Completed (`.sisyphus/plans/mpc-audit-post-migration.md`) |
+| MPC Audit III (final pass) | 3 findings (1 HIGH, 2 MEDIUM) | ✅ Completed (`.sisyphus/plans/mpc-audit-final-pass.md`) |
 
 **Remediation plans**: `.sisyphus/plans/pvthfhe-remediation.md` (179/179 ✅) and
 `.sisyphus/plans/audit-2026-05-09-remediation.md` (55/55 ✅). All gate-level checkboxes

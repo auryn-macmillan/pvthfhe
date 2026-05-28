@@ -184,6 +184,294 @@ pub fn sigma_verify_step_bp<CS: ConstraintSystem<NovaScalar>>(
     AllocatedNum::alloc(cs.namespace(|| "sigma_ok"), || Ok(NovaScalar::from(1u64)))
 }
 
+#[cfg(feature = "symphony-t4")]
+pub fn sigma_verify_step_projected<CS: ConstraintSystem<NovaScalar>>(
+    cs: &mut CS,
+    step: usize,
+) -> Result<AllocatedNum<NovaScalar>, SynthesisError> {
+    use super::monomial_range::monomial_range_check_bp;
+    use super::SIGMA_DATA;
+    use super::SIGMA_RESPONSE_DATA;
+
+    let has_data = SIGMA_DATA.with(|cell| {
+        let data = cell.inner().borrow();
+        data.get(step)
+            .or_else(|| step.checked_sub(1).and_then(|zb| data.get(zb)))
+            .is_some()
+    });
+
+    if !has_data {
+        return AllocatedNum::alloc(cs.namespace(|| "sigma_proj_zero"), || {
+            Ok(NovaScalar::from(0u64))
+        });
+    }
+
+    let witness_opt = SIGMA_DATA.with(|cell| {
+        let data = cell.inner().borrow();
+        data.get(step)
+            .or_else(|| step.checked_sub(1).and_then(|zb| data.get(zb)))
+            .cloned()
+    });
+
+    let w = match witness_opt {
+        Some(w) => w,
+        None => {
+            return AllocatedNum::alloc(cs.namespace(|| "sigma_proj_zero"), || {
+                Ok(NovaScalar::from(0u64))
+            });
+        }
+    };
+
+    let f_ch: NovaScalar = ark_to_nova_scalar(w.ch);
+    let ch_var = AllocatedNum::alloc(cs.namespace(|| "sigma_proj_ch"), || Ok(f_ch))?;
+
+    for eval_idx in 0..3 {
+        for limb in 0..3 {
+            let idx = eval_idx * 3 + limb;
+
+            if idx >= w.sz_c_eval.len()
+                || idx >= w.sz_zs_eval.len()
+                || idx >= w.sz_ze_eval.len()
+                || idx >= w.sz_t_eval.len()
+                || idx >= w.sz_di_eval.len()
+                || idx >= w.sz_r1_eval.len()
+            {
+                let one =
+                    AllocatedNum::alloc(cs.namespace(|| format!("sigma_proj_fail_{idx}")), || {
+                        Ok(NovaScalar::from(1u64))
+                    })?;
+                let zero = AllocatedNum::alloc(
+                    cs.namespace(|| format!("sigma_proj_fail_zero_{idx}")),
+                    || Ok(NovaScalar::from(0u64)),
+                )?;
+                cs.enforce(
+                    || format!("sigma_proj_bounds_fail_{idx}"),
+                    |lc| lc + CS::one(),
+                    |lc| lc + one.get_variable(),
+                    |lc| lc + zero.get_variable(),
+                );
+                continue;
+            }
+
+            let sz_c_eval = AllocatedNum::alloc(
+                cs.namespace(|| format!("sigma_proj_c_eval_{eval_idx}_{limb}")),
+                || Ok(NovaScalar::from(w.sz_c_eval[idx])),
+            )?;
+            let sz_zs_eval = AllocatedNum::alloc(
+                cs.namespace(|| format!("sigma_proj_zs_eval_{eval_idx}_{limb}")),
+                || Ok(NovaScalar::from(w.sz_zs_eval[idx])),
+            )?;
+            let sz_ze_eval = AllocatedNum::alloc(
+                cs.namespace(|| format!("sigma_proj_ze_eval_{eval_idx}_{limb}")),
+                || Ok(NovaScalar::from(w.sz_ze_eval[idx])),
+            )?;
+            let sz_t_eval = AllocatedNum::alloc(
+                cs.namespace(|| format!("sigma_proj_t_eval_{eval_idx}_{limb}")),
+                || Ok(NovaScalar::from(w.sz_t_eval[idx])),
+            )?;
+            let sz_di_eval = AllocatedNum::alloc(
+                cs.namespace(|| format!("sigma_proj_di_eval_{eval_idx}_{limb}")),
+                || Ok(NovaScalar::from(w.sz_di_eval[idx])),
+            )?;
+            let sz_r1_eval = AllocatedNum::alloc(
+                cs.namespace(|| format!("sigma_proj_r1_eval_{eval_idx}_{limb}")),
+                || Ok(NovaScalar::from(w.sz_r1_eval[idx])),
+            )?;
+
+            let q_const = AllocatedNum::alloc(
+                cs.namespace(|| format!("sigma_proj_q_const_{eval_idx}_{limb}")),
+                || Ok(NovaScalar::from(super::SIGMA_RNS_MODULI[limb])),
+            )?;
+
+            let c_mul_zs = sz_c_eval.mul(
+                cs.namespace(|| format!("sigma_proj_c_mul_zs_{eval_idx}_{limb}")),
+                &sz_zs_eval,
+            )?;
+            let lhs = c_mul_zs.add(
+                cs.namespace(|| format!("sigma_proj_lhs_{eval_idx}_{limb}")),
+                &sz_ze_eval,
+            )?;
+
+            let ch_mul_di = ch_var.mul(
+                cs.namespace(|| format!("sigma_proj_ch_mul_di_{eval_idx}_{limb}")),
+                &sz_di_eval,
+            )?;
+            let t_plus_chdi = sz_t_eval.add(
+                cs.namespace(|| format!("sigma_proj_t_plus_chdi_{eval_idx}_{limb}")),
+                &ch_mul_di,
+            )?;
+            let q_mul_r1 = q_const.mul(
+                cs.namespace(|| format!("sigma_proj_q_mul_r1_{eval_idx}_{limb}")),
+                &sz_r1_eval,
+            )?;
+            let rhs = t_plus_chdi.add(
+                cs.namespace(|| format!("sigma_proj_rhs_{eval_idx}_{limb}")),
+                &q_mul_r1,
+            )?;
+
+            cs.enforce(
+                || format!("sigma_proj_eq_{eval_idx}_{limb}"),
+                |lc| lc + CS::one(),
+                |lc| lc + lhs.get_variable(),
+                |lc| lc + rhs.get_variable(),
+            );
+
+            norm_range_check_bp(
+                cs,
+                &sz_r1_eval,
+                w.sz_r1_eval[idx],
+                1u64,
+                &format!("sigma_proj_sz_r1_range_{eval_idx}_{limb}"),
+            )?;
+        }
+    }
+
+    const T4_JL_PROJECTION_DIM: usize = 256;
+    const B_Z_S: u64 = 131_072;
+    const B_Z_E: u64 = 131_072;
+    const PROJ_BOUND_ZS: u64 = 2_097_152;
+    const PROJ_BOUND_ZE: u64 = 2_097_152;
+
+    let (p_s_vec, p_e_vec, jl_entries) = SIGMA_RESPONSE_DATA.with(|cell| {
+        let data = cell.inner().borrow();
+        if let Some((_, _, ref p_s, ref p_e, ref entries)) = data.get(step) {
+            (p_s.clone(), p_e.clone(), entries.clone())
+        } else {
+            (vec![], vec![], vec![])
+        }
+    });
+
+    if !p_s_vec.is_empty() && !p_e_vec.is_empty() {
+        let n = super::SIGMA_VERIFY_COEFFS;
+        let n_power = n.min(w.z_s_power.len()).min(w.z_e_power.len());
+
+        let minus_one =
+            AllocatedNum::alloc(cs.namespace(|| "proj_neg_one"), || Ok(-NovaScalar::ONE))?;
+
+        let proj_dim = T4_JL_PROJECTION_DIM
+            .min(p_s_vec.len())
+            .min(p_e_vec.len())
+            .min(jl_entries.len());
+
+        for k in 0..proj_dim {
+            let mut raw_sum_s =
+                AllocatedNum::alloc(cs.namespace(|| format!("proj_raw_s_{k}_init")), || {
+                    Ok(NovaScalar::ZERO)
+                })?;
+            let mut raw_sum_e =
+                AllocatedNum::alloc(cs.namespace(|| format!("proj_raw_e_{k}_init")), || {
+                    Ok(NovaScalar::ZERO)
+                })?;
+
+            if k < jl_entries.len() {
+                for &(j, sign) in &jl_entries[k] {
+                    if j < n_power {
+                        let zs_val = NovaScalar::from(w.z_s_power[j].unsigned_abs());
+                        let ze_val = NovaScalar::from(w.z_e_power[j].unsigned_abs());
+                        let zs_var = AllocatedNum::alloc(
+                            cs.namespace(|| format!("proj_zs_{k}_{j}")),
+                            || Ok(zs_val),
+                        )?;
+                        let ze_var = AllocatedNum::alloc(
+                            cs.namespace(|| format!("proj_ze_{k}_{j}")),
+                            || Ok(ze_val),
+                        )?;
+
+                        if sign {
+                            raw_sum_s = raw_sum_s
+                                .add(cs.namespace(|| format!("proj_zs_add_{k}_{j}")), &zs_var)?;
+                            raw_sum_e = raw_sum_e
+                                .add(cs.namespace(|| format!("proj_ze_add_{k}_{j}")), &ze_var)?;
+                        } else {
+                            let neg_zs = zs_var
+                                .mul(cs.namespace(|| format!("proj_zs_neg_{k}_{j}")), &minus_one)?;
+                            let neg_ze = ze_var
+                                .mul(cs.namespace(|| format!("proj_ze_neg_{k}_{j}")), &minus_one)?;
+                            raw_sum_s = raw_sum_s
+                                .add(cs.namespace(|| format!("proj_zs_sub_{k}_{j}")), &neg_zs)?;
+                            raw_sum_e = raw_sum_e
+                                .add(cs.namespace(|| format!("proj_ze_sub_{k}_{j}")), &neg_ze)?;
+                        }
+                    }
+                }
+            }
+
+            let expected_s_val = NovaScalar::from(p_s_vec[k].unsigned_abs());
+            let expected_e_val = NovaScalar::from(p_e_vec[k].unsigned_abs());
+            let expected_s =
+                AllocatedNum::alloc(cs.namespace(|| format!("proj_exp_s_{k}")), || {
+                    Ok(expected_s_val)
+                })?;
+            let expected_e =
+                AllocatedNum::alloc(cs.namespace(|| format!("proj_exp_e_{k}")), || {
+                    Ok(expected_e_val)
+                })?;
+
+            cs.enforce(
+                || format!("proj_jl_s_{k}"),
+                |lc| lc + CS::one(),
+                |lc| lc + raw_sum_s.get_variable(),
+                |lc| lc + expected_s.get_variable(),
+            );
+            cs.enforce(
+                || format!("proj_jl_e_{k}"),
+                |lc| lc + CS::one(),
+                |lc| lc + raw_sum_e.get_variable(),
+                |lc| lc + expected_e.get_variable(),
+            );
+
+            let proj_s_val = p_s_vec[k].unsigned_abs();
+            let proj_e_val = p_e_vec[k].unsigned_abs();
+
+            if proj_s_val > PROJ_BOUND_ZS || proj_e_val > PROJ_BOUND_ZE {
+                let one =
+                    AllocatedNum::alloc(cs.namespace(|| format!("proj_bound_fail_{k}")), || {
+                        Ok(NovaScalar::ONE)
+                    })?;
+                let zero =
+                    AllocatedNum::alloc(cs.namespace(|| format!("proj_bound_fail_z_{k}")), || {
+                        Ok(NovaScalar::ZERO)
+                    })?;
+                cs.enforce(
+                    || format!("proj_bound_fail_c_{k}"),
+                    |lc| lc + CS::one(),
+                    |lc| lc + one.get_variable(),
+                    |lc| lc + zero.get_variable(),
+                );
+                continue;
+            }
+
+            let proj_s_var =
+                AllocatedNum::alloc(cs.namespace(|| format!("proj_s_var_{k}")), || {
+                    Ok(NovaScalar::from(proj_s_val))
+                })?;
+            let proj_e_var =
+                AllocatedNum::alloc(cs.namespace(|| format!("proj_e_var_{k}")), || {
+                    Ok(NovaScalar::from(proj_e_val))
+                })?;
+
+            monomial_range_check_bp(
+                cs,
+                &proj_s_var,
+                proj_s_val,
+                PROJ_BOUND_ZS,
+                &format!("proj_zs_range_{k}"),
+            )?;
+            monomial_range_check_bp(
+                cs,
+                &proj_e_var,
+                proj_e_val,
+                PROJ_BOUND_ZE,
+                &format!("proj_ze_range_{k}"),
+            )?;
+        }
+    }
+
+    AllocatedNum::alloc(cs.namespace(|| "sigma_proj_ok"), || {
+        Ok(NovaScalar::from(1u64))
+    })
+}
+
 pub fn ring_verify_step_bp<CS: ConstraintSystem<NovaScalar>>(
     cs: &mut CS,
     step: usize,

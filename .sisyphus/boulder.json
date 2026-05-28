@@ -1,12 +1,12 @@
 {
-  "active_plan": "/home/dev/pvthfhe/.sisyphus/plans/readme-update.md",
-  "started_at": "2026-05-28T14:35:01.579Z",
+  "active_plan": "/home/dev/pvthfhe/.sisyphus/plans/resolve-status-gaps.md",
+  "started_at": "2026-05-28T15:10:34.378Z",
   "session_ids": [
     "ses_1e864f9f1ffecXRmG0OjbjoCa3"
   ],
   "session_origins": {
     "ses_1e864f9f1ffecXRmG0OjbjoCa3": "direct"
   },
-  "plan_name": "readme-update",
+  "plan_name": "resolve-status-gaps",
   "agent": "atlas"
 }

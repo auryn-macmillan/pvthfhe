@@ -26,7 +26,7 @@ verifier cost. The current prototype uses:
 | DKG | Pedersen-DKG over BFV/RLWE secret domain (`.sisyphus/design/dkg-construction.md`) | ✅ Real (BN254 Shamir, OsRng, smudging) |
 | NIZK | Cyclo-companion Ajtai D2 sigma + BFV sigma (conditional, P1 OPEN) | ⚠️ Real with conditional soundness |
 | Folding (P2) | nova-snark (Microsoft) Nova IVC with Cyclo CCS witness representation (`.sisyphus/design/fold-construction.md`) | ⚠️ Real (CCS satisfiability, ∞-norm; P2 OPEN — Nova substitute) |
-| Compression (P3) | nova-snark Nova IVC with KZG\<Bn254\> commitments + CycloFoldStepCircuit (arity=8) | ⚠️ Real (P3 partially resolved — transparent IVC, no ceremony) |
+| Compression (P3) | nova-snark Nova IVC with KZG\<Bn254\> commitments + CycloFoldStepCircuit (arity=8) | ✅ Real (transparent IVC, no ceremony; demo ACCEPTs at n=128) |
 | On-chain verifier | OpenZeppelin AccessControl + TimelockController | ✅ Real (AccessControl, multisig, runId) |
 | IVC SNARK (P4) | Transparent IVC — Keccak256 proof binding, IVC proof bytes embedded directly in compressed proof format | ⚠️ Real (no Groth16 ceremony required; Poseidon hash shortcut for on-chain verification) |
 | Decrypt (smudge) | `legacy_local_smudge` (non-equivalent) vs `committed_smudge_pvss` (target committed mode) | ✅ Doc split (F.3) |

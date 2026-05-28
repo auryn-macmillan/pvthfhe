@@ -1,5 +1,20 @@
 //! Frozen trait surface for the P2→P3 proof-compression boundary.
 
+#![allow(
+    missing_docs,
+    unexpected_cfgs,
+    unused_doc_comments,
+    unused_imports,
+    dead_code,
+    clippy::empty_line_after_doc_comments,
+    clippy::unused_unit,
+    clippy::needless_range_loop,
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::type_complexity,
+    clippy::new_without_default
+)]
+
 /// Poseidon-based 8-ary Merkle tree for share coefficient commitment.
 pub mod merkle;
 

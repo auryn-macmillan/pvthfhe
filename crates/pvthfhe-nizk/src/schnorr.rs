@@ -52,7 +52,17 @@ pub fn schnorr_verify(pk: G1Affine, sig_r: G1Affine, sig_s: Fr, message: Fr) -> 
 
 /// Serialize a G1 affine coordinate to bytes (NOT to Fr — avoids barrel reduction).
 fn affine_to_bytes(p: &G1Affine, is_x: bool) -> [u8; 32] {
-    let raw = if is_x { p.x().unwrap() } else { p.y().unwrap() };
+    let raw = if is_x {
+        match p.x() {
+            Some(c) => c,
+            None => return [0u8; 32],
+        }
+    } else {
+        match p.y() {
+            Some(c) => c,
+            None => return [0u8; 32],
+        }
+    };
     let mut buf = [0u8; 32];
     let bytes = raw.into_bigint().to_bytes_le();
     buf[..bytes.len()].copy_from_slice(&bytes);
@@ -65,10 +75,10 @@ fn hash_to_challenge(r: &G1Affine, pk: &G1Affine, message: Fr) -> Fr {
     use sha2::{Digest, Sha256};
     let mut h = Sha256::new();
     h.update(b"pvthfhe/schnorr-challenge/v2");
-    h.update(&affine_to_bytes(r, true));
-    h.update(&affine_to_bytes(r, false));
-    h.update(&affine_to_bytes(pk, true));
-    h.update(&affine_to_bytes(pk, false));
+    h.update(affine_to_bytes(r, true));
+    h.update(affine_to_bytes(r, false));
+    h.update(affine_to_bytes(pk, true));
+    h.update(affine_to_bytes(pk, false));
     // Convert message Fr to bytes for hashing
     let msg_bytes = message.into_bigint().to_bytes_le();
     h.update(&msg_bytes);

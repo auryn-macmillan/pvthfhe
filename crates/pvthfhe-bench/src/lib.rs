@@ -1,4 +1,16 @@
-#![allow(missing_docs, clippy::as_conversions)]
+#![allow(
+    missing_docs,
+    clippy::as_conversions,
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::needless_range_loop,
+    clippy::too_many_arguments,
+    clippy::panic,
+    clippy::explicit_counter_loop,
+    unused_imports,
+    unused_variables,
+    dead_code
+)]
 
 pub mod backends;
 pub mod comparison_map;

@@ -282,7 +282,7 @@ impl ShareNizkBatchedVerifier {
         ShareNizkVerifier::verify(backend, &sk_stmt, &sk_proof)?;
 
         // ── ESm track verification ──
-        for (_i, esm_slot) in batched.esm_slots.iter().enumerate() {
+        for esm_slot in batched.esm_slots.iter() {
             let esm_stmt = ShareNizkStatement {
                 session_id: batched.session_id.clone(),
                 dealer_index: batched.dealer_index,
@@ -317,7 +317,7 @@ impl ShareNizkBatchedVerifier {
 /// `*offset`, advances `*offset`, and returns the reconstructed
 /// [`ShareNizkProof`].
 fn read_batched_sub_proof(bytes: &[u8], offset: &mut usize) -> Result<ShareNizkProof, PvssError> {
-    let remaining = bytes.len().checked_sub(*offset).unwrap_or(0);
+    let remaining = bytes.len().saturating_sub(*offset);
     if remaining < 4 {
         return Err(PvssError::BfvEncryptionProofFailed);
     }
@@ -328,7 +328,7 @@ fn read_batched_sub_proof(bytes: &[u8], offset: &mut usize) -> Result<ShareNizkP
         bytes[*offset + 3],
     ]) as usize;
     *offset += 4;
-    if proof_len > MAX_FIELD_LEN || bytes.len().checked_sub(*offset).unwrap_or(0) < proof_len {
+    if proof_len > MAX_FIELD_LEN || bytes.len().saturating_sub(*offset) < proof_len {
         return Err(PvssError::BfvEncryptionProofFailed);
     }
     let sub_proof_bytes = bytes[*offset..*offset + proof_len].to_vec();
@@ -387,7 +387,7 @@ impl ShareNizkProver {
         hasher.update(stmt.share_commitment.as_slice());
         hasher.update(stmt.session_id.as_slice());
         hasher.update(stmt.dkg_root.as_slice());
-        hasher.update(&(stmt.recipient_index as u64).to_le_bytes());
+        hasher.update((stmt.recipient_index as u64).to_le_bytes());
         let d2_binding: [u8; 32] = hasher.finalize().into();
 
         // ── BFV encryption proof (v4) ──
@@ -556,7 +556,7 @@ fn compute_share_d_commitment(stmt: &ShareNizkStatement) -> [u8; 32] {
     h.update(b"pvthfhe-share-dcommit/v1");
     h.update(stmt.session_id.as_slice());
     h.update(
-        &u32::try_from(stmt.recipient_index)
+        u32::try_from(stmt.recipient_index)
             .unwrap_or(0)
             .to_le_bytes(),
     );
@@ -1001,7 +1001,7 @@ fn encode_fhers_plaintext_slots(plaintext: &[u8]) -> Result<Vec<i64>, PvssError>
         let raw = u64::from(lo | hi);
         // BFV Encoding::poly() centers values: v ∈ [0, t) → v if v < t/2 else v - t
         let centered = if raw >= t_half {
-            -i64::try_from(t_plain - raw as i64).unwrap_or(0)
+            -(t_plain - raw as i64)
         } else {
             i64::try_from(raw).unwrap_or(0)
         };
@@ -1064,8 +1064,8 @@ fn poly_bytes_to_i64(poly_bytes: &[u8]) -> Result<Vec<i64>, PvssError> {
     let rns: Vec<u64> = Vec::<u64>::from(&poly);
     let n = sigma::rlwe_n();
     let mut out = Vec::with_capacity(n);
-    for j in 0..n {
-        let c = i64::try_from(rns[j]).map_err(|_| PvssError::InvalidShare)?;
+    for &c in rns.iter().take(n) {
+        let c = i64::try_from(c).map_err(|_| PvssError::InvalidShare)?;
         out.push(if c > half_q0 { c - q0 } else { c });
     }
     Ok(out)
@@ -1187,7 +1187,7 @@ fn verify_d2_hash_binding(
     hasher.update(stmt.share_commitment.as_slice());
     hasher.update(stmt.session_id.as_slice());
     hasher.update(stmt.dkg_root.as_slice());
-    hasher.update(&(stmt.recipient_index as u64).to_le_bytes());
+    hasher.update((stmt.recipient_index as u64).to_le_bytes());
     let expected: [u8; 32] = hasher.finalize().into();
     if expected != opened.d2_binding {
         return Err(PvssError::D2HashBindingFailed);

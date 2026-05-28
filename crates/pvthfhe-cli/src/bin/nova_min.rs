@@ -7,6 +7,8 @@
 //! backend is the active default; use `crates/pvthfhe-compressor/src/bin/nova_min.rs`
 //! for the equivalent nova-snark-aware binary.
 
+#![allow(unexpected_cfgs, dead_code)]
+
 use std::fs;
 
 #[cfg(feature = "legacy-nova")]

@@ -425,9 +425,7 @@ pub fn generate_nova_state_commitment_witness() -> NovaStateCommitmentWitness {
         commit_ct_in: field_to_decimal(Fr::from(2u64)),
         commit_ct_out: field_to_decimal(Fr::from(3u64)),
         session_id: field_to_decimal(Fr::from(1u64)),
-        nova_final_state_commitment: field_to_decimal(poseidon_hash_4(
-            &nova_state_preimage_raw,
-        )),
+        nova_final_state_commitment: field_to_decimal(poseidon_hash_4(&nova_state_preimage_raw)),
         cyclo_aggregate_commitment: field_to_decimal(poseidon_hash_4(
             &cyclo_aggregate_preimage_raw,
         )),

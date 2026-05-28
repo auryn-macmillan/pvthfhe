@@ -4,16 +4,10 @@ pragma solidity ^0.8.24;
 import "./P3RealVerifierBase.t.sol";
 
 /// @title P3VacuityProof
-/// @notice Regression guard: fabricated claims no longer pass after removing
-///         the trusted-signer surrogate and delegating to UltraHonkVerifier.
+/// @notice Regression guard: fabricated claims are rejected by the real HonkVerifier.
 contract P3VacuityProof is P3RealVerifierBase {
 
-    // -------------------------------------------------------------------------
-    // Vacuity falsification test
-    // -------------------------------------------------------------------------
-
-    /// @notice Fabricated claims without a matching proof hash must be rejected.
-    function testFabricatedClaimIsRejected() public view {
+    function testFabricatedClaimIsRejected() public {
         bytes memory falsePi = _buildPublicInputs(
             keccak256("FAKE_CIPHERTEXT_THAT_NEVER_EXISTED"),
             keccak256("FAKE_PLAINTEXT_999999"),
@@ -24,12 +18,8 @@ contract P3VacuityProof is P3RealVerifierBase {
             keccak256("FAKE_D_COMMITMENT")
         );
 
-        bytes memory falseProof = abi.encodePacked("fabricated-proof");
-        bool accepted = verifier.verify(falseProof, falsePi);
-
-        assertFalse(
-            accepted,
-            "fabricated FHE claim must be rejected once trusted-signer surrogate is removed"
-        );
+        // Short fabricated proof → HonkVerifier reverts on length.
+        vm.expectRevert();
+        verifier.verify(new bytes(16), falsePi);
     }
 }

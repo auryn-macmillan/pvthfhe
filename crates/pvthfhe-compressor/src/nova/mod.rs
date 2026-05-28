@@ -60,9 +60,8 @@ use std::fs;
 
 use std::borrow::Borrow;
 
-use ark_bn254::{Fr, G1Projective as G1};
+use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField, Zero};
-use ark_grumpkin::Projective as G2;
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 use ark_r1cs_std::boolean::Boolean;
 use ark_r1cs_std::eq::EqGadget;
@@ -70,7 +69,6 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::GR1CSVar;
 use ark_relations::gr1cs::{ConstraintSystemRef, Namespace, SynthesisError};
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Validate};
 #[cfg(feature = "legacy-nova")]
 use folding_schemes::{
     // folding (legacy-nova)
@@ -82,8 +80,6 @@ use folding_schemes::{
 };
 use pvthfhe_domain_tags::Tag;
 use pvthfhe_types::witness_language::{BfvParameters as SchemaBfvParams, WitnessStatement};
-use rand_chacha::ChaCha20Rng;
-use rand_core::SeedableRng;
 use sha3::{Digest, Keccak256};
 
 // R3.0a — schema types wired for R5.2 GREEN migration
@@ -591,8 +587,8 @@ impl<T: Default> Drop for AutoClear<T> {
 }
 
 thread_local! {
-    pub(crate) static CYCLO_FOLD_STEP_COUNTER: std::cell::RefCell<usize> = std::cell::RefCell::new(0);
-    pub(crate) static CYCLO_RING_DATA: AutoClear<Vec<CycloRingWitness<ark_bn254::Fr>>> = AutoClear::new(Vec::new());
+    pub(crate) static CYCLO_FOLD_STEP_COUNTER: std::cell::RefCell<usize> = const { std::cell::RefCell::new(0) };
+    pub(crate) static CYCLO_RING_DATA: AutoClear<Vec<CycloRingWitness<ark_bn254::Fr>>> = const { AutoClear::new(Vec::new()) };
 }
 
 /// Per-step sigma NIZK witness data for G7 in-circuit verification.
@@ -660,13 +656,13 @@ const SIGMA_RNS_MODULI: [u64; 3] = [
 ];
 
 thread_local! {
-    pub(crate) static SIGMA_DATA: AutoClear<Vec<SigmaWitness<ark_bn254::Fr>>> = AutoClear::new(Vec::new());
+    pub(crate) static SIGMA_DATA: AutoClear<Vec<SigmaWitness<ark_bn254::Fr>>> = const { AutoClear::new(Vec::new()) };
 }
 
 thread_local! {
     /// Per-step sigma response data for CycloFoldStepCircuit norm enforcement (G7b-laBRADOR).
     /// Each entry: (z_s_coeffs, z_e_coeffs, p_s_proj, p_e_proj, jl_entries)
-    pub static SIGMA_RESPONSE_DATA: AutoClear<Vec<(Vec<i64>, Vec<i64>, Vec<i64>, Vec<i64>, Vec<Vec<(usize, bool)>>)>> = AutoClear::new(Vec::new());
+    pub static SIGMA_RESPONSE_DATA: AutoClear<Vec<(Vec<i64>, Vec<i64>, Vec<i64>, Vec<i64>, Vec<Vec<(usize, bool)>>)>> = const { AutoClear::new(Vec::new()) };
 }
 
 pub fn set_sigma_response_data(
@@ -1561,7 +1557,7 @@ where
         &self,
         vk: &VerifierKey,
         proof: &CompressedProof,
-        acc: &[u8],
+        _acc: &[u8],
         steps: &[ExternalInputs3<ark_bn254::Fr>],
     ) -> Result<bool, CompressorError> {
         if vk != &self.verifier_key {
@@ -2860,7 +2856,7 @@ pub(crate) fn build_proof_bytes(
 /// State layout: z[0]=hash, z[1]=escalated_norm, z[2]=fold_count,
 /// z[3]=ring_verif_count, z[4]=sigma_count, z[5]=z_s_proj_acc, z[6]=z_e_proj_acc,
 /// z[7]=bfv_verification_count.
-pub fn extract_cyclo_state(proof: &CompressedProof) -> Result<[Fr; 8], CompressorError> {
+pub fn extract_cyclo_state(_proof: &CompressedProof) -> Result<[Fr; 8], CompressorError> {
     #[cfg(feature = "legacy-nova")]
     {
         let parsed = parse_proof(&proof.bytes)?;

@@ -21,9 +21,7 @@ use sha2::{Digest, Sha256};
 use std::time::Instant;
 
 #[cfg(feature = "sonobe-compressor")]
-use pvthfhe_compressor::nova::{
-    encode_hex, encode_triple, CycloFoldStepCircuit, ExternalInputs3, NovaCompressor,
-};
+use pvthfhe_compressor::nova::{encode_hex, encode_triple, ExternalInputs3, NovaCompressor};
 
 const DEMO_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 131072\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
 
@@ -53,7 +51,7 @@ struct Args {
 }
 
 fn main() -> anyhow::Result<()> {
-    let _ = tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt::init();
     let args = Args::parse();
 
     if args.threshold == 0 || args.threshold > args.n {
@@ -83,7 +81,7 @@ fn main() -> anyhow::Result<()> {
         KeygenResult::Blamed(blamed) => anyhow::bail!("keygen blamed: {blamed:?}"),
     };
 
-    let session_seed: [u8; 32] = Sha256::digest(&transcript.transcript_hash).into();
+    let session_seed: [u8; 32] = Sha256::digest(transcript.transcript_hash).into();
     backend
         .setup_threshold(args.n, args.threshold, session_seed)
         .context("setup_threshold")?;
@@ -162,7 +160,7 @@ fn main() -> anyhow::Result<()> {
             .context("dealer sk")?;
 
         const DKG_CHUNK_SIZE: usize = 4000;
-        let num_chunks = (dealer_sk.len() + DKG_CHUNK_SIZE - 1) / DKG_CHUNK_SIZE;
+        let num_chunks = dealer_sk.len().div_ceil(DKG_CHUNK_SIZE);
         for chunk_idx in 0..num_chunks {
             let start = chunk_idx * DKG_CHUNK_SIZE;
             let end = (start + DKG_CHUNK_SIZE).min(dealer_sk.len());
@@ -265,7 +263,7 @@ fn main() -> anyhow::Result<()> {
     let batch_count = args.n.div_ceil(10);
 
     let agg_pk_hash_fr = Fr::from_be_bytes_mod_order(&Sha256::digest(&aggregate_pk.bytes));
-    let dkg_root_fr = Fr::from_be_bytes_mod_order(&Sha256::digest(&transcript.dkg_root));
+    let dkg_root_fr = Fr::from_be_bytes_mod_order(&Sha256::digest(transcript.dkg_root));
 
     // 1. Compressor: fold ceil(n/10) accumulators
     eprintln!(
@@ -344,9 +342,9 @@ fn main() -> anyhow::Result<()> {
                 ));
                 let lagrange_val = lagrange_coeffs[i];
                 let mut hasher = Sha256::new();
-                hasher.update(&share_val.into_bigint().to_bytes_le());
-                hasher.update(&lagrange_val.into_bigint().to_bytes_le());
-                hasher.update(&agg_pk_hash_fr.into_bigint().to_bytes_le());
+                hasher.update(share_val.into_bigint().to_bytes_le());
+                hasher.update(lagrange_val.into_bigint().to_bytes_le());
+                hasher.update(agg_pk_hash_fr.into_bigint().to_bytes_le());
                 hasher.finalize().into()
             })
             .collect();
@@ -373,8 +371,8 @@ fn main() -> anyhow::Result<()> {
             // Fallback: flat Nova IVC sequential folding
             let t2b = Instant::now();
             use pvthfhe_compressor::witness::hash_all_coeffs;
-            let coeff_commitment = hash_all_coeffs(&vec![agg_pk_hash_fr]);
-            let derived_r = hash_all_coeffs(&[coeff_commitment, dkg_root_fr]);
+            let coeff_commitment = hash_all_coeffs(&[agg_pk_hash_fr]);
+            let _derived_r = hash_all_coeffs(&[coeff_commitment, dkg_root_fr]);
             let c7_compressor = NovaCompressor::<
                 pvthfhe_compressor::nova::dkg_aggregation_circuit::DkgAggregationStepCircuit<Fr>,
             >::new(epoch_hash, args.threshold)
@@ -538,20 +536,20 @@ fn time_micronova_compressor(epoch_hash: [u8; 32], batch_count: usize) -> anyhow
         .map(|i| {
             let mut hasher = Sha256::new();
             hasher.update(b"pvthfhe/micronova/party");
-            hasher.update(&epoch_hash);
-            hasher.update(&(i as u64).to_be_bytes());
+            hasher.update(epoch_hash);
+            hasher.update((i as u64).to_be_bytes());
             let party_id_fr = Fr::from_be_bytes_mod_order(&hasher.finalize());
 
             let mut hasher = Sha256::new();
             hasher.update(b"pvthfhe/micronova/share");
-            hasher.update(&epoch_hash);
-            hasher.update(&(i as u64).to_be_bytes());
+            hasher.update(epoch_hash);
+            hasher.update((i as u64).to_be_bytes());
             let share_hash_fr = Fr::from_be_bytes_mod_order(&hasher.finalize());
 
             let mut hasher = Sha256::new();
             hasher.update(b"pvthfhe/micronova/pk");
-            hasher.update(&epoch_hash);
-            hasher.update(&(i as u64).to_be_bytes());
+            hasher.update(epoch_hash);
+            hasher.update((i as u64).to_be_bytes());
             let pk_hash_fr = Fr::from_be_bytes_mod_order(&hasher.finalize());
 
             ExternalInputs3(party_id_fr, share_hash_fr, pk_hash_fr)

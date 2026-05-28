@@ -8,7 +8,7 @@ use ark_bn254::Fr;
 use ark_ff::Zero;
 
 use crate::nova::encode_triple;
-use crate::nova::heterogeneous::{HeterogeneousCircuitFamily, HeterogeneousStepCircuit};
+use crate::nova::heterogeneous::HeterogeneousStepCircuit;
 use crate::nova::latticefold_circuit_family::LatticeFoldTreeCircuitFamily;
 use crate::nova::ExternalInputs3;
 use crate::nova::NovaCompressor;

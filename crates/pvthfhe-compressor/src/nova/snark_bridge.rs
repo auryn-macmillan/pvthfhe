@@ -149,6 +149,7 @@ pub fn serialize_wrapped_proof(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ark_ff::Zero;
 
     #[test]
     fn snark_available_unconditionally() {

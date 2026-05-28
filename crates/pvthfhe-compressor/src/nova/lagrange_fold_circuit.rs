@@ -4,13 +4,6 @@
 //! and accumulates into a running sum. Replaces the standalone Noir C7
 //! Lagrange computation with in-circuit folding.
 
-use super::PoseidonSpongeVar;
-use ark_r1cs_std::{
-    alloc::AllocVar,
-    eq::EqGadget,
-    fields::{fp::FpVar, FieldVar},
-};
-use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
 #[cfg(feature = "legacy-nova")]
 use folding_schemes::frontend::FCircuit; // folding (legacy-nova)
 
@@ -22,13 +15,12 @@ use bellpepper_core::{
 use bp_ff::PrimeField as BpPrimeField;
 
 use crate::{StepCircuit, StepCircuitDescriptor};
-use ark_ff::BigInteger;
-use ark_ff::{PrimeField, Zero};
+use ark_ff::PrimeField;
 use sha3::{Digest, Keccak256};
 use std::cell::RefCell;
 
 thread_local! {
-    pub static LAGRANGE_DATA: RefCell<Vec<(ark_bn254::Fr, ark_bn254::Fr, ark_bn254::Fr)>> = RefCell::new(Vec::new());
+    pub static LAGRANGE_DATA: RefCell<Vec<(ark_bn254::Fr, ark_bn254::Fr, ark_bn254::Fr)>> = const { RefCell::new(Vec::new()) };
 }
 
 pub fn set_lagrange_data(data: Vec<(ark_bn254::Fr, ark_bn254::Fr, ark_bn254::Fr)>) {

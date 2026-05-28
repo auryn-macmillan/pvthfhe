@@ -67,8 +67,8 @@ pub fn derive_beta_vector(session_id: &[u8], num_steps: usize) -> Vec<Fr> {
         let mut hasher = Keccak256::new();
         hasher.update(session_id);
         hasher.update(b"beta");
-        hasher.update(&k_bytes);
-        hasher.update(&num_steps_bytes);
+        hasher.update(k_bytes);
+        hasher.update(num_steps_bytes);
         let digest: [u8; 32] = hasher.finalize().into();
 
         let fr = Fr::from_be_bytes_mod_order(&digest);

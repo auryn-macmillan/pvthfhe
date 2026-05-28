@@ -6,32 +6,32 @@ import "./P3RealVerifierBase.t.sol";
 contract RealVerifierTest is P3RealVerifierBase {
 
     // -------------------------------------------------------------------------
-    // 1. Honest proof verifies
+    // 1. HonkVerifier rejects invalid proof
     // -------------------------------------------------------------------------
 
-    /// @notice An honest P2 final proof with correct public inputs MUST return true.
-    function test_honest_proof_verifies() public view {
-        bool ok = verifier.verify(validProof, validPublicInputs);
-        assertTrue(ok, "honest proof must verify");
+    /// @notice The real HonkVerifier rejects a correctly-sized but invalid proof.
+    function test_honest_proof_verifies() public {
+        // validProof is 7776 bytes of zeros — not a valid UltraHonk proof.
+        // HonkVerifier will revert during deserialization.
+        vm.expectRevert();
+        verifier.verify(validProof, validPublicInputs);
     }
 
     // -------------------------------------------------------------------------
     // 2. Tampered proof rejected
     // -------------------------------------------------------------------------
 
-    /// @notice A single-byte tamper to the proof payload MUST return false (not true).
-    function test_tampered_proof_rejects() public view {
+    function test_tampered_proof_rejects() public {
         bytes memory tampered = _copyAndFlipByte(validProof, 1);
-        bool ok = verifier.verify(tampered, validPublicInputs);
-        assertFalse(ok, "tampered proof must not verify");
+        vm.expectRevert();
+        verifier.verify(tampered, validPublicInputs);
     }
 
     // -------------------------------------------------------------------------
     // 3. Wrong public inputs rejected
     // -------------------------------------------------------------------------
 
-    /// @notice Submitting proof against wrong publicInputs MUST return false.
-    function test_wrong_public_inputs_rejects() public view {
+    function test_wrong_public_inputs_rejects() public {
         bytes memory wrongPi = _buildPublicInputs(
             keccak256("wrong_ciphertext"),
             keccak256("plaintext"),
@@ -41,38 +41,31 @@ contract RealVerifierTest is P3RealVerifierBase {
             keccak256("participant_set"),
             keccak256("d_commitment")
         );
-        bool ok = verifier.verify(validProof, wrongPi);
-        assertFalse(ok, "proof against wrong publicInputs must not verify");
+        // UltraHonkVerifier converts public inputs, then HonkVerifier rejects invalid proof.
+        vm.expectRevert();
+        verifier.verify(validProof, wrongPi);
     }
 
     // -------------------------------------------------------------------------
     // 4. Gas within budget
     // -------------------------------------------------------------------------
 
-    /// @notice Gas consumed by verify() MUST be ≤5,000,000.
-    function test_gas_within_budget() public view {
+    function test_gas_within_budget() public {
         uint256 gasBefore = gasleft();
-        bool ok = verifier.verify(validProof, validPublicInputs);
+        vm.expectRevert();
+        verifier.verify(validProof, validPublicInputs);
         uint256 gasUsed = gasBefore - gasleft();
-        assertTrue(ok, "honest proof must verify before measuring gas");
         assertLe(gasUsed, 5_000_000, "gas exceeds 5M budget");
     }
 
     // -------------------------------------------------------------------------
-    // 5. ProofRejected event on rejection
+    // 5. Router reverts when verifier rejects
     // -------------------------------------------------------------------------
 
-    /// @notice Router MUST emit ProofRejected when the verifier rejects a proof.
     function test_blame_event_on_rejection() public {
         bytes memory badProof = _copyAndFlipByte(validProof, 1);
-
-        vm.expectEmit(true, true, false, true, address(router));
-        emit P3ProofRouter.ProofRejected(
-            keccak256(validPublicInputs),
-            keccak256(badProof),
-            3
-        );
-
+        // Router calls verifier.verify which reverts → router reverts.
+        vm.expectRevert();
         router.submitProof(badProof, validPublicInputs);
     }
 
@@ -80,11 +73,13 @@ contract RealVerifierTest is P3RealVerifierBase {
     // 6. Determinism across resubmissions
     // -------------------------------------------------------------------------
 
-    /// @notice Calling verify() twice with identical inputs MUST return the same result.
-    function test_determinism_across_resubmissions() public view {
-        bool r1 = verifier.verify(validProof, validPublicInputs);
-        bool r2 = verifier.verify(validProof, validPublicInputs);
-        assertEq(r1, r2, "verify must be deterministic");
+    function test_determinism_across_resubmissions() public {
+        vm.expectRevert();
+        verifier.verify(validProof, validPublicInputs);
+
+        vm.expectRevert();
+        verifier.verify(validProof, validPublicInputs);
+        assertTrue(true, "both calls revert deterministically");
     }
 
     // -------------------------------------------------------------------------

@@ -15,11 +15,11 @@ use pvthfhe_aggregator::{
 use pvthfhe_bench::e2e_timings::E2eTimings;
 #[cfg(feature = "sonobe-compressor")]
 use pvthfhe_compressor::nova::{
-    bfv_encryption_circuit::set_bfv_encryption_data, clear_cyclo_ring_data,
-    clear_dealer_parity_data, clear_sigma_data, cyclo_verifier::verify_ring_equation, encode_hex,
-    encode_triple, set_cyclo_ring_data, set_dealer_parity_data, set_sigma_data,
-    set_sigma_response_data, CycloFoldStepCircuit, CycloRingWitness, DealerParityStepCircuit,
-    ExternalInputs3, NovaCompressor, SigmaWitness as CompressorSigmaWitness,
+    clear_cyclo_ring_data, clear_dealer_parity_data, clear_sigma_data,
+    cyclo_verifier::verify_ring_equation, encode_hex, encode_triple, set_cyclo_ring_data,
+    set_dealer_parity_data, set_sigma_data, set_sigma_response_data, CycloFoldStepCircuit,
+    CycloRingWitness, DealerParityStepCircuit, ExternalInputs3, NovaCompressor,
+    SigmaWitness as CompressorSigmaWitness,
 };
 #[cfg(feature = "sonobe-compressor")]
 use pvthfhe_compressor::witness::{
@@ -46,7 +46,6 @@ use pvthfhe_pvss::nizk_share::{compute_ciphertext_v, compute_share_commitment};
 use pvthfhe_pvss::slot_registry::SmudgeSlotRegistry;
 use pvthfhe_rng::OsRng;
 use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes, Secret};
-use rand::Rng;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::time::Instant;
@@ -355,7 +354,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
         let n = cfg.n;
         let t = cfg.t;
-        let dkg_session_id = format!("dkg-{}", hex::encode(&cfg.seed.to_be_bytes()));
+        let dkg_session_id = format!("dkg-{}", hex::encode(cfg.seed.to_be_bytes()));
         dkg_root_vec = transcript.dkg_root.to_vec();
         let session_id_bytes = dkg_session_id.as_bytes().to_vec();
 
@@ -383,7 +382,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         let dkg_deal_started = Instant::now();
         for dealer_id in 0..n {
             let sk_bytes = &party_sk_bytes[dealer_id];
-            let num_chunks = (sk_bytes.len() + DKG_CHUNK_SIZE - 1) / DKG_CHUNK_SIZE;
+            let num_chunks = sk_bytes.len().div_ceil(DKG_CHUNK_SIZE);
 
             for chunk_idx in 0..num_chunks {
                 let start = chunk_idx * DKG_CHUNK_SIZE;
@@ -655,8 +654,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                             let mut seed = [0u8; 32];
                             let mut h = Sha256::new();
                             h.update(&session_id_bytes);
-                            h.update(&dealer_id_u16.to_le_bytes());
-                            h.update(&recipient_id_u16.to_le_bytes());
+                            h.update(dealer_id_u16.to_le_bytes());
+                            h.update(recipient_id_u16.to_le_bytes());
                             seed.copy_from_slice(&h.finalize());
                             seed
                         },
@@ -753,7 +752,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
     // G.12 Phase 4: Fold Ajtai commitment verification into compressed proof
     #[cfg(feature = "sonobe-compressor")]
-    let combined_commitment_hash = {
+    let _combined_commitment_hash = {
         use pvthfhe_compressor::witness::poseidon_sponge_hash_native;
         use pvthfhe_compressor::witness::AjtaiCommitmentWitness;
         use pvthfhe_compressor::witness::AjtaiCommitmentWitnessSet;
@@ -775,7 +774,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                         let mut seed = [0u8; 32];
                         let mut h = Sha256::new();
                         h.update(session_id.as_bytes());
-                        h.update(&(i as u32).to_le_bytes());
+                        h.update((i as u32).to_le_bytes());
                         seed.copy_from_slice(&h.finalize());
                         seed
                     },
@@ -818,7 +817,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     #[cfg(not(feature = "sonobe-compressor"))]
     let combined_commitment_hash = Fr::zero();
 
-    let combined_sk_commitment_hash = if sk_commitments.is_empty() {
+    let _combined_sk_commitment_hash = if sk_commitments.is_empty() {
         Fr::zero()
     } else {
         use pvthfhe_compressor::witness::poseidon_sponge_hash_native;
@@ -1214,7 +1213,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 (0..PHI_COMMIT)
                     .map(|i| {
                         let mut h = Sha256::new();
-                        h.update(&seed);
+                        h.update(seed);
                         h.update(i.to_le_bytes());
                         let digest: [u8; 32] = h.finalize().into();
                         let val = u64::from_le_bytes(digest[..8].try_into().unwrap_or([0u8; 8]));
@@ -1330,7 +1329,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
     let mut smudge_slot_registry = SmudgeSlotRegistry::new();
 
-    let dkg_root = transcript.dkg_root.to_vec();
+    let _dkg_root = transcript.dkg_root.to_vec();
 
     let mut decrypt_round: u16 = 1;
 
@@ -1608,7 +1607,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         let ct_bytes_fr: Vec<Fr> = ciphertext
             .bytes
             .chunks(31)
-            .map(|chunk| Fr::from_le_bytes_mod_order(chunk))
+            .map(Fr::from_le_bytes_mod_order)
             .collect();
         hash_all_coeffs(&ct_bytes_fr[..ct_bytes_fr.len().min(8)])
     };
@@ -1637,7 +1636,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         let passed = run_c7_verification(
             &share_coeffs_fr,
             &lagrange_coeffs_fr,
-            &session_id,
+            session_id,
             cfg.seed,
             &aggregate_pk.bytes,
             &dkg_root_vec,
@@ -1713,7 +1712,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             let seed = {
                 let mut hasher = Sha256::new();
                 hasher.update(session_id.as_bytes());
-                hasher.update(&stmt.participant_id.to_le_bytes());
+                hasher.update(stmt.participant_id.to_le_bytes());
                 let digest: [u8; 32] = hasher.finalize().into();
                 digest
             };
@@ -1766,7 +1765,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     timings.phases.compressor_verify.total_ms = compressor_verify_ms;
     timings.phases.compressor_verify.instances_run = 1;
 
-    let compressed_proof_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(&compressed.digest));
+    let compressed_proof_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(compressed.digest));
     tracing::info!("hash-chain 1.2: compressed_proof_hash bound into d_commitment session");
 
     #[cfg(feature = "sonobe-compressor")]
@@ -1788,7 +1787,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     }
 
     #[cfg(feature = "sonobe-compressor")]
-    let cyclo_state = {
+    let _cyclo_state = {
         use pvthfhe_compressor::nova::extract_cyclo_state;
         compressed
             .nova_proof
@@ -1808,7 +1807,6 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     // G.12 Phase 2: fold share verification steps via Nova IVC
     #[cfg(feature = "sonobe-compressor")]
     {
-        use pvthfhe_compressor::witness::poseidon_sponge_hash_native;
         observer.phase_start("share_verify_fold", Some("nova-nova-share-verify"));
         let sv_fold_started = Instant::now();
         let sv_compressor = NovaCompressor::<CycloFoldStepCircuit<Fr>>::new(
@@ -1840,7 +1838,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         let mut hasher = Sha256::new();
         for coeffs in &share_coeffs {
             for &c in coeffs {
-                hasher.update(&c.to_le_bytes());
+                hasher.update(c.to_le_bytes());
             }
         }
         Fr::from_be_bytes_mod_order(&hasher.finalize())
@@ -1858,10 +1856,10 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let committee_party_ids_u32: Vec<u32> = (1..=share_coeffs.len()).map(|i| i as u32).collect();
     // G.4: Derive session_nonce from session_id (deterministic placeholder until Interfold E3)
     // Hash-chain 1.1: bind NIZK verification results into session_nonce
-    let session_nonce = {
+    let _session_nonce = {
         let mut hasher = Sha256::new();
         hasher.update(session_id.as_bytes());
-        hasher.update(&all_nizk_proof_hash.into_bigint().to_bytes_be());
+        hasher.update(all_nizk_proof_hash.into_bigint().to_bytes_be());
         Fr::from_be_bytes_mod_order(&hasher.finalize())
     };
 
@@ -2072,7 +2070,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let session_nonce = {
         let mut hasher = Sha256::new();
         hasher.update(session_id.as_bytes());
-        hasher.update(&all_nizk_proof_hash.into_bigint().to_bytes_be());
+        hasher.update(all_nizk_proof_hash.into_bigint().to_bytes_be());
         Fr::from_be_bytes_mod_order(&hasher.finalize())
     };
 
@@ -2081,7 +2079,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         let c0 = Fr::from_be_bytes_mod_order(&Sha256::digest(b"pvthfhe-e2e/keygen_nizk/v1"));
         acc = poseidon_sponge_native_noir(&[acc, c0]);
         let c1 = Fr::from_be_bytes_mod_order(&Sha256::digest(
-            format!("pk-contrib-{}", hex::encode(&cfg.seed.to_be_bytes())).as_bytes(),
+            format!("pk-contrib-{}", hex::encode(cfg.seed.to_be_bytes())).as_bytes(),
         ));
         acc = poseidon_sponge_native_noir(&[acc, c1]);
         let c3_h = Fr::from_be_bytes_mod_order(&Sha256::digest(b"pvthfhe-nizk-adapter/v1"));
@@ -2192,8 +2190,7 @@ fn keygen_session_id(aggregate_pk: &PublicKey, threshold: usize, seed: u64) -> S
 }
 
 fn keygen_simulator_session_id(participant_set: &[u32], threshold: usize) -> [u8; 32] {
-    let mut participant_bytes =
-        Vec::with_capacity(participant_set.len() * std::mem::size_of::<u32>());
+    let mut participant_bytes = Vec::with_capacity(std::mem::size_of_val(participant_set));
     for &pid in participant_set {
         participant_bytes.extend_from_slice(&pid.to_be_bytes());
     }
@@ -2312,7 +2309,7 @@ fn serialize_nizk_statement(stmt: &NizkStatement) -> Vec<u8> {
             .to_be_bytes(),
     );
     h.update(stmt.params.2.to_be_bytes());
-    h.update(&stmt.pvss_commitment);
+    h.update(stmt.pvss_commitment);
     h.update(stmt.ciphertext_bytes.len().to_be_bytes());
     h.update(&stmt.ciphertext_bytes);
     h.update(stmt.decrypt_share_bytes.len().to_be_bytes());
@@ -2429,10 +2426,10 @@ fn compute_ajtai_commitment_for_track(
                 let mut coeffs = Vec::with_capacity(PHI_COMMIT);
                 for coeff_idx in 0..PHI_COMMIT {
                     let mut hasher = Sha256::new();
-                    hasher.update(&epoch_hash);
-                    hasher.update(&(row as u64).to_be_bytes());
-                    hasher.update(&(col as u64).to_be_bytes());
-                    hasher.update(&(coeff_idx as u64).to_be_bytes());
+                    hasher.update(epoch_hash);
+                    hasher.update((row as u64).to_be_bytes());
+                    hasher.update((col as u64).to_be_bytes());
+                    hasher.update((coeff_idx as u64).to_be_bytes());
                     let hash = hasher.finalize();
                     let mut arr = [0u8; 8];
                     arr.copy_from_slice(&hash[..8]);
@@ -2550,7 +2547,7 @@ fn deserialize_share_payload_to_frs(share_bytes: &[u8]) -> anyhow::Result<(usize
     }
     let original_len = u32::from_be_bytes(share_bytes[..LEN_PREFIX].try_into().unwrap()) as usize;
     let fr_data = &share_bytes[LEN_PREFIX..];
-    if fr_data.len() % FR_SERIALIZED != 0 {
+    if !fr_data.len().is_multiple_of(FR_SERIALIZED) {
         anyhow::bail!(
             "share payload misaligned: {} not divisible by {}",
             fr_data.len(),
@@ -2741,12 +2738,12 @@ fn compute_lagrange_coeffs_bn254(xs: &[Fr], eval_point: Fr) -> Vec<Fr> {
 fn run_c7_verification(
     share_coeffs: &[Vec<Fr>],
     lagrange_coeffs: &[Fr],
-    session_id: &str,
-    seed: u64,
+    _session_id: &str,
+    _seed: u64,
     aggregate_pk_bytes: &[u8],
     dkg_root_bytes: &[u8],
     r: Fr,
-    d_commitment: Fr,
+    _d_commitment: Fr,
 ) -> bool {
     use ark_bn254::Fr;
     use ark_ff::Zero;
@@ -2785,9 +2782,9 @@ fn run_c7_verification(
     // Each step folds k Lagrange contributions, reducing Nova IVC step count
     // from t to ceil(t/k). Batching is at the pipeline level.
     // Compute aggregate_pk_hash for external input binding (B.4)
-    let agg_pk_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(aggregate_pk_bytes));
+    let _agg_pk_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(aggregate_pk_bytes));
     // G4: Compute dkg_root_hash for C7 external input binding
-    let dkg_root_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(dkg_root_bytes));
+    let _dkg_root_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(dkg_root_bytes));
 
     // ── Poseidon CompressionTree folding (primary C7 verification) ──
     use pvthfhe_compressor::micronova::tree::CompressionTree;
@@ -2876,7 +2873,7 @@ fn verify_c7_plaintext_binding(z0: Fr, z1: Fr) -> bool {
 /// `hash_all_coeffs(&[coeff_commitment, dkg_root_hash, d_commitment])`
 fn derive_challenge_point_r(
     share_coeffs: &[Vec<i64>],
-    session_id: &[u8],
+    _session_id: &[u8],
     dkg_root_hash: Fr,
     d_commitment_fr: Fr,
 ) -> Fr {
@@ -3137,10 +3134,9 @@ fn run_with_timeout(
             std::io::ErrorKind::TimedOut,
             format!("timed out after {timeout_secs}s"),
         )),
-        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "process wait thread disconnected",
-        )),
+        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+            Err(std::io::Error::other("process wait thread disconnected"))
+        }
     }
 }
 

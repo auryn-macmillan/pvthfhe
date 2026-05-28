@@ -13,10 +13,11 @@ abstract contract BaseVerifierTest is Test {
     /// @notice Sample epoch
     uint64 internal constant SAMPLE_EPOCH = 1;
 
-    /// @notice Placeholder proof bytes (empty until T38)
+    /// @notice HonkVerifier (LOG_N=16) proof — 7776 bytes (243 fields × 32 bytes).
     bytes internal sampleProof;
 
     function setUp() public virtual {
-        sampleProof = new bytes(0);
+        // HonkVerifier expects exactly calculateProofSize(16)*32 = 7776 bytes.
+        sampleProof = new bytes(7776);
     }
 }

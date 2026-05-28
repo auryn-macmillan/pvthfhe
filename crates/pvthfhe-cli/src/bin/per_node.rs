@@ -1,6 +1,17 @@
 //! Per-node scaling simulation: measures wall time for ONE party
 //! at arbitrary n and t, reflecting real O(n) per-party deployments.
 //!
+
+#![allow(
+    unexpected_cfgs,
+    unused_imports,
+    unused_variables,
+    dead_code,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::needless_range_loop,
+    clippy::cloned_ref_to_slice_refs
+)]
 //! # Usage
 //!
 //! ```bash
@@ -59,7 +70,7 @@ struct Args {
 }
 
 fn main() -> anyhow::Result<()> {
-    let _ = tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt::init();
     let args = Args::parse();
 
     // Parse track
@@ -153,7 +164,7 @@ fn main() -> anyhow::Result<()> {
     let encrypted = backend
         .encrypt(&pk, &plaintext, &mut first_encrypt_rng)
         .context("encrypt first share")?;
-    for j in 2..(args.n as usize) {
+    for j in 2..args.n {
         let mut encrypt_rng = StdRng::seed_from_u64(args.seed ^ 0xABCD_EF01 ^ j as u64);
         let _ = backend
             .encrypt(&pk, &plaintext, &mut encrypt_rng)
@@ -221,7 +232,7 @@ fn main() -> anyhow::Result<()> {
             parity_proof_count += 1;
         }
     } else {
-        for chunk_idx in 0..((sk_bytes.len() + dkg_chunk_size - 1) / dkg_chunk_size) {
+        for chunk_idx in 0..sk_bytes.len().div_ceil(dkg_chunk_size) {
             let start = chunk_idx * dkg_chunk_size;
             let end = (start + dkg_chunk_size).min(sk_bytes.len());
             let chunk = &sk_bytes[start..end];
@@ -303,7 +314,7 @@ fn main() -> anyhow::Result<()> {
     );
     let mut cross_proofs: Vec<(NizkStatement, NizkProof)> =
         Vec::with_capacity(args.n.saturating_sub(1));
-    for other_party in 1..(args.n as usize) {
+    for other_party in 1..args.n {
         let other_party_id = other_party as u32;
         let other_sk = backend
             .party_secret_key_bytes(other_party_id)
@@ -429,9 +440,8 @@ fn main() -> anyhow::Result<()> {
             })
             .collect();
         let witness_set = AjtaiCommitmentWitnessSet { witnesses };
-        let ajtai_compressor =
-            NovaCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, args.n)
-                .map_err(|e| anyhow::anyhow!("dkg fold compressor init: {e:?}"))?;
+        let ajtai_compressor = NovaCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, args.n)
+            .map_err(|e| anyhow::anyhow!("dkg fold compressor init: {e:?}"))?;
         let acc = encode_hex((
             Fr::from(0u64),
             Fr::from(0u64),
@@ -612,9 +622,9 @@ fn compute_ajtai_matrix_commitment(
             for coeff_idx in 0..PHI_COMMIT {
                 let mut hasher = Sha256::new();
                 hasher.update(epoch_hash);
-                hasher.update(&(row as u64).to_be_bytes());
-                hasher.update(&(col as u64).to_be_bytes());
-                hasher.update(&(coeff_idx as u64).to_be_bytes());
+                hasher.update((row as u64).to_be_bytes());
+                hasher.update((col as u64).to_be_bytes());
+                hasher.update((coeff_idx as u64).to_be_bytes());
                 let hash = hasher.finalize();
                 let mut arr = [0u8; 8];
                 arr.copy_from_slice(&hash[..8]);

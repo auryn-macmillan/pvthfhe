@@ -93,26 +93,25 @@ pub fn compute_jl_projection(w: &[i64], seed: [u8; 32], m: usize) -> Vec<i64> {
         return vec![0i64; m];
     }
 
-    let n = w.len();
     let inv_sqrt_m = (3.0 / (m as f64)).sqrt(); // Achlioptas ±√(3/m)
     let scaler = 1_000_000i64; // fixed-point scaling to keep integer arithmetic
 
     let mut rng = StdRng::from_seed(seed);
     let mut projection = vec![0i64; m];
 
-    for i in 0..m {
+    for proj in &mut projection {
         let mut sum: f64 = 0.0;
         // Achlioptas sparse: each entry is ±√(3/m) with prob 1/6 each, or 0 with prob 2/3
-        for j in 0..n {
+        for &wj in w.iter() {
             let r: f64 = rng.gen(); // random in [0,1)
             if r < 1.0 / 6.0 {
-                sum += (w[j] as f64) * inv_sqrt_m;
+                sum += (wj as f64) * inv_sqrt_m;
             } else if r < 2.0 / 6.0 {
-                sum -= (w[j] as f64) * inv_sqrt_m;
+                sum -= (wj as f64) * inv_sqrt_m;
             }
             // else: 0 (prob 2/3)
         }
-        projection[i] = (sum * scaler as f64) as i64;
+        *proj = (sum * scaler as f64) as i64;
     }
     projection
 }
@@ -133,17 +132,17 @@ pub fn compute_raw_jl_sum(w: &[i64], seed: [u8; 32], m: usize) -> Vec<i64> {
     let mut rng = StdRng::from_seed(seed);
     let mut projection = vec![0i64; m];
 
-    for i in 0..m {
+    for proj in &mut projection {
         let mut sum: i64 = 0;
-        for j in 0..w.len() {
+        for &wj in w.iter() {
             let r: f64 = rng.gen();
             if r < 1.0 / 6.0 {
-                sum += w[j];
+                sum += wj;
             } else if r < 2.0 / 6.0 {
-                sum -= w[j];
+                sum -= wj;
             }
         }
-        projection[i] = sum;
+        *proj = sum;
     }
     projection
 }
@@ -160,13 +159,13 @@ pub fn compute_jl_entries(seed: [u8; 32], m: usize, n: usize) -> Vec<Vec<(usize,
     use rand::{Rng, SeedableRng};
     let mut rng = StdRng::from_seed(seed);
     let mut entries = vec![Vec::new(); m];
-    for k in 0..m {
+    for entry in &mut entries {
         for j in 0..n {
             let r: f64 = rng.gen();
             if r < 1.0 / 6.0 {
-                entries[k].push((j, true));
+                entry.push((j, true));
             } else if r < 2.0 / 6.0 {
-                entries[k].push((j, false));
+                entry.push((j, false));
             }
         }
     }
@@ -298,6 +297,7 @@ fn prove_round(
     let ctx = rlwe_context()?;
 
     let max_retries = 100;
+    #[allow(clippy::type_complexity)]
     let mut last_result: Option<(Vec<u64>, Vec<i64>, Vec<i64>, i64)> = None;
     for _attempt in 0..max_retries {
         let y_s = sample_bounded(rng, n, B_Y)?;
@@ -362,7 +362,8 @@ fn prove_round(
         "sigma rejection exceeded max_retries ({}), verifier will check norms",
         max_retries
     );
-    let (t_rns, z_s, z_e, ch) = last_result.expect("at least one iteration");
+    let (t_rns, z_s, z_e, ch) =
+        last_result.unwrap_or_else(|| unreachable!("rejection loop always populates last_result"));
     Ok(SigmaProof {
         t_rns,
         z_s,
@@ -539,9 +540,9 @@ pub fn compute_sk_binding(d_rns: &[u64], participant_id: u32, session_id: &[u8])
     let mut hasher = Sha256::new();
     hasher.update(b"pvthfhe-sk-binding/v1");
     for limb in d_rns {
-        hasher.update(&limb.to_le_bytes());
+        hasher.update(limb.to_le_bytes());
     }
-    hasher.update(&participant_id.to_le_bytes());
+    hasher.update(participant_id.to_le_bytes());
     hasher.update(session_id);
     hasher.finalize().into()
 }
@@ -689,7 +690,7 @@ pub fn derive_transcript_commitment(t_rns: &[u64], c_rns: &[u64], d_rns: &[u64])
     let mut hasher = Keccak256::new();
     hasher.update(SCALAR_CHALLENGE_DOMAIN);
     hasher.update(b"t2-commit");
-    hasher.update(&(t_rns.len() as u64).to_be_bytes());
+    hasher.update((t_rns.len() as u64).to_be_bytes());
     for &x in t_rns {
         hasher.update(x.to_le_bytes());
     }
@@ -753,9 +754,11 @@ fn bytes16_to_fr(bytes: &[u8]) -> Fr {
 
 /// Hash a slice of Fr elements using Poseidon.
 fn poseidon_hash(inputs: &[Fr]) -> Fr {
-    let mut hasher =
-        Poseidon::<Fr>::new_circom(inputs.len()).expect("Poseidon arity within Circom range");
-    hasher.hash(inputs).expect("Poseidon hash must succeed")
+    let mut hasher = Poseidon::<Fr>::new_circom(inputs.len())
+        .unwrap_or_else(|_| panic!("Poseidon arity out of circom range: {}", inputs.len()));
+    hasher
+        .hash(inputs)
+        .unwrap_or_else(|_| panic!("Poseidon hash failed for {} inputs", inputs.len()))
 }
 
 /// Reduce an Fr field element to a ternary value {-1, 0, 1}.
@@ -895,7 +898,7 @@ pub fn compute_sigma_ntt_data(
         let slice = &rns[start..end];
         let mut full_rns = vec![0u64; n * l];
         full_rns[limb * n..(limb + 1) * n].copy_from_slice(slice);
-        let mut poly = Poly::try_convert_from(full_rns, &ctx, false, Representation::PowerBasis)
+        let mut poly = Poly::try_convert_from(full_rns, ctx, false, Representation::PowerBasis)
             .map_err(|_| NizkError::InvalidInput("poly convert failed"))?;
         poly.change_representation(Representation::Ntt);
         let ntt_full: Vec<u64> = Vec::from(&poly);
@@ -976,28 +979,30 @@ fn compute_one_gamma(
     h.update(b"pvthfhe-sz-gamma-v3");
     h.update(label);
     h.update(session_id);
-    h.update(&party_id.to_le_bytes());
-    h.update(&proof.ch.to_le_bytes());
+    h.update(party_id.to_le_bytes());
+    h.update(proof.ch.to_le_bytes());
     for &v in &proof.t_rns {
-        h.update(&v.to_le_bytes());
+        h.update(v.to_le_bytes());
     }
     for &v in c_rns {
-        h.update(&v.to_le_bytes());
+        h.update(v.to_le_bytes());
     }
     for &v in d_rns {
-        h.update(&v.to_le_bytes());
+        h.update(v.to_le_bytes());
     }
     for &v in &proof.z_s {
-        h.update(&v.to_le_bytes());
+        h.update(v.to_le_bytes());
     }
     for &v in &proof.z_e {
-        h.update(&v.to_le_bytes());
+        h.update(v.to_le_bytes());
     }
     for &v in prev_gammas {
-        h.update(&v.to_le_bytes());
+        h.update(v.to_le_bytes());
     }
     let digest = h.finalize();
-    u64::from_le_bytes(digest[..8].try_into().unwrap())
+    let mut bytes = [0u8; 8];
+    bytes.copy_from_slice(&digest[..8]);
+    u64::from_le_bytes(bytes)
 }
 
 /// Compute 3 independent Schwartz-Zippel challenge points gamma[0..2] from the sigma
@@ -1045,6 +1050,25 @@ pub fn compute_sz_gamma(
 /// modulus-reduction quotient r1 so the in-circuit check is a single
 /// equality constraint per (limb, eval_idx) pair.
 ///
+/// Result type for [`compute_sigma_sz_data`].
+#[allow(clippy::type_complexity)]
+pub type SigmaSzData = (
+    [u64; 3],
+    Vec<u64>,
+    Vec<u64>,
+    Vec<u64>,
+    Vec<u64>,
+    Vec<u64>,
+    Vec<u64>,
+);
+
+/// Compute Schwartz-Zippel 3-point evaluation data for the compressor witness.
+///
+/// Evaluates each of the five polynomials (c, z_s, z_e, t, d_i) at 3 independent
+/// Fiat-Shamir-derived gamma points per RNS limb, and precomputes the
+/// modulus-reduction quotient r1 so the in-circuit check is a single
+/// equality constraint per (limb, eval_idx) pair.
+///
 /// Returns (gamma[3], c_eval, zs_eval, ze_eval, t_eval, di_eval, r1_eval)
 /// where each eval vector has 3*L entries in eval-major order:
 /// [γ0_l0, γ0_l1, γ0_l2, γ1_l0, γ1_l1, γ1_l2, γ2_l0, γ2_l1, γ2_l2].
@@ -1054,15 +1078,7 @@ pub fn compute_sigma_sz_data(
     proof: &SigmaProof,
     session_id: &[u8],
     party_id: u32,
-) -> (
-    [u64; 3],
-    Vec<u64>,
-    Vec<u64>,
-    Vec<u64>,
-    Vec<u64>,
-    Vec<u64>,
-    Vec<u64>,
-) {
+) -> SigmaSzData {
     let n = rlwe_n();
     let moduli = pvthfhe_types::rlwe_moduli();
     let gammas = compute_sz_gamma(proof, session_id, party_id, c_rns, d_rns);
@@ -1075,8 +1091,7 @@ pub fn compute_sigma_sz_data(
     let mut sz_di_eval = Vec::with_capacity(total_entries);
     let mut sz_r1_eval = Vec::with_capacity(total_entries);
 
-    for eval_idx in 0..3 {
-        let gamma = gammas[eval_idx];
+    for &gamma in &gammas {
         for limb in 0..moduli.len() {
             let q = moduli[limb];
 

@@ -10,7 +10,7 @@ use {
     ark_bn254::Fr,
     ark_ff::PrimeField,
     pvthfhe_compressor::{
-        nova::{encode_hex, encode_quad, encode_triple, CycloFoldStepCircuit, NovaCompressor},
+        nova::{encode_quad, encode_triple, CycloFoldStepCircuit, NovaCompressor},
         CompressedProof as NovaProof, ProofCompressor, VerifierKey,
     },
 };
@@ -62,10 +62,10 @@ impl Compressor {
             let inner = NovaCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, ivc_steps)
                 .map_err(compressor_error_to_anyhow)?;
             let verifier_key = inner.verifier_key();
-            return Ok(Self::Nova {
+            Ok(Self::Nova {
                 inner,
                 verifier_key,
-            });
+            })
         }
 
         #[cfg(all(feature = "surrogate-compressor", not(feature = "sonobe-compressor")))]
@@ -191,8 +191,8 @@ pub fn compressor_inputs(
     let mut total_norm: u64 = 0;
     // T4 domain-separator: hash accumulator count before the loop
     let num_accumulators = report.accumulators().len();
-    acc_hasher.update(&(num_accumulators as u64).to_be_bytes());
-    public_hasher.update(&(num_accumulators as u64).to_be_bytes());
+    acc_hasher.update((num_accumulators as u64).to_be_bytes());
+    public_hasher.update((num_accumulators as u64).to_be_bytes());
     for accumulator in report.accumulators() {
         acc_hasher.update(&accumulator.acc_commitment_bytes);
         public_hasher.update(&accumulator.acc_public_io_bytes);

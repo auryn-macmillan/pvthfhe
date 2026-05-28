@@ -22,12 +22,12 @@ This document outlines the security model, assumptions, and limitations of the P
 
 The PVTHFHE security model is evaluated across 6 axes:
 
-1.  **Adversary**: Malicious, computationally bounded (PPT).
-2.  **Corruption**: Honest-majority threshold $t = \lfloor n/2 \rfloor + 1$. Up to $n-t$ parties can be maliciously corrupted and collude.
-3.  **Network**: Synchronous communication for DKG and decryption rounds.
-4.  **Identity**: Authenticated channels; party identities are known and fixed for the duration of a protocol instance.
-5.  **Liveness**: Guaranteed as long as $t$ honest parties participate.
-6.  **Abort**: Abort-with-public-blame; malicious behavior is detected and the offending party is identified.
+1. **Adversary**: Malicious, computationally bounded (PPT).
+2. **Corruption**: Honest-majority threshold $t = \lfloor n/2 \rfloor + 1$. Up to $n-t$ parties can be maliciously corrupted and collude.
+3. **Network**: Synchronous communication for DKG and decryption rounds.
+4. **Identity**: Authenticated channels; party identities are known and fixed for the duration of a protocol instance.
+5. **Liveness**: Guaranteed as long as $t$ honest parties participate.
+6. **Abort**: Abort-with-public-blame; malicious behavior is detected and the offending party is identified.
 
 ## Assumptions Ledger
 
@@ -73,13 +73,13 @@ repetition with round-index binding in the Fiat-Shamir transcript. Each round us
 independently-derived challenge via `RO(t_i || c || d || commitment || round_i)`,
 preventing cross-round replay. The soundness error is (2/3)^k for k rounds.
 
-| Round count (k) | SIGMA_REPETITIONS | Soundness error   | Effective bits | Constraint cost  |
-|----------------|-------------------|-------------------|---------------|-----------------|
-| 1 (CURRENT)    | 1                 | 2/3 (≈ 0.67)      | ~1.58          | ~508K (baseline)|
-| 10             | 10                | (2/3)^10 ≈ 0.017  | ~15.8          | ~5M (fine)      |
-| 45             | 45                | (2/3)^45 ≈ 2^-26  | ~71            | ~23M (heavy)    |
-| 90             | 90                | (2/3)^90 ≈ 2^-53  | ~142           | ~46M (needs T4) |
-| 128            | 128               | (2/3)^128 ≈ 2^-75 | ~203           | ~65M (needs T4) |
+| Round count (k) | SIGMA_REPETITIONS | Soundness error      | Effective bits | Constraint cost    |
+| --------------- | ----------------- | -------------------- | -------------- | ----------------- |
+| 1 (CURRENT)     | 1                 | 2/3 (≈ 0.67)         | ~1.58          | ~508K (baseline)  |
+| 10              | 10                | (2/3)^10 ≈ 0.017     | ~15.8          | ~5M (fine)        |
+| 45              | 45                | (2/3)^45 ≈ 2^-26     | ~71            | ~23M (heavy)      |
+| 90              | 90                | (2/3)^90 ≈ 2^-53     | ~142           | ~46M (needs T4)   |
+| 128             | 128               | (2/3)^128 ≈ 2^-75    | ~203           | ~65M (needs T4)   |
 
 The `prove_multi()` and `verify_multi()` functions in `sigma.rs` implement the k-round
 parallel repetition protocol. The in-circuit verification (`sigma_verify_step_bp`) loops
@@ -103,6 +103,7 @@ in `.sisyphus/plans/p1-sigma-repetition.md`.
 SmudgeSlotRegistry enforcement is now unconditional (was gated behind pipeline-extra-checks). See round6-adversarial-remediation.md.
 
 Known limitations (documented, not exploitable):
+
 - e_i=0 in algebraic proof (defense-in-depth; BFV proof provides RLWE soundness)
 - Circular pvss_commitment in algebraic proof (defense-in-depth; D2/BFV layers bind independently)
 - BFV sigma challenge internally binds to session_id/participant_id (R6 defense-in-depth hardening). All known callers provide full binding.
@@ -111,6 +112,7 @@ Known limitations (documented, not exploitable):
 - Keygen NIZK uses real BFV sigma proofs per dealer (see `nizk_keygen.rs`; falls back to stub only on error)
 
 Cross-session replay hardening:
+
 - aggregate_decrypt now checks session_id against external expectation
 - D2 hash binding now includes dkg_root
 - FhersBackend::aggregate_keygen now detects duplicate party_id
@@ -145,11 +147,11 @@ trust model assumes:
 
 ## Trust Boundary — In-Circuit vs Native
 
-Only the Noir `aggregator_final` circuit is verified on-chain (via HonkVerifier.sol). 
+Only the Noir `aggregator_final` circuit is verified on-chain (via HonkVerifier.sol).
 All other protocol proofs run natively and are NOT verifiable by the on-chain verifier.
 
 | Protocol Proof | In-Circuit | Native-Only | Notes |
-|---------------|-----------|-------------|-------|
+| --------------- | ----------- | ------------- | ------- |
 | Threshold/Lagrange recombination | ✓ | — | Fully constrained in Noir |
 | Plaintext derivation | ✓ | — | Computed from shares via Lagrange |
 | ciphertext_hash ≠ plaintext_hash | ✓ | — | Weak check (≠ only) |
@@ -165,7 +167,7 @@ All other protocol proofs run natively and are NOT verifiable by the on-chain ve
 ## Proving Backend Inventory
 
 | Backend | Role | Technology |
-|---------|------|-----------|
+| --------- | ------ | ----------- |
 | Cyclo (fhe-math) | Ring equation + Ajtai commitment | Lattice-native |
 | Nova Nova (folding-schemes) | IVC folding + C7 aggregation | R1CS Nova |
 | Noir + BB UltraHonk | Final Lagrange recombination | Noir R1CS → Honk |
@@ -222,7 +224,7 @@ This provides $> 100$ bits of statistical security against noise-based leakage, 
 PVTHFHE supports two distinct smudging modes with different security guarantees:
 
 | Mode | API | Noise source | Interfold-equivalent |
-|------|-----|-------------|---------------------|
+| ------ | ----- | ------------- | --------------------- |
 | `legacy_local_smudge` | `FheBackend::partial_decrypt` | Fresh Gaussian sampled per-decryption via local RNG | **No** (Non-equivalent mode) |
 | `committed_smudge_pvss` | `FheBackend::partial_decrypt_committed_smudge` | Committed `e_sm` polynomial from DKG transcript | **Target Committed Mode** |
 

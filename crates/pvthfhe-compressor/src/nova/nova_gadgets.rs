@@ -584,9 +584,7 @@ pub fn bfv_verify_step_bp<CS: ConstraintSystem<NovaScalar>>(
         let step_data = data
             .get(step)
             .or_else(|| step.checked_sub(1).and_then(|zb| data.get(zb)));
-        step_data.map_or(false, |d| {
-            d.len() >= bfv_encryption_circuit::BFV_STEP_DATA_LEN
-        })
+        step_data.is_some_and(|d| d.len() >= bfv_encryption_circuit::BFV_STEP_DATA_LEN)
     });
 
     if !has_data {
@@ -820,13 +818,13 @@ fn norm_range_check_bp<CS: ConstraintSystem<NovaScalar>>(
 
     let bits: Vec<AllocatedNum<NovaScalar>> = (0..31)
         .map(|idx| {
-            let bit_val = NovaScalar::from(((native_value >> idx) & 1) as u64);
+            let bit_val = NovaScalar::from((native_value >> idx) & 1);
             AllocatedNum::alloc(cs.namespace(|| format!("{tag}_bit_{idx}")), || Ok(bit_val))
         })
         .collect::<Result<_, _>>()?;
 
     for idx in 0..31 {
-        let bit_val = NovaScalar::from(((native_value >> idx) & 1) as u64);
+        let bit_val = NovaScalar::from((native_value >> idx) & 1);
         let bit_minus_one_val = bit_val - NovaScalar::from(1u64);
 
         let bit_minus_one =

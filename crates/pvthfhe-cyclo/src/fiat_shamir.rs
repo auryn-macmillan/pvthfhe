@@ -92,7 +92,7 @@ impl CycloTernaryTranscript {
         let mut state = Sha256::new();
         state.update(b"pvthfhe-cyclo-fs-v2");
         state.update(session_id.as_bytes());
-        state.update(&participant_id.to_le_bytes());
+        state.update(participant_id.to_le_bytes());
         Self { state }
     }
 

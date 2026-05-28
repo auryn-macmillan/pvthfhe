@@ -18,16 +18,12 @@
 //! Recursive compression pipeline (compress_latticefold_tree) deferred to P3-M2.
 
 use ark_ff::PrimeField;
-use ark_r1cs_std::fields::fp::FpVar;
-use ark_r1cs_std::fields::FieldVar;
-use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
 #[cfg(feature = "legacy-nova")]
 use folding_schemes::frontend::FCircuit; // folding (legacy-nova)
 use sha3::{Digest, Keccak256};
 
 use pvthfhe_domain_tags::Tag;
 
-use super::{ExternalInputs3, ExternalInputs3Var};
 use crate::{StepCircuit, StepCircuitDescriptor};
 
 /// Terminal verifier step circuit for LatticeFold+ folding.

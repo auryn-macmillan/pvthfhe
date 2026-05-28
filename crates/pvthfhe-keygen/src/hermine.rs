@@ -59,6 +59,7 @@ pub fn check_share_shortness(value: u64) -> bool {
 #[derive(Debug, Default)]
 pub struct HermineAdapter;
 
+#[allow(deprecated)]
 impl HermineAdapter {
     /// Creates a new `HermineAdapter`.
     pub fn new() -> Self {
@@ -264,6 +265,7 @@ fn mod_pow(mut base: u128, mut exp: u128, modulus: u128) -> u128 {
 
 // ── KeygenAdapter impl ────────────────────────────────────────────────────────
 
+#[allow(deprecated)]
 impl KeygenAdapter for HermineAdapter {
     fn generate_session(
         &self,

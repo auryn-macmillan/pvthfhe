@@ -104,11 +104,11 @@ contract AttestorOnboardingTest is Test {
         assertTrue(verifier.attestors(NEW_ATTESTOR));
 
         // Now schedule removal.
-        vm.warp(block.timestamp + 1); // Move past previous execution block
         bytes memory removeData = abi.encodeCall(verifier.removeAttestor, (NEW_ATTESTOR));
         vm.prank(PROP_2);
         timelock.schedule(address(verifier), 0, removeData, bytes32(0), keccak256("salt3"), MIN_DELAY);
-        vm.warp(block.timestamp + MIN_DELAY + 1);
+        // Warp past the delay: current time + MIN_DELAY + 1
+        vm.warp(345604);
         timelock.execute(address(verifier), 0, removeData, bytes32(0), keccak256("salt3"));
 
         assertFalse(verifier.attestors(NEW_ATTESTOR), "attestor must be removed via timelock");

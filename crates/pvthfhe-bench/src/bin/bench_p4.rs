@@ -3,7 +3,7 @@
 //! Outputs one JSON file per n to `.sisyphus/evidence/benchmarks/p4/` and prints
 //! a summary table to stdout (which `just bench-p4` tees into run.log).
 
-#![allow(missing_docs, clippy::expect_used, clippy::as_conversions)]
+#![allow(missing_docs, deprecated, clippy::expect_used, clippy::as_conversions)]
 
 use pvthfhe_keygen::{hermine::HermineAdapter, KeygenAdapter, Participant};
 use serde::{Deserialize, Serialize};

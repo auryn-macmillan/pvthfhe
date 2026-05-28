@@ -1,5 +1,16 @@
 //! CLI for verifying Nova proofs and emitting an attestation bundle.
 
+#![allow(
+    missing_docs,
+    unexpected_cfgs,
+    unused_imports,
+    unused_variables,
+    unreachable_code,
+    dead_code,
+    clippy::expect_used,
+    clippy::unwrap_used
+)]
+
 use std::{fs, path::PathBuf};
 
 use clap::Parser;

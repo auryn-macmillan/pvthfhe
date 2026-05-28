@@ -1,5 +1,6 @@
 //! End-to-end phase driver for the PVTHFHE demo pipeline.
 
+#![allow(unexpected_cfgs, clippy::needless_range_loop)]
 #![warn(missing_docs)]
 
 use anyhow::Context;
@@ -19,13 +20,6 @@ use tracing::{info, warn};
 use {
     ark_bn254::Fr,
     ark_ff::{PrimeField, Zero},
-    pvthfhe_compressor::{
-        nova::{
-            encode_triple, hash8_native, C7DecryptAggregationCircuit, C7MerkleExternalInputs,
-            C7MerkleStepCircuit, ExternalInputs5, MerkleWitnessData, NovaCompressor,
-        },
-        witness::hash_all_coeffs,
-    },
     sha2::{Digest, Sha256},
 };
 
@@ -475,7 +469,7 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
 fn run_noir_aggregator_final_optional(_report: &PipelineReport) {}
 
 #[cfg(feature = "sonobe-compressor")]
-fn run_c7_nova_optional(n: usize, seed: u64) -> (f64, bool) {
+fn run_c7_nova_optional(_n: usize, _seed: u64) -> (f64, bool) {
     if std::env::var("PVTHFHE_RUN_C7_SONOBE").unwrap_or_default() != "1" {
         return (0.0, false);
     }
@@ -523,7 +517,7 @@ fn run_c7_nova_optional(_n: usize, _seed: u64) -> (f64, bool) {
 }
 
 #[cfg(feature = "sonobe-compressor")]
-fn run_c7_merkle_optional(n: usize, seed: u64) -> (f64, bool) {
+fn run_c7_merkle_optional(_n: usize, _seed: u64) -> (f64, bool) {
     if std::env::var("PVTHFHE_RUN_C7_MERKLE").unwrap_or_default() != "1" {
         return (0.0, false);
     }

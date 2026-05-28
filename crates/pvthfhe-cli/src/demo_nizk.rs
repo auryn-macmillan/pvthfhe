@@ -127,7 +127,10 @@ fn derive_demo_error_poly(secret_key_bytes: &[u8]) -> Vec<i64> {
 }
 
 fn bytes_to_i64_poly(bytes: &[u8]) -> Vec<i64> {
-    assert!(bytes.len() % 8 == 0, "input length must be multiple of 8");
+    assert!(
+        bytes.len().is_multiple_of(8),
+        "input length must be multiple of 8"
+    );
     let num_coeffs = bytes.len() / 8;
     let mut poly = Vec::with_capacity(num_coeffs);
     for chunk in bytes.chunks_exact(8) {

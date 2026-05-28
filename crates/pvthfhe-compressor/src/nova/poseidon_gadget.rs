@@ -154,7 +154,7 @@ fn mix<F: PrimeField>(state: &mut [FpVar<F>], mds: &[Vec<F>]) -> Result<(), Synt
     for i in 0..t {
         let mut sum = FpVar::<F>::zero();
         for j in 0..t {
-            sum = sum + FpVar::constant(mds[i][j]) * &state[j];
+            sum += FpVar::constant(mds[i][j]) * &state[j];
         }
         new_state.push(sum);
     }

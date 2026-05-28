@@ -23,7 +23,9 @@ abstract contract P3RealVerifierBase is Test {
         verifier = new P3RealVerifier(address(ultraHonkVerifier));
         router = new P3ProofRouter(address(verifier));
 
-        validProof = abi.encodePacked("pvthfhe-valid-proof");
+        // HonkVerifier expects exactly calculateProofSize(16) * 32 = 7776 bytes.
+        // Provide a correctly-sized proof for tests that need a valid-length proof.
+        validProof = _buildSizedProof();
         validPublicInputs = _buildPublicInputs(
             keccak256(validProof),
             keccak256("plaintext"),
@@ -55,6 +57,12 @@ abstract contract P3RealVerifierBase is Test {
             mstore(add(ptr, 136), participantSetHash)
             mstore(add(ptr, 168), dCommitment)
         }
+    }
+
+    /// @dev Build a proof of exactly `calculateProofSize(LOG_N) * 32 = 7776` bytes.
+    function _buildSizedProof() internal pure returns (bytes memory p) {
+        // 243 field elements × 32 bytes = 7776 bytes (matches LOG_N=16)
+        p = new bytes(7776);
     }
 
     function _copyBytes(bytes memory src) internal pure returns (bytes memory dst) {

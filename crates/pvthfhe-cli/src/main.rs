@@ -2,6 +2,14 @@
 //!
 //! Subcommands: keygen, encrypt, partial-decrypt, aggregate, verify, demo.
 
+#![allow(
+    unexpected_cfgs,
+    unused_imports,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::needless_range_loop,
+    clippy::cloned_ref_to_slice_refs
+)]
 #![warn(missing_docs)]
 
 // Security: demo-seeded-rng MUST NOT be used without explicit opt-in.

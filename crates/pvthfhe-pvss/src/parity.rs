@@ -46,14 +46,14 @@ pub fn generate_parity_matrix(n: usize, t: usize) -> Vec<Vec<Fr>> {
     let mut h = Vec::with_capacity(n_rows);
     for k in 0..n_rows {
         let mut row = vec![Fr::ZERO; n];
-        for j in 0..=order {
+        for (j, b) in binom.iter().enumerate().take(order + 1) {
             let idx = k + j;
-            let sign = if (order - j) % 2 == 0 {
+            let sign = if (order - j).is_multiple_of(2) {
                 Fr::ONE
             } else {
                 -Fr::ONE
             };
-            row[idx] = sign * binom[j];
+            row[idx] = sign * *b;
         }
         h.push(row);
     }
@@ -220,9 +220,9 @@ pub fn deserialize_parity_proof(bytes: &[u8]) -> Option<ParityProof> {
                 return None;
             }
             let mut limbs = [0u64; 4];
-            for i in 0..4 {
+            for (i, limb) in limbs.iter_mut().enumerate() {
                 let lo = offset + i * 8;
-                limbs[i] = u64::from_le_bytes(bytes[lo..lo + 8].try_into().ok()?);
+                *limb = u64::from_le_bytes(bytes[lo..lo + 8].try_into().ok()?);
             }
             coeffs.push(Fr::from_bigint(ark_ff::BigInt::<4>::new(limbs))?);
             offset += FR_BYTES;

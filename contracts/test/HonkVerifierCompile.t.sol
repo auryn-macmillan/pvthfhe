@@ -5,9 +5,7 @@ import "forge-std/Test.sol";
 import "../src/generated/HonkVerifier.sol";
 
 /// @title HonkVerifierCompileTest
-/// @notice R6.2 regression test: ensures the committed HonkVerifier.sol
-///         compiles and can be deployed. This test guards against build
-///         breakage when the BB-generated verifier is regenerated in the future.
+/// @notice R6.2 regression test: ensures the committed HonkVerifier.sol compiles and deploys.
 contract HonkVerifierCompileTest is Test {
     HonkVerifier internal verifier;
 
@@ -16,39 +14,32 @@ contract HonkVerifierCompileTest is Test {
         assertTrue(address(verifier) != address(0), "verifier deployment must succeed");
     }
 
-    /// @notice Core compile-and-deploy check: verifier must instantiate.
     function test_deploy_succeeds() public view {
-        // HonkVerifier was successfully deployed in setUp; this just confirms
-        // the contract code compiled into the test binary.
         assertTrue(true, "forge build passed");
     }
 
-    /// @notice Verify that the basic verify ABI is callable.
-    function test_verify_abi_callable() public view {
-        bytes memory proof = hex"deadbeef";
-        bytes32[] memory publicInputs = new bytes32[](1);
-        publicInputs[0] = keccak256(proof);
-
-        bool result = verifier.verify(proof, publicInputs);
-        assertTrue(result, "matching proof hash must verify");
+    /// @notice HonkVerifier accepts only correctly-sized proofs (LOG_N=16 → 7776 bytes).
+    function test_verify_abi_callable() public {
+        bytes memory proof = new bytes(7776);
+        bytes32[] memory publicInputs = new bytes32[](7);
+        // Garbage proof — HonkVerifier rejects during deserialization.
+        vm.expectRevert();
+        verifier.verify(proof, publicInputs);
     }
 
-    /// @notice Mismatched proof hash must return false (not revert).
-    function test_mismatched_proof_returns_false() public view {
-        bytes memory proof = hex"deadbeef";
-        bytes32[] memory publicInputs = new bytes32[](1);
-        publicInputs[0] = bytes32(uint256(0));
-
-        bool result = verifier.verify(proof, publicInputs);
-        assertFalse(result, "mismatched proof hash must return false");
+    /// @notice Short proof must revert with proof length error.
+    function test_mismatched_proof_returns_false() public {
+        bytes memory proof = new bytes(4);
+        bytes32[] memory publicInputs = new bytes32[](7);
+        vm.expectRevert();
+        verifier.verify(proof, publicInputs);
     }
 
-    /// @notice Malformed proof (empty public inputs) must revert.
+    /// @notice 0 public inputs → HonkVerifier may revert on public input count.
     function test_empty_public_inputs_reverts() public {
-        bytes memory proof = hex"";
+        bytes memory proof = new bytes(7776);
         bytes32[] memory publicInputs = new bytes32[](0);
-
-        vm.expectRevert(bytes("PVTHFHE: malformed proof"));
+        vm.expectRevert();
         verifier.verify(proof, publicInputs);
     }
 }

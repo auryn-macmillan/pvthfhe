@@ -1,3 +1,11 @@
+#![allow(
+    missing_docs,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::as_conversions
+)]
+
 use clap::{Parser, ValueEnum};
 use pvthfhe_aggregator::{
     decrypt::{aggregate_decrypt, partial_decrypt},
@@ -101,7 +109,7 @@ fn threshold_for(n_parties: usize) -> usize {
 
 fn backend_threshold_for(backend_id: &str, threshold: usize, n_parties: usize) -> usize {
     if backend_id == FHERS_BACKEND_ID {
-        threshold.min((n_parties + 1) / 2)
+        threshold.min(n_parties.div_ceil(2))
     } else {
         threshold
     }

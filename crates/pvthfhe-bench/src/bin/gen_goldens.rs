@@ -1,4 +1,10 @@
-#![allow(missing_docs, clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    missing_docs,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::as_conversions
+)]
 
 use clap::Parser;
 use pvthfhe_aggregator::folding::{CcsPShareInstance, HashChainCycloAdapter};

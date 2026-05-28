@@ -188,7 +188,7 @@ fn verify_merkle_path<F: PrimeField>(
     // Sum constraint: Σ b_i * 2^i == leaf_index
     let mut sum = FpVar::<F>::zero();
     for i in 0..bits_count {
-        sum = sum + bits[i].clone() * FpVar::constant(F::from(1u64 << i));
+        sum += bits[i].clone() * FpVar::constant(F::from(1u64 << i));
     }
     sum.enforce_equal(leaf_index)?;
 

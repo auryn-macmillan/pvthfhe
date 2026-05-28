@@ -1,20 +1,5 @@
-/// ShareVerificationStepCircuit — Verifies RLWE sigma proof equation in Nova IVC.
-///
-/// Each step verifies `SIGMA_VERIFY_COEFFS` NTT-domain coefficients of the
-/// sigma relation `c·z_s + z_e == t + ch·d_i` over 3 RNS limbs, with quotient
-/// witnesses for modular reduction and power-basis norm enforcement.
-///
-/// The circuit folds per-step verification results into a Poseidon accumulator.
-/// After all steps, the accumulator serves as `verified_sigma_hash` and is
-/// bound into the aggregator_final Noir circuit as a public input.
-use super::{sigma_verify_step, ExternalInputs3, ExternalInputs3Var, PoseidonSpongeVar};
 use crate::{StepCircuit, StepCircuitDescriptor};
 use ark_ff::{BigInteger, PrimeField};
-use ark_r1cs_std::alloc::AllocVar;
-use ark_r1cs_std::eq::EqGadget;
-use ark_r1cs_std::fields::fp::FpVar;
-use ark_r1cs_std::fields::FieldVar;
-use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
 #[cfg(feature = "legacy-nova")]
 use folding_schemes::frontend::FCircuit; // folding (legacy-nova)
 use sha3::{Digest, Keccak256};
@@ -23,15 +8,15 @@ use std::cell::RefCell;
 /// Thread-local for step metadata (step count verification). The actual
 /// sigma NTT data lives in `SIGMA_DATA` (mod.rs), accessed by `sigma_verify_step`.
 thread_local! {
-    pub static SIGMA_VERIFY_META: RefCell<Vec<ark_bn254::Fr>> = RefCell::new(Vec::new());
+    pub static SIGMA_VERIFY_META: RefCell<Vec<ark_bn254::Fr>> = const { RefCell::new(Vec::new()) };
 }
 
 // Backward-compatible aliases used by the compressor prove_steps glue.
 thread_local! {
-    pub static SHARE_COEFFS_DATA: RefCell<Vec<Vec<ark_bn254::Fr>>> = RefCell::new(Vec::new());
+    pub static SHARE_COEFFS_DATA: RefCell<Vec<Vec<ark_bn254::Fr>>> = const { RefCell::new(Vec::new()) };
 }
 thread_local! {
-    pub static SHARE_VERIFY_STEP_COUNTER: RefCell<usize> = RefCell::new(0);
+    pub static SHARE_VERIFY_STEP_COUNTER: RefCell<usize> = const { RefCell::new(0) };
 }
 
 pub fn set_share_coeffs_data(coeffs: Vec<Vec<ark_bn254::Fr>>) {
@@ -46,7 +31,7 @@ pub fn clear_share_coeffs_data() {
 
 /// Number of sigma verification steps to expect. Persists across prove/verify.
 thread_local! {
-    pub static SIGMA_VERIFY_N_STEPS: RefCell<usize> = RefCell::new(0);
+    pub static SIGMA_VERIFY_N_STEPS: RefCell<usize> = const { RefCell::new(0) };
 }
 
 pub fn set_sigma_verify_meta(domain_tags: Vec<ark_bn254::Fr>, n_steps: usize) {

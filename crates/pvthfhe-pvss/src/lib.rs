@@ -1,5 +1,8 @@
 //! Frozen trait surface for the P1 PVSS backend boundary.
 
+#![allow(missing_docs)]
+#![allow(clippy::expect_used, clippy::unwrap_used)]
+
 pub mod dkg_aggregation;
 /// BFV-backed PVSS encryption adapter.
 pub mod encrypt;

@@ -1,5 +1,4 @@
 use ark_bn254::Fr;
-use ark_ff::{BigInteger, PrimeField};
 
 use crate::nova::hash8_native;
 

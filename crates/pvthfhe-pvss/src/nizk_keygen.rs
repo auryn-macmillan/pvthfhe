@@ -104,7 +104,7 @@ fn compute_keygen_d_commitment(
     let mut h = Sha256::new();
     h.update(b"pvthfhe-keygen-dcommit/v1");
     h.update(session_id);
-    h.update(&party_id.to_le_bytes());
+    h.update(party_id.to_le_bytes());
     h.update(pk0_bytes);
     h.update(pk1_bytes);
     h.finalize().into()

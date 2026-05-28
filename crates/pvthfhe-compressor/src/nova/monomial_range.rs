@@ -5,8 +5,6 @@ use nova_snark::frontend::gadgets::num::AllocatedNum;
 #[cfg(feature = "symphony-t3")]
 use nova_snark::frontend::{ConstraintSystem, SynthesisError};
 
-use super::NovaScalar;
-
 /// Adaptive bit-count range check using monomial embedding (Symphony §5.2).
 ///
 /// Replaces the fixed 31-bit decomposition in `norm_range_check_bp` with

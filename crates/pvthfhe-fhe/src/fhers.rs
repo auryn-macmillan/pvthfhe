@@ -7,7 +7,7 @@ use crate::{
     wire, DecryptionWitness, EncryptionWitness, FheBackend,
 };
 use ark_bn254::Fr;
-use ark_ff::{BigInteger, PrimeField};
+use ark_ff::PrimeField;
 use fhe::bfv::{
     BfvParameters, BfvParametersBuilder, Ciphertext as BfvCiphertext, Encoding, Plaintext,
     PublicKey as BfvPublicKey, SecretKey,
@@ -33,7 +33,6 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
-    time::Instant,
 };
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -151,6 +150,7 @@ impl FhersBackend {
 
     /// Return the key-generation witness (sk, e) for BFV keypair NIZK.
     /// Returns `None` if no keygen data was stored for this party.
+    #[allow(clippy::type_complexity)]
     pub fn party_keygen_witness(
         &self,
         party_id: u32,
@@ -215,7 +215,7 @@ impl FhersBackend {
             .collect();
         let noise_poly = Poly::try_convert_from(
             noise_coeffs.as_slice(),
-            &ctx,
+            ctx,
             false,
             Representation::PowerBasis,
         )
@@ -266,10 +266,10 @@ impl FhersBackend {
             .map_err(|err| FheError::Backend {
                 reason: err.to_string(),
             })?;
-        let p0 = Poly::from_bytes(&decoded.p0, &ctx).map_err(|err| FheError::Backend {
+        let p0 = Poly::from_bytes(&decoded.p0, ctx).map_err(|err| FheError::Backend {
             reason: err.to_string(),
         })?;
-        let p1 = Poly::from_bytes(&decoded.p1, &ctx).map_err(|err| FheError::Backend {
+        let p1 = Poly::from_bytes(&decoded.p1, ctx).map_err(|err| FheError::Backend {
             reason: err.to_string(),
         })?;
         let c = BfvCiphertext::new(vec![p0, p1], &self.bfv_params).map_err(|err| {
@@ -291,6 +291,7 @@ impl FhersBackend {
     }
 
     /// Extract secret-key data for `party_id` without cloning the full [`PartyState`].
+    #[allow(clippy::type_complexity)]
     fn party_state_data(
         &self,
         party_id: u32,
@@ -369,6 +370,7 @@ impl FhersBackend {
             })
     }
 
+    #[allow(dead_code)]
     fn decryption_share_poly_from_full_state(
         &self,
         ciphertext: Arc<BfvCiphertext>,
@@ -401,6 +403,7 @@ impl FhersBackend {
             })
     }
 
+    #[allow(clippy::type_complexity)]
     fn compute_party_sk_sums(
         &self,
         n: usize,
@@ -474,10 +477,10 @@ impl FhersBackend {
                 let mut h = Sha256::new();
                 h.update(b"pvthfhe-share-rng-seed-v2");
                 h.update(session_seed);
-                h.update(&party_id.to_be_bytes());
-                h.update(&n.to_be_bytes());
-                h.update(&threshold.to_be_bytes());
-                h.update(&bfv_params.degree().to_be_bytes());
+                h.update(party_id.to_be_bytes());
+                h.update(n.to_be_bytes());
+                h.update(threshold.to_be_bytes());
+                h.update(bfv_params.degree().to_be_bytes());
                 let digest = h.finalize();
                 let mut seed = [0u8; 32];
                 seed.copy_from_slice(&digest);
@@ -579,7 +582,6 @@ impl FhersBackend {
                 .row(0)
                 .iter()
                 .copied()
-                .into_iter()
                 .map(|coeff| {
                     i64::try_from(coeff).map_err(|err| FheError::Backend {
                         reason: err.to_string(),
@@ -1172,7 +1174,7 @@ impl FheBackend for FhersBackend {
                 reason: err.to_string(),
             })?;
         let esm_noise_poly =
-            Poly::from_bytes(esm_noise_poly_bytes, &ctx).map_err(|err| FheError::Backend {
+            Poly::from_bytes(esm_noise_poly_bytes, ctx).map_err(|err| FheError::Backend {
                 reason: format!("failed to deserialize esm_noise_poly: {err}"),
             })?;
 
@@ -1245,7 +1247,7 @@ impl FheBackend for FhersBackend {
                 reason: err.to_string(),
             })?;
         let esm_noise_poly =
-            Poly::from_bytes(esm_noise_poly_bytes, &ctx).map_err(|err| FheError::Backend {
+            Poly::from_bytes(esm_noise_poly_bytes, ctx).map_err(|err| FheError::Backend {
                 reason: format!("failed to deserialize esm_noise_poly: {err}"),
             })?;
 
@@ -1281,7 +1283,7 @@ impl FheBackend for FhersBackend {
     fn decode_pk_polys(&self, pk: &OpaquePublicKey) -> Result<(Vec<u8>, Vec<u8>), FheError> {
         let bfv_pk = self.decode_public_key(pk)?;
         let p0 = bfv_pk.c.get(0).ok_or(FheError::MalformedPublicKey)?;
-        let p1 = bfv_pk.c.get(1).ok_or(FheError::MalformedPublicKey)?;
+        let _p1 = bfv_pk.c.get(1).ok_or(FheError::MalformedPublicKey)?;
         let p1 = bfv_pk.c.get(1).ok_or(FheError::MalformedPublicKey)?;
         let mut p0 = p0.clone();
         p0.change_representation(Representation::PowerBasis);
@@ -1293,7 +1295,7 @@ impl FheBackend for FhersBackend {
     fn decode_ct_polys(&self, ct: &Ciphertext) -> Result<(Vec<u8>, Vec<u8>), FheError> {
         let ct = BfvCiphertext::from_bytes(&ct.bytes, &self.bfv_params)
             .map_err(|_| FheError::MalformedCiphertext)?;
-        let c0 = ct.c.get(0).ok_or(FheError::MalformedCiphertext)?;
+        let c0 = ct.c.first().ok_or(FheError::MalformedCiphertext)?;
         let c1 = ct.c.get(1).ok_or(FheError::MalformedCiphertext)?;
         let mut c0 = c0.clone();
         c0.change_representation(Representation::PowerBasis);
@@ -1373,7 +1375,7 @@ impl FheBackend for FhersBackend {
                     }
                 })?;
                 let poly =
-                    Poly::from_bytes(decoded.d_share_poly.as_slice(), &ctx).map_err(|err| {
+                    Poly::from_bytes(decoded.d_share_poly.as_slice(), ctx).map_err(|err| {
                         FheError::Backend {
                             reason: err.to_string(),
                         }
@@ -1418,7 +1420,7 @@ impl FhersBackend {
             .map_err(|err| FheError::Backend {
                 reason: err.to_string(),
             })?;
-        let mut poly = Poly::from_bytes(poly_bytes, &ctx).map_err(|err| FheError::Backend {
+        let mut poly = Poly::from_bytes(poly_bytes, ctx).map_err(|err| FheError::Backend {
             reason: err.to_string(),
         })?;
         // Ensure coefficients are in power-basis representation (not NTT) for
@@ -1636,7 +1638,7 @@ impl FhersBackend {
                     }
                 })?;
                 let poly =
-                    Poly::from_bytes(decoded.d_share_poly.as_slice(), &ctx).map_err(|err| {
+                    Poly::from_bytes(decoded.d_share_poly.as_slice(), ctx).map_err(|err| {
                         FheError::Backend {
                             reason: err.to_string(),
                         }
@@ -1773,7 +1775,7 @@ impl FhersBackend {
                     }
                 })?;
                 let poly =
-                    Poly::from_bytes(decoded.d_share_poly.as_slice(), &ctx).map_err(|err| {
+                    Poly::from_bytes(decoded.d_share_poly.as_slice(), ctx).map_err(|err| {
                         FheError::Backend {
                             reason: err.to_string(),
                         }
@@ -1855,9 +1857,9 @@ impl FhersBackend {
             let xi = BigInt::from(party_ids[i] as i64);
             let mut num = BigInt::from(1);
             let mut den = BigInt::from(1);
-            for j in 0..n {
+            for (j, &pid_j) in party_ids.iter().enumerate() {
                 if i != j {
-                    let xj = BigInt::from(party_ids[j] as i64);
+                    let xj = BigInt::from(pid_j as i64);
                     num *= -&xj;
                     den *= &xi - &xj;
                 }
@@ -1866,7 +1868,7 @@ impl FhersBackend {
             // the Lagrange coefficient λ_i is always an integer.
             let result = num / den;
             let coeff_i64 = result.to_i64().ok_or_else(|| FheError::Backend {
-                reason: format!("Lagrange coefficient overflow: result does not fit in i64"),
+                reason: "Lagrange coefficient overflow: result does not fit in i64".to_string(),
             })?;
             coeffs.push(coeff_i64);
         }

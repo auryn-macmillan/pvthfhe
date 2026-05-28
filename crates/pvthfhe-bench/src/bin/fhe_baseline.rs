@@ -1,3 +1,11 @@
+#![allow(
+    missing_docs,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::as_conversions
+)]
+
 use pvthfhe_aggregator::keygen::simulator::{KeygenResult, KeygenSimulator};
 use pvthfhe_fhe::{fhers::FhersBackend, FheBackend, FheError};
 use rand_chacha::ChaCha20Rng;
@@ -61,7 +69,7 @@ fn read_peak_rss_mb() -> u64 {
 fn run_benchmark(n: usize, t: usize) -> Result<BenchRow, FheError> {
     let overall_started = Instant::now();
     let backend = FhersBackend::load_params(CANONICAL_PARAMS_TOML)?;
-    let backend_threshold = t.min((n + 1) / 2);
+    let backend_threshold = t.min(n.div_ceil(2));
 
     let keygen_started = Instant::now();
     let mut simulator = KeygenSimulator::new_with_backend(n, backend_threshold, backend.clone())
@@ -189,7 +197,7 @@ fn main() {
 
     let mut rows = Vec::new();
     for n in selected_ns() {
-        let t = (2 * n + 2) / 3;
+        let t = (2 * n).div_ceil(3);
         match run_benchmark(n, t) {
             Ok(row) => {
                 eprintln!(

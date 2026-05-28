@@ -1,7 +1,18 @@
 //! pvthfhe-aggregator — aggregation protocol for PVTHFHE threshold decryption.
 // Allowed: simulator stubs (keygen NIZK, encrypted_shares) and debug-only helpers.
 // Remove when real DKG with distributed peers replaces the simulator.
-#![allow(missing_docs, dead_code, clippy::too_many_arguments)]
+#![allow(
+    missing_docs,
+    dead_code,
+    clippy::too_many_arguments,
+    clippy::needless_borrows_for_generic_args,
+    clippy::needless_range_loop,
+    clippy::collapsible_if,
+    clippy::manual_contains,
+    clippy::manual_is_multiple_of,
+    clippy::cloned_ref_to_slice_refs,
+    unused_variables
+)]
 
 use pvthfhe_cyclo::CYCLO_BACKEND_ID;
 

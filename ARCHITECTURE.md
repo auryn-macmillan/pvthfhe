@@ -54,7 +54,6 @@ The pipeline uses four proving backends: Cyclo (ring/sigma), Nova Nova (folding)
 - [Architecture Selection Memo (T17)](.sisyphus/design/selection-memo.md)
 - [Nova-Wrap Feasibility (N3a)](.sisyphus/research/nova-wrap-feasibility.md)
 
-
 ## RLWE Parameters
 
 The system uses standardized secure parameters for 128-bit security:

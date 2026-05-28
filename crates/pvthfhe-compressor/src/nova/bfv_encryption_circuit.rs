@@ -60,7 +60,7 @@ pub const BFV_STEP_DATA_LEN: usize = 28;
 thread_local! {
     /// Per-step BFV encryption witness data.
     /// Each inner Vec<Fr> encodes one BfvEncryptionStepData (flat layout).
-    pub static BFV_ENCRYPTION_DATA: RefCell<Vec<Vec<ark_bn254::Fr>>> = RefCell::new(Vec::new());
+    pub static BFV_ENCRYPTION_DATA: RefCell<Vec<Vec<ark_bn254::Fr>>> = const { RefCell::new(Vec::new()) };
 }
 
 pub fn set_bfv_encryption_data(data: Vec<Vec<ark_bn254::Fr>>) {
@@ -75,7 +75,7 @@ thread_local! {
     /// Per-step counter for BfvEncryptionStepCircuit synthesize calls.
     /// Reset to 0 when `set_bfv_encryption_data` is called; incremented by
     /// each `synthesize` invocation to index into `BFV_ENCRYPTION_DATA`.
-    pub(crate) static BFV_STEP_COUNTER: RefCell<usize> = RefCell::new(0);
+    pub(crate) static BFV_STEP_COUNTER: RefCell<usize> = const { RefCell::new(0) };
 }
 
 fn reset_bfv_step_counter() {
@@ -169,7 +169,7 @@ pub(crate) fn bfv_encryption_verify_step<F: PrimeField>(
         let step_data = data
             .get(step)
             .or_else(|| step.checked_sub(1).and_then(|zb| data.get(zb)));
-        step_data.map_or(false, |d| d.len() >= BFV_STEP_DATA_LEN)
+        step_data.is_some_and(|d| d.len() >= BFV_STEP_DATA_LEN)
     });
 
     if !has_data {

@@ -7,14 +7,12 @@
 
 use std::fs;
 
-use ark_bn254::Fr;
 #[cfg(feature = "legacy-nova")]
 use pvthfhe_compressor::nova::{NovaCompressor, ToyStepCircuit};
 #[cfg(feature = "legacy-nova")]
 use pvthfhe_compressor::ProofCompressor;
-use sha2::{Digest, Sha256};
-use tracing_subscriber::EnvFilter;
 
+#[allow(dead_code)]
 fn rss_kb() -> u64 {
     fs::read_to_string("/proc/self/statm")
         .ok()

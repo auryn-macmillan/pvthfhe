@@ -1,19 +1,13 @@
 use std::marker::PhantomData;
 
 use ark_ff::PrimeField;
-use ark_r1cs_std::alloc::AllocVar;
-use ark_r1cs_std::eq::EqGadget;
-use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
-use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
 #[cfg(feature = "legacy-nova")]
 use folding_schemes::frontend::FCircuit; // folding (legacy-nova)
 use sha3::{Digest, Keccak256};
 
 use pvthfhe_domain_tags::Tag;
 
-use super::poseidon_gadget::hash256;
-use super::{RingEqExternalInputs5, RingEqExternalInputs5Var};
 use crate::{StepCircuit, StepCircuitDescriptor};
 
 #[derive(Clone, Debug)]

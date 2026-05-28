@@ -1,22 +1,18 @@
-use super::{ExternalInputs6, ExternalInputs6Var, PoseidonSpongeVar};
 use crate::{StepCircuit, StepCircuitDescriptor};
-use ark_ff::{BigInteger, PrimeField};
-use ark_r1cs_std::fields::fp::FpVar;
-use ark_r1cs_std::fields::FieldVar;
-use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
+use ark_ff::PrimeField;
 #[cfg(feature = "legacy-nova")]
 use folding_schemes::frontend::FCircuit; // folding (legacy-nova)
 use sha3::{Digest, Keccak256};
 use std::cell::RefCell;
 
 thread_local! {
-    pub static AJTAI_WITNESS_DATA: RefCell<Vec<Vec<ark_bn254::Fr>>> = RefCell::new(Vec::new());
+    pub static AJTAI_WITNESS_DATA: RefCell<Vec<Vec<ark_bn254::Fr>>> = const { RefCell::new(Vec::new()) };
 }
 thread_local! {
     /// Per-step counter for nova-snark synthesize calls.
     /// Reset to 0 when `set_ajtai_witness_data` is called; incremented by
     /// each `synthesize` invocation to index into `AJTAI_WITNESS_DATA`.
-    pub static AJTAI_STEP_COUNTER: RefCell<usize> = RefCell::new(0);
+    pub static AJTAI_STEP_COUNTER: RefCell<usize> = const { RefCell::new(0) };
 }
 
 pub fn set_ajtai_witness_data(coeffs: Vec<Vec<ark_bn254::Fr>>) {

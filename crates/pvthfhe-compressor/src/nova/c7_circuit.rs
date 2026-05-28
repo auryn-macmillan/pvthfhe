@@ -7,11 +7,6 @@
 //!   - step_count         = t                (number of participants folded)
 
 use ark_ff::PrimeField;
-use ark_r1cs_std::alloc::AllocVar;
-use ark_r1cs_std::eq::EqGadget;
-use ark_r1cs_std::fields::fp::FpVar;
-use ark_r1cs_std::fields::FieldVar;
-use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
 use ark_serialize::CanonicalSerialize;
 #[cfg(feature = "legacy-nova")]
 use folding_schemes::frontend::FCircuit; // folding (legacy-nova)
@@ -20,9 +15,7 @@ use std::cell::RefCell;
 
 use pvthfhe_domain_tags::Tag;
 
-use super::{ExternalInputs5, ExternalInputs5Var, NovaCompressor, PoseidonSpongeVar};
-use crate::witness::C7WitnessSet;
-use crate::{CompressedProof, CompressorError, StepCircuit, StepCircuitDescriptor};
+use crate::{StepCircuit, StepCircuitDescriptor};
 
 /// Number of share polynomial coefficients per participant (BFV ring dimension).
 const N_COEFFS: usize = 8192;
@@ -36,7 +29,7 @@ struct C7StepData {
 }
 
 thread_local! {
-    static C7_STEP_DATA: RefCell<Option<C7StepData>> = RefCell::new(None);
+    static C7_STEP_DATA: RefCell<Option<C7StepData>> = const { RefCell::new(None) };
 }
 
 fn serialize_fr(v: &ark_bn254::Fr) -> Vec<u8> {
@@ -54,11 +47,7 @@ fn serialize_fr(v: &ark_bn254::Fr) -> Vec<u8> {
 pub fn set_c7_step_data(coeffs: Vec<Vec<ark_bn254::Fr>>, challenge_r: ark_bn254::Fr) {
     let coeffs_bytes: Vec<Vec<u8>> = coeffs
         .iter()
-        .map(|step| {
-            step.iter()
-                .flat_map(|v| serialize_fr(v))
-                .collect::<Vec<u8>>()
-        })
+        .map(|step| step.iter().flat_map(serialize_fr).collect::<Vec<u8>>())
         .collect();
     let challenge_bytes = serialize_fr(&challenge_r);
     C7_STEP_DATA.with(|cell| {

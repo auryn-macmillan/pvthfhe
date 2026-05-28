@@ -1,12 +1,5 @@
 //! PK aggregation step circuit — accumulates per-party public key hashes across steps.
 
-use super::{sigma_verify_step, ExternalInputs3, ExternalInputs3Var, PoseidonSpongeVar};
-use ark_r1cs_std::{
-    alloc::AllocVar,
-    eq::EqGadget,
-    fields::{fp::FpVar, FieldVar},
-};
-use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
 #[cfg(feature = "legacy-nova")]
 use folding_schemes::frontend::FCircuit; // folding (legacy-nova)
 
@@ -16,16 +9,15 @@ use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError as BpS
 use bp_ff::PrimeField as BpPrimeField;
 
 use crate::{StepCircuit, StepCircuitDescriptor};
-use ark_ff::BigInteger;
 use ark_ff::PrimeField;
 use sha3::{Digest, Keccak256};
 use std::cell::RefCell;
 
 thread_local! {
-    pub static PK_AGG_DATA: RefCell<Vec<Vec<ark_bn254::Fr>>> = RefCell::new(Vec::new());
+    pub static PK_AGG_DATA: RefCell<Vec<Vec<ark_bn254::Fr>>> = const { RefCell::new(Vec::new()) };
 }
 thread_local! {
-    pub static PK_AGG_N: RefCell<usize> = RefCell::new(0);
+    pub static PK_AGG_N: RefCell<usize> = const { RefCell::new(0) };
 }
 
 pub fn set_pk_agg_data(data: Vec<Vec<ark_bn254::Fr>>) {

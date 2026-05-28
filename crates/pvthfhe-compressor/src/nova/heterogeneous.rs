@@ -38,7 +38,7 @@ use std::cell::RefCell;
 use std::fmt::Debug;
 
 use super::latticefold_circuit_family::LatticeFoldTreeCircuitFamily;
-use super::{ExternalInputs3, ExternalInputs3Var};
+use super::ExternalInputs3Var;
 use crate::{StepCircuit, StepCircuitDescriptor};
 
 /// A family of circuits where each step `i` may use a different circuit variant.
@@ -99,7 +99,7 @@ pub trait HeterogeneousCircuitFamily<F: PrimeField>: Debug {
 // the `Params = ()` constraint.
 
 thread_local! {
-    static HET_CIRCUIT_FAMILY: RefCell<Option<LatticeFoldTreeCircuitFamily>> = RefCell::new(None);
+    static HET_CIRCUIT_FAMILY: RefCell<Option<LatticeFoldTreeCircuitFamily>> = const { RefCell::new(None) };
 }
 
 /// A Nova step circuit that delegates to a [`HeterogeneousCircuitFamily`].

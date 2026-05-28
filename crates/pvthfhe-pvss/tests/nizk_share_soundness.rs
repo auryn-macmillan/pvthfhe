@@ -340,6 +340,7 @@ fn verifier_rejects_direct_opened_proof_with_arbitrary_ciphertext() {
         statement: stmt.clone(),
         commitment_bytes: commitment_bytes.clone(),
         commitment_seed: [0u8; DIGEST_LEN],
+        commitment_nonce: [0u8; DIGEST_LEN],
         commitment_binding,
         challenge,
         lattice_binding: test_lattice_binding(
@@ -410,6 +411,7 @@ fn verifier_rejects_direct_opened_proof_encrypting_one_share_but_committing_anot
         statement: stmt.clone(),
         commitment_bytes: commitment_bytes.clone(),
         commitment_seed: [0u8; DIGEST_LEN],
+        commitment_nonce: [0u8; DIGEST_LEN],
         commitment_binding,
         challenge,
         lattice_binding: test_lattice_binding(
@@ -722,6 +724,7 @@ fn assemble_opened_proof(
         statement: stmt.clone(),
         commitment_bytes,
         commitment_seed: [0u8; DIGEST_LEN],
+        commitment_nonce: [0u8; DIGEST_LEN],
         commitment_binding,
         challenge,
         lattice_binding,

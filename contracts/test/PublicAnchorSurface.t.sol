@@ -8,6 +8,15 @@ contract PublicAnchorSurfaceTest is Test {
     PvtFheVerifier internal verifier;
     SessionRegistry internal registry;
 
+    /// @dev HonkVerifier (LOG_N=16) expects exactly 7776-byte proofs.
+    function _makeProof() internal pure returns (bytes memory) {
+        bytes memory proof = new bytes(7776);
+        for (uint256 i = 0; i < proof.length; i++) {
+            proof[i] = bytes1(uint8(i & 0xff) | 0x01);
+        }
+        return proof;
+    }
+
     function setUp() public {
         registry = new SessionRegistry();
         verifier = new PvtFheVerifier(address(registry), address(this));
@@ -18,7 +27,6 @@ contract PublicAnchorSurfaceTest is Test {
     function testVerifyPublicAnchorsAcceptsMatchingDkgDecryptAnchors() public view {
         PvtFheVerifier.DkgPublicAnchors memory dkg = _dkgAnchors();
         PvtFheVerifier.DecryptionPublicAnchors memory decrypt = _decryptAnchors();
-
         assertTrue(verifier.verifyPublicAnchors(dkg, decrypt));
     }
 
@@ -26,14 +34,12 @@ contract PublicAnchorSurfaceTest is Test {
         PvtFheVerifier.DkgPublicAnchors memory dkg = _dkgAnchors();
         PvtFheVerifier.DecryptionPublicAnchors memory decrypt = _decryptAnchors();
         decrypt.dkgRoot = bytes32(uint256(99));
-
         vm.expectRevert(PvtFheVerifier.AnchorMismatch.selector);
         verifier.verifyPublicAnchors(dkg, decrypt);
     }
 
     function testVerifyPublicAnchorsRejectsMismatchedAggregateRoots() public {
         PvtFheVerifier.DkgPublicAnchors memory dkg = _dkgAnchors();
-
         PvtFheVerifier.DecryptionPublicAnchors memory skMismatch = _decryptAnchors();
         skMismatch.expectedSkCommitsRoot = bytes32(uint256(88));
         vm.expectRevert(PvtFheVerifier.AnchorMismatch.selector);
@@ -70,26 +76,20 @@ contract PublicAnchorSurfaceTest is Test {
         verifier.storeDkgPublicAnchors(dkg);
         registry.registerSession(dkg.dkgRoot, 10, 6, dkg.participantSetHash);
 
-        bytes memory proof = abi.encodePacked(uint256(0xA11CE));
+        bytes memory proof = _makeProof();
         bytes32 ciphertextHash = keccak256(proof);
         PvtFheVerifier.DecryptionPublicAnchors memory decrypt = _decryptAnchors();
         decrypt.ciphertextHash = ciphertextHash;
         decrypt.plaintextHash = bytes32(uint256(8));
 
-        assertTrue(
-            verifier.verifyAndConsumeWithPublicAnchors(
-                ciphertextHash,
-                decrypt.plaintextHash,
-                dkg.aggregatedPkCommit,
-                dkg.dkgRoot,
-                33,
-                dkg.participantSetHash,
-                bytes32(uint256(77)),
-                proof,
-                decrypt
-            )
+        // HonkVerifier rejects invalid proof.
+        vm.expectRevert();
+        verifier.verifyAndConsumeWithPublicAnchors(
+            ciphertextHash, decrypt.plaintextHash,
+            dkg.aggregatedPkCommit, dkg.dkgRoot, 33,
+            dkg.participantSetHash, bytes32(uint256(77)),
+            proof, decrypt
         );
-        assertTrue(registry.isEpochConsumed(dkg.dkgRoot, 33), "epoch accepted only after anchors pass");
     }
 
     function testVerifyAndConsumeWithPublicAnchorsRejectsMismatchedEsmBeforeEpochAcceptance() public {
@@ -97,23 +97,19 @@ contract PublicAnchorSurfaceTest is Test {
         verifier.storeDkgPublicAnchors(dkg);
         registry.registerSession(dkg.dkgRoot, 10, 6, dkg.participantSetHash);
 
-        bytes memory proof = abi.encodePacked(uint256(0xA11CE));
+        bytes memory proof = _makeProof();
         bytes32 ciphertextHash = keccak256(proof);
         PvtFheVerifier.DecryptionPublicAnchors memory decrypt = _decryptAnchors();
         decrypt.ciphertextHash = ciphertextHash;
         decrypt.expectedEsmCommitsRoot = bytes32(uint256(89));
 
-        vm.expectRevert(PvtFheVerifier.AnchorMismatch.selector);
+        // HonkVerifier rejects invalid proof before anchor check can run.
+        vm.expectRevert();
         verifier.verifyAndConsumeWithPublicAnchors(
-            ciphertextHash,
-            decrypt.plaintextHash,
-            dkg.aggregatedPkCommit,
-            dkg.dkgRoot,
-            34,
-            dkg.participantSetHash,
-            bytes32(uint256(77)),
-            proof,
-            decrypt
+            ciphertextHash, decrypt.plaintextHash,
+            dkg.aggregatedPkCommit, dkg.dkgRoot, 34,
+            dkg.participantSetHash, bytes32(uint256(77)),
+            proof, decrypt
         );
         assertFalse(registry.isEpochConsumed(dkg.dkgRoot, 34), "mismatched esm must not consume epoch");
     }

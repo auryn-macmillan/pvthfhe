@@ -14,16 +14,161 @@ help: Check that the patched package version and available features are compatib
       version. This may also occur with an optional dependency that is not enabled.
 warning: pvthfhe-fhe@0.1.0: MOCK BACKEND ACTIVE — XOR/SHA256 ONLY. Set PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK=1 to use.
 warning: pvthfhe-aggregator@0.1.0: aggregator: folding uses CycloFoldStepCircuit with real Ajtai commitments (CycloNizkAdapter)
-    Finished `release` profile [optimized] target(s) in 0.11s
-     Running `target/release/pvthfhe-cli demo --n 10 --threshold 4 --seed 1`
-demo: n=10 threshold=4 seed=1
-pvss_backend_id=lattice-pvss-bfv-d2
-backend_id == "cyclo-ajtai-d2-conditional"
-backend_id_p2: cyclo-rlwe-t10-lemma9-heuristic
-backend_id_p3: nova-bn254-grumpkin
-note: on-chain Solidity verify is NOT run by demo (use bench-comparison)
-pvss_backend_id=lattice-pvss-bfv-d2
-[2m2026-05-28T16:06:00.960728Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m seed flag ignored in production path; will require --insecure-seed in future R3.6
-step 1/14: keygen (n=10 t=4 seed=1)
-keygen: complete (1850.985 ms)
-step 2/14: dkg_deal (n=10 dealers)
+   Compiling pvthfhe-compressor v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-compressor)
+error[E0425]: cannot find type `NovaScalar` in this scope
+  --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:20:53
+   |
+20 | pub fn monomial_range_check_bp<CS: ConstraintSystem<NovaScalar>>(
+   |                                                     ^^^^^^^^^^ not found in this scope
+   |
+help: consider importing this type alias
+   |
+ 1 + use crate::nova::NovaScalar;
+   |
+
+error[E0425]: cannot find type `NovaScalar` in this scope
+  --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:22:30
+   |
+22 |     value_var: &AllocatedNum<NovaScalar>,
+   |                              ^^^^^^^^^^ not found in this scope
+   |
+help: consider importing this type alias
+   |
+ 1 + use crate::nova::NovaScalar;
+   |
+
+error[E0433]: cannot find type `NovaScalar` in this scope
+  --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:29:16
+   |
+29 |             Ok(NovaScalar::from(1u64))
+   |                ^^^^^^^^^^ use of undeclared type `NovaScalar`
+   |
+help: consider importing this type alias
+   |
+ 1 + use crate::nova::NovaScalar;
+   |
+
+error[E0433]: cannot find type `NovaScalar` in this scope
+  --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:33:20
+   |
+33 |                 Ok(NovaScalar::from(0u64))
+   |                    ^^^^^^^^^^ use of undeclared type `NovaScalar`
+   |
+help: consider importing this type alias
+   |
+ 1 + use crate::nova::NovaScalar;
+   |
+
+error[E0425]: cannot find type `NovaScalar` in this scope
+  --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:46:32
+   |
+46 |     let bits: Vec<AllocatedNum<NovaScalar>> = (0..num_bits)
+   |                                ^^^^^^^^^^ not found in this scope
+   |
+help: consider importing this type alias
+   |
+ 1 + use crate::nova::NovaScalar;
+   |
+
+error[E0433]: cannot find type `NovaScalar` in this scope
+  --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:48:27
+   |
+48 |             let bit_val = NovaScalar::from(((value >> idx) & 1) as u64);
+   |                           ^^^^^^^^^^ use of undeclared type `NovaScalar`
+   |
+help: consider importing this type alias
+   |
+ 1 + use crate::nova::NovaScalar;
+   |
+
+error[E0433]: cannot find type `NovaScalar` in this scope
+  --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:56:23
+   |
+56 |         let bit_val = NovaScalar::from(((value >> idx) & 1) as u64);
+   |                       ^^^^^^^^^^ use of undeclared type `NovaScalar`
+   |
+help: consider importing this type alias
+   |
+ 1 + use crate::nova::NovaScalar;
+   |
+
+error[E0433]: cannot find type `NovaScalar` in this scope
+  --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:58:47
+   |
+58 |         let bit_minus_one_val = if bit_val == NovaScalar::ONE {
+   |                                               ^^^^^^^^^^ use of undeclared type `NovaScalar`
+   |
+help: consider importing this type alias
+   |
+ 1 + use crate::nova::NovaScalar;
+   |
+
+error[E0433]: cannot find type `NovaScalar` in this scope
+  --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:59:13
+   |
+59 |             NovaScalar::ZERO
+   |             ^^^^^^^^^^ use of undeclared type `NovaScalar`
+   |
+help: consider importing this type alias
+   |
+ 1 + use crate::nova::NovaScalar;
+   |
+
+error[E0433]: cannot find type `NovaScalar` in this scope
+  --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:61:14
+   |
+61 |             -NovaScalar::ONE
+   |              ^^^^^^^^^^ use of undeclared type `NovaScalar`
+   |
+help: consider importing this type alias
+   |
+ 1 + use crate::nova::NovaScalar;
+   |
+
+error[E0433]: cannot find type `NovaScalar` in this scope
+  --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:81:16
+   |
+81 |             Ok(NovaScalar::ZERO)
+   |                ^^^^^^^^^^ use of undeclared type `NovaScalar`
+   |
+help: consider importing this type alias
+   |
+ 1 + use crate::nova::NovaScalar;
+   |
+
+error[E0433]: cannot find type `NovaScalar` in this scope
+  --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:92:12
+   |
+92 |         Ok(NovaScalar::ZERO)
+   |            ^^^^^^^^^^ use of undeclared type `NovaScalar`
+   |
+help: consider importing this type alias
+   |
+ 1 + use crate::nova::NovaScalar;
+   |
+
+error[E0433]: cannot find type `NovaScalar` in this scope
+  --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:94:20
+   |
+94 |     let mut pow2 = NovaScalar::ONE;
+   |                    ^^^^^^^^^^ use of undeclared type `NovaScalar`
+   |
+help: consider importing this type alias
+   |
+ 1 + use crate::nova::NovaScalar;
+   |
+
+error[E0433]: cannot find type `NovaScalar` in this scope
+   --> crates/pvthfhe-compressor/src/nova/monomial_range.rs:117:28
+    |
+117 |                         Ok(NovaScalar::ZERO)
+    |                            ^^^^^^^^^^ use of undeclared type `NovaScalar`
+    |
+help: consider importing this type alias
+    |
+  1 + use crate::nova::NovaScalar;
+    |
+
+Some errors have detailed explanations: E0425, E0433.
+For more information about an error, try `rustc --explain E0425`.
+error: could not compile `pvthfhe-compressor` (lib) due to 14 previous errors

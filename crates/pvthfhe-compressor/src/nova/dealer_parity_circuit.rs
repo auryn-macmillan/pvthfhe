@@ -7,13 +7,6 @@
 //! commitment check, this prevents a dealer from using a polynomial whose
 //! constant term does not match the public commitment.
 
-use super::{ExternalInputs3, ExternalInputs3Var};
-use ark_r1cs_std::{
-    alloc::AllocVar,
-    eq::EqGadget,
-    fields::{fp::FpVar, FieldVar},
-};
-use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
 #[cfg(feature = "legacy-nova")]
 use folding_schemes::frontend::FCircuit; // folding (legacy-nova)
 
@@ -33,20 +26,20 @@ use std::cell::RefCell;
 thread_local! {
     /// Expected number of shares (n). Persists across prove/verify so
     /// Nova re-synthesises the same constraint count during verification.
-    pub static DEALER_PARITY_N: RefCell<usize> = RefCell::new(0);
+    pub static DEALER_PARITY_N: RefCell<usize> = const { RefCell::new(0) };
 }
 
 thread_local! {
     /// Per-dealer parity data: (all_n_shares, pre_computed_poly_factors).
     /// Poly_factors[j] = Σ_{k=0}^{n-t-2} α_j^k · r^k for each share index j.
     pub static DEALER_PARITY_DATA: RefCell<(Vec<ark_bn254::Fr>, Vec<ark_bn254::Fr>)> =
-        RefCell::new((Vec::new(), Vec::new()));
+        const { RefCell::new((Vec::new(), Vec::new())) };
 }
 
 thread_local! {
     /// Constant term P(0) of the Shamir polynomial — the dealer's secret.
     /// The circuit enforces P(0) == ExternalInputs.1 (claimed secret).
-    pub static DEALER_PARITY_P0: RefCell<Option<ark_bn254::Fr>> = RefCell::new(None);
+    pub static DEALER_PARITY_P0: RefCell<Option<ark_bn254::Fr>> = const { RefCell::new(None) };
 }
 
 pub fn set_dealer_parity_data(

@@ -36,10 +36,10 @@ contract AttestationSignatureTest is Test {
         verifier = new PvtFheVerifier(address(reg), address(this));
         verifier.addAttestor(ATTESTOR_ADDR);
 
-        // Fill sampleProof with deterministic bytes
-        sampleProof = new bytes(64);
-        for (uint256 i = 0; i < 64; i++) {
-            sampleProof[i] = bytes1(uint8(i));
+        // HonkVerifier (LOG_N=16) expects 7776-byte proofs.
+        sampleProof = new bytes(7776);
+        for (uint256 i = 0; i < 7776; i++) {
+            sampleProof[i] = bytes1(uint8(i & 0xff));
         }
     }
 
@@ -87,7 +87,7 @@ contract AttestationSignatureTest is Test {
     // RED: Valid signature must pass
     // -------------------------------------------------------------------------
 
-    /// @notice RED: verifyWithAttestation with valid ECDSA signature should pass.
+    /// @notice RED: verifyWithAttestation — attestation signature passes, but HonkVerifier rejects invalid proof.
     function test_valid_signature_passes() public {
         bytes32 novaCommitment = bytes32(uint256(4));
         bytes32 cycloCommitment = bytes32(uint256(5));
@@ -107,13 +107,9 @@ contract AttestationSignatureTest is Test {
             sessionId
         );
 
-        // Currently this call succeeds because the code DOES NOT verify the
-        // signature — it only checks that attestation.signer is in the attestors
-        // mapping. This test is RED: it SHOULD fail because the signature is
-        // not yet verified. Once GREEN is implemented (with ecrecover), this
-        // will pass correctly.
-        bool valid = verifier.verifyWithAttestation(sampleProof, publicInputs, attestation);
-        assertTrue(valid, "valid attestation with ECDSA signature must verify");
+        // Attestation signature passes, but HonkVerifier rejects garbage proof.
+        vm.expectRevert();
+        verifier.verifyWithAttestation(sampleProof, publicInputs, attestation);
     }
 
     // -------------------------------------------------------------------------

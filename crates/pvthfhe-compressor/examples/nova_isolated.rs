@@ -2,6 +2,12 @@
 
 use std::fs;
 
+#[cfg(not(feature = "legacy-nova"))]
+fn main() {
+    eprintln!("This example requires the 'legacy-nova' feature to be enabled");
+    std::process::exit(1);
+}
+
 #[cfg(feature = "legacy-nova")]
 use ark_bn254::Fr;
 #[cfg(feature = "legacy-nova")]

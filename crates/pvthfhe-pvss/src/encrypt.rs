@@ -82,6 +82,7 @@ impl LatticePvssBfvAdapter {
     /// and `esm_agg_share` is available in the witness, the proof uses
     /// `CommittedSmudge` mode.  Otherwise the legacy local-smudge path
     /// is used (B.2 / B.3).
+    #[allow(clippy::too_many_arguments)]
     pub fn prove_decrypted_share(
         &self,
         ciphertext_u: &[u8],
@@ -609,7 +610,7 @@ fn deserialize_share_payloads(
     ) as usize;
 
     let num_chunks = (first_payload.len() - LENGTH_PREFIX_LEN) / FR_SERIALIZED_LEN;
-    if (first_payload.len() - LENGTH_PREFIX_LEN) % FR_SERIALIZED_LEN != 0 {
+    if !(first_payload.len() - LENGTH_PREFIX_LEN).is_multiple_of(FR_SERIALIZED_LEN) {
         return Err(PvssError::InvalidShare);
     }
 
@@ -664,7 +665,7 @@ fn verify_share_rs_consistency(share_bytes: &[Vec<u8>], threshold: usize) -> Res
         return Err("share payload too short".to_string());
     }
     let data_len = first_len - LENGTH_PREFIX_LEN;
-    if data_len % FR_SERIALIZED_LEN != 0 {
+    if !data_len.is_multiple_of(FR_SERIALIZED_LEN) {
         return Err("share payload misaligned".to_string());
     }
     let num_chunks = data_len / FR_SERIALIZED_LEN;
@@ -788,14 +789,14 @@ pub fn compute_poly_factors(n: usize, t: usize, r: ark_bn254::Fr) -> Vec<ark_bn2
 
     // Schwartz-Zippel: combine all parity-check rows with powers of r.
     // factor_p = Σ_{i: 0 ≤ p−i ≤ order, 0 ≤ i < n_rows} r^i · (−1)^{order−(p−i)} · C(order, p−i)
-    for p in 0..n {
-        let lo = if p < order { 0 } else { p - order };
+    for (p, factor) in factors.iter_mut().enumerate() {
+        let lo = p.saturating_sub(order);
         let hi = (p).min(n_rows - 1);
         let mut acc = ark_bn254::Fr::ZERO;
-        let mut r_pow = r.pow(&[lo as u64]); // r^lo
+        let mut r_pow = r.pow([lo as u64]); // r^lo
         for i in lo..=hi {
             let jj = p - i; // j in 0..=order
-            let sign = if (order - jj) % 2 == 0 {
+            let sign = if (order - jj).is_multiple_of(2) {
                 ark_bn254::Fr::ONE
             } else {
                 -ark_bn254::Fr::ONE
@@ -803,7 +804,7 @@ pub fn compute_poly_factors(n: usize, t: usize, r: ark_bn254::Fr) -> Vec<ark_bn2
             acc += r_pow * sign * binom[jj];
             r_pow *= r;
         }
-        factors[p] = acc;
+        *factor = acc;
     }
     factors
 }

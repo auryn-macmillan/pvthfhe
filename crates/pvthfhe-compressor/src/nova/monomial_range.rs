@@ -1,8 +1,6 @@
-#[cfg(feature = "symphony-t3")]
+use super::NovaScalar;
 use bp_ff::Field;
-#[cfg(feature = "symphony-t3")]
 use nova_snark::frontend::gadgets::num::AllocatedNum;
-#[cfg(feature = "symphony-t3")]
 use nova_snark::frontend::{ConstraintSystem, SynthesisError};
 
 /// Adaptive bit-count range check using monomial embedding (Symphony §5.2).
@@ -16,7 +14,6 @@ use nova_snark::frontend::{ConstraintSystem, SynthesisError};
 /// `2^ceil(log2(bound)) - 1`.
 ///
 /// Constraint cost: ~3 · `ceil(log2(bound))` (vs ~3 · 31 previously).
-#[cfg(feature = "symphony-t3")]
 pub fn monomial_range_check_bp<CS: ConstraintSystem<NovaScalar>>(
     cs: &mut CS,
     value_var: &AllocatedNum<NovaScalar>,
@@ -133,7 +130,6 @@ pub fn monomial_range_check_bp<CS: ConstraintSystem<NovaScalar>>(
 ///
 /// Equivalent to `ceil(log2(bound))`, with a floor of 1 so that the
 /// reconstruction loop always has at least one iteration.
-#[cfg(feature = "symphony-t3")]
 fn monomial_bit_count(bound: u64) -> usize {
     if bound <= 1 {
         return 1;
@@ -148,13 +144,11 @@ fn monomial_bit_count(bound: u64) -> usize {
 /// monomial-encoded witness.  The full embedding (ct(g_i · t(X)) == f_i)
 /// is not yet wired in-circuit; the adaptive bit decomposition provides
 /// equivalent semantic enforcement for scalar-field constraints.
-#[cfg(feature = "symphony-t3")]
 pub fn precompute_table_polynomial(bound: u64) -> Vec<u64> {
     (0..=bound).collect()
 }
 
 #[cfg(test)]
-#[cfg(feature = "symphony-t3")]
 mod tests {
     use super::*;
 

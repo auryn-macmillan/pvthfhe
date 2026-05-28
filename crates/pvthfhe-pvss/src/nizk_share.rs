@@ -439,9 +439,7 @@ impl ShareNizkProver {
         };
         let sk_proof = Self::prove(backend, &sk_stmt, sk_witness, Some(sk_domain_tag))?;
 
-        // Prove ESm tracks — construct statements from array positions,
-        // not logical slot_index, to avoid the off-by-one in
-        // legacy_statement_for_track which uses slot_index as an array offset.
+        // Prove ESm tracks (construct statements from array positions, not slot_index).
         let mut esm_proofs: Vec<ShareNizkProof> = Vec::with_capacity(esm_witnesses.len());
         for (i, esm_witness) in esm_witnesses.iter().enumerate() {
             let esm_track = &batched.esm_slots[i];
@@ -460,9 +458,7 @@ impl ShareNizkProver {
             esm_proofs.push(esm_proof);
         }
 
-        // Encode batched proof:
-        //   [num_tracks: u16][sk_proof_len: u32][sk_proof_bytes]
-        //   [esm0_proof_len: u32][esm0_proof_bytes]...
+        // Encode batched proof: [num_tracks: u16][sk_proof_len: u32][sk_proof_bytes][esm0_proof_len: u32][esm0_proof_bytes]...
         let num_tracks = 1u16 + esm_proofs.len() as u16;
         let mut out = Vec::new();
         out.extend_from_slice(&num_tracks.to_be_bytes());
@@ -571,11 +567,7 @@ fn compute_share_d_commitment(stmt: &ShareNizkStatement) -> [u8; 32] {
 /// Build algebraic proof: share sigma proof over RLWE relation.
 fn build_algebraic_proof(stmt: &ShareNizkStatement, witness: &ShareNizkWitness) -> Vec<u8> {
     let s_i = derive_share_sigma_witness(witness.share_bytes.expose());
-    // e_i is set to zero for the algebraic proof. This proves d_i = c * s_i
-    // rather than d_i = c * s_i + e_i. The full RLWE relation with non-zero error
-    // is proved separately by the BFV encryption proof (v4). The e_i=0 path
-    // provides defense-in-depth algebraic binding; the cryptographic RLWE
-    // soundness comes from the BFV sigma proof.
+    // e_i=0 proves d_i = c*s_i (algebraic binding); full RLWE soundness via BFV sigma proof (v4).
     let e_i = vec![0i64; sigma::rlwe_n()];
     let c_rns = derive_share_sigma_c_rns(stmt.session_id.as_slice(), stmt.recipient_index);
     let d_rns = sigma::compute_d_rns(&c_rns, &s_i, &e_i)
@@ -1086,9 +1078,7 @@ pub fn verify_non_leaking_relation_boundary(
     stmt: &ShareNizkStatement,
     opened: &ShareNizkOpenedProof,
 ) -> Result<(), PvssError> {
-    // For v4 proofs, verify the BFV encryption sigma proof.
-    // v3 and earlier proofs won't decode (version check fails earlier),
-    // but this is the semantic check at the relation boundary.
+    // Verify BFV encryption sigma proof (v4+; v3 and earlier fail version check).
     if opened.bfv_encryption_proof.is_empty() {
         eprintln!("[NIZK-VERIFY] FAIL: v{PROOF_VERSION} proof lacks BFV encryption proof");
         return Err(PvssError::LatticeBindingVerificationFailed);

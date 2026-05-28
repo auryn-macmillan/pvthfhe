@@ -414,7 +414,7 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
         poseidon_sponge_native_noir(&inputs)
     };
     let n_participants = Fr::from(report.share_coeffs.len() as u64);
-    let threshold = Fr::from((report.committee_party_ids.len() - 1) as u64);
+    let threshold = Fr::from(report.share_coeffs.len() as u64);
 
     // Plaintext from Lagrange interpolation
     use pvthfhe_cli::full_pipeline::field_from_i64;
@@ -480,34 +480,41 @@ fn run_c7_nova_optional(n: usize, seed: u64) -> (f64, bool) {
         return (0.0, false);
     }
 
-    let seed_bytes = seed.to_be_bytes();
-    let epoch_hash: [u8; 32] = Sha256::digest(&seed_bytes).into();
+    #[cfg(feature = "legacy-nova")]
+    {
+        let seed_bytes = seed.to_be_bytes();
+        let epoch_hash: [u8; 32] = Sha256::digest(&seed_bytes).into();
 
-    let start = Instant::now();
-    let compressor = NovaCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch_hash, n)
-        .expect("C7 nova compressor construction failed");
-    let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
-    let coeff_commitment = hash_all_coeffs(&vec![Fr::from(0u64); 8192]);
-    let derived_r = hash_all_coeffs(&[coeff_commitment, Fr::from(0u64)]);
-    let steps: Vec<ExternalInputs5<Fr>> = vec![
-        ExternalInputs5(
-            Fr::from(1u64),
-            Fr::from(1u64),
-            coeff_commitment,
-            Fr::from(0u64),
-            derived_r
-        );
-        n
-    ];
-    let proof = compressor
-        .prove_steps_c7(&acc, &steps)
-        .expect("C7 nova prove failed");
-    let vk = compressor.verifier_key();
-    let _ = compressor
-        .verify_steps_c7(&vk, &proof, &steps)
-        .expect("C7 nova verify failed");
-    let ms = start.elapsed().as_secs_f64() * 1_000.0;
-    (ms, true)
+        let start = Instant::now();
+        let compressor = NovaCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch_hash, n)
+            .expect("C7 nova compressor construction failed");
+        let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
+        let coeff_commitment = hash_all_coeffs(&vec![Fr::from(0u64); 8192]);
+        let derived_r = hash_all_coeffs(&[coeff_commitment, Fr::from(0u64)]);
+        let steps: Vec<ExternalInputs5<Fr>> = vec![
+            ExternalInputs5(
+                Fr::from(1u64),
+                Fr::from(1u64),
+                coeff_commitment,
+                Fr::from(0u64),
+                derived_r
+            );
+            n
+        ];
+        let proof = compressor
+            .prove_steps_c7(&acc, &steps)
+            .expect("C7 nova prove failed");
+        let vk = compressor.verifier_key();
+        let _ = compressor
+            .verify_steps_c7(&vk, &proof, &steps)
+            .expect("C7 nova verify failed");
+        let ms = start.elapsed().as_secs_f64() * 1_000.0;
+        return (ms, true);
+    }
+    #[cfg(not(feature = "legacy-nova"))]
+    {
+        (0.0, false)
+    }
 }
 
 #[cfg(not(feature = "sonobe-compressor"))]
@@ -521,50 +528,57 @@ fn run_c7_merkle_optional(n: usize, seed: u64) -> (f64, bool) {
         return (0.0, false);
     }
 
-    let seed_bytes = seed.to_be_bytes();
-    let epoch_hash: [u8; 32] = Sha256::digest(&seed_bytes).into();
+    #[cfg(feature = "legacy-nova")]
+    {
+        let seed_bytes = seed.to_be_bytes();
+        let epoch_hash: [u8; 32] = Sha256::digest(&seed_bytes).into();
 
-    let start = Instant::now();
-    let compressor = NovaCompressor::<C7MerkleStepCircuit<Fr>>::new(epoch_hash, n)
-        .expect("C7 merkle nova compressor construction failed");
-    let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
+        let start = Instant::now();
+        let compressor = NovaCompressor::<C7MerkleStepCircuit<Fr>>::new(epoch_hash, n)
+            .expect("C7 merkle nova compressor construction failed");
+        let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
 
-    let steps: Vec<C7MerkleExternalInputs<Fr>> = (0..n)
-        .map(|i| {
-            let leaf_value = Fr::from(1u64);
-            let siblings: Vec<Fr> = vec![Fr::from(1u64); 35];
-            // Compute depth-5 Poseidon merkle root (5 levels × 7 siblings)
-            let mut current = leaf_value;
-            for level in 0..5 {
-                let start = level * 7;
-                let level_siblings = &siblings[start..start + 7];
-                let mut inputs = vec![current];
-                inputs.extend_from_slice(level_siblings);
-                current = hash8_native(&inputs);
-            }
-            C7MerkleExternalInputs {
-                share_eval: Fr::from((42 + i as u64) * 100),
-                lagrange_coeff: Fr::from(1u64),
-                merkle_root: current,
-                merkle_data: MerkleWitnessData {
-                    leaf_value,
-                    leaf_index: Fr::from(0u64),
-                    siblings,
-                },
-            }
-        })
-        .collect();
+        let steps: Vec<C7MerkleExternalInputs<Fr>> = (0..n)
+            .map(|i| {
+                let leaf_value = Fr::from(1u64);
+                let siblings: Vec<Fr> = vec![Fr::from(1u64); 35];
+                // Compute depth-5 Poseidon merkle root (5 levels × 7 siblings)
+                let mut current = leaf_value;
+                for level in 0..5 {
+                    let start = level * 7;
+                    let level_siblings = &siblings[start..start + 7];
+                    let mut inputs = vec![current];
+                    inputs.extend_from_slice(level_siblings);
+                    current = hash8_native(&inputs);
+                }
+                C7MerkleExternalInputs {
+                    share_eval: Fr::from((42 + i as u64) * 100),
+                    lagrange_coeff: Fr::from(1u64),
+                    merkle_root: current,
+                    merkle_data: MerkleWitnessData {
+                        leaf_value,
+                        leaf_index: Fr::from(0u64),
+                        siblings,
+                    },
+                }
+            })
+            .collect();
 
-    let proof = compressor
-        .prove_steps_merkle(&acc, &steps)
-        .expect("C7 merkle nova prove failed");
-    let vk = compressor.verifier_key();
-    let valid = compressor
-        .verify_steps_merkle(&vk, &proof, &steps)
-        .expect("C7 merkle nova verify failed");
-    assert!(valid, "Merkle proof must verify");
-    let ms = start.elapsed().as_secs_f64() * 1_000.0;
-    (ms, true)
+        let proof = compressor
+            .prove_steps_merkle(&acc, &steps)
+            .expect("C7 merkle nova prove failed");
+        let vk = compressor.verifier_key();
+        let valid = compressor
+            .verify_steps_merkle(&vk, &proof, &steps)
+            .expect("C7 merkle nova verify failed");
+        assert!(valid, "Merkle proof must verify");
+        let ms = start.elapsed().as_secs_f64() * 1_000.0;
+        return (ms, true);
+    }
+    #[cfg(not(feature = "legacy-nova"))]
+    {
+        (0.0, false)
+    }
 }
 
 #[cfg(not(feature = "sonobe-compressor"))]

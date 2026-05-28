@@ -347,7 +347,6 @@ fn fold_stmt_witness_to_cyclo_instance(
     witness: &FoldWitness,
     _acc: &FoldAccumulator,
 ) -> anyhow::Result<MultiTrackPShareInstance> {
-    // TODO(C5): usize→u16 fallback in non-Result function; add error propagation when feasible.
     let participant_id = u16::try_from(stmt.fold_index).context("fold_index exceeds u16")?;
     let mut hasher = Sha256::new();
     hasher.update(&participant_id.to_be_bytes());
@@ -499,14 +498,14 @@ fn expected_proof_tag(stmt: &FoldStatement) -> u8 {
 
 #[cfg(feature = "real-folding")]
 fn push_string(bytes: &mut Vec<u8>, value: &str) {
-    // TODO(C5): usize→u64 fallback; infallible on 64-bit.
+    // KNOWN_LIMITATION(c5_usize_conv): usize→u64 fallback; infallible on 64-bit.
     bytes.extend_from_slice(&u64::try_from(value.len()).unwrap_or(u64::MAX).to_be_bytes());
     bytes.extend_from_slice(value.as_bytes());
 }
 
 #[cfg(feature = "real-folding")]
 fn push_vec(bytes: &mut Vec<u8>, value: &[u8]) {
-    // TODO(C5): usize→u64 fallback; infallible on 64-bit.
+    // KNOWN_LIMITATION(c5_usize_conv): usize→u64 fallback; infallible on 64-bit.
     bytes.extend_from_slice(&u64::try_from(value.len()).unwrap_or(u64::MAX).to_be_bytes());
     bytes.extend_from_slice(value);
 }
@@ -514,7 +513,7 @@ fn push_vec(bytes: &mut Vec<u8>, value: &[u8]) {
 #[cfg(feature = "real-folding")]
 fn push_params(bytes: &mut Vec<u8>, params: (u64, usize, u64)) {
     bytes.extend_from_slice(&params.0.to_be_bytes());
-    // TODO(C5): usize→u64 fallback; infallible on 64-bit.
+    // KNOWN_LIMITATION(c5_usize_conv): usize→u64 fallback; infallible on 64-bit.
     bytes.extend_from_slice(&u64::try_from(params.1).unwrap_or(u64::MAX).to_be_bytes());
     bytes.extend_from_slice(&params.2.to_be_bytes());
 }

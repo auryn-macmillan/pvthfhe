@@ -1,6 +1,8 @@
+#![cfg(feature = "legacy-nova")]
 use ark_bn254::Fr;
 use ark_ff::Field;
-use folding_schemes::frontend::FCircuit;
+#[cfg(feature = "legacy-nova")]
+use folding_schemes::frontend::FCircuit; // folding (legacy-nova)
 use pvthfhe_compressor::nova::{
     encode_triple, hash8_native, C7DecryptAggregationCircuit, C7MerkleExternalInputs,
     C7MerkleStepCircuit, MerkleWitnessData, NovaCompressor,

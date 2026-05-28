@@ -1,6 +1,0 @@
-circuits/aggregator_final/src/main.nr:1:// aggregator_final surrogate circuit.
-circuits/aggregator_final/Nargo.toml:2:name = "aggregator_final"
-circuits/Nargo.toml:5:    "aggregator_final",
-.sisyphus/evidence/final-qa/f1-plan-compliance.json:138:        "path": "circuits/aggregator_final/src/main.nr",
-.sisyphus/evidence/p2-design-gate-interface-spec.json:18:    "[OK] surrogate contamination marker absent: aggregator_final",
-.sisyphus/evidence/p3-impl-gate-surrogate-retired.json:9:    "[OK] aggregator-circuit: circuits/aggregator_final/src/main.nr \u2014 SURROGATE-annotated",

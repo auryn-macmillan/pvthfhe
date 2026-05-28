@@ -10,7 +10,7 @@ use {
     ark_bn254::Fr,
     ark_ff::PrimeField,
     pvthfhe_compressor::{
-        nova::{encode_hex, encode_quad, encode_triple, DkgAggregationStepCircuit, NovaCompressor},
+        nova::{encode_hex, encode_quad, encode_triple, CycloFoldStepCircuit, NovaCompressor},
         CompressedProof as NovaProof, ProofCompressor, VerifierKey,
     },
 };
@@ -41,7 +41,7 @@ pub enum Compressor {
     #[cfg(feature = "sonobe-compressor")]
     Nova {
         /// Inner Nova compressor instance.
-        inner: NovaCompressor<DkgAggregationStepCircuit<Fr>>,
+        inner: NovaCompressor<CycloFoldStepCircuit<Fr>>,
         /// Verifier key derived during compressor initialization.
         verifier_key: VerifierKey,
     },
@@ -61,7 +61,7 @@ impl Compressor {
             // accumulator down to 3 field elements before entering the IVC because
             // lattice-native folding is infeasible inside a Nova Nova step circuit.
             // Full Ajtai folding remains an open problem (P2).
-            let inner = NovaCompressor::<DkgAggregationStepCircuit<Fr>>::new(epoch_hash, ivc_steps)
+            let inner = NovaCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, ivc_steps)
                 .map_err(compressor_error_to_anyhow)?;
             let verifier_key = inner.verifier_key();
             return Ok(Self::Nova {

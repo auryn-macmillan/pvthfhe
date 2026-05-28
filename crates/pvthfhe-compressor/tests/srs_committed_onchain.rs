@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-nova")]
 //! R5.3 RED: compressor exposes srsHash() for on-chain commitment.
 //!
 //! This test must FAIL (compile error) against current main because

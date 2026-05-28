@@ -1,5 +1,0 @@
-docs/security-proofs/p4/t1-correctness.md:4
-docs/security-proofs/p4/t2-secrecy.md:4
-docs/security-proofs/p4/t3-public-verifiability-soundness.md:4
-docs/security-proofs/p4/t4-abort-with-blame-robustness.md:4
-docs/security-proofs/p4/t5-sequential-composition.md:4

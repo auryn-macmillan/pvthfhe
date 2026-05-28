@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-nova")]
 //! MicroNova heterogeneous IVC tests (MN.4).
 //!
 //! Tests the [`HeterogeneousCircuitFamily`] trait, the

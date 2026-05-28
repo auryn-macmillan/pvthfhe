@@ -7,7 +7,7 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
 #[cfg(feature = "legacy-nova")]
-use folding_schemes::frontend::FCircuit;
+use folding_schemes::frontend::FCircuit; // folding (legacy-nova)
 use sha3::{Digest, Keccak256};
 
 use pvthfhe_domain_tags::Tag;
@@ -36,14 +36,17 @@ impl<F: PrimeField> FCircuit<F> for RingVerifierCircuit<F> {
     type ExternalInputsVar = RingEqExternalInputs5Var<F>;
 
     fn new(params: Self::Params) -> Result<Self, folding_schemes::Error> {
+        // folding (legacy-nova)
         let (challenge, ring_coeffs) = params;
         if ring_coeffs.len() != 1024 {
             return Err(folding_schemes::Error::Other(
+                // folding (legacy-nova)
                 "RingVerifierCircuit: ring_coeffs must have exactly 1024 elements".to_string(),
             ));
         }
         if !Self::ternary_challenge(&challenge) {
             return Err(folding_schemes::Error::Other(
+                // folding (legacy-nova)
                 "RingVerifierCircuit: challenge must be ternary (-1, 0, 1)".to_string(),
             ));
         }

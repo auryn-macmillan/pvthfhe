@@ -20,6 +20,10 @@ ark-serialize = "0.5"
 # Primary proof-compression backend. Uses nova-snark crate name (aliased
 # from arecibo). Full migration from folding-schemes (Sonobe) completed.
 nova-snark = { version = "0.71", features = ["test-utils"] }
+# KNOWN_LIMITATION(production-kzg): test-utils generates fresh test SRS per call.
+# Production needs real PTAU files via PublicParams::setup_with_ptau_dir.
+# The Aztec Ignition SRS (already used by UltraHonk) covers up to 2^28 gates.
+# Set PVTHFHE_PTAU_DIR to enable production KZG.
 bellpepper-core = "0.4"
 bincode = "1"
 bp-ff = { package = "ff", version = "0.13" }
@@ -40,6 +44,22 @@ transparent-decider = []
 # only active backend. This feature exists solely to preserve legacy code for
 # reference during migration.
 legacy-nova = []
+# Symphony T1: High-arity folding. Batches n iterative prove_step calls into
+# a single fold using random linear combination β (Symphony §4).
+symphony-t1 = []
+# Symphony T2: FS outside circuit.
+# Moves Fiat-Shamir hashing outside the Nova circuit by using an identity
+# step circuit with Keccak256 commitments to step inputs (Symphony §6).
+symphony-t2 = []
+# Symphony T3: Monomial embedding range proofs.
+# Replaces fixed 31-bit decomposition with adaptive bit-count range checks
+# based on the monomial embedding technique (Symphony §5.2).
+symphony-t3 = []
+# Symphony T4: Random projection (Symphony §5.3).
+# Reduces sigma witness size by ~n/256× using JL projection J∈{0,±1}^{256×n}.
+# Verifies norms on projected (256-dim) vectors using T3 monomial range checks.
+# Requires symphony-t3.
+symphony-t4 = ["symphony-t3"]
 
 [dev-dependencies]
 

@@ -1,8 +1,0 @@
-contracts/test/PvtFheVerifier.e2e.t.sol:5:import "../src/generated/HonkVerifier.sol";
-contracts/test/PvtFheVerifier.e2e.t.sol:8:    HonkVerifier internal verifier;
-contracts/test/PvtFheVerifier.e2e.t.sol:15:        verifier = new HonkVerifier();
-contracts/test/P3StubVerifier.sol:21:///         DO NOT modify HonkVerifier.sol. This stub is separate.
-contracts/src/generated/HonkVerifier.sol:10:contract HonkVerifier {
-contracts/src/PvtFheVerifier.sol:4:import "./generated/HonkVerifier.sol";
-contracts/src/PvtFheVerifier.sol:74:    HonkVerifier private immutable _honkVerifier;
-contracts/src/PvtFheVerifier.sol:77:        _honkVerifier = new HonkVerifier();

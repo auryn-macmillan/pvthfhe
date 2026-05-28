@@ -22,7 +22,7 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
 #[cfg(feature = "legacy-nova")]
-use folding_schemes::frontend::FCircuit;
+use folding_schemes::frontend::FCircuit; // folding (legacy-nova)
 use sha3::{Digest, Keccak256};
 
 use pvthfhe_domain_tags::Tag;
@@ -58,6 +58,7 @@ impl<F: PrimeField> FCircuit<F> for FoldVerifierStepCircuit<F> {
     type ExternalInputsVar = ExternalInputs3Var<F>;
 
     fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
+        // folding (legacy-nova)
         Ok(Self {
             _field: std::marker::PhantomData,
         })

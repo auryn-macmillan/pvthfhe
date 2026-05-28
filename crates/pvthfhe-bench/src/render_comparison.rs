@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use tera::{Context, Tera};
 
 const DEFAULT_TEMPLATE: &str = include_str!("../../../bench/templates/comparison.md.tera");
-const OUR_TOOLCHAIN: &str = "Rust 1.95.0, Nargo 1.0.0-beta.20, BB 5.0.0-nightly.20260324, Nova folding-schemes rev 63f2930d363150d4490ce2c4be8e0c25c2e1d92c, fhe.rs rev 5f24d0b62a7329b789db07a065b68accd614a47b";
+const OUR_TOOLCHAIN: &str = "Rust 1.95.0, Nargo 1.0.0-beta.20, BB 5.0.0-nightly.20260324, nova-snark v0.71, fhe.rs rev 5f24d0b62a7329b789db07a065b68accd614a47b";
 const OUR_PARAMS_TEMPLATE: &str = "N=8192, log₂q=174, B_e=16, B_s=1, B_r=TBD, T={t}, H={h}";
 
 #[derive(Debug)]

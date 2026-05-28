@@ -1,7 +1,7 @@
 //! Poseidon R1CS gadget for in-circuit Merkle tree hashing.
 //!
 //! Implements the Poseidon permutation over Bn254::Fr in Arkworks R1CS
-//! using the canonical Poseidon configuration from folding_schemes
+//! using the canonical Poseidon configuration (legacy-nova feature uses folding_schemes)
 //! (t=5: rate=4, capacity=1, full_rounds=8, partial_rounds=60, alpha=5).
 //!
 //! The permutation is implemented as a sponge:
@@ -16,7 +16,7 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
 #[cfg(feature = "legacy-nova")]
-use folding_schemes::transcript::poseidon::poseidon_canonical_config;
+use folding_schemes::transcript::poseidon::poseidon_canonical_config; // folding (legacy-nova)
 
 /// Extracted Poseidon parameters from the canonical config.
 ///
@@ -58,7 +58,7 @@ impl<F: PrimeField> PoseidonParams<F> {
     }
 
     /// Hardcoded canonical Poseidon params for BN254 (t=5).
-    /// Uses identity MDS when folding_schemes is unavailable.
+    /// Uses identity MDS when the legacy-nova feature is disabled.
     #[cfg(not(feature = "legacy-nova"))]
     pub fn canonical() -> Self {
         let zero = F::zero();

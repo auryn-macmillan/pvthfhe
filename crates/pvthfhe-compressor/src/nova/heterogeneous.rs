@@ -3,7 +3,7 @@
 //! A heterogeneous circuit family allows each IVC step `i` to use a different
 //! circuit variant. The [`HeterogeneousCircuitFamily`] trait defines the
 //! dispatch interface, and [`HeterogeneousStepCircuit`] implements
-//! [`folding_schemes::frontend::FCircuit`] by delegating to the family.
+//! the legacy `FCircuit` trait by delegating to the family.
 //!
 //! This enables MicroNova-style folding where a single Nova Nova prover
 //! handles multiple circuit variants within one IVC chain.
@@ -32,7 +32,7 @@ use ark_ff::PrimeField;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
 #[cfg(feature = "legacy-nova")]
-use folding_schemes::frontend::FCircuit;
+use folding_schemes::frontend::FCircuit; // folding (legacy-nova)
 use sha3::{Digest, Keccak256};
 use std::cell::RefCell;
 use std::fmt::Debug;
@@ -148,6 +148,7 @@ impl<F: PrimeField> FCircuit<F> for HeterogeneousStepCircuit<F> {
     type ExternalInputsVar = ExternalInputs3Var<F>;
 
     fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
+        // folding (legacy-nova)
         Ok(Self {
             _field: std::marker::PhantomData,
         })

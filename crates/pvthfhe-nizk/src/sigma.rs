@@ -787,24 +787,82 @@ pub fn poly_eval_mod(coeffs: &[i64], x: u64, q: u64) -> u64 {
     result as u64
 }
 
-/// Compute 3 independent Schwartz-Zippel challenge points gamma[0..2] from the sigma
-/// proof transcript using Fiat-Shamir (prover cannot choose gamma).
+/// Compute a single S-Z gamma point with a per-point domain separator.
 ///
-/// Returns [gamma0, gamma1, gamma2] — three independently-derived 64-bit challenge
-/// points for 3-point S-Z evaluation achieving ~2^-135 composite soundness.
-pub fn compute_sz_gamma(proof: &SigmaProof, session_id: &[u8], party_id: u32) -> [u64; 3] {
+/// Hashes ALL evaluated polynomials (t_rns, c_rns, d_rns, z_s, z_e) plus challenge,
+/// session/party binding and a unique label to derive an independent 64-bit gamma.
+fn compute_one_gamma(
+    proof: &SigmaProof,
+    session_id: &[u8],
+    party_id: u32,
+    label: &[u8],
+    c_rns: &[u64],
+    d_rns: &[u64],
+    prev_gammas: &[u64],
+) -> u64 {
     let mut h = Sha256::new();
-    h.update(b"pvthfhe-sz-gamma-v2");
+    h.update(b"pvthfhe-sz-gamma-v3");
+    h.update(label);
     h.update(session_id);
     h.update(&party_id.to_le_bytes());
     h.update(&proof.ch.to_le_bytes());
     for &v in &proof.t_rns {
         h.update(&v.to_le_bytes());
     }
+    for &v in c_rns {
+        h.update(&v.to_le_bytes());
+    }
+    for &v in d_rns {
+        h.update(&v.to_le_bytes());
+    }
+    for &v in &proof.z_s {
+        h.update(&v.to_le_bytes());
+    }
+    for &v in &proof.z_e {
+        h.update(&v.to_le_bytes());
+    }
+    for &v in prev_gammas {
+        h.update(&v.to_le_bytes());
+    }
     let digest = h.finalize();
-    let gamma0 = u64::from_le_bytes(digest[0..8].try_into().unwrap());
-    let gamma1 = u64::from_le_bytes(digest[16..24].try_into().unwrap());
-    let gamma2 = u64::from_le_bytes(digest[24..32].try_into().unwrap());
+    u64::from_le_bytes(digest[..8].try_into().unwrap())
+}
+
+/// Compute 3 independent Schwartz-Zippel challenge points gamma[0..2] from the sigma
+/// proof transcript using Fiat-Shamir (prover cannot choose gamma).
+///
+/// Returns [gamma0, gamma1, gamma2] — three independently-derived 64-bit challenge
+/// points for 3-point S-Z evaluation achieving ~2^-135 composite soundness.
+///
+/// Each gamma is derived independently with per-point domain separators so no two
+/// points share a hash prefix.  All evaluated polynomials (t_rns, c_rns, d_rns,
+/// z_s, z_e) and the challenge ch are bound into every derivation.
+pub fn compute_sz_gamma(
+    proof: &SigmaProof,
+    session_id: &[u8],
+    party_id: u32,
+    c_rns: &[u64],
+    d_rns: &[u64],
+) -> [u64; 3] {
+    let gamma0 = compute_one_gamma(proof, session_id, party_id, b"gamma0", c_rns, d_rns, &[]);
+    let gamma1 = compute_one_gamma(
+        proof,
+        session_id,
+        party_id,
+        b"gamma1",
+        c_rns,
+        d_rns,
+        &[gamma0],
+    );
+    let gamma2 = compute_one_gamma(
+        proof,
+        session_id,
+        party_id,
+        b"gamma2",
+        c_rns,
+        d_rns,
+        &[gamma0, gamma1],
+    );
     [gamma0, gamma1, gamma2]
 }
 
@@ -835,7 +893,7 @@ pub fn compute_sigma_sz_data(
 ) {
     let n = rlwe_n();
     let moduli = pvthfhe_types::rlwe_moduli();
-    let gammas = compute_sz_gamma(proof, session_id, party_id);
+    let gammas = compute_sz_gamma(proof, session_id, party_id, c_rns, d_rns);
 
     let total_entries = 3 * moduli.len();
     let mut sz_c_eval = Vec::with_capacity(total_entries);

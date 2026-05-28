@@ -1,5 +1,0 @@
-n=128: runs=3 median=1537953ns max_deviation=0.008 [PASS]
-n=256: only 0 run(s) found, skipping tolerance check
-n=512: only 0 run(s) found, skipping tolerance check
-n=1024: only 0 run(s) found, skipping tolerance check
-All tolerance checks passed.

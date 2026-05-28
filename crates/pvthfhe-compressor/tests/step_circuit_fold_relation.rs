@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-nova")]
 //! R5.2 D.1 RED: CycloFoldStepCircuit must encode fold relation, not field addition.
 
 use ark_bn254::Fr;
@@ -5,7 +6,7 @@ use ark_ff::{BigInteger, PrimeField};
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_relations::gr1cs::ConstraintSystem;
-use folding_schemes::frontend::FCircuit;
+use folding_schemes::frontend::FCircuit; // folding (legacy-nova)
 use pvthfhe_compressor::nova::{CycloFoldStepCircuit, ExternalInputs3Var, NovaCompressor};
 use pvthfhe_compressor::ProofCompressor;
 

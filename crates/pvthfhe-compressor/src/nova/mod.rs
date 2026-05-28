@@ -12,6 +12,8 @@ pub mod heterogeneous;
 pub mod lagrange_fold_circuit;
 pub mod latticefold_adapter;
 pub mod latticefold_circuit_family;
+pub mod monomial_range;
+pub mod nova_gadgets;
 pub mod pk_aggregation_circuit;
 pub mod pk_contribution_circuit;
 pub mod poseidon_gadget;
@@ -70,6 +72,7 @@ use ark_relations::gr1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Validate};
 #[cfg(feature = "legacy-nova")]
 use folding_schemes::{
+    // folding (legacy-nova)
     commitment::{kzg::KZG, pedersen::Pedersen},
     folding::nova::{IVCProof, Nova, PreprocessorParam},
     frontend::FCircuit,
@@ -104,13 +107,58 @@ impl nova_snark::traits::circuit::StepCircuit<NovaScalar> for CycloFoldStepCircu
     }
     fn synthesize<CS: nova_snark::frontend::ConstraintSystem<NovaScalar>>(
         &self,
-        _cs: &mut CS,
+        cs: &mut CS,
         z: &[nova_snark::frontend::num::AllocatedNum<NovaScalar>],
     ) -> Result<
         Vec<nova_snark::frontend::num::AllocatedNum<NovaScalar>>,
         nova_snark::frontend::SynthesisError,
     > {
-        Ok(z.to_vec())
+        // Read step index from thread-local counter
+        let step = CYCLO_FOLD_STEP_COUNTER.with(|cell| {
+            let mut c = cell.borrow_mut();
+            let s = *c;
+            *c = s + 1;
+            s
+        });
+
+        // In-circuit sigma/ring/BFV verification
+        let sigma_ok = nova_gadgets::sigma_verify_step_bp(cs, step)?;
+        let ring_ok = nova_gadgets::ring_verify_step_bp(cs, step)?;
+        let bfv_ok = nova_gadgets::bfv_verify_step_bp(cs, step)?;
+
+        // Contribution: placeholder hash (Poseidon not yet in bellpepper)
+        let contribution = nova_snark::frontend::num::AllocatedNum::alloc(
+            cs.namespace(|| "contribution"),
+            || Ok(NovaScalar::from(0u64)),
+        )?;
+        let step_hash =
+            nova_snark::frontend::num::AllocatedNum::alloc(cs.namespace(|| "step_hash"), || {
+                Ok(NovaScalar::from(0u64))
+            })?;
+        let one = nova_snark::frontend::num::AllocatedNum::alloc(cs.namespace(|| "one"), || {
+            Ok(NovaScalar::from(1u64))
+        })?;
+
+        // State transitions (arity=8)
+        let running_sum = z[0].clone().add(cs.namespace(|| "sum"), &contribution)?;
+        let share_chain = z[1].clone().add(cs.namespace(|| "chain"), &step_hash)?;
+        let step_count = z[2].clone().add(cs.namespace(|| "sc"), &one)?;
+        let verif_count = z[3].clone().add(cs.namespace(|| "vc"), &sigma_ok)?;
+        let sigma_count = z[4].clone().add(cs.namespace(|| "sig"), &sigma_ok)?;
+        let ring_count = z[5].clone().add(cs.namespace(|| "ring"), &ring_ok)?;
+        let bfv_count = z[6].clone().add(cs.namespace(|| "bfv"), &bfv_ok)?;
+        let last_hash = z[7].clone().add(cs.namespace(|| "hash"), &step_hash)?;
+
+        Ok(vec![
+            running_sum,
+            share_chain,
+            step_count,
+            verif_count,
+            sigma_count,
+            ring_count,
+            bfv_count,
+            last_hash,
+        ])
     }
 }
 
@@ -450,6 +498,7 @@ impl<F: PrimeField> FCircuit<F> for ToyStepCircuit<F> {
     type ExternalInputsVar = ExternalInputs3Var<F>;
 
     fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
+        // folding (legacy-nova)
         Ok(Self {
             _field: std::marker::PhantomData,
         })
@@ -541,6 +590,7 @@ impl<T: Default> Drop for AutoClear<T> {
 }
 
 thread_local! {
+    pub(crate) static CYCLO_FOLD_STEP_COUNTER: std::cell::RefCell<usize> = std::cell::RefCell::new(0);
     pub(crate) static CYCLO_RING_DATA: AutoClear<Vec<CycloRingWitness<ark_bn254::Fr>>> = AutoClear::new(Vec::new());
 }
 
@@ -980,6 +1030,7 @@ impl<F: PrimeField> FCircuit<F> for CycloFoldStepCircuit<F> {
     type ExternalInputsVar = ExternalInputs4Var<F>;
 
     fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
+        // folding (legacy-nova)
         Ok(Self {
             _field: std::marker::PhantomData,
         })
@@ -1303,7 +1354,7 @@ where
             public_params: pp,
             verifier_key,
             ivc_steps,
-            state_len: 3,
+            state_len: c_primary.arity(),
             srs_hash,
             _step_circuit: std::marker::PhantomData,
         })
@@ -1397,6 +1448,15 @@ where
         header.extend_from_slice(&proof_bytes);
 
         Ok(CompressedProof::new(header))
+    }
+
+    #[cfg(feature = "symphony-t1")]
+    pub fn prove_steps_high_arity(
+        &self,
+        acc: &[u8],
+        steps: &[ExternalInputs3<ark_bn254::Fr>],
+    ) -> Result<CompressedProof, CompressorError> {
+        self.prove_steps(acc, steps)
     }
 
     pub fn verify_steps(

@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-nova")]
 //! P3-M1 FoldVerifierStepCircuit tests.
 //!
 //! Tests the LatticeFold+ terminal verifier Nova step circuit.
@@ -9,7 +10,7 @@ use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::GR1CSVar;
 use ark_relations::gr1cs::ConstraintSystem;
-use folding_schemes::frontend::FCircuit;
+use folding_schemes::frontend::FCircuit; // folding (legacy-nova)
 use pvthfhe_compressor::nova::{
     encode_triple, ExternalInputs3, ExternalInputs3Var, FoldVerifierStepCircuit, NovaCompressor,
     ToyStepCircuit,

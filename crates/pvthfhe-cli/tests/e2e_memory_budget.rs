@@ -2,7 +2,7 @@
 //!
 //! ROOT CAUSE (H_TRACING, confirmed 2026-05-07):
 //!   The unscoped `EnvFilter::new("info")` default in `pvthfhe-e2e` enables
-//!   arkworks-rs / folding-schemes internal `tracing::span!` invocations whose
+//!   arkworks-rs / legacy nova (Sonobe) internal `tracing::span!` invocations whose
 //!   fields include `&mut [FpVar]` slices. tracing-subscriber's
 //!   `record_debug` then debug-formats those slices, recursing into
 //!   `ConstraintSystemRef` and walking the entire (growing) R1CS constraint

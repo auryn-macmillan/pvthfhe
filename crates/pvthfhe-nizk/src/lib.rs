@@ -23,7 +23,8 @@ pub mod schnorr;
 pub mod sigma;
 
 pub use sigma::{
-    compute_jl_entries, compute_jl_projection, compute_raw_jl_sum, l2_squared, B_Y, B_Z_E, B_Z_S,
+    compute_jl_entries, compute_jl_projection, compute_raw_jl_sum,
+    derive_challenge_from_commitment, derive_transcript_commitment, l2_squared, B_Y, B_Z_E, B_Z_S,
     JL_PROJECTION_DIM,
 };
 

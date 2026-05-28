@@ -9,6 +9,7 @@ pub mod cyclo_fold_circuit;
 pub mod cyclo_verifier;
 pub mod fold_verifier_circuit;
 pub mod heterogeneous;
+pub mod high_arity_fold;
 pub mod lagrange_fold_circuit;
 pub mod latticefold_adapter;
 pub mod latticefold_circuit_family;
@@ -618,6 +619,10 @@ pub struct SigmaWitness<F: PrimeField> {
     pub c_ntt: Vec<Vec<F>>,
     /// Fiat-Shamir challenge ch ∈ {-1, 0, 1} as Fr
     pub ch: F,
+    /// T2: Transcript commitment (Keccak256 of t_rns || c_rns || d_rns).
+    /// Derived outside the circuit; the circuit verifies the sigma equation
+    /// with `ch` derived from this commitment (Symphony §6).
+    pub transcript_commitment: [u8; 32],
     /// Response z_s in power basis (integer coeffs) for norm enforcement
     pub z_s_power: Vec<i64>,
     /// Response z_e in power basis (integer coeffs) for norm enforcement
@@ -733,6 +738,31 @@ pub fn clear_sigma_data() {
     SIGMA_DATA.with(|cell| {
         cell.inner().borrow_mut().clear();
     });
+}
+
+fn step_public_input_commitments(steps: &[ExternalInputs3<Fr>]) -> Vec<[u8; 32]> {
+    steps
+        .iter()
+        .enumerate()
+        .map(|(idx, step)| {
+            let mut hasher = Keccak256::new();
+            hasher.update(b"pvthfhe-symphony-t2-step-commit-v1");
+            hasher.update((idx as u64).to_be_bytes());
+            hasher.update(encode_triple((step.0, step.1, step.2)));
+            hasher.finalize().into()
+        })
+        .collect()
+}
+
+fn committed_public_inputs_hash(steps: &[ExternalInputs3<Fr>]) -> [u8; 32] {
+    let commitments = step_public_input_commitments(steps);
+    let mut hasher = Keccak256::new();
+    hasher.update(b"pvthfhe-symphony-t2-public-inputs-v1");
+    hasher.update((commitments.len() as u64).to_be_bytes());
+    for commitment in commitments {
+        hasher.update(commitment);
+    }
+    hasher.finalize().into()
 }
 
 /// RAII guard that clears thread-local witness data on drop.
@@ -1387,6 +1417,21 @@ fn ark_to_nova_scalar(fr: ark_bn254::Fr) -> NovaScalar {
     NovaScalar::from_repr(repr).unwrap_or(NovaScalar::from(0u64))
 }
 
+pub(crate) fn sigma_transcript_commitment_scalar(w: &SigmaWitness<ark_bn254::Fr>) -> NovaScalar {
+    let mut hasher = Keccak256::new();
+    hasher.update(b"pvthfhe-symphony-t2-sigma-witness-v1");
+    hasher.update(w.transcript_commitment);
+    hasher.update(encode_scalar(w.ch));
+    hasher.update((w.t_ntt.len() as u64).to_be_bytes());
+    for limb in &w.t_ntt {
+        for coeff in limb.iter().take(16) {
+            hasher.update(encode_scalar(*coeff));
+        }
+    }
+    let digest: [u8; 32] = hasher.finalize().into();
+    ark_to_nova_scalar(Fr::from_be_bytes_mod_order(&digest))
+}
+
 type NovaRecursiveSNARK<S> = nova_snark::nova::RecursiveSNARK<
     nova_snark::provider::Bn256EngineKZG,
     nova_snark::provider::GrumpkinEngine,
@@ -1415,15 +1460,17 @@ where
             );
         }
 
+        let public_inputs_hash = committed_public_inputs_hash(steps);
         let z0_primary: Vec<NovaScalar> = vec![NovaScalar::zero(); self.state_len];
 
         let c_primary = S::default();
+        CYCLO_FOLD_STEP_COUNTER.with(|cell| *cell.borrow_mut() = 0);
 
         let mut recursive_snark: NovaRecursiveSNARK<S> =
             NovaRecursiveSNARK::new(&self.public_params, &c_primary, &z0_primary)
                 .map_err(|_| CompressorError::Backend("nova-snark RecursiveSNARK::new failed"))?;
 
-        for _step in 0..self.ivc_steps {
+        for _step in 0..steps.len() {
             recursive_snark
                 .prove_step(&self.public_params, &c_primary)
                 .map_err(|_| CompressorError::Backend("nova-snark prove_step failed"))?;
@@ -1437,11 +1484,6 @@ where
         header.extend_from_slice(&PROOF_VERSION.to_be_bytes());
         header.extend_from_slice(&normalized_hash(acc)?);
 
-        let mut steps_bytes = Vec::new();
-        for step in steps {
-            steps_bytes.extend_from_slice(&encode_triple((step.0, step.1, step.2)));
-        }
-        let public_inputs_hash: [u8; 32] = Keccak256::digest(&steps_bytes).into();
         header.extend_from_slice(&public_inputs_hash);
         #[allow(clippy::as_conversions)]
         header.extend_from_slice(&(proof_bytes.len() as u32).to_be_bytes());
@@ -1450,13 +1492,63 @@ where
         Ok(CompressedProof::new(header))
     }
 
-    #[cfg(feature = "symphony-t1")]
     pub fn prove_steps_high_arity(
         &self,
         acc: &[u8],
         steps: &[ExternalInputs3<ark_bn254::Fr>],
     ) -> Result<CompressedProof, CompressorError> {
-        self.prove_steps(acc, steps)
+        use high_arity_fold::*;
+
+        let batch_size = steps.len().min(128);
+        tracing::debug!(
+            "prove_steps_high_arity: batch_size={} for {} steps",
+            batch_size,
+            steps.len()
+        );
+
+        if steps.is_empty() {
+            return self.prove_steps(acc, steps);
+        }
+
+        let beta = derive_beta_vector(&self.srs_hash, steps.len());
+        let folded_steps = fold_external_inputs_in_batches(steps, &beta, batch_size);
+        let num_batches = folded_steps.len();
+
+        if num_batches > 1 {
+            tracing::warn!(
+                "high_arity: {} steps folded into {} batches (batch_size={})",
+                steps.len(),
+                num_batches,
+                batch_size
+            );
+        } else {
+            tracing::info!(
+                "high_arity: {} steps folded into a single batch",
+                steps.len()
+            );
+        }
+
+        self.prove_steps(acc, &folded_steps)
+    }
+
+    pub fn verify_steps_high_arity(
+        &self,
+        vk: &VerifierKey,
+        proof: &CompressedProof,
+        acc: &[u8],
+        steps: &[ExternalInputs3<ark_bn254::Fr>],
+    ) -> Result<bool, CompressorError> {
+        use high_arity_fold::*;
+
+        if steps.is_empty() {
+            return self.verify_steps(vk, proof, acc, steps);
+        }
+
+        let batch_size = steps.len().min(128);
+        let beta = derive_beta_vector(&self.srs_hash, steps.len());
+        let folded_steps = fold_external_inputs_in_batches(steps, &beta, batch_size);
+
+        self.verify_steps(vk, proof, acc, &folded_steps)
     }
 
     pub fn verify_steps(
@@ -1472,11 +1564,7 @@ where
 
         let parsed = parse_proof(&proof.bytes)?;
 
-        let mut steps_bytes = Vec::new();
-        for step in steps {
-            steps_bytes.extend_from_slice(&encode_triple((step.0, step.1, step.2)));
-        }
-        let expected_hash: [u8; 32] = Keccak256::digest(&steps_bytes).into();
+        let expected_hash = committed_public_inputs_hash(steps);
         if parsed.public_inputs_hash != expected_hash {
             return Ok(false);
         }
@@ -1487,7 +1575,7 @@ where
             bincode::deserialize(parsed.ivc_bytes).map_err(|_| CompressorError::InvalidProof)?;
 
         recursive_snark
-            .verify(&self.public_params, self.ivc_steps, &z0_primary)
+            .verify(&self.public_params, steps.len(), &z0_primary)
             .map(|_| true)
             .map_err(|_| CompressorError::InvalidProof)
     }

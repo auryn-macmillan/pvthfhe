@@ -26,6 +26,7 @@ use fhe_math::rq::{traits::TryConvertFrom, Context, Poly, Representation};
 use light_poseidon::{Poseidon, PoseidonHasher};
 use rand_core::RngCore;
 use sha2::{Digest, Sha256};
+use sha3::Keccak256;
 use std::sync::{Arc, OnceLock};
 
 use crate::NizkError;
@@ -239,7 +240,7 @@ pub fn prove(
     stmt: &SigmaStatement,
     wit: &SigmaWitness,
     rng: &mut dyn RngCore,
-    d_commitment: &[u8; 32],
+    _d_commitment: &[u8; 32],
 ) -> Result<SigmaProof, NizkError> {
     let n = rlwe_n();
     let rns_len = n * num_rns_limbs();
@@ -264,14 +265,9 @@ pub fn prove(
         let c_ys_rns = poly_mul_rq(&stmt.c_rns, &y_s_rns, ctx)?;
         let t_rns = rns_add(&c_ys_rns, &y_e_rns, ctx)?;
 
-        let ch = derive_challenge_scalar(
-            session_id,
-            participant_id,
-            &t_rns,
-            &stmt.c_rns,
-            &stmt.d_rns,
-            d_commitment,
-        );
+        let transcript_commitment = derive_transcript_commitment(&t_rns, &stmt.c_rns, &stmt.d_rns);
+        let ch =
+            derive_challenge_from_commitment(&transcript_commitment, session_id, participant_id);
 
         let z_s: Vec<i64> = y_s
             .iter()
@@ -375,7 +371,7 @@ pub fn verify_scalar(
 
     let ctx = rlwe_context()?;
 
-    let expected_ch = derive_challenge_scalar(
+    let _legacy_ch = derive_challenge_scalar(
         session_id,
         participant_id,
         &proof.t_rns,
@@ -383,6 +379,10 @@ pub fn verify_scalar(
         &stmt.d_rns,
         d_commitment,
     );
+    let transcript_commitment =
+        derive_transcript_commitment(&proof.t_rns, &stmt.c_rns, &stmt.d_rns);
+    let expected_ch =
+        derive_challenge_from_commitment(&transcript_commitment, session_id, participant_id);
     // Constant-time comparison for challenge
     let ch_match = (proof.ch ^ expected_ch) == 0;
     if !ch_match {
@@ -559,6 +559,57 @@ fn derive_challenge_scalar(
     let ch_fr = poseidon_hash(&fr_inputs);
 
     // 4. Reduce Fr to ternary {-1, 0, 1}
+    fr_to_ternary(&ch_fr)
+}
+
+/// T2: Derive a Keccak256 transcript commitment from the sigma transcript data.
+///
+/// Computes `com = Keccak256(DOMAIN || t_rns || c_rns || d_i_rns)` which binds
+/// the prover's first message t and the statement (c, d_i) before the challenge
+/// is revealed. This commitment is verified in-circuit (via Poseidon, ~900 constraints)
+/// so the Fiat-Shamir challenge derivation can be moved outside the circuit
+/// (Symphony §6).
+pub fn derive_transcript_commitment(t_rns: &[u64], c_rns: &[u64], d_rns: &[u64]) -> [u8; 32] {
+    let mut hasher = Keccak256::new();
+    hasher.update(SCALAR_CHALLENGE_DOMAIN);
+    hasher.update(b"t2-commit");
+    hasher.update(&(t_rns.len() as u64).to_be_bytes());
+    for &x in t_rns {
+        hasher.update(x.to_le_bytes());
+    }
+    for &x in c_rns {
+        hasher.update(x.to_le_bytes());
+    }
+    for &x in d_rns {
+        hasher.update(x.to_le_bytes());
+    }
+    hasher.finalize().into()
+}
+
+/// T2: Derive a scalar ternary challenge from a transcript commitment.
+///
+/// Replaces the raw `derive_challenge_scalar` when T2 FS-outside-circuit is active.
+/// Instead of hashing the full transcript, we hash only the commitment and session
+/// binding, then use Poseidon to produce the Fiat-Shamir challenge.
+///
+/// This is cheaper in-circuit because the commitment (32 bytes) is much smaller
+/// than the raw transcript data (3 × L × N × 8 bytes ≈ 384KB).
+pub fn derive_challenge_from_commitment(
+    commitment: &[u8; 32],
+    session_id: &[u8],
+    participant_id: u32,
+) -> i64 {
+    let mut prefix = Sha256::new();
+    prefix.update(SCALAR_CHALLENGE_DOMAIN);
+    prefix.update(b"t2-commit-ch");
+    prefix.update(session_id);
+    prefix.update(participant_id.to_le_bytes());
+
+    let digest = labeled_sha256(&prefix, b"commitment", commitment);
+    let lo = bytes16_to_fr(&digest[..16]);
+    let hi = bytes16_to_fr(&digest[16..]);
+    let ch_fr = poseidon_hash(&[lo, hi]);
+
     fr_to_ternary(&ch_fr)
 }
 

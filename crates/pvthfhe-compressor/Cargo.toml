@@ -44,13 +44,6 @@ transparent-decider = []
 # only active backend. This feature exists solely to preserve legacy code for
 # reference during migration.
 legacy-nova = []
-# Symphony T1: High-arity folding. Batches n iterative prove_step calls into
-# a single fold using random linear combination β (Symphony §4).
-symphony-t1 = []
-# Symphony T2: FS outside circuit.
-# Moves Fiat-Shamir hashing outside the Nova circuit by using an identity
-# step circuit with Keccak256 commitments to step inputs (Symphony §6).
-symphony-t2 = []
 # Symphony T3: Monomial embedding range proofs.
 # Replaces fixed 31-bit decomposition with adaptive bit-count range checks
 # based on the monomial embedding technique (Symphony §5.2).

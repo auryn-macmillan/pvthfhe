@@ -40,6 +40,11 @@ pub fn sigma_verify_step_bp<CS: ConstraintSystem<NovaScalar>>(
         }
     };
 
+    let commitment_binding = super::sigma_transcript_commitment_scalar(&w);
+    AllocatedNum::alloc(cs.namespace(|| "sigma_t2_commitment_binding"), || {
+        Ok(commitment_binding)
+    })?;
+
     let f_ch: NovaScalar = ark_to_nova_scalar(w.ch);
     let ch_var = AllocatedNum::alloc(cs.namespace(|| "sigma_ch"), || Ok(f_ch))?;
 

@@ -326,18 +326,13 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         let c1_acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
         let c1_steps: Vec<ExternalInputs3<Fr>> =
             vec![ExternalInputs3(Fr::from(1u64), Fr::zero(), Fr::from(cfg.n as u64)); cfg.n];
-        #[cfg(feature = "symphony-t1")]
         let c1_proof = c1_compressor
             .prove_steps_high_arity(&c1_acc, &c1_steps)
-            .map_err(|e| anyhow::anyhow!("c1 prove: {e:?}"))?;
-        #[cfg(not(feature = "symphony-t1"))]
-        let c1_proof = c1_compressor
-            .prove_steps(&c1_acc, &c1_steps)
             .map_err(|e| anyhow::anyhow!("c1 prove: {e:?}"))?;
         clear_pk_contribution_data();
         let c1_vk = c1_compressor.verifier_key();
         c1_passed = c1_compressor
-            .verify_steps(&c1_vk, &c1_proof, &c1_acc, &c1_steps)
+            .verify_steps_high_arity(&c1_vk, &c1_proof, &c1_acc, &c1_steps)
             .map_err(|e| anyhow::anyhow!("c1 verify: {e:?}"))?;
         assert!(c1_passed);
         tracing::info!("c1: PK contribution IVC verified ({} parties)", cfg.n);
@@ -588,13 +583,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             let external_inputs: Vec<ExternalInputs3<Fr>> = (0..n)
                 .map(|_| ExternalInputs3(Fr::from(1u64), Fr::zero(), Fr::from(n as u64)))
                 .collect();
-            #[cfg(feature = "symphony-t1")]
             let c4_proof = c4_compressor
                 .prove_steps_high_arity(&c4_acc, &external_inputs)
-                .map_err(|e| anyhow::anyhow!("c4 prove: {e:?}"))?;
-            #[cfg(not(feature = "symphony-t1"))]
-            let c4_proof = c4_compressor
-                .prove_steps(&c4_acc, &external_inputs)
                 .map_err(|e| anyhow::anyhow!("c4 prove: {e:?}"))?;
             // Extract combined_share_hash from the C4 DKG aggregation Nova proof bytes.
             // Binds the share verification chain to the DKG aggregation proof.
@@ -602,7 +592,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             clear_dkg_agg_data();
             let c4_vk = c4_compressor.verifier_key();
             c4_passed = c4_compressor
-                .verify_steps(&c4_vk, &c4_proof, &c4_acc, &external_inputs)
+                .verify_steps_high_arity(&c4_vk, &c4_proof, &c4_acc, &external_inputs)
                 .map_err(|e| anyhow::anyhow!("c4 verify: {e:?}"))?;
             if !c4_passed {
                 tracing::warn!("c4: DKG aggregation IVC verification FAILED (known P3 limitation — Nova Nova verify bug)");
@@ -1017,18 +1007,13 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         let c5_acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
         let c5_steps: Vec<ExternalInputs3<Fr>> =
             vec![ExternalInputs3(Fr::from(1u64), Fr::zero(), Fr::from(cfg.n as u64)); cfg.n];
-        #[cfg(feature = "symphony-t1")]
         let c5_proof = c5_compressor
             .prove_steps_high_arity(&c5_acc, &c5_steps)
-            .map_err(|e| anyhow::anyhow!("c5 prove: {e:?}"))?;
-        #[cfg(not(feature = "symphony-t1"))]
-        let c5_proof = c5_compressor
-            .prove_steps(&c5_acc, &c5_steps)
             .map_err(|e| anyhow::anyhow!("c5 prove: {e:?}"))?;
         clear_pk_agg_data();
         let c5_vk = c5_compressor.verifier_key();
         c5_passed = c5_compressor
-            .verify_steps(&c5_vk, &c5_proof, &c5_acc, &c5_steps)
+            .verify_steps_high_arity(&c5_vk, &c5_proof, &c5_acc, &c5_steps)
             .map_err(|e| anyhow::anyhow!("c5 verify: {e:?}"))?;
         if !c5_passed {
             tracing::warn!("c5: PK aggregation IVC verification FAILED (known P3 limitation — Nova Nova verify bug)");
@@ -1291,6 +1276,11 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                     stmt.session_id.as_bytes(),
                     *party_id,
                 );
+            let transcript_commitment = pvthfhe_nizk::sigma::derive_transcript_commitment(
+                &sigma_proof.t_rns,
+                &c_rns,
+                &d_rns,
+            );
             sigma_witnesses.push(CompressorSigmaWitness {
                 z_s_ntt,
                 z_e_ntt,
@@ -1298,6 +1288,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 d_i_ntt,
                 c_ntt,
                 ch,
+                transcript_commitment,
                 z_s_power,
                 z_e_power,
                 sz_gamma,

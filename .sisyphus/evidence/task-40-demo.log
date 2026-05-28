@@ -14,82 +14,16 @@ help: Check that the patched package version and available features are compatib
       version. This may also occur with an optional dependency that is not enabled.
 warning: pvthfhe-fhe@0.1.0: MOCK BACKEND ACTIVE — XOR/SHA256 ONLY. Set PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK=1 to use.
 warning: pvthfhe-aggregator@0.1.0: aggregator: folding uses CycloFoldStepCircuit with real Ajtai commitments (CycloNizkAdapter)
-   Compiling pvthfhe-compressor v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-compressor)
-   Compiling pvthfhe-bench v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-bench)
-   Compiling pvthfhe-cli v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-cli)
-    Finished `release` profile [optimized] target(s) in 22.10s
-     Running `target/release/pvthfhe-cli demo --n 10 --threshold 4 --seed 1`
-demo: n=10 threshold=4 seed=1
+    Finished `release` profile [optimized] target(s) in 0.10s
+     Running `target/release/pvthfhe-cli demo --n 16 --threshold 7 --seed 1`
+demo: n=16 threshold=7 seed=1
 pvss_backend_id=lattice-pvss-bfv-d2
 backend_id == "cyclo-ajtai-d2-conditional"
 backend_id_p2: cyclo-rlwe-t10-lemma9-heuristic
 backend_id_p3: nova-bn254-grumpkin
 note: on-chain Solidity verify is NOT run by demo (use bench-comparison)
 pvss_backend_id=lattice-pvss-bfv-d2
-[2m2026-05-28T02:27:19.771454Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m seed flag ignored in production path; will require --insecure-seed in future R3.6
-step 1/14: keygen (n=10 t=4 seed=1)
-keygen: complete (1867.135 ms)
-step 2/14: dkg_deal (n=10 dealers)
-dkg_deal: complete (77799.722 ms)
-step 3/14: dkg_aggregate (n=10 recipients)
-dkg_aggregate: complete (0.106 ms)
-step 4/14: dkg_fold (n=10 recipients)
-step 5/14: nizk_prove (dealer=1)
-step 6/14: nizk_verify (dealer=1 recipient=1)
-step 7/14: pvss_share_encrypt (lattice-pvss-bfv-d2)
-pvss_share_encrypt: complete (533.334 ms)
-setup_threshold: complete (215.315 ms)
-step 8/14: cyclo_fold (cyclo-rlwe-t10-lemma9-heuristic)
-cyclo_fold: complete (14.711 ms)
-step 9/14: partial_decrypt (party_id=1)
-partial_decrypt: complete (2.704 ms)
-partial_decrypt: complete (2.696 ms)
-partial_decrypt: complete (2.911 ms)
-partial_decrypt: complete (2.728 ms)
-step 10/14: aggregate_decrypt
-aggregate_decrypt: complete (26.782 ms)
-step 11/14: c7_decrypt_aggregation
-c7_decrypt_aggregation: complete (1987.409 ms)
-step 12/14: compressor_prove (nova-bn254-grumpkin)
-compressor_prove: complete (435.628 ms)
-step 13/14: compressor_verify (nova-bn254-grumpkin)
-compressor_verify: complete (40.664 ms)
-[2m2026-05-28T02:29:05.777010Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m cyclo state extraction failed: InvalidProof, using zero state
-step 14/14: c7_noir_aggregator
-[2m2026-05-28T02:29:08.555245Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m PVTHFHE_NARGO_PATH not set; resolving nargo from PATH (PATH injection risk)
-[aggregator_final] Circuit witness successfully solved
-[aggregator_final] Witness saved to target/aggregator_final.gz
-[aggregator_final] Circuit output: [0x30644e72e131a029b85045b68181585d2833e84879b9709137e0628d10f4d512, 0x0163f653bd807b94, 0x30644e72e131a029b85045b68181585d2833e84879b9709143e0cf7191768389, 0x30644e72e131a029b85045b68181585d2833e84879b970913fe1910b68043f57, 0x30644e72e131a029b85045b68181585d2833e84879b970913be263eabd526e0b, 0x30644e72e131a029b85045b68181585d2833e84879b970913fe052bd0806d39d, 0x04021a58246c4ac6, 0x0800805da532d2b2]
-[2m2026-05-28T02:29:08.721935Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m PVTHFHE_BB_PATH not set; resolving bb from PATH (PATH injection risk)
-Scheme is: ultra_honk, num threads: 8 (mem: 311.56 MiB)
-CircuitProve: Proving key computed in 12 ms (mem: 311.56 MiB)
-VK saved to "target/vk" (mem: 311.56 MiB)
-VK Hash saved to "target/vk_hash" (mem: 311.56 MiB)
-[2m2026-05-28T02:29:08.777927Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m PVTHFHE_BB_PATH not set; resolving bb from PATH (PATH injection risk)
-Scheme is: ultra_honk, num threads: 8 (mem: 311.56 MiB)
-CircuitProve: Proving key computed in 12 ms (mem: 311.56 MiB)
-Public inputs saved to "target/public_inputs" (mem: 311.56 MiB)
-Proof saved to "target/proof" (mem: 311.56 MiB)
-[2m2026-05-28T02:29:08.920068Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m PVTHFHE_BB_PATH not set; resolving bb from PATH (PATH injection risk)
-Scheme is: ultra_honk, num threads: 8 (mem: 311.56 MiB)
-Proof verified successfully (mem: 311.56 MiB)
-c7_noir_aggregator: complete (378.731 ms)
-plaintext_roundtrip: OK
-aggregate_pk_hash: 4f909b5d1cd153cebca8024ed33abed3fa3599d95b6a48917859119b373a5a8a
-ciphertext_hash: 4716dbd60aaf31179bd7e686e626c22941878c4b948ca1e87d1dc0d6c2cd28e1
-compressed_proof_digest: cd82e4ecc7e06b243bcf1bd5fcc45171dd575edc70983a22d2c79624792f8e19
-keygen_ms=1867.1350869999999
-aggregate_keygen_ms=5.380017
-dkg_deal_ms=77799.721514
-dkg_aggregate_ms=0.105887
-encrypt_ms=5.749728
-share_encryption_proof_ms=273
-partial_decrypt_ms=11.039137
-aggregate_decrypt_ms=26.78231
-decrypt_ms=37.821447
-threshold=4
-n=10
-recipient_fold_hashes=[6403398626238684256005692970995498027393051146279957535595686902818008377560, 19962589170825014822660964063392226166386050811194031538340096512358112069146, 1324125156620608160624242151027606281002925594452977753845042262122822484760, 6961229907126662659165446980579226779722904479211170280268134238427825705887, 19185489936470813703427599262286514473234877583564319771333067883007932451935, 4351214062626155137871983658755444675580103079490202767341508810729993106966, 12074728019821905597557290637817200127196432455216897064904727613106586387102, 39248443451636216476528892526821985396114339785420008949100868028109001559, 6716537170488175785448949986109257049881994567205509203209581435421233163102, 1796084286389905054952355899729074199089412160935388543622337029578015381295]
-recipient_parity_proof_hashes=[6403398626238684256005692970995498027393051146279957535595686902818008377560, 19962589170825014822660964063392226166386050811194031538340096512358112069146, 1324125156620608160624242151027606281002925594452977753845042262122822484760, 6961229907126662659165446980579226779722904479211170280268134238427825705887, 19185489936470813703427599262286514473234877583564319771333067883007932451935, 4351214062626155137871983658755444675580103079490202767341508810729993106966, 12074728019821905597557290637817200127196432455216897064904727613106586387102, 39248443451636216476528892526821985396114339785420008949100868028109001559, 6716537170488175785448949986109257049881994567205509203209581435421233163102, 1796084286389905054952355899729074199089412160935388543622337029578015381295]
-verify: ACCEPT
-pvss_backend_id=lattice-pvss-bfv-d2
+[2m2026-05-28T02:55:04.853678Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m seed flag ignored in production path; will require --insecure-seed in future R3.6
+step 1/14: keygen (n=16 t=7 seed=1)
+keygen: complete (4832.821 ms)
+step 2/14: dkg_deal (n=16 dealers)

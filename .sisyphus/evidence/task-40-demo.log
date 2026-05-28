@@ -14,16 +14,16 @@ help: Check that the patched package version and available features are compatib
       version. This may also occur with an optional dependency that is not enabled.
 warning: pvthfhe-fhe@0.1.0: MOCK BACKEND ACTIVE — XOR/SHA256 ONLY. Set PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK=1 to use.
 warning: pvthfhe-aggregator@0.1.0: aggregator: folding uses CycloFoldStepCircuit with real Ajtai commitments (CycloNizkAdapter)
-    Finished `release` profile [optimized] target(s) in 0.10s
-     Running `target/release/pvthfhe-cli demo --n 16 --threshold 7 --seed 1`
-demo: n=16 threshold=7 seed=1
+    Finished `release` profile [optimized] target(s) in 0.12s
+     Running `target/release/pvthfhe-cli demo --n 255 --threshold 126 --seed 1`
+demo: n=255 threshold=126 seed=1
 pvss_backend_id=lattice-pvss-bfv-d2
 backend_id == "cyclo-ajtai-d2-conditional"
 backend_id_p2: cyclo-rlwe-t10-lemma9-heuristic
 backend_id_p3: nova-bn254-grumpkin
 note: on-chain Solidity verify is NOT run by demo (use bench-comparison)
 pvss_backend_id=lattice-pvss-bfv-d2
-[2m2026-05-28T02:55:04.853678Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m seed flag ignored in production path; will require --insecure-seed in future R3.6
-step 1/14: keygen (n=16 t=7 seed=1)
-keygen: complete (4832.821 ms)
-step 2/14: dkg_deal (n=16 dealers)
+[2m2026-05-28T08:06:23.999442Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m seed flag ignored in production path; will require --insecure-seed in future R3.6
+step 1/14: keygen (n=255 t=126 seed=1)
+keygen: complete (1515324.421 ms)
+step 2/14: dkg_deal (n=255 dealers)

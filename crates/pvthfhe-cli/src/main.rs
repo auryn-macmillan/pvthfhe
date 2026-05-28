@@ -412,6 +412,25 @@ fn run_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
     println!("decrypt_ms={decrypt_ms}");
     println!("threshold={threshold}");
     println!("n={n}");
+
+    // Per-node averages for distributed performance estimation
+    let per_node_keygen = keygen_ms / n as f64;
+    let per_node_dkg_deal = dkg_deal_ms / n as f64;
+    let per_node_partial_decrypt = partial_decrypt_ms / threshold.min(n) as f64;
+    let per_node_max = per_node_keygen
+        .max(per_node_dkg_deal)
+        .max(per_node_partial_decrypt);
+    let aggregator_ms = report.timings.phases.compressor_prove.total_ms
+        + report.timings.phases.compressor_verify.total_ms
+        + report.timings.phases.cyclo_fold.total_ms
+        + aggregate_decrypt_ms
+        + aggregate_keygen_ms;
+    let distributed_total = per_node_max + aggregator_ms;
+    println!("per_node_keygen_ms={per_node_keygen:.1}");
+    println!("per_node_dkg_deal_ms={per_node_dkg_deal:.1}");
+    println!("per_node_partial_decrypt_ms={per_node_partial_decrypt:.1}");
+    println!("aggregator_total_ms={aggregator_ms:.1}");
+    println!("distributed_estimate_ms={distributed_total:.1}");
     let fold_hashes_str: Vec<String> = report
         .recipient_fold_hashes
         .iter()

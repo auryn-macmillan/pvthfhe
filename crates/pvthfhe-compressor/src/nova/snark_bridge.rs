@@ -15,6 +15,7 @@ use folding_schemes::{
 use sha3::{Digest, Keccak256};
 
 /// Complete IVC proof binding metadata for on-chain verification (P4).
+/// G1+G4: includes share_verification_hash to bind per-share BFV sigma results.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IvcBindingData {
     pub ivc_proof_hash: [u8; 32],
@@ -23,10 +24,11 @@ pub struct IvcBindingData {
     pub z0_commitment: [u8; 32],
     pub zi_commitment: [u8; 32],
     pub ivc_steps: u64,
+    pub share_verification_hash: [u8; 32],
 }
 
 impl IvcBindingData {
-    pub fn as_field_array(&self) -> Result<[Fr; 6], CompressorError> {
+    pub fn as_field_array(&self) -> Result<[Fr; 7], CompressorError> {
         use ark_ff::PrimeField;
         Ok([
             Fr::from_be_bytes_mod_order(&self.ivc_proof_hash),
@@ -35,6 +37,7 @@ impl IvcBindingData {
             Fr::from_be_bytes_mod_order(&self.z0_commitment),
             Fr::from_be_bytes_mod_order(&self.zi_commitment),
             Fr::from(self.ivc_steps),
+            Fr::from_be_bytes_mod_order(&self.share_verification_hash),
         ])
     }
 }
@@ -120,6 +123,7 @@ where
             z0_commitment,
             zi_commitment,
             ivc_steps,
+            share_verification_hash: [0u8; 32],
         },
     })
 }
@@ -183,6 +187,7 @@ mod tests {
             z0_commitment: [4u8; 32],
             zi_commitment: [5u8; 32],
             ivc_steps: 42,
+            share_verification_hash: [6u8; 32],
         };
 
         let fields = binding.as_field_array().unwrap();
@@ -192,5 +197,6 @@ mod tests {
         assert!(!fields[3].is_zero());
         assert!(!fields[4].is_zero());
         assert_eq!(fields[5], ark_bn254::Fr::from(42u64));
+        assert!(!fields[6].is_zero());
     }
 }

@@ -42,6 +42,7 @@ pub struct CompressedProof {
     pub bytes: Vec<u8>,
     pub ivc_proof_hash: Option<[u8; 32]>,
     pub ivc_binding: Option<crate::nova::snark_bridge::IvcBindingData>,
+    pub share_verification_hash: Option<[u8; 32]>,
 }
 
 impl CompressedProof {
@@ -50,7 +51,13 @@ impl CompressedProof {
             bytes,
             ivc_proof_hash: None,
             ivc_binding: None,
+            share_verification_hash: None,
         }
+    }
+
+    pub fn with_share_verification_hash(mut self, hash: [u8; 32]) -> Self {
+        self.share_verification_hash = Some(hash);
+        self
     }
 
     pub fn has_snark(&self) -> bool {

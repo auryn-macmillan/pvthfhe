@@ -1,1 +1,12 @@
-{}
+{
+  "active_plan": "/home/dev/pvthfhe/.sisyphus/plans/cryptographer-share-encryption-gaps.md",
+  "started_at": "2026-05-28T22:35:54.020Z",
+  "session_ids": [
+    "ses_1e864f9f1ffecXRmG0OjbjoCa3"
+  ],
+  "session_origins": {
+    "ses_1e864f9f1ffecXRmG0OjbjoCa3": "direct"
+  },
+  "plan_name": "cryptographer-share-encryption-gaps",
+  "agent": "atlas"
+}

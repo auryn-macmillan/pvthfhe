@@ -1875,6 +1875,7 @@ impl<
         );
         let mut proof = CompressedProof::new(proof_bytes);
         proof.ivc_proof_hash = Some(snark_result.pp_hash);
+        proof.ivc_binding = Some(snark_result.ivc_binding);
         Ok(proof)
     }
 
@@ -1991,6 +1992,7 @@ impl ProofCompressor for NovaCompressor<CycloFoldStepCircuit<Fr>> {
         );
         let mut proof = CompressedProof::new(proof_bytes);
         proof.ivc_proof_hash = Some(snark_result.pp_hash);
+        proof.ivc_binding = Some(snark_result.ivc_binding);
         Ok(proof)
     }
 
@@ -2135,6 +2137,7 @@ impl<
         );
         let mut proof = CompressedProof::new(proof_bytes);
         proof.ivc_proof_hash = Some(snark_result.pp_hash);
+        proof.ivc_binding = Some(snark_result.ivc_binding);
         Ok(proof)
     }
 
@@ -2270,6 +2273,7 @@ impl NovaCompressor<CycloFoldStepCircuit<Fr>> {
         );
         let mut proof = CompressedProof::new(proof_bytes);
         proof.ivc_proof_hash = Some(snark_result.pp_hash);
+        proof.ivc_binding = Some(snark_result.ivc_binding);
         Ok(proof)
     }
 
@@ -2474,6 +2478,7 @@ impl<
         );
         let mut proof = CompressedProof::new(proof_bytes);
         proof.ivc_proof_hash = Some(snark_result.pp_hash);
+        proof.ivc_binding = Some(snark_result.ivc_binding);
         Ok(proof)
     }
 
@@ -2597,6 +2602,7 @@ impl<
         );
         let mut proof = CompressedProof::new(proof_bytes);
         proof.ivc_proof_hash = Some(snark_result.pp_hash);
+        proof.ivc_binding = Some(snark_result.ivc_binding);
         Ok(proof)
     }
 

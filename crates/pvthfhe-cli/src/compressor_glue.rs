@@ -29,6 +29,7 @@ pub struct E2eCompressedProof {
     pub digest: [u8; 32],
     pub ivc_proof_hash: Option<[u8; 32]>,
     pub ivc_binding: Option<pvthfhe_compressor::nova::snark_bridge::IvcBindingData>,
+    pub share_verification_hash: Option<[u8; 32]>,
     #[cfg(feature = "sonobe-compressor")]
     pub nova_proof: Option<NovaProof>,
 }
@@ -102,10 +103,12 @@ impl Compressor {
                     .map_err(compressor_error_to_anyhow)?;
                 let ivc_hash = proof.ivc_proof_hash;
                 let ivc_binding = proof.ivc_binding.clone();
+                let share_verification_hash = proof.share_verification_hash;
                 Ok(E2eCompressedProof {
                     digest: sha256_bytes(inner.compressed_proof_bytes(&proof)),
                     ivc_proof_hash: ivc_hash,
                     ivc_binding,
+                    share_verification_hash,
                     nova_proof: Some(proof),
                 })
             }
@@ -122,6 +125,7 @@ impl Compressor {
                     digest: hasher.finalize().into(),
                     ivc_proof_hash: None,
                     ivc_binding: None,
+                    share_verification_hash: None,
                     #[cfg(feature = "sonobe-compressor")]
                     nova_proof: None,
                 })

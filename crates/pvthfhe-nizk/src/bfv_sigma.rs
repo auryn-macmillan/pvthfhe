@@ -397,6 +397,18 @@ pub fn verify(
         ));
     }
 
+    // G3: Greco quotient bound verification (defense-in-depth).
+    // Strengthens the soundness claim from "sigma equation holds" to
+    // "BFV-valid witness exists with small coefficients".
+    crate::bfv_greco::verify_greco_bounds(
+        proof,
+        &stmt.pk0_rns,
+        &stmt.pk1_rns,
+        &stmt.ct0_rns,
+        &stmt.ct1_rns,
+        &stmt.delta_limbs,
+    )?;
+
     Ok(())
 }
 

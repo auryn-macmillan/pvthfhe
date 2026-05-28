@@ -37,6 +37,9 @@ fn main(
     zi_commitment: pub Field,
     ivc_steps: pub Field,
 
+    // -- Share verification hash (G1+G4: binds per-share BFV sigma results) --
+    share_verification_hash: pub Field,
+
     // -- Private witnesses (for opening state preimages) --
     nova_state_preimage: [Field; 4],
     cyclo_aggregate_preimage: [Field; 4],
@@ -55,12 +58,11 @@ fn main(
     assert(zi_commitment != 0, "zi_commitment must be non-zero");
     assert(ivc_steps != 0, "ivc_steps must be non-zero");
 
+    // -- Share verification hash: must be non-zero, binding the on-chain
+    //    verification to the set of per-share BFV sigma verification results.
+    assert(share_verification_hash != 0, "share_verification_hash must be non-zero");
+
     // -- Compute binding hash over ALL public inputs --
-    // This binds the IVC proof metadata to the circuit's public
-    // inputs, preventing an adversary from substituting IVC data
-    // without changing the binding hash. The UltraHonk proof
-    // generated from this circuit proves that the prover knows
-    // preimages consistent with this binding.
     let binding = poseidon::poseidon::bn254::sponge([
         nova_final_state_commitment,
         commit_pk,
@@ -74,6 +76,7 @@ fn main(
         z0_commitment,
         zi_commitment,
         ivc_steps,
+        share_verification_hash,
     ]);
     assert(binding != 0, "binding hash must be non-zero");
 
@@ -107,6 +110,7 @@ fn test_honest_with_ivc_binding() {
     let z0_commitment = 400;
     let zi_commitment = 500;
     let ivc_steps = 1;
+    let share_verification_hash = 999;
 
     main(
         1, 2, 3, 1,
@@ -118,6 +122,23 @@ fn test_honest_with_ivc_binding() {
         z0_commitment,
         zi_commitment,
         ivc_steps,
+        share_verification_hash,
+        nova_state_preimage,
+        cyclo_aggregate_preimage,
+    );
+}
+
+#[test(should_fail)]
+fn test_fail_zero_share_verification_hash() {
+    let nova_state_preimage = [10, 20, 30, 40];
+    let cyclo_aggregate_preimage = [50, 60, 70, 80];
+
+    main(
+        1, 2, 3, 1,
+        hash_state_preimage(nova_state_preimage),
+        hash_state_preimage(cyclo_aggregate_preimage),
+        100, 200, 300, 400, 500, 1,
+        0,
         nova_state_preimage,
         cyclo_aggregate_preimage,
     );
@@ -133,6 +154,7 @@ fn test_fail_zero_session_id() {
         hash_state_preimage(nova_state_preimage),
         hash_state_preimage(cyclo_aggregate_preimage),
         100, 200, 300, 400, 500, 1,
+        999,
         nova_state_preimage,
         cyclo_aggregate_preimage,
     );
@@ -148,6 +170,7 @@ fn test_fail_zero_ivc_proof_hash() {
         hash_state_preimage(nova_state_preimage),
         hash_state_preimage(cyclo_aggregate_preimage),
         0, 200, 300, 400, 500, 1,
+        999,
         nova_state_preimage,
         cyclo_aggregate_preimage,
     );
@@ -163,6 +186,7 @@ fn test_fail_zero_ivc_steps() {
         hash_state_preimage(nova_state_preimage),
         hash_state_preimage(cyclo_aggregate_preimage),
         100, 200, 300, 400, 500, 0,
+        999,
         nova_state_preimage,
         cyclo_aggregate_preimage,
     );
@@ -178,6 +202,7 @@ fn test_fail_tampered_nova_commitment() {
         hash_state_preimage(nova_state_preimage) + 1,
         hash_state_preimage(cyclo_aggregate_preimage),
         100, 200, 300, 400, 500, 1,
+        999,
         nova_state_preimage,
         cyclo_aggregate_preimage,
     );
@@ -199,6 +224,7 @@ fn test_all_public_inputs_constrained() {
         nova_final_state_commitment,
         cyclo_aggregate_commitment,
         100, 200, 300, 400, 500, 1,
+        999,
         nova_state_preimage,
         cyclo_aggregate_preimage,
     );
@@ -206,9 +232,6 @@ fn test_all_public_inputs_constrained() {
 
 #[test]
 fn test_ivc_binding_prevents_substitution() {
-    // The binding hash ties the IVC proof data to the circuit's
-    // public inputs. This test verifies that the circuit accepts
-    // the honest binding.
     let commit_pk = 1;
     let commit_ct_in = 2;
     let commit_ct_out = 3;
@@ -224,8 +247,8 @@ fn test_ivc_binding_prevents_substitution() {
     let z0_commitment = 400;
     let zi_commitment = 500;
     let ivc_steps = 7;
+    let share_verification_hash = 999;
 
-    // Compute the expected binding hash
     let expected_binding = poseidon::poseidon::bn254::sponge([
         nova_final_state_commitment,
         commit_pk,
@@ -239,10 +262,9 @@ fn test_ivc_binding_prevents_substitution() {
         z0_commitment,
         zi_commitment,
         ivc_steps,
+        share_verification_hash,
     ]);
     assert(expected_binding != 0);
-    // The binding is only asserted non-zero in the circuit, so as long
-    // as all inputs are non-zero the binding will be non-zero.
 
     main(
         commit_pk, commit_ct_in, commit_ct_out, session_id,
@@ -254,6 +276,7 @@ fn test_ivc_binding_prevents_substitution() {
         z0_commitment,
         zi_commitment,
         ivc_steps,
+        share_verification_hash,
         nova_state_preimage,
         cyclo_aggregate_preimage,
     );

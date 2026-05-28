@@ -142,6 +142,7 @@ pub struct PipelineReport {
     pub share_sig_rys: Vec<Fr>,
     pub ivc_snark_proof_hash: Option<[u8; 32]>,
     pub ivc_binding: Option<pvthfhe_compressor::nova::snark_bridge::IvcBindingData>,
+    pub share_verification_hash: Option<[u8; 32]>,
     /// G.12: Per-party Schnorr signature s-values.
     pub share_sig_ss: Vec<Fr>,
     pub node_schnorr_pks: Vec<Fr>,
@@ -1745,9 +1746,13 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     observer.phase_start("compressor_prove", Some(compressor.backend_id()));
 
     let compressor_prove_started = Instant::now();
-    let compressed = compressor
+    let mut compressed = compressor
         .prove(&fold_report, c7_final_hash)
         .context("compressor_prove")?;
+
+    // G1+G4: compute per-share verification hash from DKG share commitments.
+    let share_verification_hash = compute_share_verification_hash(&sk_commitments);
+    compressed.share_verification_hash = Some(share_verification_hash);
     #[cfg(feature = "sonobe-compressor")]
     clear_cyclo_ring_data();
     let compressor_prove_ms = elapsed_ms(compressor_prove_started);
@@ -2126,6 +2131,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         d_commitment_verified: Some(false),
         ivc_snark_proof_hash: compressed.ivc_proof_hash,
         ivc_binding: compressed.ivc_binding.clone(),
+        share_verification_hash: compressed.share_verification_hash,
         pipeline_integrity_hash,
     };
 
@@ -3023,6 +3029,17 @@ pub fn field_from_i64(value: i64) -> Fr {
     } else {
         -Fr::from(value.unsigned_abs())
     }
+}
+
+pub fn compute_share_verification_hash(sk_commitments: &[[u8; 32]]) -> [u8; 32] {
+    let mut inputs: Vec<Fr> = Vec::with_capacity(sk_commitments.len());
+    for commitment in sk_commitments {
+        inputs.push(Fr::from_be_bytes_mod_order(commitment));
+    }
+    let sponge_output = poseidon_sponge_native_noir(&inputs);
+    let mut hash = [0u8; 32];
+    hash.copy_from_slice(&sponge_output.into_bigint().to_bytes_be()[..32]);
+    hash
 }
 
 fn field_hex_be(value: Fr) -> String {

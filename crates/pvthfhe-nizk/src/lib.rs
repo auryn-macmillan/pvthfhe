@@ -16,6 +16,7 @@
 
 pub mod adapter;
 pub mod ajtai;
+pub mod bfv_greco;
 pub mod bfv_sigma;
 pub mod fiat_shamir;
 pub mod hash_bridge;

@@ -13,6 +13,17 @@ struct AttestationBundle {
     bytes signature;
 }
 
+/// @notice IVC proof binding data for on-chain verification (P4 + G1/G4).
+struct IvcBinding {
+    bytes32 ivcProofHash;
+    bytes32 ivcVkHash;
+    bytes32 ivcPpHash;
+    bytes32 z0Commitment;
+    bytes32 ziCommitment;
+    uint64 ivcSteps;
+    bytes32 shareVerificationHash;
+}
+
 /// @title ISessionRegistry
 interface ISessionRegistry {
     function sessions(bytes32 dkgRoot)
@@ -52,12 +63,7 @@ interface IPvthfheVerifier {
         uint64 epoch,
         bytes32 participantSetHash,
         bytes32 dCommitment,
-        bytes32 ivcProofHash,
-        bytes32 ivcVkHash,
-        bytes32 ivcPpHash,
-        bytes32 z0Commitment,
-        bytes32 ziCommitment,
-        uint64 ivcSteps,
+        IvcBinding calldata ivcBinding,
         bytes calldata proof
     ) external view returns (bool valid);
 
@@ -88,12 +94,7 @@ interface IPvthfheVerifier {
         uint64 epoch,
         bytes32 participantSetHash,
         bytes32 dCommitment,
-        bytes32 ivcProofHash,
-        bytes32 ivcVkHash,
-        bytes32 ivcPpHash,
-        bytes32 z0Commitment,
-        bytes32 ziCommitment,
-        uint64 ivcSteps,
+        IvcBinding calldata ivcBinding,
         bytes calldata proof
     ) external returns (bool valid);
 
@@ -211,16 +212,12 @@ contract PvtFheVerifier is IPvthfheVerifier {
         uint64 epoch,
         bytes32 participantSetHash,
         bytes32 dCommitment,
-        bytes32 ivcProofHash,
-        bytes32 ivcVkHash,
-        bytes32 ivcPpHash,
-        bytes32 z0Commitment,
-        bytes32 ziCommitment,
-        uint64 ivcSteps,
+        IvcBinding calldata ivcBinding,
         bytes calldata proof
     ) public view override returns (bool) {
         _requireSessionValid(dkgRoot, epoch);
-        _requireIvcBindingValid(ivcProofHash, ivcVkHash, ivcPpHash, z0Commitment, ziCommitment, ivcSteps);
+        _requireIvcBindingValid(ivcBinding);
+        require(ivcBinding.shareVerificationHash != bytes32(0), "PVTHFHE: shareVerificationHash zero");
 
         bytes32[] memory publicInputs = new bytes32[](7);
         publicInputs[0] = ciphertextHash;
@@ -271,17 +268,13 @@ contract PvtFheVerifier is IPvthfheVerifier {
         uint64 epoch,
         bytes32 participantSetHash,
         bytes32 dCommitment,
-        bytes32 ivcProofHash,
-        bytes32 ivcVkHash,
-        bytes32 ivcPpHash,
-        bytes32 z0Commitment,
-        bytes32 ziCommitment,
-        uint64 ivcSteps,
+        IvcBinding calldata ivcBinding,
         bytes calldata proof
     ) external override returns (bool) {
         _requireSessionValid(dkgRoot, epoch);
-        _requireIvcBindingValid(ivcProofHash, ivcVkHash, ivcPpHash, z0Commitment, ziCommitment, ivcSteps);
-        if (!_ivcProofConsumedValid(dkgRoot, epoch, ivcProofHash)) {
+        _requireIvcBindingValid(ivcBinding);
+        require(ivcBinding.shareVerificationHash != bytes32(0), "PVTHFHE: shareVerificationHash zero");
+        if (!_ivcProofConsumedValid(dkgRoot, epoch, ivcBinding.ivcProofHash)) {
             revert("PVTHFHE: IVC proof replay");
         }
 
@@ -299,7 +292,7 @@ contract PvtFheVerifier is IPvthfheVerifier {
             return false;
         }
 
-        _consumeIvcProof(dkgRoot, epoch, ivcProofHash);
+        _consumeIvcProof(dkgRoot, epoch, ivcBinding.ivcProofHash);
         registry.markEpochConsumed(dkgRoot, epoch);
         return true;
     }
@@ -505,20 +498,13 @@ contract PvtFheVerifier is IPvthfheVerifier {
     }
 
     /// P4: Verify IVC binding data is valid (all fields non-zero, steps positive).
-    function _requireIvcBindingValid(
-        bytes32 ivcProofHash,
-        bytes32 ivcVkHash,
-        bytes32 ivcPpHash,
-        bytes32 z0Commitment,
-        bytes32 ziCommitment,
-        uint64 ivcSteps
-    ) internal pure {
-        require(ivcProofHash != bytes32(0), "PVTHFHE: ivcProofHash zero");
-        require(ivcVkHash != bytes32(0), "PVTHFHE: ivcVkHash zero");
-        require(ivcPpHash != bytes32(0), "PVTHFHE: ivcPpHash zero");
-        require(z0Commitment != bytes32(0), "PVTHFHE: z0Commitment zero");
-        require(ziCommitment != bytes32(0), "PVTHFHE: ziCommitment zero");
-        require(ivcSteps > 0, "PVTHFHE: ivcSteps zero");
+    function _requireIvcBindingValid(IvcBinding calldata ivcBinding) internal pure {
+        require(ivcBinding.ivcProofHash != bytes32(0), "PVTHFHE: ivcProofHash zero");
+        require(ivcBinding.ivcVkHash != bytes32(0), "PVTHFHE: ivcVkHash zero");
+        require(ivcBinding.ivcPpHash != bytes32(0), "PVTHFHE: ivcPpHash zero");
+        require(ivcBinding.z0Commitment != bytes32(0), "PVTHFHE: z0Commitment zero");
+        require(ivcBinding.ziCommitment != bytes32(0), "PVTHFHE: ziCommitment zero");
+        require(ivcBinding.ivcSteps > 0, "PVTHFHE: ivcSteps zero");
     }
 
     /// P4: Check if IVC proof has not been consumed. Returns true if it's available.

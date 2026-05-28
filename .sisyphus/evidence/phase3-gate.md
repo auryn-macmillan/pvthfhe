@@ -1,43 +1,39 @@
 # Phase 3 Gate Report
 
 **Status**: FAIL
-**Date**: 2026-05-13T22:32:09Z
+**Date**: 2026-05-28T16:00:15Z
 
 ## Steps
 
 | Step | Status | Detail |
 |------|--------|--------|
-| workspace-tests | FAIL | cargo test -p pvthfhe-aggregator failed: `pvthfhe-aggregator` (test "final_aggregation_proof") generated 1 warning
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.71s
-     Running unittests src/lib.rs (target/debug/deps/pvthfhe_aggregator-dfee896a3053be05)
-     Running tests/adversarial/mod.rs (target/debug/deps/adversarial-797ba41f7c831145)
+| workspace-tests | FAIL | cargo test -p pvthfhe-aggregator failed: `pvthfhe-aggregator` (test "cyclo_norm_enforcement") generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.25s
+     Running unittests src/lib.rs (target/debug/deps/pvthfhe_aggregator-7f08907c14cf5645)
+     Running tests/adversarial/mod.rs (target/debug/deps/adversarial-cd3bc86a31ac5f00)
 error: test failed, to rerun pass `-p pvthfhe-aggregator --test adversarial` |
-| clippy | FAIL | cargo clippy failed: allow(clippy::needless_range_loop)]`
-help: consider using an iterator and enumerate()
-     |
-1431 -             for j in 0..n {
-1431 +             for (j, <item>) in party_ids.iter().enumerate().take(n) {
-     |
+| clippy | FAIL | cargo clippy failed: igma.rs:957:21
+    |
+957 |     for eval_idx in 0..3 {
+    |                     ^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#needless_range_loop
+help: consider using an iterator
+    |
+957 -     for eval_idx in 0..3 {
+957 +     for <item> in &gammas {
+    |
 
-warning: pvthfhe-fhe@0.1.0: MOCK BACKEND ACTIVE — XOR/SHA256 ONLY. Set PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK=1 to use.
-error: could not compile `pvthfhe-fhe` (lib) due to 17 previous errors |
-| fmt | FAIL | cargo fmt --check failed: usize) -> Fr {
-     let x = Fr::from(x as u64);
-Diff in /home/dev/pvthfhe/crates/pvthfhe-types/src/lib.rs:353:
-             .finish()
-     }
- }
-[31m-
-[m[31m-
-[m 
-Diff in /home/dev/pvthfhe/crates/pvthfhe-types/tests/secret_types_present.rs:89:
-         "EncRandomness",
-         "CcsWitnessSecret",
-         "ProtocolBytes",
-[31m-
-[m     ]
-     .iter()
-     .any(|token| repr.contains(token)) |
+error: could not compile `pvthfhe-nizk` (lib) due to 30 previous errors |
+| fmt | FAIL | cargo fmt --check failed: ype ExternalInputs = ExternalInputs3<F>;
+     type ExternalInputsVar = ExternalInputs3Var<F>;
+ 
+[31m-    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> { // folding (legacy-nova)
+[m[32m+    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {
+[m[32m+        // folding (legacy-nova)
+[m         Ok(Self {
+             _field: PhantomData,
+         }) |
 | deny | FAIL | cargo deny check failed: pvthfhe/deny.toml:13:16
    │
 13 │     { crate = "fhe-traits", allow = ["MIT"] },
@@ -49,7 +45,14 @@ warning[license-exception-not-encountered]: license exception was not encountere
 14 │     { crate = "prime_factorization", allow = ["CC0-1.0"] },
    │                ━━━━━━━━━━━━━━━━━━━ unmatched license exception |
 | noir-tests | PASS | nargo test --workspace passed |
-| forge-tests | PASS | forge test --root contracts passed |
+| forge-tests | FAIL | forge test failed: , 7776)] test_verifyAndConsume_atomic_and_replay_reverts() (gas: 94933)
+
+Encountered 1 failing test in test/SessionRegistryAbortRestart.t.sol:SessionRegistryAbortRestartTest
+[FAIL: ProofLengthWrongWithLogN(16, 4, 7776)] test_verifyAndConsume_afterAbortRestart() (gas: 94716)
+
+Encountered a total of 52 failing tests, 78 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 52 failed tests |
 | demo-e2e | PASS | just demo-e2e passed |
 | adversarial-suite | PASS | just adversarial-suite passed |
 | bench-scaling | PASS | just bench-scaling passed; all 4 envelopes present |

@@ -9,6 +9,7 @@ pub mod cyclo_fold_circuit;
 pub mod cyclo_verifier;
 pub mod fold_verifier_circuit;
 pub mod heterogeneous;
+pub mod high_arity_fold;
 pub mod lagrange_fold_circuit;
 pub mod latticefold_adapter;
 pub mod latticefold_circuit_family;
@@ -31,7 +32,7 @@ pub use ajtai_commitment_circuit::{
     clear_ajtai_witness_data, set_ajtai_witness_data, AjtaiCommitmentStepCircuit,
 };
 pub use bfv_encryption_circuit::{
-    clear_bfv_encryption_data, set_bfv_encryption_data, BFV_STEP_DATA_LEN,
+    clear_bfv_encryption_data, set_bfv_encryption_data, BfvEncryptionStepCircuit, BFV_STEP_DATA_LEN,
 };
 #[cfg(feature = "legacy-nova")]
 pub use c7_circuit::c7_fold_witnesses;
@@ -618,6 +619,10 @@ pub struct SigmaWitness<F: PrimeField> {
     pub c_ntt: Vec<Vec<F>>,
     /// Fiat-Shamir challenge ch ∈ {-1, 0, 1} as Fr
     pub ch: F,
+    /// T2: Transcript commitment (Keccak256 of t_rns || c_rns || d_rns).
+    /// Derived outside the circuit; the circuit verifies the sigma equation
+    /// with `ch` derived from this commitment (Symphony §6).
+    pub transcript_commitment: [u8; 32],
     /// Response z_s in power basis (integer coeffs) for norm enforcement
     pub z_s_power: Vec<i64>,
     /// Response z_e in power basis (integer coeffs) for norm enforcement
@@ -643,6 +648,10 @@ pub struct SigmaWitness<F: PrimeField> {
 
 /// Number of coefficients per limb checked in-circuit for sigma verification.
 const SIGMA_VERIFY_COEFFS: usize = 8192;
+
+/// Number of parallel sigma protocol repetitions (must match pvthfhe-nizk).
+/// See `pvthfhe_nizk::sigma::SIGMA_REPETITIONS` for documentation.
+const SIGMA_REPETITIONS: usize = 1;
 
 const SIGMA_RNS_MODULI: [u64; 3] = [
     288_230_376_173_076_481,
@@ -735,6 +744,31 @@ pub fn clear_sigma_data() {
     });
 }
 
+fn step_public_input_commitments(steps: &[ExternalInputs3<Fr>]) -> Vec<[u8; 32]> {
+    steps
+        .iter()
+        .enumerate()
+        .map(|(idx, step)| {
+            let mut hasher = Keccak256::new();
+            hasher.update(b"pvthfhe-symphony-t2-step-commit-v1");
+            hasher.update((idx as u64).to_be_bytes());
+            hasher.update(encode_triple((step.0, step.1, step.2)));
+            hasher.finalize().into()
+        })
+        .collect()
+}
+
+fn committed_public_inputs_hash(steps: &[ExternalInputs3<Fr>]) -> [u8; 32] {
+    let commitments = step_public_input_commitments(steps);
+    let mut hasher = Keccak256::new();
+    hasher.update(b"pvthfhe-symphony-t2-public-inputs-v1");
+    hasher.update((commitments.len() as u64).to_be_bytes());
+    for commitment in commitments {
+        hasher.update(commitment);
+    }
+    hasher.finalize().into()
+}
+
 /// RAII guard that clears thread-local witness data on drop.
 /// Ensures stale data from a panicked prove/prove_steps run doesn't
 /// contaminate the next run on the same thread.
@@ -782,203 +816,205 @@ pub(crate) fn sigma_verify_step<F: PrimeField>(
     cs: ConstraintSystemRef<F>,
     step: usize,
 ) -> Result<FpVar<F>, SynthesisError> {
-    let has_data = SIGMA_DATA.with(|cell| {
-        let data = cell.inner().borrow();
-        let witness_opt = data
-            .get(step)
-            .or_else(|| step.checked_sub(1).and_then(|zb| data.get(zb)));
-        witness_opt.is_some()
+    let num_rounds = SIGMA_REPETITIONS;
+    if num_rounds == 0 {
+        return Ok(FpVar::<F>::zero());
+    }
+
+    let has_data = (0..num_rounds).any(|round| {
+        let data_idx = step * num_rounds + round;
+        SIGMA_DATA.with(|cell| {
+            let data = cell.inner().borrow();
+            data.get(data_idx)
+                .or_else(|| {
+                    step.checked_sub(1)
+                        .and_then(|zb| data.get(zb * num_rounds + round))
+                })
+                .is_some()
+        })
     });
 
     if !has_data {
         return Ok(FpVar::<F>::zero());
     }
 
-    // Allocate witness variables from sigma data and enforce equation
-    SIGMA_DATA.with(|cell| {
-        let data = cell.inner().borrow();
-        let witness_opt = data
-            .get(step)
-            .or_else(|| step.checked_sub(1).and_then(|zb| data.get(zb)));
-        let w = match witness_opt {
-            Some(w) => w,
-            None => return Ok(()),
-        };
-        let n = SIGMA_VERIFY_COEFFS;
-        let f_ch: F = fr_to_f(&w.ch);
+    for round in 0..num_rounds {
+        let data_idx = step * num_rounds + round;
+        // Allocate witness variables from sigma data and enforce equation
+        SIGMA_DATA.with(|cell| {
+            let data = cell.inner().borrow();
+            let witness_opt = data.get(data_idx).or_else(|| {
+                step.checked_sub(1)
+                    .and_then(|zb| data.get(zb * num_rounds + round))
+            });
+            let w = match witness_opt {
+                Some(w) => w,
+                None => return Ok(()),
+            };
+            let n = SIGMA_VERIFY_COEFFS;
+            let f_ch: F = fr_to_f(&w.ch);
 
-        for limb in 0..3 {
-            // Bounds check: ensure data arrays have sufficient length
-            if limb >= w.z_s_ntt.len()
-                || limb >= w.z_e_ntt.len()
-                || limb >= w.t_ntt.len()
-                || limb >= w.d_i_ntt.len()
-                || limb >= w.c_ntt.len()
-            {
-                let one = FpVar::<F>::one();
-                let zero = FpVar::<F>::zero();
-                one.enforce_equal(&zero)?;
-                continue;
-            }
+            for limb in 0..3 {
+                if limb >= w.z_s_ntt.len()
+                    || limb >= w.z_e_ntt.len()
+                    || limb >= w.t_ntt.len()
+                    || limb >= w.d_i_ntt.len()
+                    || limb >= w.c_ntt.len()
+                {
+                    let one = FpVar::<F>::one();
+                    let zero = FpVar::<F>::zero();
+                    one.enforce_equal(&zero)?;
+                    continue;
+                }
 
-            if w.z_s_ntt[limb].len() < n
-                || w.z_e_ntt[limb].len() < n
-                || w.t_ntt[limb].len() < n
-                || w.d_i_ntt[limb].len() < n
-                || w.c_ntt[limb].len() < n
-            {
-                FpVar::<F>::one().enforce_equal(&FpVar::<F>::zero())?;
-                continue;
-            }
+                if w.z_s_ntt[limb].len() < n
+                    || w.z_e_ntt[limb].len() < n
+                    || w.t_ntt[limb].len() < n
+                    || w.d_i_ntt[limb].len() < n
+                    || w.c_ntt[limb].len() < n
+                {
+                    FpVar::<F>::one().enforce_equal(&FpVar::<F>::zero())?;
+                    continue;
+                }
 
-            let ch_var = FpVar::new_witness(cs.clone(), || Ok(f_ch))?;
-            let q_const = FpVar::constant(F::from(SIGMA_RNS_MODULI[limb]));
+                let ch_var = FpVar::new_witness(cs.clone(), || Ok(f_ch))?;
+                let q_const = FpVar::constant(F::from(SIGMA_RNS_MODULI[limb]));
 
-            // SOUNDNESS: 3 independent S-Z evaluation points per limb.
-            // Composite false-pass probability ≤ (N/|F|)^3 ≤ (8192/2^58)^3 ≈ 2^-135.
-            // Target is 2^-128, achieved with 3 points.
-            for eval_idx in 0..3 {
-                let idx = eval_idx * 3 + limb; // 3*L layout: eval-major, then limb
-                let sz_c_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_c_eval[idx])))?;
-                let sz_zs_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_zs_eval[idx])))?;
-                let sz_ze_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_ze_eval[idx])))?;
-                let sz_t_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_t_eval[idx])))?;
-                let sz_di_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_di_eval[idx])))?;
-                let sz_r1_eval = FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_r1_eval[idx])))?;
+                for eval_idx in 0..3 {
+                    let idx = eval_idx * 3 + limb;
+                    let sz_c_eval =
+                        FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_c_eval[idx])))?;
+                    let sz_zs_eval =
+                        FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_zs_eval[idx])))?;
+                    let sz_ze_eval =
+                        FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_ze_eval[idx])))?;
+                    let sz_t_eval =
+                        FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_t_eval[idx])))?;
+                    let sz_di_eval =
+                        FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_di_eval[idx])))?;
+                    let sz_r1_eval =
+                        FpVar::new_witness(cs.clone(), || Ok(F::from(w.sz_r1_eval[idx])))?;
 
-                let sz_lhs = &sz_c_eval * &sz_zs_eval + &sz_ze_eval;
-                let sz_rhs = &sz_t_eval + &ch_var * &sz_di_eval + &q_const * &sz_r1_eval;
-                sz_lhs.enforce_equal(&sz_rhs)?;
+                    let sz_lhs = &sz_c_eval * &sz_zs_eval + &sz_ze_eval;
+                    let sz_rhs = &sz_t_eval + &ch_var * &sz_di_eval + &q_const * &sz_r1_eval;
+                    sz_lhs.enforce_equal(&sz_rhs)?;
 
-                // Quotient witness range check: r1(g) = (c(g)*z_s(g) + z_e(g) - t(g) - ch*d_i(g)) / Q
-                // Since all terms are norm-bounded (B_Z_S = 131072) and Q approx 2^58,
-                // the quotient is bounded to 0 or 1. Range-checking prevents adversarial
-                // quotient inflation that would break S-Z soundness.
-                norm_range_check(
-                    &sz_r1_eval,
-                    w.sz_r1_eval[idx],
-                    &FpVar::constant(F::one()),
-                    1u64,
-                )?;
-            }
-
-            // NOTE: Cyclotomic quotient r2(γ) is currently zeroed. The RNS CRT
-            // isomorphism (per-modulus correctness ≡ ring correctness) makes the
-            // full cyclo constraint redundant. When r2 is populated, the full
-            // equation becomes:
-            //   c(γ)·z_s(γ) + z_e(γ) = t(γ) + ch·d_i(γ) + Q·r1(γ) + cyclo(γ)·r2(γ)
-            // where cyclo(γ) = γ^N + 1 mod q. See SigmaWitness::sz_r2_eval.
-
-            // G7b: Norm enforcement on power-basis coefficients
-            if limb == 0 {
-                let n_power = n.min(w.z_s_power.len()).min(w.z_e_power.len());
-                let z_s_power_vars: Vec<FpVar<F>> = w.z_s_power[..n_power]
-                    .iter()
-                    .map(|&v| {
-                        let val = F::from(v.unsigned_abs());
-                        FpVar::new_witness(cs.clone(), || Ok(val))
-                    })
-                    .collect::<Result<_, _>>()?;
-                let z_e_power_vars: Vec<FpVar<F>> = w.z_e_power[..n_power]
-                    .iter()
-                    .map(|&v| {
-                        let val = F::from(v.unsigned_abs());
-                        FpVar::new_witness(cs.clone(), || Ok(val))
-                    })
-                    .collect::<Result<_, _>>()?;
-
-                // P1-tight: B_Z_S/E synced with sigma.rs rejection sampling
-                const B_Z_S: u64 = 131_072;
-                const B_Z_E: u64 = 131_072;
-                let b_zs = F::from(B_Z_S);
-                let b_ze = F::from(B_Z_E);
-                let bound_zs = FpVar::constant(b_zs);
-                let bound_ze = FpVar::constant(b_ze);
-
-                for k in 0..n_power {
-                    if w.z_s_power[k].unsigned_abs() > B_Z_S {
-                        FpVar::<F>::one().enforce_equal(&FpVar::<F>::zero())?;
-                    }
-                    if w.z_e_power[k].unsigned_abs() > B_Z_E {
-                        FpVar::<F>::one().enforce_equal(&FpVar::<F>::zero())?;
-                    }
                     norm_range_check(
-                        &z_s_power_vars[k],
-                        w.z_s_power[k].unsigned_abs(),
-                        &bound_zs,
-                        B_Z_S,
-                    )?;
-                    norm_range_check(
-                        &z_e_power_vars[k],
-                        w.z_e_power[k].unsigned_abs(),
-                        &bound_ze,
-                        B_Z_E,
+                        &sz_r1_eval,
+                        w.sz_r1_eval[idx],
+                        &FpVar::constant(F::one()),
+                        1u64,
                     )?;
                 }
 
-                // G7b-laBRADOR: JL projection constraint.
-                let (p_s_vec, p_e_vec, jl_entries) = SIGMA_RESPONSE_DATA.with(|cell| {
-                    let data = cell.inner().borrow();
-                    if let Some((_, _, ref p_s, ref p_e, ref entries)) = data.get(step) {
-                        (p_s.clone(), p_e.clone(), entries.clone())
-                    } else {
-                        (vec![], vec![], vec![])
+                if limb == 0 {
+                    let n_power = n.min(w.z_s_power.len()).min(w.z_e_power.len());
+                    let z_s_power_vars: Vec<FpVar<F>> = w.z_s_power[..n_power]
+                        .iter()
+                        .map(|&v| {
+                            let val = F::from(v.unsigned_abs());
+                            FpVar::new_witness(cs.clone(), || Ok(val))
+                        })
+                        .collect::<Result<_, _>>()?;
+                    let z_e_power_vars: Vec<FpVar<F>> = w.z_e_power[..n_power]
+                        .iter()
+                        .map(|&v| {
+                            let val = F::from(v.unsigned_abs());
+                            FpVar::new_witness(cs.clone(), || Ok(val))
+                        })
+                        .collect::<Result<_, _>>()?;
+
+                    const B_Z_S: u64 = 131_072;
+                    const B_Z_E: u64 = 131_072;
+                    let b_zs = F::from(B_Z_S);
+                    let b_ze = F::from(B_Z_E);
+                    let bound_zs = FpVar::constant(b_zs);
+                    let bound_ze = FpVar::constant(b_ze);
+
+                    for k in 0..n_power {
+                        if w.z_s_power[k].unsigned_abs() > B_Z_S {
+                            FpVar::<F>::one().enforce_equal(&FpVar::<F>::zero())?;
+                        }
+                        if w.z_e_power[k].unsigned_abs() > B_Z_E {
+                            FpVar::<F>::one().enforce_equal(&FpVar::<F>::zero())?;
+                        }
+                        norm_range_check(
+                            &z_s_power_vars[k],
+                            w.z_s_power[k].unsigned_abs(),
+                            &bound_zs,
+                            B_Z_S,
+                        )?;
+                        norm_range_check(
+                            &z_e_power_vars[k],
+                            w.z_e_power[k].unsigned_abs(),
+                            &bound_ze,
+                            B_Z_E,
+                        )?;
                     }
-                });
 
-                if !p_s_vec.is_empty() && !p_e_vec.is_empty() && !jl_entries.is_empty() {
-                    let z_s_signed: Vec<FpVar<F>> = w.z_s_power[..n_power]
-                        .iter()
-                        .map(|&v| {
-                            let f = if v < 0 {
-                                -F::from((-v) as u64)
-                            } else {
-                                F::from(v as u64)
-                            };
-                            FpVar::new_witness(cs.clone(), || Ok(f))
-                        })
-                        .collect::<Result<_, _>>()?;
-                    let z_e_signed: Vec<FpVar<F>> = w.z_e_power[..n_power]
-                        .iter()
-                        .map(|&v| {
-                            let f = if v < 0 {
-                                -F::from((-v) as u64)
-                            } else {
-                                F::from(v as u64)
-                            };
-                            FpVar::new_witness(cs.clone(), || Ok(f))
-                        })
-                        .collect::<Result<_, _>>()?;
+                    let (p_s_vec, p_e_vec, jl_entries) = SIGMA_RESPONSE_DATA.with(|cell| {
+                        let data = cell.inner().borrow();
+                        if let Some((_, _, ref p_s, ref p_e, ref entries)) = data.get(data_idx) {
+                            (p_s.clone(), p_e.clone(), entries.clone())
+                        } else {
+                            (vec![], vec![], vec![])
+                        }
+                    });
 
-                    let bound = jl_entries.len().min(p_s_vec.len()).min(p_e_vec.len());
-                    for k in 0..bound {
-                        let mut raw_sum_s = FpVar::<F>::zero();
-                        let mut raw_sum_e = FpVar::<F>::zero();
-                        for &(j, sign) in &jl_entries[k] {
-                            if j < n_power {
-                                if sign {
-                                    raw_sum_s += z_s_signed[j].clone();
-                                    raw_sum_e += z_e_signed[j].clone();
+                    if !p_s_vec.is_empty() && !p_e_vec.is_empty() && !jl_entries.is_empty() {
+                        let z_s_signed: Vec<FpVar<F>> = w.z_s_power[..n_power]
+                            .iter()
+                            .map(|&v| {
+                                let f = if v < 0 {
+                                    -F::from((-v) as u64)
                                 } else {
-                                    raw_sum_s -= z_s_signed[j].clone();
-                                    raw_sum_e -= z_e_signed[j].clone();
+                                    F::from(v as u64)
+                                };
+                                FpVar::new_witness(cs.clone(), || Ok(f))
+                            })
+                            .collect::<Result<_, _>>()?;
+                        let z_e_signed: Vec<FpVar<F>> = w.z_e_power[..n_power]
+                            .iter()
+                            .map(|&v| {
+                                let f = if v < 0 {
+                                    -F::from((-v) as u64)
+                                } else {
+                                    F::from(v as u64)
+                                };
+                                FpVar::new_witness(cs.clone(), || Ok(f))
+                            })
+                            .collect::<Result<_, _>>()?;
+
+                        let bound = jl_entries.len().min(p_s_vec.len()).min(p_e_vec.len());
+                        for k in 0..bound {
+                            let mut raw_sum_s = FpVar::<F>::zero();
+                            let mut raw_sum_e = FpVar::<F>::zero();
+                            for &(j, sign) in &jl_entries[k] {
+                                if j < n_power {
+                                    if sign {
+                                        raw_sum_s += z_s_signed[j].clone();
+                                        raw_sum_e += z_e_signed[j].clone();
+                                    } else {
+                                        raw_sum_s -= z_s_signed[j].clone();
+                                        raw_sum_e -= z_e_signed[j].clone();
+                                    }
                                 }
                             }
-                        }
 
-                        let expected_s = signed_i128_to_f::<F>(p_s_vec[k] as i128);
-                        let expected_e = signed_i128_to_f::<F>(p_e_vec[k] as i128);
-                        let expected_s_var = FpVar::new_witness(cs.clone(), || Ok(expected_s))?;
-                        let expected_e_var = FpVar::new_witness(cs.clone(), || Ok(expected_e))?;
-                        raw_sum_s.enforce_equal(&expected_s_var)?;
-                        raw_sum_e.enforce_equal(&expected_e_var)?;
+                            let expected_s = signed_i128_to_f::<F>(p_s_vec[k] as i128);
+                            let expected_e = signed_i128_to_f::<F>(p_e_vec[k] as i128);
+                            let expected_s_var = FpVar::new_witness(cs.clone(), || Ok(expected_s))?;
+                            let expected_e_var = FpVar::new_witness(cs.clone(), || Ok(expected_e))?;
+                            raw_sum_s.enforce_equal(&expected_s_var)?;
+                            raw_sum_e.enforce_equal(&expected_e_var)?;
+                        }
                     }
                 }
             }
-        }
 
-        Ok(())
-    })?;
+            Ok(())
+        })?;
+    }
 
     Ok(FpVar::<F>::one())
 }
@@ -1387,6 +1423,21 @@ fn ark_to_nova_scalar(fr: ark_bn254::Fr) -> NovaScalar {
     NovaScalar::from_repr(repr).unwrap_or(NovaScalar::from(0u64))
 }
 
+pub(crate) fn sigma_transcript_commitment_scalar(w: &SigmaWitness<ark_bn254::Fr>) -> NovaScalar {
+    let mut hasher = Keccak256::new();
+    hasher.update(b"pvthfhe-symphony-t2-sigma-witness-v1");
+    hasher.update(w.transcript_commitment);
+    hasher.update(encode_scalar(w.ch));
+    hasher.update((w.t_ntt.len() as u64).to_be_bytes());
+    for limb in &w.t_ntt {
+        for coeff in limb.iter().take(16) {
+            hasher.update(encode_scalar(*coeff));
+        }
+    }
+    let digest: [u8; 32] = hasher.finalize().into();
+    ark_to_nova_scalar(Fr::from_be_bytes_mod_order(&digest))
+}
+
 type NovaRecursiveSNARK<S> = nova_snark::nova::RecursiveSNARK<
     nova_snark::provider::Bn256EngineKZG,
     nova_snark::provider::GrumpkinEngine,
@@ -1415,15 +1466,17 @@ where
             );
         }
 
+        let public_inputs_hash = committed_public_inputs_hash(steps);
         let z0_primary: Vec<NovaScalar> = vec![NovaScalar::zero(); self.state_len];
 
         let c_primary = S::default();
+        CYCLO_FOLD_STEP_COUNTER.with(|cell| *cell.borrow_mut() = 0);
 
         let mut recursive_snark: NovaRecursiveSNARK<S> =
             NovaRecursiveSNARK::new(&self.public_params, &c_primary, &z0_primary)
                 .map_err(|_| CompressorError::Backend("nova-snark RecursiveSNARK::new failed"))?;
 
-        for _step in 0..self.ivc_steps {
+        for _step in 0..steps.len() {
             recursive_snark
                 .prove_step(&self.public_params, &c_primary)
                 .map_err(|_| CompressorError::Backend("nova-snark prove_step failed"))?;
@@ -1437,11 +1490,6 @@ where
         header.extend_from_slice(&PROOF_VERSION.to_be_bytes());
         header.extend_from_slice(&normalized_hash(acc)?);
 
-        let mut steps_bytes = Vec::new();
-        for step in steps {
-            steps_bytes.extend_from_slice(&encode_triple((step.0, step.1, step.2)));
-        }
-        let public_inputs_hash: [u8; 32] = Keccak256::digest(&steps_bytes).into();
         header.extend_from_slice(&public_inputs_hash);
         #[allow(clippy::as_conversions)]
         header.extend_from_slice(&(proof_bytes.len() as u32).to_be_bytes());
@@ -1450,13 +1498,63 @@ where
         Ok(CompressedProof::new(header))
     }
 
-    #[cfg(feature = "symphony-t1")]
     pub fn prove_steps_high_arity(
         &self,
         acc: &[u8],
         steps: &[ExternalInputs3<ark_bn254::Fr>],
     ) -> Result<CompressedProof, CompressorError> {
-        self.prove_steps(acc, steps)
+        use high_arity_fold::*;
+
+        let batch_size = steps.len().min(128);
+        tracing::debug!(
+            "prove_steps_high_arity: batch_size={} for {} steps",
+            batch_size,
+            steps.len()
+        );
+
+        if steps.is_empty() {
+            return self.prove_steps(acc, steps);
+        }
+
+        let beta = derive_beta_vector(&self.srs_hash, steps.len());
+        let folded_steps = fold_external_inputs_in_batches(steps, &beta, batch_size);
+        let num_batches = folded_steps.len();
+
+        if num_batches > 1 {
+            tracing::warn!(
+                "high_arity: {} steps folded into {} batches (batch_size={})",
+                steps.len(),
+                num_batches,
+                batch_size
+            );
+        } else {
+            tracing::info!(
+                "high_arity: {} steps folded into a single batch",
+                steps.len()
+            );
+        }
+
+        self.prove_steps(acc, &folded_steps)
+    }
+
+    pub fn verify_steps_high_arity(
+        &self,
+        vk: &VerifierKey,
+        proof: &CompressedProof,
+        acc: &[u8],
+        steps: &[ExternalInputs3<ark_bn254::Fr>],
+    ) -> Result<bool, CompressorError> {
+        use high_arity_fold::*;
+
+        if steps.is_empty() {
+            return self.verify_steps(vk, proof, acc, steps);
+        }
+
+        let batch_size = steps.len().min(128);
+        let beta = derive_beta_vector(&self.srs_hash, steps.len());
+        let folded_steps = fold_external_inputs_in_batches(steps, &beta, batch_size);
+
+        self.verify_steps(vk, proof, acc, &folded_steps)
     }
 
     pub fn verify_steps(
@@ -1472,11 +1570,7 @@ where
 
         let parsed = parse_proof(&proof.bytes)?;
 
-        let mut steps_bytes = Vec::new();
-        for step in steps {
-            steps_bytes.extend_from_slice(&encode_triple((step.0, step.1, step.2)));
-        }
-        let expected_hash: [u8; 32] = Keccak256::digest(&steps_bytes).into();
+        let expected_hash = committed_public_inputs_hash(steps);
         if parsed.public_inputs_hash != expected_hash {
             return Ok(false);
         }
@@ -1487,7 +1581,7 @@ where
             bincode::deserialize(parsed.ivc_bytes).map_err(|_| CompressorError::InvalidProof)?;
 
         recursive_snark
-            .verify(&self.public_params, self.ivc_steps, &z0_primary)
+            .verify(&self.public_params, steps.len(), &z0_primary)
             .map(|_| true)
             .map_err(|_| CompressorError::InvalidProof)
     }
@@ -2621,10 +2715,10 @@ fn verify_ivc_core<S: FCircuit<Fr, Params = ()>>(
     }
 
     if let Some((fold_count, sigma_count)) = sigma_check {
-        // Only enforce sigma_count == fold_count when sigma data was actually
-        // populated. If sigma_count is 0, assume the pipeline path doesn't
-        // include sigma verification (Track A / data-absent paths).
-        if sigma_count != Fr::zero() && fold_count != sigma_count {
+        // With SIGMA_REPETITIONS rounds per fold step, sigma_count accumulates
+        // k per step instead of 1. Check fold_count * k == sigma_count.
+        let expected_sigma_count = fold_count * Fr::from(SIGMA_REPETITIONS as u64);
+        if sigma_count != Fr::zero() && expected_sigma_count != sigma_count {
             tracing::warn!(
                 "fold_count {:?} != sigma_verification_count {:?}",
                 fold_count,

@@ -26,6 +26,7 @@ use fhe_math::rq::{traits::TryConvertFrom, Context, Poly, Representation};
 use light_poseidon::{Poseidon, PoseidonHasher};
 use rand_core::RngCore;
 use sha2::{Digest, Sha256};
+use sha3::Keccak256;
 use std::sync::{Arc, OnceLock};
 
 use crate::NizkError;
@@ -64,6 +65,20 @@ pub const B_Z_E: i64 = 131_072;
 /// rejection probability. Extracted M-SIS witness norm ≤ 2^18 << q^46
 /// (Ajtai λ₁), so the reduction remains valid with enormous headroom.
 pub const B_Z_S: i64 = 131_072;
+
+/// Number of parallel repetitions for the sigma protocol.
+/// Soundness error = (2/3)^SIGMA_REPETITIONS.
+/// - 1   → ~1.58 bits of soundness (backward compatible)
+/// - 10  → ~15.8 bits
+/// - 45  → ~71.2 bits
+/// - 90  → ~142.4 bits (2^-128 target)
+/// - 128 → ~202.7 bits (conservative)
+///
+/// DEFAULTS TO 1 for backward compatibility. Increase to 90 for production
+/// soundness (~2^-132 ≈ 2^-128 target). Full per-coefficient norm enforcement
+/// in-circuit is feasible for k ≤ 10 (~5M constraints); k ≥ 90 requires
+/// T4 JL projection (see .sisyphus/plans/symphony-adoption.md §T4).
+pub const SIGMA_REPETITIONS: usize = 1;
 
 /// Johnson-Lindenstrauss projection dimension.
 pub const JL_PROJECTION_DIM: usize = 64;
@@ -210,6 +225,18 @@ pub struct SigmaProof {
     pub ch: i64,
 }
 
+/// Multi-round sigma proof: k independent parallel repetitions.
+///
+/// Each round's challenge is independently derived via Fiat-Shamir with
+/// round-index binding. The per-round `SigmaProof` entries share the same
+/// witness (s_i, e_i) but have different masking vectors (y_s, y_e) and
+/// consequently different challenges and responses.
+#[derive(Clone, Debug)]
+pub struct SigmaMultiProof {
+    /// Per-round proofs. Length equals SIGMA_REPETITIONS.
+    pub rounds: Vec<SigmaProof>,
+}
+
 /// Compute d_i = c * s_i + e_i mod Q, returning RNS power-basis form.
 ///
 /// Used in test setup to derive the statement from a witness.
@@ -241,6 +268,23 @@ pub fn prove(
     rng: &mut dyn RngCore,
     d_commitment: &[u8; 32],
 ) -> Result<SigmaProof, NizkError> {
+    prove_round(session_id, participant_id, stmt, wit, rng, d_commitment, 0)
+}
+
+/// Produce a sigma proof for statement (c, d_i) and witness (s_i, e_i)
+/// with `round_index` bound into the Fiat-Shamir transcript.
+///
+/// Used internally by [`prove_multi`] to create per-round proofs with
+/// round-index domain separation.
+fn prove_round(
+    session_id: &[u8],
+    participant_id: u32,
+    stmt: &SigmaStatement,
+    wit: &SigmaWitness,
+    rng: &mut dyn RngCore,
+    _d_commitment: &[u8; 32],
+    round_index: usize,
+) -> Result<SigmaProof, NizkError> {
     let n = rlwe_n();
     let rns_len = n * num_rns_limbs();
     if stmt.c_rns.len() != rns_len || stmt.d_rns.len() != rns_len {
@@ -264,13 +308,12 @@ pub fn prove(
         let c_ys_rns = poly_mul_rq(&stmt.c_rns, &y_s_rns, ctx)?;
         let t_rns = rns_add(&c_ys_rns, &y_e_rns, ctx)?;
 
-        let ch = derive_challenge_scalar(
+        let transcript_commitment = derive_transcript_commitment(&t_rns, &stmt.c_rns, &stmt.d_rns);
+        let ch = derive_challenge_from_commitment(
+            &transcript_commitment,
             session_id,
             participant_id,
-            &t_rns,
-            &stmt.c_rns,
-            &stmt.d_rns,
-            d_commitment,
+            round_index,
         );
 
         let z_s: Vec<i64> = y_s
@@ -328,6 +371,30 @@ pub fn prove(
     })
 }
 
+/// Produce k independent sigma proofs via parallel repetition.
+///
+/// Each round uses a fresh masking vector (y_s, y_e) and independently-derived
+/// challenge. The round index `i ∈ {0..num_rounds}` is bound into the Fiat-Shamir
+/// transcript to prevent cross-round replay.
+///
+/// Soundness error = (2/3)^num_rounds.
+pub fn prove_multi(
+    session_id: &[u8],
+    participant_id: u32,
+    stmt: &SigmaStatement,
+    wit: &SigmaWitness,
+    rng: &mut dyn RngCore,
+    d_commitment: &[u8; 32],
+    num_rounds: usize,
+) -> Result<SigmaMultiProof, NizkError> {
+    let mut rounds = Vec::with_capacity(num_rounds);
+    for i in 0..num_rounds {
+        let proof = prove_round(session_id, participant_id, stmt, wit, rng, d_commitment, i)?;
+        rounds.push(proof);
+    }
+    Ok(SigmaMultiProof { rounds })
+}
+
 /// Verify a sigma proof against a statement.
 ///
 /// `session_id` and `participant_id` must match those used during [`prove`].
@@ -356,6 +423,18 @@ pub fn verify_scalar(
     proof: &SigmaProof,
     d_commitment: &[u8; 32],
 ) -> Result<(), NizkError> {
+    verify_scalar_round(session_id, participant_id, stmt, proof, d_commitment, 0)
+}
+
+/// Internal round-aware verifier used by [`verify_multi`].
+fn verify_scalar_round(
+    session_id: &[u8],
+    participant_id: u32,
+    stmt: &SigmaStatement,
+    proof: &SigmaProof,
+    d_commitment: &[u8; 32],
+    round_index: usize,
+) -> Result<(), NizkError> {
     let n = rlwe_n();
     let rns_len = n * num_rns_limbs();
     if stmt.c_rns.len() != rns_len || stmt.d_rns.len() != rns_len {
@@ -375,13 +454,22 @@ pub fn verify_scalar(
 
     let ctx = rlwe_context()?;
 
-    let expected_ch = derive_challenge_scalar(
+    let _legacy_ch = derive_challenge_scalar(
         session_id,
         participant_id,
         &proof.t_rns,
         &stmt.c_rns,
         &stmt.d_rns,
         d_commitment,
+        round_index,
+    );
+    let transcript_commitment =
+        derive_transcript_commitment(&proof.t_rns, &stmt.c_rns, &stmt.d_rns);
+    let expected_ch = derive_challenge_from_commitment(
+        &transcript_commitment,
+        session_id,
+        participant_id,
+        round_index,
     );
     // Constant-time comparison for challenge
     let ch_match = (proof.ch ^ expected_ch) == 0;
@@ -412,6 +500,32 @@ pub fn verify_scalar(
         ));
     }
 
+    Ok(())
+}
+
+/// Verify a multi-round sigma proof against a statement.
+///
+/// Returns Ok(()) iff ALL k independent rounds pass algebraic and norm checks.
+/// Each round's challenge is independently re-derived with round-index binding
+/// to prevent cross-round replay. Soundness error = (2/3)^num_rounds where
+/// num_rounds = proof.rounds.len().
+pub fn verify_multi(
+    session_id: &[u8],
+    participant_id: u32,
+    stmt: &SigmaStatement,
+    proof: &SigmaMultiProof,
+    d_commitment: &[u8; 32],
+) -> Result<(), NizkError> {
+    for (i, round_proof) in proof.rounds.iter().enumerate() {
+        verify_scalar_round(
+            session_id,
+            participant_id,
+            stmt,
+            round_proof,
+            d_commitment,
+            i,
+        )?;
+    }
     Ok(())
 }
 
@@ -521,7 +635,7 @@ const SCALAR_CHALLENGE_DOMAIN: &[u8] = b"pvthfhe/sigma-scalar-challenge/v2";
 /// Poseidon over BN254 (with SHA-256 field compression).
 ///
 /// 1. SHA-256 compresses each large serialized field to a 32-byte digest
-/// 2. Poseidon combines the digests + session/participant binding into a single Fr
+/// 2. Poseidon combines the digests + session/participant/round binding into a single Fr
 /// 3. Fr is reduced to ternary {-1, 0, 1}
 fn derive_challenge_scalar(
     session_id: &[u8],
@@ -530,17 +644,19 @@ fn derive_challenge_scalar(
     c_rns: &[u64],
     d_rns: &[u64],
     d_commitment: &[u8; 32],
+    round_index: usize,
 ) -> i64 {
     // Serialize large fields to bytes
     let t_bytes: Vec<u8> = t_rns.iter().flat_map(|x| x.to_le_bytes()).collect();
     let c_bytes: Vec<u8> = c_rns.iter().flat_map(|x| x.to_le_bytes()).collect();
     let d_bytes: Vec<u8> = d_rns.iter().flat_map(|x| x.to_le_bytes()).collect();
 
-    // 1. Build domain prefix: DOMAIN || session_id || participant_id
+    // 1. Build domain prefix: DOMAIN || session_id || participant_id || round_index
     let mut prefix = Sha256::new();
     prefix.update(SCALAR_CHALLENGE_DOMAIN);
     prefix.update(session_id);
     prefix.update(participant_id.to_le_bytes());
+    prefix.update((round_index as u64).to_le_bytes());
 
     // 2. Compress each field with SHA-256, labeling and binding to the prefix
     let t_digest = labeled_sha256(&prefix, b"t_rns", &t_bytes);
@@ -559,6 +675,62 @@ fn derive_challenge_scalar(
     let ch_fr = poseidon_hash(&fr_inputs);
 
     // 4. Reduce Fr to ternary {-1, 0, 1}
+    fr_to_ternary(&ch_fr)
+}
+
+/// T2: Derive a Keccak256 transcript commitment from the sigma transcript data.
+///
+/// Computes `com = Keccak256(DOMAIN || t_rns || c_rns || d_i_rns)` which binds
+/// the prover's first message t and the statement (c, d_i) before the challenge
+/// is revealed. This commitment is verified in-circuit (via Poseidon, ~900 constraints)
+/// so the Fiat-Shamir challenge derivation can be moved outside the circuit
+/// (Symphony §6).
+pub fn derive_transcript_commitment(t_rns: &[u64], c_rns: &[u64], d_rns: &[u64]) -> [u8; 32] {
+    let mut hasher = Keccak256::new();
+    hasher.update(SCALAR_CHALLENGE_DOMAIN);
+    hasher.update(b"t2-commit");
+    hasher.update(&(t_rns.len() as u64).to_be_bytes());
+    for &x in t_rns {
+        hasher.update(x.to_le_bytes());
+    }
+    for &x in c_rns {
+        hasher.update(x.to_le_bytes());
+    }
+    for &x in d_rns {
+        hasher.update(x.to_le_bytes());
+    }
+    hasher.finalize().into()
+}
+
+/// T2: Derive a scalar ternary challenge from a transcript commitment.
+///
+/// Replaces the raw `derive_challenge_scalar` when T2 FS-outside-circuit is active.
+/// Instead of hashing the full transcript, we hash only the commitment and session
+/// binding, then use Poseidon to produce the Fiat-Shamir challenge.
+///
+/// This is cheaper in-circuit because the commitment (32 bytes) is much smaller
+/// than the raw transcript data (3 × L × N × 8 bytes ≈ 384KB).
+///
+/// `round_index` binds the repetition round into the FS transcript to prevent
+/// cross-round replay when SIGMA_REPETITIONS > 1.
+pub fn derive_challenge_from_commitment(
+    commitment: &[u8; 32],
+    session_id: &[u8],
+    participant_id: u32,
+    round_index: usize,
+) -> i64 {
+    let mut prefix = Sha256::new();
+    prefix.update(SCALAR_CHALLENGE_DOMAIN);
+    prefix.update(b"t2-commit-ch");
+    prefix.update(session_id);
+    prefix.update(participant_id.to_le_bytes());
+    prefix.update((round_index as u64).to_le_bytes());
+
+    let digest = labeled_sha256(&prefix, b"commitment", commitment);
+    let lo = bytes16_to_fr(&digest[..16]);
+    let hi = bytes16_to_fr(&digest[16..]);
+    let ch_fr = poseidon_hash(&[lo, hi]);
+
     fr_to_ternary(&ch_fr)
 }
 

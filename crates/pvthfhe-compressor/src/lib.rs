@@ -20,39 +20,29 @@ pub mod micronova;
 /// The wire format encodes an IVC folding proof followed by an optional
 /// SNARK wrapping proof (Groth16/PLONK) of the final relaxed R1CS instance.
 /// When `snark_len == 0`, no SNARK wrapper is present and the on-chain
-/// verifier falls back to the Poseidon hash shortcut
+/// verifier uses the P4 IVC proof binding
 /// (see `circuits/nova_state_commitment/src/main.nr`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompressedProof {
-    /// Serialized proof bytes (IVC + optional SNARK).
     pub bytes: Vec<u8>,
-    /// Hash of the transparent IVC proof (Keccak256 of serialized IVC bytes).
-    /// Populated after `wrap_nova_instance` in the compressor prove path.
-    /// Used for on-chain verification via the Poseidon hash shortcut
-    /// (see `circuits/nova_state_commitment/src/main.nr`).
     pub ivc_proof_hash: Option<[u8; 32]>,
+    pub ivc_binding: Option<crate::nova::snark_bridge::IvcBindingData>,
 }
 
 impl CompressedProof {
-    /// Create a new compressed proof from raw bytes.
     pub fn new(bytes: Vec<u8>) -> Self {
         CompressedProof {
             bytes,
             ivc_proof_hash: None,
+            ivc_binding: None,
         }
     }
 
-    /// Returns true if this proof includes a SNARK wrapping proof.
     pub fn has_snark(&self) -> bool {
-        // The proof has SNARK wrapping if the format includes a non-zero
-        // snark_len field. Check by parsing the header.
         parse_snark_present(&self.bytes)
     }
 
-    /// Return the IVC proof bytes (without the SNARK part).
     pub fn ivc_bytes(&self) -> &[u8] {
-        // The IVC bytes are the middle section of the proof format.
-        // For now, return the full bytes since parsing is format-specific.
         &self.bytes
     }
 }

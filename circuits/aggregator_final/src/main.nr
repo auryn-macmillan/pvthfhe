@@ -37,7 +37,6 @@ fn main(
     nova_final_plaintext: pub [Field; N],
     nova_share_chain_hash: pub Field,
 ) -> pub [Field; N] {
-    // --- Basic validity checks ---
     assert(epoch as u64 > 0, "epoch must be positive");
     assert(participant_set_hash != 0, "participant set hash must be non-zero");
     assert(threshold as u32 > 0, "threshold must be positive");
@@ -46,19 +45,13 @@ fn main(
     assert(decrypt_nizk_hash != 0, "decrypt_nizk_hash must be non-zero");
     assert(dkg_transcript_hash != 0, "dkg_transcript_hash must be non-zero");
 
-    // --- Bind plaintext to Nova Lagrange output ---
     let computed_pt_hash = vector_hash(nova_final_plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
     assert(plaintext_commitment == computed_pt_hash, "plaintext commitment mismatch");
 
-    // ciphertext_hash must differ from plaintext hash
     assert(ciphertext_hash != computed_pt_hash, "ciphertext and plaintext hash must differ");
 
-    // --- Bind the transparent IVC proof ---
     assert(ivc_snark_proof_hash != 0, "IVC proof hash must be non-zero");
 
-    // --- Share provenance is verified in Nova (LagrangeFoldStepCircuit) ---
-    // nova_share_chain_hash is the Poseidon chain over all (lambda_i, share_hash_i) pairs.
-    // The on-chain verifier can additionally check this value if needed.
     assert(nova_share_chain_hash != 0, "Nova share chain hash must be non-zero");
 
     nova_final_plaintext

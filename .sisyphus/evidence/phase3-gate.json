@@ -1,18 +1,18 @@
 {
   "status": "FAIL",
-  "timestamp": "2026-05-13T22:32:09Z",
+  "timestamp": "2026-05-28T16:00:15Z",
   "steps": {
     "workspace-tests": {
       "status": "FAIL",
-      "detail": "cargo test -p pvthfhe-aggregator failed: `pvthfhe-aggregator` (test \"final_aggregation_proof\") generated 1 warning\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.71s\n     Running unittests src/lib.rs (target/debug/deps/pvthfhe_aggregator-dfee896a3053be05)\n     Running tests/adversarial/mod.rs (target/debug/deps/adversarial-797ba41f7c831145)\nerror: test failed, to rerun pass `-p pvthfhe-aggregator --test adversarial`"
+      "detail": "cargo test -p pvthfhe-aggregator failed: `pvthfhe-aggregator` (test \"cyclo_norm_enforcement\") generated 1 warning\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.25s\n     Running unittests src/lib.rs (target/debug/deps/pvthfhe_aggregator-7f08907c14cf5645)\n     Running tests/adversarial/mod.rs (target/debug/deps/adversarial-cd3bc86a31ac5f00)\nerror: test failed, to rerun pass `-p pvthfhe-aggregator --test adversarial`"
     },
     "clippy": {
       "status": "FAIL",
-      "detail": "cargo clippy failed: allow(clippy::needless_range_loop)]`\nhelp: consider using an iterator and enumerate()\n     |\n1431 -             for j in 0..n {\n1431 +             for (j, <item>) in party_ids.iter().enumerate().take(n) {\n     |\n\nwarning: pvthfhe-fhe@0.1.0: MOCK BACKEND ACTIVE \u2014 XOR/SHA256 ONLY. Set PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK=1 to use.\nerror: could not compile `pvthfhe-fhe` (lib) due to 17 previous errors"
+      "detail": "cargo clippy failed: igma.rs:957:21\n    |\n957 |     for eval_idx in 0..3 {\n    |                     ^^^^\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#needless_range_loop\nhelp: consider using an iterator\n    |\n957 -     for eval_idx in 0..3 {\n957 +     for <item> in &gammas {\n    |\n\nerror: could not compile `pvthfhe-nizk` (lib) due to 30 previous errors"
     },
     "fmt": {
       "status": "FAIL",
-      "detail": "cargo fmt --check failed: usize) -> Fr {\n     let x = Fr::from(x as u64);\nDiff in /home/dev/pvthfhe/crates/pvthfhe-types/src/lib.rs:353:\n             .finish()\n     }\n }\n\u001b[31m-\n\u001b[m\u000f\u001b[31m-\n\u001b[m\u000f \nDiff in /home/dev/pvthfhe/crates/pvthfhe-types/tests/secret_types_present.rs:89:\n         \"EncRandomness\",\n         \"CcsWitnessSecret\",\n         \"ProtocolBytes\",\n\u001b[31m-\n\u001b[m\u000f     ]\n     .iter()\n     .any(|token| repr.contains(token))"
+      "detail": "cargo fmt --check failed: ype ExternalInputs = ExternalInputs3<F>;\n     type ExternalInputsVar = ExternalInputs3Var<F>;\n \n\u001b[31m-    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> { // folding (legacy-nova)\n\u001b[m\u000f\u001b[32m+    fn new(_params: Self::Params) -> Result<Self, folding_schemes::Error> {\n\u001b[m\u000f\u001b[32m+        // folding (legacy-nova)\n\u001b[m\u000f         Ok(Self {\n             _field: PhantomData,\n         })"
     },
     "deny": {
       "status": "FAIL",
@@ -23,8 +23,8 @@
       "detail": "nargo test --workspace passed"
     },
     "forge-tests": {
-      "status": "PASS",
-      "detail": "forge test --root contracts passed"
+      "status": "FAIL",
+      "detail": "forge test failed: , 7776)] test_verifyAndConsume_atomic_and_replay_reverts() (gas: 94933)\n\nEncountered 1 failing test in test/SessionRegistryAbortRestart.t.sol:SessionRegistryAbortRestartTest\n[FAIL: ProofLengthWrongWithLogN(16, 4, 7776)] test_verifyAndConsume_afterAbortRestart() (gas: 94716)\n\nEncountered a total of 52 failing tests, 78 tests succeeded\n\nTip: Run `forge test --rerun` to retry only the 52 failed tests"
     },
     "demo-e2e": {
       "status": "PASS",

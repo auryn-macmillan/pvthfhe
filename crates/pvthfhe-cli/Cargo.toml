@@ -83,11 +83,9 @@ demo-seeded-rng = []
 # Requires with-fhe (default). Opt-in; existing demo behavior unchanged without this flag.
 pipeline-extra-checks = []
 # Symphony feature flags (pass-through to pvthfhe-compressor)
-symphony-t1 = ["pvthfhe-compressor/symphony-t1"]
-symphony-t2 = ["pvthfhe-compressor/symphony-t2"]
 symphony-t3 = ["pvthfhe-compressor/symphony-t3"]
 symphony-t4 = ["pvthfhe-compressor/symphony-t4", "pvthfhe-compressor/symphony-t3"]
-symphony-all = ["symphony-t1", "symphony-t2", "symphony-t3", "symphony-t4"]
+symphony-all = ["symphony-t3", "symphony-t4"]
 
 [dev-dependencies]
 assert_cmd = "2"

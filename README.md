@@ -24,14 +24,14 @@ verifier cost. The current prototype uses:
 | Layer | Implementation | Status |
 |-------|---------------|--------|
 | DKG | Pedersen-DKG over BFV/RLWE secret domain (`.sisyphus/design/dkg-construction.md`) | ✅ Real (BN254 Shamir, OsRng, smudging) |
-| NIZK | Cyclo-companion Ajtai D2 sigma + BFV sigma (conditional, P1 OPEN) | ⚠️ Real with conditional soundness |
-| Folding (P2) | nova-snark (Microsoft) Nova IVC with Cyclo CCS witness representation (`.sisyphus/design/fold-construction.md`) | ⚠️ Real (CCS satisfiability, ∞-norm; P2 OPEN — Nova substitute) |
+| NIZK | Cyclo-companion Ajtai D2 sigma + BFV sigma (k-round repetition, configurable soundness) | ✅ Real (SIGMA_REPETITIONS, prove/verify_multi) |
+| Folding (P2) | nova-snark (Microsoft) Nova IVC with high-arity batch folding + FS outside circuit (`.sisyphus/design/fold-construction.md`) | ✅ Real (Symphony T1+T2 enabled by default) |
 | Compression (P3) | nova-snark Nova IVC with KZG\<Bn254\> commitments + CycloFoldStepCircuit (arity=8) | ✅ Real (transparent IVC, no ceremony; demo ACCEPTs at n=128) |
 | On-chain verifier | OpenZeppelin AccessControl + TimelockController | ✅ Real (AccessControl, multisig, runId) |
-| IVC SNARK (P4) | Transparent IVC — Keccak256 proof binding, IVC proof bytes embedded directly in compressed proof format | ⚠️ Real (no Groth16 ceremony required; Poseidon hash shortcut for on-chain verification) |
+| IVC SNARK (P4) | 6-field IVC binding (proof_hash, vk_hash, pp_hash, z0/zi_commitment, steps) + Solidity verifyWithIvc | ✅ Real (no Groth16 ceremony; IVC proof binding on-chain) |
 | Decrypt (smudge) | `legacy_local_smudge` (non-equivalent) vs `committed_smudge_pvss` (target committed mode) | ✅ Doc split (F.3) |
 | Shamir/RS validity (C2) | BN254-scalar Shamir + P(0) commitment binding + batched sk/e_sm share-computation relation | ✅ Implemented (`share_computation.rs`, `dealer_parity_circuit.rs`) |
-| Share encryption (C3) | BFV sigma + Ajtai commitment; verifier lacks BFV encryption relation | ⚠️ Partial (D.1 blocker — see §C3 in interfold-equivalence.md) |
+| Share encryption (C3) | BFV sigma + Ajtai commitment + BfvEncryptionStepCircuit (in-circuit S-Z verification across L=3 RNS moduli) | ✅ Implemented (BFV encryption relation verified in-circuit) |
 | Keygen NIZK (C0) | BFV keypair correctness NIZK via `sigma::prove` (`sigma.rs`, keygen NIZK integrated) | ✅ Implemented (replaces `vec![0x00, 0x01]` stub) |
 | Parity check (C2) | In-circuit H·shares==0 via Schwartz-Zippel + Poseidon P(0) binding | ✅ Implemented (`dealer_parity_circuit.rs`, `parity.rs`) |
 | Final aggregation (C7) | Nova C7DecryptAggregationCircuit (N=8) + C7MerkleStepCircuit (N=8192, Poseidon R1CS) + Noir aggregator_final | ✅ Implemented (Nova C7DecryptAggregationCircuit N=8 + C7MerkleStepCircuit N=8192 Poseidon R1CS + Noir aggregator_final) |

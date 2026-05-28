@@ -12,6 +12,7 @@ pub mod heterogeneous;
 pub mod lagrange_fold_circuit;
 pub mod latticefold_adapter;
 pub mod latticefold_circuit_family;
+pub mod monomial_range;
 pub mod nova_gadgets;
 pub mod pk_aggregation_circuit;
 pub mod pk_contribution_circuit;

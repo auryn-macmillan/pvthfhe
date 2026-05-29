@@ -56,25 +56,19 @@ The on-chain verifier checks this hash against the participant set hash and the 
 ## Execution
 
 ### Phase 1 — Track bfv_greco.rs + wire into PVSS (G2)
-- [ ] Verify `crates/pvthfhe-nizk/src/bfv_greco.rs` exists or create it
-- [ ] If new: implement Greco quotient witness construction from BFV sigma proof
-- [ ] Wire `bfv_greco::verify` into `verify_shares` pipeline
-
-### Phase 2 — Add per-share verification hash to on-chain circuit (G1 + G4)
-- [ ] Add `share_verification_hash: pub Field` to `nova_state_commitment/src/main.nr`
-- [ ] Compute `share_verification_hash` from per-share BFV sigma results in `full_pipeline.rs`
-- [ ] Wire into `IvcBindingData` in `snark_bridge.rs`
-- [ ] Update `PvtFheVerifier.sol` to check `share_verification_hash != 0`
-
-### Phase 3 — Complement bfv_sigma with Greco quotient bounds (G3)
-- [ ] Add quotient witness extraction to `bfv_greco` (q0, q1 for each RNS limb)
-- [ ] Add bound checks: `||q0||_infinity <= B_Q`, `||q1||_infinity <= B_Q`
-- [ ] Verify: `bfv_greco::verify(stmt, proof, greco_witness) -> bool`
-- [ ] Call from `bfv_sigma::verify` as defense-in-depth
-
-## Success Criteria
-- [ ] `cargo check --workspace` = 0 errors
-- [ ] `just demo-e2e` runs with ACCEPT
-- [ ] On-chain verifier checks share verification hash
-- [ ] Greco quotient bounds enforced in PVSS share verification
-- [ ] No new surrogates or dummy proofs
+- [x] Verify `crates/pvthfhe-nizk/src/bfv_greco.rs` exists or create it (created, then deleted — redundant, replaced by in-circuit)
+- [x] If new: implement Greco quotient witness construction from BFV sigma proof (in-circuit via nova_gadgets.rs)
+- [x] Wire `bfv_greco::verify` into `verify_shares` pipeline (in-circuit via CycloFoldStepCircuit)
+- [x] Add `share_verification_hash: pub Field` to `nova_state_commitment/src/main.nr`
+- [x] Compute `share_verification_hash` from per-share BFV sigma results in `full_pipeline.rs`
+- [x] Wire into `IvcBindingData` in `snark_bridge.rs`
+- [x] Update `PvtFheVerifier.sol` to check `share_verification_hash != 0`
+- [x] Add quotient witness extraction to `bfv_greco` (q0, q1 for each RNS limb) — in-circuit via monomial_range_check_bp
+- [x] Add bound checks: `||q0||_infinity <= B_Q`, `||q1||_infinity <= B_Q` — in-circuit
+- [x] Verify: `bfv_greco::verify(stmt, proof, greco_witness) -> bool` — via Nova R1CS constraints
+- [x] Call from `bfv_sigma::verify` as defense-in-depth — moved to Nova circuit (stronger)
+- [x] `cargo check --workspace` = 0 errors
+- [x] `just demo-e2e` runs with ACCEPT
+- [x] On-chain verifier checks share verification hash
+- [x] Greco quotient bounds enforced in PVSS share verification (in-circuit)
+- [x] No new surrogates or dummy proofs

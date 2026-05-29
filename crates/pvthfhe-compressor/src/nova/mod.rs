@@ -167,13 +167,94 @@ impl nova_snark::traits::circuit::StepCircuit<NovaScalar>
     }
     fn synthesize<CS: nova_snark::frontend::ConstraintSystem<NovaScalar>>(
         &self,
-        _cs: &mut CS,
+        cs: &mut CS,
         z: &[nova_snark::frontend::num::AllocatedNum<NovaScalar>],
     ) -> Result<
         Vec<nova_snark::frontend::num::AllocatedNum<NovaScalar>>,
         nova_snark::frontend::SynthesisError,
     > {
-        Ok(z.to_vec())
+        use dealer_parity_circuit::{DEALER_PARITY_DATA, DEALER_PARITY_N, DEALER_PARITY_P0};
+
+        let (shares, poly_factors) = DEALER_PARITY_DATA.with(|cell| cell.borrow().clone());
+        let n = DEALER_PARITY_N.with(|cell| *cell.borrow());
+
+        // (a) Schwartz-Zippel parity check: H·shares == 0
+        let zero =
+            nova_snark::frontend::num::AllocatedNum::alloc(cs.namespace(|| "parity_init"), || {
+                Ok(NovaScalar::from(0u64))
+            })?;
+        let mut parity_acc = zero.clone();
+        for j in 0..n {
+            let s_val = shares
+                .get(j)
+                .map(|&s| ark_to_nova_scalar(s))
+                .unwrap_or(NovaScalar::from(0u64));
+            let p_val = poly_factors
+                .get(j)
+                .map(|&p| ark_to_nova_scalar(p))
+                .unwrap_or(NovaScalar::from(0u64));
+            let s_var = nova_snark::frontend::num::AllocatedNum::alloc(
+                cs.namespace(|| format!("share_{j}")),
+                || Ok(s_val),
+            )?;
+            let p_var = nova_snark::frontend::num::AllocatedNum::alloc(
+                cs.namespace(|| format!("poly_factor_{j}")),
+                || Ok(p_val),
+            )?;
+            // In-circuit multiplication: s_j * p_j == prod_j
+            let prod_val = s_val * p_val;
+            let prod_var = nova_snark::frontend::num::AllocatedNum::alloc(
+                cs.namespace(|| format!("s_p_prod_{j}")),
+                || Ok(prod_val),
+            )?;
+            cs.enforce(
+                || format!("s_p_mul_{j}"),
+                |lc| lc + s_var.get_variable(),
+                |lc| lc + p_var.get_variable(),
+                |lc| lc + prod_var.get_variable(),
+            );
+            parity_acc = parity_acc.add(cs.namespace(|| format!("parity_add_{j}")), &prod_var)?;
+        }
+
+        // Enforce parity_acc == 0
+        cs.enforce(
+            || "parity_zero",
+            |lc| lc + parity_acc.get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc,
+        );
+
+        // (b) P(0) binding: enforce the caller-provided commitment in-circuit.
+        let p0_val =
+            DEALER_PARITY_P0.with(|cell| cell.borrow().as_ref().copied().unwrap_or_else(Fr::zero));
+        let p0_witness =
+            nova_snark::frontend::num::AllocatedNum::alloc(cs.namespace(|| "p0_witness"), || {
+                Ok(ark_to_nova_scalar(p0_val))
+            })?;
+        let p0_commit_val = ark_to_nova_scalar(self.p0_commitment);
+        let p0_commit_var = nova_snark::frontend::num::AllocatedNum::alloc(
+            cs.namespace(|| "p0_commitment"),
+            || Ok(p0_commit_val),
+        )?;
+        // Constraint: p0_witness * 1 == p0_commitment  →  p0_witness == p0_commitment
+        cs.enforce(
+            || "p0_binding",
+            |lc| lc + p0_witness.get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc + p0_commit_var.get_variable(),
+        );
+
+        // State transitions: [done, count, ext0]
+        let done = nova_snark::frontend::num::AllocatedNum::alloc(cs.namespace(|| "done"), || {
+            Ok(NovaScalar::from(1u64))
+        })?;
+        let one = nova_snark::frontend::num::AllocatedNum::alloc(cs.namespace(|| "one"), || {
+            Ok(NovaScalar::from(1u64))
+        })?;
+        let count = z[1].clone().add(cs.namespace(|| "count_inc"), &one)?;
+        let ext0 = z[2].clone();
+
+        Ok(vec![done, count, ext0])
     }
 }
 

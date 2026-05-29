@@ -17,9 +17,11 @@ use bellpepper_core::{
 #[cfg(feature = "nova-backend")]
 use bp_ff::PrimeField as BpPrimeField;
 
+use crate::witness::poseidon_sponge_hash_native;
 use crate::{StepCircuit, StepCircuitDescriptor};
 use ark_ff::BigInteger;
 use ark_ff::PrimeField;
+use ark_ff::Zero;
 use sha3::{Digest, Keccak256};
 use std::cell::RefCell;
 
@@ -42,6 +44,17 @@ thread_local! {
     pub static DEALER_PARITY_P0: RefCell<Option<ark_bn254::Fr>> = const { RefCell::new(None) };
 }
 
+thread_local! {
+    /// P(0) commitment value for the nova-snark backend.
+    /// Set by the caller before `prove_steps` and baked into the circuit
+    /// via `Default::default()` during `PublicParams::setup`.
+    /// The nova-snark StepCircuit synthesise enforces
+    ///   p0_witness == self.p0_commitment
+    /// in-circuit, binding P(0) to the proof.
+    pub static DEALER_PARITY_P0_COMMITMENT: RefCell<Option<ark_bn254::Fr>> =
+        const { RefCell::new(None) };
+}
+
 pub fn set_dealer_parity_data(
     shares: Vec<ark_bn254::Fr>,
     poly_factors: Vec<ark_bn254::Fr>,
@@ -51,16 +64,19 @@ pub fn set_dealer_parity_data(
     DEALER_PARITY_N.with(|cell| *cell.borrow_mut() = n);
     DEALER_PARITY_DATA.with(|cell| *cell.borrow_mut() = (shares, poly_factors));
     DEALER_PARITY_P0.with(|cell| *cell.borrow_mut() = p0);
+    DEALER_PARITY_P0_COMMITMENT
+        .with(|cell| *cell.borrow_mut() = p0.map(|secret| poseidon_sponge_hash_native(&[secret])));
 }
 
 pub fn clear_dealer_parity_data() {
     DEALER_PARITY_DATA.with(|cell| *cell.borrow_mut() = (Vec::new(), Vec::new()));
     DEALER_PARITY_P0.with(|cell| *cell.borrow_mut() = None);
+    DEALER_PARITY_P0_COMMITMENT.with(|cell| *cell.borrow_mut() = None);
     // DEALER_PARITY_N persists so Nova verify re-synthesises the same
     // constraint count.
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct DealerParityStepCircuit<F> {
     _phantom: std::marker::PhantomData<F>,
     /// Per-step share data for the bellpepper backend.
@@ -73,6 +89,29 @@ pub struct DealerParityStepCircuit<F> {
     /// P(0) constant term for the bellpepper backend.
     #[cfg(feature = "nova-backend")]
     pub step_p0: Option<F>,
+    /// P(0) commitment for the nova-snark backend (H3).
+    /// The circuit enforces p0_witness == p0_commitment in R1CS.
+    pub p0_commitment: ark_bn254::Fr,
+}
+
+// Custom Default for nova-snark compatibility: reads the P(0) commitment from
+// the thread-local so it is baked into the circuit during `PublicParams::setup`.
+impl Default for DealerParityStepCircuit<ark_bn254::Fr> {
+    fn default() -> Self {
+        let p0_commitment = DEALER_PARITY_P0_COMMITMENT
+            .with(|cell| *cell.borrow())
+            .unwrap_or_else(ark_bn254::Fr::zero);
+        Self {
+            _phantom: std::marker::PhantomData,
+            #[cfg(feature = "nova-backend")]
+            step_shares: Vec::new(),
+            #[cfg(feature = "nova-backend")]
+            step_poly_factors: Vec::new(),
+            #[cfg(feature = "nova-backend")]
+            step_p0: None,
+            p0_commitment,
+        }
+    }
 }
 
 #[cfg(feature = "legacy-nova")]
@@ -127,7 +166,10 @@ impl<F: PrimeField> FCircuit<F> for DealerParityStepCircuit<F> {
 
         // (b) P(0) binding: constrain P(0) == claimed secret from ExternalInputs.1.
         // ExternalInputs3 layout:  (.0 = r, .1 = claimed_P0, .2 = n).
-        let p0_f = p0.map(to_f).unwrap_or(F::zero());
+        let p0_f = DEALER_PARITY_P0_COMMITMENT
+            .with(|cell| *cell.borrow())
+            .map(to_f)
+            .unwrap_or_else(F::zero);
         let p0_var =
             FpVar::<F>::new_witness(cs.clone(), || -> Result<F, SynthesisError> { Ok(p0_f) })?;
         p0_var.enforce_equal(&external_inputs.1)?;

@@ -1,4 +1,5 @@
 use super::ark_to_nova_scalar;
+use super::monomial_range::monomial_range_check_bp;
 use super::NovaScalar;
 use nova_snark::frontend::gadgets::num::AllocatedNum;
 use nova_snark::frontend::{ConstraintSystem, SynthesisError};
@@ -167,7 +168,7 @@ pub fn sigma_verify_step_bp<CS: ConstraintSystem<NovaScalar>>(
                     |lc| lc + rhs.get_variable(),
                 );
 
-                norm_range_check_bp(
+                monomial_range_check_bp(
                     cs,
                     &sz_r1_eval,
                     w.sz_r1_eval[idx],
@@ -214,8 +215,20 @@ pub fn sigma_verify_step_bp<CS: ConstraintSystem<NovaScalar>>(
                         Ok(NovaScalar::from(ze_val))
                     })?;
 
-                norm_range_check_bp(cs, &zs_var, zs_val, B_Z_S, &format!("zs_norm_r{round}_{k}"))?;
-                norm_range_check_bp(cs, &ze_var, ze_val, B_Z_E, &format!("ze_norm_r{round}_{k}"))?;
+                monomial_range_check_bp(
+                    cs,
+                    &zs_var,
+                    zs_val,
+                    B_Z_S,
+                    &format!("zs_norm_r{round}_{k}"),
+                )?;
+                monomial_range_check_bp(
+                    cs,
+                    &ze_var,
+                    ze_val,
+                    B_Z_E,
+                    &format!("ze_norm_r{round}_{k}"),
+                )?;
             }
         }
     }
@@ -357,7 +370,7 @@ pub fn sigma_verify_step_projected<CS: ConstraintSystem<NovaScalar>>(
                 |lc| lc + rhs.get_variable(),
             );
 
-            norm_range_check_bp(
+            monomial_range_check_bp(
                 cs,
                 &sz_r1_eval,
                 w.sz_r1_eval[idx],
@@ -753,28 +766,28 @@ pub fn bfv_verify_step_bp<CS: ConstraintSystem<NovaScalar>>(
     let be = bfv_encryption_circuit::B_E;
     let bm = bfv_encryption_circuit::B_M;
 
-    norm_range_check_bp(
+    monomial_range_check_bp(
         cs,
         &u_var,
         extract_native_u64(&step_data[15]),
         bu,
         "bfv_u_norm",
     )?;
-    norm_range_check_bp(
+    monomial_range_check_bp(
         cs,
         &e0_var,
         extract_native_u64(&step_data[16]),
         be,
         "bfv_e0_norm",
     )?;
-    norm_range_check_bp(
+    monomial_range_check_bp(
         cs,
         &e1_var,
         extract_native_u64(&step_data[17]),
         be,
         "bfv_e1_norm",
     )?;
-    norm_range_check_bp(
+    monomial_range_check_bp(
         cs,
         &m_var,
         extract_native_u64(&step_data[18]),
@@ -818,88 +831,4 @@ fn extract_native_u64(fr: &ark_bn254::Fr) -> u64 {
     let len = bytes.len().min(8);
     buf[..len].copy_from_slice(&bytes[..len]);
     u64::from_le_bytes(buf)
-}
-
-fn norm_range_check_bp<CS: ConstraintSystem<NovaScalar>>(
-    cs: &mut CS,
-    value: &AllocatedNum<NovaScalar>,
-    native_value: u64,
-    bound_u64: u64,
-    tag: &str,
-) -> Result<(), SynthesisError> {
-    if native_value > bound_u64 {
-        let one = AllocatedNum::alloc(cs.namespace(|| format!("{tag}_fail")), || {
-            Ok(NovaScalar::from(1u64))
-        })?;
-        let zero = AllocatedNum::alloc(cs.namespace(|| format!("{tag}_fail_zero")), || {
-            Ok(NovaScalar::from(0u64))
-        })?;
-        cs.enforce(
-            || format!("{tag}_bound_fail"),
-            |lc| lc + CS::one(),
-            |lc| lc + one.get_variable(),
-            |lc| lc + zero.get_variable(),
-        );
-        return Ok(());
-    }
-
-    let bits: Vec<AllocatedNum<NovaScalar>> = (0..31)
-        .map(|idx| {
-            let bit_val = NovaScalar::from((native_value >> idx) & 1);
-            AllocatedNum::alloc(cs.namespace(|| format!("{tag}_bit_{idx}")), || Ok(bit_val))
-        })
-        .collect::<Result<_, _>>()?;
-
-    for idx in 0..31 {
-        let bit_val = NovaScalar::from((native_value >> idx) & 1);
-        let bit_minus_one_val = bit_val - NovaScalar::from(1u64);
-
-        let bit_minus_one =
-            AllocatedNum::alloc(cs.namespace(|| format!("{tag}_bv_bmo_{idx}")), || {
-                Ok(bit_minus_one_val)
-            })?;
-
-        cs.enforce(
-            || format!("{tag}_bv_bmo_c_{idx}"),
-            |lc| lc + CS::one(),
-            |lc| lc + bit_minus_one.get_variable(),
-            |lc| lc + bits[idx].get_variable() - CS::one(),
-        );
-
-        let prod = bits[idx].mul(
-            cs.namespace(|| format!("{tag}_bv_prod_{idx}")),
-            &bit_minus_one,
-        )?;
-        let zero_val = AllocatedNum::alloc(cs.namespace(|| format!("{tag}_bv_z_{idx}")), || {
-            Ok(NovaScalar::from(0u64))
-        })?;
-        cs.enforce(
-            || format!("{tag}_bit_check_{idx}"),
-            |lc| lc + CS::one(),
-            |lc| lc + prod.get_variable(),
-            |lc| lc + zero_val.get_variable(),
-        );
-    }
-
-    let mut acc = AllocatedNum::alloc(cs.namespace(|| format!("{tag}_rec_init")), || {
-        Ok(NovaScalar::from(0u64))
-    })?;
-    let mut pow2 = NovaScalar::from(1u64);
-
-    for idx in 0..31 {
-        let pow2_const =
-            AllocatedNum::alloc(cs.namespace(|| format!("{tag}_pow2_{idx}")), || Ok(pow2))?;
-        let scaled = bits[idx].mul(cs.namespace(|| format!("{tag}_scale_{idx}")), &pow2_const)?;
-        acc = acc.add(cs.namespace(|| format!("{tag}_acc_{idx}")), &scaled)?;
-        pow2 = pow2.double();
-    }
-
-    cs.enforce(
-        || format!("{tag}_reconstruct"),
-        |lc| lc + CS::one(),
-        |lc| lc + acc.get_variable(),
-        |lc| lc + value.get_variable(),
-    );
-
-    Ok(())
 }

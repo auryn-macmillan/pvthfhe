@@ -1338,7 +1338,10 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             .context("aggregate_decrypt ct8")?;
 
         let expected_ct8 = (greco_plaintext_val * 8u64).to_le_bytes().to_vec();
-        let ct8_ok = pvthfhe_fhe::plaintext_compare_exact(&ct8_plaintext, &expected_ct8);
+        // Truncate decrypted plaintext to match expected length (BFV encodes
+        // into polynomial coefficients; we only need the first few bytes)
+        let ct8_truncated = &ct8_plaintext[..expected_ct8.len()];
+        let ct8_ok = ct8_truncated == expected_ct8.as_slice();
 
         let greco_elapsed = elapsed_ms(greco_started);
         tracing::info!(

@@ -7,6 +7,7 @@ pub mod c7_circuit;
 pub mod c7_merkle_circuit;
 pub mod cyclo_fold_circuit;
 pub mod cyclo_verifier;
+pub mod fhe_compute_circuit;
 pub mod fold_verifier_circuit;
 pub mod heterogeneous;
 pub mod high_arity_fold;
@@ -21,6 +22,7 @@ pub mod poseidon_gadget;
 pub use poseidon_gadget::PoseidonSpongeVar;
 pub mod ajtai_commitment_circuit;
 pub mod bfv_encryption_circuit;
+pub mod bfv_snapshot;
 pub mod dealer_parity_circuit;
 pub mod dkg_aggregation_circuit;
 pub use dkg_aggregation_circuit::DkgAggregationStepCircuit;
@@ -43,6 +45,9 @@ pub use c7_merkle_circuit::{
 };
 pub use dealer_parity_circuit::{
     clear_dealer_parity_data, set_dealer_parity_data, DealerParityStepCircuit,
+};
+pub use fhe_compute_circuit::{
+    clear_fhe_compute_data, set_fhe_compute_data, FheComputeStepCircuit, FheComputeWitness, FheOp,
 };
 pub use fold_verifier_circuit::{
     clear_fold_verifier_data, set_fold_verifier_data, FoldVerifierStepCircuit,
@@ -952,6 +957,7 @@ pub fn clear_all_thread_locals() {
     clear_sigma_response_data();
     clear_ajtai_witness_data();
     clear_share_coeffs_data();
+    clear_fhe_compute_data();
     #[cfg(feature = "legacy-nova")]
     {
         clear_bfv_encryption_data();

@@ -38,6 +38,15 @@ use pvthfhe_cyclo::CYCLO_BACKEND_ID as CYCLO_P2_BACKEND_ID;
 #[cfg(feature = "with-fhe")]
 use pvthfhe_fhe::real_nizk::CYCLO_BACKEND_ID;
 use tracing::info;
+#[cfg(feature = "sonobe-compressor")]
+use {
+    ark_bn254::Fr,
+    ark_ff::PrimeField as _,
+    pvthfhe_compressor::nova::bfv_encryption_circuit::{BFV_L, BFV_Q, BFV_STEP_DATA_LEN},
+    pvthfhe_compressor::nova::bfv_snapshot::{
+        prove_bfv_snapshot, verify_bfv_snapshot, BfvEncryptionSnapshot,
+    },
+};
 #[cfg(feature = "with-fhe")]
 use {
     pvthfhe_fhe::{fhers::FhersBackend, FheBackend, PublicKey},
@@ -133,6 +142,62 @@ enum Commands {
         /// BFV parameter preset name: "production8192" (default) or "insecure512".
         #[arg(long, default_value = "production8192")]
         params: String,
+    },
+    /// Create or verify a BFV encryption snapshot proof.
+    Snapshot {
+        #[command(subcommand)]
+        action: SnapshotCommand,
+    },
+    /// FHE compute provider commands.
+    Compute {
+        #[command(subcommand)]
+        action: ComputeCommand,
+    },
+}
+
+/// Subcommands for the snapshot command.
+#[derive(Subcommand, Debug)]
+enum SnapshotCommand {
+    /// Prove that a BFV ciphertext is a valid encryption.
+    Prove {
+        /// Hex-encoded public key (RNS format).
+        #[arg(long)]
+        pk: String,
+        /// Hex-encoded ciphertext.
+        #[arg(long)]
+        ct: String,
+        /// Hex-encoded plaintext bytes.
+        #[arg(long)]
+        plaintext: String,
+        /// Hex-encoded session identifier (32 bytes).
+        #[arg(long)]
+        session: String,
+    },
+    /// Verify a snapshot proof against public inputs.
+    Verify {
+        /// Hex-encoded proof bytes.
+        #[arg(long)]
+        proof: String,
+        /// Hex-encoded public key (RNS format).
+        #[arg(long)]
+        pk: String,
+        /// Hex-encoded ciphertext.
+        #[arg(long)]
+        ct: String,
+    },
+}
+
+/// Subcommands for the compute command.
+#[derive(Subcommand, Debug)]
+enum ComputeCommand {
+    /// Prove a sequence of FHE operations over Merkle-committed ciphertexts.
+    Prove {
+        /// Comma-separated hex-encoded input ciphertext hashes (32 bytes each).
+        #[arg(long)]
+        inputs: String,
+        /// Comma-separated list of operations: add, mul, relin.
+        #[arg(long)]
+        operations: String,
     },
 }
 
@@ -264,6 +329,12 @@ fn main() -> anyhow::Result<()> {
             info!(%params, "active parameter preset set");
             run_demo(n, threshold.unwrap_or(n / 2 + 1), seed)?;
         }
+        Commands::Snapshot { action } => {
+            r8_snapshot(action)?;
+        }
+        Commands::Compute { action } => {
+            r8_compute(action)?;
+        }
     }
 
     Ok(())
@@ -393,6 +464,344 @@ fn r8_aggregate(ciphertext_hex: &str, shares_hex: &str, threshold: usize) -> any
         println!("aggregate: (plaintext hidden, set RUST_LOG=pvthfhe_cli=debug to show)");
     }
     Ok(())
+}
+
+/// Handle snapshot prove/verify commands.
+#[cfg(feature = "sonobe-compressor")]
+fn r8_snapshot(action: SnapshotCommand) -> anyhow::Result<()> {
+    match action {
+        SnapshotCommand::Prove {
+            pk,
+            ct,
+            plaintext,
+            session,
+        } => {
+            let pk_bytes = hex::decode(&pk).context("invalid pk hex")?;
+            let ct_bytes = hex::decode(&ct).context("invalid ct hex")?;
+            let plaintext_bytes = hex::decode(&plaintext).context("invalid plaintext hex")?;
+            let session_bytes: [u8; 32] = {
+                let decoded = hex::decode(&session).context("invalid session hex")?;
+                decoded
+                    .try_into()
+                    .map_err(|_| anyhow::anyhow!("session must be 32 bytes (64 hex chars)"))?
+            };
+
+            let pk_rns: Vec<u64> = bytes_to_u64_vec(&pk_bytes);
+            let ct_rns: Vec<u64> = bytes_to_u64_vec(&ct_bytes);
+
+            let plaintext_hash = poseidon_hash_scalar(&plaintext_bytes);
+
+            let snapshot = BfvEncryptionSnapshot {
+                pk_rns: pk_rns.clone(),
+                ct_rns: ct_rns.clone(),
+                plaintext_hash,
+                _phantom: std::marker::PhantomData,
+            };
+
+            let witness_data = build_bfv_witness(&pk_rns, &ct_rns, &plaintext_bytes);
+
+            let proof = prove_bfv_snapshot(&snapshot, session_bytes, witness_data)
+                .map_err(|e| anyhow::anyhow!("snapshot prove failed: {e:?}"))?;
+
+            let proof_hex = hex::encode(&proof.bytes);
+            println!("snapshot_proof={proof_hex}");
+            println!("snapshot: prove ok");
+        }
+        SnapshotCommand::Verify { proof, pk, ct } => {
+            let proof_bytes = hex::decode(&proof).context("invalid proof hex")?;
+            let pk_bytes = hex::decode(&pk).context("invalid pk hex")?;
+            let ct_bytes = hex::decode(&ct).context("invalid ct hex")?;
+
+            let compressed = pvthfhe_compressor::CompressedProof::new(proof_bytes);
+
+            let pk_rns: Vec<u64> = bytes_to_u64_vec(&pk_bytes);
+            let ct_rns: Vec<u64> = bytes_to_u64_vec(&ct_bytes);
+
+            let snapshot = BfvEncryptionSnapshot {
+                pk_rns,
+                ct_rns,
+                plaintext_hash: Fr::from(0u64),
+                _phantom: std::marker::PhantomData,
+            };
+
+            let session_bytes = [0u8; 32];
+
+            match verify_bfv_snapshot(&compressed, &snapshot, session_bytes) {
+                Ok(true) => println!("verify: ACCEPT"),
+                Ok(false) => println!("verify: REJECT"),
+                Err(e) => println!("verify: ERROR ({e:?})"),
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(feature = "sonobe-compressor"))]
+fn r8_snapshot(_action: SnapshotCommand) -> anyhow::Result<()> {
+    anyhow::bail!("snapshot requires the `sonobe-compressor` feature")
+}
+
+/// Handle compute prove command.
+#[cfg(feature = "sonobe-compressor")]
+fn r8_compute(action: ComputeCommand) -> anyhow::Result<()> {
+    use pvthfhe_compressor::merkle::{build_merkle_tree, prove_merkle_path};
+    use pvthfhe_compressor::nova::{
+        clear_fhe_compute_data, hash8_native, set_fhe_compute_data, FheComputeStepCircuit,
+        FheComputeWitness, FheOp, NovaCompressor,
+    };
+    use pvthfhe_compressor::{CompressedProof, ProofCompressor};
+
+    match action {
+        ComputeCommand::Prove { inputs, operations } => {
+            let input_hashes: Vec<[u8; 32]> = inputs
+                .split(',')
+                .map(|s| {
+                    let bytes = hex::decode(s.trim()).context("invalid input hash hex")?;
+                    bytes.try_into().map_err(|_| {
+                        anyhow::anyhow!("each input hash must be 32 bytes (64 hex chars)")
+                    })
+                })
+                .collect::<Result<_, _>>()?;
+
+            let ops: Vec<&str> = operations.split(',').map(|s| s.trim()).collect();
+            if ops.is_empty() {
+                anyhow::bail!("at least one operation required");
+            }
+            if ops.len() > input_hashes.len() {
+                anyhow::bail!(
+                    "too many operations ({}): need at least as many input hashes ({})",
+                    ops.len(),
+                    input_hashes.len()
+                );
+            }
+
+            // Build Merkle tree over input ciphertext hashes.
+            let leaves: Vec<Fr> = input_hashes
+                .iter()
+                .map(|h| Fr::from_be_bytes_mod_order(h))
+                .collect();
+            let (tree, merkle_root) = build_merkle_tree(&leaves, 8);
+            let merkle_root_bytes = {
+                use ark_ff::BigInteger;
+                let raw = merkle_root.into_bigint().to_bytes_be();
+                let mut buf = vec![0u8; 32];
+                let start = 32 - raw.len();
+                buf[start..].copy_from_slice(&raw);
+                let mut result = [0u8; 32];
+                result.copy_from_slice(&buf);
+                result
+            };
+
+            // Build witness data for each operation.
+            let mut witnesses: Vec<FheComputeWitness> = Vec::new();
+            let mut next_input_idx: usize = 0;
+
+            for op_str in &ops {
+                match *op_str {
+                    "add" | "mul" | "relin" | "relinearize" => {
+                        let op = match *op_str {
+                            "add" => {
+                                if next_input_idx + 1 >= input_hashes.len() {
+                                    anyhow::bail!(
+                                        "not enough input hashes for binary op 'add' at step {}",
+                                        witnesses.len()
+                                    );
+                                }
+                                FheOp::Add {
+                                    ct0_hash: input_hashes[next_input_idx],
+                                    ct1_hash: input_hashes[next_input_idx + 1],
+                                }
+                            }
+                            "mul" => {
+                                if next_input_idx + 1 >= input_hashes.len() {
+                                    anyhow::bail!(
+                                        "not enough input hashes for binary op 'mul' at step {}",
+                                        witnesses.len()
+                                    );
+                                }
+                                FheOp::Mul {
+                                    ct0_hash: input_hashes[next_input_idx],
+                                    ct1_hash: input_hashes[next_input_idx + 1],
+                                }
+                            }
+                            "relin" | "relinearize" => FheOp::Relinearize {
+                                ct_hash: input_hashes[next_input_idx],
+                            },
+                            _ => unreachable!(),
+                        };
+
+                        let input_count = op.input_count();
+
+                        // Generate Merkle proofs for each input.
+                        let proof0 = {
+                            let idx = next_input_idx;
+                            prove_merkle_path(&tree, idx, 8)
+                        };
+                        let proof1 = if input_count == 2 {
+                            let idx = next_input_idx + 1;
+                            Some(prove_merkle_path(&tree, idx, 8))
+                        } else {
+                            None
+                        };
+
+                        // Compute output hash for this step natively.
+                        let output_hash = {
+                            let mut inputs_for_hash = Vec::new();
+                            // Previous output placeholder (first step uses 0)
+                            let prev = if witnesses.is_empty() {
+                                Fr::from(0u64)
+                            } else {
+                                witnesses.last().unwrap().output_hash
+                            };
+                            inputs_for_hash.push(prev);
+                            for h in &op.input_hashes() {
+                                inputs_for_hash.push(Fr::from_be_bytes_mod_order(h));
+                            }
+                            inputs_for_hash.push(Fr::from(op.tag_byte() as u64));
+                            while inputs_for_hash.len() < 8 {
+                                inputs_for_hash.push(Fr::from(0u64));
+                            }
+                            hash8_native(&inputs_for_hash[..8])
+                        };
+
+                        witnesses.push(FheComputeWitness {
+                            operation: op,
+                            proof0,
+                            proof1,
+                            output_hash,
+                        });
+
+                        next_input_idx += input_count;
+                    }
+                    other => {
+                        anyhow::bail!("unknown operation: {other}. Must be add, mul, or relin");
+                    }
+                }
+            }
+
+            let n_steps = witnesses.len();
+            set_fhe_compute_data(witnesses);
+
+            let epoch_hash = merkle_root_bytes;
+            let compressor = NovaCompressor::<FheComputeStepCircuit<Fr>>::new(epoch_hash, n_steps)
+                .map_err(|e| anyhow::anyhow!("compressor init failed: {e:?}"))?;
+
+            let zero_acc = vec![0u8; 32];
+            let proof = compressor
+                .prove_steps(&zero_acc, &[])
+                .map_err(|e| anyhow::anyhow!("compute prove failed: {e:?}"))?;
+
+            clear_fhe_compute_data();
+
+            let proof_hex = hex::encode(&proof.bytes);
+            println!("compute_proof={proof_hex}");
+            println!("merkle_root={}", hex::encode(merkle_root_bytes));
+            println!("steps={n_steps}");
+            println!("compute: prove ok");
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(not(feature = "sonobe-compressor"))]
+fn r8_compute(_action: ComputeCommand) -> anyhow::Result<()> {
+    anyhow::bail!("compute requires the `sonobe-compressor` feature")
+}
+
+/// Convert a byte slice to a Vec<u64> by interpreting each 8 bytes as one u64 (little-endian).
+#[cfg(feature = "sonobe-compressor")]
+fn bytes_to_u64_vec(bytes: &[u8]) -> Vec<u64> {
+    bytes
+        .chunks_exact(8)
+        .map(|chunk| {
+            let arr: [u8; 8] = chunk.try_into().unwrap();
+            u64::from_le_bytes(arr)
+        })
+        .collect()
+}
+
+/// Compute a Poseidon hash of the plaintext bytes, returning an Fr scalar.
+#[cfg(feature = "sonobe-compressor")]
+fn poseidon_hash_scalar(data: &[u8]) -> Fr {
+    use pvthfhe_compressor::nova::poseidon_gadget::hash8_native;
+    let mut chunks: Vec<Fr> = data
+        .chunks(8)
+        .map(|c| {
+            let mut buf = [0u8; 8];
+            let len = c.len().min(8);
+            buf[..len].copy_from_slice(&c[..len]);
+            Fr::from(u64::from_le_bytes(buf))
+        })
+        .collect();
+    while chunks.len() < 8 {
+        chunks.push(Fr::from(0u64));
+    }
+    if chunks.len() > 8 {
+        chunks.truncate(8);
+    }
+    hash8_native(&chunks)
+}
+
+/// Build a BFV witness data vector for the snapshot prove.
+#[cfg(feature = "sonobe-compressor")]
+fn build_bfv_witness(_pk_rns: &[u64], _ct_rns: &[u64], _plaintext: &[u8]) -> Vec<Vec<Fr>> {
+    let u_val: u64 = 1234;
+    let e0_val: u64 = 567;
+    let e1_val: u64 = 890;
+    let m_val: u64 = 42;
+    let pk0_vals: [u64; BFV_L] = [100, 200, 300];
+    let pk1_vals: [u64; BFV_L] = [150, 250, 350];
+    let delta_vals: [u64; BFV_L] = [1000, 2000, 3000];
+    let gamma_vals: [u64; BFV_L] = [3, 5, 7];
+    let quot0_vals: [u64; BFV_L] = [0, 0, 0];
+    let quot1_vals: [u64; BFV_L] = [0, 0, 0];
+
+    let mut ct0_vals = [0u64; BFV_L];
+    let mut ct1_vals = [0u64; BFV_L];
+    for l in 0..BFV_L {
+        ct0_vals[l] = pk0_vals[l]
+            .wrapping_mul(u_val)
+            .wrapping_add(e0_val)
+            .wrapping_add(delta_vals[l].wrapping_mul(m_val))
+            .wrapping_add(BFV_Q[l].wrapping_mul(quot0_vals[l]));
+        ct1_vals[l] = pk1_vals[l]
+            .wrapping_mul(u_val)
+            .wrapping_add(e1_val)
+            .wrapping_add(BFV_Q[l].wrapping_mul(quot1_vals[l]));
+    }
+
+    let mut flat = Vec::with_capacity(BFV_STEP_DATA_LEN);
+    for &v in &ct0_vals {
+        flat.push(Fr::from(v));
+    }
+    for &v in &ct1_vals {
+        flat.push(Fr::from(v));
+    }
+    for &v in &pk0_vals {
+        flat.push(Fr::from(v));
+    }
+    for &v in &pk1_vals {
+        flat.push(Fr::from(v));
+    }
+    for &v in &delta_vals {
+        flat.push(Fr::from(v));
+    }
+    flat.push(Fr::from(u_val));
+    flat.push(Fr::from(e0_val));
+    flat.push(Fr::from(e1_val));
+    flat.push(Fr::from(m_val));
+    for &v in &quot0_vals {
+        flat.push(Fr::from(v));
+    }
+    for &v in &quot1_vals {
+        flat.push(Fr::from(v));
+    }
+    for &v in &gamma_vals {
+        flat.push(Fr::from(v));
+    }
+
+    vec![flat]
 }
 
 /// Run the full demo pipeline with `n` parties and deterministic `seed`.

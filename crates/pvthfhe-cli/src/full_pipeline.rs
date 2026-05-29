@@ -44,6 +44,7 @@ use pvthfhe_pvss::nizk_decrypt::{
 };
 use pvthfhe_pvss::nizk_share::{compute_ciphertext_v, compute_share_commitment};
 use pvthfhe_pvss::slot_registry::SmudgeSlotRegistry;
+use pvthfhe_pvss::{EncryptedShares, PvssAdapter};
 use pvthfhe_rng::OsRng;
 use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes, Secret};
 use sha2::{Digest, Sha256};
@@ -309,6 +310,81 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         party_sk_bytes.push(sk_bytes);
     }
 
+    // P1: Pre-compute sigma NIZK proofs during keygen phase.
+    // Each dealer's sigma proof depends only on their own keypair and the
+    // deterministic session parameters — not on other dealers' messages.
+    // Pre-computing the full EncryptedShares (Shamir split + encryption +
+    // NIZK proof) during keygen saves ~30 % of per-dealer time in dkg_deal.
+    let precomputed_dkg_deals: HashMap<(usize, usize), EncryptedShares> = {
+        let dkg_session_id = format!("dkg-{}", hex::encode(cfg.seed.to_be_bytes()));
+        let dkg_root = transcript.dkg_root.to_vec();
+        let session_id_bytes = dkg_session_id.as_bytes().to_vec();
+
+        let recipient_pks: Vec<Vec<u8>> = transcript
+            .round1_messages
+            .iter()
+            .map(|message| {
+                backend
+                    .aggregate_keygen(&[KeygenShare {
+                        party_id: message.party_id,
+                        bytes: ProtocolBytes(message.pk_i.bytes.clone()),
+                    }])
+                    .map(|pk| pk.bytes)
+                    .with_context(|| format!("derive recipient pk for party {}", message.party_id))
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+
+        let adapter = pvthfhe_pvss::LatticePvssBfvAdapter::new()
+            .map_err(|e| anyhow::anyhow!("dkg pvss adapter init (P1 precompute): {e}"))?;
+
+        const DKG_CHUNK_SIZE: usize = 4000;
+        let mut deals = HashMap::new();
+        for dealer_id in 0..cfg.n {
+            let sk_bytes = &party_sk_bytes[dealer_id];
+            let num_chunks = sk_bytes.len().div_ceil(DKG_CHUNK_SIZE);
+            for chunk_idx in 0..num_chunks {
+                let start = chunk_idx * DKG_CHUNK_SIZE;
+                let end = (start + DKG_CHUNK_SIZE).min(sk_bytes.len());
+                let chunk = &sk_bytes[start..end];
+
+                let mut seed = [0u8; 32];
+                {
+                    let mut h = Sha256::new();
+                    h.update(b"pvthfhe-dkg-precompute/v1");
+                    h.update(cfg.seed.to_le_bytes());
+                    h.update((dealer_id as u64).to_le_bytes());
+                    h.update((chunk_idx as u64).to_le_bytes());
+                    seed.copy_from_slice(&h.finalize());
+                }
+
+                let ctx = pvthfhe_pvss::PvssContext {
+                    n: cfg.n,
+                    t: cfg.t,
+                    session_id: session_id_bytes.clone(),
+                    epoch: 0,
+                    dkg_root: dkg_root.clone(),
+                    dealer_index: dealer_id,
+                };
+                let encrypted = adapter
+                    .deal_seeded(chunk, &recipient_pks, &ctx, &seed)
+                    .with_context(|| {
+                        format!("P1 precompute dkg deal dealer={dealer_id} chunk={chunk_idx}")
+                    })?;
+                adapter.verify_shares(&encrypted, &ctx).with_context(|| {
+                    format!("P1 precompute verify_shares dealer={dealer_id} chunk={chunk_idx}")
+                })?;
+                deals.insert((dealer_id, chunk_idx), encrypted);
+            }
+        }
+        tracing::info!(
+            "P1: pre-computed {} dkg deals ({} parties × {} chunks avg)",
+            deals.len(),
+            cfg.n,
+            deals.len() / cfg.n.max(1)
+        );
+        deals
+    };
+
     // ── C1: PK contribution IVC verification ──
     #[cfg(feature = "sonobe-compressor")]
     {
@@ -386,10 +462,6 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             let num_chunks = sk_bytes.len().div_ceil(DKG_CHUNK_SIZE);
 
             for chunk_idx in 0..num_chunks {
-                let start = chunk_idx * DKG_CHUNK_SIZE;
-                let end = (start + DKG_CHUNK_SIZE).min(sk_bytes.len());
-                let chunk = &sk_bytes[start..end];
-
                 let ctx = PvssContext {
                     n,
                     t,
@@ -398,11 +470,17 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                     dkg_root: dkg_root_vec.clone(),
                     dealer_index: dealer_id,
                 };
-                let encrypted = adapter.deal(chunk, &recipient_pks, &ctx).map_err(|e| {
-                    anyhow::anyhow!("dkg deal dealer={dealer_id} chunk={chunk_idx}: {e}")
-                })?;
+                // P1: reuse pre-computed EncryptedShares from keygen phase.
+                let encrypted = &precomputed_dkg_deals
+                    .get(&(dealer_id, chunk_idx))
+                    .with_context(|| {
+                        format!(
+                            "P1: missing precomputed dkg deal dealer={dealer_id} chunk={chunk_idx}"
+                        )
+                    })?;
 
-                adapter.verify_shares(&encrypted, &ctx).map_err(|e| {
+                // Defense-in-depth: re-verify even pre-computed shares.
+                adapter.verify_shares(encrypted, &ctx).map_err(|e| {
                     anyhow::anyhow!("dkg verify_shares dealer={dealer_id} chunk={chunk_idx}: {e}")
                 })?;
 

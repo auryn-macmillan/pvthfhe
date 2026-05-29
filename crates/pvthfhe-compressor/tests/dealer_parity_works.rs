@@ -2,10 +2,12 @@
 
 use ark_bn254::Fr;
 use ark_ff::{AdditiveGroup, Field, PrimeField, UniformRand, Zero};
+use pvthfhe_compressor::nova::dealer_parity_circuit::DEALER_PARITY_P0_COMMITMENT;
 use pvthfhe_compressor::nova::{
     clear_dealer_parity_data, encode_triple, set_dealer_parity_data, DealerParityStepCircuit,
     NovaCompressor,
 };
+use pvthfhe_compressor::witness::poseidon_sponge_hash_native;
 use pvthfhe_compressor::ProofCompressor;
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
@@ -74,7 +76,12 @@ fn dealer_parity_circuit_roundtrip() {
         .map(|(&s, &f)| s * f)
         .fold(Fr::ZERO, |acc, x| acc + x);
     assert!(native_dot.is_zero());
+    let expected_commitment = poseidon_sponge_hash_native(&[secret]);
     set_dealer_parity_data(share_values.clone(), factors.clone(), Some(secret));
+    let stored_commitment = DEALER_PARITY_P0_COMMITMENT
+        .with(|cell| *cell.borrow())
+        .expect("p0 commitment should be set");
+    assert_eq!(stored_commitment, expected_commitment);
     let compressor = NovaCompressor::<DealerParityStepCircuit<Fr>>::new([0u8; 32], 1)
         .expect("construct compressor");
     let acc = encode_triple((Fr::ZERO, Fr::ZERO, Fr::ZERO));

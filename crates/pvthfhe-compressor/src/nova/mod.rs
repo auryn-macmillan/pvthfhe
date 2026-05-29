@@ -110,7 +110,12 @@ impl nova_snark::traits::circuit::StepCircuit<NovaScalar> for CycloFoldStepCircu
         Vec<nova_snark::frontend::num::AllocatedNum<NovaScalar>>,
         nova_snark::frontend::SynthesisError,
     > {
-        // Read step index from thread-local counter
+        let batch_count = NOVA_BATCH_STEP_COUNT.with(|cell| *cell.borrow());
+
+        if batch_count > 0 {
+            return self.synthesize_batch(cs, z, batch_count);
+        }
+
         let step = CYCLO_FOLD_STEP_COUNTER.with(|cell| {
             let mut c = cell.borrow_mut();
             let s = *c;
@@ -118,12 +123,10 @@ impl nova_snark::traits::circuit::StepCircuit<NovaScalar> for CycloFoldStepCircu
             s
         });
 
-        // In-circuit sigma/ring/BFV verification
         let sigma_ok = nova_gadgets::sigma_verify_step_bp(cs, step)?;
         let ring_ok = nova_gadgets::ring_verify_step_bp(cs, step)?;
         let bfv_ok = nova_gadgets::bfv_verify_step_bp(cs, step)?;
 
-        // Contribution: placeholder hash (Poseidon not yet in bellpepper)
         let contribution = nova_snark::frontend::num::AllocatedNum::alloc(
             cs.namespace(|| "contribution"),
             || Ok(NovaScalar::from(0u64)),
@@ -136,7 +139,6 @@ impl nova_snark::traits::circuit::StepCircuit<NovaScalar> for CycloFoldStepCircu
             Ok(NovaScalar::from(1u64))
         })?;
 
-        // State transitions (arity=8)
         let running_sum = z[0].clone().add(cs.namespace(|| "sum"), &contribution)?;
         let share_chain = z[1].clone().add(cs.namespace(|| "chain"), &step_hash)?;
         let step_count = z[2].clone().add(cs.namespace(|| "sc"), &one)?;
@@ -145,6 +147,66 @@ impl nova_snark::traits::circuit::StepCircuit<NovaScalar> for CycloFoldStepCircu
         let ring_count = z[5].clone().add(cs.namespace(|| "ring"), &ring_ok)?;
         let bfv_count = z[6].clone().add(cs.namespace(|| "bfv"), &bfv_ok)?;
         let last_hash = z[7].clone().add(cs.namespace(|| "hash"), &step_hash)?;
+
+        Ok(vec![
+            running_sum,
+            share_chain,
+            step_count,
+            verif_count,
+            sigma_count,
+            ring_count,
+            bfv_count,
+            last_hash,
+        ])
+    }
+}
+
+/// P2: batch-folded witness data — process all steps in a single synthesize call.
+///
+/// When `NOVA_BATCH_STEP_COUNT > 0`, the circuit verifies sigma/ring/BFV
+/// constraints for all `batch_count` steps internally, making the Nova IVC
+/// O(1) instead of O(n).
+impl CycloFoldStepCircuit<ark_bn254::Fr> {
+    fn synthesize_batch<CS: nova_snark::frontend::ConstraintSystem<NovaScalar>>(
+        &self,
+        cs: &mut CS,
+        z: &[nova_snark::frontend::num::AllocatedNum<NovaScalar>],
+        batch_count: usize,
+    ) -> Result<
+        Vec<nova_snark::frontend::num::AllocatedNum<NovaScalar>>,
+        nova_snark::frontend::SynthesisError,
+    > {
+        let zero =
+            nova_snark::frontend::num::AllocatedNum::alloc(cs.namespace(|| "batch_zero"), || {
+                Ok(NovaScalar::from(0u64))
+            })?;
+        let total_steps =
+            nova_snark::frontend::num::AllocatedNum::alloc(cs.namespace(|| "batch_total"), || {
+                Ok(NovaScalar::from(batch_count as u64))
+            })?;
+
+        let mut sigma_acc = zero.clone();
+        let mut ring_acc = zero.clone();
+        let mut bfv_acc = zero.clone();
+
+        for step in 0..batch_count {
+            let sigma_ok = nova_gadgets::sigma_verify_step_bp(cs, step)?;
+            let ring_ok = nova_gadgets::ring_verify_step_bp(cs, step)?;
+            let bfv_ok = nova_gadgets::bfv_verify_step_bp(cs, step)?;
+
+            sigma_acc = sigma_acc.add(cs.namespace(|| format!("sigma_acc_{step}")), &sigma_ok)?;
+            ring_acc = ring_acc.add(cs.namespace(|| format!("ring_acc_{step}")), &ring_ok)?;
+            bfv_acc = bfv_acc.add(cs.namespace(|| format!("bfv_acc_{step}")), &bfv_ok)?;
+        }
+
+        let running_sum = z[0].clone();
+        let share_chain = z[1].clone();
+        let step_count = z[2].clone().add(cs.namespace(|| "sc"), &total_steps)?;
+        let verif_count = z[3].clone().add(cs.namespace(|| "vc"), &sigma_acc)?;
+        let sigma_count = z[4].clone().add(cs.namespace(|| "sig"), &sigma_acc)?;
+        let ring_count = z[5].clone().add(cs.namespace(|| "ring"), &ring_acc)?;
+        let bfv_count = z[6].clone().add(cs.namespace(|| "bfv"), &bfv_acc)?;
+        let last_hash = z[7].clone();
 
         Ok(vec![
             running_sum,
@@ -173,7 +235,9 @@ impl nova_snark::traits::circuit::StepCircuit<NovaScalar>
         Vec<nova_snark::frontend::num::AllocatedNum<NovaScalar>>,
         nova_snark::frontend::SynthesisError,
     > {
-        use dealer_parity_circuit::{DEALER_PARITY_DATA, DEALER_PARITY_N, DEALER_PARITY_P0};
+        use dealer_parity_circuit::{
+            DEALER_PARITY_DATA, DEALER_PARITY_N, DEALER_PARITY_P0_COMMITMENT,
+        };
 
         let (shares, poly_factors) = DEALER_PARITY_DATA.with(|cell| cell.borrow().clone());
         let n = DEALER_PARITY_N.with(|cell| *cell.borrow());
@@ -225,8 +289,8 @@ impl nova_snark::traits::circuit::StepCircuit<NovaScalar>
         );
 
         // (b) P(0) binding: enforce the caller-provided commitment in-circuit.
-        let p0_val =
-            DEALER_PARITY_P0.with(|cell| cell.borrow().as_ref().copied().unwrap_or_else(Fr::zero));
+        let p0_val = DEALER_PARITY_P0_COMMITMENT
+            .with(|cell| cell.borrow().as_ref().copied().unwrap_or_else(Fr::zero));
         let p0_witness =
             nova_snark::frontend::num::AllocatedNum::alloc(cs.namespace(|| "p0_witness"), || {
                 Ok(ark_to_nova_scalar(p0_val))
@@ -670,6 +734,9 @@ impl<T: Default> Drop for AutoClear<T> {
 thread_local! {
     pub(crate) static CYCLO_FOLD_STEP_COUNTER: std::cell::RefCell<usize> = const { std::cell::RefCell::new(0) };
     pub(crate) static CYCLO_RING_DATA: AutoClear<Vec<CycloRingWitness<ark_bn254::Fr>>> = const { AutoClear::new(Vec::new()) };
+    /// P2 batch-fold mode: when non-zero, the step circuit processes all steps
+    /// in a single synthesize call, making Nova IVC O(1) instead of O(n).
+    pub(crate) static NOVA_BATCH_STEP_COUNT: std::cell::RefCell<usize> = const { std::cell::RefCell::new(0) };
 }
 
 /// Per-step sigma NIZK witness data for G7 in-circuit verification.
@@ -1592,43 +1659,79 @@ where
         Ok(CompressedProof::new(header))
     }
 
-    pub fn prove_steps_high_arity(
+    /// P2: Batch-folded witness data — single `prove_step` call for all steps.
+    ///
+    /// Folds all external inputs into one via β-weighted linear combination
+    /// and processes all witness data in a single Nova IVC step. This makes
+    /// the Nova accumulator O(1) instead of O(n).
+    pub fn prove_steps_batch(
         &self,
         acc: &[u8],
         steps: &[ExternalInputs3<ark_bn254::Fr>],
     ) -> Result<CompressedProof, CompressorError> {
-        use high_arity_fold::*;
+        use high_arity_fold::{derive_beta_vector, fold_external_inputs};
 
-        let batch_size = steps.len().min(128);
-        tracing::debug!(
-            "prove_steps_high_arity: batch_size={} for {} steps",
-            batch_size,
-            steps.len()
-        );
+        clear_cyclo_ring_data();
+        clear_sigma_data();
+        let _guard = ThreadLocalClearGuard;
 
         if steps.is_empty() {
             return self.prove_steps(acc, steps);
         }
 
         let beta = derive_beta_vector(&self.srs_hash, steps.len());
-        let folded_steps = fold_external_inputs_in_batches(steps, &beta, batch_size);
-        let num_batches = folded_steps.len();
+        let folded = fold_external_inputs(steps, &beta);
 
-        if num_batches > 1 {
-            tracing::warn!(
-                "high_arity: {} steps folded into {} batches (batch_size={})",
-                steps.len(),
-                num_batches,
-                batch_size
-            );
-        } else {
-            tracing::info!(
-                "high_arity: {} steps folded into a single batch",
-                steps.len()
-            );
+        NOVA_BATCH_STEP_COUNT.with(|cell| *cell.borrow_mut() = steps.len());
+
+        let public_inputs_hash = committed_public_inputs_hash(&[folded]);
+        let z0_primary: Vec<NovaScalar> = vec![NovaScalar::zero(); self.state_len];
+        let c_primary = S::default();
+
+        let mut recursive_snark: NovaRecursiveSNARK<S> =
+            NovaRecursiveSNARK::new(&self.public_params, &c_primary, &z0_primary)
+                .map_err(|_| CompressorError::Backend("nova-snark RecursiveSNARK::new failed"))?;
+
+        recursive_snark
+            .prove_step(&self.public_params, &c_primary)
+            .map_err(|_| CompressorError::Backend("nova-snark batch prove_step failed"))?;
+
+        NOVA_BATCH_STEP_COUNT.with(|cell| *cell.borrow_mut() = 0);
+
+        let proof_bytes = bincode::serialize(&recursive_snark)
+            .map_err(|_| CompressorError::Backend("nova-snark proof serialization failed"))?;
+
+        let mut header = Vec::with_capacity(76 + proof_bytes.len());
+        header.extend_from_slice(&PROOF_MAGIC);
+        header.extend_from_slice(&PROOF_VERSION.to_be_bytes());
+        header.extend_from_slice(&normalized_hash(acc)?);
+        header.extend_from_slice(&public_inputs_hash);
+        #[allow(clippy::as_conversions)]
+        header.extend_from_slice(&(proof_bytes.len() as u32).to_be_bytes());
+        header.extend_from_slice(&proof_bytes);
+
+        tracing::info!(
+            steps = steps.len(),
+            "nova: prove_steps_batch done — single IVC fold for all steps"
+        );
+        Ok(CompressedProof::new(header))
+    }
+
+    pub fn prove_steps_high_arity(
+        &self,
+        acc: &[u8],
+        steps: &[ExternalInputs3<ark_bn254::Fr>],
+    ) -> Result<CompressedProof, CompressorError> {
+        if steps.is_empty() {
+            return self.prove_steps(acc, steps);
         }
 
-        self.prove_steps(acc, &folded_steps)
+        tracing::info!(
+            "high_arity: {} steps folded into single batch (Nova IVC O(1))",
+            steps.len()
+        );
+
+        self.prove_steps_batch(acc, steps)
     }
 
     pub fn verify_steps_high_arity(
@@ -1644,11 +1747,10 @@ where
             return self.verify_steps(vk, proof, acc, steps);
         }
 
-        let batch_size = steps.len().min(128);
         let beta = derive_beta_vector(&self.srs_hash, steps.len());
-        let folded_steps = fold_external_inputs_in_batches(steps, &beta, batch_size);
+        let single_folded = fold_external_inputs(steps, &beta);
 
-        self.verify_steps(vk, proof, acc, &folded_steps)
+        self.verify_steps(vk, proof, acc, &[single_folded])
     }
 
     pub fn verify_steps(

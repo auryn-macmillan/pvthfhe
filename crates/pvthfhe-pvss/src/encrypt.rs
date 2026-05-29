@@ -180,94 +180,7 @@ impl PvssAdapter for LatticePvssBfvAdapter {
         recipient_pks: &[Vec<u8>],
         ctx: &PvssContext,
     ) -> Result<EncryptedShares, PvssError> {
-        validate_context(ctx)?;
-        if recipient_pks.len() != ctx.n {
-            return Err(PvssError::InvalidShare);
-        }
-
-        // Convert the raw secret bytes into BN254 scalar field elements.
-        // Chunk size of 31 bytes guarantees lossless embedding (2^248 < Fr modulus).
-        let secret_frs = secret_to_frs(secret);
-        let num_chunks = secret_frs.len();
-
-        // For each chunk, produce a separate Shamir sharing.
-        // Collect per-party share Fr values keyed by party index.
-        let mut rng = OsRng;
-        let mut party_shares: Vec<Vec<Fr>> = vec![Vec::with_capacity(num_chunks); ctx.n];
-
-        for secret_fr in &secret_frs {
-            let chunk_shares = shamir::split(secret_fr, ctx.n, ctx.t, &mut rng)
-                .map_err(|e| PvssError::BackendError(format!("shamir split: {e}")))?;
-            for (x, share_value) in chunk_shares {
-                // x is 1-based index; convert to 0-based for the per-party vectors.
-                party_shares[x - 1].push(share_value);
-            }
-        }
-
-        let chunk_shares: Vec<Vec<Fr>> = (0..num_chunks)
-            .map(|chunk| party_shares.iter().map(|ps| ps[chunk]).collect())
-            .collect();
-
-        let all_share_bytes: Vec<Vec<u8>> = party_shares
-            .iter()
-            .map(|shares| serialize_share_payload(shares, secret.len()))
-            .collect();
-
-        let mut ciphertexts = Vec::with_capacity(ctx.n);
-        let mut proofs = Vec::with_capacity(ctx.n);
-        let dkg_root = share_proof_dkg_root(ctx)?;
-        let bfv_params_digest = canonical_bfv_params_digest().to_vec();
-
-        for (index, (share_bytes, recipient_pk_bytes)) in
-            all_share_bytes.iter().zip(recipient_pks.iter()).enumerate()
-        {
-            let recipient_pk = PublicKey {
-                bytes: recipient_pk_bytes.clone(),
-            };
-            let mut randomness = [0u8; 32];
-            OsRng.fill_bytes(&mut randomness);
-            let mut enc_rng = rand_chacha::ChaCha20Rng::from_seed(randomness);
-            let ciphertext_u = self
-                .backend
-                .encrypt(&recipient_pk, share_bytes, &mut enc_rng)
-                .map(|ciphertext| ciphertext.bytes)
-                .map_err(map_fhe_error)?;
-
-            let share_commitment = compute_share_commitment(&ctx.session_id, index, share_bytes);
-            let ciphertext_v = compute_ciphertext_v(&ciphertext_u);
-            let statement = ShareNizkStatement {
-                session_id: ProtocolBytes(ctx.session_id.clone()),
-                dealer_index: ctx.dealer_index,
-                recipient_index: index,
-                recipient_pk: ProtocolBytes(recipient_pk_bytes.clone()),
-                bfv_params_digest: ProtocolBytes(bfv_params_digest.clone()),
-                dkg_root: ProtocolBytes(dkg_root.clone()),
-                ciphertext_u: ProtocolBytes(ciphertext_u.clone()),
-                ciphertext_v: ProtocolBytes(ciphertext_v.to_vec()),
-                share_commitment: ProtocolBytes(share_commitment.to_vec()),
-            };
-            let witness = ShareNizkWitness {
-                share_bytes: ShareSecret::new(share_bytes.clone()),
-                encryption_randomness: EncRandomness::new(randomness.to_vec()),
-            };
-            let proof = ShareNizkProver::prove(self.backend.as_ref(), &statement, &witness, None)?;
-
-            ciphertexts.push(ciphertext_u);
-            proofs.push(proof.proof_bytes.0);
-        }
-
-        let enc_validity_data: Vec<u8> = ciphertexts.iter().flatten().copied().collect();
-        let parity_proof_bytes =
-            crate::parity::prove_parity(&chunk_shares, ctx.n, ctx.t, secret, &enc_validity_data)
-                .map(|pp| crate::parity::serialize_parity_proof(&pp));
-
-        Ok(EncryptedShares {
-            ciphertexts,
-            share_bytes: all_share_bytes.clone(),
-            proofs,
-            parity_proof: parity_proof_bytes,
-            backend_id: BACKEND_ID.to_owned(),
-        })
+        self.deal_with_rng(secret, recipient_pks, ctx, &mut OsRng)
     }
 
     fn verify_shares(&self, shares: &EncryptedShares, ctx: &PvssContext) -> Result<(), PvssError> {
@@ -811,4 +724,117 @@ pub fn compute_poly_factors(n: usize, t: usize, r: ark_bn254::Fr) -> Vec<ark_bn2
 
 fn map_fhe_error(error: FheError) -> PvssError {
     PvssError::BackendError(error.to_string())
+}
+
+// ── Deterministic deal path (P1: pre-computation during keygen) ────────
+
+impl LatticePvssBfvAdapter {
+    /// Deterministic deal: same logic as [`PvssAdapter::deal`] but with a
+    /// seeded RNG so the output is reproducible across calls.
+    ///
+    /// **⚠️ RESEARCH ONLY** — see [`deal_seeded`].
+    pub fn deal_seeded(
+        &self,
+        secret: &[u8],
+        recipient_pks: &[Vec<u8>],
+        ctx: &PvssContext,
+        seed: &[u8; 32],
+    ) -> Result<EncryptedShares, PvssError> {
+        use rand::SeedableRng;
+        use rand_chacha::ChaCha20Rng;
+        let mut shamir_rng = ChaCha20Rng::from_seed(*seed);
+        self.deal_with_rng(secret, recipient_pks, ctx, &mut shamir_rng)
+    }
+
+    /// Shared deal implementation parameterised by a supplied RNG.
+    fn deal_with_rng<R: RngCore>(
+        &self,
+        secret: &[u8],
+        recipient_pks: &[Vec<u8>],
+        ctx: &PvssContext,
+        rng: &mut R,
+    ) -> Result<EncryptedShares, PvssError> {
+        validate_context(ctx)?;
+        if recipient_pks.len() != ctx.n {
+            return Err(PvssError::InvalidShare);
+        }
+
+        let secret_frs = secret_to_frs(secret);
+        let num_chunks = secret_frs.len();
+
+        let mut party_shares: Vec<Vec<Fr>> = vec![Vec::with_capacity(num_chunks); ctx.n];
+
+        for secret_fr in &secret_frs {
+            let chunk_shares = shamir::split(secret_fr, ctx.n, ctx.t, rng)
+                .map_err(|e| PvssError::BackendError(format!("shamir split: {e}")))?;
+            for (x, share_value) in chunk_shares {
+                party_shares[x - 1].push(share_value);
+            }
+        }
+
+        let chunk_shares: Vec<Vec<Fr>> = (0..num_chunks)
+            .map(|chunk| party_shares.iter().map(|ps| ps[chunk]).collect())
+            .collect();
+
+        let all_share_bytes: Vec<Vec<u8>> = party_shares
+            .iter()
+            .map(|shares| serialize_share_payload(shares, secret.len()))
+            .collect();
+
+        let mut ciphertexts = Vec::with_capacity(ctx.n);
+        let mut proofs = Vec::with_capacity(ctx.n);
+        let dkg_root = share_proof_dkg_root(ctx)?;
+        let bfv_params_digest = canonical_bfv_params_digest().to_vec();
+
+        for (index, (share_bytes, recipient_pk_bytes)) in
+            all_share_bytes.iter().zip(recipient_pks.iter()).enumerate()
+        {
+            let recipient_pk = PublicKey {
+                bytes: recipient_pk_bytes.clone(),
+            };
+            let mut randomness = [0u8; 32];
+            rng.fill_bytes(&mut randomness);
+            let mut enc_rng = rand_chacha::ChaCha20Rng::from_seed(randomness);
+            let ciphertext_u = self
+                .backend
+                .encrypt(&recipient_pk, share_bytes, &mut enc_rng)
+                .map(|ciphertext| ciphertext.bytes)
+                .map_err(map_fhe_error)?;
+
+            let share_commitment = compute_share_commitment(&ctx.session_id, index, share_bytes);
+            let ciphertext_v = compute_ciphertext_v(&ciphertext_u);
+            let statement = ShareNizkStatement {
+                session_id: ProtocolBytes(ctx.session_id.clone()),
+                dealer_index: ctx.dealer_index,
+                recipient_index: index,
+                recipient_pk: ProtocolBytes(recipient_pk_bytes.clone()),
+                bfv_params_digest: ProtocolBytes(bfv_params_digest.clone()),
+                dkg_root: ProtocolBytes(dkg_root.clone()),
+                ciphertext_u: ProtocolBytes(ciphertext_u.clone()),
+                ciphertext_v: ProtocolBytes(ciphertext_v.to_vec()),
+                share_commitment: ProtocolBytes(share_commitment.to_vec()),
+            };
+            let witness = ShareNizkWitness {
+                share_bytes: ShareSecret::new(share_bytes.clone()),
+                encryption_randomness: EncRandomness::new(randomness.to_vec()),
+            };
+            let proof = ShareNizkProver::prove(self.backend.as_ref(), &statement, &witness, None)?;
+
+            ciphertexts.push(ciphertext_u);
+            proofs.push(proof.proof_bytes.0);
+        }
+
+        let enc_validity_data: Vec<u8> = ciphertexts.iter().flatten().copied().collect();
+        let parity_proof_bytes =
+            crate::parity::prove_parity(&chunk_shares, ctx.n, ctx.t, secret, &enc_validity_data)
+                .map(|pp| crate::parity::serialize_parity_proof(&pp));
+
+        Ok(EncryptedShares {
+            ciphertexts,
+            share_bytes: all_share_bytes.clone(),
+            proofs,
+            parity_proof: parity_proof_bytes,
+            backend_id: BACKEND_ID.to_owned(),
+        })
+    }
 }

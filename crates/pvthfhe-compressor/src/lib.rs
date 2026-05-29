@@ -43,6 +43,8 @@ pub struct CompressedProof {
     pub ivc_proof_hash: Option<[u8; 32]>,
     pub ivc_binding: Option<crate::nova::snark_bridge::IvcBindingData>,
     pub share_verification_hash: Option<[u8; 32]>,
+    /// Hash of all sigma witness data bound to this proof (H2).
+    pub sigma_data_hash: Option<[u8; 32]>,
 }
 
 impl CompressedProof {
@@ -52,6 +54,7 @@ impl CompressedProof {
             ivc_proof_hash: None,
             ivc_binding: None,
             share_verification_hash: None,
+            sigma_data_hash: None,
         }
     }
 

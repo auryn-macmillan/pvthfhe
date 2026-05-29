@@ -74,6 +74,7 @@ pub fn wrap_nova_instance<S>(
     verifier_key_bytes: &[u8],
     state_len: usize,
     _seed: u64,
+    share_verification_hash: [u8; 32],
 ) -> Result<SnarkWrappedProof, CompressorError>
 where
     S: FCircuit<Fr> + Clone + core::fmt::Debug,
@@ -123,7 +124,7 @@ where
             z0_commitment,
             zi_commitment,
             ivc_steps,
-            share_verification_hash: [0u8; 32],
+            share_verification_hash,
         },
     })
 }

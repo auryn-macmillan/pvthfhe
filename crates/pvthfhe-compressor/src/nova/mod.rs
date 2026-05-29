@@ -740,6 +740,23 @@ pub fn clear_sigma_data() {
     });
 }
 
+/// Compute a Keccak256 hash of all sigma witness data for binding into IVC proofs.
+/// Returns [0u8; 32] when no sigma data is present (e.g. non-sigma pipeline paths).
+pub fn compute_share_verification_hash() -> [u8; 32] {
+    SIGMA_DATA.with(|cell| {
+        let data = cell.inner().borrow();
+        if data.is_empty() {
+            return [0u8; 32];
+        }
+        let mut hasher = Keccak256::new();
+        hasher.update(b"pvthfhe-share-verify-hash-v1");
+        for witness in data.iter() {
+            hasher.update(&witness.transcript_commitment);
+        }
+        hasher.finalize().into()
+    })
+}
+
 fn step_public_input_commitments(steps: &[ExternalInputs3<Fr>]) -> Vec<[u8; 32]> {
     steps
         .iter()
@@ -1857,6 +1874,7 @@ impl<
             &self.verifier_key_bytes,
             self.state_len,
             snark_seed,
+            compute_share_verification_hash(),
         )?;
 
         let snark_proof = if snark_result.snark_proof_bytes.is_empty() {
@@ -1876,6 +1894,7 @@ impl<
         let mut proof = CompressedProof::new(proof_bytes);
         proof.ivc_proof_hash = Some(snark_result.pp_hash);
         proof.ivc_binding = Some(snark_result.ivc_binding);
+        proof.sigma_data_hash = Some(compute_share_verification_hash());
         Ok(proof)
     }
 
@@ -1974,6 +1993,7 @@ impl ProofCompressor for NovaCompressor<CycloFoldStepCircuit<Fr>> {
             &self.verifier_key_bytes,
             self.state_len,
             snark_seed,
+            compute_share_verification_hash(),
         )?;
 
         let snark_proof_bytes = if snark_result.snark_proof_bytes.is_empty() {
@@ -1993,6 +2013,7 @@ impl ProofCompressor for NovaCompressor<CycloFoldStepCircuit<Fr>> {
         let mut proof = CompressedProof::new(proof_bytes);
         proof.ivc_proof_hash = Some(snark_result.pp_hash);
         proof.ivc_binding = Some(snark_result.ivc_binding);
+        proof.sigma_data_hash = Some(compute_share_verification_hash());
         Ok(proof)
     }
 
@@ -2128,6 +2149,7 @@ impl<
             &self.verifier_key_bytes,
             self.state_len,
             snark_seed,
+            compute_share_verification_hash(),
         )?;
 
         tracing::info!(
@@ -2138,6 +2160,7 @@ impl<
         let mut proof = CompressedProof::new(proof_bytes);
         proof.ivc_proof_hash = Some(snark_result.pp_hash);
         proof.ivc_binding = Some(snark_result.ivc_binding);
+        proof.sigma_data_hash = Some(compute_share_verification_hash());
         Ok(proof)
     }
 
@@ -2264,6 +2287,7 @@ impl NovaCompressor<CycloFoldStepCircuit<Fr>> {
             &self.verifier_key_bytes,
             self.state_len,
             snark_seed,
+            compute_share_verification_hash(),
         )?;
 
         tracing::info!(
@@ -2274,6 +2298,7 @@ impl NovaCompressor<CycloFoldStepCircuit<Fr>> {
         let mut proof = CompressedProof::new(proof_bytes);
         proof.ivc_proof_hash = Some(snark_result.pp_hash);
         proof.ivc_binding = Some(snark_result.ivc_binding);
+        proof.sigma_data_hash = Some(compute_share_verification_hash());
         Ok(proof)
     }
 
@@ -2469,6 +2494,7 @@ impl<
             &self.verifier_key_bytes,
             self.state_len,
             snark_seed,
+            compute_share_verification_hash(),
         )?;
 
         tracing::info!(
@@ -2479,6 +2505,7 @@ impl<
         let mut proof = CompressedProof::new(proof_bytes);
         proof.ivc_proof_hash = Some(snark_result.pp_hash);
         proof.ivc_binding = Some(snark_result.ivc_binding);
+        proof.sigma_data_hash = Some(compute_share_verification_hash());
         Ok(proof)
     }
 
@@ -2593,6 +2620,7 @@ impl<
             &self.verifier_key_bytes,
             self.state_len,
             snark_seed,
+            compute_share_verification_hash(),
         )?;
 
         tracing::info!(
@@ -2603,6 +2631,7 @@ impl<
         let mut proof = CompressedProof::new(proof_bytes);
         proof.ivc_proof_hash = Some(snark_result.pp_hash);
         proof.ivc_binding = Some(snark_result.ivc_binding);
+        proof.sigma_data_hash = Some(compute_share_verification_hash());
         Ok(proof)
     }
 
@@ -2720,7 +2749,7 @@ fn verify_ivc_core<S: FCircuit<Fr, Params = ()>>(
         // With SIGMA_REPETITIONS rounds per fold step, sigma_count accumulates
         // k per step instead of 1. Check fold_count * k == sigma_count.
         let expected_sigma_count = fold_count * Fr::from(SIGMA_REPETITIONS as u64);
-        if sigma_count != Fr::zero() && expected_sigma_count != sigma_count {
+        if expected_sigma_count != sigma_count {
             tracing::warn!(
                 "fold_count {:?} != sigma_verification_count {:?}",
                 fold_count,
@@ -2734,7 +2763,7 @@ fn verify_ivc_core<S: FCircuit<Fr, Params = ()>>(
         // Only enforce bfv_count == fold_count when bfv data was actually
         // populated. If bfv_count is 0, assume the pipeline path doesn't
         // include bfv verification (Track A / data-absent paths).
-        if bfv_count != Fr::zero() && fold_count != bfv_count {
+        if fold_count != bfv_count {
             tracing::warn!(
                 "fold_count {:?} != bfv_verification_count {:?}",
                 fold_count,

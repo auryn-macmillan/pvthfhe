@@ -591,7 +591,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 .verify_steps_high_arity(&c4_vk, &c4_proof, &c4_acc, &external_inputs)
                 .map_err(|e| anyhow::anyhow!("c4 verify: {e:?}"))?;
             if !c4_passed {
-                tracing::warn!("c4: DKG aggregation IVC verification FAILED (known P3 limitation — Nova Nova verify bug)");
+                anyhow::bail!("c4: DKG aggregation IVC verification FAILED");
             } else {
                 tracing::info!("c4: DKG aggregation IVC verified ({} recipients)", n);
             }
@@ -1012,7 +1012,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             .verify_steps_high_arity(&c5_vk, &c5_proof, &c5_acc, &c5_steps)
             .map_err(|e| anyhow::anyhow!("c5 verify: {e:?}"))?;
         if !c5_passed {
-            tracing::warn!("c5: PK aggregation IVC verification FAILED (known P3 limitation — Nova Nova verify bug)");
+            anyhow::bail!("c5: PK aggregation IVC verification FAILED");
         } else {
             tracing::info!("c5: PK aggregation IVC verified ({} parties)", cfg.n);
         }

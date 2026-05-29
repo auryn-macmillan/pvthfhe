@@ -1,1 +1,12 @@
-{}
+{
+  "active_plan": "/home/dev/pvthfhe/.sisyphus/plans/perf-security-audit-may28.md",
+  "started_at": "2026-05-29T02:44:07.947Z",
+  "session_ids": [
+    "ses_1e864f9f1ffecXRmG0OjbjoCa3"
+  ],
+  "session_origins": {
+    "ses_1e864f9f1ffecXRmG0OjbjoCa3": "direct"
+  },
+  "plan_name": "perf-security-audit-may28",
+  "agent": "atlas"
+}

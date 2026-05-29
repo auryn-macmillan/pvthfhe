@@ -15,3 +15,91 @@ help: Check that the patched package version and available features are compatib
    Compiling pvthfhe-nizk v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-nizk)
 warning: pvthfhe-fhe@0.1.0: MOCK BACKEND ACTIVE — XOR/SHA256 ONLY. Set PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK=1 to use.
 warning: pvthfhe-aggregator@0.1.0: aggregator: folding uses CycloFoldStepCircuit with real Ajtai commitments (CycloNizkAdapter)
+   Compiling pvthfhe-fhe v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-fhe)
+   Compiling pvthfhe-cyclo v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-cyclo)
+   Compiling pvthfhe-pvss v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-pvss)
+   Compiling pvthfhe-keygen v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-keygen)
+   Compiling pvthfhe-aggregator v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-aggregator)
+   Compiling pvthfhe-compressor v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-compressor)
+   Compiling pvthfhe-bench v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-bench)
+   Compiling pvthfhe-cli v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-cli)
+    Finished `release` profile [optimized] target(s) in 26.93s
+     Running `target/release/pvthfhe-cli demo --n 10 --threshold 4 --seed 1`
+demo: n=10 threshold=4 seed=1
+pvss_backend_id=lattice-pvss-bfv-d2
+backend_id == "cyclo-ajtai-d2-conditional"
+backend_id_p2: cyclo-rlwe-t10-lemma9-heuristic
+backend_id_p3: nova-bn254-grumpkin
+note: on-chain Solidity verify is NOT run by demo (use bench-comparison)
+pvss_backend_id=lattice-pvss-bfv-d2
+[2m2026-05-28T23:53:59.924012Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m seed flag ignored in production path; will require --insecure-seed in future R3.6
+step 1/14: keygen (n=10 t=4 seed=1)
+keygen: complete (1982.208 ms)
+step 2/14: dkg_deal (n=10 dealers)
+dkg_deal: complete (589247.279 ms)
+step 3/14: dkg_aggregate (n=10 recipients)
+dkg_aggregate: complete (0.130 ms)
+step 4/14: dkg_fold (n=10 recipients)
+step 5/14: nizk_prove (dealer=1)
+step 6/14: nizk_verify (dealer=1 recipient=1)
+step 7/14: pvss_share_encrypt (lattice-pvss-bfv-d2)
+pvss_share_encrypt: complete (3532.585 ms)
+setup_threshold: complete (207.442 ms)
+step 8/14: cyclo_fold (cyclo-rlwe-t10-lemma9-heuristic)
+cyclo_fold: complete (14.276 ms)
+step 9/14: partial_decrypt (party_id=1)
+partial_decrypt: complete (2.869 ms)
+partial_decrypt: complete (2.619 ms)
+partial_decrypt: complete (2.613 ms)
+partial_decrypt: complete (2.607 ms)
+step 10/14: aggregate_decrypt
+aggregate_decrypt: complete (26.099 ms)
+step 11/14: c7_decrypt_aggregation
+c7_decrypt_aggregation: complete (1971.554 ms)
+step 12/14: compressor_prove (nova-bn254-grumpkin)
+compressor_prove: complete (31.043 ms)
+step 13/14: compressor_verify (nova-bn254-grumpkin)
+compressor_verify: complete (23.297 ms)
+step 14/14: c7_noir_aggregator
+[2m2026-05-29T00:04:22.032704Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m PVTHFHE_NARGO_PATH not set; resolving nargo from PATH (PATH injection risk)
+[aggregator_final] Circuit witness successfully solved
+[aggregator_final] Witness saved to target/aggregator_final.gz
+[aggregator_final] Circuit output: [0xbf688356529e, 0x30644e72e131a029b85045b68181585d2833e84879b970913145606e575d083b, 0x30644e72e131a029b85045b68181585d2833e84879b9709137e0ccc318f5f84e, 0x30644e72e131a029b85045b68181585d2833e84879b970913be214a5cfcd954b, 0x30644e72e131a029b85045b68181585d2833e84879b970913fe211bccf654526, 0x07fc6680afbac553, 0x30644e72e131a029b85045b68181585d2833e84879b970913fe2348cacbda08d, 0x080317df68107b55]
+[2m2026-05-29T00:04:22.215662Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m PVTHFHE_BB_PATH not set; resolving bb from PATH (PATH injection risk)
+Scheme is: ultra_honk, num threads: 8 (mem: 324.07 MiB)
+CircuitProve: Proving key computed in 13 ms (mem: 324.07 MiB)
+VK saved to "target/vk" (mem: 324.07 MiB)
+VK Hash saved to "target/vk_hash" (mem: 324.07 MiB)
+[2m2026-05-29T00:04:22.273669Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m PVTHFHE_BB_PATH not set; resolving bb from PATH (PATH injection risk)
+Scheme is: ultra_honk, num threads: 8 (mem: 324.07 MiB)
+CircuitProve: Proving key computed in 14 ms (mem: 324.07 MiB)
+Public inputs saved to "target/public_inputs" (mem: 324.07 MiB)
+Proof saved to "target/proof" (mem: 324.07 MiB)
+[2m2026-05-29T00:04:22.432074Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m PVTHFHE_BB_PATH not set; resolving bb from PATH (PATH injection risk)
+Scheme is: ultra_honk, num threads: 8 (mem: 324.07 MiB)
+Proof verified successfully (mem: 324.07 MiB)
+c7_noir_aggregator: complete (414.711 ms)
+plaintext_roundtrip: OK
+aggregate_pk_hash: 4f909b5d1cd153cebca8024ed33abed3fa3599d95b6a48917859119b373a5a8a
+ciphertext_hash: a5694e7544d448c733946703b06bd2bf1cd8fe7ce42252340ba7892e879fabdd
+compressed_proof_digest: 784bee6856ce70c75a33d0bab923e7945d2354fd624a20703d693815085aae97
+keygen_ms=1982.207563
+aggregate_keygen_ms=5.4830950000000005
+dkg_deal_ms=589247.278594
+dkg_aggregate_ms=0.130498
+encrypt_ms=3.063343
+share_encryption_proof_ms=283
+partial_decrypt_ms=10.707087
+aggregate_decrypt_ms=26.098502999999997
+decrypt_ms=36.805589999999995
+threshold=4
+n=10
+per_node_keygen_ms=198.2
+per_node_dkg_deal_ms=58924.7
+per_node_partial_decrypt_ms=2.7
+aggregator_total_ms=100.2
+distributed_estimate_ms=59024.9
+recipient_fold_hashes=[13234229276390727686541849390741707005232485752570193812266914657477945093847, 9841156615704291853073595045586783523037013651058771921279335345499792700786, 3453279647373309068371470346948826539961268571200217857334005923559789069246, 13808616345528976339464563237043570021859149999909530078991483925952143101803, 2001759984323375330937726109670500070728834033434042496970701167870841414352, 19135579830887895970571532024347084308024949020315791777578083806446814604684, 9972722422749510186902420741087074150644958999626950049824658046988520185846, 13068034629061952324579659334958265796943363428517586455662215732964409114463, 5166251645241853442583349497680102933213113788335357080971245624610911198318, 20463688546245121773269646456629774569707436548215587904329089715249089276450]
+recipient_parity_proof_hashes=[13234229276390727686541849390741707005232485752570193812266914657477945093847, 9841156615704291853073595045586783523037013651058771921279335345499792700786, 3453279647373309068371470346948826539961268571200217857334005923559789069246, 13808616345528976339464563237043570021859149999909530078991483925952143101803, 2001759984323375330937726109670500070728834033434042496970701167870841414352, 19135579830887895970571532024347084308024949020315791777578083806446814604684, 9972722422749510186902420741087074150644958999626950049824658046988520185846, 13068034629061952324579659334958265796943363428517586455662215732964409114463, 5166251645241853442583349497680102933213113788335357080971245624610911198318, 20463688546245121773269646456629774569707436548215587904329089715249089276450]
+verify: ACCEPT
+pvss_backend_id=lattice-pvss-bfv-d2

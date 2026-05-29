@@ -397,17 +397,21 @@ pub fn verify(
         ));
     }
 
-    // G3: Greco quotient bound verification (defense-in-depth).
-    // Strengthens the soundness claim from "sigma equation holds" to
-    // "BFV-valid witness exists with small coefficients".
-    crate::bfv_greco::verify_greco_bounds(
-        proof,
-        &stmt.pk0_rns,
-        &stmt.pk1_rns,
-        &stmt.ct0_rns,
-        &stmt.ct1_rns,
-        &stmt.delta_limbs,
-    )?;
+    // G3: Greco quotient bound verification (defense-in-depth, opt-in).
+    // Strengthens soundness from "sigma equation holds" to "BFV-valid witness
+    // exists with small coefficients." O(N²) convolution cost — use only for
+    // adversarial verification, not during DKG deal.
+    // Set PVTHFHE_GRECO_VERIFY=1 to enable.
+    if std::env::var("PVTHFHE_GRECO_VERIFY").unwrap_or_default() == "1" {
+        crate::bfv_greco::verify_greco_bounds(
+            proof,
+            &stmt.pk0_rns,
+            &stmt.pk1_rns,
+            &stmt.ct0_rns,
+            &stmt.ct1_rns,
+            &stmt.delta_limbs,
+        )?;
+    }
 
     Ok(())
 }

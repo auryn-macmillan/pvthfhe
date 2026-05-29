@@ -36,9 +36,11 @@
 //! "BFV-valid witness exists with small coefficients".
 
 use crate::bfv_sigma::BfvSigmaProof;
-use crate::sigma::{num_rns_limbs, rlwe_n};
+use crate::sigma::{int_poly_to_rns, num_rns_limbs, poly_mul_rq, rlwe_n};
 use crate::NizkError;
+use fhe_math::rq::Context;
 use pvthfhe_types;
+use std::sync::{Arc, OnceLock};
 
 /// Bound on Greco quotient polynomial coefficients in ∞-norm.
 ///
@@ -50,24 +52,158 @@ use pvthfhe_types;
 /// Any honest proof will have quotient coefficients well below this bound.
 pub const GRECO_BOUND_Q: i64 = 1i64 << 48; // 2⁴⁸ ≈ 2.8×10¹⁴
 
+/// Returns the singleton RLWE context for Greco NTT operations.
+fn greco_rlwe_context() -> Result<&'static Arc<Context>, NizkError> {
+    static CTX: OnceLock<Result<Arc<Context>, String>> = OnceLock::new();
+    CTX.get_or_init(|| {
+        let n = rlwe_n();
+        let moduli = pvthfhe_types::rlwe_moduli();
+        Context::new(&moduli, n)
+            .map(Arc::new)
+            .map_err(|e| format!("{e:?}"))
+    })
+    .as_ref()
+    .map_err(|_| NizkError::InvalidInput("failed to build RLWE context for Greco"))
+}
+
+// ── CRT constants (precomputed Garner inverses for production 3-limb moduli) ──
+
+/// q0 = 288_230_376_173_076_481
+const Q0: i128 = 288_230_376_173_076_481;
+/// q1 = 288_230_376_167_047_169
+const Q1: i128 = 288_230_376_167_047_169;
+/// q2 = 288_230_376_161_280_001
+const Q2: i128 = 288_230_376_161_280_001;
+/// q0^(-1) mod q1
+const INV_Q0_MOD_Q1: i128 = 256_900_939_648_384_310;
+/// (q0 * q1)^(-1) mod q2
+const INV_Q01_MOD_Q2: i128 = 19_724_897_087_976_708;
+/// q0 * q1 = 83_076_749_747_135_343_554_904_336_171_532_289
+const Q01: i128 = 83_076_749_747_135_343_554_904_336_171_532_289;
+
+fn ensure_production_crt_moduli(ctx: &Context) -> Result<(), NizkError> {
+    if ctx.q.len() != 3
+        || ctx.q[0].modulus() as i128 != Q0
+        || ctx.q[1].modulus() as i128 != Q1
+        || ctx.q[2].modulus() as i128 != Q2
+    {
+        return Err(NizkError::InvalidInput(
+            "Greco NTT quotient reconstruction requires production 3-limb BFV moduli",
+        ));
+    }
+    Ok(())
+}
+
+/// Reconstruct a signed integer from its 3 RNS residues using Garner's CRT
+/// algorithm.  The returned value `x` satisfies `x ≡ r_l mod q_l` for each
+/// limb and `|x| < q0·q1 ≈ 2^116`.
+///
+/// # Correctness
+///
+/// Since the Greco convolution operands have coefficients bounded by
+/// q_ℓ/2 ≈ 2^57 and response coefficients bounded by b_z_u() ≈ 2^43,
+/// the true integer convolution coefficient satisfies `|x| < 2^101 ≪ Q01`.
+/// Therefore the two-valued candidate list {x01, x01 − Q01} always contains
+/// the correct signed value.  The Garner k₂ parameter is either 0 (x ≥ 0)
+/// or q₂−1 (x < 0).
+fn crt3_reconstruct_small(r0: u64, r1: u64, r2: u64) -> i128 {
+    let r0 = r0 as i128;
+    let r1 = r1 as i128;
+    let r2 = r2 as i128;
+
+    // Garner step 1: x01 = r0 + q0 * (((r1−r0) * inv_q0_mod_q1) mod q1)
+    let mut diff1 = (r1 - r0) % Q1;
+    if diff1 < 0 {
+        diff1 += Q1;
+    }
+    let k1 = (diff1 * INV_Q0_MOD_Q1) % Q1;
+    let k1 = if k1 < 0 { k1 + Q1 } else { k1 };
+    let x01 = r0 + Q0 * k1; // ∈ [0, q0·q1), fits in i128
+
+    // Garner step 2: determine sign
+    let x01_mod_q2 = x01 % Q2;
+    let mut diff2 = (r2 - x01_mod_q2) % Q2;
+    if diff2 < 0 {
+        diff2 += Q2;
+    }
+    let k2_mod = (diff2 * INV_Q01_MOD_Q2) % Q2;
+    let k2_mod = if k2_mod < 0 { k2_mod + Q2 } else { k2_mod };
+
+    // k2 is either 0 (x ≥ 0 → k2_mod = 0) or −1 (x < 0 → k2_mod = q2−1)
+    // Since |x| < Q01, the candidate set is {x01, x01 − Q01}.
+    if k2_mod == 0 {
+        x01
+    } else {
+        x01 - Q01
+    }
+}
+
+/// Center-lift a coefficient from [0, q-1] to [-q/2, q/2).
+fn centered_lift(v: i64, q_half: i64, q: i64) -> i64 {
+    if v > q_half {
+        v - q
+    } else {
+        v
+    }
+}
+
+/// Compute the negacyclic convolution `a * b` in Z[X]/(X^N+1) using
+/// NTT-accelerated RNS multiplication over the 3 BFV CRT moduli,
+/// followed by Garner CRT reconstruction.
+fn ntt_negacyclic_convolution(
+    a: &[i64],
+    b: &[i64],
+    ctx: &Arc<Context>,
+) -> Result<Vec<i128>, NizkError> {
+    ensure_production_crt_moduli(ctx)?;
+    let a_rns = int_poly_to_rns(a, ctx)?;
+    let b_rns = int_poly_to_rns(b, ctx)?;
+    let prod_rns = poly_mul_rq(&a_rns, &b_rns, ctx)?;
+
+    let n = rlwe_n();
+    let mut result = vec![0i128; n];
+    for i in 0..n {
+        let r0 = prod_rns[i];
+        let r1 = prod_rns[n + i];
+        let r2 = prod_rns[2 * n + i];
+        result[i] = crt3_reconstruct_small(r0, r1, r2);
+    }
+    Ok(result)
+}
+
+/// O(N²) schoolbook negacyclic convolution, used only as a test oracle.
+#[cfg(test)]
+fn schoolbook_negacyclic_convolution(a: &[i64], b: &[i64]) -> Vec<i128> {
+    let n = a.len();
+    debug_assert_eq!(b.len(), n);
+    let mut result = vec![0i128; n];
+
+    for i in 0..n {
+        if a[i] == 0 {
+            continue;
+        }
+        let ai = i128::from(a[i]);
+        let direct_len = n - i;
+        for (offset, &bj) in b[..direct_len].iter().enumerate() {
+            if bj != 0 {
+                result[i + offset] += ai * i128::from(bj);
+            }
+        }
+        for (offset, &bj) in b[direct_len..].iter().enumerate() {
+            if bj != 0 {
+                result[offset] -= ai * i128::from(bj);
+            }
+        }
+    }
+
+    result
+}
+
 /// Verify that the Greco quotient witnesses from a BFV sigma proof have
 /// bounded coefficients.
 ///
-/// This function lifts the sigma verification equations from modulo q_ℓ
-/// to the integers, computes the implicit quotients q0, q1 per RNS limb,
-/// and checks that their coefficients are bounded by [`GRECO_BOUND_Q`].
-///
-/// # Arguments
-///
-/// * `proof` - The BFV sigma proof containing responses and challenges.
-/// * `pk0_rns`, `pk1_rns` - Public key polynomials in RNS power-basis.
-/// * `ct0_rns`, `ct1_rns` - Ciphertext polynomials in RNS power-basis.
-/// * `delta_limbs` - BFV scaling factors Δ[ℓ] = ⌊q_ℓ / t⌋ for each limb.
-///
-/// # Returns
-///
-/// `Ok(())` if all quotient coefficients are within bounds, or
-/// `Err(NizkError::VerificationFailed)` if a bound is violated.
+/// Polynomial multiplications use NTT-accelerated RNS convolution (O(N log N))
+/// followed by Garner CRT reconstruction.
 #[allow(clippy::too_many_arguments)]
 pub fn verify_greco_bounds(
     proof: &BfvSigmaProof,
@@ -99,11 +235,13 @@ pub fn verify_greco_bounds(
         return Err(NizkError::InvalidInput("proof t0/t1_rns length mismatch"));
     }
 
+    let ctx = greco_rlwe_context()?;
+    ensure_production_crt_moduli(ctx)?;
+
     for limb in 0..num_limbs {
         let q_limb = moduli[limb] as i128;
         let q_half = (moduli[limb] / 2) as i64;
 
-        // ── Extract limb-specific integer (centered) coefficient vectors ──
         let start = limb * n;
         let end = (limb + 1) * n;
 
@@ -132,23 +270,21 @@ pub fn verify_greco_bounds(
             .map(|&v| centered_lift(v as i64, q_half, moduli[limb] as i64))
             .collect();
 
-        // ── Compute integer polynomial products (negacyclic convolution) ──
-        let pk0_zu = int_negacyclic_convolution(&pk0_int, &proof.u_resp);
-        let ch_ct0 = int_negacyclic_convolution(&proof.ch, &ct0_int);
-        let pk1_zu = int_negacyclic_convolution(&pk1_int, &proof.u_resp);
-        let ch_ct1 = int_negacyclic_convolution(&proof.ch, &ct1_int);
+        let (pk0_zu, ch_ct0, pk1_zu, ch_ct1) = (
+            ntt_negacyclic_convolution(&pk0_int, &proof.u_resp, ctx)?,
+            ntt_negacyclic_convolution(&proof.ch, &ct0_int, ctx)?,
+            ntt_negacyclic_convolution(&pk1_int, &proof.u_resp, ctx)?,
+            ntt_negacyclic_convolution(&proof.ch, &ct1_int, ctx)?,
+        );
 
         let delta = delta_limbs[limb] as i128;
 
-        // ── Verify quotient q0 for ct0 equation ──
         for i in 0..n {
             let lhs =
                 pk0_zu[i] + i128::from(proof.e0_resp[i]) + delta * i128::from(proof.m_resp[i]);
             let rhs = i128::from(t0_int[i]) + ch_ct0[i];
             let numerator = lhs - rhs;
 
-            // Since sigma equations hold mod q_limb, the numerator must be
-            // divisible by q_limb.
             if numerator % q_limb != 0 {
                 return Err(NizkError::VerificationFailed(
                     "Greco: ct0 quotient not integral at limb {limb}, index {i}",
@@ -162,7 +298,6 @@ pub fn verify_greco_bounds(
             }
         }
 
-        // ── Verify quotient q1 for ct1 equation ──
         for i in 0..n {
             let lhs = pk1_zu[i] + i128::from(proof.e1_resp[i]);
             let rhs = i128::from(t1_int[i]) + ch_ct1[i];
@@ -185,60 +320,15 @@ pub fn verify_greco_bounds(
     Ok(())
 }
 
-/// Center-lift a coefficient from [0, q-1] to [-q/2, q/2).
-fn centered_lift(v: i64, q_half: i64, q: i64) -> i64 {
-    if v > q_half {
-        v - q
-    } else {
-        v
-    }
-}
-
-/// Compute the negacyclic convolution c = a * b in Z[X]/(X^N + 1) over the
-/// integers (no modular reduction).  Coefficients use i128 to avoid overflow
-/// during the O(N²) accumulation.
-///
-/// For cₖ = Σ_{i+j=k} a_i·b_j - Σ_{i+j=k+N} a_i·b_j.
-fn int_negacyclic_convolution(a: &[i64], b: &[i64]) -> Vec<i128> {
-    let n = a.len();
-    debug_assert_eq!(b.len(), n, "convolution operands must have equal length");
-    let mut result = vec![0i128; n];
-
-    for i in 0..n {
-        if a[i] == 0 {
-            continue;
-        }
-        let ai = i128::from(a[i]);
-        // Positive wrap: indices j where i+j < n
-        let direct_len = n - i;
-        for (offset, &bj) in b[..direct_len].iter().enumerate() {
-            if bj != 0 {
-                let k = i + offset;
-                result[k] += ai * i128::from(bj);
-            }
-        }
-        // Negative wrap: indices j where i+j ≥ n
-        for (offset, &bj) in b[direct_len..].iter().enumerate() {
-            if bj != 0 {
-                let k = offset; // i + (direct_len + offset) = n + offset ≡ -offset-1 mod X^N
-                result[k] -= ai * i128::from(bj);
-            }
-        }
-    }
-
-    result
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn convolution_preserves_ring_structure() {
-        // Identity: a * 0 = 0
         let a = vec![7i64; 8];
         let b = vec![0i64; 8];
-        let result = int_negacyclic_convolution(&a, &b);
+        let result = schoolbook_negacyclic_convolution(&a, &b);
         assert!(result.iter().all(|&c| c == 0));
     }
 
@@ -249,10 +339,78 @@ mod tests {
         let mut a = a;
         a[0] = 3;
         let b = vec![5i64; n];
-        let result = int_negacyclic_convolution(&a, &b);
+        let result = schoolbook_negacyclic_convolution(&a, &b);
         for (i, &c) in result.iter().enumerate() {
             assert_eq!(c, 3i128 * 5i128, "convolution(3, 5)[{i}] mismatch");
         }
+    }
+
+    #[test]
+    fn ntt_matches_schoolbook() {
+        let n = rlwe_n();
+        let ctx = greco_rlwe_context().expect("greco context");
+
+        let cases: Vec<(Vec<i64>, Vec<i64>, usize, i128)> = vec![
+            (set_coeff(n, 0, 1), set_coeff(n, 0, 2), 0, 2),
+            (set_coeff(n, 0, -1), set_coeff(n, 0, 2), 0, -2),
+            (set_coeff(n, 1, 5), set_coeff(n, 2, 7), 3, 35),
+            (set_coeff(n, 0, -5), set_coeff(n, 0, 7), 0, -35),
+            (set_coeff(n, n - 1, 3), set_coeff(n, 2, 4), 1, -12),
+            (set_coeff(n, 0, 3), set_coeff(n, n - 1, 5), n - 1, 15),
+        ];
+
+        for (a, b, expected_idx, expected_val) in &cases {
+            let ntt_result =
+                ntt_negacyclic_convolution(a, b, &ctx).expect("ntt convolution should succeed");
+            let schoolbook_result = schoolbook_negacyclic_convolution(a, b);
+
+            for i in 0..n {
+                assert_eq!(
+                    ntt_result[i], schoolbook_result[i],
+                    "NTT vs schoolbook mismatch at idx {i}: NTT={}, schoolbook={}, expected idx={expected_idx}",
+                    ntt_result[i], schoolbook_result[i]
+                );
+            }
+            assert_eq!(
+                ntt_result[*expected_idx], *expected_val,
+                "NTT at idx {expected_idx}: expected {expected_val}, got {}",
+                ntt_result[*expected_idx]
+            );
+        }
+    }
+
+    #[test]
+    fn ntt_matches_schoolbook_for_dense_centered_operands() {
+        let n = rlwe_n();
+        let ctx = greco_rlwe_context().expect("greco context");
+        let q0_half = Q0 as i64 / 2;
+
+        let mut a = vec![0i64; n];
+        let mut b = vec![0i64; n];
+        for i in 0..64 {
+            a[i] = match i % 4 {
+                0 => q0_half - i as i64,
+                1 => -(q0_half - i as i64),
+                2 => 1_000_000 + i as i64,
+                _ => -1_000_000 - i as i64,
+            };
+            b[i] = match i % 3 {
+                0 => 1_073_741_824 - i as i64,
+                1 => -1_073_741_824 + i as i64,
+                _ => i as i64 - 32,
+            };
+        }
+
+        let ntt_result =
+            ntt_negacyclic_convolution(&a, &b, &ctx).expect("ntt convolution should succeed");
+        let schoolbook_result = schoolbook_negacyclic_convolution(&a, &b);
+        assert_eq!(ntt_result, schoolbook_result);
+    }
+
+    fn set_coeff(n: usize, idx: usize, val: i64) -> Vec<i64> {
+        let mut v = vec![0i64; n];
+        v[idx] = val;
+        v
     }
 
     #[test]

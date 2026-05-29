@@ -782,6 +782,33 @@ pub fn bfv_verify_step_bp<CS: ConstraintSystem<NovaScalar>>(
         "bfv_m_norm",
     )?;
 
+    // Greco: enforce quotient coefficient bounds in-circuit.
+    // Strengthens soundness: the S-Z equations alone only hold modulo q_ℓ;
+    // bounding the quotients (q0, q1) proves the equations hold over ℤ,
+    // which implies a valid BFV witness exists with small coefficients.
+    // Bound: |quotient| ≤ 2^48 (§GRECO_BOUND_Q in bfv_greco.rs).
+    #[allow(non_upper_case_globals)]
+    const GRECO_BOUND_Q: u64 = 1u64 << 48;
+
+    for l in 0..bfv_encryption_circuit::BFV_L {
+        let quot0_native = extract_native_u64(&step_data[19 + l]);
+        let quot1_native = extract_native_u64(&step_data[22 + l]);
+        super::monomial_range::monomial_range_check_bp(
+            cs,
+            &quot0_vars[l],
+            quot0_native,
+            GRECO_BOUND_Q,
+            &format!("bfv_greco_q0_{l}"),
+        )?;
+        super::monomial_range::monomial_range_check_bp(
+            cs,
+            &quot1_vars[l],
+            quot1_native,
+            GRECO_BOUND_Q,
+            &format!("bfv_greco_q1_{l}"),
+        )?;
+    }
+
     AllocatedNum::alloc(cs.namespace(|| "bfv_ok"), || Ok(NovaScalar::from(1u64)))
 }
 

@@ -340,6 +340,27 @@ fn bfv_verify_step_arecibo<F: BpPrimeField, CS: ConstraintSystem<F>>(
     check_norm(cs, &e1_var, extract_u64(&step_data[17]), be, "bfv_e1_norm")?;
     check_norm(cs, &m_var, extract_u64(&step_data[18]), bm, "bfv_m_norm")?;
 
+    // Greco: enforce quotient coefficient bounds in-circuit.
+    // Bound: |quotient| ≤ 2^48 (§GRECO_BOUND_Q in bfv_greco.rs).
+    #[allow(non_upper_case_globals)]
+    const GRECO_BOUND_Q: u64 = 1u64 << 48;
+    for l in 0..bfv_encryption_circuit::BFV_L {
+        check_norm(
+            cs,
+            &quot0_vars[l],
+            extract_u64(&step_data[19 + l]),
+            GRECO_BOUND_Q,
+            &format!("bfv_greco_q0_{l}"),
+        )?;
+        check_norm(
+            cs,
+            &quot1_vars[l],
+            extract_u64(&step_data[22 + l]),
+            GRECO_BOUND_Q,
+            &format!("bfv_greco_q1_{l}"),
+        )?;
+    }
+
     AllocatedNum::alloc(cs.namespace(|| "bfv_ok"), || Ok(F::from(1u64)))
 }
 

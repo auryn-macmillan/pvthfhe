@@ -160,17 +160,17 @@ enum Commands {
 enum SnapshotCommand {
     /// Prove that a BFV ciphertext is a valid encryption.
     Prove {
-        /// Hex-encoded public key (RNS format).
-        #[arg(long)]
+        /// Hex-encoded public key (RNS format). Default "auto" generates a test keypair.
+        #[arg(long, default_value = "auto")]
         pk: String,
-        /// Hex-encoded ciphertext.
-        #[arg(long)]
+        /// Hex-encoded ciphertext. Default "auto" generates a test encryption.
+        #[arg(long, default_value = "auto")]
         ct: String,
-        /// Hex-encoded plaintext bytes.
-        #[arg(long)]
+        /// Hex-encoded plaintext bytes. Default "auto" uses 0xB10C.
+        #[arg(long, default_value = "auto")]
         plaintext: String,
-        /// Hex-encoded session identifier (32 bytes).
-        #[arg(long)]
+        /// Hex-encoded session identifier (32 bytes). Default "auto" generates a random session.
+        #[arg(long, default_value = "auto")]
         session: String,
     },
     /// Verify a snapshot proof against public inputs.
@@ -193,7 +193,8 @@ enum ComputeCommand {
     /// Prove a sequence of FHE operations over Merkle-committed ciphertexts.
     Prove {
         /// Comma-separated hex-encoded input ciphertext hashes (32 bytes each).
-        #[arg(long)]
+        /// Default "auto" generates test hashes from random ciphertexts.
+        #[arg(long, default_value = "auto")]
         inputs: String,
         /// Comma-separated list of operations: add, mul, relin.
         #[arg(long)]
@@ -476,14 +477,46 @@ fn r8_snapshot(action: SnapshotCommand) -> anyhow::Result<()> {
             plaintext,
             session,
         } => {
-            let pk_bytes = hex::decode(&pk).context("invalid pk hex")?;
-            let ct_bytes = hex::decode(&ct).context("invalid ct hex")?;
-            let plaintext_bytes = hex::decode(&plaintext).context("invalid plaintext hex")?;
-            let session_bytes: [u8; 32] = {
-                let decoded = hex::decode(&session).context("invalid session hex")?;
-                decoded
-                    .try_into()
-                    .map_err(|_| anyhow::anyhow!("session must be 32 bytes (64 hex chars)"))?
+            let (pk_bytes, ct_bytes, plaintext_bytes, session_bytes) = if pk == "auto"
+                || ct == "auto"
+                || plaintext == "auto"
+            {
+                let backend = FhersBackend::load_params(
+                    "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n"
+                ).context("backend init for snapshot auto")?;
+                let mut rng = OsRng;
+                let mut session_id = [0u8; 32];
+                rng.fill_bytes(&mut session_id);
+                let share = backend
+                    .keygen_share_with_session(&session_id, 1, &mut rng)
+                    .context("keygen share")?;
+                let agg_pk = backend
+                    .aggregate_keygen(&[share])
+                    .context("aggregate keygen")?;
+                let pt = if plaintext == "auto" {
+                    0xB10Cu64.to_le_bytes().to_vec()
+                } else {
+                    hex::decode(&plaintext).context("invalid plaintext hex")?
+                };
+                let ct = backend.encrypt(&agg_pk, &pt, &mut rng).context("encrypt")?;
+                let sess = if session == "auto" {
+                    session_id
+                } else {
+                    let d = hex::decode(&session).context("invalid session hex")?;
+                    d.try_into()
+                        .map_err(|_| anyhow::anyhow!("session must be 32 bytes"))?
+                };
+                (agg_pk.bytes, ct.bytes, pt, sess)
+            } else {
+                let pk_b = hex::decode(&pk).context("invalid pk hex")?;
+                let ct_b = hex::decode(&ct).context("invalid ct hex")?;
+                let pt_b = hex::decode(&plaintext).context("invalid plaintext hex")?;
+                let sess_b: [u8; 32] = {
+                    let d = hex::decode(&session).context("invalid session hex")?;
+                    d.try_into()
+                        .map_err(|_| anyhow::anyhow!("session must be 32 bytes"))?
+                };
+                (pk_b, ct_b, pt_b, sess_b)
             };
 
             let pk_rns: Vec<u64> = bytes_to_u64_vec(&pk_bytes);
@@ -500,11 +533,25 @@ fn r8_snapshot(action: SnapshotCommand) -> anyhow::Result<()> {
 
             let witness_data = build_bfv_witness(&pk_rns, &ct_rns, &plaintext_bytes);
 
+            let prove_started = std::time::Instant::now();
             let proof = prove_bfv_snapshot(&snapshot, session_bytes, witness_data)
                 .map_err(|e| anyhow::anyhow!("snapshot prove failed: {e:?}"))?;
+            let prove_ms = prove_started.elapsed().as_secs_f64() * 1000.0;
 
             let proof_hex = hex::encode(&proof.bytes);
             println!("snapshot_proof={proof_hex}");
+            println!("proof_size_bytes={}", proof.bytes.len());
+            println!("prove_ms={prove_ms:.2}");
+
+            let verify_started = std::time::Instant::now();
+            match verify_bfv_snapshot(&proof, &snapshot, session_bytes) {
+                Ok(true) => {
+                    let verify_ms = verify_started.elapsed().as_secs_f64() * 1000.0;
+                    println!("verify: ACCEPT ({verify_ms:.2} ms)");
+                }
+                Ok(false) => println!("verify: REJECT"),
+                Err(e) => println!("verify: ERROR ({e:?})"),
+            }
             println!("snapshot: prove ok");
         }
         SnapshotCommand::Verify { proof, pk, ct } => {
@@ -546,27 +593,46 @@ fn r8_snapshot(_action: SnapshotCommand) -> anyhow::Result<()> {
 fn r8_compute(action: ComputeCommand) -> anyhow::Result<()> {
     use pvthfhe_compressor::merkle::{build_merkle_tree, prove_merkle_path};
     use pvthfhe_compressor::nova::{
-        clear_fhe_compute_data, hash8_native, set_fhe_compute_data, FheComputeStepCircuit,
-        FheComputeWitness, FheOp, NovaCompressor,
+        clear_fhe_compute_data, hash8_native, set_fhe_compute_data, ExternalInputs3,
+        FheComputeStepCircuit, FheComputeWitness, FheOp, NovaCompressor,
     };
     use pvthfhe_compressor::{CompressedProof, ProofCompressor};
 
     match action {
         ComputeCommand::Prove { inputs, operations } => {
-            let input_hashes: Vec<[u8; 32]> = inputs
-                .split(',')
-                .map(|s| {
-                    let bytes = hex::decode(s.trim()).context("invalid input hash hex")?;
-                    bytes.try_into().map_err(|_| {
-                        anyhow::anyhow!("each input hash must be 32 bytes (64 hex chars)")
-                    })
-                })
-                .collect::<Result<_, _>>()?;
-
             let ops: Vec<&str> = operations.split(',').map(|s| s.trim()).collect();
             if ops.is_empty() {
                 anyhow::bail!("at least one operation required");
             }
+
+            let input_hashes: Vec<[u8; 32]> = if inputs == "auto" {
+                // Auto-generate deterministic input hashes from ops.
+                let mut h = sha2::Sha256::new();
+                h.update(b"pvthfhe-compute-auto-inputs/v1");
+                h.update(operations.as_bytes());
+                let seed: [u8; 32] = h.finalize().into();
+                let mut hashes = Vec::new();
+                // Binary ops (add/mul) need 2 inputs each; generate enough.
+                let n_needed = (ops.len() * 2).max(ops.len() + 1);
+                for i in 0..n_needed {
+                    let mut hi = sha2::Sha256::new();
+                    hi.update(seed);
+                    hi.update((i as u64).to_le_bytes());
+                    hashes.push(hi.finalize().into());
+                }
+                hashes
+            } else {
+                inputs
+                    .split(',')
+                    .map(|s| {
+                        let bytes = hex::decode(s.trim()).context("invalid input hash hex")?;
+                        bytes.try_into().map_err(|_| {
+                            anyhow::anyhow!("each input hash must be 32 bytes (64 hex chars)")
+                        })
+                    })
+                    .collect::<Result<_, _>>()?
+            };
+
             if ops.len() > input_hashes.len() {
                 anyhow::bail!(
                     "too many operations ({}): need at least as many input hashes ({})",
@@ -647,7 +713,6 @@ fn r8_compute(action: ComputeCommand) -> anyhow::Result<()> {
                         // Compute output hash for this step natively.
                         let output_hash = {
                             let mut inputs_for_hash = Vec::new();
-                            // Previous output placeholder (first step uses 0)
                             let prev = if witnesses.is_empty() {
                                 Fr::from(0u64)
                             } else {
@@ -687,16 +752,29 @@ fn r8_compute(action: ComputeCommand) -> anyhow::Result<()> {
                 .map_err(|e| anyhow::anyhow!("compressor init failed: {e:?}"))?;
 
             let zero_acc = vec![0u8; 32];
+            let ext_steps: Vec<ExternalInputs3<Fr>> = vec![ExternalInputs3::default(); n_steps];
+
+            let prove_started = std::time::Instant::now();
             let proof = compressor
-                .prove_steps(&zero_acc, &[])
+                .prove_steps(&zero_acc, &ext_steps)
                 .map_err(|e| anyhow::anyhow!("compute prove failed: {e:?}"))?;
+            let prove_ms = prove_started.elapsed().as_secs_f64() * 1000.0;
 
             clear_fhe_compute_data();
+
+            let throughput_ops_per_sec = if prove_ms > 0.0 {
+                (n_steps as f64) / (prove_ms / 1000.0)
+            } else {
+                f64::INFINITY
+            };
 
             let proof_hex = hex::encode(&proof.bytes);
             println!("compute_proof={proof_hex}");
             println!("merkle_root={}", hex::encode(merkle_root_bytes));
             println!("steps={n_steps}");
+            println!("proof_size_bytes={}", proof.bytes.len());
+            println!("prove_ms={prove_ms:.2}");
+            println!("throughput_ops_per_sec={throughput_ops_per_sec:.1}");
             println!("compute: prove ok");
         }
     }

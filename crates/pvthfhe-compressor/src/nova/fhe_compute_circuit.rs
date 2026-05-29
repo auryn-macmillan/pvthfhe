@@ -130,12 +130,21 @@ pub fn clear_fhe_compute_data() {
 ///
 /// State: `[output_commitment, merkle_root, input_hash_chain, step_count]`
 /// Arity: 4
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct FheComputeStepCircuit<F> {
     /// Merkle tree arity (default: 8).
     pub merkle_arity: usize,
     /// Phantom field type.
     _phantom: PhantomData<F>,
+}
+
+impl<F> Default for FheComputeStepCircuit<F> {
+    fn default() -> Self {
+        Self {
+            merkle_arity: 8,
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<F> FheComputeStepCircuit<F> {

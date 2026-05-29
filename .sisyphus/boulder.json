@@ -1,17 +1,1 @@
-{
-  "active_plan": "/home/dev/pvthfhe/.sisyphus/plans/greco-e3-compute-provider.md",
-  "started_at": "2026-05-29T20:52:31.975Z",
-  "session_ids": [
-    "ses_1e864f9f1ffecXRmG0OjbjoCa3",
-    "ses_18a7cc3ccffeGt8JPr5GmclLN8",
-    "ses_18a7ca06fffeAxol7dgvgRbjkQ"
-  ],
-  "session_origins": {
-    "ses_1e864f9f1ffecXRmG0OjbjoCa3": "direct",
-    "ses_18a7cc3ccffeGt8JPr5GmclLN8": "appended",
-    "ses_18a7ca06fffeAxol7dgvgRbjkQ": "appended"
-  },
-  "plan_name": "greco-e3-compute-provider",
-  "agent": "atlas",
-  "task_sessions": {}
-}
+{}

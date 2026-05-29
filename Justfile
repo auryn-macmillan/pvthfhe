@@ -299,5 +299,13 @@ artifact-reproduce:
     just p3-bench
     just e2e-real
 
+greco pk_rns="auto" ct_rns="auto":
+    @echo "=== Greco-style encryption proof ==="
+    cargo run --release -p pvthfhe-cli --features sonobe-compressor -- snapshot prove
+
+compute n_ops="3":
+    @echo "=== Verifiable FHE Computation ==="
+    cargo run --release -p pvthfhe-cli --features sonobe-compressor -- compute prove --operations add,add,add
+
 stage1-gate:
     python3 .sisyphus/scripts/stage1-gate.py

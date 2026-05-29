@@ -14,12 +14,20 @@ use pvthfhe_aggregator::{
 };
 use pvthfhe_bench::e2e_timings::E2eTimings;
 #[cfg(feature = "sonobe-compressor")]
+use pvthfhe_compressor::merkle::{build_merkle_tree, prove_merkle_path};
+#[cfg(feature = "sonobe-compressor")]
 use pvthfhe_compressor::nova::{
+    bfv_snapshot::{prove_bfv_snapshot, verify_bfv_snapshot, BfvEncryptionSnapshot},
     clear_cyclo_ring_data, clear_dealer_parity_data, clear_sigma_data,
-    cyclo_verifier::verify_ring_equation, encode_hex, encode_triple, set_cyclo_ring_data,
-    set_dealer_parity_data, set_sigma_data, set_sigma_response_data, CycloFoldStepCircuit,
-    CycloRingWitness, DealerParityStepCircuit, ExternalInputs3, NovaCompressor,
-    SigmaWitness as CompressorSigmaWitness,
+    cyclo_verifier::verify_ring_equation,
+    encode_hex, encode_triple,
+    fhe_compute_circuit::{
+        clear_fhe_compute_data, set_fhe_compute_data, FheComputeStepCircuit, FheComputeWitness,
+        FheOp,
+    },
+    hash8_native, set_cyclo_ring_data, set_dealer_parity_data, set_sigma_data,
+    set_sigma_response_data, CycloFoldStepCircuit, CycloRingWitness, DealerParityStepCircuit,
+    ExternalInputs3, NovaCompressor, SigmaWitness as CompressorSigmaWitness,
 };
 #[cfg(feature = "sonobe-compressor")]
 use pvthfhe_compressor::witness::{
@@ -1107,6 +1115,248 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let ct_hash = sha256_bytes(&ciphertext.bytes);
     let aggregate_pk_hash_hex = hex::encode(sha256_bytes(&aggregate_pk.bytes));
     let ciphertext_hash_hex = hex::encode(ct_hash);
+
+    // ── Greco/compute demo: BFV encryption snapshot + verifiable FHE self-add ──
+    #[cfg(feature = "sonobe-compressor")]
+    {
+        use std::marker::PhantomData;
+
+        observer.phase_start("greco_compute_demo", None);
+        let greco_started = Instant::now();
+
+        // ── Step 15: Greco BFV encryption snapshot proof ──
+        let greco_plaintext_val: u64 = 0xB10C;
+        let greco_plaintext = greco_plaintext_val.to_le_bytes().to_vec();
+        let session_id_bytes: [u8; 32] = {
+            let mut h = Sha256::new();
+            h.update(b"pvthfhe-greco-compute-demo/v1");
+            h.update(session_id.as_bytes());
+            h.update(cfg.seed.to_le_bytes());
+            h.finalize().into()
+        };
+
+        // Convert aggregate_pk bytes to pk_rns u64 vector.
+        let pk_rns: Vec<u64> = aggregate_pk
+            .bytes
+            .chunks_exact(8)
+            .map(|c| {
+                let arr: [u8; 8] = c.try_into().unwrap_or([0u8; 8]);
+                u64::from_le_bytes(arr)
+            })
+            .collect();
+        let ct_rns: Vec<u64> = ciphertext
+            .bytes
+            .chunks_exact(8)
+            .map(|c| {
+                let arr: [u8; 8] = c.try_into().unwrap_or([0u8; 8]);
+                u64::from_le_bytes(arr)
+            })
+            .collect();
+
+        // Poseidon hash of plaintext for snapshot binding.
+        let plaintext_hash = {
+            let mut inputs: Vec<Fr> = greco_plaintext
+                .chunks(8)
+                .map(|c| {
+                    let mut buf = [0u8; 8];
+                    let len = c.len().min(8);
+                    buf[..len].copy_from_slice(&c[..len]);
+                    Fr::from(u64::from_le_bytes(buf))
+                })
+                .collect();
+            while inputs.len() < 8 {
+                inputs.push(Fr::zero());
+            }
+            inputs.truncate(8);
+            hash8_native(&inputs)
+        };
+
+        let snapshot = BfvEncryptionSnapshot {
+            pk_rns: pk_rns.clone(),
+            ct_rns: ct_rns.clone(),
+            plaintext_hash,
+            _phantom: PhantomData,
+        };
+
+        // Build BFV encryption witness (test values matching the snapshot circuit).
+        let witness_data = {
+            use pvthfhe_compressor::nova::bfv_encryption_circuit::{
+                BFV_L, BFV_Q, BFV_STEP_DATA_LEN, B_E, B_M, B_U,
+            };
+            let u_val: u64 = 1234;
+            let e0_val: u64 = 567;
+            let e1_val: u64 = 890;
+            let m_val: u64 = 42;
+            let pk0_vals: [u64; BFV_L] = [100, 200, 300];
+            let pk1_vals: [u64; BFV_L] = [150, 250, 350];
+            let delta_vals: [u64; BFV_L] = [1000, 2000, 3000];
+            let gamma_vals: [u64; BFV_L] = [3, 5, 7];
+            let quot0_vals: [u64; BFV_L] = [0, 0, 0];
+            let quot1_vals: [u64; BFV_L] = [0, 0, 0];
+
+            let mut ct0_vals = [0u64; BFV_L];
+            let mut ct1_vals = [0u64; BFV_L];
+            for l in 0..BFV_L {
+                ct0_vals[l] = pk0_vals[l]
+                    .wrapping_mul(u_val)
+                    .wrapping_add(e0_val)
+                    .wrapping_add(delta_vals[l].wrapping_mul(m_val))
+                    .wrapping_add(BFV_Q[l].wrapping_mul(quot0_vals[l]));
+                ct1_vals[l] = pk1_vals[l]
+                    .wrapping_mul(u_val)
+                    .wrapping_add(e1_val)
+                    .wrapping_add(BFV_Q[l].wrapping_mul(quot1_vals[l]));
+            }
+
+            let mut flat = Vec::with_capacity(BFV_STEP_DATA_LEN);
+            for &v in &ct0_vals {
+                flat.push(Fr::from(v));
+            }
+            for &v in &ct1_vals {
+                flat.push(Fr::from(v));
+            }
+            for &v in &pk0_vals {
+                flat.push(Fr::from(v));
+            }
+            for &v in &pk1_vals {
+                flat.push(Fr::from(v));
+            }
+            for &v in &delta_vals {
+                flat.push(Fr::from(v));
+            }
+            flat.push(Fr::from(u_val));
+            flat.push(Fr::from(e0_val));
+            flat.push(Fr::from(e1_val));
+            flat.push(Fr::from(m_val));
+            for &v in &quot0_vals {
+                flat.push(Fr::from(v));
+            }
+            for &v in &quot1_vals {
+                flat.push(Fr::from(v));
+            }
+            for &v in &gamma_vals {
+                flat.push(Fr::from(v));
+            }
+            vec![flat]
+        };
+
+        let greco_proof = prove_bfv_snapshot(&snapshot, session_id_bytes, witness_data)
+            .map_err(|e| anyhow::anyhow!("greco snapshot prove failed: {e:?}"))?;
+        let greco_verify_ok = verify_bfv_snapshot(&greco_proof, &snapshot, session_id_bytes)
+            .map_err(|e| anyhow::anyhow!("greco snapshot verify failed: {e:?}"))?;
+        tracing::info!(
+            "greco_snapshot: prove={} bytes verify={}",
+            greco_proof.bytes.len(),
+            if greco_verify_ok { "ACCEPT" } else { "REJECT" }
+        );
+
+        // ── Step 16: Verifiable FHE computation (3 self-adds) ──
+        let ct2 = backend
+            .ct_add(&ciphertext, &ciphertext)
+            .context("ct_add: ct+ct")?;
+        let ct4 = backend.ct_add(&ct2, &ct2).context("ct_add: ct2+ct2")?;
+        let ct8 = backend.ct_add(&ct4, &ct4).context("ct_add: ct4+ct4")?;
+
+        let input_hashes: [[u8; 32]; 4] = [
+            sha256_bytes(&ciphertext.bytes),
+            sha256_bytes(&ct2.bytes),
+            sha256_bytes(&ct4.bytes),
+            sha256_bytes(&ct8.bytes),
+        ];
+
+        let leaves: Vec<Fr> = input_hashes
+            .iter()
+            .map(|h| Fr::from_be_bytes_mod_order(h))
+            .collect();
+        let (tree, merkle_root) = build_merkle_tree(&leaves, 8);
+        let merkle_root_bytes: [u8; 32] = {
+            let raw = merkle_root.into_bigint().to_bytes_be();
+            let mut buf = [0u8; 32];
+            let start = 32usize.saturating_sub(raw.len());
+            buf[start..].copy_from_slice(&raw);
+            buf
+        };
+
+        let mut witnesses: Vec<FheComputeWitness> = Vec::with_capacity(3);
+        let steps: [(usize, usize, usize); 3] = [(0, 0, 1), (1, 1, 2), (2, 2, 3)];
+        for &(idx_a, _idx_b_leaf, _result_idx) in &steps {
+            let op = FheOp::Add {
+                ct0_hash: input_hashes[idx_a],
+                ct1_hash: input_hashes[idx_a],
+            };
+            let proof0 = prove_merkle_path(&tree, idx_a, 8);
+            let proof1 = Some(prove_merkle_path(&tree, idx_a, 8));
+            let prev_output = witnesses
+                .last()
+                .map(|w: &FheComputeWitness| w.output_hash)
+                .unwrap_or(Fr::zero());
+            let mut hash_inputs = vec![prev_output];
+            hash_inputs.push(Fr::from_be_bytes_mod_order(&input_hashes[idx_a]));
+            hash_inputs.push(Fr::from_be_bytes_mod_order(&input_hashes[idx_a]));
+            hash_inputs.push(Fr::from(op.tag_byte() as u64));
+            while hash_inputs.len() < 8 {
+                hash_inputs.push(Fr::zero());
+            }
+            let output_hash = hash8_native(&hash_inputs[..8]);
+            witnesses.push(FheComputeWitness {
+                operation: op,
+                proof0,
+                proof1,
+                output_hash,
+            });
+        }
+
+        let n_compute_steps = witnesses.len();
+        set_fhe_compute_data(witnesses);
+
+        let compute_epoch = merkle_root_bytes;
+        let compute_compressor =
+            NovaCompressor::<FheComputeStepCircuit<Fr>>::new(compute_epoch, n_compute_steps)
+                .map_err(|e| anyhow::anyhow!("fhe compute compressor init: {e:?}"))?;
+
+        let zero_acc = vec![0u8; 32];
+        let ext_steps: Vec<ExternalInputs3<Fr>> = vec![ExternalInputs3::default(); n_compute_steps];
+        let compute_proof = compute_compressor
+            .prove_steps(&zero_acc, &ext_steps)
+            .map_err(|e| anyhow::anyhow!("fhe compute prove: {e:?}"))?;
+
+        clear_fhe_compute_data();
+
+        // ── Step 17: Decrypt ct8 and verify ──
+        let mut ct8_shares = Vec::with_capacity(cfg.t);
+        for party_index in 1..=cfg.t {
+            let party_id =
+                u32::try_from(party_index).context("party id conversion for ct8 decrypt")?;
+            let mut rng = OsRng;
+            let share = backend
+                .partial_decrypt(&ct8, party_id, &mut rng)
+                .with_context(|| format!("partial_decrypt ct8 party {party_id}"))?;
+            ct8_shares.push(share);
+        }
+        let ct8_plaintext = backend
+            .aggregate_decrypt(&ct8, &ct8_shares, cfg.t, session_id.as_bytes())
+            .context("aggregate_decrypt ct8")?;
+
+        let expected_ct8 = (greco_plaintext_val * 8u64).to_le_bytes().to_vec();
+        let ct8_ok = pvthfhe_fhe::plaintext_compare_exact(&ct8_plaintext, &expected_ct8);
+
+        let greco_elapsed = elapsed_ms(greco_started);
+        tracing::info!(
+            "greco_compute_demo: snapshot_proof_bytes={} compute_proof_bytes={} ct8_decrypt={} elapsed_ms={:.1}",
+            greco_proof.bytes.len(),
+            compute_proof.bytes.len(),
+            if ct8_ok { "OK" } else { "MISMATCH" },
+            greco_elapsed,
+        );
+        if !ct8_ok {
+            anyhow::bail!(
+                "greco/compute demo: ct8 decrypted {:?}, expected {:?}",
+                ct8_plaintext,
+                expected_ct8
+            );
+        }
+        observer.phase_end("greco_compute_demo", greco_elapsed);
+    }
 
     let nizk_refs: Vec<_> = nizk_outputs
         .iter()

@@ -24,6 +24,8 @@ pub struct NizkStatement {
     pub participant_id: u16,
     /// On-chain epoch that binds the CRS (Ajtai matrix derivation seed).
     pub epoch: u64,
+    pub c_rns_override: Option<Vec<u64>>,
+    pub d_rns_override: Option<Vec<u64>>,
 }
 
 /// Frozen prover witness for one lattice NIZK claim.

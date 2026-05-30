@@ -79,6 +79,8 @@ pub fn build_demo_nizk_inputs(
             session_id: session_id.to_owned(),
             participant_id,
             epoch: 0,
+            c_rns_override: None,
+            d_rns_override: None,
         },
         NizkWitness {
             secret_share,

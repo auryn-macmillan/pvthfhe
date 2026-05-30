@@ -1781,12 +1781,13 @@ where
         use high_arity_fold::*;
 
         // Compute hash from ORIGINAL steps (not folded), matching prove path.
+        // Parse proof for the hash check, then delegate to inner verify_steps.
+        let parsed = parse_proof(&proof.bytes)?;
         let expected_hash = committed_public_inputs_hash(steps);
         if parsed.public_inputs_hash != expected_hash {
             return Ok(false);
         }
 
-        // Fold for Nova verification
         let beta = derive_beta_vector(&self.srs_hash, steps.len());
         let single_folded = fold_external_inputs(steps, &beta);
 

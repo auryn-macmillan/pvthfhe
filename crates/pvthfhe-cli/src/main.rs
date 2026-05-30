@@ -292,7 +292,7 @@ fn main() -> anyhow::Result<()> {
             }
         }
         Commands::VerifyAll { n, threshold, seed } => {
-            #[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]
+            #[cfg(all(feature = "with-fhe", feature = "nova-compressor"))]
             {
                 use pvthfhe_cli::full_pipeline::{run_full_pipeline, PipelineConfig};
                 use pvthfhe_cli::protocol_verifier::ProtocolVerifier;
@@ -324,9 +324,9 @@ fn main() -> anyhow::Result<()> {
                     }
                 }
             }
-            #[cfg(not(all(feature = "with-fhe", feature = "sonobe-compressor")))]
+            #[cfg(not(all(feature = "with-fhe", feature = "nova-compressor")))]
             {
-                println!("verify-all: UNSUPPORTED (requires with-fhe + sonobe-compressor)");
+                println!("verify-all: UNSUPPORTED (requires with-fhe + nova-compressor)");
             }
         }
         Commands::Demo {

@@ -2105,21 +2105,6 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         );
     }
 
-    // P2.4: Cross-hash binding — Poseidon(all prior verification results)
-    // This hash chain binds NIZK, BFV sigma, decrypt NIZK, and cyclo fold results
-    // into the Nova IVC state, ensuring IVC success implies all prior checks passed.
-    let cross_hash: Fr = {
-        let mut acc = all_nizk_proof_hash;
-        let decrypt_hash_fr = Fr::from_be_bytes_mod_order(&decrypt_nizk_hash);
-        acc = poseidon_sponge_native_noir(&[acc, decrypt_hash_fr]);
-        let fold_hash_fr = Fr::from_be_bytes_mod_order(&Sha256::digest(
-            format!("cyclo-fold-report-{session_id}").as_bytes(),
-        ));
-        acc = poseidon_sponge_native_noir(&[acc, fold_hash_fr]);
-        acc = poseidon_sponge_native_noir(&[acc, c7_final_hash]);
-        acc
-    };
-
     // P2.1: Build fold verification data for FoldVerifierStepCircuit.
     let fold_steps: usize = {
         let accumulators = fold_report.accumulators();
@@ -2132,28 +2117,6 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
     let mut compressor = Compressor::new(epoch_hash, fold_steps)?;
     observer.phase_end("compressor_new", elapsed_ms(compressor_new_started));
-
-    #[cfg(feature = "sonobe-compressor")]
-    {
-        let accumulators = fold_report.accumulators();
-        let mut fold_data: Vec<(Fr, Fr, Fr, Fr)> = Vec::new();
-        for window in accumulators.chunks(2) {
-            if window.len() == 2 {
-                let left_bytes = Sha256::digest(&window[0].acc_commitment_bytes);
-                let right_bytes = Sha256::digest(&window[1].acc_commitment_bytes);
-                let left_hash = Fr::from_be_bytes_mod_order(&left_bytes);
-                let right_hash = Fr::from_be_bytes_mod_order(&right_bytes);
-                let parent_hash = poseidon_sponge_native_noir(&[left_hash, right_hash]);
-                fold_data.push((left_hash, right_hash, parent_hash, cross_hash));
-            }
-        }
-        if fold_data.is_empty() && !accumulators.is_empty() {
-            let single_hash =
-                Fr::from_be_bytes_mod_order(&Sha256::digest(&accumulators[0].acc_commitment_bytes));
-            fold_data.push((single_hash, single_hash, single_hash, cross_hash));
-        }
-        compressor.set_fold_data(fold_data);
-    }
 
     // P1.5: Bind decrypt NIZK and DKG transcript to IVC proof binding.
     compressor.set_decrypt_nizk_hash(decrypt_nizk_hash);

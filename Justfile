@@ -299,13 +299,5 @@ artifact-reproduce:
     just p3-bench
     just e2e-real
 
-greco pk_rns="auto" ct_rns="auto":
-    @echo "=== Greco-style encryption proof ==="
-    cargo run --release -p pvthfhe-cli --features nova-compressor -- snapshot prove
-
-compute n="3":
-    @echo "=== Verifiable FHE Computation (summing {{n}} ciphertexts) ==="
-    N=`echo "{{n}}" | cut -d= -f2` && cargo run --release -p pvthfhe-cli --features nova-compressor -- compute prove --n $N
-
 stage1-gate:
     python3 .sisyphus/scripts/stage1-gate.py

@@ -86,6 +86,34 @@ impl Compressor {
         }
     }
 
+    /// Set the decrypt NIZK hash for IVC proof binding (P1.5).
+    pub fn set_decrypt_nizk_hash(&mut self, hash: [u8; 32]) {
+        match self {
+            #[cfg(feature = "nova-compressor")]
+            Self::Nova { inner, .. } => {
+                inner.set_decrypt_nizk_hash(hash);
+            }
+            #[cfg(all(feature = "surrogate-compressor", not(feature = "nova-compressor")))]
+            Self::Surrogate => {
+                // no-op for surrogate compressor
+            }
+        }
+    }
+
+    /// Set the DKG transcript hash for IVC proof binding (P1.5).
+    pub fn set_dkg_transcript_hash(&mut self, hash: [u8; 32]) {
+        match self {
+            #[cfg(feature = "nova-compressor")]
+            Self::Nova { inner, .. } => {
+                inner.set_dkg_transcript_hash(hash);
+            }
+            #[cfg(all(feature = "surrogate-compressor", not(feature = "nova-compressor")))]
+            Self::Surrogate => {
+                // no-op for surrogate compressor
+            }
+        }
+    }
+
     /// Produce a compressed proof for the fold-all report.
     /// `c7_final_hash` binds the C7 decrypt-aggregation final state to
     /// the CycloFold proof (G.16 hash chain).

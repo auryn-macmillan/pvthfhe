@@ -74,11 +74,12 @@ pub const B_Z_S: i64 = 131_072;
 /// - 90  → ~142.4 bits (2^-128 target)
 /// - 128 → ~202.7 bits (conservative)
 ///
-/// DEFAULTS TO 1 for backward compatibility. Increase to 90 for production
-/// soundness (~2^-132 ≈ 2^-128 target). Full per-coefficient norm enforcement
-/// in-circuit is feasible for k ≤ 10 (~5M constraints); k ≥ 90 requires
-/// T4 JL projection (see .sisyphus/plans/symphony-adoption.md §T4).
-pub const SIGMA_REPETITIONS: usize = 1;
+/// DEFAULTS TO 90 for production soundness (~2^-142 ≈ 2^-128 target).
+/// The CycloNizkAdapter uses single-round prove/verify (not multi-round by default).
+/// Full per-coefficient norm enforcement in-circuit is feasible for k ≤ 10
+/// (~5M constraints); k ≥ 90 requires T4 JL projection
+/// (see .sisyphus/plans/symphony-adoption.md §T4).
+pub const SIGMA_REPETITIONS: usize = 90;
 
 /// Johnson-Lindenstrauss projection dimension.
 pub const JL_PROJECTION_DIM: usize = 64;

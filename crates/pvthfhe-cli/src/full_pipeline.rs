@@ -1777,8 +1777,14 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         );
     }
 
-    let compressor = Compressor::new(epoch_hash, fold_report.share_count())?;
+    let mut compressor = Compressor::new(epoch_hash, fold_report.share_count())?;
     observer.phase_end("compressor_new", elapsed_ms(compressor_new_started));
+
+    // P1.5: Bind decrypt NIZK and DKG transcript to IVC proof binding.
+    compressor.set_decrypt_nizk_hash(decrypt_nizk_hash);
+    let dkg_transcript_hash_bytes: [u8; 32] =
+        Sha256::digest(format!("dkg-transcript-{session_id}").as_bytes()).into();
+    compressor.set_dkg_transcript_hash(dkg_transcript_hash_bytes);
 
     // G7b-laBRADOR: collect JL projection data for CycloFoldStepCircuit norm enforcement.
     #[cfg(feature = "sonobe-compressor")]

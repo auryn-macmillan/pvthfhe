@@ -76,6 +76,22 @@ impl Compressor {
         }
     }
 
+    /// Set decrypt NIZK hash for IVC proof binding (P1.5).
+    pub fn set_decrypt_nizk_hash(&mut self, hash: [u8; 32]) {
+        #[cfg(feature = "sonobe-compressor")]
+        if let Self::Nova { inner, .. } = self {
+            inner.set_decrypt_nizk_hash(hash);
+        }
+    }
+
+    /// Set DKG transcript hash for IVC proof binding (P1.5).
+    pub fn set_dkg_transcript_hash(&mut self, hash: [u8; 32]) {
+        #[cfg(feature = "sonobe-compressor")]
+        if let Self::Nova { inner, .. } = self {
+            inner.set_dkg_transcript_hash(hash);
+        }
+    }
+
     /// Return the active compressor backend identifier.
     pub fn backend_id(&self) -> &'static str {
         match self {

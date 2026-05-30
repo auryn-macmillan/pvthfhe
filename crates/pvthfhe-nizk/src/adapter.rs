@@ -33,7 +33,7 @@
 //! # Phase 2 Placeholder
 //! Phase 2 (F-series): `cyclo_accumulator_bytes` will be populated with real Cyclo fold transcript bytes.
 
-use crate::ajtai::{AjtaiCommitment, AjtaiMatrix, AjtaiParams, Rq, PHI, Q_COMMIT};
+use crate::ajtai::{AjtaiCommitment, AjtaiMatrix, AjtaiParams, Rq, AJTAI_RANK, PHI, Q_COMMIT};
 use crate::sigma::{self, rlwe_n, SigmaStatement, SigmaWitness};
 use crate::{NizkAdapter, NizkError, NizkProof, NizkStatement, NizkWitness, BACKEND_ID};
 
@@ -93,7 +93,12 @@ impl NizkAdapter for CycloNizkAdapter {
         )?;
         let ajtai_bytes = serialize_ajtai_commitment(&ajtai_commitment);
 
-        let sigma_binding = ajtai_sigma_session_binding(stmt.session_id.as_bytes(), &ajtai_bytes);
+        let sigma_binding = ajtai_sigma_session_binding(
+            stmt.session_id.as_bytes(),
+            &ajtai_bytes,
+            &stmt.ciphertext_bytes,
+            &stmt.decrypt_share_bytes,
+        );
 
         let sigma_stmt = SigmaStatement {
             c_rns,
@@ -155,6 +160,9 @@ impl NizkAdapter for CycloNizkAdapter {
 
         let ajtai_commitment_bytes = cur.read_exact(26_624)?.to_vec();
 
+        // P1.1: Verify algebraic structure of the Ajtai commitment.
+        verify_ajtai_commitment(&ajtai_commitment_bytes)?;
+
         let session_id_encoded = cur.read_len_prefixed_bytes()?;
         let encoded_pid = cur.read_u16()?;
         let encoded_commitment: [u8; 32] = cur
@@ -184,8 +192,12 @@ impl NizkAdapter for CycloNizkAdapter {
         let c_rns = expand_c_rns(&ccs_id)?;
         let sigma_stmt = SigmaStatement { c_rns, d_rns };
 
-        let sigma_binding =
-            ajtai_sigma_session_binding(stmt.session_id.as_bytes(), &ajtai_commitment_bytes);
+        let sigma_binding = ajtai_sigma_session_binding(
+            stmt.session_id.as_bytes(),
+            &ajtai_commitment_bytes,
+            &stmt.ciphertext_bytes,
+            &stmt.decrypt_share_bytes,
+        );
 
         sigma::verify_scalar(
             &sigma_binding,
@@ -392,11 +404,97 @@ fn pad_or_truncate_to_rlwe_n(v: &[i64]) -> Vec<i64> {
     out
 }
 
-fn ajtai_sigma_session_binding(session_id: &[u8], ajtai_bytes: &[u8]) -> Vec<u8> {
+/// Verify the algebraic structure of a deserialized Ajtai commitment.
+///
+/// Checks that:
+/// 1. The commitment contains exactly AJTAI_RANK (13) ring elements
+/// 2. Each element's coefficients are within the valid centred range (-Q_COMMIT/2, Q_COMMIT/2]
+///
+/// This is a structural validation, not a full opening check (the verifier does not
+/// hold the witness s).  Combined with the sigma proof, this ensures the commitment
+/// is well-formed and bound to the sigma transcript.
+fn verify_ajtai_commitment(bytes: &[u8]) -> Result<(), NizkError> {
+    if bytes.len() != 26_624 {
+        return Err(NizkError::InvalidProof(
+            "ajtai commitment: wrong byte length",
+        ));
+    }
+
+    let expected_elems = AJTAI_RANK; // a = 13
+    let coeffs_per_elem = PHI; // φ = 256
+    let bytes_per_elem = coeffs_per_elem * 8; // 2048 bytes/element
+
+    let half_q = (Q_COMMIT / 2) as i64;
+
+    for (elem_idx, chunk) in bytes.chunks(bytes_per_elem).enumerate() {
+        if elem_idx >= expected_elems {
+            return Err(NizkError::InvalidProof(
+                "ajtai commitment: too many ring elements",
+            ));
+        }
+        if chunk.len() != bytes_per_elem {
+            return Err(NizkError::InvalidProof(
+                "ajtai commitment: truncated ring element",
+            ));
+        }
+        for coeff_idx in (0..coeffs_per_elem).map(|j| j * 8) {
+            let mut buf = [0u8; 8];
+            buf.copy_from_slice(&chunk[coeff_idx..coeff_idx + 8]);
+            let coeff = i64::from_le_bytes(buf);
+            // Coefficients must be in centred range (-Q_COMMIT/2, Q_COMMIT/2]
+            if coeff <= -half_q || coeff > half_q {
+                return Err(NizkError::InvalidProof(
+                    "ajtai commitment: coefficient out of range",
+                ));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Deserialize an Ajtai commitment from its canonical byte representation.
+fn deserialize_ajtai_commitment(bytes: &[u8]) -> Result<AjtaiCommitment, NizkError> {
+    if bytes.len() != 26_624 {
+        return Err(NizkError::InvalidProof(
+            "ajtai commitment: wrong byte length",
+        ));
+    }
+
+    let mut elems = Vec::with_capacity(AJTAI_RANK);
+    let coeffs_per_elem = PHI;
+    let bytes_per_elem = coeffs_per_elem * 8;
+
+    for chunk in bytes.chunks(bytes_per_elem) {
+        if chunk.len() != bytes_per_elem {
+            return Err(NizkError::InvalidProof(
+                "ajtai commitment: truncated ring element",
+            ));
+        }
+        let mut coeffs = [0i64; PHI];
+        for (j, c) in coeffs.iter_mut().enumerate() {
+            let mut buf = [0u8; 8];
+            buf.copy_from_slice(&chunk[j * 8..(j + 1) * 8]);
+            *c = i64::from_le_bytes(buf);
+        }
+        elems.push(Rq::new(coeffs, Q_COMMIT));
+    }
+
+    Ok(AjtaiCommitment { elems })
+}
+
+fn ajtai_sigma_session_binding(
+    session_id: &[u8],
+    ajtai_bytes: &[u8],
+    ciphertext_bytes: &[u8],
+    decrypt_share_bytes: &[u8],
+) -> Vec<u8> {
     use sha2::{Digest, Sha256};
     let mut h = Sha256::new();
     h.update(session_id);
     h.update(ajtai_bytes);
+    h.update(ciphertext_bytes);
+    h.update(decrypt_share_bytes);
     h.finalize().to_vec()
 }
 

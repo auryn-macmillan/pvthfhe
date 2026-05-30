@@ -1363,6 +1363,8 @@ pub struct NovaCompressor<S: FCircuit<Fr, Params = ()> + StepCircuit + Clone + D
     ivc_steps: usize,
     state_len: usize,
     srs_hash: [u8; 32],
+    decrypt_nizk_hash: [u8; 32],
+    dkg_transcript_hash: [u8; 32],
     _step_circuit: std::marker::PhantomData<S>,
 }
 
@@ -1437,6 +1439,8 @@ impl<S: FCircuit<Fr, Params = ()> + StepCircuit + Clone + Debug> NovaCompressor<
             ivc_steps,
             state_len,
             srs_hash,
+            decrypt_nizk_hash: [0u8; 32],
+            dkg_transcript_hash: [0u8; 32],
             _step_circuit: std::marker::PhantomData,
         })
     }
@@ -1455,6 +1459,16 @@ impl<S: FCircuit<Fr, Params = ()> + StepCircuit + Clone + Debug> NovaCompressor<
     /// Returns the number of IVC fold steps configured at construction time.
     pub fn ivc_steps(&self) -> usize {
         self.ivc_steps
+    }
+
+    /// Set the decrypt NIZK hash for IVC proof binding (P1.5).
+    pub fn set_decrypt_nizk_hash(&mut self, hash: [u8; 32]) {
+        self.decrypt_nizk_hash = hash;
+    }
+
+    /// Set the DKG transcript hash for IVC proof binding (P1.5).
+    pub fn set_dkg_transcript_hash(&mut self, hash: [u8; 32]) {
+        self.dkg_transcript_hash = hash;
     }
 
     fn deserialize_params(
@@ -1508,6 +1522,8 @@ where
     ivc_steps: usize,
     state_len: usize,
     srs_hash: [u8; 32],
+    decrypt_nizk_hash: [u8; 32],
+    dkg_transcript_hash: [u8; 32],
     _step_circuit: std::marker::PhantomData<S>,
 }
 
@@ -1553,6 +1569,8 @@ where
             ivc_steps,
             state_len: c_primary.arity(),
             srs_hash,
+            decrypt_nizk_hash: [0u8; 32],
+            dkg_transcript_hash: [0u8; 32],
             _step_circuit: std::marker::PhantomData,
         })
     }
@@ -1570,6 +1588,16 @@ where
     /// Returns the number of IVC fold steps configured at construction time.
     pub fn ivc_steps(&self) -> usize {
         self.ivc_steps
+    }
+
+    /// Set the decrypt NIZK hash for IVC proof binding (P1.5).
+    pub fn set_decrypt_nizk_hash(&mut self, hash: [u8; 32]) {
+        self.decrypt_nizk_hash = hash;
+    }
+
+    /// Set the DKG transcript hash for IVC proof binding (P1.5).
+    pub fn set_dkg_transcript_hash(&mut self, hash: [u8; 32]) {
+        self.dkg_transcript_hash = hash;
     }
 }
 
@@ -2058,6 +2086,8 @@ impl<
             self.state_len,
             snark_seed,
             compute_share_verification_hash(),
+            self.decrypt_nizk_hash,
+            self.dkg_transcript_hash,
         )?;
 
         let snark_proof = if snark_result.snark_proof_bytes.is_empty() {
@@ -2177,6 +2207,8 @@ impl ProofCompressor for NovaCompressor<CycloFoldStepCircuit<Fr>> {
             self.state_len,
             snark_seed,
             compute_share_verification_hash(),
+            self.decrypt_nizk_hash,
+            self.dkg_transcript_hash,
         )?;
 
         let snark_proof_bytes = if snark_result.snark_proof_bytes.is_empty() {
@@ -2333,6 +2365,8 @@ impl<
             self.state_len,
             snark_seed,
             compute_share_verification_hash(),
+            self.decrypt_nizk_hash,
+            self.dkg_transcript_hash,
         )?;
 
         tracing::info!(
@@ -2471,6 +2505,8 @@ impl NovaCompressor<CycloFoldStepCircuit<Fr>> {
             self.state_len,
             snark_seed,
             compute_share_verification_hash(),
+            self.decrypt_nizk_hash,
+            self.dkg_transcript_hash,
         )?;
 
         tracing::info!(
@@ -2678,6 +2714,8 @@ impl<
             self.state_len,
             snark_seed,
             compute_share_verification_hash(),
+            self.decrypt_nizk_hash,
+            self.dkg_transcript_hash,
         )?;
 
         tracing::info!(
@@ -2804,6 +2842,8 @@ impl<
             self.state_len,
             snark_seed,
             compute_share_verification_hash(),
+            self.decrypt_nizk_hash,
+            self.dkg_transcript_hash,
         )?;
 
         tracing::info!(

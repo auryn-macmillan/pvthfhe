@@ -78,6 +78,8 @@ fn make_statement_witness(n: usize, rng: &mut ChaCha20Rng) -> (NizkStatement, Ni
         session_id,
         participant_id,
         epoch: 0,
+        c_rns_override: None,
+        d_rns_override: None,
     };
 
     let witness = NizkWitness {

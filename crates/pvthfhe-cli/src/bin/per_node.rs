@@ -270,6 +270,8 @@ fn main() -> anyhow::Result<()> {
         session_id: "per-node-sim".to_string(),
         participant_id: 1,
         epoch: 0,
+        c_rns_override: None,
+        d_rns_override: None,
     };
     let secret_key_poly_witness = secret_key_to_ternary_poly(&sk_bytes, args.seed);
     let error_poly = derive_nizk_error(&sk_bytes, args.seed);
@@ -348,6 +350,8 @@ fn main() -> anyhow::Result<()> {
             session_id: format!("per-node-other-{}", other_party_id),
             participant_id: other_party_id as u16,
             epoch: 0,
+            c_rns_override: None,
+            d_rns_override: None,
         };
 
         let other_sk_n = pvthfhe_nizk::sigma::rlwe_n();

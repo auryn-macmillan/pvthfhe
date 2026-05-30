@@ -20,7 +20,7 @@ use pvthfhe_rng::OsRng;
 use sha2::{Digest, Sha256};
 use std::time::Instant;
 
-#[cfg(feature = "sonobe-compressor")]
+#[cfg(feature = "nova-compressor")]
 use pvthfhe_compressor::nova::{encode_hex, encode_triple, ExternalInputs3, NovaCompressor};
 
 const DEMO_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 131072\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
@@ -270,7 +270,7 @@ fn main() -> anyhow::Result<()> {
         "  compressor: starting... (n={}, t={})",
         args.n, args.threshold
     );
-    #[cfg(feature = "sonobe-compressor")]
+    #[cfg(feature = "nova-compressor")]
     let compressor_ms = {
         let t0 = Instant::now();
         if args.use_micronova {
@@ -306,7 +306,7 @@ fn main() -> anyhow::Result<()> {
         }
         elapsed_ms(t0)
     };
-    #[cfg(not(feature = "sonobe-compressor"))]
+    #[cfg(not(feature = "nova-compressor"))]
     let compressor_ms = 0.0;
     eprintln!("  compressor: complete ({:.1}s)", compressor_ms / 1000.0);
 
@@ -324,7 +324,7 @@ fn main() -> anyhow::Result<()> {
 
     // 3. C7: tree folding for Lagrange aggregation (MicroNova CompressionTree)
     eprintln!("  c7: starting... (t={})", args.threshold);
-    #[cfg(feature = "sonobe-compressor")]
+    #[cfg(feature = "nova-compressor")]
     let (c7_ms, c7_tree_depth, c7_leaves) = {
         let t2 = Instant::now();
 
@@ -394,12 +394,12 @@ fn main() -> anyhow::Result<()> {
             (ms, depth, leaves)
         }
     };
-    #[cfg(not(feature = "sonobe-compressor"))]
+    #[cfg(not(feature = "nova-compressor"))]
     let (c7_ms, c7_tree_depth, c7_leaves) = (0.0, 0usize, 0usize);
     eprintln!("  c7: complete ({:.1}s)", c7_ms / 1000.0);
 
     // 4. Ajtai DKG fold: fold all recipient verifications into one proof
-    #[cfg(feature = "sonobe-compressor")]
+    #[cfg(feature = "nova-compressor")]
     let ajtai_dkg_fold_ms = {
         let t3 = Instant::now();
         use pvthfhe_compressor::witness::hash_all_coeffs;
@@ -445,7 +445,7 @@ fn main() -> anyhow::Result<()> {
             .map_err(|e| anyhow::anyhow!("ajtai prove_steps_ajtai: {e:?}"))?;
         elapsed_ms(t3)
     };
-    #[cfg(not(feature = "sonobe-compressor"))]
+    #[cfg(not(feature = "nova-compressor"))]
     let ajtai_dkg_fold_ms = 0.0;
 
     // Report
@@ -522,7 +522,7 @@ fn compute_lagrange_coeffs_bn254(xs: &[Fr], eval_point: Fr) -> Vec<Fr> {
     coeffs
 }
 
-#[cfg(feature = "sonobe-compressor")]
+#[cfg(feature = "nova-compressor")]
 fn time_micronova_compressor(epoch_hash: [u8; 32], batch_count: usize) -> anyhow::Result<()> {
     use pvthfhe_compressor::micronova::compressor::MicroNovaCompressor;
 
@@ -561,7 +561,7 @@ fn time_micronova_compressor(epoch_hash: [u8; 32], batch_count: usize) -> anyhow
     Ok(())
 }
 
-#[cfg(not(feature = "sonobe-compressor"))]
+#[cfg(not(feature = "nova-compressor"))]
 fn time_micronova_compressor(_epoch_hash: [u8; 32], _batch_count: usize) -> anyhow::Result<()> {
     Ok(())
 }

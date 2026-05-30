@@ -1,6 +1,6 @@
 //! RED integration test for the larger full-pipeline path.
 
-#[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]
+#[cfg(all(feature = "with-fhe", feature = "nova-compressor"))]
 mod tests {
     use pvthfhe_cli::full_pipeline::{run_full_pipeline, PipelineConfig, PipelineObserver};
     use std::env;

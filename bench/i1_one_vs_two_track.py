@@ -161,7 +161,7 @@ def main() -> int:
     args = parse_args()
     RESULTS.mkdir(parents=True, exist_ok=True)
 
-    # NOTE: Track B benchmarking requires --features pipeline-extra-checks,sonobe-compressor
+    # NOTE: Track B benchmarking requires --features pipeline-extra-checks,nova-compressor
     # and PVTHFHE_TRACK=B. Current benchmark uses Track A only (default).
     # See just bench-comparison for the full Track B feature set.
     full_probe = run_command(

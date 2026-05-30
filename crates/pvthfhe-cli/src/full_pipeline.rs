@@ -1342,7 +1342,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             NovaCompressor::<FheComputeStepCircuit<Fr>>::new(compute_epoch, n_compute_steps)
                 .map_err(|e| anyhow::anyhow!("fhe compute compressor init: {e:?}"))?;
 
-        let zero_acc = vec![0u8; 32];
+        let zero_acc =
+            pvthfhe_compressor::nova::encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
         let ext_steps: Vec<ExternalInputs3<Fr>> = vec![ExternalInputs3::default(); n_compute_steps];
         let compute_proof = compute_compressor
             .prove_steps(&zero_acc, &ext_steps)

@@ -28,7 +28,7 @@ demo-e2e n="10" t="4" seed="1":
     @echo "* DO NOT DEPLOY — research prototype only                                 *"
     mkdir -p .sisyphus/evidence
     export PVTHFHE_RUN_C7_SONOBE=1
-    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 RUSTFLAGS="-Awarnings" cargo run --release -p pvthfhe-cli --features "sonobe-compressor,demo-seeded-rng,pipeline-extra-checks,symphony-all" -- \
+    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 RUSTFLAGS="-Awarnings" cargo run --release -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng,pipeline-extra-checks,symphony-all" -- \
         demo --n {{n}} --threshold {{t}} --seed {{seed}} \
         2>&1 | tee .sisyphus/evidence/task-40-demo.log
 
@@ -38,11 +38,11 @@ demo-e2e-track-a n="10" t="4" seed="1":
 
 # Per-node simulation — measures wall time for ONE party at given n and t
 per-node n="10" t="4" seed="1":
-    cargo run -p pvthfhe-cli --release --bin per-node --features "sonobe-compressor,symphony-all" -- --n {{n}} --threshold {{t}} --seed {{seed}}
+    cargo run -p pvthfhe-cli --release --bin per-node --features "nova-compressor,symphony-all" -- --n {{n}} --threshold {{t}} --seed {{seed}}
 
 # Per-aggregator simulation — measures wall time for the aggregator node
 aggregator n="10" t="4" seed="1":
-    cargo run -p pvthfhe-cli --release --bin per-aggregator --features "sonobe-compressor,symphony-all" -- --n {{n}} --threshold {{t}} --seed {{seed}}
+    cargo run -p pvthfhe-cli --release --bin per-aggregator --features "nova-compressor,symphony-all" -- --n {{n}} --threshold {{t}} --seed {{seed}}
 
 bench-p4:
     mkdir -p .sisyphus/evidence/benchmarks/p4
@@ -57,9 +57,9 @@ bench-scaling:
 
 bench-comparison n="3" t="1" seed="1":
     mkdir -p bench/results
-    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features sonobe-compressor,demo-seeded-rng,pipeline-extra-checks -- --n {{n}} --t {{t}} --seed {{seed}}
-    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features sonobe-compressor,demo-seeded-rng,pipeline-extra-checks -- --n {{n}} --t {{t}} --seed {{seed}}
-    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features sonobe-compressor,demo-seeded-rng,pipeline-extra-checks -- --n {{n}} --t {{t}} --seed {{seed}}
+    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features nova-compressor,demo-seeded-rng,pipeline-extra-checks -- --n {{n}} --t {{t}} --seed {{seed}}
+    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features nova-compressor,demo-seeded-rng,pipeline-extra-checks -- --n {{n}} --t {{t}} --seed {{seed}}
+    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features nova-compressor,demo-seeded-rng,pipeline-extra-checks -- --n {{n}} --t {{t}} --seed {{seed}}
     cargo run -p pvthfhe-bench --bin bench_comparison -- --n {{n}} --t {{t}} --seed {{seed}}
     cargo run -p pvthfhe-bench --bin render_comparison -- --comparison-json bench/results/comparison.json --output-dir bench/results
 
@@ -75,7 +75,7 @@ wire-gate:
 
 compressor-gate:
     cargo test -p pvthfhe-compressor
-    cargo test -p pvthfhe-cli --test e2e_uses_nova --features sonobe-compressor
+    cargo test -p pvthfhe-cli --test e2e_uses_nova --features nova-compressor
     cargo test -p pvthfhe-micronova --test no_consumers
 
 pvss-gate:
@@ -301,11 +301,11 @@ artifact-reproduce:
 
 greco pk_rns="auto" ct_rns="auto":
     @echo "=== Greco-style encryption proof ==="
-    cargo run --release -p pvthfhe-cli --features sonobe-compressor -- snapshot prove
+    cargo run --release -p pvthfhe-cli --features nova-compressor -- snapshot prove
 
 compute n_ops="3":
     @echo "=== Verifiable FHE Computation ==="
-    cargo run --release -p pvthfhe-cli --features sonobe-compressor -- compute prove --operations add,add,add
+    cargo run --release -p pvthfhe-cli --features nova-compressor -- compute prove --operations add,add,add
 
 stage1-gate:
     python3 .sisyphus/scripts/stage1-gate.py

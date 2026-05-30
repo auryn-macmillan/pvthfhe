@@ -12,18 +12,12 @@ help: Check that the patched package version and available features are compatib
       with the dependency requirements. If the patch has a different version from
       what is locked in the Cargo.lock file, run `cargo update` to use the new
       version. This may also occur with an optional dependency that is not enabled.
-   Compiling pvthfhe-domain-tags v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-domain-tags)
-   Compiling pvthfhe-fhe v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-fhe)
 warning: pvthfhe-fhe@0.1.0: MOCK BACKEND ACTIVE — XOR/SHA256 ONLY. Set PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK=1 to use.
 warning: pvthfhe-aggregator@0.1.0: aggregator: folding uses CycloFoldStepCircuit with real Ajtai commitments (CycloNizkAdapter)
-   Compiling pvthfhe-wire v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-wire)
-   Compiling pvthfhe-pvss v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-pvss)
-   Compiling pvthfhe-keygen v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-keygen)
-   Compiling pvthfhe-aggregator v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-aggregator)
    Compiling pvthfhe-compressor v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-compressor)
    Compiling pvthfhe-bench v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-bench)
    Compiling pvthfhe-cli v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-cli)
-    Finished `release` profile [optimized] target(s) in 25.50s
+    Finished `release` profile [optimized] target(s) in 25.67s
      Running `target/release/pvthfhe-cli demo --n 10 --threshold 4 --seed 1`
 demo: n=10 threshold=4 seed=1
 pvss_backend_id=lattice-pvss-bfv-d2
@@ -32,17 +26,17 @@ backend_id_p2: cyclo-rlwe-t10-lemma9-heuristic
 backend_id_p3: nova-bn254-grumpkin
 note: on-chain Solidity verify is NOT run by demo (use bench-comparison)
 pvss_backend_id=lattice-pvss-bfv-d2
-[2m2026-05-29T22:24:26.610521Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m seed flag ignored in production path; will require --insecure-seed in future R3.6
+[2m2026-05-30T02:51:59.329167Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m seed flag ignored in production path; will require --insecure-seed in future R3.6
 step 1/14: keygen (n=10 t=4 seed=1)
-keygen: complete (1945.155 ms)
+keygen: complete (1976.944 ms)
 step 2/14: dkg_deal (n=10 dealers)
-dkg_deal: complete (30377.619 ms)
+dkg_deal: complete (30782.928 ms)
 step 3/14: dkg_aggregate (n=10 recipients)
-dkg_aggregate: complete (0.157 ms)
+dkg_aggregate: complete (0.200 ms)
 step 4/14: dkg_fold (n=10 recipients)
 step 5/14: nizk_prove (dealer=1)
 step 6/14: nizk_verify (dealer=1 recipient=1)
 step 7/14: pvss_share_encrypt (lattice-pvss-bfv-d2)
-pvss_share_encrypt: complete (555.926 ms)
-setup_threshold: complete (709.586 ms)
-Error: greco/compute demo: ct8 decrypted [96, 136, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], expected [96, 136, 5, 0, 0, 0, 0, 0]
+pvss_share_encrypt: complete (550.377 ms)
+setup_threshold: complete (252.134 ms)
+Error: fhe compute verify: InvalidProof

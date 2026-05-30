@@ -23,12 +23,12 @@ required-features = ["with-fhe"]
 [[bin]]
 name = "per-aggregator"
 path = "src/bin/per_aggregator.rs"
-required-features = ["with-fhe", "sonobe-compressor"]
+required-features = ["with-fhe", "nova-compressor"]
 
 [[bin]]
 name = "nova-min"
 path = "src/bin/nova_min.rs"
-required-features = ["sonobe-compressor"]
+required-features = ["nova-compressor"]
 
 [lints]
 workspace = true
@@ -63,7 +63,7 @@ light-poseidon = "0.4"
 fhe = { git = "https://github.com/gnosisguild/fhe.rs", rev = "5f24d0b62a7329b789db07a065b68accd614a47b", optional = true }
 
 [features]
-default = ["with-fhe", "sonobe-compressor", "pipeline-extra-checks"]
+default = ["with-fhe", "nova-compressor", "pipeline-extra-checks"]
 with-fhe = [
     "dep:pvthfhe-keygen",
     "dep:pvthfhe-bench",
@@ -75,7 +75,7 @@ with-fhe = [
 mock = ["with-fhe", "pvthfhe-fhe/mock", "pvthfhe-aggregator/mock"]
 probe-no-fhe = []
 surrogate-compressor = []
-sonobe-compressor = ["dep:pvthfhe-compressor", "dep:pvthfhe-circuit-tests"]
+nova-compressor = ["dep:pvthfhe-compressor", "dep:pvthfhe-circuit-tests"]
 # Stage 0 tripwire bypass: enable seeded RNG in demo paths.
 # Must NOT be enabled in release/production builds.
 demo-seeded-rng = []

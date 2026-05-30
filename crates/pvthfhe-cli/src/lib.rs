@@ -26,7 +26,7 @@ pub mod demo_nizk;
 #[cfg(feature = "with-fhe")]
 pub mod compressor_glue;
 
-#[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]
+#[cfg(all(feature = "with-fhe", feature = "nova-compressor"))]
 pub mod full_pipeline;
 
 #[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]

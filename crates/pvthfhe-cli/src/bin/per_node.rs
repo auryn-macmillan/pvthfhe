@@ -402,19 +402,19 @@ fn main() -> anyhow::Result<()> {
 
     // 6. C7: tree vs flat folding timing
     eprintln!("  c7_tree: starting... (t={})", args.threshold);
-    #[cfg(feature = "sonobe-compressor")]
+    #[cfg(feature = "nova-compressor")]
     let c7_ms = {
         let t5 = Instant::now();
         time_c7_tree_folding(args.threshold, args.seed, &sha256_bytes(&sk_bytes))?;
         elapsed_ms(t5)
     };
-    #[cfg(not(feature = "sonobe-compressor"))]
+    #[cfg(not(feature = "nova-compressor"))]
     let c7_ms = 0.0;
     eprintln!("  c7_tree: complete ({:.1}s)", c7_ms / 1000.0);
 
     // 7. DKG Nova fold: fold all recipient verifications with parity-check proofs
     eprintln!("  dkg_fold: starting... (n={})", args.n);
-    #[cfg(feature = "sonobe-compressor")]
+    #[cfg(feature = "nova-compressor")]
     let dkg_fold_ms = {
         use ark_bn254::Fr;
         use pvthfhe_compressor::nova::CycloFoldStepCircuit;
@@ -461,7 +461,7 @@ fn main() -> anyhow::Result<()> {
             .map_err(|e| anyhow::anyhow!("dkg fold prove_steps_ajtai: {e:?}"))?;
         elapsed_ms(t6)
     };
-    #[cfg(not(feature = "sonobe-compressor"))]
+    #[cfg(not(feature = "nova-compressor"))]
     let dkg_fold_ms = 0.0;
     eprintln!("  dkg_fold: complete ({:.1}s)", dkg_fold_ms / 1000.0);
 
@@ -655,7 +655,7 @@ fn compute_ajtai_matrix_commitment(
     Ok(ajtai::encode_commitment(&AjtaiCommitment { commitment }))
 }
 
-#[cfg(feature = "sonobe-compressor")]
+#[cfg(feature = "nova-compressor")]
 /// Derive a ternary witness polynomial (-1, 0, 1) from secret key bytes.
 fn secret_key_to_ternary_poly(bytes: &[u8], seed: u64) -> Vec<i64> {
     let mut hasher = Sha256::new();
@@ -673,7 +673,7 @@ fn secret_key_to_ternary_poly(bytes: &[u8], seed: u64) -> Vec<i64> {
     poly
 }
 
-#[cfg(feature = "sonobe-compressor")]
+#[cfg(feature = "nova-compressor")]
 fn time_c7_tree_folding(t: usize, _seed: u64, _pk_hash: &[u8; 32]) -> anyhow::Result<()> {
     use ark_bn254::Fr;
     use ark_ff::PrimeField;
@@ -717,7 +717,7 @@ fn time_c7_tree_folding(t: usize, _seed: u64, _pk_hash: &[u8; 32]) -> anyhow::Re
     Ok(())
 }
 
-#[cfg(not(feature = "sonobe-compressor"))]
+#[cfg(not(feature = "nova-compressor"))]
 fn time_c7_tree_folding(_t: usize, _seed: u64, _pk_hash: &[u8; 32]) -> anyhow::Result<()> {
     Ok(())
 }

@@ -14,11 +14,11 @@ panic = "warn"
 as_conversions = "warn"
 
 [features]
-default = ["sonobe-compressor"]
+default = ["nova-compressor"]
 backend-fhe-rs = ["dep:fhe", "dep:fhe-math"]
 backend-poulpy = ["dep:poulpy-hal", "dep:poulpy-cpu-ref"]
 surrogate-compressor = []
-sonobe-compressor = ["dep:pvthfhe-compressor"]
+nova-compressor = ["dep:pvthfhe-compressor"]
 
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = ["clock"] }

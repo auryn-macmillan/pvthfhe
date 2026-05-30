@@ -1780,10 +1780,13 @@ where
     ) -> Result<bool, CompressorError> {
         use high_arity_fold::*;
 
-        if steps.is_empty() {
-            return self.verify_steps(vk, proof, acc, steps);
+        // Compute hash from ORIGINAL steps (not folded), matching prove path.
+        let expected_hash = committed_public_inputs_hash(steps);
+        if parsed.public_inputs_hash != expected_hash {
+            return Ok(false);
         }
 
+        // Fold for Nova verification
         let beta = derive_beta_vector(&self.srs_hash, steps.len());
         let single_folded = fold_external_inputs(steps, &beta);
 

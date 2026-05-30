@@ -180,7 +180,9 @@ pub fn prove_bfv_snapshot(
     // Set up witness data in thread-local storage
     bfv_encryption_circuit::set_bfv_encryption_data(witness_data);
 
-    let c_primary = BfvEncryptionSnapshot::<Fr>::default();
+    // H1: use the actual snapshot (with real pk_rns/ct_rns) so the circuit
+    // binds pk_hash/ct_hash into the IVC state, preventing witness substitution.
+    let c_primary = snapshot.clone();
 
     let pp = nova_snark::nova::PublicParams::setup(
         &c_primary,

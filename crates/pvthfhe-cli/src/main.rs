@@ -555,20 +555,16 @@ fn r8_snapshot(action: SnapshotCommand) -> anyhow::Result<()> {
             let prove_ms = prove_started.elapsed().as_secs_f64() * 1000.0;
 
             let proof_hex = hex::encode(&proof.bytes);
-            println!("snapshot_proof={proof_hex}");
-            println!("proof_size_bytes={}", proof.bytes.len());
-            println!("prove_ms={prove_ms:.2}");
-
-            let verify_started = std::time::Instant::now();
-            match verify_bfv_snapshot(&proof, &snapshot, session_bytes) {
-                Ok(true) => {
-                    let verify_ms = verify_started.elapsed().as_secs_f64() * 1000.0;
-                    println!("verify: ACCEPT ({verify_ms:.2} ms)");
+            let verify_ms = match verify_bfv_snapshot(&proof, &snapshot, session_bytes) {
+                Ok(true) => verify_started.elapsed().as_secs_f64() * 1000.0,
+                Ok(false) => {
+                    anyhow::bail!("snapshot verify: REJECT");
                 }
-                Ok(false) => println!("verify: REJECT"),
-                Err(e) => println!("verify: ERROR ({e:?})"),
-            }
-            println!("snapshot: prove ok");
+                Err(e) => {
+                    anyhow::bail!("snapshot verify: {e:?}");
+                }
+            };
+            println!("prove_ms={prove_ms:.2} verify_ms={verify_ms:.2} proof_size_bytes={} snapshot_verify=ACCEPT", proof.bytes.len());
         }
         SnapshotCommand::Verify { proof, pk, ct } => {
             let proof_bytes = hex::decode(&proof).context("invalid proof hex")?;

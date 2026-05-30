@@ -13,9 +13,9 @@ use pvthfhe_aggregator::{
     },
 };
 use pvthfhe_bench::e2e_timings::E2eTimings;
-#[cfg(feature = "sonobe-compressor")]
+#[cfg(feature = "nova-compressor")]
 use pvthfhe_compressor::merkle::{build_merkle_tree, prove_merkle_path};
-#[cfg(feature = "sonobe-compressor")]
+#[cfg(feature = "nova-compressor")]
 use pvthfhe_compressor::nova::{
     bfv_snapshot::{prove_bfv_snapshot, verify_bfv_snapshot, BfvEncryptionSnapshot},
     clear_cyclo_ring_data, clear_dealer_parity_data, clear_sigma_data,
@@ -29,7 +29,7 @@ use pvthfhe_compressor::nova::{
     set_sigma_response_data, CycloFoldStepCircuit, CycloRingWitness, DealerParityStepCircuit,
     ExternalInputs3, NovaCompressor, SigmaWitness as CompressorSigmaWitness,
 };
-#[cfg(feature = "sonobe-compressor")]
+#[cfg(feature = "nova-compressor")]
 use pvthfhe_compressor::witness::{
     hash_all_coeffs, ShareVerificationWitness, ShareVerificationWitnessSet,
 };
@@ -240,7 +240,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     );
 
     // Nova IVC verification flags (C1, C4, C5). Default true — set to
-    // actual verification result inside the sonobe-compressor cfg blocks.
+    // actual verification result inside the nova-compressor cfg blocks.
     #[allow(unused_mut)]
     let mut c1_passed = true;
     #[allow(unused_mut)]
@@ -394,7 +394,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     };
 
     // ── C1: PK contribution IVC verification ──
-    #[cfg(feature = "sonobe-compressor")]
+    #[cfg(feature = "nova-compressor")]
     {
         use pvthfhe_compressor::nova::pk_contribution_circuit::{
             clear_pk_contribution_data, set_pk_contribution_data, KeyContributionStepCircuit,
@@ -501,7 +501,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 }
             }
 
-            #[cfg(feature = "sonobe-compressor")]
+            #[cfg(feature = "nova-compressor")]
             {
                 use pvthfhe_pvss::encrypt::compute_poly_factors;
                 let r = Fr::from_be_bytes_mod_order(&Sha256::digest(
@@ -642,7 +642,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         observer.phase_end("dkg_aggregate", elapsed_ms(dkg_agg_started));
 
         // ── C4: DKG aggregation IVC verification ──
-        #[cfg(feature = "sonobe-compressor")]
+        #[cfg(feature = "nova-compressor")]
         {
             use pvthfhe_compressor::nova::dkg_aggregation_circuit::{
                 clear_dkg_agg_data, set_dkg_agg_data, DkgAggregationStepCircuit,
@@ -688,7 +688,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
         let mut fold_hashes: Vec<Fr> = Vec::with_capacity(n);
         let mut parity_proof_hashes: Vec<Fr> = Vec::with_capacity(n);
-        #[cfg(feature = "sonobe-compressor")]
+        #[cfg(feature = "nova-compressor")]
         {
             use pvthfhe_compressor::witness::hash_all_coeffs;
             use pvthfhe_compressor::witness::{AjtaiCommitmentWitness, AjtaiCommitmentWitnessSet};
@@ -764,12 +764,12 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 parity_proof_hashes.push(fold_hash);
             }
         }
-        #[cfg(not(feature = "sonobe-compressor"))]
+        #[cfg(not(feature = "nova-compressor"))]
         {
             fold_hashes = vec![Fr::zero(); n];
             parity_proof_hashes = vec![Fr::zero(); n];
         }
-        #[cfg(feature = "sonobe-compressor")]
+        #[cfg(feature = "nova-compressor")]
         {
             let all_nonzero = fold_hashes.iter().all(|h| !h.is_zero());
             assert!(
@@ -838,7 +838,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     }
 
     // G.12 Phase 4: Fold Ajtai commitment verification into compressed proof
-    #[cfg(feature = "sonobe-compressor")]
+    #[cfg(feature = "nova-compressor")]
     let _combined_commitment_hash = {
         use pvthfhe_compressor::witness::poseidon_sponge_hash_native;
         use pvthfhe_compressor::witness::AjtaiCommitmentWitness;
@@ -901,7 +901,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             }
         }
     };
-    #[cfg(not(feature = "sonobe-compressor"))]
+    #[cfg(not(feature = "nova-compressor"))]
     let combined_commitment_hash = Fr::zero();
 
     let _combined_sk_commitment_hash = if sk_commitments.is_empty() {
@@ -1069,7 +1069,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     observer.phase_end("aggregate_keygen", elapsed_ms(aggregate_keygen_started));
 
     // ── C5: PK aggregation IVC verification ──
-    #[cfg(feature = "sonobe-compressor")]
+    #[cfg(feature = "nova-compressor")]
     {
         use pvthfhe_compressor::nova::pk_aggregation_circuit::{
             clear_pk_agg_data, set_pk_agg_data, PkAggregationStepCircuit,
@@ -1117,7 +1117,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let ciphertext_hash_hex = hex::encode(ct_hash);
 
     // ── Greco/compute demo: BFV encryption snapshot + verifiable FHE self-add ──
-    #[cfg(feature = "sonobe-compressor")]
+    #[cfg(feature = "nova-compressor")]
     {
         use std::marker::PhantomData;
 
@@ -1322,6 +1322,13 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
         clear_fhe_compute_data();
 
+        // Verify compute proof (M1: Greco compute provider verification).
+        let compute_vk = compute_compressor.verifier_key();
+        let compute_verified = compute_compressor
+            .verify_steps(&compute_vk, &compute_proof, &zero_acc, &ext_steps)
+            .map_err(|e| anyhow::anyhow!("fhe compute verify: {e:?}"))?;
+        anyhow::ensure!(compute_verified, "compute proof verification failed");
+
         // ── Step 17: Decrypt ct8 and verify ──
         let mut ct8_shares = Vec::with_capacity(cfg.t);
         for party_index in 1..=cfg.t {
@@ -1337,7 +1344,12 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             .aggregate_decrypt(&ct8, &ct8_shares, cfg.t, session_id.as_bytes())
             .context("aggregate_decrypt ct8")?;
 
-        let expected_ct8 = (greco_plaintext_val * 8u64).to_le_bytes().to_vec();
+        // BFV slots are coefficients mod t_plain (≥65536), but byte-packing
+        // (2 bytes per slot) only preserves the lower 16 bits. After 3 self-adds
+        // (×8), wrap the expected value at 2^16 to match the slot decode path.
+        let expected_ct8 = (greco_plaintext_val.wrapping_mul(8u64) % 65536u64)
+            .to_le_bytes()
+            .to_vec();
         // Truncate decrypted plaintext to match expected length (BFV encodes
         // into polynomial coefficients; we only need the first few bytes)
         let ct8_truncated = &ct8_plaintext[..expected_ct8.len()];
@@ -1470,13 +1482,13 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     observer.phase_end("cyclo_fold_verify", elapsed_ms(cyclo_verify_started));
 
     // D.2 Track B: native ring-equation verification (hash-and-verify) before compressor.
-    #[cfg(all(feature = "pipeline-extra-checks", feature = "sonobe-compressor"))]
+    #[cfg(all(feature = "pipeline-extra-checks", feature = "nova-compressor"))]
     {
         clear_cyclo_ring_data();
         clear_sigma_data();
     }
 
-    #[cfg(all(feature = "pipeline-extra-checks", feature = "sonobe-compressor"))]
+    #[cfg(all(feature = "pipeline-extra-checks", feature = "nova-compressor"))]
     if track == Track::B {
         use ark_bn254::Fr;
         use pvthfhe_aggregator::folding::ring_element::RingElement;
@@ -1909,7 +1921,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     }
 
     // G.12 Phase 2: Build ShareVerificationWitnessSet for Nova folding
-    #[cfg(feature = "sonobe-compressor")]
+    #[cfg(feature = "nova-compressor")]
     let sv_witness_set = {
         let mut sv_witnesses = Vec::with_capacity(share_coeffs.len());
         for (i, coeffs) in share_coeffs.iter().enumerate() {
@@ -2014,7 +2026,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     #[cfg(not(feature = "pipeline-extra-checks"))]
     let compressor_mode = "".to_string();
 
-    #[cfg(feature = "sonobe-compressor")]
+    #[cfg(feature = "nova-compressor")]
     if compressor_mode == "micronova" {
         tracing::info!("MicroNova: heterogeneous IVC compressor active");
         use pvthfhe_compressor::nova::{
@@ -2087,7 +2099,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     compressor.set_dkg_transcript_hash(dkg_transcript_hash_bytes);
 
     // G7b-laBRADOR: collect JL projection data for CycloFoldStepCircuit norm enforcement.
-    #[cfg(feature = "sonobe-compressor")]
+    #[cfg(feature = "nova-compressor")]
     {
         use pvthfhe_nizk::adapter::extract_sigma_statement_and_proof;
         use pvthfhe_nizk::sigma::{compute_jl_entries, compute_raw_jl_sum, JL_PROJECTION_DIM};
@@ -2137,7 +2149,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     // G1+G4: compute per-share verification hash from DKG share commitments.
     let share_verification_hash = compute_share_verification_hash(&sk_commitments);
     compressed.share_verification_hash = Some(share_verification_hash);
-    #[cfg(feature = "sonobe-compressor")]
+    #[cfg(feature = "nova-compressor")]
     clear_cyclo_ring_data();
     let compressor_prove_ms = elapsed_ms(compressor_prove_started);
     observer.phase_end("compressor_prove", compressor_prove_ms);
@@ -2157,7 +2169,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let compressed_proof_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(compressed.digest));
     tracing::info!("hash-chain 1.2: compressed_proof_hash bound into d_commitment session");
 
-    #[cfg(feature = "sonobe-compressor")]
+    #[cfg(feature = "nova-compressor")]
     {
         observer.phase_start("compressor_verify_external", Some(compressor.backend_id()));
         let external_verify_started = Instant::now();
@@ -2175,7 +2187,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         ));
     }
 
-    #[cfg(feature = "sonobe-compressor")]
+    #[cfg(feature = "nova-compressor")]
     let _cyclo_state = {
         use pvthfhe_compressor::nova::extract_cyclo_state;
         compressed
@@ -2190,11 +2202,11 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             })
             .unwrap_or([Fr::zero(); 8])
     };
-    #[cfg(not(feature = "sonobe-compressor"))]
+    #[cfg(not(feature = "nova-compressor"))]
     let cyclo_state = [Fr::zero(); 8];
 
     // G.12 Phase 2: fold share verification steps via Nova IVC
-    #[cfg(feature = "sonobe-compressor")]
+    #[cfg(feature = "nova-compressor")]
     {
         observer.phase_start("share_verify_fold", Some("nova-nova-share-verify"));
         let sv_fold_started = Instant::now();
@@ -3124,7 +3136,7 @@ fn compute_lagrange_coeffs_bn254(xs: &[Fr], eval_point: Fr) -> Vec<Fr> {
 /// `share_coeffs` must be CRT-reconstructed polynomial coefficients (not raw RNS
 /// residues). The caller is responsible for CRT reconstruction via
 /// [`FhersBackend::poly_coeffs_fr_reconstruct`].
-#[cfg(feature = "sonobe-compressor")]
+#[cfg(feature = "nova-compressor")]
 fn run_c7_verification(
     share_coeffs: &[Vec<Fr>],
     lagrange_coeffs: &[Fr],
@@ -3604,7 +3616,7 @@ mod tests {
         assert_eq!(counts.get("compressor_new").copied(), Some(1));
         assert_eq!(counts.get("compressor_prove").copied(), Some(1));
         assert_eq!(counts.get("compressor_verify").copied(), Some(1));
-        #[cfg(feature = "sonobe-compressor")]
+        #[cfg(feature = "nova-compressor")]
         assert_eq!(counts.get("compressor_verify_external").copied(), Some(1));
         #[cfg(feature = "pipeline-extra-checks")]
         {

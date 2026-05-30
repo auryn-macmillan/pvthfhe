@@ -27,9 +27,9 @@ const _: () = {
 
 use anyhow::Context;
 use clap::{Parser, Subcommand};
-#[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]
+#[cfg(all(feature = "with-fhe", feature = "nova-compressor"))]
 use pvthfhe_cli::compressor_glue::compressor_backend_id;
-#[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]
+#[cfg(all(feature = "with-fhe", feature = "nova-compressor"))]
 use pvthfhe_cli::full_pipeline::{run_full_pipeline, PipelineConfig, PipelineObserver};
 #[cfg(feature = "with-fhe")]
 use pvthfhe_cli::pvss_support::PVSS_BACKEND_ID;
@@ -38,7 +38,7 @@ use pvthfhe_cyclo::CYCLO_BACKEND_ID as CYCLO_P2_BACKEND_ID;
 #[cfg(feature = "with-fhe")]
 use pvthfhe_fhe::real_nizk::CYCLO_BACKEND_ID;
 use tracing::info;
-#[cfg(feature = "sonobe-compressor")]
+#[cfg(feature = "nova-compressor")]
 use {
     ark_bn254::Fr,
     ark_ff::PrimeField as _,
@@ -200,6 +200,18 @@ enum ComputeCommand {
         #[arg(long)]
         operations: String,
     },
+    /// Verify a compute proof file.
+    Verify {
+        /// Path to proof file.
+        #[arg(long)]
+        proof_file: String,
+        /// Hex-encoded Merkle root hash (64 hex chars = 32 bytes).
+        #[arg(long)]
+        root_hash: String,
+        /// Number of compute steps/operations in the proof.
+        #[arg(long)]
+        steps: usize,
+    },
 }
 
 const SAFE_DEFAULT_TRACING_FILTER: &str = "pvthfhe_cli=warn,pvthfhe_compressor=warn,pvthfhe_fhe=warn,pvthfhe_lattice_pvss=warn,pvthfhe_aggregator=warn,pvthfhe_pvss=warn,pvthfhe_bench=warn,nova=warn";
@@ -253,7 +265,7 @@ fn main() -> anyhow::Result<()> {
         Commands::Verify { proof } => {
             let proof_bytes = std::fs::read(&proof).context("failed to read proof file")?;
 
-            #[cfg(feature = "sonobe-compressor")]
+            #[cfg(feature = "nova-compressor")]
             {
                 use pvthfhe_compressor::nova::{CycloFoldStepCircuit, NovaCompressor};
                 use pvthfhe_compressor::{CompressedProof, ProofCompressor};
@@ -270,7 +282,7 @@ fn main() -> anyhow::Result<()> {
                     Err(e) => println!("verify: ERROR ({e:?})"),
                 }
             }
-            #[cfg(not(feature = "sonobe-compressor"))]
+            #[cfg(not(feature = "nova-compressor"))]
             {
                 println!("verify: UNSUPPORTED (nova-compressor feature required)");
             }
@@ -468,7 +480,7 @@ fn r8_aggregate(ciphertext_hex: &str, shares_hex: &str, threshold: usize) -> any
 }
 
 /// Handle snapshot prove/verify commands.
-#[cfg(feature = "sonobe-compressor")]
+#[cfg(feature = "nova-compressor")]
 fn r8_snapshot(action: SnapshotCommand) -> anyhow::Result<()> {
     match action {
         SnapshotCommand::Prove {
@@ -583,13 +595,13 @@ fn r8_snapshot(action: SnapshotCommand) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[cfg(not(feature = "sonobe-compressor"))]
+#[cfg(not(feature = "nova-compressor"))]
 fn r8_snapshot(_action: SnapshotCommand) -> anyhow::Result<()> {
-    anyhow::bail!("snapshot requires the `sonobe-compressor` feature")
+    anyhow::bail!("snapshot requires the `nova-compressor` feature")
 }
 
 /// Handle compute prove command.
-#[cfg(feature = "sonobe-compressor")]
+#[cfg(feature = "nova-compressor")]
 fn r8_compute(action: ComputeCommand) -> anyhow::Result<()> {
     use pvthfhe_compressor::merkle::{build_merkle_tree, prove_merkle_path};
     use pvthfhe_compressor::nova::{
@@ -599,6 +611,31 @@ fn r8_compute(action: ComputeCommand) -> anyhow::Result<()> {
     use pvthfhe_compressor::{CompressedProof, ProofCompressor};
 
     match action {
+        ComputeCommand::Verify {
+            proof_file,
+            root_hash,
+            steps,
+        } => {
+            let proof_bytes = std::fs::read(&proof_file).context("failed to read proof file")?;
+            let root_hash_bytes: [u8; 32] = hex::decode(&root_hash)
+                .context("invalid root_hash hex")?
+                .try_into()
+                .map_err(|_| anyhow::anyhow!("root_hash must be 32 bytes (64 hex chars)"))?;
+
+            let compressed = CompressedProof::new(proof_bytes);
+            let compressor =
+                NovaCompressor::<FheComputeStepCircuit<Fr>>::new(root_hash_bytes, steps)
+                    .map_err(|e| anyhow::anyhow!("compressor init: {e:?}"))?;
+            let vk = compressor.verifier_key();
+            let ext_steps: Vec<ExternalInputs3<Fr>> = vec![ExternalInputs3::default(); steps];
+            let zero_acc = vec![0u8; 32];
+
+            match compressor.verify_steps(&vk, &compressed, &zero_acc, &ext_steps) {
+                Ok(true) => println!("verify: ACCEPT"),
+                Ok(false) => println!("verify: REJECT"),
+                Err(e) => println!("verify: ERROR ({e:?})"),
+            }
+        }
         ComputeCommand::Prove { inputs, operations } => {
             let ops: Vec<&str> = operations.split(',').map(|s| s.trim()).collect();
             if ops.is_empty() {
@@ -782,13 +819,13 @@ fn r8_compute(action: ComputeCommand) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[cfg(not(feature = "sonobe-compressor"))]
+#[cfg(not(feature = "nova-compressor"))]
 fn r8_compute(_action: ComputeCommand) -> anyhow::Result<()> {
-    anyhow::bail!("compute requires the `sonobe-compressor` feature")
+    anyhow::bail!("compute requires the `nova-compressor` feature")
 }
 
 /// Convert a byte slice to a Vec<u64> by interpreting each 8 bytes as one u64 (little-endian).
-#[cfg(feature = "sonobe-compressor")]
+#[cfg(feature = "nova-compressor")]
 fn bytes_to_u64_vec(bytes: &[u8]) -> Vec<u64> {
     bytes
         .chunks_exact(8)
@@ -800,7 +837,7 @@ fn bytes_to_u64_vec(bytes: &[u8]) -> Vec<u64> {
 }
 
 /// Compute a Poseidon hash of the plaintext bytes, returning an Fr scalar.
-#[cfg(feature = "sonobe-compressor")]
+#[cfg(feature = "nova-compressor")]
 fn poseidon_hash_scalar(data: &[u8]) -> Fr {
     use pvthfhe_compressor::nova::poseidon_gadget::hash8_native;
     let mut chunks: Vec<Fr> = data
@@ -822,7 +859,7 @@ fn poseidon_hash_scalar(data: &[u8]) -> Fr {
 }
 
 /// Build a BFV witness data vector for the snapshot prove.
-#[cfg(feature = "sonobe-compressor")]
+#[cfg(feature = "nova-compressor")]
 fn build_bfv_witness(_pk_rns: &[u64], _ct_rns: &[u64], _plaintext: &[u8]) -> Vec<Vec<Fr>> {
     let u_val: u64 = 1234;
     let e0_val: u64 = 567;
@@ -883,7 +920,7 @@ fn build_bfv_witness(_pk_rns: &[u64], _ct_rns: &[u64], _plaintext: &[u8]) -> Vec
 }
 
 /// Run the full demo pipeline with `n` parties and deterministic `seed`.
-#[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]
+#[cfg(all(feature = "with-fhe", feature = "nova-compressor"))]
 fn run_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
     if n == 0 {
         anyhow::bail!("invalid n: n=0; must satisfy n >= 1");
@@ -1003,12 +1040,12 @@ fn run_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[cfg(not(all(feature = "with-fhe", feature = "sonobe-compressor")))]
+#[cfg(not(all(feature = "with-fhe", feature = "nova-compressor")))]
 fn run_demo(_n: usize, _threshold: usize, _seed: u64) -> anyhow::Result<()> {
     anyhow::bail!("demo requires the `with-fhe` and `nova-compressor` features")
 }
 
-#[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]
+#[cfg(all(feature = "with-fhe", feature = "nova-compressor"))]
 #[derive(Default)]
 struct DemoObserver {
     keygen_announced: bool,
@@ -1032,7 +1069,7 @@ struct DemoObserver {
     pvss_backend_id: Option<String>,
 }
 
-#[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]
+#[cfg(all(feature = "with-fhe", feature = "nova-compressor"))]
 impl DemoObserver {
     const STEP_COUNT: usize = 14;
 
@@ -1051,7 +1088,7 @@ impl DemoObserver {
     }
 }
 
-#[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]
+#[cfg(all(feature = "with-fhe", feature = "nova-compressor"))]
 impl PipelineObserver for DemoObserver {
     fn phase_start(&mut self, name: &str, detail: Option<&str>) {
         match name {

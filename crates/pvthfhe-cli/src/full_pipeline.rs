@@ -666,7 +666,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 .map(|_| ExternalInputs3(Fr::from(1u64), Fr::zero(), Fr::from(n as u64)))
                 .collect();
             let c4_proof = c4_compressor
-                .prove_steps_high_arity(&c4_acc, &external_inputs)
+                .prove_steps(&c4_acc, &external_inputs)
                 .map_err(|e| anyhow::anyhow!("c4 prove: {e:?}"))?;
             // Extract combined_share_hash from the C4 DKG aggregation Nova proof bytes.
             // Binds the share verification chain to the DKG aggregation proof.
@@ -674,7 +674,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             clear_dkg_agg_data();
             let c4_vk = c4_compressor.verifier_key();
             c4_passed = c4_compressor
-                .verify_steps_high_arity(&c4_vk, &c4_proof, &c4_acc, &external_inputs)
+                .verify_steps(&c4_vk, &c4_proof, &c4_acc, &external_inputs)
                 .map_err(|e| anyhow::anyhow!("c4 verify: {e:?}"))?;
             if !c4_passed {
                 anyhow::bail!("c4: DKG aggregation IVC verification FAILED");
@@ -1090,12 +1090,12 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         let c5_steps: Vec<ExternalInputs3<Fr>> =
             vec![ExternalInputs3(Fr::from(1u64), Fr::zero(), Fr::from(cfg.n as u64)); cfg.n];
         let c5_proof = c5_compressor
-            .prove_steps_high_arity(&c5_acc, &c5_steps)
+            .prove_steps(&c5_acc, &c5_steps)
             .map_err(|e| anyhow::anyhow!("c5 prove: {e:?}"))?;
         clear_pk_agg_data();
         let c5_vk = c5_compressor.verifier_key();
         c5_passed = c5_compressor
-            .verify_steps_high_arity(&c5_vk, &c5_proof, &c5_acc, &c5_steps)
+            .verify_steps(&c5_vk, &c5_proof, &c5_acc, &c5_steps)
             .map_err(|e| anyhow::anyhow!("c5 verify: {e:?}"))?;
         if !c5_passed {
             anyhow::bail!("c5: PK aggregation IVC verification FAILED");

@@ -134,8 +134,16 @@ bench-backend-compare:
 
 bench-smoke:
     mkdir -p bench/results
-    cargo run --release -p pvthfhe-bench --bin bench_runner > bench/results/smoke-latest.json
+    cargo run --release -p pvthfhe-bench --features backend-fhe-rs --bin bench_runner > bench/results/smoke-latest.json
     cat bench/results/smoke-latest.json
+
+greco pk_rns="auto" ct_rns="auto":
+    @echo "=== Greco-style encryption proof ==="
+    cargo run --release -p pvthfhe-cli --features nova-compressor -- snapshot prove
+
+compute n_ops="3":
+    @echo "=== Verifiable FHE Computation (summing {{n_ops}} ciphertexts) ==="
+    cargo run --release -p pvthfhe-cli --features nova-compressor -- compute prove --n {{n_ops}}
 
 bench-folding:
     @echo "not implemented"

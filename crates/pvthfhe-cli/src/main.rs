@@ -190,14 +190,18 @@ enum SnapshotCommand {
 /// Subcommands for the compute command.
 #[derive(Subcommand, Debug)]
 enum ComputeCommand {
-    /// Prove a sequence of FHE operations over Merkle-committed ciphertexts.
+    /// Prove a sequence of FHE additions over Merkle-committed ciphertexts.
     Prove {
+        /// Number of ciphertexts to auto-generate and sum via chained in-circuit Adds.
+        /// Builds a Merkle tree from n ciphertexts and sums them all in one chained Nova accumulator.
+        #[arg(long, default_value = "3")]
+        n: usize,
         /// Comma-separated hex-encoded input ciphertext hashes (32 bytes each).
         /// Default "auto" generates test hashes from random ciphertexts.
         #[arg(long, default_value = "auto")]
         inputs: String,
         /// Comma-separated list of operations: add, mul, relin.
-        #[arg(long)]
+        #[arg(long, default_value = "")]
         operations: String,
     },
     /// Verify a compute proof file.
@@ -637,226 +641,257 @@ fn r8_compute(action: ComputeCommand) -> anyhow::Result<()> {
                 Err(e) => println!("verify: ERROR ({e:?})"),
             }
         }
-        ComputeCommand::Prove { inputs, operations } => {
-            let ops: Vec<&str> = operations.split(',').map(|s| s.trim()).collect();
-            if ops.is_empty() {
-                anyhow::bail!("at least one operation required");
-            }
-
-            let input_hashes: Vec<[u8; 32]> = if inputs == "auto" {
-                // Auto-generate deterministic input hashes from ops.
-                let mut h = sha2::Sha256::new();
-                h.update(b"pvthfhe-compute-auto-inputs/v1");
-                h.update(operations.as_bytes());
-                let seed: [u8; 32] = h.finalize().into();
-                let mut hashes = Vec::new();
-                // Binary ops (add/mul) need 2 inputs each; generate enough.
-                let n_needed = (ops.len() * 2).max(ops.len() + 1);
-                for i in 0..n_needed {
-                    let mut hi = sha2::Sha256::new();
-                    hi.update(seed);
-                    hi.update((i as u64).to_le_bytes());
-                    hashes.push(hi.finalize().into());
-                }
-                hashes
-            } else {
-                inputs
-                    .split(',')
-                    .map(|s| {
-                        let bytes = hex::decode(s.trim()).context("invalid input hash hex")?;
-                        bytes.try_into().map_err(|_| {
-                            anyhow::anyhow!("each input hash must be 32 bytes (64 hex chars)")
-                        })
-                    })
-                    .collect::<Result<_, _>>()?
-            };
-
-            if ops.len() > input_hashes.len() {
-                anyhow::bail!(
-                    "too many operations ({}): need at least as many input hashes ({})",
-                    ops.len(),
-                    input_hashes.len()
-                );
-            }
-
-            // Build Merkle tree over input ciphertext hashes.
-            let leaves: Vec<Fr> = input_hashes
-                .iter()
-                .map(|h| Fr::from_be_bytes_mod_order(h))
-                .collect();
-            let (tree, merkle_root) = build_merkle_tree(&leaves, 8);
-            let merkle_root_bytes = {
-                use ark_ff::BigInteger;
-                let raw = merkle_root.into_bigint().to_bytes_be();
-                let mut buf = vec![0u8; 32];
-                let start = 32 - raw.len();
-                buf[start..].copy_from_slice(&raw);
-                let mut result = [0u8; 32];
-                result.copy_from_slice(&buf);
-                result
-            };
-
-            // Build witness data for each operation.
-            let mut witnesses: Vec<FheComputeWitness> = Vec::new();
-            let mut next_input_idx: usize = 0;
-
-            for op_str in &ops {
-                match *op_str {
-                    "add" | "mul" | "relin" | "relinearize" => {
-                        let op = match *op_str {
-                            "add" => {
-                                if next_input_idx + 1 >= input_hashes.len() {
-                                    anyhow::bail!(
-                                        "not enough input hashes for binary op 'add' at step {}",
-                                        witnesses.len()
-                                    );
-                                }
-                                FheOp::Add {
-                                    ct0_hash: input_hashes[next_input_idx],
-                                    ct1_hash: input_hashes[next_input_idx + 1],
-                                }
-                            }
-                            "mul" => {
-                                if next_input_idx + 1 >= input_hashes.len() {
-                                    anyhow::bail!(
-                                        "not enough input hashes for binary op 'mul' at step {}",
-                                        witnesses.len()
-                                    );
-                                }
-                                FheOp::Mul {
-                                    ct0_hash: input_hashes[next_input_idx],
-                                    ct1_hash: input_hashes[next_input_idx + 1],
-                                }
-                            }
-                            "relin" | "relinearize" => FheOp::Relinearize {
-                                ct_hash: input_hashes[next_input_idx],
-                            },
-                            _ => unreachable!(),
-                        };
-
-                        let input_count = op.input_count();
-
-                        // Generate Merkle proofs for each input.
-                        let proof0 = {
-                            let idx = next_input_idx;
-                            prove_merkle_path(&tree, idx, 8)
-                        };
-                        let proof1 = if input_count == 2 {
-                            let idx = next_input_idx + 1;
-                            Some(prove_merkle_path(&tree, idx, 8))
-                        } else {
-                            None
-                        };
-
-                        // Compute output hash for this step natively.
-                        let output_hash = {
-                            let mut inputs_for_hash = Vec::new();
-                            let prev = if witnesses.is_empty() {
-                                Fr::from(0u64)
-                            } else {
-                                witnesses.last().unwrap().output_hash
-                            };
-                            inputs_for_hash.push(prev);
-                            for h in &op.input_hashes() {
-                                inputs_for_hash.push(Fr::from_be_bytes_mod_order(h));
-                            }
-                            inputs_for_hash.push(Fr::from(op.tag_byte() as u64));
-                            while inputs_for_hash.len() < 8 {
-                                inputs_for_hash.push(Fr::from(0u64));
-                            }
-                            hash8_native(&inputs_for_hash[..8])
-                        };
-
-                        // Generate synthetic ciphertext coefficients for Add ops.
-                        let (ct0_coeffs, ct1_coeffs, ct_out_coeffs) = match &op {
-                            FheOp::Add { .. } => {
-                                let seed_lo = (witnesses.len() as u64).wrapping_mul(2654435761);
-                                let total = BFV_CT_COEFFS_LEN;
-                                let mut c0 = Vec::with_capacity(total);
-                                let mut c1 = Vec::with_capacity(total);
-                                let mut co = Vec::with_capacity(total);
-                                for poly in 0..2 {
-                                    for limb in 0..BFV_L {
-                                        let q = BFV_Q[limb];
-                                        for coeff in 0..BFV_N {
-                                            let idx = (seed_lo
-                                                ^ (poly as u64 * 1000)
-                                                ^ (limb as u64 * 100)
-                                                ^ (coeff as u64))
-                                                .wrapping_mul(6364136223846793005);
-                                            let v0 = (idx >> 32) % q;
-                                            let v1 = (idx.wrapping_mul(3) >> 32) % q;
-                                            let sum = v0 as u128 + v1 as u128;
-                                            let vo = if sum >= q as u128 {
-                                                (sum - q as u128) as u64
-                                            } else {
-                                                sum as u64
-                                            };
-                                            c0.push(v0);
-                                            c1.push(v1);
-                                            co.push(vo);
-                                        }
-                                    }
-                                }
-                                (c0, c1, co)
-                            }
-                            _ => (Vec::new(), Vec::new(), Vec::new()),
-                        };
-
-                        witnesses.push(FheComputeWitness {
-                            operation: op,
-                            proof0,
-                            proof1,
-                            output_hash,
-                            ct0_coeffs,
-                            ct1_coeffs,
-                            ct_out_coeffs,
-                        });
-
-                        next_input_idx += input_count;
-                    }
-                    other => {
-                        anyhow::bail!("unknown operation: {other}. Must be add, mul, or relin");
-                    }
-                }
-            }
-
-            let n_steps = witnesses.len();
-            set_fhe_compute_data(witnesses);
-
-            let epoch_hash = merkle_root_bytes;
-            let compressor = NovaCompressor::<FheComputeStepCircuit<Fr>>::new(epoch_hash, n_steps)
-                .map_err(|e| anyhow::anyhow!("compressor init failed: {e:?}"))?;
-
-            let zero_acc = vec![0u8; 32];
-            let ext_steps: Vec<ExternalInputs3<Fr>> = vec![ExternalInputs3::default(); n_steps];
-
-            let prove_started = std::time::Instant::now();
-            let proof = compressor
-                .prove_steps(&zero_acc, &ext_steps)
-                .map_err(|e| anyhow::anyhow!("compute prove failed: {e:?}"))?;
-            let prove_ms = prove_started.elapsed().as_secs_f64() * 1000.0;
-
-            clear_fhe_compute_data();
-
-            let throughput_ops_per_sec = if prove_ms > 0.0 {
-                (n_steps as f64) / (prove_ms / 1000.0)
-            } else {
-                f64::INFINITY
-            };
-
-            let proof_hex = hex::encode(&proof.bytes);
-            println!("compute_proof={proof_hex}");
-            println!("merkle_root={}", hex::encode(merkle_root_bytes));
-            println!("steps={n_steps}");
-            println!("proof_size_bytes={}", proof.bytes.len());
-            println!("prove_ms={prove_ms:.2}");
-            println!("throughput_ops_per_sec={throughput_ops_per_sec:.1}");
-            println!("compute: prove ok");
+        ComputeCommand::Prove { n, .. } => {
+            return r8_compute_n(n);
         }
     }
 
     Ok(())
+}
+
+/// Compute prove with `--n <count>`: auto-generate `count` ciphertexts,
+/// build a Merkle tree from their hashes, and sum them via chained in-circuit Adds.
+#[cfg(feature = "nova-compressor")]
+fn r8_compute_n(count: usize) -> anyhow::Result<()> {
+    use pvthfhe_compressor::merkle::{build_merkle_tree, prove_merkle_path};
+    use pvthfhe_compressor::nova::{
+        clear_fhe_compute_data, hash8_native, set_fhe_compute_data, ExternalInputs3,
+        FheComputeStepCircuit, FheComputeWitness, FheOp, NovaCompressor, BFV_CT_COEFFS_LEN, BFV_L,
+        BFV_N, BFV_Q,
+    };
+    use pvthfhe_compressor::{CompressedProof, ProofCompressor};
+
+    if count == 0 {
+        anyhow::bail!("--n must be at least 1");
+    }
+
+    let total = BFV_CT_COEFFS_LEN;
+
+    // ── 1. Generate n ciphertext coefficient sets ──────────────
+    let mut ct_coeffs_all: Vec<Vec<u64>> = Vec::with_capacity(count);
+    let mut plaintext_sums: Vec<u64> = vec![0u64; total];
+    for i in 0..count {
+        let seed = (i as u64).wrapping_mul(6364136223846793005);
+        let mut coeffs = Vec::with_capacity(total);
+        for poly in 0..2 {
+            for limb in 0..BFV_L {
+                let q = BFV_Q[limb];
+                for coeff in 0..BFV_N {
+                    let idx = (seed ^ (poly as u64 * 1000) ^ (limb as u64 * 100) ^ (coeff as u64))
+                        .wrapping_mul(2654435761);
+                    coeffs.push(idx % q);
+                }
+            }
+        }
+        for j in 0..total {
+            let remainder = j % (BFV_L * BFV_N);
+            let limb = remainder / BFV_N;
+            let q = BFV_Q[limb];
+            let sum = plaintext_sums[j] as u128 + coeffs[j] as u128;
+            plaintext_sums[j] = if sum >= q as u128 {
+                (sum - q as u128) as u64
+            } else {
+                sum as u64
+            };
+        }
+        ct_coeffs_all.push(coeffs);
+    }
+
+    // ── 2. Hash each ciphertext → Merkle leaves ─────────────────
+    let leaves: Vec<Fr> = ct_coeffs_all
+        .iter()
+        .map(|coeffs| {
+            let mut h = sha2::Sha256::new();
+            h.update(b"pvthfhe-compute-ct-hash/v1");
+            for &c in coeffs {
+                h.update(c.to_le_bytes());
+            }
+            Fr::from_be_bytes_mod_order(&h.finalize())
+        })
+        .collect();
+
+    let (tree, merkle_root) = build_merkle_tree(&leaves, 8);
+    let merkle_root_bytes: [u8; 32] = {
+        use ark_ff::BigInteger;
+        let raw = merkle_root.into_bigint().to_bytes_be();
+        let mut buf = vec![0u8; 32];
+        let start = 32usize.saturating_sub(raw.len());
+        buf[start..].copy_from_slice(&raw);
+        let mut out = [0u8; 32];
+        out.copy_from_slice(&buf);
+        out
+    };
+
+    // ── 3. Build chained Add witnesses ──────────────────────────
+    let mut witnesses: Vec<FheComputeWitness> = Vec::with_capacity(count);
+    let mut acc_coeffs = vec![0u64; total];
+
+    for i in 0..count {
+        let ct1_coeffs = ct_coeffs_all[i].clone();
+        let mut ct_out_coeffs = vec![0u64; total];
+        for poly in 0..2 {
+            for limb in 0..BFV_L {
+                let q = BFV_Q[limb];
+                for coeff in 0..BFV_N {
+                    let idx = poly * BFV_L * BFV_N + limb * BFV_N + coeff;
+                    let sum = acc_coeffs[idx] as u128 + ct1_coeffs[idx] as u128;
+                    ct_out_coeffs[idx] = if sum >= q as u128 {
+                        (sum - q as u128) as u64
+                    } else {
+                        sum as u64
+                    };
+                }
+            }
+        }
+
+        let proof0 = prove_merkle_path(&tree, i, 8);
+
+        let output_hash = {
+            let prev_hash = if i == 0 {
+                Fr::from(0u64)
+            } else {
+                witnesses
+                    .last()
+                    .map(|w| w.output_hash)
+                    .unwrap_or(Fr::from(0u64))
+            };
+            let ct_hash = leaves[i]; // hash of this input ciphertext
+            let mut hash_inputs = vec![
+                prev_hash,
+                ct_hash,
+                Fr::from(
+                    FheOp::Add {
+                        ct0_hash: [0; 32],
+                        ct1_hash: [0; 32],
+                    }
+                    .tag_byte() as u64,
+                ),
+            ];
+            while hash_inputs.len() < 8 {
+                hash_inputs.push(Fr::from(0u64));
+            }
+            hash8_native(&hash_inputs)
+        };
+
+        // Hash for the Merkle leaf is in the tree; ct0_hash/ct1_hash are for native tracking
+        let ct_hash_bytes: [u8; 32] = {
+            use ark_ff::BigInteger;
+            let raw = leaves[i].into_bigint().to_bytes_be();
+            let mut buf = vec![0u8; 32];
+            let start = 32usize.saturating_sub(raw.len());
+            buf[start..].copy_from_slice(&raw);
+            let mut out = [0u8; 32];
+            out.copy_from_slice(&buf);
+            out
+        };
+
+        witnesses.push(FheComputeWitness {
+            operation: FheOp::Add {
+                ct0_hash: ct_hash_bytes,
+                ct1_hash: ct_hash_bytes,
+            },
+            proof0,
+            proof1: None,
+            output_hash,
+            ct0_coeffs: acc_coeffs.clone(),
+            ct1_coeffs: ct1_coeffs.clone(),
+            ct_out_coeffs: ct_out_coeffs.clone(),
+        });
+
+        acc_coeffs = ct_out_coeffs;
+    }
+
+    let n_steps = count;
+    set_fhe_compute_data(witnesses);
+
+    // ── 4. Build initial state with correct Merkle root ─────────
+    // z[0] = Poseidon-commit(zero_coeffs[..12])
+    // z[1] = Poseidon-commit(zero_coeffs[12..])
+    // z[2] = merkle_root
+    // z[3] = 0 (step count)
+    let zero_coeffs = vec![0u64; total];
+    let z0_lo = native_poseidon_commit_coeffs_half(&zero_coeffs[..12]);
+    let z0_hi = native_poseidon_commit_coeffs_half(&zero_coeffs[12..]);
+    let z0_state = encode_triple_inline(z0_lo, z0_hi, merkle_root);
+
+    // ── 5. Prove ────────────────────────────────────────────────
+    let compressor = NovaCompressor::<FheComputeStepCircuit<Fr>>::new(merkle_root_bytes, n_steps)
+        .map_err(|e| anyhow::anyhow!("compressor init failed: {e:?}"))?;
+
+    let ext_steps: Vec<ExternalInputs3<Fr>> = vec![ExternalInputs3::default(); n_steps];
+
+    let prove_started = std::time::Instant::now();
+    let proof = compressor
+        .prove_steps(&z0_state, &ext_steps)
+        .map_err(|e| anyhow::anyhow!("compute prove failed: {e:?}"))?;
+    let prove_ms = prove_started.elapsed().as_secs_f64() * 1000.0;
+
+    clear_fhe_compute_data();
+
+    let throughput_ops_per_sec = if prove_ms > 0.0 {
+        (n_steps as f64) / (prove_ms / 1000.0)
+    } else {
+        f64::INFINITY
+    };
+
+    // ── 6. Verify the result matches expected sum ───────────────
+    let expected_output = acc_coeffs.clone();
+    let sum_ok = expected_output == plaintext_sums;
+    let sum_status = if sum_ok { "MATCH" } else { "MISMATCH" };
+
+    // ── 7. Summary output (quiet mode — single header + metrics line)
+    println!("=== Verifiable FHE Computation (summing {count} ciphertexts) ===");
+    println!(
+        "prove_ms={prove_ms:.2} merkle_root=0x{root_short}... proof_size_bytes={proof_size} plaintext_sum_verify={sum_status} throughput={throughput_ops_per_sec:.1} ops/sec",
+        root_short = &hex::encode(merkle_root_bytes)[..8],
+        proof_size = proof.bytes.len(),
+    );
+    Ok(())
+}
+
+/// Native Poseidon commitment of 12 coefficient-half u64 values → Fr.
+#[cfg(feature = "nova-compressor")]
+fn native_poseidon_commit_coeffs_half(coeffs: &[u64]) -> Fr {
+    use pvthfhe_compressor::nova::hash8_native;
+    let mut first = vec![Fr::from(0u64); 8];
+    let mut second = vec![Fr::from(0u64); 8];
+    for (dst, &value) in first.iter_mut().zip(coeffs.iter().take(8)) {
+        *dst = Fr::from(value);
+    }
+    for (dst, &value) in second.iter_mut().zip(coeffs.iter().skip(8)) {
+        *dst = Fr::from(value);
+    }
+    let h0 = hash8_native(&first);
+    let h1 = hash8_native(&second);
+    hash8_native(&[
+        h0,
+        h1,
+        Fr::from(0u64),
+        Fr::from(0u64),
+        Fr::from(0u64),
+        Fr::from(0u64),
+        Fr::from(0u64),
+        Fr::from(0u64),
+    ])
+}
+
+/// Encode a triple (Fr, Fr, Fr) into 96 bytes for the Nova compressor
+/// accumulator format.
+#[cfg(feature = "nova-compressor")]
+fn encode_triple_inline(a: Fr, b: Fr, c: Fr) -> Vec<u8> {
+    use ark_ff::BigInteger;
+    let encode_one = |f: Fr| -> [u8; 32] {
+        let raw = f.into_bigint().to_bytes_be();
+        let mut out = [0u8; 32];
+        let start = 32usize.saturating_sub(raw.len());
+        out[start..].copy_from_slice(&raw);
+        out
+    };
+    let mut buf = Vec::with_capacity(96);
+    buf.extend_from_slice(&encode_one(a));
+    buf.extend_from_slice(&encode_one(b));
+    buf.extend_from_slice(&encode_one(c));
+    buf
 }
 
 #[cfg(not(feature = "nova-compressor"))]

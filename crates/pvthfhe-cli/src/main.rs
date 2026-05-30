@@ -555,6 +555,7 @@ fn r8_snapshot(action: SnapshotCommand) -> anyhow::Result<()> {
             let prove_ms = prove_started.elapsed().as_secs_f64() * 1000.0;
 
             let proof_hex = hex::encode(&proof.bytes);
+            let verify_started = std::time::Instant::now();
             let verify_ms = match verify_bfv_snapshot(&proof, &snapshot, session_bytes) {
                 Ok(true) => verify_started.elapsed().as_secs_f64() * 1000.0,
                 Ok(false) => {

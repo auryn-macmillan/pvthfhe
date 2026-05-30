@@ -1,1 +1,17 @@
-{}
+{
+  "active_plan": "/home/dev/pvthfhe/.sisyphus/plans/next-steps-strategic.md",
+  "started_at": "2026-05-30T22:19:28.677Z",
+  "session_ids": [
+    "ses_1e864f9f1ffecXRmG0OjbjoCa3",
+    "ses_18506f361ffeHrPqIHMi94bDhI",
+    "ses_18506d605ffeYyyZde1af1QMHU"
+  ],
+  "session_origins": {
+    "ses_1e864f9f1ffecXRmG0OjbjoCa3": "direct",
+    "ses_18506f361ffeHrPqIHMi94bDhI": "appended",
+    "ses_18506d605ffeYyyZde1af1QMHU": "appended"
+  },
+  "plan_name": "next-steps-strategic",
+  "agent": "atlas",
+  "task_sessions": {}
+}

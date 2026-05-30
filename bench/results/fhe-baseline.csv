@@ -1,1 +1,4 @@
 n,t,keygen_total_s,keygen_per_party_s,encrypt_s,partial_decrypt_per_party_s,aggregate_decrypt_s,peak_rss_mb
+4,3,6.914804,1.728701,0.065889,0.028770,0.075399,57
+8,6,30.399268,3.799909,0.063203,0.028934,0.148638,105
+16,11,130.311739,8.144484,0.062150,0.029068,0.390928,287

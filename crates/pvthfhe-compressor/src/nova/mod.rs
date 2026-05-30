@@ -44,7 +44,9 @@ pub use c7_merkle_circuit::{
 pub use dealer_parity_circuit::{
     clear_dealer_parity_data, set_dealer_parity_data, DealerParityStepCircuit,
 };
-pub use fold_verifier_circuit::FoldVerifierStepCircuit;
+pub use fold_verifier_circuit::{
+    clear_fold_verifier_data, set_fold_verifier_data, FoldVerifierStepCircuit,
+};
 pub use heterogeneous::HeterogeneousStepCircuit;
 pub use lagrange_fold_circuit::{clear_lagrange_data, set_lagrange_data, LagrangeFoldStepCircuit};
 pub use latticefold_adapter::*;

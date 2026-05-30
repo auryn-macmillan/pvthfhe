@@ -107,6 +107,18 @@ enum Commands {
         #[arg(long)]
         proof: String,
     },
+    /// Run ALL protocol verification checks (P2.7+P2.9).
+    VerifyAll {
+        /// Number of parties.
+        #[arg(long, default_value_t = 8)]
+        n: usize,
+        /// Threshold (default: n/2+1).
+        #[arg(long)]
+        threshold: Option<usize>,
+        /// Deterministic seed for RNG.
+        #[arg(long, default_value_t = 0)]
+        seed: u64,
+    },
     /// Run the full n-party demo pipeline in-process.
     Demo {
         /// Number of parties (tested up to 230, soft cap for noise budget).
@@ -195,6 +207,44 @@ fn main() -> anyhow::Result<()> {
             #[cfg(not(feature = "sonobe-compressor"))]
             {
                 println!("verify: UNSUPPORTED (nova-compressor feature required)");
+            }
+        }
+        Commands::VerifyAll { n, threshold, seed } => {
+            #[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]
+            {
+                use pvthfhe_cli::full_pipeline::{run_full_pipeline, PipelineConfig};
+                use pvthfhe_cli::protocol_verifier::ProtocolVerifier;
+
+                let t = threshold.unwrap_or(n / 2 + 1);
+                let max_t = (n - 1) / 2;
+                if t > max_t {
+                    anyhow::bail!(
+                        "threshold t={t} exceeds maximum allowed t <= (n-1)/2 = {max_t} for n={n}"
+                    );
+                }
+
+                println!("verify-all: running full pipeline n={n} t={t} seed={seed}");
+                let mut observer = crate::DemoObserver::default();
+                let report = run_full_pipeline(&PipelineConfig { n, t, seed }, &mut observer)
+                    .context("full pipeline failed")?;
+
+                match ProtocolVerifier::verify_all(&report) {
+                    Ok(()) => {
+                        println!("verify-all: ACCEPT");
+                        println!("All verification checks passed.");
+                    }
+                    Err(failures) => {
+                        println!("verify-all: REJECT — {} failure(s):", failures.len());
+                        for failure in &failures {
+                            println!("  - {failure}");
+                        }
+                        std::process::exit(1);
+                    }
+                }
+            }
+            #[cfg(not(all(feature = "with-fhe", feature = "sonobe-compressor")))]
+            {
+                println!("verify-all: UNSUPPORTED (requires with-fhe + sonobe-compressor)");
             }
         }
         Commands::Demo {

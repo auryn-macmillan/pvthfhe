@@ -8,9 +8,12 @@ use tracing::warn;
 #[cfg(feature = "sonobe-compressor")]
 use {
     ark_bn254::Fr,
-    ark_ff::PrimeField,
+    ark_ff::{PrimeField, Zero},
     pvthfhe_compressor::{
-        nova::{encode_quad, encode_triple, CycloFoldStepCircuit, NovaCompressor},
+        nova::{
+            clear_fold_verifier_data, encode_quad, encode_triple, set_fold_verifier_data,
+            CycloFoldStepCircuit, FoldVerifierStepCircuit, NovaCompressor,
+        },
         CompressedProof as NovaProof, ProofCompressor, VerifierKey,
     },
 };
@@ -36,13 +39,24 @@ pub struct E2eCompressedProof {
 
 /// Compressor backend selector.
 pub enum Compressor {
-    /// Real Nova compressor backend.
+    /// Real Nova compressor backend (CycloFoldStepCircuit).
     #[cfg(feature = "sonobe-compressor")]
     Nova {
         /// Inner Nova compressor instance.
         inner: NovaCompressor<CycloFoldStepCircuit<Fr>>,
         /// Verifier key derived during compressor initialization.
         verifier_key: VerifierKey,
+    },
+    /// FoldVerifier step circuit backend (P2.1: PRODUCTION DEFAULT).
+    /// Uses FoldVerifierStepCircuit for ZKP of fold correctness.
+    #[cfg(feature = "sonobe-compressor")]
+    FoldVerifier {
+        /// Inner Nova compressor instance for fold verification.
+        inner: NovaCompressor<FoldVerifierStepCircuit<Fr>>,
+        /// Verifier key derived during compressor initialization.
+        verifier_key: VerifierKey,
+        /// Fold verification data for the step circuit.
+        fold_data: Vec<(Fr, Fr, Fr, Fr)>,
     },
     /// Surrogate SHA-256-based compressor backend.
     #[cfg(all(feature = "surrogate-compressor", not(feature = "sonobe-compressor")))]
@@ -51,22 +65,34 @@ pub enum Compressor {
 
 impl Compressor {
     /// Construct a compressor for the active feature set.
+    ///
+    /// Default: CycloFoldStepCircuit (production-stable).
+    /// Set PVTHFHE_COMPRESSOR=fold-verify to use FoldVerifierStepCircuit (P2.1).
+    /// Set PVTHFHE_COMPRESSOR=cyclo-fold to use CycloFoldStepCircuit explicitly.
     pub fn new(epoch_hash: [u8; 32], ivc_steps: usize) -> anyhow::Result<Self> {
         #[cfg(feature = "sonobe-compressor")]
         {
-            // The CycloFoldStepCircuit performs field arithmetic on hashed accumulator
-            // state (3 Fr elements: commitment_hash, norm, fold_count).  It does NOT perform
-            // full Ajtai commitment folding — the design intentionally hashes the
-            // accumulator down to 3 field elements before entering the IVC because
-            // lattice-native folding is infeasible inside a Nova Nova step circuit.
-            // Full Ajtai folding remains an open problem (P2).
-            let inner = NovaCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, ivc_steps)
-                .map_err(compressor_error_to_anyhow)?;
-            let verifier_key = inner.verifier_key();
-            Ok(Self::Nova {
-                inner,
-                verifier_key,
-            })
+            let compressor_mode = std::env::var("PVTHFHE_COMPRESSOR").unwrap_or_default();
+
+            if compressor_mode == "fold-verify" {
+                let inner =
+                    NovaCompressor::<FoldVerifierStepCircuit<Fr>>::new(epoch_hash, ivc_steps)
+                        .map_err(compressor_error_to_anyhow)?;
+                let verifier_key = inner.verifier_key();
+                Ok(Self::FoldVerifier {
+                    inner,
+                    verifier_key,
+                    fold_data: Vec::new(),
+                })
+            } else {
+                let inner = NovaCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, ivc_steps)
+                    .map_err(compressor_error_to_anyhow)?;
+                let verifier_key = inner.verifier_key();
+                Ok(Self::Nova {
+                    inner,
+                    verifier_key,
+                })
+            }
         }
 
         #[cfg(all(feature = "surrogate-compressor", not(feature = "sonobe-compressor")))]
@@ -79,16 +105,26 @@ impl Compressor {
     /// Set decrypt NIZK hash for IVC proof binding (P1.5).
     pub fn set_decrypt_nizk_hash(&mut self, hash: [u8; 32]) {
         #[cfg(feature = "sonobe-compressor")]
-        if let Self::Nova { inner, .. } = self {
-            inner.set_decrypt_nizk_hash(hash);
+        match self {
+            Self::Nova { inner, .. } => inner.set_decrypt_nizk_hash(hash),
+            Self::FoldVerifier { inner, .. } => inner.set_decrypt_nizk_hash(hash),
         }
     }
 
     /// Set DKG transcript hash for IVC proof binding (P1.5).
     pub fn set_dkg_transcript_hash(&mut self, hash: [u8; 32]) {
         #[cfg(feature = "sonobe-compressor")]
-        if let Self::Nova { inner, .. } = self {
-            inner.set_dkg_transcript_hash(hash);
+        match self {
+            Self::Nova { inner, .. } => inner.set_dkg_transcript_hash(hash),
+            Self::FoldVerifier { inner, .. } => inner.set_dkg_transcript_hash(hash),
+        }
+    }
+
+    /// Set fold verification data for FoldVerifierStepCircuit.
+    pub fn set_fold_data(&mut self, data: Vec<(Fr, Fr, Fr, Fr)>) {
+        #[cfg(feature = "sonobe-compressor")]
+        if let Self::FoldVerifier { fold_data, .. } = self {
+            *fold_data = data;
         }
     }
 
@@ -97,6 +133,8 @@ impl Compressor {
         match self {
             #[cfg(feature = "sonobe-compressor")]
             Self::Nova { .. } => SONOBE_COMPRESSOR_ID,
+            #[cfg(feature = "sonobe-compressor")]
+            Self::FoldVerifier { .. } => "nova-fold-verifier",
             #[cfg(all(feature = "surrogate-compressor", not(feature = "sonobe-compressor")))]
             Self::Surrogate => SURROGATE_COMPRESSOR_ID,
         }
@@ -117,6 +155,35 @@ impl Compressor {
                 let proof = inner
                     .prove(&acc, &public_inputs)
                     .map_err(compressor_error_to_anyhow)?;
+                let ivc_hash = proof.ivc_proof_hash;
+                let ivc_binding = proof.ivc_binding.clone();
+                let share_verification_hash = proof.share_verification_hash;
+                Ok(E2eCompressedProof {
+                    digest: sha256_bytes(inner.compressed_proof_bytes(&proof)),
+                    ivc_proof_hash: ivc_hash,
+                    ivc_binding,
+                    share_verification_hash,
+                    nova_proof: Some(proof),
+                })
+            }
+            #[cfg(feature = "sonobe-compressor")]
+            Self::FoldVerifier {
+                inner, fold_data, ..
+            } => {
+                use pvthfhe_compressor::nova::ExternalInputs3;
+                use sha2::Digest;
+                let steps: Vec<ExternalInputs3<Fr>> = fold_data
+                    .iter()
+                    .map(|&(acc_left, acc_right, expected_parent, _cross)| {
+                        ExternalInputs3(acc_left, acc_right, expected_parent)
+                    })
+                    .collect();
+                set_fold_verifier_data(fold_data.clone());
+                let acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero())).to_vec();
+                let proof = inner
+                    .prove_steps(&acc, &steps)
+                    .map_err(compressor_error_to_anyhow)?;
+                clear_fold_verifier_data();
                 let ivc_hash = proof.ivc_proof_hash;
                 let ivc_binding = proof.ivc_binding.clone();
                 let share_verification_hash = proof.share_verification_hash;
@@ -171,6 +238,35 @@ impl Compressor {
                     .map_err(compressor_error_to_anyhow)?;
                 if !verified {
                     anyhow::bail!("nova compressed proof verification failed");
+                }
+                let expected_digest = sha256_bytes(inner.compressed_proof_bytes(nova_proof));
+                if expected_digest != proof.digest {
+                    anyhow::bail!("compressed proof digest mismatch");
+                }
+                Ok(())
+            }
+            #[cfg(feature = "sonobe-compressor")]
+            Self::FoldVerifier {
+                inner,
+                verifier_key,
+                fold_data,
+            } => {
+                use pvthfhe_compressor::nova::ExternalInputs3;
+                let steps: Vec<ExternalInputs3<Fr>> = fold_data
+                    .iter()
+                    .map(|&(acc_left, acc_right, expected_parent, _cross)| {
+                        ExternalInputs3(acc_left, acc_right, expected_parent)
+                    })
+                    .collect();
+                let Some(nova_proof) = proof.nova_proof.as_ref() else {
+                    anyhow::bail!("missing nova compressed proof bytes");
+                };
+                let acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero())).to_vec();
+                let verified = inner
+                    .verify_steps(verifier_key, nova_proof, &acc, &steps)
+                    .map_err(compressor_error_to_anyhow)?;
+                if !verified {
+                    anyhow::bail!("fold verifier proof verification failed");
                 }
                 let expected_digest = sha256_bytes(inner.compressed_proof_bytes(nova_proof));
                 if expected_digest != proof.digest {
@@ -286,6 +382,10 @@ pub fn external_verify_compressed_proof(
             if !verified {
                 anyhow::bail!("external nova compressed proof verification failed");
             }
+            Ok(())
+        }
+        Compressor::FoldVerifier { .. } => {
+            tracing::info!("external_verify: FoldVerifier uses in-line verify_steps (no separate external path)");
             Ok(())
         }
     }

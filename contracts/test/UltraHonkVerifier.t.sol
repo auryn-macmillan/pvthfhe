@@ -23,7 +23,7 @@ contract UltraHonkVerifierTest is Test {
     }
 
     function test_valid_proof_verifies() public {
-        vm.skip(true); // SKIP: UltraHonk fixture stale since aggregator_final circuit update; regenerate with canonical AGENTS.md flow
+        // P2.10: Fixture regenerated 2026-05-30 with canonical AGENTS.md flow
         assertTrue(verifier.verify(proof, publicInputs), "valid proof must verify");
     }
 

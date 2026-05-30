@@ -28,3 +28,6 @@ pub mod compressor_glue;
 
 #[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]
 pub mod full_pipeline;
+
+#[cfg(all(feature = "with-fhe", feature = "sonobe-compressor"))]
+pub mod protocol_verifier;

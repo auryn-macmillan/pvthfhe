@@ -303,9 +303,9 @@ greco pk_rns="auto" ct_rns="auto":
     @echo "=== Greco-style encryption proof ==="
     cargo run --release -p pvthfhe-cli --features nova-compressor -- snapshot prove
 
-compute n_ops="3":
-    @echo "=== Verifiable FHE Computation ==="
-    cargo run --release -p pvthfhe-cli --features nova-compressor -- compute prove --operations add,add,add
+compute n="3":
+    @echo "=== Verifiable FHE Computation (summing {{n}} ciphertexts) ==="
+    N=`echo "{{n}}" | cut -d= -f2` && cargo run --release -p pvthfhe-cli --features nova-compressor -- compute prove --n $N
 
 stage1-gate:
     python3 .sisyphus/scripts/stage1-gate.py

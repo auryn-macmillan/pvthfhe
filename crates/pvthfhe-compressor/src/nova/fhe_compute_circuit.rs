@@ -1,24 +1,28 @@
 //! FHE Compute step circuit — E3 Compute Provider.
 //!
-//! Proves that a sequence of FHE operations (add, mul, relinearize) over
-//! Merkle-committed input ciphertext hashes produces a given output commitment.
+//! Proves that a sequence of FHE Add operations over Merkle-committed input
+//! ciphertexts produces a given output ciphertext. Output coefficients are
+//! chained through Nova state so the verifier sees the accumulator evolve
+//! through each step.
 //!
 //! ## State (arity=4)
-//!   z[0] = output_commitment — Poseidon hash of all operation outputs
-//!   z[1] = merkle_root        — Merkle tree root over input ciphertext hashes
-//!   z[2] = input_hash_chain   — Poseidon chain over consumed input hashes
-//!   z[3] = step_count         — number of fold steps completed
+//!   z[0] = output_ct_coeffs_lo — Poseidon commitment of output coeffs [0..12]
+//!   z[1] = output_ct_coeffs_hi — Poseidon commitment of output coeffs [12..24]
+//!   z[2] = merkle_root         — Merkle tree root over input ciphertext commitments
+//!   z[3] = step_count          — number of fold steps completed
 //!
 //! ## Per-step witness
-//!   - FheOp variant (Add/Mul/Relinearize)
-//!   - One or two Merkle inclusion proofs for input ciphertext hashes
-//!   - Operation output hash
+//!   - FheOp variant (Add with ct0_hash, ct1_hash)
+//!   - Merkle inclusion proof for the input ciphertext commitment
+//!   - Old accumulator coefficients (ct0_coeffs — matches z[0] commitment)
+//!   - Input ciphertext coefficients (ct1_coeffs — matches merkle leaf)
+//!   - New accumulator coefficients (ct_out_coeffs = ct0 + ct1 mod Q)
 //!
 //! ## In-circuit verification
-//!   1. Merkle inclusion proof for each input ciphertext hash
-//!   2. FHE operation enforcement (Add: in-circuit modular addition; Mul/Relin: deferred)
-//!   3. Hash-chain update: output_commitment' = hash(prev, input_hashes, op_tag)
-//!   4. Input chain update: input_hash_chain' = hash(prev_chain, input_hashes)
+//!   1. Verify old coefficient halves commit to z[0] and z[1]
+//!   2. Merkle inclusion proof for input ciphertext commitment
+//!   3. FHE Add enforcement (modular addition per coefficient via add_fhe_ct_bp)
+//!   4. Compute new coefficient-half commitments → z[0]', z[1]'
 //!
 //! ### FHE ciphertext parameters (BFV)
 //!   - Polynomial degree N = 4 (demo scale; production uses N=8192)
@@ -157,11 +161,33 @@ pub fn clear_fhe_compute_data() {
     FHE_COMPUTE_STEP_COUNTER.with(|cell| *cell.borrow_mut() = 0);
 }
 
+/// Reset the FHE-compute synthesize step counter while keeping witness data.
+///
+/// `nova-snark` runs the first step during `RecursiveSNARK::new` and later
+/// invokes the same step circuit while generating and verifying subsequent
+/// folds. The circuit shape is fixed at `PublicParams::setup`, so every
+/// synthesis must see the same witness-backed shape as proving. Callers use
+/// this after setup and before proving so step 0 consumes witness 0 rather
+/// than falling through to the idle shape.
+pub fn reset_fhe_compute_step_counter() {
+    FHE_COMPUTE_STEP_COUNTER.with(|cell| *cell.borrow_mut() = 0);
+}
+
+/// Return the number of FHE-compute witnesses currently installed.
+pub fn fhe_compute_data_len() -> usize {
+    FHE_COMPUTE_DATA.with(|cell| cell.borrow().len())
+}
+
+/// Clone all currently installed FHE-compute witnesses.
+pub fn fhe_compute_data_snapshot() -> Vec<FheComputeWitness> {
+    FHE_COMPUTE_DATA.with(|cell| cell.borrow().clone())
+}
+
 // ── Circuit struct ───────────────────────────────────────────────────────
 
 /// Nova step circuit for FHE compute proving.
 ///
-/// State: `[output_commitment, merkle_root, input_hash_chain, step_count]`
+/// State: `[output_ct_coeffs_lo, output_ct_coeffs_hi, merkle_root, step_count]`
 /// Arity: 4
 #[derive(Clone, Debug)]
 pub struct FheComputeStepCircuit<F> {
@@ -281,6 +307,125 @@ fn add_fhe_ct_bp<CS: ConstraintSystem<NovaScalar>>(
     }
 
     Ok(())
+}
+
+// ── Poseidon commitment of 24 BFV coefficients ──────────────────────────
+//
+// Commits 24 u64 coefficients (2 polys × L limbs × N coeffs) to a single Fr
+// by splitting into 3 groups of 8, hashing each via poseidon_hash8_bp, then
+// hashing the 3 intermediate hashes together.
+fn poseidon_commit_coeffs_bp<CS: ConstraintSystem<NovaScalar>>(
+    cs: &mut CS,
+    coeffs: &[u64],
+    step_idx: usize,
+    commit_idx: usize,
+) -> Result<AllocatedNum<NovaScalar>, SynthesisError> {
+    assert_eq!(coeffs.len(), BFV_CT_COEFFS_LEN, "must have 24 coefficients");
+    let base = format!("pcc_s{step_idx}_c{commit_idx}");
+
+    // Allocate all 24 coefficients as witnesses
+    let coeff_vars: Vec<AllocatedNum<NovaScalar>> = coeffs
+        .iter()
+        .enumerate()
+        .map(|(i, &v)| {
+            AllocatedNum::alloc(cs.namespace(|| format!("{base}_coeff{i}")), || {
+                Ok(NovaScalar::from(v))
+            })
+        })
+        .collect::<Result<_, _>>()?;
+
+    // Hash groups of 8: [0..8], [8..16], [16..24]
+    let h0 = poseidon_hash8_bp(cs, &coeff_vars[0..8].to_vec(), step_idx, commit_idx * 3)?;
+    let h1 = poseidon_hash8_bp(
+        cs,
+        &coeff_vars[8..16].to_vec(),
+        step_idx,
+        commit_idx * 3 + 1,
+    )?;
+    let h2 = poseidon_hash8_bp(
+        cs,
+        &coeff_vars[16..24].to_vec(),
+        step_idx,
+        commit_idx * 3 + 2,
+    )?;
+
+    // Combine: hash([h0, h1, h2, 0, 0, 0, 0, 0])
+    let zero = AllocatedNum::alloc(cs.namespace(|| format!("{base}_z0")), || {
+        Ok(NovaScalar::from(0u64))
+    })?;
+    let zero2 = AllocatedNum::alloc(cs.namespace(|| format!("{base}_z1")), || {
+        Ok(NovaScalar::from(0u64))
+    })?;
+    let zero3 = AllocatedNum::alloc(cs.namespace(|| format!("{base}_z2")), || {
+        Ok(NovaScalar::from(0u64))
+    })?;
+    let zero4 = AllocatedNum::alloc(cs.namespace(|| format!("{base}_z3")), || {
+        Ok(NovaScalar::from(0u64))
+    })?;
+    let zero5 = AllocatedNum::alloc(cs.namespace(|| format!("{base}_z4")), || {
+        Ok(NovaScalar::from(0u64))
+    })?;
+
+    let combined = vec![h0, h1, h2, zero, zero2, zero3, zero4, zero5];
+    poseidon_hash8_bp(cs, &combined, step_idx, commit_idx * 3 + 3)
+}
+
+// Commits one half (12 u64 coefficients) of a BFV ciphertext coefficient vector
+// to one state slot. This is the concrete Nova state representation for the
+// chained output ciphertext: z[0] commits coeffs [0..12], z[1] commits [12..24].
+fn poseidon_commit_coeffs_half_bp<CS: ConstraintSystem<NovaScalar>>(
+    cs: &mut CS,
+    coeffs: &[u64],
+    step_idx: usize,
+    commit_idx: usize,
+) -> Result<AllocatedNum<NovaScalar>, SynthesisError> {
+    assert_eq!(coeffs.len(), 12, "must have 12 coefficient-half values");
+    let base = format!("pcch_s{step_idx}_c{commit_idx}");
+
+    let mut coeff_vars: Vec<AllocatedNum<NovaScalar>> = coeffs
+        .iter()
+        .enumerate()
+        .map(|(i, &v)| {
+            AllocatedNum::alloc(cs.namespace(|| format!("{base}_coeff{i}")), || {
+                Ok(NovaScalar::from(v))
+            })
+        })
+        .collect::<Result<_, _>>()?;
+
+    while coeff_vars.len() < 16 {
+        let i = coeff_vars.len();
+        coeff_vars.push(AllocatedNum::alloc(
+            cs.namespace(|| format!("{base}_pad{i}")),
+            || Ok(NovaScalar::from(0u64)),
+        )?);
+    }
+
+    let hash_base = 300 + commit_idx * 3;
+    let h0 = poseidon_hash8_bp(cs, &coeff_vars[0..8], step_idx, hash_base)?;
+    let h1 = poseidon_hash8_bp(cs, &coeff_vars[8..16], step_idx, hash_base + 1)?;
+
+    let mut combined = vec![h0, h1];
+    while combined.len() < 8 {
+        let i = combined.len();
+        combined.push(AllocatedNum::alloc(
+            cs.namespace(|| format!("{base}_z{i}")),
+            || Ok(NovaScalar::from(0u64)),
+        )?);
+    }
+
+    poseidon_hash8_bp(cs, &combined, step_idx, hash_base + 2)
+}
+
+fn poseidon_commit_coeffs_split_bp<CS: ConstraintSystem<NovaScalar>>(
+    cs: &mut CS,
+    coeffs: &[u64],
+    step_idx: usize,
+    commit_idx: usize,
+) -> Result<(AllocatedNum<NovaScalar>, AllocatedNum<NovaScalar>), SynthesisError> {
+    assert_eq!(coeffs.len(), BFV_CT_COEFFS_LEN, "must have 24 coefficients");
+    let lo = poseidon_commit_coeffs_half_bp(cs, &coeffs[..12], step_idx, commit_idx * 2)?;
+    let hi = poseidon_commit_coeffs_half_bp(cs, &coeffs[12..], step_idx, commit_idx * 2 + 1)?;
+    Ok((lo, hi))
 }
 
 // ── Wave 2: Bellpepper-native Poseidon hash8 gadget ─────────────────────
@@ -582,26 +727,46 @@ fn verify_merkle_proof_bp<CS: ConstraintSystem<NovaScalar>>(
             })
             .collect::<Result<_, _>>()?;
 
-        // Constrain that the input at `position` equals `current`
-        // diff = input[position] - current; enforce diff * 1 == 0
-        let diff_val =
-            hash_inputs_scalars[position] - current.get_value().unwrap_or(NovaScalar::from(0u64));
-        let diff_var =
-            AllocatedNum::alloc(cs.namespace(|| format!("{base}_l{level}_diff")), || {
-                Ok(diff_val)
-            })?;
+        // Constrain that exactly one input slot equals `current`, without
+        // changing the R1CS matrix when `position` changes across steps.  A
+        // Rust-side branch on `position` would make setup/prove syntheses use
+        // different linear-combination variable indices for different leaves,
+        // which Nova later rejects as an unsatisfied relaxed R1CS.
+        let selectors: Vec<AllocatedNum<NovaScalar>> = (0..arity)
+            .map(|j| {
+                AllocatedNum::alloc(cs.namespace(|| format!("{base}_l{level}_sel{j}")), || {
+                    Ok(if j == position {
+                        NovaScalar::from(1u64)
+                    } else {
+                        NovaScalar::from(0u64)
+                    })
+                })
+            })
+            .collect::<Result<_, _>>()?;
+
+        for (j, selector) in selectors.iter().enumerate() {
+            cs.enforce(
+                || format!("{base}_l{level}_sel_bool{j}"),
+                |lc| lc + selector.get_variable(),
+                |lc| lc + selector.get_variable() - CS::one(),
+                |lc| lc,
+            );
+            cs.enforce(
+                || format!("{base}_l{level}_selected_eq{j}"),
+                |lc| lc + hash_inputs[j].get_variable() - current.get_variable(),
+                |lc| lc + selector.get_variable(),
+                |lc| lc,
+            );
+        }
         cs.enforce(
-            || format!("{base}_l{level}_pos_eq"),
-            |lc| lc + hash_inputs[position].get_variable() - current.get_variable(),
+            || format!("{base}_l{level}_one_selected"),
+            |lc| {
+                selectors
+                    .iter()
+                    .fold(lc, |acc, selector| acc + selector.get_variable())
+            },
             |lc| lc + CS::one(),
-            |lc| lc + diff_var.get_variable(),
-        );
-        // diff must be zero
-        cs.enforce(
-            || format!("{base}_l{level}_diff_zero"),
-            |lc| lc + diff_var.get_variable(),
             |lc| lc + CS::one(),
-            |lc| lc,
         );
 
         // Hash this level using in-circuit Poseidon
@@ -693,10 +858,18 @@ fn fhe_input_chain_hash_bp<CS: ConstraintSystem<NovaScalar>>(
 
 // ── nova-snark StepCircuit impl ──────────────────────────────────────────
 //
-// ## Wave 2 greco-audit-remediation
-// All computation previously done natively (Merkle proof verification,
-// output commitment hash, input chain hash) is now performed in-circuit
-// using bellpepper-native Poseidon hash gadgets.
+// State: [output_ct_coeffs_lo, output_ct_coeffs_hi, merkle_root, step_count]
+//   z[0] = Poseidon commitment of output coefficients [0..12]
+//   z[1] = Poseidon commitment of output coefficients [12..24]
+//   z[2] = merkle_root  (fixed across steps)
+//   z[3] = step_count
+//
+// Each step:
+//   1. Verify old coefficient-half commitments match z[0] and z[1]
+//   2. Verify Merkle inclusion proof for input ciphertext
+//   3. Enforce FHE Add: new_coeffs = old_coeffs + input_coeffs (mod Q)
+//   4. Compute new coefficient-half commitments → z[0]', z[1]'
+//   5. Increment step_count
 
 impl
     nova_snark::traits::circuit::StepCircuit<
@@ -728,11 +901,20 @@ impl
         use super::NovaScalar;
         use nova_snark::frontend::num::AllocatedNum;
 
-        let step = FHE_COMPUTE_STEP_COUNTER.with(|cell| {
+        let raw_step = FHE_COMPUTE_STEP_COUNTER.with(|cell| {
             let mut c = cell.borrow_mut();
             let s = *c;
             *c = s + 1;
             s
+        });
+
+        let step = FHE_COMPUTE_DATA.with(|cell| {
+            let len = cell.borrow().len();
+            if len == 0 {
+                raw_step
+            } else {
+                raw_step % len
+            }
         });
 
         let has_data = FHE_COMPUTE_DATA.with(|cell| {
@@ -741,9 +923,6 @@ impl
         });
 
         if !has_data {
-            // No witness data: pass-through (identity step)
-            let _zero =
-                AllocatedNum::alloc(cs.namespace(|| "idle_zero"), || Ok(NovaScalar::from(0u64)))?;
             let one =
                 AllocatedNum::alloc(cs.namespace(|| "idle_one"), || Ok(NovaScalar::from(1u64)))?;
             let new_step_count = z[3].add(cs.namespace(|| "sc_inc"), &one)?;
@@ -758,65 +937,66 @@ impl
         FHE_COMPUTE_DATA.with(|cell| {
             let data = cell.borrow();
             let witness = data.get(step).cloned().unwrap();
-            let op = witness.operation;
-            let input_hashes = op.input_hashes();
 
-            // ── 1. In-circuit Merkle inclusion proof ────────────────────
-            verify_merkle_proof_bp(cs, &witness.proof0, self.merkle_arity, step, 0, &z[1])?;
+            // ── 1. Verify old coefficients are exactly the prior split output state ──
+            let (old_commit_lo, old_commit_hi) = if !witness.ct0_coeffs.is_empty() {
+                poseidon_commit_coeffs_split_bp(cs, &witness.ct0_coeffs, step, 0)?
+            } else {
+                (
+                    AllocatedNum::alloc(cs.namespace(|| format!("zc_lo_s{step}")), || {
+                        Ok(NovaScalar::from(0u64))
+                    })?,
+                    AllocatedNum::alloc(cs.namespace(|| format!("zc_hi_s{step}")), || {
+                        Ok(NovaScalar::from(0u64))
+                    })?,
+                )
+            };
+            // Constrain: old coefficient halves equal previous step's output state.
+            cs.enforce(
+                || format!("old_commit_lo_eq_s{step}"),
+                |lc| lc + old_commit_lo.get_variable(),
+                |lc| lc + CS::one(),
+                |lc| lc + z[0].get_variable(),
+            );
+            cs.enforce(
+                || format!("old_commit_hi_eq_s{step}"),
+                |lc| lc + old_commit_hi.get_variable(),
+                |lc| lc + CS::one(),
+                |lc| lc + z[1].get_variable(),
+            );
 
-            if op.input_count() == 2 {
-                if let Some(ref proof1) = witness.proof1 {
-                    verify_merkle_proof_bp(cs, proof1, self.merkle_arity, step, 1, &z[1])?;
-                } else {
-                    let one = AllocatedNum::alloc(
-                        cs.namespace(|| format!("fail_missing_p1_{step}")),
-                        || Ok(NovaScalar::from(1u64)),
-                    )?;
-                    let zero = AllocatedNum::alloc(
-                        cs.namespace(|| format!("fail_missing_p1_zero_{step}")),
-                        || Ok(NovaScalar::from(0u64)),
-                    )?;
-                    cs.enforce(
-                        || format!("missing_p1_{step}"),
-                        |lc| lc + one.get_variable(),
-                        |lc| lc + CS::one(),
-                        |lc| lc + zero.get_variable(),
-                    );
-                }
+            // ── 2. In-circuit Merkle inclusion proof ────────────────────
+            // z[2] is the merkle_root
+            verify_merkle_proof_bp(cs, &witness.proof0, self.merkle_arity, step, 0, &z[2])?;
+
+            // ── 3. In-circuit FHE Add enforcement ─────────────────────
+            if !witness.ct0_coeffs.is_empty() && !witness.ct1_coeffs.is_empty() {
+                add_fhe_ct_bp(
+                    cs,
+                    &witness.ct0_coeffs,
+                    &witness.ct1_coeffs,
+                    &witness.ct_out_coeffs,
+                    &BFV_Q,
+                    2,
+                    BFV_L,
+                    BFV_N,
+                    step,
+                )?;
             }
 
-            // ── 2. In-circuit FHE operation enforcement ─────────────────
-            match &op {
-                FheOp::Add { .. } => {
-                    if !witness.ct0_coeffs.is_empty() {
-                        add_fhe_ct_bp(
-                            cs,
-                            &witness.ct0_coeffs,
-                            &witness.ct1_coeffs,
-                            &witness.ct_out_coeffs,
-                            &BFV_Q,
-                            2,
-                            BFV_L,
-                            BFV_N,
-                            step,
-                        )?;
-                    }
-                }
-                FheOp::Mul { .. } | FheOp::Relinearize { .. } => {
-                    // Deferred: in-circuit Mul/Relin not yet implemented.
-                    // The output commitment hash chain (Step 3 below) still
-                    // cryptographically binds the operation sequence.
-                }
-            }
-
-            // ── 3. In-circuit output commitment update ──────────────────
-            let output_hash_var = fhe_step_output_hash_bp(cs, &input_hashes, op.tag_byte(), step)?;
-            let new_output =
-                z[0].add(cs.namespace(|| format!("oc_acc_{step}")), &output_hash_var)?;
-
-            // ── 4. In-circuit input hash chain update ────────────────────
-            let chain_var = fhe_input_chain_hash_bp(cs, &input_hashes, step)?;
-            let new_chain = z[2].add(cs.namespace(|| format!("chain_acc_{step}")), &chain_var)?;
+            // ── 4. Compute new split state from new output coefficients ─
+            let (new_commit_lo, new_commit_hi) = if !witness.ct_out_coeffs.is_empty() {
+                poseidon_commit_coeffs_split_bp(cs, &witness.ct_out_coeffs, step, 1)?
+            } else {
+                (
+                    AllocatedNum::alloc(cs.namespace(|| format!("nc_lo_s{step}")), || {
+                        Ok(NovaScalar::from(0u64))
+                    })?,
+                    AllocatedNum::alloc(cs.namespace(|| format!("nc_hi_s{step}")), || {
+                        Ok(NovaScalar::from(0u64))
+                    })?,
+                )
+            };
 
             // ── 5. Increment step count ────────────────────────────────
             let one = AllocatedNum::alloc(cs.namespace(|| format!("one_{step}")), || {
@@ -824,7 +1004,12 @@ impl
             })?;
             let new_step_count = z[3].add(cs.namespace(|| format!("sc_inc_{step}")), &one)?;
 
-            Ok(vec![new_output, z[1].clone(), new_chain, new_step_count])
+            Ok(vec![
+                new_commit_lo,
+                new_commit_hi,
+                z[2].clone(),
+                new_step_count,
+            ])
         })
     }
 }
@@ -832,22 +1017,19 @@ impl
 // ── FHE operation enforcement status ────────────────────────────────────
 //
 //   Add:  ✅ In-circuit — modular addition per RNS limb enforced via
-//          `add_fhe_ct_bp` (2 constraints per coefficient).
+//          `add_fhe_ct_bp` (2 constraints per coefficient). Output coefficients
+//          are chained through Nova state via split Poseidon commitments.
 //   Mul:  🚧 Deferred — RNS polynomial multiplication in bellpepper
 //          requires substantial constraint count (N^2 per limb × L limbs).
 //   Relinearize: 🚧 Deferred — keyswitching in-circuit requires additional
 //          key material witnesses and polynomial arithmetic.
-//
-// For deferred operations: the output commitment hash chain (Step 3 in
-// synthesize) still cryptographically binds the operation type + input
-// hashes to the accumulated state. The full constraint enforcement is a
-// follow-up task.
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::merkle::{build_merkle_tree, prove_merkle_path};
     use ark_bn254::Fr;
+    use ark_ff::BigInteger;
 
     fn native_output_hash(prev_output: Fr, input_hashes: &[[u8; 32]], op_tag: u8) -> Fr {
         let mut inputs = vec![prev_output];
@@ -1129,5 +1311,280 @@ mod tests {
             !test_cs.is_satisfied(),
             "fhe add constraint system must be unsatisfied with wrong output"
         );
+    }
+
+    #[test]
+    fn fhe_compute_nova_roundtrip_with_split_coefficient_state() {
+        use crate::nova::{encode_triple, ExternalInputs3, NovaCompressor};
+
+        let input_ct_hash = [0xBBu8; 32];
+        let leaves: Vec<Fr> = vec![
+            Fr::from_be_bytes_mod_order(&input_ct_hash),
+            Fr::zero(),
+            Fr::zero(),
+            Fr::zero(),
+        ];
+        let (tree, merkle_root) = build_merkle_tree(&leaves, 8);
+        let merkle_root_bytes: [u8; 32] = {
+            let raw = merkle_root.into_bigint().to_bytes_be();
+            let mut out = [0u8; 32];
+            let start = 32usize.saturating_sub(raw.len());
+            out[start..].copy_from_slice(&raw);
+            out
+        };
+
+        let total = BFV_CT_COEFFS_LEN;
+        let input_coeffs: Vec<u64> = (0..total).map(|i| (i as u64 + 7) * 11).collect();
+        let mut acc_coeffs = vec![0u64; total];
+        let mut witnesses = Vec::new();
+
+        for _ in 0..2 {
+            let mut ct_out = vec![0u64; total];
+            for poly in 0..2 {
+                for limb in 0..BFV_L {
+                    let q = BFV_Q[limb];
+                    for coeff in 0..BFV_N {
+                        let idx = poly * BFV_L * BFV_N + limb * BFV_N + coeff;
+                        let sum = acc_coeffs[idx] as u128 + input_coeffs[idx] as u128;
+                        ct_out[idx] = if sum >= q as u128 {
+                            (sum - q as u128) as u64
+                        } else {
+                            sum as u64
+                        };
+                    }
+                }
+            }
+
+            witnesses.push(FheComputeWitness {
+                operation: FheOp::Add {
+                    ct0_hash: input_ct_hash,
+                    ct1_hash: input_ct_hash,
+                },
+                proof0: prove_merkle_path(&tree, 0, 8),
+                proof1: None,
+                output_hash: Fr::zero(),
+                ct0_coeffs: acc_coeffs.clone(),
+                ct1_coeffs: input_coeffs.clone(),
+                ct_out_coeffs: ct_out.clone(),
+            });
+
+            acc_coeffs = ct_out;
+        }
+
+        let zero_coeffs = vec![0u64; total];
+        let z0_state = encode_triple((
+            native_poseidon_commit_coeffs_half(&zero_coeffs[..12]),
+            native_poseidon_commit_coeffs_half(&zero_coeffs[12..]),
+            merkle_root,
+        ));
+
+        set_fhe_compute_data(witnesses.clone());
+        let compressor = NovaCompressor::<FheComputeStepCircuit<Fr>>::new(merkle_root_bytes, 2)
+            .expect("construct split-state fhe compute nova compressor");
+        let steps = vec![ExternalInputs3::default(); 2];
+
+        set_fhe_compute_data(witnesses.clone());
+        let proof = compressor
+            .prove_steps(&z0_state, &steps)
+            .expect("prove split-state fhe compute step");
+
+        set_fhe_compute_data(witnesses);
+        let vk = compressor.verifier_key();
+        let verified = compressor
+            .verify_steps(&vk, &proof, &z0_state, &steps)
+            .expect("verify split-state fhe compute step");
+        clear_fhe_compute_data();
+
+        assert!(verified);
+    }
+
+    fn native_poseidon_commit_coeffs_half(coeffs: &[u64]) -> Fr {
+        assert_eq!(coeffs.len(), 12);
+        let mut first = vec![Fr::zero(); 8];
+        let mut second = vec![Fr::zero(); 8];
+        for (dst, &value) in first.iter_mut().zip(coeffs.iter().take(8)) {
+            *dst = Fr::from(value);
+        }
+        for (dst, &value) in second.iter_mut().zip(coeffs.iter().skip(8)) {
+            *dst = Fr::from(value);
+        }
+        let h0 = hash8_native(&first);
+        let h1 = hash8_native(&second);
+        hash8_native(&[
+            h0,
+            h1,
+            Fr::zero(),
+            Fr::zero(),
+            Fr::zero(),
+            Fr::zero(),
+            Fr::zero(),
+            Fr::zero(),
+        ])
+    }
+
+    #[test]
+    fn fhe_compute_synthesize_accepts_previous_output_from_split_state() {
+        use super::super::ark_to_nova_scalar;
+
+        let input_ct_hash = [0xCCu8; 32];
+        let leaves: Vec<Fr> = vec![Fr::from_be_bytes_mod_order(&input_ct_hash)];
+        let (tree, merkle_root) = build_merkle_tree(&leaves, 8);
+        let total = BFV_CT_COEFFS_LEN;
+        let ct0_coeffs: Vec<u64> = (0..total).map(|i| (i as u64 + 1) * 13).collect();
+        let ct1_coeffs: Vec<u64> = (0..total).map(|i| (i as u64 + 1) * 17).collect();
+        let mut ct_out_coeffs = vec![0u64; total];
+        for poly in 0..2 {
+            for limb in 0..BFV_L {
+                let q = BFV_Q[limb];
+                for coeff in 0..BFV_N {
+                    let idx = poly * BFV_L * BFV_N + limb * BFV_N + coeff;
+                    let sum = ct0_coeffs[idx] as u128 + ct1_coeffs[idx] as u128;
+                    ct_out_coeffs[idx] = if sum >= q as u128 {
+                        (sum - q as u128) as u64
+                    } else {
+                        sum as u64
+                    };
+                }
+            }
+        }
+
+        set_fhe_compute_data(vec![FheComputeWitness {
+            operation: FheOp::Add {
+                ct0_hash: input_ct_hash,
+                ct1_hash: input_ct_hash,
+            },
+            proof0: prove_merkle_path(&tree, 0, 8),
+            proof1: None,
+            output_hash: Fr::zero(),
+            ct0_coeffs: ct0_coeffs.clone(),
+            ct1_coeffs,
+            ct_out_coeffs,
+        }]);
+
+        let mut test_cs =
+            nova_snark::frontend::util_cs::test_cs::TestConstraintSystem::<NovaScalar>::new();
+        let z_vals = [
+            native_poseidon_commit_coeffs_half(&ct0_coeffs[..12]),
+            native_poseidon_commit_coeffs_half(&ct0_coeffs[12..]),
+            merkle_root,
+            Fr::zero(),
+        ];
+        let z: Vec<AllocatedNum<NovaScalar>> = z_vals
+            .iter()
+            .enumerate()
+            .map(|(i, &value)| {
+                AllocatedNum::alloc(test_cs.namespace(|| format!("z{i}")), || {
+                    Ok(ark_to_nova_scalar(value))
+                })
+            })
+            .collect::<Result<_, _>>()
+            .unwrap();
+
+        let circuit = FheComputeStepCircuit::<Fr>::default();
+        let result = <FheComputeStepCircuit<Fr> as nova_snark::traits::circuit::StepCircuit<
+            NovaScalar,
+        >>::synthesize(&circuit, &mut test_cs, &z);
+        clear_fhe_compute_data();
+
+        assert!(result.is_ok(), "split-state synthesize should succeed");
+        assert!(
+            test_cs.is_satisfied(),
+            "previous output coefficients must be accepted from split z[0]/z[1] state"
+        );
+    }
+
+    #[test]
+    fn fhe_compute_nova_roundtrip_with_coefficient_chaining() {
+        use crate::nova::{encode_triple, ExternalInputs3, NovaCompressor};
+
+        // Single input ciphertext committed in Merkle tree (leaf 0).
+        let input_ct_hash = [0xAAu8; 32];
+        let leaves: Vec<Fr> = vec![
+            Fr::from_be_bytes_mod_order(&input_ct_hash),
+            Fr::from(9999u64),
+            Fr::from(9998u64),
+            Fr::from(9997u64),
+        ];
+        let (tree, merkle_root) = build_merkle_tree(&leaves, 8);
+        let merkle_root_bytes: [u8; 32] = {
+            let raw = merkle_root.into_bigint().to_bytes_be();
+            let mut out = [0u8; 32];
+            let start = 32usize.saturating_sub(raw.len());
+            out[start..].copy_from_slice(&raw);
+            out
+        };
+
+        let total = BFV_CT_COEFFS_LEN;
+        // Input ciphertext coefficients (fixed across all steps).
+        let input_coeffs: Vec<u64> = (0..total).map(|i| (i as u64 + 1) * 100).collect();
+
+        // Accumulator starts at zero.
+        let mut acc_coeffs: Vec<u64> = vec![0u64; total];
+        let mut witnesses = Vec::new();
+
+        for _step in 0..3 {
+            // ct_out = acc_coeffs + input_coeffs (mod BFV_Q)
+            let mut ct_out = vec![0u64; total];
+            for poly in 0..2 {
+                for limb in 0..BFV_L {
+                    let q = BFV_Q[limb];
+                    for coeff in 0..BFV_N {
+                        let idx = poly * BFV_L * BFV_N + limb * BFV_N + coeff;
+                        let sum = acc_coeffs[idx] as u128 + input_coeffs[idx] as u128;
+                        ct_out[idx] = if sum >= q as u128 {
+                            (sum - q as u128) as u64
+                        } else {
+                            sum as u64
+                        };
+                    }
+                }
+            }
+
+            let op = FheOp::Add {
+                ct0_hash: input_ct_hash,
+                ct1_hash: input_ct_hash,
+            };
+
+            witnesses.push(FheComputeWitness {
+                operation: op,
+                proof0: prove_merkle_path(&tree, 0, 8),
+                proof1: None,
+                output_hash: Fr::zero(),
+                ct0_coeffs: acc_coeffs.clone(),
+                ct1_coeffs: input_coeffs.clone(),
+                ct_out_coeffs: ct_out.clone(),
+            });
+
+            // Chain: output becomes next step's accumulator
+            acc_coeffs = ct_out;
+        }
+
+        // Initial state: z[0]=commit(zero coeffs [0..12]),
+        // z[1]=commit(zero coeffs [12..24]), z[2]=merkle_root, z[3]=0.
+        let zero_coeffs = vec![0u64; total];
+        let z0_state = encode_triple((
+            native_poseidon_commit_coeffs_half(&zero_coeffs[..12]),
+            native_poseidon_commit_coeffs_half(&zero_coeffs[12..]),
+            merkle_root,
+        ));
+
+        set_fhe_compute_data(witnesses.clone());
+        let compressor = NovaCompressor::<FheComputeStepCircuit<Fr>>::new(merkle_root_bytes, 3)
+            .expect("construct fhe compute nova compressor");
+        let steps = vec![ExternalInputs3::default(); 3];
+
+        set_fhe_compute_data(witnesses.clone());
+        let proof = compressor
+            .prove_steps(&z0_state, &steps)
+            .expect("prove fhe compute step");
+
+        set_fhe_compute_data(witnesses);
+        let vk = compressor.verifier_key();
+        let verified = compressor
+            .verify_steps(&vk, &proof, &z0_state, &steps)
+            .expect("verify fhe compute step");
+        clear_fhe_compute_data();
+
+        assert!(verified);
     }
 }

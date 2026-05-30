@@ -1250,23 +1250,19 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             if greco_verify_ok { "ACCEPT" } else { "REJECT" }
         );
 
-        // ── Step 16: Verifiable FHE computation (3 self-adds) ──
-        let ct2 = backend
-            .ct_add(&ciphertext, &ciphertext)
-            .context("ct_add: ct+ct")?;
-        let ct4 = backend.ct_add(&ct2, &ct2).context("ct_add: ct2+ct2")?;
-        let ct8 = backend.ct_add(&ct4, &ct4).context("ct_add: ct4+ct4")?;
+        // ── Step 16: Verifiable FHE computation (3 self-adds: ct → 2ct → 3ct) ──
+        // Merkle tree commits only the input ciphertext (ct). Accumulator starts
+        // at zero, each step adds the same input ct from the tree. After 3 adds,
+        // the accumulator is 3×ct. Output coefficients are chained through Nova
+        // state so the verifier confirms the full computation sequence.
 
-        let input_hashes: [[u8; 32]; 4] = [
-            sha256_bytes(&ciphertext.bytes),
-            sha256_bytes(&ct2.bytes),
-            sha256_bytes(&ct4.bytes),
-            sha256_bytes(&ct8.bytes),
-        ];
+        let input_hashes: [[u8; 32]; 1] = [sha256_bytes(&ciphertext.bytes)];
 
+        // Pad to 4 leaves for the merkle tree (arity-8 tree needs at least 1 leaf)
         let leaves: Vec<Fr> = input_hashes
             .iter()
             .map(|h| Fr::from_be_bytes_mod_order(h))
+            .chain(std::iter::repeat(Fr::from(0u64)).take(3))
             .collect();
         let (tree, merkle_root) = build_merkle_tree(&leaves, 8);
         let merkle_root_bytes: [u8; 32] = {
@@ -1277,126 +1273,164 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             buf
         };
 
-        let mut witnesses: Vec<FheComputeWitness> = Vec::with_capacity(3);
-        let steps: [(usize, usize, usize); 3] = [(0, 0, 1), (1, 1, 2), (2, 2, 3)];
-        for &(idx_a, _idx_b_leaf, _result_idx) in &steps {
-            let op = FheOp::Add {
-                ct0_hash: input_hashes[idx_a],
-                ct1_hash: input_hashes[idx_a],
-            };
-            let proof0 = prove_merkle_path(&tree, idx_a, 8);
-            let proof1 = Some(prove_merkle_path(&tree, idx_a, 8));
-            let prev_output = witnesses
-                .last()
-                .map(|w: &FheComputeWitness| w.output_hash)
-                .unwrap_or(Fr::zero());
-            let mut hash_inputs = vec![prev_output];
-            hash_inputs.push(Fr::from_be_bytes_mod_order(&input_hashes[idx_a]));
-            hash_inputs.push(Fr::from_be_bytes_mod_order(&input_hashes[idx_a]));
-            hash_inputs.push(Fr::from(op.tag_byte() as u64));
-            while hash_inputs.len() < 8 {
-                hash_inputs.push(Fr::zero());
-            }
-            let output_hash = hash8_native(&hash_inputs[..8]);
-            let total = BFV_CT_COEFFS_LEN;
-            let mut ct0 = Vec::with_capacity(total);
-            let mut ct1 = Vec::with_capacity(total);
-            let mut ct_out = Vec::with_capacity(total);
-            let seed_lo = (idx_a as u64).wrapping_mul(2654435761);
+        // Convert ciphertext bytes to u64 coefficients for FHE add.
+        let ct_rns_full: Vec<u64> = ciphertext
+            .bytes
+            .chunks_exact(8)
+            .map(|c| {
+                let arr: [u8; 8] = c.try_into().unwrap_or([0u8; 8]);
+                u64::from_le_bytes(arr)
+            })
+            .collect();
+
+        let total = BFV_CT_COEFFS_LEN;
+        let input_coeffs: Vec<u64> = ct_rns_full
+            .iter()
+            .take(total)
+            .enumerate()
+            .map(|(idx, &value)| {
+                let limb = (idx / BFV_N) % BFV_L;
+                value % BFV_Q[limb]
+            })
+            .collect();
+
+        let n_steps = 3;
+        let mut acc_coeffs: Vec<u64> = vec![0u64; total];
+        let mut witnesses: Vec<FheComputeWitness> = Vec::with_capacity(n_steps);
+
+        for _ in 0..n_steps {
+            let mut ct_out = vec![0u64; total];
             for poly in 0..2 {
                 for limb in 0..BFV_L {
                     let q = BFV_Q[limb];
                     for coeff in 0..BFV_N {
-                        let s =
-                            (seed_lo ^ (poly as u64 * 1000) ^ (limb as u64 * 100) ^ (coeff as u64))
-                                .wrapping_mul(6364136223846793005);
-                        let v0 = (s >> 32) % q;
-                        let v1 = (s.wrapping_mul(3) >> 32) % q;
-                        let sum = v0 as u128 + v1 as u128;
-                        ct0.push(v0);
-                        ct1.push(v1);
-                        ct_out.push(if sum >= q as u128 {
+                        let idx = poly * BFV_L * BFV_N + limb * BFV_N + coeff;
+                        let sum = acc_coeffs[idx] as u128 + input_coeffs[idx] as u128;
+                        ct_out[idx] = if sum >= q as u128 {
                             (sum - q as u128) as u64
                         } else {
                             sum as u64
-                        });
+                        };
                     }
                 }
             }
+
+            let op = FheOp::Add {
+                ct0_hash: input_hashes[0],
+                ct1_hash: input_hashes[0],
+            };
+
+            let proof0 = prove_merkle_path(&tree, 0, 8);
+
             witnesses.push(FheComputeWitness {
                 operation: op,
                 proof0,
-                proof1,
-                output_hash,
-                ct0_coeffs: ct0,
-                ct1_coeffs: ct1,
-                ct_out_coeffs: ct_out,
+                proof1: None,
+                output_hash: Fr::zero(),
+                ct0_coeffs: acc_coeffs.clone(),
+                ct1_coeffs: input_coeffs.clone(),
+                ct_out_coeffs: ct_out.clone(),
             });
+
+            acc_coeffs = ct_out;
         }
 
         let n_compute_steps = witnesses.len();
-        set_fhe_compute_data(witnesses);
+
+        // Initial state: z[0] = Poseidon commitment of zero coeffs [0..12],
+        // z[1] = Poseidon commitment of zero coeffs [12..24]. The Merkle tree
+        // commits only input ciphertexts; intermediate outputs live in state.
+        let zero_coeffs = vec![0u64; BFV_CT_COEFFS_LEN];
+        let commit_coeffs_half = |coeffs: &[u64]| -> Fr {
+            let mut first = vec![Fr::zero(); 8];
+            let mut second = vec![Fr::zero(); 8];
+            for (dst, &value) in first.iter_mut().zip(coeffs.iter().take(8)) {
+                *dst = Fr::from(value);
+            }
+            for (dst, &value) in second.iter_mut().zip(coeffs.iter().skip(8)) {
+                *dst = Fr::from(value);
+            }
+            let h0 = hash8_native(&first);
+            let h1 = hash8_native(&second);
+            hash8_native(&[
+                h0,
+                h1,
+                Fr::zero(),
+                Fr::zero(),
+                Fr::zero(),
+                Fr::zero(),
+                Fr::zero(),
+                Fr::zero(),
+            ])
+        };
+        let z0_commit_lo = commit_coeffs_half(&zero_coeffs[..12]);
+        let z0_commit_hi = commit_coeffs_half(&zero_coeffs[12..]);
 
         let compute_epoch = merkle_root_bytes;
+        set_fhe_compute_data(witnesses.clone());
         let compute_compressor =
             NovaCompressor::<FheComputeStepCircuit<Fr>>::new(compute_epoch, n_compute_steps)
                 .map_err(|e| anyhow::anyhow!("fhe compute compressor init: {e:?}"))?;
 
-        let zero_acc =
-            pvthfhe_compressor::nova::encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
+        let compute_acc =
+            pvthfhe_compressor::nova::encode_triple((z0_commit_lo, z0_commit_hi, merkle_root));
         let ext_steps: Vec<ExternalInputs3<Fr>> = vec![ExternalInputs3::default(); n_compute_steps];
+        set_fhe_compute_data(witnesses.clone());
         let compute_proof = compute_compressor
-            .prove_steps(&zero_acc, &ext_steps)
+            .prove_steps(&compute_acc, &ext_steps)
             .map_err(|e| anyhow::anyhow!("fhe compute prove: {e:?}"))?;
 
-        clear_fhe_compute_data();
-
         // Verify compute proof (M1: Greco compute provider verification).
+        set_fhe_compute_data(witnesses);
         let compute_vk = compute_compressor.verifier_key();
         let compute_verified = compute_compressor
-            .verify_steps(&compute_vk, &compute_proof, &zero_acc, &ext_steps)
+            .verify_steps(&compute_vk, &compute_proof, &compute_acc, &ext_steps)
             .map_err(|e| anyhow::anyhow!("fhe compute verify: {e:?}"))?;
+        clear_fhe_compute_data();
         anyhow::ensure!(compute_verified, "compute proof verification failed");
 
-        // ── Step 17: Decrypt ct8 and verify ──
-        let mut ct8_shares = Vec::with_capacity(cfg.t);
+        // ── Step 17: Verify accumulator result = n_steps × plaintext ──
+        // Compute n_steps × ct using the backend for an end-to-end check.
+        let mut ct_accum = ciphertext.clone();
+        for _step in 1..n_steps {
+            let prev = ct_accum;
+            ct_accum = backend
+                .ct_add(&prev, &ciphertext)
+                .context("ct_add for accumulator verification")?;
+        }
+        let mut acc_shares = Vec::with_capacity(cfg.t);
         for party_index in 1..=cfg.t {
             let party_id =
-                u32::try_from(party_index).context("party id conversion for ct8 decrypt")?;
+                u32::try_from(party_index).context("party id conversion for acc decrypt")?;
             let mut rng = OsRng;
             let share = backend
-                .partial_decrypt(&ct8, party_id, &mut rng)
-                .with_context(|| format!("partial_decrypt ct8 party {party_id}"))?;
-            ct8_shares.push(share);
+                .partial_decrypt(&ct_accum, party_id, &mut rng)
+                .with_context(|| format!("partial_decrypt acc party {party_id}"))?;
+            acc_shares.push(share);
         }
-        let ct8_plaintext = backend
-            .aggregate_decrypt(&ct8, &ct8_shares, cfg.t, session_id.as_bytes())
-            .context("aggregate_decrypt ct8")?;
+        let acc_plaintext = backend
+            .aggregate_decrypt(&ct_accum, &acc_shares, cfg.t, session_id.as_bytes())
+            .context("aggregate_decrypt accumulator")?;
 
-        // BFV slots are coefficients mod t_plain (≥65536), but byte-packing
-        // (2 bytes per slot) only preserves the lower 16 bits. After 3 self-adds
-        // (×8), wrap the expected value at 2^16 to match the slot decode path.
-        let expected_ct8 = (greco_plaintext_val.wrapping_mul(8u64) % 65536u64)
+        let expected_val = (greco_plaintext_val.wrapping_mul(n_steps as u64) % 65536u64)
             .to_le_bytes()
             .to_vec();
-        // Truncate decrypted plaintext to match expected length (BFV encodes
-        // into polynomial coefficients; we only need the first few bytes)
-        let ct8_truncated = &ct8_plaintext[..expected_ct8.len()];
-        let ct8_ok = ct8_truncated == expected_ct8.as_slice();
+        let acc_truncated = &acc_plaintext[..expected_val.len()];
+        let acc_ok = acc_truncated == expected_val.as_slice();
 
         let greco_elapsed = elapsed_ms(greco_started);
         tracing::info!(
-            "greco_compute_demo: snapshot_proof_bytes={} compute_proof_bytes={} ct8_decrypt={} elapsed_ms={:.1}",
+            "greco_compute_demo: snapshot_proof_bytes={} compute_proof_bytes={} acc_decrypt={} elapsed_ms={:.1}",
             greco_proof.bytes.len(),
             compute_proof.bytes.len(),
-            if ct8_ok { "OK" } else { "MISMATCH" },
+            if acc_ok { "OK" } else { "MISMATCH" },
             greco_elapsed,
         );
-        if !ct8_ok {
+        if !acc_ok {
             anyhow::bail!(
-                "greco/compute demo: ct8 decrypted {:?}, expected {:?}",
-                ct8_plaintext,
-                expected_ct8
+                "greco/compute demo: accumulator decrypted {:?}, expected {:?}",
+                acc_plaintext,
+                expected_val
             );
         }
         observer.phase_end("greco_compute_demo", greco_elapsed);

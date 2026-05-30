@@ -47,8 +47,9 @@ pub use dealer_parity_circuit::{
     clear_dealer_parity_data, set_dealer_parity_data, DealerParityStepCircuit,
 };
 pub use fhe_compute_circuit::{
-    clear_fhe_compute_data, set_fhe_compute_data, FheComputeStepCircuit, FheComputeWitness, FheOp,
-    BFV_CT_COEFFS_LEN, BFV_L, BFV_N, BFV_Q,
+    clear_fhe_compute_data, fhe_compute_data_len, fhe_compute_data_snapshot,
+    reset_fhe_compute_step_counter, set_fhe_compute_data, FheComputeStepCircuit, FheComputeWitness,
+    FheOp, BFV_CT_COEFFS_LEN, BFV_L, BFV_N, BFV_Q,
 };
 pub use fold_verifier_circuit::{
     clear_fold_verifier_data, set_fold_verifier_data, FoldVerifierStepCircuit,
@@ -959,6 +960,7 @@ pub fn clear_all_thread_locals() {
     clear_ajtai_witness_data();
     clear_share_coeffs_data();
     clear_fhe_compute_data();
+    reset_all_step_counters();
     #[cfg(feature = "legacy-nova")]
     {
         clear_bfv_encryption_data();
@@ -968,6 +970,24 @@ pub fn clear_all_thread_locals() {
         pk_aggregation_circuit::clear_pk_agg_data();
         dkg_aggregation_circuit::clear_dkg_agg_data();
         lagrange_fold_circuit::clear_lagrange_data();
+    }
+}
+
+/// Reset all step-circuit counters to 0 without clearing witness data.
+///
+/// PublicParams::setup calls synthesize on the default circuit to determine
+/// the R1CS shape, which increments the step counter for that circuit type.
+/// This must be called after setup and before any prove/verify to ensure the
+/// first real step reads counter index 0.
+pub fn reset_all_step_counters() {
+    CYCLO_FOLD_STEP_COUNTER.with(|cell| *cell.borrow_mut() = 0);
+    NOVA_BATCH_STEP_COUNT.with(|cell| *cell.borrow_mut() = 0);
+    fhe_compute_circuit::FHE_COMPUTE_STEP_COUNTER.with(|cell| *cell.borrow_mut() = 0);
+    ajtai_commitment_circuit::AJTAI_STEP_COUNTER.with(|cell| *cell.borrow_mut() = 0);
+    share_verification_circuit::SHARE_VERIFY_STEP_COUNTER.with(|cell| *cell.borrow_mut() = 0);
+    #[cfg(feature = "legacy-nova")]
+    {
+        bfv_encryption_circuit::BFV_STEP_COUNTER.with(|cell| *cell.borrow_mut() = 0);
     }
 }
 
@@ -1554,6 +1574,8 @@ where
         )
         .map_err(|_| CompressorError::Backend("nova-snark PublicParams::setup failed"))?;
 
+        reset_all_step_counters();
+
         // Derive SRS hash: H(epoch_hash || NovaSrs)
         let srs_hash: [u8; 32] =
             Keccak256::digest([&epoch_hash[..], Tag::NovaSrs.as_bytes()].concat()).into();
@@ -1621,6 +1643,22 @@ fn ark_to_nova_scalar(fr: ark_bn254::Fr) -> NovaScalar {
     NovaScalar::from_repr(repr).unwrap_or(NovaScalar::from(0u64))
 }
 
+fn z0_from_acc(acc: &[u8], state_len: usize) -> Vec<NovaScalar> {
+    let mut z0 = vec![NovaScalar::zero(); state_len];
+    if let Ok((a, b, c)) = decode_triple(acc) {
+        if state_len > 0 {
+            z0[0] = ark_to_nova_scalar(a);
+        }
+        if state_len > 1 {
+            z0[1] = ark_to_nova_scalar(b);
+        }
+        if state_len > 2 {
+            z0[2] = ark_to_nova_scalar(c);
+        }
+    }
+    z0
+}
+
 pub(crate) fn sigma_transcript_commitment_scalar(w: &SigmaWitness<ark_bn254::Fr>) -> NovaScalar {
     let mut hasher = Keccak256::new();
     hasher.update(b"pvthfhe-symphony-t2-sigma-witness-v1");
@@ -1665,7 +1703,7 @@ where
         }
 
         let public_inputs_hash = committed_public_inputs_hash(steps);
-        let z0_primary: Vec<NovaScalar> = vec![NovaScalar::zero(); self.state_len];
+        let z0_primary = z0_from_acc(acc, self.state_len);
 
         let c_primary = S::default();
         CYCLO_FOLD_STEP_COUNTER.with(|cell| *cell.borrow_mut() = 0);
@@ -1722,7 +1760,7 @@ where
         NOVA_BATCH_STEP_COUNT.with(|cell| *cell.borrow_mut() = steps.len());
 
         let public_inputs_hash = committed_public_inputs_hash(&[folded]);
-        let z0_primary: Vec<NovaScalar> = vec![NovaScalar::zero(); self.state_len];
+        let z0_primary = z0_from_acc(acc, self.state_len);
         let c_primary = S::default();
 
         let mut recursive_snark: NovaRecursiveSNARK<S> =
@@ -1798,10 +1836,11 @@ where
         &self,
         vk: &VerifierKey,
         proof: &CompressedProof,
-        _acc: &[u8],
+        acc: &[u8],
         steps: &[ExternalInputs3<ark_bn254::Fr>],
     ) -> Result<bool, CompressorError> {
         if vk != &self.verifier_key {
+            tracing::error!(target: "nova", "verify_steps: verifier key mismatch");
             return Ok(false);
         }
 
@@ -1809,16 +1848,37 @@ where
 
         let expected_hash = committed_public_inputs_hash(steps);
         if parsed.public_inputs_hash != expected_hash {
+            tracing::error!(
+                target: "nova",
+                steps = steps.len(),
+                "verify_steps: public inputs hash mismatch (expected != parsed)"
+            );
             return Ok(false);
         }
 
-        let z0_primary: Vec<NovaScalar> = vec![NovaScalar::zero(); self.state_len];
+        if parsed.acc_hash != normalized_hash(acc)? {
+            tracing::error!(target: "nova", "verify_steps: accumulator hash mismatch");
+            return Ok(false);
+        }
 
-        let recursive_snark: NovaRecursiveSNARK<S> =
-            bincode::deserialize(parsed.ivc_bytes).map_err(|_| CompressorError::InvalidProof)?;
+        let z0_primary = z0_from_acc(acc, self.state_len);
 
-        recursive_snark
-            .verify(&self.public_params, steps.len(), &z0_primary)
+        let recursive_snark: NovaRecursiveSNARK<S> = bincode::deserialize(parsed.ivc_bytes)
+            .map_err(|e| {
+                tracing::error!(target: "nova", error = %e, "verify_steps: deserialize failed");
+                CompressorError::InvalidProof
+            })?;
+
+        let verify_result = recursive_snark.verify(&self.public_params, steps.len(), &z0_primary);
+
+        match &verify_result {
+            Err(e) => {
+                tracing::error!(target: "nova", error = ?e, steps = steps.len(), "verify_steps: nova verify failed");
+            }
+            Ok(_) => {}
+        }
+
+        verify_result
             .map(|_| true)
             .map_err(|_| CompressorError::InvalidProof)
     }

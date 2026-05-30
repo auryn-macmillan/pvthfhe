@@ -407,12 +407,12 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         let c1_steps: Vec<ExternalInputs3<Fr>> =
             vec![ExternalInputs3(Fr::from(1u64), Fr::zero(), Fr::from(cfg.n as u64)); cfg.n];
         let c1_proof = c1_compressor
-            .prove_steps_high_arity(&c1_acc, &c1_steps)
+            .prove_steps(&c1_acc, &c1_steps)
             .map_err(|e| anyhow::anyhow!("c1 prove: {e:?}"))?;
         clear_pk_contribution_data();
         let c1_vk = c1_compressor.verifier_key();
         c1_passed = c1_compressor
-            .verify_steps_high_arity(&c1_vk, &c1_proof, &c1_acc, &c1_steps)
+            .verify_steps(&c1_vk, &c1_proof, &c1_acc, &c1_steps)
             .map_err(|e| anyhow::anyhow!("c1 verify: {e:?}"))?;
         assert!(c1_passed);
         tracing::info!("c1: PK contribution IVC verified ({} parties)", cfg.n);

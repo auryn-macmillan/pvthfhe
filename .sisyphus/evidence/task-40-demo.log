@@ -15,11 +15,21 @@ help: Check that the patched package version and available features are compatib
 warning: pvthfhe-fhe@0.1.0: MOCK BACKEND ACTIVE — XOR/SHA256 ONLY. Set PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK=1 to use.
 warning: pvthfhe-aggregator@0.1.0: aggregator: folding uses CycloFoldStepCircuit with real Ajtai commitments (CycloNizkAdapter)
    Compiling pvthfhe-compressor v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-compressor)
-error[E0425]: cannot find value `parsed` in this scope
-    --> crates/pvthfhe-compressor/src/nova/mod.rs:1755:12
-     |
-1755 | ...  if parsed.publi...
-     |         ^^^^^^ not found in this scope
+   Compiling pvthfhe-bench v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-bench)
+   Compiling pvthfhe-cli v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-cli)
+    Finished `release` profile [optimized] target(s) in 24.24s
+     Running `target/release/pvthfhe-cli demo --n 10 --threshold 4 --seed 1`
+demo: n=10 threshold=4 seed=1
+pvss_backend_id=lattice-pvss-bfv-d2
+backend_id == "cyclo-ajtai-d2-conditional"
+backend_id_p2: cyclo-rlwe-t10-lemma9-heuristic
+backend_id_p3: nova-bn254-grumpkin
+note: on-chain Solidity verify is NOT run by demo (use bench-comparison)
+pvss_backend_id=lattice-pvss-bfv-d2
+[2m2026-05-30T11:17:20.912998Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m seed flag ignored in production path; will require --insecure-seed in future R3.6
+step 1/14: keygen (n=10 t=4 seed=1)
+keygen: complete (1940.427 ms)
 
-For more information about this error, try `rustc --explain E0425`.
-error: could not compile `pvthfhe-compressor` (lib) due to 1 previous error
+thread 'main' (1261589) panicked at crates/pvthfhe-cli/src/full_pipeline.rs:417:9:
+assertion failed: c1_passed
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

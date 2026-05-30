@@ -20,6 +20,8 @@ fn make_statement(party_id: u16, seed: u8) -> NizkStatement {
         session_id: format!("test-session-{seed}"),
         participant_id: party_id,
         epoch: 0,
+        c_rns_override: None,
+        d_rns_override: None,
     }
 }
 

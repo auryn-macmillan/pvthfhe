@@ -1,26 +1,29 @@
-#![cfg(feature = "legacy-nova")]
-//! R5.2 RED: IVC_STEPS is a runtime parameter, not a constant 4.
-//!
-//! This test must FAIL (compile error) against current main because
-//! `NovaCompressor::new` does not accept an `ivc_steps` parameter.
+//! R5.2: IVC_STEPS is a runtime parameter, not a constant 4.
 
 use ark_bn254::Fr;
-use pvthfhe_compressor::nova::{encode_triple, NovaCompressor, ToyStepCircuit};
-use pvthfhe_compressor::ProofCompressor;
+use pvthfhe_compressor::nova::{
+    encode_quad, encode_triple, DkgAggregationStepCircuit, NovaCompressor,
+};
 use sha2::{Digest, Sha256};
 
 #[test]
 fn ivc_steps_is_runtime_not_constant_four() {
     let epoch_hash = [0x42u8; 32];
 
-    let compressor = NovaCompressor::<ToyStepCircuit<Fr>>::new(epoch_hash, 8)
+    let compressor = NovaCompressor::<DkgAggregationStepCircuit<Fr>>::new(epoch_hash, 8)
         .expect("construct compressor with ivc_steps=8");
 
     let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
-    let pi = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
+    let pi = encode_quad((
+        Fr::from(0u64),
+        Fr::from(0u64),
+        Fr::from(0u64),
+        Fr::from(0u64),
+    ))
+    .to_vec();
     let proof = compressor.prove(&acc, &pi).expect("prove");
     let vk = compressor.verifier_key();
-    assert!(compressor.verify(&vk, &proof, &pi).expect("verify"));
+    assert!(compressor.verify(&vk, &proof, &acc, &pi).expect("verify"));
 
     assert_eq!(
         compressor.ivc_steps(),
@@ -36,7 +39,7 @@ fn ivc_steps_matches_number_of_parties() {
     let epoch_hash: [u8; 32] = Sha256::digest(&seed_bytes).into();
 
     let n_parties = 16;
-    let compressor = NovaCompressor::<ToyStepCircuit<Fr>>::new(epoch_hash, n_parties)
+    let compressor = NovaCompressor::<DkgAggregationStepCircuit<Fr>>::new(epoch_hash, n_parties)
         .expect("construct compressor");
 
     assert_eq!(

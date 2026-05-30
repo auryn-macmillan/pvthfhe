@@ -1,5 +1,3 @@
-#![cfg(feature = "legacy-nova")]
-
 use pvthfhe_compressor::{CompressedProof, CompressorError, ProofCompressor, VerifierKey};
 
 struct NoopCompressor {
@@ -12,7 +10,7 @@ impl ProofCompressor for NoopCompressor {
         _acc: &[u8],
         _public_inputs: &[u8],
     ) -> Result<CompressedProof, CompressorError> {
-        Ok(CompressedProof(vec![0u8; 4]))
+        Ok(CompressedProof::new(vec![0u8; 4]))
     }
 
     fn verify(
@@ -33,7 +31,7 @@ impl ProofCompressor for NoopCompressor {
     }
 
     fn compressed_proof_bytes<'a>(&self, proof: &'a CompressedProof) -> &'a [u8] {
-        &proof.0
+        &proof.bytes
     }
 }
 

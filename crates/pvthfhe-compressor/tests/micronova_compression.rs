@@ -1,5 +1,3 @@
-#![cfg(feature = "legacy-nova")]
-
 use pvthfhe_compressor::micronova::tree::CompressionTree;
 
 #[test]
@@ -29,13 +27,13 @@ fn compression_8_leaf() {
 fn compression_proofs_are_constant_size() {
     let leaves_2 = vec![[1u8; 32], [2u8; 32]];
     let tree_2 = CompressionTree::build(&leaves_2).unwrap();
-    let size_2 = tree_2.root_proof.0.len();
+    let size_2 = tree_2.root_proof.bytes.len();
 
     let leaves_8 = vec![
         [1u8; 32], [2u8; 32], [3u8; 32], [4u8; 32], [5u8; 32], [6u8; 32], [7u8; 32], [8u8; 32],
     ];
     let tree_8 = CompressionTree::build(&leaves_8).unwrap();
-    let size_8 = tree_8.root_proof.0.len();
+    let size_8 = tree_8.root_proof.bytes.len();
 
     // Root proof size should be O(1) with respect to tree depth.
     // The difference between 2-leaf and 8-leaf compressed proofs should be

@@ -69,7 +69,7 @@ fn read_peak_rss_mb() -> u64 {
 fn run_benchmark(n: usize, t: usize) -> Result<BenchRow, FheError> {
     let overall_started = Instant::now();
     let backend = FhersBackend::load_params(CANONICAL_PARAMS_TOML)?;
-    let backend_threshold = t.min(n.div_ceil(2));
+    let backend_threshold = t.min((n.saturating_sub(1)) / 2).max(1);
 
     let keygen_started = Instant::now();
     let mut simulator = KeygenSimulator::new_with_backend(n, backend_threshold, backend.clone())

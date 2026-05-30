@@ -606,7 +606,8 @@ fn r8_compute(action: ComputeCommand) -> anyhow::Result<()> {
     use pvthfhe_compressor::merkle::{build_merkle_tree, prove_merkle_path};
     use pvthfhe_compressor::nova::{
         clear_fhe_compute_data, hash8_native, set_fhe_compute_data, ExternalInputs3,
-        FheComputeStepCircuit, FheComputeWitness, FheOp, NovaCompressor,
+        FheComputeStepCircuit, FheComputeWitness, FheOp, NovaCompressor, BFV_CT_COEFFS_LEN, BFV_L,
+        BFV_N, BFV_Q,
     };
     use pvthfhe_compressor::{CompressedProof, ProofCompressor};
 
@@ -766,11 +767,50 @@ fn r8_compute(action: ComputeCommand) -> anyhow::Result<()> {
                             hash8_native(&inputs_for_hash[..8])
                         };
 
+                        // Generate synthetic ciphertext coefficients for Add ops.
+                        let (ct0_coeffs, ct1_coeffs, ct_out_coeffs) = match &op {
+                            FheOp::Add { .. } => {
+                                let seed_lo = (witnesses.len() as u64).wrapping_mul(2654435761);
+                                let total = BFV_CT_COEFFS_LEN;
+                                let mut c0 = Vec::with_capacity(total);
+                                let mut c1 = Vec::with_capacity(total);
+                                let mut co = Vec::with_capacity(total);
+                                for poly in 0..2 {
+                                    for limb in 0..BFV_L {
+                                        let q = BFV_Q[limb];
+                                        for coeff in 0..BFV_N {
+                                            let idx = (seed_lo
+                                                ^ (poly as u64 * 1000)
+                                                ^ (limb as u64 * 100)
+                                                ^ (coeff as u64))
+                                                .wrapping_mul(6364136223846793005);
+                                            let v0 = (idx >> 32) % q;
+                                            let v1 = (idx.wrapping_mul(3) >> 32) % q;
+                                            let sum = v0 as u128 + v1 as u128;
+                                            let vo = if sum >= q as u128 {
+                                                (sum - q as u128) as u64
+                                            } else {
+                                                sum as u64
+                                            };
+                                            c0.push(v0);
+                                            c1.push(v1);
+                                            co.push(vo);
+                                        }
+                                    }
+                                }
+                                (c0, c1, co)
+                            }
+                            _ => (Vec::new(), Vec::new(), Vec::new()),
+                        };
+
                         witnesses.push(FheComputeWitness {
                             operation: op,
                             proof0,
                             proof1,
                             output_hash,
+                            ct0_coeffs,
+                            ct1_coeffs,
+                            ct_out_coeffs,
                         });
 
                         next_input_idx += input_count;

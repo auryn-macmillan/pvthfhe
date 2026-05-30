@@ -48,6 +48,7 @@ pub use dealer_parity_circuit::{
 };
 pub use fhe_compute_circuit::{
     clear_fhe_compute_data, set_fhe_compute_data, FheComputeStepCircuit, FheComputeWitness, FheOp,
+    BFV_CT_COEFFS_LEN, BFV_L, BFV_N, BFV_Q,
 };
 pub use fold_verifier_circuit::{
     clear_fold_verifier_data, set_fold_verifier_data, FoldVerifierStepCircuit,

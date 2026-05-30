@@ -23,7 +23,7 @@ use pvthfhe_compressor::nova::{
     encode_hex, encode_triple,
     fhe_compute_circuit::{
         clear_fhe_compute_data, set_fhe_compute_data, FheComputeStepCircuit, FheComputeWitness,
-        FheOp,
+        FheOp, BFV_CT_COEFFS_LEN, BFV_L, BFV_N, BFV_Q,
     },
     hash8_native, set_cyclo_ring_data, set_dealer_parity_data, set_sigma_data,
     set_sigma_response_data, CycloFoldStepCircuit, CycloRingWitness, DealerParityStepCircuit,
@@ -1298,11 +1298,39 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 hash_inputs.push(Fr::zero());
             }
             let output_hash = hash8_native(&hash_inputs[..8]);
+            let total = BFV_CT_COEFFS_LEN;
+            let mut ct0 = Vec::with_capacity(total);
+            let mut ct1 = Vec::with_capacity(total);
+            let mut ct_out = Vec::with_capacity(total);
+            let seed_lo = (idx_a as u64).wrapping_mul(2654435761);
+            for poly in 0..2 {
+                for limb in 0..BFV_L {
+                    let q = BFV_Q[limb];
+                    for coeff in 0..BFV_N {
+                        let s =
+                            (seed_lo ^ (poly as u64 * 1000) ^ (limb as u64 * 100) ^ (coeff as u64))
+                                .wrapping_mul(6364136223846793005);
+                        let v0 = (s >> 32) % q;
+                        let v1 = (s.wrapping_mul(3) >> 32) % q;
+                        let sum = v0 as u128 + v1 as u128;
+                        ct0.push(v0);
+                        ct1.push(v1);
+                        ct_out.push(if sum >= q as u128 {
+                            (sum - q as u128) as u64
+                        } else {
+                            sum as u64
+                        });
+                    }
+                }
+            }
             witnesses.push(FheComputeWitness {
                 operation: op,
                 proof0,
                 proof1,
                 output_hash,
+                ct0_coeffs: ct0,
+                ct1_coeffs: ct1,
+                ct_out_coeffs: ct_out,
             });
         }
 

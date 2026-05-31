@@ -27,6 +27,9 @@ struct IvcBinding {
     bytes32 novaFinalStateCommitment;
     /// S6: RecursiveSNARK verification result (1 = passed, 0 = failed).
     uint64 ivcVerifyResult;
+    /// T6: Bootstrap result hash (binds TFHE bootstrapping integrity).
+    /// Must be non-zero when bootstrapping is used.
+    bytes32 bootstrapResultHash;
 }
 
 /// @title ISessionRegistry
@@ -514,6 +517,7 @@ contract PvtFheVerifier is IPvthfheVerifier {
         require(ivcBinding.dkgTranscriptHash != bytes32(0), "PVTHFHE: dkgTranscriptHash zero");
         require(ivcBinding.novaFinalStateCommitment != bytes32(0), "PVTHFHE: novaFinalStateCommitment zero");
         require(ivcBinding.ivcVerifyResult == 1, "PVTHFHE: ivcVerifyResult must be 1");
+        require(ivcBinding.bootstrapResultHash != bytes32(0), "PVTHFHE: bootstrapResultHash zero");
     }
 
     /// P4: Check if IVC proof has not been consumed. Returns true if it's available.

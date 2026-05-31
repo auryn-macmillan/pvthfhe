@@ -269,7 +269,8 @@ contract PvtFheVerifierTest is BaseVerifierTest {
             decryptNizkHash: bytes32(uint256(0x08)),
             dkgTranscriptHash: bytes32(uint256(0x09)),
             novaFinalStateCommitment: bytes32(uint256(0x0a)),
-            ivcVerifyResult: 1
+            ivcVerifyResult: 1,
+            bootstrapResultHash: bytes32(uint256(0x0b))
         });
     }
 
@@ -299,6 +300,32 @@ contract PvtFheVerifierTest is BaseVerifierTest {
         IvcBinding memory ivcBinding = _buildValidIvcBinding();
         ivcBinding.ivcVerifyResult = 0;
         vm.expectRevert(bytes("PVTHFHE: ivcVerifyResult must be 1"));
+        verifier.verifyAndConsumeWithIvc(
+            SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH,
+            SAMPLE_HASH, SAMPLE_EPOCH, SAMPLE_HASH, SAMPLE_HASH,
+            ivcBinding, sampleProof
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // T6: Bootstrap result hash adversarial tests
+    // -------------------------------------------------------------------------
+
+    function test_bootstrap_result_hash_zero_rejected() public {
+        IvcBinding memory ivcBinding = _buildValidIvcBinding();
+        ivcBinding.bootstrapResultHash = bytes32(0);
+        vm.expectRevert(bytes("PVTHFHE: bootstrapResultHash zero"));
+        verifier.verifyWithIvc(
+            SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH,
+            SAMPLE_HASH, SAMPLE_EPOCH, SAMPLE_HASH, SAMPLE_HASH,
+            ivcBinding, sampleProof
+        );
+    }
+
+    function test_verifyAndConsumeWithIvc_bootstrap_zero_rejected() public {
+        IvcBinding memory ivcBinding = _buildValidIvcBinding();
+        ivcBinding.bootstrapResultHash = bytes32(0);
+        vm.expectRevert(bytes("PVTHFHE: bootstrapResultHash zero"));
         verifier.verifyAndConsumeWithIvc(
             SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH,
             SAMPLE_HASH, SAMPLE_EPOCH, SAMPLE_HASH, SAMPLE_HASH,

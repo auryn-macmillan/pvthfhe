@@ -1,5 +1,8 @@
+use std::io::Cursor;
+
 use rand_core::RngCore as RngCoreV6;
 
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use poulpy_ckks::{
     encoding::Encoder,
     layouts::{CKKSCiphertext, CKKSPlaintextConversion, CKKSPlaintextVecRnx, CKKSPlaintextVecZnx},
@@ -9,15 +12,14 @@ use poulpy_ckks::{
 use poulpy_core::{
     layouts::{
         prepared::{GLWESecretPreparedFactory, GLWETensorKeyPreparedFactory},
-        GGLWEInfos, GLWEInfos, GLWELayout, GLWESecret, GLWETensorKey, GLWETensorKeyLayout,
-        LWEInfos,
+        GLWELayout, GLWESecret, GLWETensorKey, GLWETensorKeyLayout, LWEInfos,
     },
     EncryptionLayout, GLWETensorKeyEncryptSk,
 };
 use poulpy_cpu_ref::NTT120Ref;
 use poulpy_hal::{
     api::{ScratchOwnedAlloc, ScratchOwnedBorrow},
-    layouts::{Module, ScratchOwned},
+    layouts::{Module, ReaderFrom, ScratchOwned, WriterTo},
     source::Source,
 };
 
@@ -77,74 +79,95 @@ fn tsk_layout_from_inner(inner: &PoulpyInner) -> Result<GLWETensorKeyLayout, Fhe
     })
 }
 
-unsafe fn raw_bytes_ptr<T>(obj: &T) -> &Vec<u8> {
-    &*(obj as *const T as *const Vec<u8>)
-}
-
-unsafe fn raw_bytes_ptr_mut<T>(obj: &mut T) -> &mut Vec<u8> {
-    &mut *(obj as *mut T as *mut Vec<u8>)
-}
-
-fn secret_to_bytes(sk: &GLWESecret<Vec<u8>>) -> Vec<u8> {
-    unsafe { raw_bytes_ptr(sk).clone() }
-}
-
-fn secret_from_bytes(glwe: &GLWELayout, bytes: &[u8]) -> Result<GLWESecret<Vec<u8>>, FheError> {
-    let n: usize = glwe.n().into();
-    let rank: usize = glwe.rank().into();
-    let expected = n * rank * 8;
-    if bytes.len() != expected {
-        return Err(FheError::Backend {
-            reason: format!(
-                "secret key bytes length mismatch: expected {expected}, got {}",
-                bytes.len()
-            ),
-        });
-    }
-    let mut sk = GLWESecret::alloc_from_infos(glwe);
-    unsafe {
-        raw_bytes_ptr_mut(&mut sk).copy_from_slice(bytes);
-    }
+fn regenerate_secret(
+    inner: &PoulpyInner,
+    seed_xs: &[u8; 32],
+) -> Result<GLWESecret<Vec<u8>>, FheError> {
+    let glwe = glwe_layout_from_inner(inner)?;
+    let mut source_xs = Source::new(*seed_xs);
+    let mut sk = GLWESecret::alloc_from_infos(&glwe);
+    let hw = 192usize;
+    sk.fill_ternary_hw(hw, &mut source_xs);
     Ok(sk)
 }
 
-fn tsk_to_bytes(tsk: &GLWETensorKey<Vec<u8>>) -> Vec<u8> {
-    unsafe { raw_bytes_ptr(tsk).clone() }
-}
-
-fn tsk_from_bytes(
-    tsk_layout: &GLWETensorKeyLayout,
-    bytes: &[u8],
+fn regenerate_tensor_key(
+    inner: &PoulpyInner,
+    seed_xa: &[u8; 32],
+    seed_xe: &[u8; 32],
+    sk: &GLWESecret<Vec<u8>>,
 ) -> Result<GLWETensorKey<Vec<u8>>, FheError> {
-    let n: usize = tsk_layout.n().into();
-    let base2k: usize = tsk_layout.base2k().into();
-    let rank: usize = tsk_layout.rank().into();
-    let dnum: usize = tsk_layout.dnum().into();
-    let expected_bytes =
-        poulpy_hal::layouts::MatZnx::<Vec<u8>>::bytes_of(n, base2k, rank + 1, 2, dnum);
-    if bytes.len() != expected_bytes {
-        return Err(FheError::Backend {
-            reason: format!(
-                "tensor key bytes length mismatch: expected {expected_bytes}, got {}",
-                bytes.len()
-            ),
-        });
-    }
-    let mut tsk = GLWETensorKey::alloc_from_infos(tsk_layout);
-    unsafe {
-        raw_bytes_ptr_mut(&mut tsk).copy_from_slice(bytes);
-    }
+    let module = module_from_inner(inner)?;
+    let tsk_layout = tsk_layout_from_inner(inner)?;
+    let tsk_enc_layout = EncryptionLayout::new_from_default_sigma(tsk_layout).map_err(into_fhe)?;
+    let mut source_xa = Source::new(*seed_xa);
+    let mut source_xe = Source::new(*seed_xe);
+    let mut tsk = GLWETensorKey::alloc_from_infos(&tsk_enc_layout);
+    let scratch_bytes = module.glwe_tensor_key_encrypt_sk_tmp_bytes(&tsk_enc_layout);
+    let mut scratch = ScratchOwned::<BE>::alloc(scratch_bytes);
+    module.glwe_tensor_key_encrypt_sk(
+        &mut tsk,
+        sk,
+        &tsk_enc_layout,
+        &mut source_xa,
+        &mut source_xe,
+        scratch.borrow(),
+    );
     Ok(tsk)
 }
 
-fn ct_to_bytes(ct: &CKKSCiphertext<Vec<u8>>) -> Vec<u8> {
-    let meta = [ct.log_delta() as u32, ct.log_budget() as u32];
-    let raw = unsafe { raw_bytes_ptr(ct) };
-    let mut out = Vec::with_capacity(8 + raw.len());
-    out.extend_from_slice(&meta[0].to_le_bytes());
-    out.extend_from_slice(&meta[1].to_le_bytes());
-    out.extend_from_slice(raw);
+fn secret_to_bytes(seed_xs: &[u8; 32], n: u32, rank: u32) -> Vec<u8> {
+    let mut out = Vec::with_capacity(40);
+    out.extend_from_slice(seed_xs);
+    out.extend_from_slice(&n.to_le_bytes());
+    out.extend_from_slice(&rank.to_le_bytes());
     out
+}
+
+fn secret_from_bytes(inner: &PoulpyInner, bytes: &[u8]) -> Result<GLWESecret<Vec<u8>>, FheError> {
+    if bytes.len() < 36 {
+        return Err(FheError::Backend {
+            reason: format!("secret key bytes too short: {}", bytes.len()),
+        });
+    }
+    let mut seed_xs = [0u8; 32];
+    seed_xs.copy_from_slice(&bytes[..32]);
+    regenerate_secret(inner, &seed_xs)
+}
+
+fn tsk_to_bytes(seed_xa: &[u8; 32], seed_xe: &[u8; 32]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(64);
+    out.extend_from_slice(seed_xa);
+    out.extend_from_slice(seed_xe);
+    out
+}
+
+fn tsk_from_bytes(
+    inner: &PoulpyInner,
+    sk: &GLWESecret<Vec<u8>>,
+    bytes: &[u8],
+) -> Result<GLWETensorKey<Vec<u8>>, FheError> {
+    if bytes.len() < 64 {
+        return Err(FheError::Backend {
+            reason: format!("tensor key bytes too short: {}", bytes.len()),
+        });
+    }
+    let mut seed_xa = [0u8; 32];
+    let mut seed_xe = [0u8; 32];
+    seed_xa.copy_from_slice(&bytes[..32]);
+    seed_xe.copy_from_slice(&bytes[32..64]);
+    regenerate_tensor_key(inner, &seed_xa, &seed_xe, sk)
+}
+
+fn ct_to_bytes(ct: &CKKSCiphertext<Vec<u8>>) -> Result<Vec<u8>, FheError> {
+    let mut buf = Cursor::new(Vec::new());
+    buf.write_u32::<LittleEndian>(ct.log_delta() as u32)
+        .map_err(into_fhe)?;
+    buf.write_u32::<LittleEndian>(ct.log_budget() as u32)
+        .map_err(into_fhe)?;
+    let glwe: &poulpy_core::layouts::GLWE<Vec<u8>> = &**ct;
+    glwe.write_to(&mut buf).map_err(into_fhe)?;
+    Ok(buf.into_inner())
 }
 
 fn ct_from_bytes(
@@ -156,34 +179,22 @@ fn ct_from_bytes(
             reason: format!("ciphertext bytes too short: {}", bytes.len()),
         });
     }
-    let log_delta = u32::from_le_bytes(bytes[0..4].try_into().unwrap()) as usize;
-    let log_budget = u32::from_le_bytes(bytes[4..8].try_into().unwrap()) as usize;
-    let data = &bytes[8..];
+    let mut cursor = Cursor::new(bytes);
+    let log_delta = cursor.read_u32::<LittleEndian>().map_err(into_fhe)? as usize;
+    let log_budget = cursor.read_u32::<LittleEndian>().map_err(into_fhe)? as usize;
 
     let n: usize = glwe_layout.n().into();
-    let rank: usize = glwe_layout.rank().into();
     let k: usize = glwe_layout.max_k().into();
-    let expected = n * (rank + 1) * k * 8;
-    if data.len() != expected {
-        return Err(FheError::Backend {
-            reason: format!(
-                "ciphertext data bytes length mismatch: expected {expected}, got {}",
-                data.len()
-            ),
-        });
-    }
-
-    let mut ct = CKKSCiphertext::alloc(n.into(), k.into(), glwe_layout.base2k());
+    let base2k = glwe_layout.base2k();
+    let mut ct = CKKSCiphertext::alloc(n.into(), k.into(), base2k);
     ct.set_meta_checked(CKKSMeta {
         log_delta,
         log_budget,
     })
-    .map_err(|e| FheError::Backend {
-        reason: format!("{e}"),
-    })?;
-    unsafe {
-        raw_bytes_ptr_mut(&mut ct).copy_from_slice(data);
-    }
+    .map_err(into_fhe)?;
+
+    let glwe: &mut poulpy_core::layouts::GLWE<Vec<u8>> = &mut *ct;
+    glwe.read_from(&mut cursor).map_err(into_fhe)?;
     Ok(ct)
 }
 
@@ -191,33 +202,21 @@ pub(crate) fn keygen(
     inner: &PoulpyInner,
     rng: &mut dyn RngCoreV6,
 ) -> Result<(Vec<u8>, Vec<u8>), FheError> {
-    let module = module_from_inner(inner)?;
     let glwe = glwe_layout_from_inner(inner)?;
-    let tsk_layout = tsk_layout_from_inner(inner)?;
+    let n: u32 = glwe.n.into();
+    let rank: u32 = glwe.rank.into();
 
-    let mut source_xs = Source::new(seed_from_rng(rng));
-    let mut source_xa = Source::new(seed_from_rng(rng));
-    let mut source_xe = Source::new(seed_from_rng(rng));
+    let seed_xs = seed_from_rng(rng);
+    let seed_xa = seed_from_rng(rng);
+    let seed_xe = seed_from_rng(rng);
 
-    let mut sk_raw = GLWESecret::alloc_from_infos(&glwe);
-    let hw = 192usize;
-    sk_raw.fill_ternary_hw(hw, &mut source_xs);
+    let sk = regenerate_secret(inner, &seed_xs)?;
+    let _tsk = regenerate_tensor_key(inner, &seed_xa, &seed_xe, &sk)?;
 
-    let tsk_enc_layout =
-        EncryptionLayout::new_from_default_sigma(tsk_layout.clone()).map_err(into_fhe)?;
-    let mut tsk = GLWETensorKey::alloc_from_infos(&tsk_enc_layout);
-    let scratch_bytes = module.glwe_tensor_key_encrypt_sk_tmp_bytes(&tsk_enc_layout);
-    let mut scratch = ScratchOwned::<BE>::alloc(scratch_bytes);
-    module.glwe_tensor_key_encrypt_sk(
-        &mut tsk,
-        &sk_raw,
-        &tsk_enc_layout,
-        &mut source_xa,
-        &mut source_xe,
-        scratch.borrow(),
-    );
+    let sk_bytes = secret_to_bytes(&seed_xs, n, rank);
+    let tsk_bytes = tsk_to_bytes(&seed_xa, &seed_xe);
 
-    Ok((secret_to_bytes(&sk_raw), tsk_to_bytes(&tsk)))
+    Ok((sk_bytes, tsk_bytes))
 }
 
 pub(crate) fn encrypt(
@@ -230,7 +229,7 @@ pub(crate) fn encrypt(
     let module = module_from_inner(inner)?;
     let glwe = glwe_layout_from_inner(inner)?;
 
-    let sk_raw = secret_from_bytes(&glwe, sk_bytes)?;
+    let sk_raw = secret_from_bytes(inner, sk_bytes)?;
     let mut sk = module.glwe_secret_prepared_alloc_from_infos(&glwe);
     module.glwe_secret_prepare(&mut sk, &sk_raw);
 
@@ -257,13 +256,29 @@ pub(crate) fn encrypt(
         .map_err(into_fhe)?;
 
     let mut pt_znx = CKKSPlaintextVecZnx::alloc(glwe.n(), glwe.base2k(), meta);
+    eprintln!(
+        "[DEBUG encrypt] pt_znx.max_k() = {:?}, pt_znx.size() = {}, base2k = {:?}",
+        pt_znx.max_k(),
+        pt_znx.size(),
+        pt_znx.base2k()
+    );
+    eprintln!(
+        "[DEBUG encrypt] meta = log_delta={}, log_budget={}",
+        meta.log_delta, meta.log_budget
+    );
     pt_rnx.to_znx(&mut pt_znx).map_err(into_fhe)?;
+    eprintln!(
+        "[DEBUG encrypt] after to_znx: pt_znx.max_k() = {:?}",
+        pt_znx.max_k()
+    );
 
     let k = glwe.max_k();
     let mut ct = CKKSCiphertext::alloc(glwe.n(), k, glwe.base2k());
     let enc_layout = EncryptionLayout::new_from_default_sigma(glwe).map_err(into_fhe)?;
     let mut source_xa = Source::new(seed_from_rng(rng));
     let mut source_xe = Source::new(seed_from_rng(rng));
+    let encrypt_scratch_bytes = module.ckks_encrypt_sk_tmp_bytes(&ct);
+    let mut encrypt_scratch = ScratchOwned::<BE>::alloc(encrypt_scratch_bytes);
     module
         .ckks_encrypt_sk(
             &mut ct,
@@ -272,11 +287,11 @@ pub(crate) fn encrypt(
             &enc_layout,
             &mut source_xa,
             &mut source_xe,
-            ScratchOwned::<BE>::alloc(1024).borrow(),
+            encrypt_scratch.borrow(),
         )
         .map_err(into_fhe)?;
 
-    Ok(ct_to_bytes(&ct))
+    ct_to_bytes(&ct)
 }
 
 pub(crate) fn decrypt(
@@ -288,7 +303,7 @@ pub(crate) fn decrypt(
     let glwe = glwe_layout_from_inner(inner)?;
     let n: usize = glwe.n().into();
 
-    let sk_raw = secret_from_bytes(&glwe, sk_bytes)?;
+    let sk_raw = secret_from_bytes(inner, sk_bytes)?;
     let mut sk = module.glwe_secret_prepared_alloc_from_infos(&glwe);
     module.glwe_secret_prepare(&mut sk, &sk_raw);
 
@@ -335,13 +350,14 @@ pub(crate) fn add(
         .ckks_add_into(&mut dst, &ct0, &ct1, scratch.borrow())
         .map_err(into_fhe)?;
 
-    Ok(ct_to_bytes(&dst))
+    ct_to_bytes(&dst)
 }
 
 pub(crate) fn mul(
     inner: &PoulpyInner,
     ct0_bytes: &[u8],
     ct1_bytes: &[u8],
+    sk_bytes: &[u8],
     tsk_bytes: &[u8],
 ) -> Result<Vec<u8>, FheError> {
     let module = module_from_inner(inner)?;
@@ -351,7 +367,8 @@ pub(crate) fn mul(
     let ct0 = ct_from_bytes(&glwe, ct0_bytes)?;
     let ct1 = ct_from_bytes(&glwe, ct1_bytes)?;
 
-    let tsk_raw = tsk_from_bytes(&tsk_layout, tsk_bytes)?;
+    let sk = secret_from_bytes(inner, sk_bytes)?;
+    let tsk_raw = tsk_from_bytes(inner, &sk, tsk_bytes)?;
     let mut tsk_prepared = module.alloc_tensor_key_prepared_from_infos(&tsk_layout);
     let prep_scratch_bytes = module.prepare_tensor_key_tmp_bytes(&tsk_layout);
     let mut prep_scratch = ScratchOwned::<BE>::alloc(prep_scratch_bytes);
@@ -365,5 +382,5 @@ pub(crate) fn mul(
         .ckks_mul_into(&mut dst, &ct0, &ct1, &tsk_prepared, scratch.borrow())
         .map_err(into_fhe)?;
 
-    Ok(ct_to_bytes(&dst))
+    ct_to_bytes(&dst)
 }

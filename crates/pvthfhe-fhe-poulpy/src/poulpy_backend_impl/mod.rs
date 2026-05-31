@@ -273,6 +273,15 @@ impl PoulpyBackend {
     pub fn ckks_mul(&self, ct0: &Ciphertext, ct1: &Ciphertext) -> Result<Ciphertext, FheError> {
         #[cfg(feature = "enable-ckks")]
         {
+            let sk = self
+                .inner
+                .secret_keys
+                .lock()
+                .map_err(|e| FheError::Backend {
+                    reason: e.to_string(),
+                })?;
+            let sk_bytes = sk.values().next().cloned().unwrap_or_default();
+            drop(sk);
             let tsk = self
                 .inner
                 .tensor_keys
@@ -282,7 +291,7 @@ impl PoulpyBackend {
                 })?;
             let tsk_bytes = tsk.values().next().cloned().unwrap_or_default();
             drop(tsk);
-            let result = ckks_ops::mul(&self.inner, &ct0.bytes, &ct1.bytes, &tsk_bytes)?;
+            let result = ckks_ops::mul(&self.inner, &ct0.bytes, &ct1.bytes, &sk_bytes, &tsk_bytes)?;
             return Ok(Ciphertext { bytes: result });
         }
         #[cfg(not(feature = "enable-ckks"))]

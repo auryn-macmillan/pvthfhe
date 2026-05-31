@@ -2344,6 +2344,7 @@ dependencies = [
 name = "pvthfhe-fhe-poulpy"
 version = "0.1.0"
 dependencies = [
+ "byteorder",
  "poulpy-bin-fhe",
  "poulpy-ckks",
  "poulpy-core",

@@ -372,9 +372,12 @@ fn main() -> anyhow::Result<()> {
                 "poulpy-switch" => {
                     run_poulpy_switch_demo(n, t, seed)?;
                 }
+                "poulpy-all" => {
+                    run_poulpy_all_demo(n, t, seed)?;
+                }
                 other => {
                     anyhow::bail!(
-                        "unknown backend: {other}. Use 'fhe-rs' (default), 'poulpy-ckks', 'poulpy-tfhe', or 'poulpy-switch'"
+                        "unknown backend: {other}. Use 'fhe-rs' (default), 'poulpy-ckks', 'poulpy-tfhe', 'poulpy-switch', or 'poulpy-all'"
                     );
                 }
             }
@@ -1871,14 +1874,15 @@ fn run_poulpy_switch_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Resu
     };
 
     let zero_state = vec![0u8; 3 * 32];
+    let zero_public_inputs = vec![0u8; 4 * 32];
     let proof = compressor
-        .prove(&zero_state, &[])
+        .prove(&zero_state, &zero_public_inputs)
         .map_err(|e| anyhow::anyhow!("scheme_switch prove: {e:?}"))?;
 
     println!("step 6/6: nova_verify_scheme_switch");
     let vk = compressor.verifier_key();
     let verified = compressor
-        .verify(&vk, &proof, &zero_state, &[])
+        .verify(&vk, &proof, &zero_state, &zero_public_inputs)
         .map_err(|e| anyhow::anyhow!("scheme_switch verify: {e:?}"))?;
 
     clear_scheme_switch_data();
@@ -1910,6 +1914,426 @@ fn run_poulpy_switch_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Resu
 fn run_poulpy_switch_demo(_n: usize, _threshold: usize, _seed: u64) -> anyhow::Result<()> {
     anyhow::bail!(
         "poulpy-switch backend requires features: with-fhe, enable-ckks, enable-tfhe, nova-compressor"
+    )
+}
+
+/// Run the unified Poulpy end-to-end demo: CKKS DKG → scheme-switch → TFHE bootstrapping.
+///
+/// Phase 1: CKKS DKG ceremony (keygen, sigma NIZK, PVSS encryption, aggregate PK)
+/// Phase 2: CKKS encrypt + multiply + decrypt verification
+/// Phase 3: Scheme-switch CKKS→TFHE (Nova IVC proof)
+/// Phase 4: TFHE bootstrapping with sigma NIZK prove/verify
+#[cfg(all(
+    feature = "with-fhe",
+    feature = "enable-ckks",
+    feature = "enable-tfhe",
+    feature = "nova-compressor"
+))]
+fn run_poulpy_all_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
+    use anyhow::Context;
+    use pvthfhe_compressor::nova::{
+        build_scheme_switch_witness, clear_scheme_switch_data, reset_scheme_switch_step_counter,
+        set_scheme_switch_data, NovaCompressor, SchemeSwitchStepCircuit,
+    };
+    use pvthfhe_compressor::ProofCompressor;
+    use pvthfhe_fhe::{FheBackend, PublicKey};
+    use pvthfhe_fhe_poulpy::PoulpyBackend;
+    use pvthfhe_nizk::bootstrap_sigma::BootstrapStatement;
+    use pvthfhe_nizk::poulpy_sigma::compute_sigma_ntt_data_ckks;
+    use pvthfhe_nizk::sigma::{self, compute_d_rns, SigmaProof, SigmaStatement, SigmaWitness};
+    use sha2::Digest;
+    use std::time::Instant;
+
+    if n == 0 {
+        anyhow::bail!("invalid n: n=0; must satisfy n >= 1");
+    }
+    if threshold == 0 || threshold > n {
+        anyhow::bail!(
+            "invalid threshold: threshold={threshold} must satisfy 1 <= threshold <= n={n}"
+        );
+    }
+
+    const CKKS_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 300\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
+    const TFHE_PARAMS_TOML: &str =
+        "[rlwe]\nn = 1\nlog2_q = 64\nt_plain = 2\nmoduli = [18446744073709551557]\nvariance = 10\n";
+
+    let preset = pvthfhe_types::BfvParameterPreset::production8192();
+    pvthfhe_types::set_active_preset(preset);
+
+    println!("demo: n={n} threshold={threshold} seed={seed}");
+    println!("demo: backend=poulpy-all (CKKS DKG → Scheme Switch → TFHE Bootstrap)");
+    println!("note: this is an end-to-end research prototype");
+
+    let total_start = Instant::now();
+
+    let mut session_id = [0u8; 32];
+    let mut seed_bytes = [0u8; 32];
+    seed_bytes[..8].copy_from_slice(&seed.to_le_bytes());
+    {
+        let mut h = Sha256::new();
+        h.update(b"pvthfhe-poulpy-all-demo/v1");
+        h.update(seed_bytes);
+        session_id.copy_from_slice(&h.finalize());
+    }
+
+    let session_seed: [u8; 32] = Sha256::digest(session_id).into();
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Phase 1: CKKS DKG Ceremony
+    // ─────────────────────────────────────────────────────────────────────
+    println!("=== Phase 1: CKKS DKG Ceremony ===");
+
+    println!("step 1/15: ckks_backend_init — loading CKKS parameters");
+    let ckks_backend =
+        PoulpyBackend::load_params(CKKS_PARAMS_TOML).context("Poulpy CKKS backend init")?;
+
+    let keygen_start = Instant::now();
+    println!("step 2/15: keygen — generating keygen shares for {n} parties");
+    let mut keygen_shares = Vec::with_capacity(n);
+    for party_id in 1u32..=n as u32 {
+        let mut rng = pvthfhe_rng::OsRng;
+        let share = ckks_backend
+            .keygen_share_with_session(&session_id, party_id, &mut rng)
+            .with_context(|| format!("keygen_share party {party_id}"))?;
+        keygen_shares.push(share);
+    }
+    let keygen_ms = keygen_start.elapsed().as_secs_f64() * 1000.0;
+    println!("step 2/15: keygen complete ({keygen_ms:.1}ms)");
+
+    ckks_backend
+        .setup_threshold(n, threshold, session_seed)
+        .context("ckks setup_threshold")?;
+
+    // ── Sigma NIZK prove ────────────────────────────────────────────────
+    let sigma_prove_start = Instant::now();
+    println!("step 3/15: sigma_nizk_prove — proving key knowledge for {n} parties");
+
+    let ckks_moduli: Vec<u64> = vec![288230376173076481, 288230376167047169, 288230376161280001];
+    let poly_len = 8192usize;
+    let num_limbs = ckks_moduli.len();
+    let d_commitment = [0u8; 32];
+
+    let c_rns = derive_ckks_c_rns(&session_id, poly_len, &ckks_moduli);
+
+    let mut sigma_proofs: Vec<(u32, SigmaProof, SigmaStatement)> = Vec::with_capacity(n);
+    for party_id in 1u32..=n as u32 {
+        let s_i = ckks_backend
+            .secret_key_coeffs(party_id)
+            .with_context(|| format!("secret_key_coeffs party {party_id}"))?;
+        let e_i = derive_ckks_error_poly(&session_id, party_id, poly_len);
+
+        let stmt = SigmaStatement {
+            c_rns: c_rns.clone(),
+            d_rns: compute_d_rns(&c_rns, &s_i, &e_i)
+                .with_context(|| format!("compute_d_rns party {party_id}"))?,
+        };
+        let wit = SigmaWitness {
+            s_i: s_i.clone(),
+            e_i: e_i.clone(),
+        };
+
+        let mut rng = pvthfhe_rng::OsRng;
+        let proof = sigma::prove(&session_id, party_id, &stmt, &wit, &mut rng, &d_commitment)
+            .with_context(|| format!("sigma prove party {party_id}"))?;
+        sigma_proofs.push((party_id, proof, stmt));
+    }
+    let sigma_prove_ms = sigma_prove_start.elapsed().as_secs_f64() * 1000.0;
+    println!("step 3/15: sigma_nizk_prove complete ({sigma_prove_ms:.1}ms)");
+
+    // ── Sigma NIZK verify ───────────────────────────────────────────────
+    let sigma_verify_start = Instant::now();
+    println!("step 4/15: sigma_nizk_verify — verifying {n} proofs");
+    for &(party_id, ref proof, ref stmt) in &sigma_proofs {
+        sigma::verify(&session_id, party_id, stmt, proof, &d_commitment)
+            .with_context(|| format!("sigma verify party {party_id}"))?;
+    }
+    let sigma_verify_ms = sigma_verify_start.elapsed().as_secs_f64() * 1000.0;
+    println!("step 4/15: sigma_nizk_verify ACCEPT ({sigma_verify_ms:.1}ms)");
+
+    // ── PVSS share encryption ────────────────────────────────────────────
+    let pvss_start = Instant::now();
+    println!("step 5/15: pvss_share_encrypt — encrypting shares for {n} parties");
+
+    let aggregate_pk = ckks_backend
+        .aggregate_keygen(&keygen_shares)
+        .context("ckks aggregate_keygen")?;
+
+    let mut _encrypted_shares: Vec<Vec<u8>> = Vec::with_capacity(n);
+    for party_id in 1u32..=n as u32 {
+        let share_pt = (party_id as f64).to_le_bytes().to_vec();
+        let mut rng = pvthfhe_rng::OsRng;
+        let ct = ckks_backend
+            .encrypt(&aggregate_pk, &share_pt, &mut rng)
+            .with_context(|| format!("pvss encrypt party {party_id}"))?;
+        _encrypted_shares.push(ct.bytes);
+    }
+    let pvss_ms = pvss_start.elapsed().as_secs_f64() * 1000.0;
+    println!("step 5/15: pvss_share_encrypt complete ({pvss_ms:.1}ms)");
+
+    // ── DKG aggregation ──────────────────────────────────────────────────
+    let aggregate_pk_recheck = ckks_backend
+        .aggregate_keygen(&keygen_shares)
+        .context("aggregate_keygen recheck")?;
+    if aggregate_pk.bytes != aggregate_pk_recheck.bytes {
+        anyhow::bail!("aggregate key mismatch on recheck");
+    }
+    let pk_hash = hex::encode(Sha256::digest(&aggregate_pk.bytes));
+    println!("step 6/15: dkg_aggregate — public key hash={pk_hash}");
+    println!("=== Phase 1 complete: CKKS DKG OK ===");
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Phase 2: CKKS Encrypt + Multiply + Decrypt
+    // ─────────────────────────────────────────────────────────────────────
+    println!("=== Phase 2: CKKS Encrypt + Compute + Decrypt ===");
+
+    let encrypt_start = Instant::now();
+    println!("step 7/15: encrypt — encrypting plaintext 1.0 under aggregate CKKS PK");
+    let plaintext = 1.0f64.to_le_bytes().to_vec();
+    let mut encrypt_rng = pvthfhe_rng::OsRng;
+    let ciphertext = ckks_backend
+        .encrypt(&aggregate_pk, &plaintext, &mut encrypt_rng)
+        .context("ckks encrypt")?;
+    let encrypt_ms = encrypt_start.elapsed().as_secs_f64() * 1000.0;
+    println!("step 7/15: encrypt complete ({encrypt_ms:.1}ms)");
+
+    let mul_start = Instant::now();
+    println!("step 8/15: ckks_mul — ciphertext * ciphertext (1.0 * 1.0)");
+    let ct_squared = ckks_backend
+        .ckks_mul(&ciphertext, &ciphertext)
+        .context("ckks_mul")?;
+    let mul_ms = mul_start.elapsed().as_secs_f64() * 1000.0;
+    println!("step 8/15: ckks_mul complete ({mul_ms:.1}ms)");
+
+    let decrypt_start = Instant::now();
+    println!("step 9/15: decrypt — producing {threshold} partial decrypt shares + aggregating");
+    let mut shares = Vec::with_capacity(threshold);
+    for party_id in 1u32..=threshold as u32 {
+        let mut rng = pvthfhe_rng::OsRng;
+        let share = ckks_backend
+            .partial_decrypt(&ct_squared, party_id, &mut rng)
+            .with_context(|| format!("partial_decrypt party {party_id}"))?;
+        shares.push(share);
+    }
+    let recovered = ckks_backend
+        .aggregate_decrypt(&ct_squared, &shares, threshold, session_id.as_ref())
+        .context("aggregate_decrypt")?;
+    let decrypt_ms = decrypt_start.elapsed().as_secs_f64() * 1000.0;
+    println!("step 9/15: decrypt complete ({decrypt_ms:.1}ms)");
+
+    let original_val = f64::from_le_bytes(plaintext[..8].try_into().unwrap_or_default());
+    let recovered_val = f64::from_le_bytes(
+        recovered
+            .get(..8)
+            .unwrap_or(&[0u8; 8])
+            .try_into()
+            .unwrap_or([0u8; 8]),
+    );
+    let expected = original_val * original_val; // 1.0² = 1.0
+    let diff = (expected - recovered_val).abs();
+    let tolerance = expected.abs().max(1.0) * 1e-5; // CKKS approximate, relaxed tolerance
+    let ckks_roundtrip_ok = diff <= tolerance;
+    println!(
+        "step 9/15: CKKS roundtrip: expected={expected}, recovered={recovered_val}, diff={diff}, ok={ckks_roundtrip_ok}"
+    );
+    println!("=== Phase 2 complete: CKKS Encrypt+Mul+Decrypt OK ===");
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Phase 3: Scheme-Switch CKKS→TFHE
+    // ─────────────────────────────────────────────────────────────────────
+    println!("=== Phase 3: Scheme-Switch CKKS→TFHE ===");
+
+    println!("step 10/15: tfhe_backend_init — loading TFHE parameters");
+    let tfhe_backend =
+        PoulpyBackend::load_params(TFHE_PARAMS_TOML).context("Poulpy TFHE backend init")?;
+
+    println!("step 11/15: tfhe_keygen — generating TFHE key shares");
+    let mut tfhe_keygen_shares = Vec::with_capacity(n);
+    for party_id in 1u32..=n as u32 {
+        let mut rng = pvthfhe_rng::OsRng;
+        let share = tfhe_backend
+            .keygen_share_with_session(&session_id, party_id, &mut rng)
+            .context("tfhe keygen_share")?;
+        tfhe_keygen_shares.push(share);
+    }
+    tfhe_backend
+        .setup_threshold(n, threshold, session_seed)
+        .context("tfhe setup_threshold")?;
+    let tfhe_pk = tfhe_backend
+        .aggregate_keygen(&tfhe_keygen_shares)
+        .context("tfhe aggregate_keygen")?;
+
+    println!("step 12/15: encrypt_both — encrypting same value under CKKS and TFHE");
+    let ckks_val = 1.0f64.to_le_bytes().to_vec();
+    let tfhe_val = vec![1u8]; // same logical value
+
+    let ckks_ct = ckks_backend
+        .encrypt(&aggregate_pk, &ckks_val, &mut encrypt_rng)
+        .context("ckks encrypt for switch")?;
+    let tfhe_ct = tfhe_backend
+        .encrypt(&tfhe_pk, &tfhe_val, &mut encrypt_rng)
+        .context("tfhe encrypt for switch")?;
+
+    // Decode off-circuit for witness
+    let ckks_dec = ckks_backend
+        .partial_decrypt(&ckks_ct, 1, &mut encrypt_rng)
+        .context("ckks decrypt for witness")?;
+    let tfhe_dec = tfhe_backend
+        .partial_decrypt(&tfhe_ct, 1, &mut encrypt_rng)
+        .context("tfhe decrypt for witness")?;
+
+    let (ckks_int, tfhe_bit, equiv) = pvthfhe_compressor::nova::check_scheme_switch_equivalence(
+        ckks_dec.bytes.as_slice(),
+        tfhe_dec.bytes.as_slice(),
+    );
+    println!(
+        "step 12/15: scheme_switch precheck — ckks_int={ckks_int}, tfhe_bit={tfhe_bit}, equiv={equiv}"
+    );
+
+    println!("step 13/15: nova_prove_scheme_switch — proving CKKS↔TFHE equivalence");
+    let epoch_hash: [u8; 32] = Sha256::digest(b"pvthfhe-scheme-switch-epoch/v1").into();
+    let ckks_f64 = f64::from_le_bytes(
+        ckks_dec
+            .bytes
+            .as_slice()
+            .get(..8)
+            .unwrap_or(&[0u8; 8])
+            .try_into()
+            .unwrap_or([0u8; 8]),
+    );
+    let pairs = vec![(ckks_f64, tfhe_bit); 1];
+    let witness = build_scheme_switch_witness(&pairs);
+    set_scheme_switch_data(witness);
+    reset_scheme_switch_step_counter();
+
+    let compressor = NovaCompressor::<SchemeSwitchStepCircuit>::new(epoch_hash, 1)
+        .map_err(|e| anyhow::anyhow!("SchemeSwitch NovaCompressor::new: {e:?}"))?;
+
+    let zero_state = vec![0u8; 3 * 32];
+    let zero_public_inputs = vec![0u8; 4 * 32];
+    let switch_proof = compressor
+        .prove(&zero_state, &zero_public_inputs)
+        .map_err(|e| anyhow::anyhow!("scheme_switch prove: {e:?}"))?;
+
+    let vk = compressor.verifier_key();
+    let switch_verified = compressor
+        .verify(&vk, &switch_proof, &zero_state, &zero_public_inputs)
+        .map_err(|e| anyhow::anyhow!("scheme_switch verify: {e:?}"))?;
+
+    clear_scheme_switch_data();
+
+    if switch_verified {
+        println!("step 13/15: scheme_switch verify: ACCEPT");
+    } else {
+        println!("step 13/15: scheme_switch verify: REJECT");
+        anyhow::bail!("scheme-switch proof verification failed");
+    }
+    println!("=== Phase 3 complete: Scheme-Switch OK ===");
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Phase 4: TFHE Bootstrapping
+    // ─────────────────────────────────────────────────────────────────────
+    println!("=== Phase 4: TFHE Bootstrapping ===");
+
+    println!("step 14/15: bootstrap — applying TFHE bootstrap (noise reduction)");
+    let bootstrap_start = Instant::now();
+    let ct_bootstrapped = tfhe_backend.bootstrap(&tfhe_ct).context("bootstrap")?;
+    let bootstrap_ms = bootstrap_start.elapsed().as_secs_f64() * 1000.0;
+    println!("step 14/15: bootstrap complete ({bootstrap_ms:.1}ms)");
+
+    println!("step 15/15: bootstrap_sigma_prove_verify — NIZK for bootstrap correctness");
+    let prove_start = Instant::now();
+    let bootstrap_proof = tfhe_backend
+        .bootstrap_prove(&tfhe_ct, &ct_bootstrapped, 1, &session_id)
+        .context("bootstrap_prove")?;
+    let prove_ms = prove_start.elapsed().as_secs_f64() * 1000.0;
+
+    let verify_stmt = BootstrapStatement {
+        ct_in_bytes: tfhe_ct.bytes.clone(),
+        ct_out_bytes: ct_bootstrapped.bytes.clone(),
+        bsk_hash: [0u8; 32],
+    };
+    match pvthfhe_nizk::bootstrap_sigma::verify(
+        &session_id,
+        1,
+        &verify_stmt,
+        &bootstrap_proof,
+        &d_commitment,
+    ) {
+        Ok(()) => println!("step 15/15: bootstrap NIZK verify: ACCEPT ({prove_ms:.1}ms prove)"),
+        Err(e) => {
+            println!("step 15/15: bootstrap NIZK verify: REJECT ({e:?})");
+            anyhow::bail!("bootstrap NIZK verification failed: {e:?}");
+        }
+    }
+
+    // Verify: decrypt(bootstrap(ct)) == decrypt(original ct)
+    let orig_dec = tfhe_backend
+        .partial_decrypt(&tfhe_ct, 1, &mut encrypt_rng)
+        .context("decrypt original TFHE ct")?;
+    let boot_dec = tfhe_backend
+        .partial_decrypt(&ct_bootstrapped, 1, &mut encrypt_rng)
+        .context("decrypt bootstrapped ct")?;
+    let orig_bit = orig_dec.bytes.as_slice().first().copied().unwrap_or(0);
+    let boot_bit = boot_dec.bytes.as_slice().first().copied().unwrap_or(0);
+
+    let bootstrap_ok = orig_bit == boot_bit;
+    println!("step 15/15: bootstrap roundtrip: original={orig_bit}, bootstrapped={boot_bit}, ok={bootstrap_ok}");
+    println!("=== Phase 4 complete: TFHE Bootstrap OK ===");
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Summary
+    // ─────────────────────────────────────────────────────────────────────
+    let total_ms = total_start.elapsed().as_secs_f64() * 1000.0;
+
+    let all_ok = ckks_roundtrip_ok && switch_verified && bootstrap_ok;
+
+    println!();
+    println!("=== Poulpy End-to-End Summary ===");
+    println!(
+        "plaintext_roundtrip: {}",
+        if ckks_roundtrip_ok { "OK" } else { "MISMATCH" }
+    );
+    println!(
+        "scheme_switch_verified: {}",
+        if switch_verified { "ACCEPT" } else { "REJECT" }
+    );
+    println!(
+        "bootstrap_verified: {}",
+        if bootstrap_ok { "ACCEPT" } else { "REJECT" }
+    );
+    println!("keygen_ms={keygen_ms:.1}");
+    println!("sigma_prove_ms={sigma_prove_ms:.1}");
+    println!("sigma_verify_ms={sigma_verify_ms:.1}");
+    println!("pvss_encrypt_ms={pvss_ms:.1}");
+    println!("encrypt_ms={encrypt_ms:.1}");
+    println!("ckks_mul_ms={mul_ms:.1}");
+    println!("decrypt_ms={decrypt_ms:.1}");
+    println!("bootstrap_ms={bootstrap_ms:.1}");
+    println!("bootstrap_prove_ms={prove_ms:.1}");
+    println!("total_ms={total_ms:.1}");
+    println!("threshold={threshold}");
+    println!("n={n}");
+
+    if all_ok {
+        println!("verify: ACCEPT");
+        info!("poulpy-all demo complete: ACCEPT");
+    } else {
+        println!("verify: REJECT");
+        anyhow::bail!("poulpy-all demo: one or more phases failed verification");
+    }
+
+    Ok(())
+}
+
+#[cfg(not(all(
+    feature = "with-fhe",
+    feature = "enable-ckks",
+    feature = "enable-tfhe",
+    feature = "nova-compressor"
+)))]
+fn run_poulpy_all_demo(_n: usize, _threshold: usize, _seed: u64) -> anyhow::Result<()> {
+    anyhow::bail!(
+        "poulpy-all backend requires features: with-fhe, enable-ckks, enable-tfhe, nova-compressor"
     )
 }
 

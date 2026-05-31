@@ -54,6 +54,8 @@ pub enum Tag {
     NovaRingVerifier,
     /// `pvthfhe/nova/fhe-compute/v1` — Nova FHE compute step circuit (E3 Compute Provider).
     NovaFheCompute,
+    /// `pvthfhe/nova/bootstrap-step/v1` — Nova TFHE bootstrap step circuit (T6 Bootstrap Proofs).
+    NovaBootstrapStep,
 }
 
 impl Tag {
@@ -86,11 +88,12 @@ impl Tag {
             Tag::PvssFoldVerifier => b"pvthfhe/p3/fold-verifier/v1",
             Tag::NovaRingVerifier => b"pvthfhe/nova/ring-verifier/v1",
             Tag::NovaFheCompute => b"pvthfhe/nova/fhe-compute/v1",
+            Tag::NovaBootstrapStep => b"pvthfhe/nova/bootstrap-step/v1",
         }
     }
 
     pub const fn all_literals() -> &'static [&'static [u8]] {
-        const ALL: [&[u8]; 23] = [
+        const ALL: [&[u8]; 24] = [
             Tag::Finalize.as_bytes(),
             Tag::KeygenSimulatorSession.as_bytes(),
             Tag::ProofTag.as_bytes(),
@@ -114,6 +117,7 @@ impl Tag {
             Tag::PvssFoldVerifier.as_bytes(),
             Tag::NovaRingVerifier.as_bytes(),
             Tag::NovaFheCompute.as_bytes(),
+            Tag::NovaBootstrapStep.as_bytes(),
         ];
         &ALL
     }

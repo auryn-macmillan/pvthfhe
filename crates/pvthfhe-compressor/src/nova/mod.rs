@@ -23,11 +23,18 @@ pub use poseidon_gadget::PoseidonSpongeVar;
 pub mod ajtai_commitment_circuit;
 pub mod bfv_encryption_circuit;
 pub mod bfv_snapshot;
+pub mod bootstrap_step;
 pub mod dealer_parity_circuit;
 pub mod dkg_aggregation_circuit;
 pub use dkg_aggregation_circuit::DkgAggregationStepCircuit;
 pub mod ring_element_var;
 pub mod ring_verifier;
+pub mod scheme_switch;
+pub use scheme_switch::{
+    build_scheme_switch_witness, check_scheme_switch_equivalence, clear_scheme_switch_data,
+    reset_scheme_switch_step_counter, set_scheme_switch_data, SchemeSwitchStepCircuit,
+    SCHEME_SWITCH_DATA_LEN,
+};
 pub mod share_verification_circuit;
 pub mod snark_bridge;
 pub use ajtai_commitment_circuit::{
@@ -35,6 +42,10 @@ pub use ajtai_commitment_circuit::{
 };
 pub use bfv_encryption_circuit::{
     clear_bfv_encryption_data, set_bfv_encryption_data, BfvEncryptionStepCircuit, BFV_STEP_DATA_LEN,
+};
+pub use bootstrap_step::{
+    clear_bootstrap_data, reset_bootstrap_step_counter, set_bootstrap_data, BootstrapStepCircuit,
+    BootstrapStepWitness,
 };
 #[cfg(feature = "legacy-nova")]
 pub use c7_circuit::c7_fold_witnesses;
@@ -960,6 +971,7 @@ pub fn clear_all_thread_locals() {
     clear_ajtai_witness_data();
     clear_share_coeffs_data();
     clear_fhe_compute_data();
+    clear_scheme_switch_data();
     reset_all_step_counters();
     #[cfg(feature = "legacy-nova")]
     {
@@ -985,6 +997,7 @@ pub fn reset_all_step_counters() {
     fhe_compute_circuit::FHE_COMPUTE_STEP_COUNTER.with(|cell| *cell.borrow_mut() = 0);
     ajtai_commitment_circuit::AJTAI_STEP_COUNTER.with(|cell| *cell.borrow_mut() = 0);
     share_verification_circuit::SHARE_VERIFY_STEP_COUNTER.with(|cell| *cell.borrow_mut() = 0);
+    scheme_switch::SCHEME_SWITCH_STEP_COUNTER.with(|cell| *cell.borrow_mut() = 0);
     #[cfg(feature = "legacy-nova")]
     {
         bfv_encryption_circuit::BFV_STEP_COUNTER.with(|cell| *cell.borrow_mut() = 0);

@@ -252,4 +252,57 @@ contract PvtFheVerifierTest is BaseVerifierTest {
         SessionRegistry reg = SessionRegistry(address(verifier.registry()));
         assertFalse(reg.isEpochConsumed(SAMPLE_HASH, 52), "rejected slot reuse must not consume epoch");
     }
+
+    // -------------------------------------------------------------------------
+    // S6: IVC verify result adversarial tests
+    // -------------------------------------------------------------------------
+
+    function _buildValidIvcBinding() internal pure returns (IvcBinding memory) {
+        return IvcBinding({
+            ivcProofHash: bytes32(uint256(0x01)),
+            ivcVkHash: bytes32(uint256(0x02)),
+            ivcPpHash: bytes32(uint256(0x03)),
+            z0Commitment: bytes32(uint256(0x04)),
+            ziCommitment: bytes32(uint256(0x05)),
+            ivcSteps: 1,
+            shareVerificationHash: bytes32(uint256(0x07)),
+            decryptNizkHash: bytes32(uint256(0x08)),
+            dkgTranscriptHash: bytes32(uint256(0x09)),
+            novaFinalStateCommitment: bytes32(uint256(0x0a)),
+            ivcVerifyResult: 1
+        });
+    }
+
+    function test_ivc_verify_result_zero_rejected() public {
+        IvcBinding memory ivcBinding = _buildValidIvcBinding();
+        ivcBinding.ivcVerifyResult = 0;
+        vm.expectRevert(bytes("PVTHFHE: ivcVerifyResult must be 1"));
+        verifier.verifyWithIvc(
+            SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH,
+            SAMPLE_HASH, SAMPLE_EPOCH, SAMPLE_HASH, SAMPLE_HASH,
+            ivcBinding, sampleProof
+        );
+    }
+
+    function test_ivc_verify_result_two_rejected() public {
+        IvcBinding memory ivcBinding = _buildValidIvcBinding();
+        ivcBinding.ivcVerifyResult = 2;
+        vm.expectRevert(bytes("PVTHFHE: ivcVerifyResult must be 1"));
+        verifier.verifyWithIvc(
+            SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH,
+            SAMPLE_HASH, SAMPLE_EPOCH, SAMPLE_HASH, SAMPLE_HASH,
+            ivcBinding, sampleProof
+        );
+    }
+
+    function test_verifyAndConsumeWithIvc_verify_result_zero_rejected() public {
+        IvcBinding memory ivcBinding = _buildValidIvcBinding();
+        ivcBinding.ivcVerifyResult = 0;
+        vm.expectRevert(bytes("PVTHFHE: ivcVerifyResult must be 1"));
+        verifier.verifyAndConsumeWithIvc(
+            SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH,
+            SAMPLE_HASH, SAMPLE_EPOCH, SAMPLE_HASH, SAMPLE_HASH,
+            ivcBinding, sampleProof
+        );
+    }
 }

@@ -6,7 +6,7 @@ fn is_allowlisted(path: &str) -> bool {
     path.contains("/tests/")
         || path.contains("/benches/")
         || path.starts_with("crates/pvthfhe-rng/")
-        || path.split('/').last().is_some_and(|file| {
+        || path.split('/').next_back().is_some_and(|file| {
             file.starts_with("demo")
                 || file.starts_with("worked_example")
                 || file.starts_with("bench_")

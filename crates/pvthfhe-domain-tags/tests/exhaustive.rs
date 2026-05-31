@@ -41,7 +41,7 @@ fn every_pvthfhe_byte_literal_is_a_tag_variant() {
         if let Some(start) = line.rfind(r#"b""#) {
             let after = &line[start + 2..];
             if let Some(end) = after.find('"') {
-                found.insert(after[..end].as_bytes().to_vec());
+                found.insert(after.as_bytes()[..end].to_vec());
             }
         }
     }

@@ -454,6 +454,7 @@ fn verify_ajtai_commitment(bytes: &[u8]) -> Result<(), NizkError> {
 }
 
 /// Deserialize an Ajtai commitment from its canonical byte representation.
+#[allow(dead_code)]
 fn deserialize_ajtai_commitment(bytes: &[u8]) -> Result<AjtaiCommitment, NizkError> {
     if bytes.len() != 26_624 {
         return Err(NizkError::InvalidProof(

@@ -112,6 +112,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
+name = "arbitrary"
+version = "1.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3d036a3c4ab069c7b410a2ce876bd74808d2d0888a82667669f8e783a898bf1"
+dependencies = [
+ "derive_arbitrary",
+]
+
+[[package]]
 name = "ark-bn254"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -796,6 +805,17 @@ checksum = "7cd812cc2bc1d69d4764bd80df88b4317eaef9e773c75226407d9bc0876b211c"
 dependencies = [
  "powerfmt",
  "serde_core",
+]
+
+[[package]]
+name = "derive_arbitrary"
+version = "1.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e567bd82dcff979e4b03460c307b3cdc9e96fde3d73bed1496d2bc75d9dd62a"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -2271,6 +2291,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "pvthfhe-fuzz"
+version = "0.1.0"
+dependencies = [
+ "arbitrary",
+ "ark-bn254",
+ "ark-ff",
+ "fhe-math",
+ "fhe-traits",
+ "pvthfhe-compressor",
+ "pvthfhe-domain-tags",
+ "pvthfhe-fhe",
+ "pvthfhe-nizk",
+ "pvthfhe-pvss",
+ "pvthfhe-types",
+ "pvthfhe-wire",
+ "rand 0.8.6",
+ "rand_chacha 0.3.1",
+ "rand_core 0.6.4",
+ "sha2",
+]
+
+[[package]]
 name = "pvthfhe-keygen"
 version = "0.1.0"
 dependencies = [
@@ -2366,6 +2408,31 @@ dependencies = [
 [[package]]
 name = "pvthfhe-spec-tests"
 version = "0.1.0"
+
+[[package]]
+name = "pvthfhe-tests"
+version = "0.1.0"
+dependencies = [
+ "ark-bn254",
+ "ark-ff",
+ "fhe-math",
+ "fhe-traits",
+ "proptest",
+ "pvthfhe-compressor",
+ "pvthfhe-cyclo",
+ "pvthfhe-domain-tags",
+ "pvthfhe-fhe",
+ "pvthfhe-nizk",
+ "pvthfhe-pvss",
+ "pvthfhe-rng",
+ "pvthfhe-types",
+ "pvthfhe-wire",
+ "rand 0.8.6",
+ "rand_chacha 0.3.1",
+ "rand_core 0.6.4",
+ "sha2",
+ "sha3",
+]
 
 [[package]]
 name = "pvthfhe-types"

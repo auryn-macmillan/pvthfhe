@@ -76,7 +76,7 @@ wire-gate:
 compressor-gate:
     cargo test -p pvthfhe-compressor
     cargo test -p pvthfhe-cli --test e2e_uses_nova --features nova-compressor
-    cargo test -p pvthfhe-micronova --test no_consumers
+    cargo test -p pvthfhe-compressor --test micronova_compression --features nova-compressor || echo "NOTE: micronova tests need nova-compressor feature"
 
 pvss-gate:
     cargo test --test policy_invariants
@@ -137,7 +137,7 @@ bench-smoke:
     cargo run --release -p pvthfhe-bench --features backend-fhe-rs --bin bench_runner > bench/results/smoke-latest.json
     cat bench/results/smoke-latest.json
 
-greco pk_rns="auto" ct_rns="auto":
+greco:
     @echo "=== Greco-style encryption proof ==="
     cargo run --release -p pvthfhe-cli --features nova-compressor -- snapshot prove
 

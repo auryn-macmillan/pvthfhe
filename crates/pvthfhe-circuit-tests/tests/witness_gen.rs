@@ -33,7 +33,9 @@ fn generated_decrypt_share_witness_matches_circuit_invariants() {
     assert!(!witness.q.is_empty());
 
     for value in &witness.e_i {
-        let parsed: u32 = value.parse().expect("e_i entry should parse as u32");
+        let parsed: u32 = value
+            .parse()
+            .unwrap_or_else(|err| panic!("e_i entry should parse as u32: {err}"));
         assert!(parsed <= B_E);
     }
 }

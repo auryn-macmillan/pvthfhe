@@ -115,6 +115,22 @@ pub struct NovaStateCommitmentWitness {
     pub nova_state_preimage: Vec<String>,
     /// Private Cyclo aggregate preimage.
     pub cyclo_aggregate_preimage: Vec<String>,
+    /// IVC proof hash binding.
+    pub ivc_proof_hash: String,
+    /// IVC verifier key hash binding.
+    pub ivc_vk_hash: String,
+    /// IVC public params hash binding.
+    pub ivc_pp_hash: String,
+    /// IVC z0 commitment.
+    pub z0_commitment: String,
+    /// IVC zi commitment.
+    pub zi_commitment: String,
+    /// IVC step count.
+    pub ivc_steps: String,
+    /// Share verification hash binding.
+    pub share_verification_hash: String,
+    /// S6: IVC verification result (1 = passed, 0 = failed).
+    pub ivc_verify_result: String,
 }
 
 impl DecryptShareWitness {
@@ -214,6 +230,22 @@ impl NovaStateCommitmentWitness {
             &mut output,
             "nova_state_preimage = [{}]",
             quoted_array(&self.nova_state_preimage)
+        );
+        let _ = writeln!(&mut output, "ivc_proof_hash = \"{}\"", self.ivc_proof_hash);
+        let _ = writeln!(&mut output, "ivc_vk_hash = \"{}\"", self.ivc_vk_hash);
+        let _ = writeln!(&mut output, "ivc_pp_hash = \"{}\"", self.ivc_pp_hash);
+        let _ = writeln!(&mut output, "z0_commitment = \"{}\"", self.z0_commitment);
+        let _ = writeln!(&mut output, "zi_commitment = \"{}\"", self.zi_commitment);
+        let _ = writeln!(&mut output, "ivc_steps = \"{}\"", self.ivc_steps);
+        let _ = writeln!(
+            &mut output,
+            "share_verification_hash = \"{}\"",
+            self.share_verification_hash
+        );
+        let _ = writeln!(
+            &mut output,
+            "ivc_verify_result = \"{}\"",
+            self.ivc_verify_result
         );
         let _ = writeln!(
             &mut output,
@@ -437,6 +469,14 @@ pub fn generate_nova_state_commitment_witness() -> NovaStateCommitmentWitness {
             .into_iter()
             .map(field_to_decimal)
             .collect(),
+        ivc_proof_hash: field_to_decimal(Fr::from(100u64)),
+        ivc_vk_hash: field_to_decimal(Fr::from(200u64)),
+        ivc_pp_hash: field_to_decimal(Fr::from(300u64)),
+        z0_commitment: field_to_decimal(Fr::from(400u64)),
+        zi_commitment: field_to_decimal(Fr::from(500u64)),
+        ivc_steps: field_to_decimal(Fr::from(7u64)),
+        share_verification_hash: field_to_decimal(Fr::from(999u64)),
+        ivc_verify_result: field_to_decimal(Fr::from(1u64)),
     }
 }
 

@@ -60,6 +60,9 @@ pub const BFV_Q: [u64; BFV_L] = [
 /// Total number of coefficients per ciphertext: 2 polys × L limbs × N coeffs.
 pub const BFV_CT_COEFFS_LEN: usize = 2 * BFV_L * BFV_N;
 
+/// Total number of coefficients for a 3-polynomial (post-multiplication) ciphertext.
+pub const BFV_MUL_CT_COEFFS_LEN: usize = 3 * BFV_L * BFV_N;
+
 // ── FheOp enum ───────────────────────────────────────────────────────────
 
 /// FHE operation types muxed over by the compute step circuit.
@@ -132,8 +135,11 @@ pub struct FheComputeWitness {
     /// Input ciphertext 1 coefficients (2 * L * N u64 values).
     /// Required for Add operations; empty for Mul/Relin (deferred).
     pub ct1_coeffs: Vec<u64>,
-    /// Output ciphertext coefficients (2 * L * N u64 values).
-    /// Required for Add operations; empty for Mul/Relin (deferred).
+    /// Output ciphertext coefficients.
+    ///
+    /// For Add:  `BFV_CT_COEFFS_LEN` (24) coefficients (2 polys).
+    /// For Mul:  `BFV_MUL_CT_COEFFS_LEN` (36) coefficients (3 polys).
+    /// For Relinearize: `BFV_CT_COEFFS_LEN` (24) coefficients (2 polys).
     pub ct_out_coeffs: Vec<u64>,
 }
 
@@ -304,6 +310,423 @@ fn add_fhe_ct_bp<CS: ConstraintSystem<NovaScalar>>(
                 );
             }
         }
+    }
+
+    Ok(())
+}
+
+// ── In-circuit FHE multiplication gadget (negacyclic convolution) ──────
+
+/// Compute the k-th coefficient of negacyclic convolution a * b mod (X^N + 1)
+/// in Z_q:  c_k = Σ_{i=0}^{k} a_i * b_{k-i} - Σ_{i=k+1}^{N-1} a_i * b_{N+k-i}
+#[inline]
+fn negacyclic_conv_coeff(a: &[u64], b: &[u64], k: usize, q: u64) -> u64 {
+    let n = a.len();
+    debug_assert_eq!(b.len(), n);
+    debug_assert!(k < n);
+
+    let mut sum: i128 = 0;
+    for i in 0..=k {
+        sum += a[i] as i128 * b[k - i] as i128;
+    }
+    for i in (k + 1)..n {
+        sum -= a[i] as i128 * b[n + k - i] as i128;
+    }
+
+    let r = sum % (q as i128);
+    let r = if r < 0 { r + q as i128 } else { r };
+    r as u64
+}
+
+/// Convert a NovaScalar field element to u128 via the repr.
+/// Assumes value < 2^128, which holds for products of two u64 values.
+#[inline]
+fn nova_to_u128(v: NovaScalar) -> u128 {
+    use bp_ff::PrimeField;
+    let repr = v.to_repr();
+    let bytes = repr.as_ref();
+    let mut buf = [0u8; 16];
+    let len = bytes.len().min(16);
+    buf[..len].copy_from_slice(&bytes[..len]);
+    u128::from_le_bytes(buf)
+}
+
+/// In-circuit negacyclic convolution for a single polynomial pair across
+/// one RNS limb.  Takes raw u64 slices for native computation and allocated
+/// variables for constraint enforcement.
+fn negacyclic_conv_one_poly_bp<CS: ConstraintSystem<NovaScalar>>(
+    cs: &mut CS,
+    ct_a_raw: &[u64],
+    ct_b_raw: &[u64],
+    ct_a_vars: &[AllocatedNum<NovaScalar>],
+    ct_b_vars: &[AllocatedNum<NovaScalar>],
+    ct_out_vars: &[AllocatedNum<NovaScalar>],
+    q: u64,
+    limb: usize,
+    poly_label: &str,
+    step: usize,
+) -> Result<(), SynthesisError> {
+    let n = ct_a_raw.len();
+    debug_assert_eq!(ct_b_raw.len(), n);
+    debug_assert_eq!(ct_out_vars.len(), n);
+    let q_scalar = NovaScalar::from(q);
+
+    for k in 0..n {
+        let base = format!("mul_s{step}_l{limb}_{poly_label}_k{k}");
+
+        let mut pos_pairs: Vec<(usize, usize)> = Vec::with_capacity(n);
+        let mut neg_pairs: Vec<(usize, usize)> = Vec::with_capacity(n);
+
+        for i in 0..n {
+            let j = if i <= k { k - i } else { n + k - i };
+            if i <= k {
+                pos_pairs.push((i, j));
+            } else {
+                neg_pairs.push((i, j));
+            }
+        }
+
+        let alloc_product = |cs: &mut CS,
+                             i: usize,
+                             j: usize,
+                             a_var: &AllocatedNum<NovaScalar>,
+                             b_var: &AllocatedNum<NovaScalar>,
+                             sign_label: &str|
+         -> Result<AllocatedNum<NovaScalar>, SynthesisError> {
+            let prod_val = NovaScalar::from(ct_a_raw[i]) * NovaScalar::from(ct_b_raw[j]);
+            let prod_var = AllocatedNum::alloc(
+                cs.namespace(|| format!("{base}_p{sign_label}_i{i}_j{j}")),
+                || Ok(prod_val),
+            )?;
+            cs.enforce(
+                || format!("{base}_p{sign_label}_i{i}_j{j}_mul"),
+                |lc| lc + a_var.get_variable(),
+                |lc| lc + b_var.get_variable(),
+                |lc| lc + prod_var.get_variable(),
+            );
+            Ok(prod_var)
+        };
+
+        let pos_prods: Vec<_> = pos_pairs
+            .iter()
+            .map(|&(i, j)| alloc_product(cs, i, j, &ct_a_vars[i], &ct_b_vars[j], "pos"))
+            .collect::<Result<_, _>>()?;
+        let neg_prods: Vec<_> = neg_pairs
+            .iter()
+            .map(|&(i, j)| alloc_product(cs, i, j, &ct_a_vars[i], &ct_b_vars[j], "neg"))
+            .collect::<Result<_, _>>()?;
+
+        let pos_sum_val = pos_prods.iter().fold(NovaScalar::zero(), |acc, p| {
+            acc + p.get_value().unwrap_or(NovaScalar::zero())
+        });
+        let neg_sum_val = neg_prods.iter().fold(NovaScalar::zero(), |acc, p| {
+            acc + p.get_value().unwrap_or(NovaScalar::zero())
+        });
+
+        let pos_sum_var = AllocatedNum::alloc(cs.namespace(|| format!("{base}_pos_sum")), || {
+            Ok(pos_sum_val)
+        })?;
+        let neg_sum_var = AllocatedNum::alloc(cs.namespace(|| format!("{base}_neg_sum")), || {
+            Ok(neg_sum_val)
+        })?;
+
+        cs.enforce(
+            || format!("{base}_pos_sum_eq"),
+            |lc| lc + CS::one(),
+            |lc| lc + pos_sum_var.get_variable(),
+            |lc| pos_prods.iter().fold(lc, |acc, p| acc + p.get_variable()),
+        );
+
+        cs.enforce(
+            || format!("{base}_neg_sum_eq"),
+            |lc| lc + CS::one(),
+            |lc| lc + neg_sum_var.get_variable(),
+            |lc| neg_prods.iter().fold(lc, |acc, p| acc + p.get_variable()),
+        );
+
+        let pos_u128 = pos_prods.iter().fold(0u128, |acc, p| {
+            acc + nova_to_u128(p.get_value().unwrap_or(NovaScalar::zero()))
+        });
+        let neg_u128 = neg_prods.iter().fold(0u128, |acc, p| {
+            acc + nova_to_u128(p.get_value().unwrap_or(NovaScalar::zero()))
+        });
+        let q128 = q as u128;
+
+        let k_q_val: u64;
+        if pos_u128 >= neg_u128 {
+            let diff = pos_u128 - neg_u128;
+            k_q_val = (diff / q128) as u64;
+        } else {
+            let diff = neg_u128 - pos_u128;
+            k_q_val = ((diff + q128 - 1) / q128) as u64;
+        }
+
+        let k_var = AllocatedNum::alloc(cs.namespace(|| format!("{base}_k")), || {
+            Ok(NovaScalar::from(k_q_val))
+        })?;
+
+        if pos_u128 >= neg_u128 {
+            cs.enforce(
+                || format!("{base}_modmul"),
+                |lc| lc + CS::one(),
+                |lc| lc + pos_sum_var.get_variable(),
+                |lc| {
+                    lc + neg_sum_var.get_variable()
+                        + ct_out_vars[k].get_variable()
+                        + (q_scalar, k_var.get_variable())
+                },
+            );
+        } else {
+            cs.enforce(
+                || format!("{base}_modmul"),
+                |lc| lc + CS::one(),
+                |lc| lc + pos_sum_var.get_variable() + (q_scalar, k_var.get_variable()),
+                |lc| lc + neg_sum_var.get_variable() + ct_out_vars[k].get_variable(),
+            );
+        }
+    }
+
+    Ok(())
+}
+
+/// In-circuit BFV RNS multiplication: ct_out = ct0 * ct1 in R_q.
+/// Produces a 3-polynomial ciphertext (36 coefficients for N=4, L=3).
+fn mul_fhe_ct_bp<CS: ConstraintSystem<NovaScalar>>(
+    cs: &mut CS,
+    ct0_coeffs: &[u64],
+    ct1_coeffs: &[u64],
+    ct_out_coeffs: &[u64],
+    q_moduli: &[u64],
+    num_limbs: usize,
+    ct_poly_len: usize,
+    step: usize,
+) -> Result<(), SynthesisError> {
+    let two_poly = 2 * num_limbs * ct_poly_len;
+    let three_poly = 3 * num_limbs * ct_poly_len;
+    assert_eq!(ct0_coeffs.len(), two_poly);
+    assert_eq!(ct1_coeffs.len(), two_poly);
+    assert_eq!(ct_out_coeffs.len(), three_poly);
+
+    fn poly_limb_slice<'a>(
+        coeffs: &'a [u64],
+        poly: usize,
+        limb: usize,
+        stride: usize,
+        n: usize,
+    ) -> &'a [u64] {
+        let start = poly * stride + limb * n;
+        &coeffs[start..start + n]
+    }
+    let stride = num_limbs * ct_poly_len;
+
+    for limb in 0..num_limbs {
+        let q = q_moduli[limb];
+        let base = format!("mul_fhe_s{step}_l{limb}");
+
+        let alloc_poly = |cs: &mut CS,
+                          coeffs: &[u64],
+                          label: &str|
+         -> Result<Vec<AllocatedNum<NovaScalar>>, SynthesisError> {
+            coeffs
+                .iter()
+                .enumerate()
+                .map(|(idx, &v)| {
+                    AllocatedNum::alloc(cs.namespace(|| format!("{base}_{label}_c{idx}")), || {
+                        Ok(NovaScalar::from(v))
+                    })
+                })
+                .collect()
+        };
+
+        let ct0_p0 = alloc_poly(
+            cs,
+            poly_limb_slice(ct0_coeffs, 0, limb, stride, ct_poly_len),
+            "ct0p0",
+        )?;
+        let ct0_p1 = alloc_poly(
+            cs,
+            poly_limb_slice(ct0_coeffs, 1, limb, stride, ct_poly_len),
+            "ct0p1",
+        )?;
+        let ct1_p0 = alloc_poly(
+            cs,
+            poly_limb_slice(ct1_coeffs, 0, limb, stride, ct_poly_len),
+            "ct1p0",
+        )?;
+        let ct1_p1 = alloc_poly(
+            cs,
+            poly_limb_slice(ct1_coeffs, 1, limb, stride, ct_poly_len),
+            "ct1p1",
+        )?;
+
+        // Allocate output coefficients for all 3 output polynomials
+        let out_slice = |poly: usize| -> &[u64] {
+            let start = poly * stride + limb * ct_poly_len;
+            &ct_out_coeffs[start..start + ct_poly_len]
+        };
+        let alloc_out =
+            |cs: &mut CS, poly: usize| -> Result<Vec<AllocatedNum<NovaScalar>>, SynthesisError> {
+                out_slice(poly)
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, &v)| {
+                        AllocatedNum::alloc(
+                            cs.namespace(|| format!("{base}_outp{poly}_c{idx}")),
+                            || Ok(NovaScalar::from(v)),
+                        )
+                    })
+                    .collect()
+            };
+
+        let ct_out_p0 = alloc_out(cs, 0)?;
+        let ct_out_p1 = alloc_out(cs, 1)?;
+        let ct_out_p2 = alloc_out(cs, 2)?;
+
+        let ct0_p0_raw = poly_limb_slice(ct0_coeffs, 0, limb, stride, ct_poly_len);
+        let ct0_p1_raw = poly_limb_slice(ct0_coeffs, 1, limb, stride, ct_poly_len);
+        let ct1_p0_raw = poly_limb_slice(ct1_coeffs, 0, limb, stride, ct_poly_len);
+        let ct1_p1_raw = poly_limb_slice(ct1_coeffs, 1, limb, stride, ct_poly_len);
+
+        // ct_out[0] = ct0[0] * ct1[0]
+        negacyclic_conv_one_poly_bp(
+            cs, ct0_p0_raw, ct1_p0_raw, &ct0_p0, &ct1_p0, &ct_out_p0, q, limb, "c0", step,
+        )?;
+
+        // ct_out[2] = ct0[1] * ct1[1]
+        negacyclic_conv_one_poly_bp(
+            cs, ct0_p1_raw, ct1_p1_raw, &ct0_p1, &ct1_p1, &ct_out_p2, q, limb, "c2", step,
+        )?;
+
+        // ct_out[1] = ct0[0] * ct1[1] + ct0[1] * ct1[0]
+        // First, compute full convolution of ct0[0]*ct1[1] and ct0[1]*ct1[0]
+        // into temporary allocated arrays, then add mod q.
+        let mut tmp_a_raw = vec![0u64; ct_poly_len];
+        let mut tmp_b_raw = vec![0u64; ct_poly_len];
+        for k in 0..ct_poly_len {
+            tmp_a_raw[k] = negacyclic_conv_coeff(ct0_p0_raw, ct1_p1_raw, k, q);
+            tmp_b_raw[k] = negacyclic_conv_coeff(ct0_p1_raw, ct1_p0_raw, k, q);
+        }
+
+        let alloc_tmp = |cs: &mut CS,
+                         raw: &[u64],
+                         label: &str|
+         -> Result<Vec<AllocatedNum<NovaScalar>>, SynthesisError> {
+            raw.iter()
+                .enumerate()
+                .map(|(idx, &v)| {
+                    AllocatedNum::alloc(cs.namespace(|| format!("{base}_{label}_c{idx}")), || {
+                        Ok(NovaScalar::from(v))
+                    })
+                })
+                .collect()
+        };
+
+        let tmp_a_vars = alloc_tmp(cs, &tmp_a_raw, "tmp01")?;
+        let tmp_b_vars = alloc_tmp(cs, &tmp_b_raw, "tmp10")?;
+
+        // Enforce tmp_a = ct0[0] * ct1[1] via negacyclic convolution
+        negacyclic_conv_one_poly_bp(
+            cs,
+            ct0_p0_raw,
+            ct1_p1_raw,
+            &ct0_p0,
+            &ct1_p1,
+            &tmp_a_vars,
+            q,
+            limb,
+            "c1a",
+            step,
+        )?;
+
+        // Enforce tmp_b = ct0[1] * ct1[0] via negacyclic convolution
+        negacyclic_conv_one_poly_bp(
+            cs,
+            ct0_p1_raw,
+            ct1_p0_raw,
+            &ct0_p1,
+            &ct1_p0,
+            &tmp_b_vars,
+            q,
+            limb,
+            "c1b",
+            step,
+        )?;
+
+        // ct_out[1][k] = (tmp_a[k] + tmp_b[k]) mod q
+        let q_scalar = NovaScalar::from(q);
+        for k in 0..ct_poly_len {
+            let idx_base = format!("{base}_c1_k{k}");
+            let sum = tmp_a_raw[k] as u128 + tmp_b_raw[k] as u128;
+            let k_val = if sum >= q as u128 { 1u64 } else { 0u64 };
+
+            let k_var = AllocatedNum::alloc(cs.namespace(|| format!("{idx_base}_k")), || {
+                Ok(NovaScalar::from(k_val))
+            })?;
+
+            cs.enforce(
+                || format!("{idx_base}_k_bool"),
+                |lc| lc + k_var.get_variable(),
+                |lc| lc + CS::one() - k_var.get_variable(),
+                |lc| lc,
+            );
+
+            cs.enforce(
+                || format!("{idx_base}_modadd"),
+                |lc| {
+                    lc + tmp_a_vars[k].get_variable() + tmp_b_vars[k].get_variable()
+                        - ct_out_p1[k].get_variable()
+                },
+                |lc| lc + CS::one(),
+                |lc| lc + (q_scalar, k_var.get_variable()),
+            );
+        }
+    }
+
+    Ok(())
+}
+
+/// In-circuit FHE relinearization: drops the ct[2] component.
+///
+/// For the demo, Relinearize = (ct[0], ct[1], ct[2]) → (ct[0], ct[1]).
+/// Input: 36 coefficients (3 polys × L limbs × N coeffs).
+/// Output: 24 coefficients (2 polys × L limbs × N coeffs).
+fn relin_fhe_ct_bp<CS: ConstraintSystem<NovaScalar>>(
+    cs: &mut CS,
+    ct_in_coeffs: &[u64],
+    ct_out_coeffs: &[u64],
+    step: usize,
+) -> Result<(), SynthesisError> {
+    assert_eq!(ct_in_coeffs.len(), BFV_MUL_CT_COEFFS_LEN);
+    assert_eq!(ct_out_coeffs.len(), BFV_CT_COEFFS_LEN);
+    let base = format!("relin_s{step}");
+
+    let in_vars: Vec<AllocatedNum<NovaScalar>> = ct_in_coeffs[..BFV_CT_COEFFS_LEN]
+        .iter()
+        .enumerate()
+        .map(|(i, &v)| {
+            AllocatedNum::alloc(cs.namespace(|| format!("{base}_in_c{i}")), || {
+                Ok(NovaScalar::from(v))
+            })
+        })
+        .collect::<Result<_, _>>()?;
+
+    let out_vars: Vec<AllocatedNum<NovaScalar>> = ct_out_coeffs
+        .iter()
+        .enumerate()
+        .map(|(i, &v)| {
+            AllocatedNum::alloc(cs.namespace(|| format!("{base}_out_c{i}")), || {
+                Ok(NovaScalar::from(v))
+            })
+        })
+        .collect::<Result<_, _>>()?;
+
+    for i in 0..BFV_CT_COEFFS_LEN {
+        cs.enforce(
+            || format!("{base}_id_c{i}"),
+            |lc| lc + out_vars[i].get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc + in_vars[i].get_variable(),
+        );
     }
 
     Ok(())
@@ -982,24 +1405,77 @@ impl
             // z[2] is the merkle_root
             verify_merkle_proof_bp(cs, &witness.proof0, self.merkle_arity, step, 0, &z[2])?;
 
-            // ── 3. In-circuit FHE Add enforcement ─────────────────────
-            if !witness.ct0_coeffs.is_empty() && !witness.ct1_coeffs.is_empty() {
-                add_fhe_ct_bp(
-                    cs,
-                    &witness.ct0_coeffs,
-                    &witness.ct1_coeffs,
-                    &witness.ct_out_coeffs,
-                    &BFV_Q,
-                    2,
-                    BFV_L,
-                    BFV_N,
-                    step,
-                )?;
+            // ── 3. In-circuit FHE operation enforcement ────────────
+            match &witness.operation {
+                FheOp::Add { .. } => {
+                    if !witness.ct0_coeffs.is_empty() && !witness.ct1_coeffs.is_empty() {
+                        add_fhe_ct_bp(
+                            cs,
+                            &witness.ct0_coeffs,
+                            &witness.ct1_coeffs,
+                            &witness.ct_out_coeffs,
+                            &BFV_Q,
+                            2,
+                            BFV_L,
+                            BFV_N,
+                            step,
+                        )?;
+                    }
+                }
+                FheOp::Mul { .. } => {
+                    mul_fhe_ct_bp(
+                        cs,
+                        &witness.ct0_coeffs,
+                        &witness.ct1_coeffs,
+                        &witness.ct_out_coeffs,
+                        &BFV_Q,
+                        BFV_L,
+                        BFV_N,
+                        step,
+                    )?;
+                }
+                FheOp::Relinearize { .. } => {
+                    // Relinearize = drop ct[2]; identity on first 24 coeffs.
+                    // ct0_coeffs may be 36 (pre-relin) and ct_out_coeffs is 24.
+                    let in_len = witness.ct0_coeffs.len();
+                    if in_len == BFV_MUL_CT_COEFFS_LEN {
+                        relin_fhe_ct_bp(cs, &witness.ct0_coeffs, &witness.ct_out_coeffs, step)?;
+                    } else if in_len == BFV_CT_COEFFS_LEN {
+                        // Already relinearized: enforce identity.
+                        for i in 0..BFV_CT_COEFFS_LEN {
+                            let in_var = AllocatedNum::alloc(
+                                cs.namespace(|| format!("relin_id_s{step}_in{i}")),
+                                || Ok(NovaScalar::from(witness.ct0_coeffs[i])),
+                            )?;
+                            let out_var = AllocatedNum::alloc(
+                                cs.namespace(|| format!("relin_id_s{step}_out{i}")),
+                                || Ok(NovaScalar::from(witness.ct_out_coeffs[i])),
+                            )?;
+                            cs.enforce(
+                                || format!("relin_id_s{step}_eq{i}"),
+                                |lc| lc + out_var.get_variable(),
+                                |lc| lc + CS::one(),
+                                |lc| lc + in_var.get_variable(),
+                            );
+                        }
+                    }
+                }
             }
 
             // ── 4. Compute new split state from new output coefficients ─
+            // For Mul, ct_out_coeffs is 36 (3 polys); state commits only first 24.
             let (new_commit_lo, new_commit_hi) = if !witness.ct_out_coeffs.is_empty() {
-                poseidon_commit_coeffs_split_bp(cs, &witness.ct_out_coeffs, step, 1)?
+                let out_len = witness.ct_out_coeffs.len();
+                if out_len >= BFV_CT_COEFFS_LEN {
+                    poseidon_commit_coeffs_split_bp(
+                        cs,
+                        &witness.ct_out_coeffs[..BFV_CT_COEFFS_LEN],
+                        step,
+                        1,
+                    )?
+                } else {
+                    poseidon_commit_coeffs_split_bp(cs, &witness.ct_out_coeffs, step, 1)?
+                }
             } else {
                 (
                     AllocatedNum::alloc(cs.namespace(|| format!("nc_lo_s{step}")), || {
@@ -1030,12 +1506,12 @@ impl
 // ── FHE operation enforcement status ────────────────────────────────────
 //
 //   Add:  ✅ In-circuit — modular addition per RNS limb enforced via
-//          `add_fhe_ct_bp` (2 constraints per coefficient). Output coefficients
-//          are chained through Nova state via split Poseidon commitments.
-//   Mul:  🚧 Deferred — RNS polynomial multiplication in bellpepper
-//          requires substantial constraint count (N^2 per limb × L limbs).
-//   Relinearize: 🚧 Deferred — keyswitching in-circuit requires additional
-//          key material witnesses and polynomial arithmetic.
+//          `add_fhe_ct_bp` (2 constraints per coefficient).
+//   Mul:  ✅ In-circuit — negacyclic convolution via `mul_fhe_ct_bp`;
+//          ~(3N^2+2N)·L R1CS constraints. Output is 3 polys; state stores
+//          first 2 polys (implicit Relinearize).
+//   Relinearize: ✅ In-circuit — drops ct[2] via `relin_fhe_ct_bp`;
+//          identity constraints on ct[0], ct[1] (24 coefficients).
 
 #[cfg(test)]
 mod tests {
@@ -1324,6 +1800,275 @@ mod tests {
             !test_cs.is_satisfied(),
             "fhe add constraint system must be unsatisfied with wrong output"
         );
+    }
+
+    #[test]
+    fn in_circuit_fhe_mul_gadget() {
+        let n = BFV_N;
+        let l = BFV_L;
+        let two_poly = 2 * l * n;
+        let three_poly = 3 * l * n;
+
+        let mut ct0 = vec![0u64; two_poly];
+        let mut ct1 = vec![0u64; two_poly];
+        let mut ct_out = vec![0u64; three_poly];
+
+        for poly in 0..2 {
+            for limb in 0..l {
+                let q = BFV_Q[limb];
+                for coeff in 0..n {
+                    let idx = poly * l * n + limb * n + coeff;
+                    ct0[idx] = ((limb as u64 * 3 + coeff as u64 * 7 + poly as u64 + 1) * 11) % q;
+                    ct1[idx] =
+                        ((limb as u64 * 5 + coeff as u64 * 13 + poly as u64 * 3 + 2) * 17) % q;
+                }
+            }
+        }
+
+        // Compute expected ct_out = ct0 * ct1 (negacyclic convolution)
+        for limb in 0..l {
+            let q = BFV_Q[limb];
+            let ct0_p0 = poly_limb_slice_test(&ct0, 0, limb, n, l);
+            let ct0_p1 = poly_limb_slice_test(&ct0, 1, limb, n, l);
+            let ct1_p0 = poly_limb_slice_test(&ct1, 0, limb, n, l);
+            let ct1_p1 = poly_limb_slice_test(&ct1, 1, limb, n, l);
+
+            for k in 0..n {
+                ct_out[0 * l * n + limb * n + k] = negacyclic_conv_coeff(ct0_p0, ct1_p0, k, q);
+                let a = negacyclic_conv_coeff(ct0_p0, ct1_p1, k, q);
+                let b = negacyclic_conv_coeff(ct0_p1, ct1_p0, k, q);
+                let sum = a as u128 + b as u128;
+                ct_out[1 * l * n + limb * n + k] = if sum >= q as u128 {
+                    (sum - q as u128) as u64
+                } else {
+                    sum as u64
+                };
+                ct_out[2 * l * n + limb * n + k] = negacyclic_conv_coeff(ct0_p1, ct1_p1, k, q);
+            }
+        }
+
+        let mut test_cs =
+            nova_snark::frontend::util_cs::test_cs::TestConstraintSystem::<NovaScalar>::new();
+
+        let result = mul_fhe_ct_bp(&mut test_cs, &ct0, &ct1, &ct_out, &BFV_Q, l, n, 0);
+        assert!(result.is_ok(), "mul_fhe_ct_bp should succeed");
+        assert!(
+            test_cs.is_satisfied(),
+            "fhe mul constraint system must be satisfied"
+        );
+    }
+
+    #[test]
+    fn in_circuit_fhe_mul_rejects_bad_output() {
+        let n = BFV_N;
+        let l = BFV_L;
+        let two_poly = 2 * l * n;
+        let three_poly = 3 * l * n;
+
+        let mut ct0 = vec![0u64; two_poly];
+        let mut ct1 = vec![0u64; two_poly];
+        let mut ct_out_good = vec![0u64; three_poly];
+
+        for poly in 0..2 {
+            for limb in 0..l {
+                let q = BFV_Q[limb];
+                for coeff in 0..n {
+                    let idx = poly * l * n + limb * n + coeff;
+                    ct0[idx] = ((limb + coeff + poly + 1) as u64 * 7) % q;
+                    ct1[idx] = ((limb + coeff + poly + 2) as u64 * 13) % q;
+                }
+            }
+        }
+
+        for limb in 0..l {
+            let q = BFV_Q[limb];
+            let ct0_p0 = poly_limb_slice_test(&ct0, 0, limb, n, l);
+            let ct0_p1 = poly_limb_slice_test(&ct0, 1, limb, n, l);
+            let ct1_p0 = poly_limb_slice_test(&ct1, 0, limb, n, l);
+            let ct1_p1 = poly_limb_slice_test(&ct1, 1, limb, n, l);
+            for k in 0..n {
+                ct_out_good[0 * l * n + limb * n + k] = negacyclic_conv_coeff(ct0_p0, ct1_p0, k, q);
+                ct_out_good[2 * l * n + limb * n + k] = negacyclic_conv_coeff(ct0_p1, ct1_p1, k, q);
+                let a = negacyclic_conv_coeff(ct0_p0, ct1_p1, k, q);
+                let b = negacyclic_conv_coeff(ct0_p1, ct1_p0, k, q);
+                let sum = a as u128 + b as u128;
+                ct_out_good[1 * l * n + limb * n + k] = if sum >= q as u128 {
+                    (sum - q as u128) as u64
+                } else {
+                    sum as u64
+                };
+            }
+        }
+
+        let mut ct_out_bad = ct_out_good.clone();
+        ct_out_bad[0] = ct_out_bad[0].wrapping_add(1);
+
+        let mut test_cs =
+            nova_snark::frontend::util_cs::test_cs::TestConstraintSystem::<NovaScalar>::new();
+
+        let _ = mul_fhe_ct_bp(&mut test_cs, &ct0, &ct1, &ct_out_bad, &BFV_Q, l, n, 0);
+        assert!(
+            !test_cs.is_satisfied(),
+            "fhe mul constraint system must be unsatisfied with wrong output"
+        );
+    }
+
+    #[test]
+    fn in_circuit_fhe_relin_gadget() {
+        let n = BFV_N;
+        let l = BFV_L;
+        let three_poly = 3 * l * n;
+        let two_poly = 2 * l * n;
+
+        let ct_in: Vec<u64> = (0..three_poly)
+            .map(|i| ((i as u64 + 1) * 13) % BFV_Q[i / (l * n) % l])
+            .collect();
+        let ct_out: Vec<u64> = ct_in[..two_poly].to_vec();
+
+        let mut test_cs =
+            nova_snark::frontend::util_cs::test_cs::TestConstraintSystem::<NovaScalar>::new();
+
+        let result = relin_fhe_ct_bp(&mut test_cs, &ct_in, &ct_out, 0);
+        assert!(result.is_ok(), "relin_fhe_ct_bp should succeed");
+        assert!(
+            test_cs.is_satisfied(),
+            "fhe relin constraint system must be satisfied"
+        );
+    }
+
+    #[test]
+    fn in_circuit_fhe_relin_rejects_bad_output() {
+        let n = BFV_N;
+        let l = BFV_L;
+        let three_poly = 3 * l * n;
+        let two_poly = 2 * l * n;
+
+        let ct_in: Vec<u64> = (0..three_poly)
+            .map(|i| ((i as u64 + 1) * 13) % BFV_Q[i / (l * n) % l])
+            .collect();
+        let mut ct_out: Vec<u64> = ct_in[..two_poly].to_vec();
+        ct_out[0] = ct_out[0].wrapping_add(1);
+
+        let mut test_cs =
+            nova_snark::frontend::util_cs::test_cs::TestConstraintSystem::<NovaScalar>::new();
+
+        let _ = relin_fhe_ct_bp(&mut test_cs, &ct_in, &ct_out, 0);
+        assert!(
+            !test_cs.is_satisfied(),
+            "fhe relin constraint system must be unsatisfied with wrong output"
+        );
+    }
+
+    #[test]
+    fn in_circuit_mul_synthesize_step() {
+        let n = BFV_N;
+        let l = BFV_L;
+        let two_poly = 2 * l * n;
+        let three_poly = 3 * l * n;
+
+        let mut ct0 = vec![0u64; two_poly];
+        let mut ct1 = vec![0u64; two_poly];
+        let mut ct_out = vec![0u64; three_poly];
+
+        for poly in 0..2 {
+            for limb in 0..l {
+                let q = BFV_Q[limb];
+                for coeff in 0..n {
+                    let idx = poly * l * n + limb * n + coeff;
+                    ct0[idx] = ((limb as u64 * 3 + coeff as u64 * 7 + poly as u64 + 1) * 11) % q;
+                    ct1[idx] =
+                        ((limb as u64 * 5 + coeff as u64 * 13 + poly as u64 * 3 + 2) * 17) % q;
+                }
+            }
+        }
+
+        for limb in 0..l {
+            let q = BFV_Q[limb];
+            let ct0_p0 = poly_limb_slice_test(&ct0, 0, limb, n, l);
+            let ct0_p1 = poly_limb_slice_test(&ct0, 1, limb, n, l);
+            let ct1_p0 = poly_limb_slice_test(&ct1, 0, limb, n, l);
+            let ct1_p1 = poly_limb_slice_test(&ct1, 1, limb, n, l);
+            for k in 0..n {
+                ct_out[0 * l * n + limb * n + k] = negacyclic_conv_coeff(ct0_p0, ct1_p0, k, q);
+                let a = negacyclic_conv_coeff(ct0_p0, ct1_p1, k, q);
+                let b = negacyclic_conv_coeff(ct0_p1, ct1_p0, k, q);
+                let sum = a as u128 + b as u128;
+                ct_out[1 * l * n + limb * n + k] = if sum >= q as u128 {
+                    (sum - q as u128) as u64
+                } else {
+                    sum as u64
+                };
+                ct_out[2 * l * n + limb * n + k] = negacyclic_conv_coeff(ct0_p1, ct1_p1, k, q);
+            }
+        }
+
+        // Build Merkle tree from a hash of ct1 for the proof
+        let ct1_hash = {
+            use crate::nova::hash8_native;
+            let mut fields: Vec<Fr> = ct1.iter().take(8).map(|&v| Fr::from(v)).collect();
+            while fields.len() < 8 {
+                fields.push(Fr::zero());
+            }
+            hash8_native(&fields)
+        };
+        let leaves = vec![ct1_hash, Fr::zero(), Fr::zero(), Fr::zero()];
+        let (tree, merkle_root) = build_merkle_tree(&leaves, 8);
+        let proof = prove_merkle_path(&tree, 0, 8);
+
+        let witness = FheComputeWitness {
+            operation: FheOp::Mul {
+                ct0_hash: [0xAA; 32],
+                ct1_hash: [0xBB; 32],
+            },
+            proof0: proof,
+            proof1: None,
+            output_hash: Fr::zero(),
+            ct0_coeffs: ct0.clone(),
+            ct1_coeffs: ct1.clone(),
+            ct_out_coeffs: ct_out.clone(),
+        };
+
+        // Compute native Poseidon commitments for the state
+        let z0 = native_poseidon_commit_coeffs_half(&ct0[..12]);
+        let z1 = native_poseidon_commit_coeffs_half(&ct0[12..]);
+        use super::super::ark_to_nova_scalar;
+
+        let mut test_cs =
+            nova_snark::frontend::util_cs::test_cs::TestConstraintSystem::<NovaScalar>::new();
+        let z: Vec<AllocatedNum<NovaScalar>> = [z0, z1, merkle_root, Fr::zero()]
+            .iter()
+            .enumerate()
+            .map(|(i, &val)| {
+                AllocatedNum::alloc(test_cs.namespace(|| format!("z{i}")), || {
+                    Ok(ark_to_nova_scalar(val))
+                })
+            })
+            .collect::<Result<_, _>>()
+            .unwrap();
+
+        set_fhe_compute_data(vec![witness]);
+        let circuit = FheComputeStepCircuit::<Fr>::default();
+        let result = <FheComputeStepCircuit<Fr> as nova_snark::traits::circuit::StepCircuit<
+            NovaScalar,
+        >>::synthesize(&circuit, &mut test_cs, &z);
+        clear_fhe_compute_data();
+
+        assert!(result.is_ok(), "mul synthesize step should succeed");
+        assert!(
+            test_cs.is_satisfied(),
+            "mul synthesize step constraint system must be satisfied"
+        );
+    }
+
+    fn poly_limb_slice_test<'a>(
+        coeffs: &'a [u64],
+        poly: usize,
+        limb: usize,
+        n: usize,
+        l: usize,
+    ) -> &'a [u64] {
+        let start = poly * l * n + limb * n;
+        &coeffs[start..start + n]
     }
 
     #[test]

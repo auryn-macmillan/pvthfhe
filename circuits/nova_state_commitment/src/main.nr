@@ -40,6 +40,9 @@ fn main(
     // -- Share verification hash (G1+G4: binds per-share BFV sigma results) --
     share_verification_hash: pub Field,
 
+    // -- IVC verification result (S6: wraps RecursiveSNARK success) --
+    ivc_verify_result: pub Field,
+
     // -- Private witnesses (for opening state preimages) --
     nova_state_preimage: [Field; 4],
     cyclo_aggregate_preimage: [Field; 4],
@@ -62,6 +65,13 @@ fn main(
     //    verification to the set of per-share BFV sigma verification results.
     assert(share_verification_hash != 0, "share_verification_hash must be non-zero");
 
+    // -- S6: IVC verification must have succeeded (1) --
+    //    The off-chain RecursiveSNARK.verify() result is bound here.
+    //    A value of 1 means verification passed; 0 means rejection.
+    //    This prevents on-chain acceptance of a proof whose IVC did not
+    //    actually verify.
+    assert(ivc_verify_result == 1, "ivc_verify_result must be 1 (IVC verify passed)");
+
     // -- Compute binding hash over ALL public inputs --
     let binding = poseidon::poseidon::bn254::sponge([
         nova_final_state_commitment,
@@ -77,6 +87,7 @@ fn main(
         zi_commitment,
         ivc_steps,
         share_verification_hash,
+        ivc_verify_result,
     ]);
     assert(binding != 0, "binding hash must be non-zero");
 
@@ -111,6 +122,7 @@ fn test_honest_with_ivc_binding() {
     let zi_commitment = 500;
     let ivc_steps = 1;
     let share_verification_hash = 999;
+    let ivc_verify_result = 1;
 
     main(
         1, 2, 3, 1,
@@ -123,6 +135,7 @@ fn test_honest_with_ivc_binding() {
         zi_commitment,
         ivc_steps,
         share_verification_hash,
+        ivc_verify_result,
         nova_state_preimage,
         cyclo_aggregate_preimage,
     );
@@ -139,6 +152,7 @@ fn test_fail_zero_share_verification_hash() {
         hash_state_preimage(cyclo_aggregate_preimage),
         100, 200, 300, 400, 500, 1,
         0,
+        1,
         nova_state_preimage,
         cyclo_aggregate_preimage,
     );
@@ -155,6 +169,7 @@ fn test_fail_zero_session_id() {
         hash_state_preimage(cyclo_aggregate_preimage),
         100, 200, 300, 400, 500, 1,
         999,
+        1,
         nova_state_preimage,
         cyclo_aggregate_preimage,
     );
@@ -171,6 +186,7 @@ fn test_fail_zero_ivc_proof_hash() {
         hash_state_preimage(cyclo_aggregate_preimage),
         0, 200, 300, 400, 500, 1,
         999,
+        1,
         nova_state_preimage,
         cyclo_aggregate_preimage,
     );
@@ -187,6 +203,7 @@ fn test_fail_zero_ivc_steps() {
         hash_state_preimage(cyclo_aggregate_preimage),
         100, 200, 300, 400, 500, 0,
         999,
+        1,
         nova_state_preimage,
         cyclo_aggregate_preimage,
     );
@@ -203,6 +220,7 @@ fn test_fail_tampered_nova_commitment() {
         hash_state_preimage(cyclo_aggregate_preimage),
         100, 200, 300, 400, 500, 1,
         999,
+        1,
         nova_state_preimage,
         cyclo_aggregate_preimage,
     );
@@ -225,6 +243,7 @@ fn test_all_public_inputs_constrained() {
         cyclo_aggregate_commitment,
         100, 200, 300, 400, 500, 1,
         999,
+        1,
         nova_state_preimage,
         cyclo_aggregate_preimage,
     );
@@ -248,6 +267,7 @@ fn test_ivc_binding_prevents_substitution() {
     let zi_commitment = 500;
     let ivc_steps = 7;
     let share_verification_hash = 999;
+    let ivc_verify_result = 1;
 
     let expected_binding = poseidon::poseidon::bn254::sponge([
         nova_final_state_commitment,
@@ -263,6 +283,7 @@ fn test_ivc_binding_prevents_substitution() {
         zi_commitment,
         ivc_steps,
         share_verification_hash,
+        ivc_verify_result,
     ]);
     assert(expected_binding != 0);
 
@@ -277,6 +298,25 @@ fn test_ivc_binding_prevents_substitution() {
         zi_commitment,
         ivc_steps,
         share_verification_hash,
+        ivc_verify_result,
+        nova_state_preimage,
+        cyclo_aggregate_preimage,
+    );
+}
+
+#[test(should_fail)]
+fn test_fail_ivc_verify_result_zero() {
+    // S6 adversarial: IVC verify failed -- circuit must reject
+    let nova_state_preimage = [10, 20, 30, 40];
+    let cyclo_aggregate_preimage = [50, 60, 70, 80];
+
+    main(
+        1, 2, 3, 1,
+        hash_state_preimage(nova_state_preimage),
+        hash_state_preimage(cyclo_aggregate_preimage),
+        100, 200, 300, 400, 500, 1,
+        999,
+        0,
         nova_state_preimage,
         cyclo_aggregate_preimage,
     );

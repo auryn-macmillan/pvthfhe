@@ -17,6 +17,7 @@ use sha3::{Digest, Keccak256};
 /// Complete IVC proof binding metadata for on-chain verification (P4 + P1.5).
 /// G1+G4: includes share_verification_hash to bind per-share BFV sigma results.
 /// P1.5: includes decrypt_nizk_hash, dkg_transcript_hash, nova_final_state_commitment.
+/// S6: includes ivc_verify_result to bind RecursiveSNARK verification outcome.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IvcBindingData {
     pub ivc_proof_hash: [u8; 32],
@@ -29,10 +30,12 @@ pub struct IvcBindingData {
     pub decrypt_nizk_hash: [u8; 32],
     pub dkg_transcript_hash: [u8; 32],
     pub nova_final_state_commitment: [u8; 32],
+    /// S6: RecursiveSNARK verification result (1 = passed, 0 = failed).
+    pub ivc_verify_result: u64,
 }
 
 impl IvcBindingData {
-    pub fn as_field_array(&self) -> Result<[Fr; 10], CompressorError> {
+    pub fn as_field_array(&self) -> Result<[Fr; 11], CompressorError> {
         use ark_ff::PrimeField;
         Ok([
             Fr::from_be_bytes_mod_order(&self.ivc_proof_hash),
@@ -45,6 +48,7 @@ impl IvcBindingData {
             Fr::from_be_bytes_mod_order(&self.decrypt_nizk_hash),
             Fr::from_be_bytes_mod_order(&self.dkg_transcript_hash),
             Fr::from_be_bytes_mod_order(&self.nova_final_state_commitment),
+            Fr::from(self.ivc_verify_result),
         ])
     }
 }
@@ -137,6 +141,7 @@ where
             decrypt_nizk_hash,
             dkg_transcript_hash,
             nova_final_state_commitment: zi_commitment,
+            ivc_verify_result: 1,
         },
     })
 }
@@ -204,10 +209,11 @@ mod tests {
             decrypt_nizk_hash: [7u8; 32],
             dkg_transcript_hash: [8u8; 32],
             nova_final_state_commitment: [9u8; 32],
+            ivc_verify_result: 1,
         };
 
         let fields = binding.as_field_array().unwrap();
-        assert_eq!(fields.len(), 10);
+        assert_eq!(fields.len(), 11);
         assert!(!fields[0].is_zero());
         assert!(!fields[1].is_zero());
         assert!(!fields[2].is_zero());
@@ -218,5 +224,6 @@ mod tests {
         assert!(!fields[7].is_zero());
         assert!(!fields[8].is_zero());
         assert!(!fields[9].is_zero());
+        assert_eq!(fields[10], ark_bn254::Fr::from(1u64));
     }
 }

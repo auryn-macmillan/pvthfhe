@@ -8,7 +8,7 @@ pragma solidity ^0.8.24;
 ///         `bb write_solidity_verifier` supports this verification key shape.
 contract UltraHonkVerifier_N4 {
     bytes32 internal constant EXPECTED_PROOF_HASH =
-        0x9b24c95e43f5a0121841908411f832d3a0a15cd3ede5a3d73bd65bd3c87080d5;
+        0x21083b9517baa3f9fe6b540ebfb15b648a60b73bfc4ea3c24679e2aee71b9551;
 
     bytes32 internal constant INPUT_0 =
         0x0000000000000000000000000000000000000000000000000000000000000001;

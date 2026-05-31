@@ -30,6 +30,8 @@ members = [
     "crates/pvthfhe-compressor",
     "crates/pvthfhe-types",
     "crates/pvthfhe-wire",
+    "crates/pvthfhe-fuzz",
+    "crates/pvthfhe-tests",
 ]
 
 [workspace.lints.rust]

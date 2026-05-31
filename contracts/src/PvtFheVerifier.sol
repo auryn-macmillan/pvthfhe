@@ -13,7 +13,7 @@ struct AttestationBundle {
     bytes signature;
 }
 
-/// @notice IVC proof binding data for on-chain verification (P4 + P1.5).
+/// @notice IVC proof binding data for on-chain verification (P4 + P1.5 + S6).
 struct IvcBinding {
     bytes32 ivcProofHash;
     bytes32 ivcVkHash;
@@ -25,6 +25,8 @@ struct IvcBinding {
     bytes32 decryptNizkHash;
     bytes32 dkgTranscriptHash;
     bytes32 novaFinalStateCommitment;
+    /// S6: RecursiveSNARK verification result (1 = passed, 0 = failed).
+    uint64 ivcVerifyResult;
 }
 
 /// @title ISessionRegistry
@@ -500,7 +502,7 @@ contract PvtFheVerifier is IPvthfheVerifier {
         }
     }
 
-    /// P4+P1.5: Verify IVC binding data is valid (all fields non-zero, steps positive).
+    /// P4+P1.5+S6: Verify IVC binding data is valid (all fields non-zero, steps positive, verify result == 1).
     function _requireIvcBindingValid(IvcBinding calldata ivcBinding) internal pure {
         require(ivcBinding.ivcProofHash != bytes32(0), "PVTHFHE: ivcProofHash zero");
         require(ivcBinding.ivcVkHash != bytes32(0), "PVTHFHE: ivcVkHash zero");
@@ -511,6 +513,7 @@ contract PvtFheVerifier is IPvthfheVerifier {
         require(ivcBinding.decryptNizkHash != bytes32(0), "PVTHFHE: decryptNizkHash zero");
         require(ivcBinding.dkgTranscriptHash != bytes32(0), "PVTHFHE: dkgTranscriptHash zero");
         require(ivcBinding.novaFinalStateCommitment != bytes32(0), "PVTHFHE: novaFinalStateCommitment zero");
+        require(ivcBinding.ivcVerifyResult == 1, "PVTHFHE: ivcVerifyResult must be 1");
     }
 
     /// P4: Check if IVC proof has not been consumed. Returns true if it's available.

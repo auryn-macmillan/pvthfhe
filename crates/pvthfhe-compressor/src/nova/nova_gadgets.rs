@@ -238,7 +238,6 @@ pub fn sigma_verify_step_bp<CS: ConstraintSystem<NovaScalar>>(
     })
 }
 
-#[cfg(feature = "symphony-t4")]
 pub fn sigma_verify_step_projected<CS: ConstraintSystem<NovaScalar>>(
     cs: &mut CS,
     step: usize,

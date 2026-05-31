@@ -58,19 +58,31 @@ impl<F: PrimeField> PoseidonParams<F> {
     }
 
     /// Hardcoded canonical Poseidon params for BN254 (t=5).
-    /// Uses identity MDS when the legacy-nova feature is disabled.
+    /// Generates a proper Cauchy MDS matrix when the legacy-nova feature is disabled,
+    /// matching the deterministic generation used by nova-snark's `generate_mds`.
     #[cfg(not(feature = "legacy-nova"))]
     pub fn canonical() -> Self {
-        let zero = F::zero();
-        let one = F::from(1u64);
-        let mds = vec![
-            vec![one, zero, zero, zero, zero],
-            vec![zero, one, zero, zero, zero],
-            vec![zero, zero, one, zero, zero],
-            vec![zero, zero, zero, one, zero],
-            vec![zero, zero, zero, zero, one],
-        ];
-        let ark = vec![vec![F::zero(); 5]; 68];
+        let t = 5usize;
+        // Generate Cauchy MDS matrix: M[i][j] = 1 / (x_i + y_j)
+        // x = [0, 1, 2, 3, 4], y = [5, 6, 7, 8, 9]
+        // Matching nova-snark's `generate_mds` implementation.
+        let xs: Vec<F> = (0..t as u64).map(F::from).collect();
+        let ys: Vec<F> = (t as u64..2 * t as u64).map(F::from).collect();
+
+        let mds: Vec<Vec<F>> = xs
+            .iter()
+            .map(|&x| {
+                ys.iter()
+                    .map(|&y| {
+                        // Cauchy element = 1 / (x + y)
+                        let denom = x + y;
+                        denom.inverse().unwrap_or_else(F::zero)
+                    })
+                    .collect()
+            })
+            .collect();
+
+        let ark = vec![vec![F::zero(); t]; 8 + 60];
         PoseidonParams {
             mds,
             ark,
@@ -78,7 +90,7 @@ impl<F: PrimeField> PoseidonParams<F> {
             partial_rounds: 60,
             rate: 4,
             capacity: 1,
-            t: 5,
+            t,
         }
     }
 }

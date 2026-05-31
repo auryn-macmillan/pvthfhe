@@ -14,16 +14,17 @@
 
 // Security: demo-seeded-rng MUST NOT be used without explicit opt-in.
 // See Cargo.toml line 79: "Must NOT be enabled in release/production builds."
+/// Check that PVTHFHE_I_UNDERSTAND_INSECURE_RNG is set when demo-seeded-rng is enabled.
+/// Called at the top of main().
 #[cfg(feature = "demo-seeded-rng")]
-const _: () = {
-    match option_env!("PVTHFHE_I_UNDERSTAND_INSECURE_RNG") {
-        Some(_) => {}
-        None => panic!(
+fn check_demo_rng_env() {
+    if option_env!("PVTHFHE_I_UNDERSTAND_INSECURE_RNG").is_none() {
+        panic!(
             "demo-seeded-rng uses predictable RNG — this is INSECURE.\n\
              Set PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 to override."
-        ),
+        );
     }
-};
+}
 
 use anyhow::Context;
 use clap::{Parser, Subcommand};
@@ -239,6 +240,9 @@ fn rust_log_is_unsafe_global(value: &str) -> bool {
 }
 
 fn main() -> anyhow::Result<()> {
+    #[cfg(feature = "demo-seeded-rng")]
+    check_demo_rng_env();
+
     tracing_subscriber::fmt()
         .with_env_filter(build_env_filter())
         .init();

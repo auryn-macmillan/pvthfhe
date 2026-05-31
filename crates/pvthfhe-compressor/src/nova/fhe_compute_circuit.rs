@@ -603,17 +603,30 @@ fn permute_bp<CS: ConstraintSystem<NovaScalar>>(
     Ok(())
 }
 
-/// Build identity MDS matrix and zero ARK for the default (non-legacy-nova) config.
+/// Build Cauchy MDS matrix and zero ARK for the default (non-legacy-nova) config.
+///
+/// Generates a proper mixing MDS matrix matching nova-snark's deterministic
+/// Cauchy construction: M[i][j] = 1 / (x_i + y_j) with x = [0..t), y = [t..2t).
 fn identity_poseidon_params() -> (Vec<Vec<NovaScalar>>, Vec<Vec<NovaScalar>>) {
-    let zero = NovaScalar::from(0u64);
-    let one = NovaScalar::from(1u64);
-    let mds: Vec<Vec<NovaScalar>> = (0..POSEIDON_T)
-        .map(|i| {
-            (0..POSEIDON_T)
-                .map(|j| if i == j { one } else { zero })
+    use bp_ff::Field;
+
+    let xs: Vec<NovaScalar> = (0..POSEIDON_T as u64).map(NovaScalar::from).collect();
+    let ys: Vec<NovaScalar> = (POSEIDON_T as u64..2 * POSEIDON_T as u64)
+        .map(NovaScalar::from)
+        .collect();
+
+    let mds: Vec<Vec<NovaScalar>> = xs
+        .iter()
+        .map(|&x| {
+            ys.iter()
+                .map(|&y| {
+                    let denom = x + y;
+                    denom.invert().unwrap_or_else(NovaScalar::zero)
+                })
                 .collect()
         })
         .collect();
+
     let total_rounds = POSEIDON_FULL_ROUNDS + POSEIDON_PARTIAL_ROUNDS;
     let ark: Vec<Vec<NovaScalar>> = vec![vec![NovaScalar::from(0u64); POSEIDON_T]; total_rounds];
     (mds, ark)

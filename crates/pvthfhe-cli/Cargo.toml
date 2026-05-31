@@ -84,7 +84,9 @@ demo-seeded-rng = []
 # Requires with-fhe (default). Opt-in; existing demo behavior unchanged without this flag.
 pipeline-extra-checks = []
 # Enable CKKS backend via Poulpy (requires pvthfhe-fhe-poulpy).
-enable-ckks = ["dep:pvthfhe-fhe-poulpy", "pvthfhe-fhe-poulpy/enable-ckks"]
+enable-ckks = ["dep:pvthfhe-fhe-poulpy", "pvthfhe-fhe-poulpy/enable-ckks", "pvthfhe-nizk/enable-ckks"]
+# Enable TFHE backend via Poulpy (requires pvthfhe-fhe-poulpy).
+enable-tfhe = ["dep:pvthfhe-fhe-poulpy", "pvthfhe-fhe-poulpy/enable-tfhe", "pvthfhe-nizk/enable-tfhe"]
 # Symphony T3/T4 are now compiled unconditionally (S8). Feature flags removed.
 
 [dev-dependencies]

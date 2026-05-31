@@ -49,7 +49,7 @@ pub use dealer_parity_circuit::{
 pub use fhe_compute_circuit::{
     clear_fhe_compute_data, fhe_compute_data_len, fhe_compute_data_snapshot,
     reset_fhe_compute_step_counter, set_fhe_compute_data, FheComputeStepCircuit, FheComputeWitness,
-    FheOp, BFV_CT_COEFFS_LEN, BFV_L, BFV_N, BFV_Q,
+    FheOp, BFV_CT_COEFFS_LEN, BFV_L, BFV_MUL_CT_COEFFS_LEN, BFV_N, BFV_Q,
 };
 pub use fold_verifier_circuit::{
     clear_fold_verifier_data, set_fold_verifier_data, FoldVerifierStepCircuit,
@@ -1759,7 +1759,7 @@ where
 
         NOVA_BATCH_STEP_COUNT.with(|cell| *cell.borrow_mut() = steps.len());
 
-        let public_inputs_hash = committed_public_inputs_hash(&[folded]);
+        let public_inputs_hash = committed_public_inputs_hash(steps);
         let z0_primary = z0_from_acc(acc, self.state_len);
         let c_primary = S::default();
 
@@ -1797,7 +1797,10 @@ where
         acc: &[u8],
         steps: &[ExternalInputs3<ark_bn254::Fr>],
     ) -> Result<CompressedProof, CompressorError> {
-        if steps.is_empty() {
+        // For 0-1 steps, use the standard O(n) prove_steps path
+        // (batch mode requires >1 step since the batch circuit skips
+        // running_sum/last_hash per-step updates).
+        if steps.len() <= 1 {
             return self.prove_steps(acc, steps);
         }
 
@@ -1818,18 +1821,48 @@ where
     ) -> Result<bool, CompressorError> {
         use high_arity_fold::*;
 
+        if vk != &self.verifier_key {
+            tracing::error!(target: "nova", "verify_steps_high_arity: verifier key mismatch");
+            return Ok(false);
+        }
+
         // Compute hash from ORIGINAL steps (not folded), matching prove path.
-        // Parse proof for the hash check, then delegate to inner verify_steps.
         let parsed = parse_proof(&proof.bytes)?;
         let expected_hash = committed_public_inputs_hash(steps);
         if parsed.public_inputs_hash != expected_hash {
             return Ok(false);
         }
 
+        if parsed.acc_hash != normalized_hash(acc)? {
+            tracing::error!(target: "nova", "verify_steps_high_arity: accumulator hash mismatch");
+            return Ok(false);
+        }
+
+        // Fold steps for IVC verification (single-step RecursiveSNARK)
         let beta = derive_beta_vector(&self.srs_hash, steps.len());
         let single_folded = fold_external_inputs(steps, &beta);
+        let folded_steps = [single_folded];
+        let z0_primary = z0_from_acc(acc, self.state_len);
 
-        self.verify_steps(vk, proof, acc, &[single_folded])
+        let recursive_snark: NovaRecursiveSNARK<S> = bincode::deserialize(parsed.ivc_bytes)
+            .map_err(|e| {
+                tracing::error!(target: "nova", error = %e, "verify_steps_high_arity: deserialize failed");
+                CompressorError::InvalidProof
+            })?;
+
+        let verify_result =
+            recursive_snark.verify(&self.public_params, folded_steps.len(), &z0_primary);
+
+        match &verify_result {
+            Err(e) => {
+                tracing::error!(target: "nova", error = ?e, steps = folded_steps.len(), "verify_steps_high_arity: nova verify failed");
+            }
+            Ok(_) => {}
+        }
+
+        verify_result
+            .map(|_| true)
+            .map_err(|_| CompressorError::InvalidProof)
     }
 
     pub fn verify_steps(
@@ -1893,7 +1926,7 @@ where
         let delta = decode_quad(public_inputs)?;
         let steps = vec![ExternalInputs3(delta.0, delta.1, delta.2)];
         let acc_encoded = encode_triple((initial.0, initial.1, initial.2));
-        self.prove_steps(&acc_encoded, &steps)
+        self.prove_steps_high_arity(&acc_encoded, &steps)
     }
 
     pub fn verify(
@@ -1905,7 +1938,7 @@ where
     ) -> Result<bool, CompressorError> {
         let delta = decode_quad(public_inputs)?;
         let steps = vec![ExternalInputs3(delta.0, delta.1, delta.2)];
-        self.verify_steps(vk, proof, acc, &steps)
+        self.verify_steps_high_arity(vk, proof, acc, &steps)
     }
 
     pub fn compressed_proof_bytes<'a>(&self, proof: &'a CompressedProof) -> &'a [u8] {

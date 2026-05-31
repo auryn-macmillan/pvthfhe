@@ -10,6 +10,8 @@ use crate::{detect_scheme, parse_params, PoulpyBackend, Scheme};
 
 #[cfg(feature = "enable-ckks")]
 mod ckks_ops;
+#[cfg(feature = "enable-tfhe")]
+mod tfhe_ops;
 
 impl FheBackend for PoulpyBackend {
     fn load_params(toml: &str) -> Result<Self, FheError> {
@@ -23,58 +25,31 @@ impl FheBackend for PoulpyBackend {
         })
     }
 
-    #[cfg(not(feature = "enable-ckks"))]
-    fn keygen_share_with_session(
-        &self,
-        _session_id: &[u8; 32],
-        party_id: u32,
-        _rng: &mut dyn RngCoreV6,
-    ) -> Result<KeygenShare, FheError> {
-        Err(FheError::Backend {
-            reason: format!("Poulpy {:?} keygen requires enable-ckks", self.scheme),
-        })
-    }
-
-    #[cfg(feature = "enable-ckks")]
     fn keygen_share_with_session(
         &self,
         _session_id: &[u8; 32],
         party_id: u32,
         rng: &mut dyn RngCoreV6,
     ) -> Result<KeygenShare, FheError> {
-        if self.scheme != Scheme::Ckks {
-            return Err(FheError::Backend {
-                reason: format!("keygen only implemented for CKKS, got {:?}", self.scheme),
-            });
+        match self.scheme {
+            #[cfg(feature = "enable-ckks")]
+            Scheme::Ckks => {
+                let (sk_bytes, tsk_bytes) = ckks_ops::keygen(&self.inner, rng)?;
+                store_keys_and_build_share(&self.inner, party_id, sk_bytes, tsk_bytes)
+            }
+            #[cfg(feature = "enable-tfhe")]
+            Scheme::Tfhe => {
+                let (sk_bytes, tsk_bytes) = tfhe_ops::keygen(&self.inner, rng)?;
+                store_keys_and_build_share(&self.inner, party_id, sk_bytes, tsk_bytes)
+            }
+            #[allow(unreachable_patterns)]
+            other => Err(FheError::Backend {
+                reason: format!(
+                    "keygen: scheme {:?} requires enable-ckks or enable-tfhe",
+                    other
+                ),
+            }),
         }
-        let (sk_bytes, tsk_bytes) = ckks_ops::keygen(&self.inner, rng)?;
-
-        self.inner
-            .secret_keys
-            .lock()
-            .map_err(|e| FheError::Backend {
-                reason: e.to_string(),
-            })?
-            .insert(party_id, sk_bytes.clone());
-
-        self.inner
-            .tensor_keys
-            .lock()
-            .map_err(|e| FheError::Backend {
-                reason: e.to_string(),
-            })?
-            .insert(party_id, tsk_bytes.clone());
-
-        let mut payload = Vec::new();
-        payload.extend_from_slice(&(sk_bytes.len() as u32).to_le_bytes());
-        payload.extend_from_slice(&sk_bytes);
-        payload.extend_from_slice(&(tsk_bytes.len() as u32).to_le_bytes());
-        payload.extend_from_slice(&tsk_bytes);
-
-        Ok(KeygenShare {
-            party_id,
-            bytes: ProtocolBytes(payload),
-        })
     }
 
     fn aggregate_keygen(&self, shares: &[KeygenShare]) -> Result<PublicKey, FheError> {
@@ -135,97 +110,72 @@ impl FheBackend for PoulpyBackend {
         Ok(PublicKey { bytes: pk_bytes })
     }
 
-    #[cfg(not(feature = "enable-ckks"))]
-    fn encrypt(
-        &self,
-        _pk: &PublicKey,
-        _plaintext: &[u8],
-        _rng: &mut dyn RngCoreV6,
-    ) -> Result<Ciphertext, FheError> {
-        Err(FheError::Backend {
-            reason: format!("Poulpy {:?} encrypt requires enable-ckks", self.scheme),
-        })
-    }
-
-    #[cfg(feature = "enable-ckks")]
     fn encrypt(
         &self,
         pk: &PublicKey,
         plaintext: &[u8],
         rng: &mut dyn RngCoreV6,
     ) -> Result<Ciphertext, FheError> {
-        if self.scheme != Scheme::Ckks {
-            return Err(FheError::Backend {
-                reason: format!("encrypt only implemented for CKKS, got {:?}", self.scheme),
-            });
+        match self.scheme {
+            #[cfg(feature = "enable-ckks")]
+            Scheme::Ckks => {
+                let sk_bytes = get_first_sk(&self.inner)?;
+                let ct_bytes =
+                    ckks_ops::encrypt(&self.inner, &sk_bytes, &pk.bytes, plaintext, rng)?;
+                Ok(Ciphertext { bytes: ct_bytes })
+            }
+            #[cfg(feature = "enable-tfhe")]
+            Scheme::Tfhe => {
+                let sk_bytes = get_first_sk(&self.inner)?;
+                let ct_bytes =
+                    tfhe_ops::encrypt(&self.inner, &sk_bytes, &pk.bytes, plaintext, rng)?;
+                Ok(Ciphertext { bytes: ct_bytes })
+            }
+            #[allow(unreachable_patterns)]
+            other => Err(FheError::Backend {
+                reason: format!(
+                    "encrypt: scheme {:?} requires enable-ckks or enable-tfhe",
+                    other
+                ),
+            }),
         }
-
-        let sk_bytes = {
-            let keys = self
-                .inner
-                .secret_keys
-                .lock()
-                .map_err(|e| FheError::Backend {
-                    reason: e.to_string(),
-                })?;
-            keys.values()
-                .next()
-                .ok_or(FheError::Backend {
-                    reason: "no secret key available for encrypt".into(),
-                })?
-                .clone()
-        };
-        let ct_bytes = ckks_ops::encrypt(&self.inner, &sk_bytes, &pk.bytes, plaintext, rng)?;
-        Ok(Ciphertext { bytes: ct_bytes })
     }
 
-    #[cfg(not(feature = "enable-ckks"))]
-    fn partial_decrypt(
-        &self,
-        _ct: &Ciphertext,
-        _party_id: u32,
-        _rng: &mut dyn RngCoreV6,
-    ) -> Result<DecryptShare, FheError> {
-        Err(FheError::Backend {
-            reason: format!("Poulpy {:?} decrypt requires enable-ckks", self.scheme),
-        })
-    }
-
-    #[cfg(feature = "enable-ckks")]
     fn partial_decrypt(
         &self,
         ct: &Ciphertext,
         party_id: u32,
         _rng: &mut dyn RngCoreV6,
     ) -> Result<DecryptShare, FheError> {
-        if self.scheme != Scheme::Ckks {
-            return Err(FheError::Backend {
-                reason: format!("decrypt only implemented for CKKS, got {:?}", self.scheme),
-            });
+        match self.scheme {
+            #[cfg(feature = "enable-ckks")]
+            Scheme::Ckks => {
+                let sk_bytes = get_first_sk(&self.inner)?;
+                let plaintext = ckks_ops::decrypt(&self.inner, &sk_bytes, &ct.bytes)?;
+                Ok(DecryptShare {
+                    party_id,
+                    bytes: ProtocolBytes(plaintext),
+                    nizk_proof_bytes: None,
+                })
+            }
+            #[cfg(feature = "enable-tfhe")]
+            Scheme::Tfhe => {
+                let sk_bytes = get_first_sk(&self.inner)?;
+                let plaintext = tfhe_ops::decrypt(&self.inner, &sk_bytes, &ct.bytes)?;
+                Ok(DecryptShare {
+                    party_id,
+                    bytes: ProtocolBytes(plaintext),
+                    nizk_proof_bytes: None,
+                })
+            }
+            #[allow(unreachable_patterns)]
+            other => Err(FheError::Backend {
+                reason: format!(
+                    "partial_decrypt: scheme {:?} requires enable-ckks or enable-tfhe",
+                    other
+                ),
+            }),
         }
-
-        let sk_bytes = {
-            let keys = self
-                .inner
-                .secret_keys
-                .lock()
-                .map_err(|e| FheError::Backend {
-                    reason: e.to_string(),
-                })?;
-            keys.values()
-                .next()
-                .ok_or(FheError::Backend {
-                    reason: "no secret key available for decrypt".into(),
-                })?
-                .clone()
-        };
-        let plaintext = ckks_ops::decrypt(&self.inner, &sk_bytes, &ct.bytes)?;
-
-        Ok(DecryptShare {
-            party_id,
-            bytes: ProtocolBytes(plaintext),
-            nizk_proof_bytes: None,
-        })
     }
 
     fn aggregate_decrypt(
@@ -245,61 +195,190 @@ impl FheBackend for PoulpyBackend {
     }
 }
 
+fn store_keys_and_build_share(
+    inner: &PoulpyInner,
+    party_id: u32,
+    sk_bytes: Vec<u8>,
+    tsk_bytes: Vec<u8>,
+) -> Result<KeygenShare, FheError> {
+    inner
+        .secret_keys
+        .lock()
+        .map_err(|e| FheError::Backend {
+            reason: e.to_string(),
+        })?
+        .insert(party_id, sk_bytes.clone());
+
+    inner
+        .tensor_keys
+        .lock()
+        .map_err(|e| FheError::Backend {
+            reason: e.to_string(),
+        })?
+        .insert(party_id, tsk_bytes.clone());
+
+    let mut payload = Vec::new();
+    payload.extend_from_slice(&(sk_bytes.len() as u32).to_le_bytes());
+    payload.extend_from_slice(&sk_bytes);
+    payload.extend_from_slice(&(tsk_bytes.len() as u32).to_le_bytes());
+    payload.extend_from_slice(&tsk_bytes);
+
+    Ok(KeygenShare {
+        party_id,
+        bytes: ProtocolBytes(payload),
+    })
+}
+
+fn get_first_sk(inner: &PoulpyInner) -> Result<Vec<u8>, FheError> {
+    let keys = inner.secret_keys.lock().map_err(|e| FheError::Backend {
+        reason: e.to_string(),
+    })?;
+    keys.values().next().cloned().ok_or(FheError::Backend {
+        reason: "no secret key available".into(),
+    })
+}
+
 impl PoulpyBackend {
-    pub fn ckks_add(&self, ct0: &Ciphertext, ct1: &Ciphertext) -> Result<Ciphertext, FheError> {
-        #[cfg(feature = "enable-ckks")]
-        {
-            let tsk = self
-                .inner
-                .tensor_keys
-                .lock()
-                .map_err(|e| FheError::Backend {
-                    reason: e.to_string(),
+    pub fn secret_key_coeffs(&self, party_id: u32) -> Result<Vec<i64>, FheError> {
+        match self.scheme {
+            #[cfg(feature = "enable-ckks")]
+            Scheme::Ckks => ckks_ops::secret_key_coeffs(&self.inner, party_id),
+            #[cfg(feature = "enable-tfhe")]
+            Scheme::Tfhe => {
+                let keys = self
+                    .inner
+                    .secret_keys
+                    .lock()
+                    .map_err(|e| FheError::Backend {
+                        reason: e.to_string(),
+                    })?;
+                let sk_bytes = keys.get(&party_id).ok_or(FheError::Backend {
+                    reason: format!("no secret key for party {party_id}"),
                 })?;
-            let tsk_bytes = tsk.values().next().cloned().unwrap_or_default();
-            drop(tsk);
-            let result = ckks_ops::add(&self.inner, &ct0.bytes, &ct1.bytes, &tsk_bytes)?;
-            return Ok(Ciphertext { bytes: result });
-        }
-        #[cfg(not(feature = "enable-ckks"))]
-        {
-            let _ = (ct0, ct1);
-            Err(FheError::Backend {
-                reason: "CKKS add requires enable-ckks feature".into(),
-            })
+                if sk_bytes.len() < 36 {
+                    return Err(FheError::Backend {
+                        reason: format!("TFHE secret key bytes too short: {}", sk_bytes.len()),
+                    });
+                }
+                let mut seed = [0u8; 32];
+                seed.copy_from_slice(&sk_bytes[..32]);
+                let mut source = poulpy_hal::source::Source::new(seed);
+                let mut coeffs = vec![0i64; 1];
+                let sign_bit = (source.next_u128() & 1) as i64;
+                coeffs[0] = (sign_bit << 1) - 1;
+                Ok(coeffs)
+            }
+            #[allow(unreachable_patterns)]
+            other => Err(FheError::Backend {
+                reason: format!("secret_key_coeffs not implemented for scheme {:?}", other),
+            }),
         }
     }
 
+    #[cfg(feature = "enable-ckks")]
+    pub fn party_secret_key_seed(&self, party_id: u32) -> Result<Vec<u8>, FheError> {
+        let keys = self
+            .inner
+            .secret_keys
+            .lock()
+            .map_err(|e| FheError::Backend {
+                reason: e.to_string(),
+            })?;
+        keys.get(&party_id).cloned().ok_or(FheError::Backend {
+            reason: format!("no secret key for party {party_id}"),
+        })
+    }
+
+    #[cfg(feature = "enable-ckks")]
+    pub fn ckks_add(&self, ct0: &Ciphertext, ct1: &Ciphertext) -> Result<Ciphertext, FheError> {
+        let tsk = self
+            .inner
+            .tensor_keys
+            .lock()
+            .map_err(|e| FheError::Backend {
+                reason: e.to_string(),
+            })?;
+        let tsk_bytes = tsk.values().next().cloned().unwrap_or_default();
+        drop(tsk);
+        let result = ckks_ops::add(&self.inner, &ct0.bytes, &ct1.bytes, &tsk_bytes)?;
+        Ok(Ciphertext { bytes: result })
+    }
+
+    #[cfg(feature = "enable-ckks")]
     pub fn ckks_mul(&self, ct0: &Ciphertext, ct1: &Ciphertext) -> Result<Ciphertext, FheError> {
-        #[cfg(feature = "enable-ckks")]
-        {
-            let sk = self
-                .inner
-                .secret_keys
-                .lock()
-                .map_err(|e| FheError::Backend {
-                    reason: e.to_string(),
-                })?;
-            let sk_bytes = sk.values().next().cloned().unwrap_or_default();
-            drop(sk);
-            let tsk = self
-                .inner
-                .tensor_keys
-                .lock()
-                .map_err(|e| FheError::Backend {
-                    reason: e.to_string(),
-                })?;
-            let tsk_bytes = tsk.values().next().cloned().unwrap_or_default();
-            drop(tsk);
-            let result = ckks_ops::mul(&self.inner, &ct0.bytes, &ct1.bytes, &sk_bytes, &tsk_bytes)?;
-            return Ok(Ciphertext { bytes: result });
-        }
-        #[cfg(not(feature = "enable-ckks"))]
-        {
-            let _ = (ct0, ct1);
-            Err(FheError::Backend {
-                reason: "CKKS mul requires enable-ckks feature".into(),
-            })
-        }
+        let sk = self
+            .inner
+            .secret_keys
+            .lock()
+            .map_err(|e| FheError::Backend {
+                reason: e.to_string(),
+            })?;
+        let sk_bytes = sk.values().next().cloned().unwrap_or_default();
+        drop(sk);
+        let tsk = self
+            .inner
+            .tensor_keys
+            .lock()
+            .map_err(|e| FheError::Backend {
+                reason: e.to_string(),
+            })?;
+        let tsk_bytes = tsk.values().next().cloned().unwrap_or_default();
+        drop(tsk);
+        let result = ckks_ops::mul(&self.inner, &ct0.bytes, &ct1.bytes, &sk_bytes, &tsk_bytes)?;
+        Ok(Ciphertext { bytes: result })
+    }
+
+    #[cfg(feature = "enable-tfhe")]
+    pub fn tfhe_nand(&self, ct0: &Ciphertext, ct1: &Ciphertext) -> Result<Ciphertext, FheError> {
+        let result = tfhe_ops::nand(&self.inner, &ct0.bytes, &ct1.bytes)?;
+        Ok(Ciphertext { bytes: result })
+    }
+
+    #[cfg(feature = "enable-tfhe")]
+    pub fn bootstrap(&self, ct: &Ciphertext) -> Result<Ciphertext, FheError> {
+        let result = tfhe_ops::bootstrap(&self.inner, &ct.bytes)?;
+        Ok(Ciphertext { bytes: result })
+    }
+
+    #[cfg(feature = "enable-tfhe")]
+    pub fn bootstrap_prove(
+        &self,
+        ct_in: &Ciphertext,
+        ct_out: &Ciphertext,
+        party_id: u32,
+        session_id: &[u8],
+    ) -> Result<pvthfhe_nizk::bootstrap_sigma::BootstrapSigmaProof, pvthfhe_nizk::NizkError> {
+        use pvthfhe_nizk::bootstrap_sigma::{
+            BootstrapSigmaProof, BootstrapStatement, BootstrapWitness,
+        };
+        use rand::rngs::StdRng;
+        use rand::SeedableRng;
+
+        let stmt = BootstrapStatement {
+            ct_in_bytes: ct_in.bytes.clone(),
+            ct_out_bytes: ct_out.bytes.clone(),
+            bsk_hash: [0u8; 32],
+        };
+
+        let sk = self
+            .secret_key_coeffs(party_id)
+            .map_err(|_e| pvthfhe_nizk::NizkError::InvalidInput("no secret key available"))?;
+        let noise = vec![0i64; 1];
+
+        let wit = BootstrapWitness {
+            secret_key: sk,
+            bsk_noise: noise,
+        };
+
+        let d_commitment = [0u8; 32];
+        let mut rng = StdRng::from_entropy();
+        pvthfhe_nizk::bootstrap_sigma::prove(
+            session_id,
+            party_id,
+            &stmt,
+            &wit,
+            &mut rng,
+            &d_commitment,
+        )
     }
 }

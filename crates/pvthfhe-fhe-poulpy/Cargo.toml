@@ -14,6 +14,7 @@ pvthfhe-fhe = { path = "../pvthfhe-fhe" }
 pvthfhe-types = { path = "../pvthfhe-types" }
 pvthfhe-domain-tags = { path = "../pvthfhe-domain-tags" }
 pvthfhe-wire = { path = "../pvthfhe-wire" }
+pvthfhe-nizk = { path = "../pvthfhe-nizk" }
 byteorder = "1"
 rand_core = "0.6"
 rand = "0.8"

@@ -242,11 +242,7 @@ pub(crate) fn encrypt(
     };
 
     let n: usize = glwe.n().into();
-    let base2k: usize = glwe.base2k().into();
-    let meta = CKKSMeta {
-        log_delta: 30,
-        log_budget: usize::from(glwe.max_k()) * base2k - 30,
-    };
+    let meta = crate::ckks_impl::ckks_meta(); // log_delta=40, log_budget=688
     let mut pt_rnx = CKKSPlaintextVecRnx::<f64>::alloc(n).map_err(into_fhe)?;
     let encoder = Encoder::<f64>::new(n / 2).map_err(into_fhe)?;
     let re = vec![value; n / 2];

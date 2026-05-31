@@ -43,6 +43,9 @@ fn main(
     // -- IVC verification result (S6: wraps RecursiveSNARK success) --
     ivc_verify_result: pub Field,
 
+    // -- Bootstrap result hash (T6: binds TFHE bootstrapping verification) --
+    bootstrap_result_hash: pub Field,
+
     // -- Private witnesses (for opening state preimages) --
     nova_state_preimage: [Field; 4],
     cyclo_aggregate_preimage: [Field; 4],
@@ -72,6 +75,9 @@ fn main(
     //    actually verify.
     assert(ivc_verify_result == 1, "ivc_verify_result must be 1 (IVC verify passed)");
 
+    // -- T6: Bootstrap result hash binding (TFHE bootstrapping integrity) --
+    assert(bootstrap_result_hash != 0, "bootstrap_result_hash must be non-zero");
+
     // -- Compute binding hash over ALL public inputs --
     let binding = poseidon::poseidon::bn254::sponge([
         nova_final_state_commitment,
@@ -88,6 +94,7 @@ fn main(
         ivc_steps,
         share_verification_hash,
         ivc_verify_result,
+        bootstrap_result_hash,
     ]);
     assert(binding != 0, "binding hash must be non-zero");
 
@@ -123,6 +130,7 @@ fn test_honest_with_ivc_binding() {
     let ivc_steps = 1;
     let share_verification_hash = 999;
     let ivc_verify_result = 1;
+    let bootstrap_result_hash = 888;
 
     main(
         1, 2, 3, 1,
@@ -136,6 +144,7 @@ fn test_honest_with_ivc_binding() {
         ivc_steps,
         share_verification_hash,
         ivc_verify_result,
+        bootstrap_result_hash,
         nova_state_preimage,
         cyclo_aggregate_preimage,
     );
@@ -153,6 +162,7 @@ fn test_fail_zero_share_verification_hash() {
         100, 200, 300, 400, 500, 1,
         0,
         1,
+        888,
         nova_state_preimage,
         cyclo_aggregate_preimage,
     );
@@ -170,6 +180,7 @@ fn test_fail_zero_session_id() {
         100, 200, 300, 400, 500, 1,
         999,
         1,
+        888,
         nova_state_preimage,
         cyclo_aggregate_preimage,
     );
@@ -187,6 +198,7 @@ fn test_fail_zero_ivc_proof_hash() {
         0, 200, 300, 400, 500, 1,
         999,
         1,
+        888,
         nova_state_preimage,
         cyclo_aggregate_preimage,
     );
@@ -204,6 +216,7 @@ fn test_fail_zero_ivc_steps() {
         100, 200, 300, 400, 500, 0,
         999,
         1,
+        888,
         nova_state_preimage,
         cyclo_aggregate_preimage,
     );
@@ -221,6 +234,7 @@ fn test_fail_tampered_nova_commitment() {
         100, 200, 300, 400, 500, 1,
         999,
         1,
+        888,
         nova_state_preimage,
         cyclo_aggregate_preimage,
     );
@@ -244,6 +258,7 @@ fn test_all_public_inputs_constrained() {
         100, 200, 300, 400, 500, 1,
         999,
         1,
+        888,
         nova_state_preimage,
         cyclo_aggregate_preimage,
     );
@@ -268,6 +283,7 @@ fn test_ivc_binding_prevents_substitution() {
     let ivc_steps = 7;
     let share_verification_hash = 999;
     let ivc_verify_result = 1;
+    let bootstrap_result_hash = 888;
 
     let expected_binding = poseidon::poseidon::bn254::sponge([
         nova_final_state_commitment,
@@ -284,6 +300,7 @@ fn test_ivc_binding_prevents_substitution() {
         ivc_steps,
         share_verification_hash,
         ivc_verify_result,
+        bootstrap_result_hash,
     ]);
     assert(expected_binding != 0);
 
@@ -299,6 +316,7 @@ fn test_ivc_binding_prevents_substitution() {
         ivc_steps,
         share_verification_hash,
         ivc_verify_result,
+        bootstrap_result_hash,
         nova_state_preimage,
         cyclo_aggregate_preimage,
     );
@@ -316,6 +334,26 @@ fn test_fail_ivc_verify_result_zero() {
         hash_state_preimage(cyclo_aggregate_preimage),
         100, 200, 300, 400, 500, 1,
         999,
+        0,
+        888,
+        nova_state_preimage,
+        cyclo_aggregate_preimage,
+    );
+}
+
+#[test(should_fail)]
+fn test_fail_zero_bootstrap_result_hash() {
+    // T6 adversarial: bootstrap result hash zero -- circuit must reject
+    let nova_state_preimage = [10, 20, 30, 40];
+    let cyclo_aggregate_preimage = [50, 60, 70, 80];
+
+    main(
+        1, 2, 3, 1,
+        hash_state_preimage(nova_state_preimage),
+        hash_state_preimage(cyclo_aggregate_preimage),
+        100, 200, 300, 400, 500, 1,
+        999,
+        1,
         0,
         nova_state_preimage,
         cyclo_aggregate_preimage,

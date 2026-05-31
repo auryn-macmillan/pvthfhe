@@ -25,7 +25,7 @@ verifier cost. The current prototype uses:
 |-------|---------------|--------|
 | DKG | Pedersen-DKG over BFV/RLWE secret domain (`.sisyphus/design/dkg-construction.md`) | ✅ Real (BN254 Shamir, OsRng, smudging) |
 | NIZK | Cyclo-companion Ajtai D2 sigma + BFV sigma (k-round repetition, configurable soundness) | ✅ Real (SIGMA_REPETITIONS, prove/verify_multi) |
-| Folding (P2) | nova-snark (Microsoft) Nova IVC with high-arity batch folding + FS outside circuit (`.sisyphus/design/fold-construction.md`) | ✅ Real (Symphony T1+T2 enabled by default) |
+| Folding (P2) | nova-snark (Microsoft) Nova IVC with high-arity batch folding + FS outside circuit (`.sisyphus/design/fold-construction.md`) | ✅ Real (Symphony T1+T2+T3+T4 enabled by default) |
 | Compression (P3) | nova-snark Nova IVC with KZG\<Bn254\> commitments + CycloFoldStepCircuit (arity=8) | ✅ Real (transparent IVC, no ceremony; demo ACCEPTs at n=128) |
 | On-chain verifier | OpenZeppelin AccessControl + TimelockController | ✅ Real (AccessControl, multisig, runId) |
 | IVC SNARK (P4) | 6-field IVC binding (proof_hash, vk_hash, pp_hash, z0/zi_commitment, steps) + Solidity verifyWithIvc | ✅ Real (no Groth16 ceremony; IVC proof binding on-chain) |
@@ -68,19 +68,17 @@ verifier cost. The current prototype uses:
 `.sisyphus/plans/audit-2026-05-09-remediation.md` (55/55 ✅). All gate-level checkboxes
 are closed under `.sisyphus/plans/pvthfhe-gate-resolution.md`.
 
-## Symphony Techniques (Feature-Gated)
+## Symphony Techniques
 
-The compressor crate supports four optional optimization techniques from the Symphony
-paper, toggleable via Cargo features:
+The compressor crate includes four optimization techniques from the Symphony
+paper. As of S8, all techniques are compiled unconditionally (no feature flags):
 
-| Technique | Feature flag | Description |
-|-----------|-------------|-------------|
-| **T1: High-arity folding** | `symphony-t1` | Batches n iterative `prove_step` calls into a single fold using random linear combination β (Symphony §4) |
-| **T2: FS outside circuit** | `symphony-t2` | Moves Fiat-Shamir hashing outside the Nova circuit via identity step circuits with Keccak256 commitments to step inputs (Symphony §6) |
-| **T3: Monomial embedding range proofs** | `symphony-t3` | Replaces fixed 31-bit decomposition with adaptive bit-count range checks based on monomial embedding (Symphony §5.2) |
-| **T4: Random projection** | `symphony-t4` | Reduces sigma witness size by ~n/256× using JL projection J∈{0,±1}^\{256×n\}; verifies norms on projected vectors. Requires `symphony-t3` (Symphony §5.3) |
-
-These features are **disabled by default**. Enable with e.g. `--features symphony-t1,symphony-t2`.
+| Technique | Description |
+|-----------|-------------|
+| **T1: High-arity folding** | Batches n iterative `prove_step` calls into a single fold using random linear combination β (Symphony §4) |
+| **T2: FS outside circuit** | Moves Fiat-Shamir hashing outside the Nova circuit via identity step circuits with Keccak256 commitments to step inputs (Symphony §6) |
+| **T3: Monomial embedding range proofs** | Replaces fixed 31-bit decomposition with adaptive bit-count range checks based on monomial embedding (Symphony §5.2) |
+| **T4: Random projection** | Reduces sigma witness size by ~n/256× using JL projection J∈{0,±1}^{256×n}; verifies norms on projected vectors (Symphony §5.3) |
 
 ## Soundness Budget
 

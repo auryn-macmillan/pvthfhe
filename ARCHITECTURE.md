@@ -272,15 +272,15 @@ See `crates/pvthfhe-nizk/src/bfv_greco.rs` for the full implementation.
 
 ### Symphony: Proof-Compression Optimization Techniques
 
-The compressor crate supports four optional optimization techniques from the Symphony
-paper, toggleable via Cargo features in `pvthfhe-compressor`:
+The compressor crate includes four optimization techniques from the Symphony
+paper. As of S8, all techniques are compiled unconditionally:
 
-| Technique | Feature | Default | Description |
-|-----------|---------|---------|-------------|
+| Technique | File | Status | Description |
+|-----------|------|--------|-------------|
 | **T1: High-arity folding** | `high_arity_fold.rs` | ✅ Enabled | Batches n iterative `prove_step` calls into a single fold using a random linear combination β derived via Keccak256-based Fiat-Shamir (Symphony §4). `prove_steps_high_arity()` folds up to n=128 instances into a single IVC step, achieving O(1) per-step cost. |
 | **T2: FS outside circuit** | `nova_gadgets.rs` | ✅ Enabled | Moves Fiat-Shamir hashing outside the Nova step circuit. Sigma/ring/BFV witness data is committed with Keccak256 and bound to step inputs via identity circuits. The per-step hash is verified against on-chain commitments (Symphony §6). |
-| **T3: Monomial embedding** | `symphony-t3` | Opt-in | Replaces fixed 31-bit decomposition with adaptive bit-count range checks using monomial embedding (Symphony §5.2). `monomial_range_check_bp()` uses only `ceil(log2(bound))` bits, reducing per-coefficient constraint cost from ~93 to ~3·ceil(log2(bound)). |
-| **T4: Random projection** | `symphony-t4` | Opt-in | Reduces sigma witness size by ~n/256× using JL projection J∈{0,±1}^{256×n}. Verifies norms on projected 256-dim vectors instead of full 8192-dim vectors (Symphony §5.3). Requires `symphony-t3`. |
+| **T3: Monomial embedding** | `monomial_range.rs` | ✅ Enabled | Replaces fixed 31-bit decomposition with adaptive bit-count range checks using monomial embedding (Symphony §5.2). `monomial_range_check_bp()` uses only `ceil(log2(bound))` bits, reducing per-coefficient constraint cost from ~93 to ~3·ceil(log2(bound)). |
+| **T4: Random projection** | `nova_gadgets.rs` | ✅ Enabled | Reduces sigma witness size by ~n/256× using JL projection J∈{0,±1}^{256×n}. Verifies norms on projected 256-dim vectors instead of full 8192-dim vectors (Symphony §5.3). Requires T3 (unconditionally available). |
 
 #### T1 + T2: Default optimizations
 

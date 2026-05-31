@@ -28,7 +28,7 @@ demo-e2e n="10" t="4" seed="1":
     @echo "* DO NOT DEPLOY — research prototype only                                 *"
     mkdir -p .sisyphus/evidence
     export PVTHFHE_RUN_C7_SONOBE=1
-    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 RUSTFLAGS="-Awarnings" cargo run --release -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng,pipeline-extra-checks,symphony-all" -- \
+    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 RUSTFLAGS="-Awarnings" cargo run --release -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng,pipeline-extra-checks" -- \
         demo --n {{n}} --threshold {{t}} --seed {{seed}} \
         2>&1 | tee .sisyphus/evidence/task-40-demo.log
 
@@ -38,11 +38,11 @@ demo-e2e-track-a n="10" t="4" seed="1":
 
 # Per-node simulation — measures wall time for ONE party at given n and t
 per-node n="10" t="4" seed="1":
-    cargo run -p pvthfhe-cli --release --bin per-node --features "nova-compressor,symphony-all" -- --n {{n}} --threshold {{t}} --seed {{seed}}
+    cargo run -p pvthfhe-cli --release --bin per-node --features "nova-compressor" -- --n {{n}} --threshold {{t}} --seed {{seed}}
 
 # Per-aggregator simulation — measures wall time for the aggregator node
 aggregator n="10" t="4" seed="1":
-    cargo run -p pvthfhe-cli --release --bin per-aggregator --features "nova-compressor,symphony-all" -- --n {{n}} --threshold {{t}} --seed {{seed}}
+    cargo run -p pvthfhe-cli --release --bin per-aggregator --features "nova-compressor" -- --n {{n}} --threshold {{t}} --seed {{seed}}
 
 bench-p4:
     mkdir -p .sisyphus/evidence/benchmarks/p4

@@ -222,6 +222,8 @@ mod poulpy_backend_impl;
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(not(any(feature = "enable-ckks", feature = "enable-tfhe")))]
+    use pvthfhe_fhe::FheBackend;
 
     #[test]
     fn parse_params_ckks_default() {
@@ -252,6 +254,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(any(feature = "enable-ckks", feature = "enable-tfhe")))]
     fn load_params_without_features_returns_error_on_keygen() {
         let backend =
             PoulpyBackend::load_params(Scheme::Ckks.default_params_toml()).expect("load_params");

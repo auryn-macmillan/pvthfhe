@@ -17,6 +17,8 @@
 pub mod adapter;
 pub mod ajtai;
 pub mod bfv_sigma;
+#[doc = "Bootstrap sigma protocol for TFHE LWE bootstrapping (N=1 scalar NIZK)."]
+pub mod bootstrap_sigma;
 pub mod fiat_shamir;
 pub mod hash_bridge;
 #[cfg(feature = "enable-poulpy")]

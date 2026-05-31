@@ -2087,20 +2087,26 @@ fn run_poulpy_all_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<
     println!("=== Phase 2: CKKS Encrypt + Compute + Decrypt ===");
 
     let encrypt_start = Instant::now();
-    println!("step 7/15: encrypt — encrypting plaintext 1.0 under aggregate CKKS PK");
-    let plaintext = 1.0f64.to_le_bytes().to_vec();
+    println!("step 7/15: encrypt — encrypting plaintext 3.0 under aggregate CKKS PK");
+    let plaintext_3 = 3.0f64.to_le_bytes().to_vec();
     let mut encrypt_rng = pvthfhe_rng::OsRng;
-    let ciphertext = ckks_backend
-        .encrypt(&aggregate_pk, &plaintext, &mut encrypt_rng)
-        .context("ckks encrypt")?;
+    let ct_3 = ckks_backend
+        .encrypt(&aggregate_pk, &plaintext_3, &mut encrypt_rng)
+        .context("ckks encrypt 3.0")?;
+
+    let plaintext_4 = 4.0f64.to_le_bytes().to_vec();
+    let ct_4 = ckks_backend
+        .encrypt(&aggregate_pk, &plaintext_4, &mut encrypt_rng)
+        .context("ckks encrypt 4.0")?;
+
     let encrypt_ms = encrypt_start.elapsed().as_secs_f64() * 1000.0;
-    println!("step 7/15: encrypt complete ({encrypt_ms:.1}ms)");
+    println!("step 7/15: encrypt complete ({encrypt_ms:.1}ms) — ct_3=3.0, ct_4=4.0");
 
     let mul_start = Instant::now();
-    println!("step 8/15: ckks_mul — ciphertext * ciphertext (1.0 * 1.0)");
-    let ct_squared = ckks_backend
-        .ckks_mul(&ciphertext, &ciphertext)
-        .context("ckks_mul")?;
+    println!("step 8/15: ckks_mul — ct_3 * ct_4 (3.0 * 4.0)");
+    let ct_product = ckks_backend
+        .ckks_mul(&ct_3, &ct_4)
+        .context("ckks_mul 3.0*4.0")?;
     let mul_ms = mul_start.elapsed().as_secs_f64() * 1000.0;
     println!("step 8/15: ckks_mul complete ({mul_ms:.1}ms)");
 
@@ -2110,17 +2116,17 @@ fn run_poulpy_all_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<
     for party_id in 1u32..=threshold as u32 {
         let mut rng = pvthfhe_rng::OsRng;
         let share = ckks_backend
-            .partial_decrypt(&ct_squared, party_id, &mut rng)
+            .partial_decrypt(&ct_product, party_id, &mut rng)
             .with_context(|| format!("partial_decrypt party {party_id}"))?;
         shares.push(share);
     }
     let recovered = ckks_backend
-        .aggregate_decrypt(&ct_squared, &shares, threshold, session_id.as_ref())
+        .aggregate_decrypt(&ct_product, &shares, threshold, session_id.as_ref())
         .context("aggregate_decrypt")?;
     let decrypt_ms = decrypt_start.elapsed().as_secs_f64() * 1000.0;
     println!("step 9/15: decrypt complete ({decrypt_ms:.1}ms)");
 
-    let original_val = f64::from_le_bytes(plaintext[..8].try_into().unwrap_or_default());
+    let _original_val = f64::from_le_bytes(plaintext_3[..8].try_into().unwrap_or_default());
     let recovered_val = f64::from_le_bytes(
         recovered
             .get(..8)
@@ -2128,7 +2134,7 @@ fn run_poulpy_all_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<
             .try_into()
             .unwrap_or([0u8; 8]),
     );
-    let expected = original_val * original_val; // 1.0² = 1.0
+    let expected = 3.0_f64 * 4.0_f64;
     let diff = (expected - recovered_val).abs();
     let tolerance = expected.abs().max(1.0) * 1e-5; // CKKS approximate, relaxed tolerance
     let ckks_roundtrip_ok = diff <= tolerance;
@@ -2162,16 +2168,19 @@ fn run_poulpy_all_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<
         .aggregate_keygen(&tfhe_keygen_shares)
         .context("tfhe aggregate_keygen")?;
 
-    println!("step 12/15: encrypt_both — encrypting same value under CKKS and TFHE");
-    let ckks_val = 1.0f64.to_le_bytes().to_vec();
-    let tfhe_val = vec![1u8]; // same logical value
+    println!("step 12/15: encrypt_both — encrypting CKKS:3.0, TFHE:1 bit");
+    let ckks_val = 3.0f64.to_le_bytes().to_vec();
+    let tfhe_val = vec![1u8];
 
     let ckks_ct = ckks_backend
         .encrypt(&aggregate_pk, &ckks_val, &mut encrypt_rng)
-        .context("ckks encrypt for switch")?;
+        .context("ckks encrypt 3.0")?;
     let tfhe_ct = tfhe_backend
         .encrypt(&tfhe_pk, &tfhe_val, &mut encrypt_rng)
-        .context("tfhe encrypt for switch")?;
+        .context("tfhe encrypt bit=1")?;
+    let tfhe_ct_bit0 = tfhe_backend
+        .encrypt(&tfhe_pk, &vec![0u8], &mut encrypt_rng)
+        .context("tfhe encrypt bit=0")?;
 
     // Decode off-circuit for witness
     let ckks_dec = ckks_backend
@@ -2230,25 +2239,30 @@ fn run_poulpy_all_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<
     println!("=== Phase 3 complete: Scheme-Switch OK ===");
 
     // ─────────────────────────────────────────────────────────────────────
-    // Phase 4: TFHE Bootstrapping
+    // Phase 4: TFHE NAND + Bootstrapping
     // ─────────────────────────────────────────────────────────────────────
-    println!("=== Phase 4: TFHE Bootstrapping ===");
+    println!("=== Phase 4: TFHE NAND + Bootstrapping ===");
 
-    println!("step 14/15: bootstrap — applying TFHE bootstrap (noise reduction)");
+    println!("step 14/15: tfhe_nand — computing NAND(1,0)");
+    let ct_nand = tfhe_backend
+        .tfhe_nand(&tfhe_ct, &tfhe_ct_bit0)
+        .context("tfhe_nand")?;
+
+    println!("step 14/15: bootstrap — applying TFHE bootstrap to NAND result");
     let bootstrap_start = Instant::now();
-    let ct_bootstrapped = tfhe_backend.bootstrap(&tfhe_ct).context("bootstrap")?;
+    let ct_bootstrapped = tfhe_backend.bootstrap(&ct_nand).context("bootstrap")?;
     let bootstrap_ms = bootstrap_start.elapsed().as_secs_f64() * 1000.0;
     println!("step 14/15: bootstrap complete ({bootstrap_ms:.1}ms)");
 
     println!("step 15/15: bootstrap_sigma_prove_verify — NIZK for bootstrap correctness");
     let prove_start = Instant::now();
     let bootstrap_proof = tfhe_backend
-        .bootstrap_prove(&tfhe_ct, &ct_bootstrapped, 1, &session_id)
+        .bootstrap_prove(&ct_nand, &ct_bootstrapped, 1, &session_id)
         .context("bootstrap_prove")?;
     let prove_ms = prove_start.elapsed().as_secs_f64() * 1000.0;
 
     let verify_stmt = BootstrapStatement {
-        ct_in_bytes: tfhe_ct.bytes.clone(),
+        ct_in_bytes: ct_nand.bytes.clone(),
         ct_out_bytes: ct_bootstrapped.bytes.clone(),
         bsk_hash: [0u8; 32],
     };
@@ -2266,19 +2280,15 @@ fn run_poulpy_all_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<
         }
     }
 
-    // Verify: decrypt(bootstrap(ct)) == decrypt(original ct)
-    let orig_dec = tfhe_backend
-        .partial_decrypt(&tfhe_ct, 1, &mut encrypt_rng)
-        .context("decrypt original TFHE ct")?;
-    let boot_dec = tfhe_backend
+    let nand_dec = tfhe_backend
         .partial_decrypt(&ct_bootstrapped, 1, &mut encrypt_rng)
-        .context("decrypt bootstrapped ct")?;
-    let orig_bit = orig_dec.bytes.as_slice().first().copied().unwrap_or(0);
-    let boot_bit = boot_dec.bytes.as_slice().first().copied().unwrap_or(0);
-
-    let bootstrap_ok = orig_bit == boot_bit;
-    println!("step 15/15: bootstrap roundtrip: original={orig_bit}, bootstrapped={boot_bit}, ok={bootstrap_ok}");
-    println!("=== Phase 4 complete: TFHE Bootstrap OK ===");
+        .context("decrypt bootstrapped NAND")?;
+    let nand_result = nand_dec.bytes.as_slice().first().copied().unwrap_or(0);
+    let bootstrap_ok = nand_result == 1;
+    println!(
+        "step 15/15: NAND(1,0) bootstrapped result={nand_result}, expected=1, ok={bootstrap_ok}"
+    );
+    println!("=== Phase 4 complete: TFHE NAND+Bootstrap OK ===");
 
     // ─────────────────────────────────────────────────────────────────────
     // Summary

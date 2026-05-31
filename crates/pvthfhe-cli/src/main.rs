@@ -1199,7 +1199,7 @@ fn run_ckks_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
     let pk_hash = hex::encode(Sha256::digest(&aggregate_pk.bytes));
     println!("ckks-demo: aggregate_pk_hash={pk_hash}");
 
-    let plaintext = 0xB10C_u64.to_le_bytes().to_vec();
+    let plaintext = 1.0f64.to_le_bytes().to_vec();
     println!(
         "ckks-demo: encrypting plaintext {}",
         hex::encode(&plaintext)
@@ -1228,9 +1228,22 @@ fn run_ckks_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
         .aggregate_decrypt(&ciphertext, &shares, threshold, session_id.as_ref())
         .context("aggregate_decrypt")?;
 
-    let roundtrip_ok = recovered.get(..plaintext.len()) == Some(&plaintext);
+    // CKKS is approximate: compare f64 values within tolerance
+    let original_val = f64::from_le_bytes(plaintext[..8].try_into().unwrap_or_default());
+    let recovered_val = f64::from_le_bytes(
+        recovered
+            .get(..8)
+            .unwrap_or(&[0u8; 8])
+            .try_into()
+            .unwrap_or([0u8; 8]),
+    );
+    let diff = (original_val - recovered_val).abs();
+    let tolerance = original_val.abs().max(1.0) * 1e-9;
+    let roundtrip_ok = diff <= tolerance;
     let plaintext_roundtrip = if roundtrip_ok { "OK" } else { "MISMATCH" };
-    println!("ckks-demo: plaintext_roundtrip: {plaintext_roundtrip}");
+    println!(
+        "ckks-demo: plaintext_roundtrip: {plaintext_roundtrip} (orig={original_val}, recovered={recovered_val}, diff={diff})"
+    );
 
     if roundtrip_ok {
         println!("ckks-demo: verify: ACCEPT");

@@ -6,7 +6,7 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use poulpy_ckks::{
     encoding::Encoder,
     layouts::{CKKSCiphertext, CKKSPlaintextConversion, CKKSPlaintextVecRnx, CKKSPlaintextVecZnx},
-    leveled::api::{CKKSAddOps, CKKSDecrypt, CKKSEncrypt, CKKSMulOps},
+    leveled::api::{CKKSAddOps, CKKSDecrypt, CKKSEncrypt, CKKSMulOps, CKKSRescaleOps},
     CKKSInfos, CKKSMeta,
 };
 use poulpy_core::{
@@ -303,7 +303,20 @@ pub(crate) fn decrypt(
     let mut sk = module.glwe_secret_prepared_alloc_from_infos(&glwe);
     module.glwe_secret_prepare(&mut sk, &sk_raw);
 
-    let ct = ct_from_bytes(&glwe, ct_bytes)?;
+    let mut ct = ct_from_bytes(&glwe, ct_bytes)?;
+
+    // Rescale ciphertext so log_delta + log_budget <= 127 for decode_from_znx.
+    // After encrypt, log_budget=688 (log_delta=40, effective_k=728).
+    // decode_from_znx requires effective_k (= log_delta + log_budget) <= 127.
+    let target_log_budget = 127usize.saturating_sub(ct.log_delta());
+    if ct.log_budget() > target_log_budget {
+        let rescale_bits = ct.log_budget() - target_log_budget;
+        let rescale_scratch_bytes = module.ckks_rescale_tmp_bytes();
+        let mut rescale_scratch = ScratchOwned::<BE>::alloc(rescale_scratch_bytes);
+        module
+            .ckks_rescale_assign(&mut ct, rescale_bits, rescale_scratch.borrow())
+            .map_err(into_fhe)?;
+    }
 
     let mut pt_znx = CKKSPlaintextVecZnx::alloc_from_infos(&ct);
     let scratch_bytes = module.ckks_decrypt_tmp_bytes(&glwe);

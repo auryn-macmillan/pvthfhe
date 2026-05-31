@@ -1,1 +1,12 @@
-{}
+{
+  "active_plan": "/home/dev/pvthfhe/.sisyphus/plans/poulpy-threshold.md",
+  "started_at": "2026-05-31T15:28:59.539Z",
+  "session_ids": [
+    "ses_1e864f9f1ffecXRmG0OjbjoCa3"
+  ],
+  "session_origins": {
+    "ses_1e864f9f1ffecXRmG0OjbjoCa3": "direct"
+  },
+  "plan_name": "poulpy-threshold",
+  "agent": "atlas"
+}

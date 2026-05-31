@@ -67,6 +67,22 @@ use crate::{
 
 const DEMO_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 131072\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
 
+/// Creates an FHE backend from a TOML parameter string.
+///
+/// When the `enable-ckks` feature is active, returns a `PoulpyBackend`.
+/// Otherwise returns the default `FhersBackend` (BFV).
+#[cfg(feature = "enable-ckks")]
+pub fn create_backend(params_toml: &str) -> anyhow::Result<Box<dyn FheBackend>> {
+    use pvthfhe_fhe_poulpy::PoulpyBackend;
+    Ok(Box::new(PoulpyBackend::load_params(params_toml)?))
+}
+
+#[cfg(not(feature = "enable-ckks"))]
+pub fn create_backend(params_toml: &str) -> anyhow::Result<Box<dyn FheBackend>> {
+    use pvthfhe_fhe::fhers::FhersBackend;
+    Ok(Box::new(FhersBackend::load_params(params_toml)?))
+}
+
 /// Matches Noir circuit's MAX_PARTICIPANTS constant at
 /// `circuits/aggregator_final/src/main.nr:15`.
 const NOIR_MAX_PARTICIPANTS: usize = 128;

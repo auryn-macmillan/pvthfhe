@@ -1880,6 +1880,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "poulpy-bin-fhe"
+version = "0.5.0"
+source = "git+https://github.com/poulpy-fhe/poulpy?rev=4a1f0c642cef7e5830287c3d6af7e013d8a7bda4#4a1f0c642cef7e5830287c3d6af7e013d8a7bda4"
+dependencies = [
+ "anyhow",
+ "byteorder",
+ "itertools 0.14.0",
+ "paste",
+ "poulpy-core",
+ "poulpy-cpu-ref",
+ "poulpy-hal",
+ "rand 0.10.1",
+]
+
+[[package]]
+name = "poulpy-ckks"
+version = "0.5.0"
+source = "git+https://github.com/poulpy-fhe/poulpy?rev=4a1f0c642cef7e5830287c3d6af7e013d8a7bda4#4a1f0c642cef7e5830287c3d6af7e013d8a7bda4"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "poulpy-core",
+ "poulpy-cpu-avx",
+ "poulpy-cpu-ref",
+ "poulpy-hal",
+ "rand 0.10.1",
+ "rand_distr 0.6.0",
+]
+
+[[package]]
 name = "poulpy-core"
 version = "0.5.0"
 source = "git+https://github.com/poulpy-fhe/poulpy?rev=4a1f0c642cef7e5830287c3d6af7e013d8a7bda4#4a1f0c642cef7e5830287c3d6af7e013d8a7bda4"
@@ -1893,6 +1923,25 @@ dependencies = [
  "paste",
  "poulpy-hal",
  "rand 0.10.1",
+]
+
+[[package]]
+name = "poulpy-cpu-avx"
+version = "0.5.0"
+source = "git+https://github.com/poulpy-fhe/poulpy?rev=4a1f0c642cef7e5830287c3d6af7e013d8a7bda4#4a1f0c642cef7e5830287c3d6af7e013d8a7bda4"
+dependencies = [
+ "bytemuck",
+ "byteorder",
+ "itertools 0.14.0",
+ "once_cell",
+ "paste",
+ "poulpy-core",
+ "poulpy-cpu-ref",
+ "poulpy-hal",
+ "rand 0.10.1",
+ "rand_chacha 0.10.0",
+ "rand_core 0.10.1",
+ "rand_distr 0.6.0",
 ]
 
 [[package]]
@@ -2170,6 +2219,7 @@ dependencies = [
  "pvthfhe-cyclo",
  "pvthfhe-domain-tags",
  "pvthfhe-fhe",
+ "pvthfhe-fhe-poulpy",
  "pvthfhe-keygen",
  "pvthfhe-nizk",
  "pvthfhe-pvss",
@@ -2291,6 +2341,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "pvthfhe-fhe-poulpy"
+version = "0.1.0"
+dependencies = [
+ "poulpy-bin-fhe",
+ "poulpy-ckks",
+ "poulpy-core",
+ "poulpy-cpu-ref",
+ "poulpy-hal",
+ "pvthfhe-domain-tags",
+ "pvthfhe-fhe",
+ "pvthfhe-types",
+ "pvthfhe-wire",
+ "rand 0.8.6",
+ "rand_core 0.6.4",
+ "serde",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "pvthfhe-fuzz"
 version = "0.1.0"
 dependencies = [
@@ -2344,6 +2413,7 @@ dependencies = [
  "hex",
  "light-poseidon",
  "num-bigint 0.4.6",
+ "poulpy-hal",
  "pvthfhe-rng",
  "pvthfhe-types",
  "rand 0.8.6",
@@ -2953,7 +3023,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.2",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
  "windows-sys",

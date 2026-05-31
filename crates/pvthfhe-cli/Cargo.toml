@@ -61,6 +61,7 @@ ark-ec = "0.5"
 ark-ff = "0.5"
 light-poseidon = "0.4"
 fhe = { git = "https://github.com/gnosisguild/fhe.rs", rev = "5f24d0b62a7329b789db07a065b68accd614a47b", optional = true }
+pvthfhe-fhe-poulpy = { path = "../pvthfhe-fhe-poulpy", optional = true }
 
 [features]
 default = ["with-fhe", "nova-compressor", "pipeline-extra-checks"]
@@ -82,6 +83,8 @@ demo-seeded-rng = []
 # Enable extra pipeline verification checks (E.1 share-computation + E.2 DKG-aggregation).
 # Requires with-fhe (default). Opt-in; existing demo behavior unchanged without this flag.
 pipeline-extra-checks = []
+# Enable CKKS backend via Poulpy (requires pvthfhe-fhe-poulpy).
+enable-ckks = ["dep:pvthfhe-fhe-poulpy", "pvthfhe-fhe-poulpy/enable-ckks"]
 # Symphony T3/T4 are now compiled unconditionally (S8). Feature flags removed.
 
 [dev-dependencies]

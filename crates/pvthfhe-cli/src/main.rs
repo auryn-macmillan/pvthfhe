@@ -143,6 +143,9 @@ enum Commands {
         /// BFV parameter preset name: "production8192" (default) or "insecure512".
         #[arg(long, default_value = "production8192")]
         params: String,
+        /// FHE backend: "fhe-rs" for BFV (default), "poulpy-ckks" for CKKS (requires enable-ckks feature).
+        #[arg(long, default_value = "fhe-rs")]
+        backend: String,
     },
     /// Create or verify a BFV encryption snapshot proof.
     Snapshot {
@@ -338,17 +341,33 @@ fn main() -> anyhow::Result<()> {
             threshold,
             seed,
             params,
+            backend,
         } => {
-            let preset = match params.to_lowercase().as_str() {
-                "insecure512" => pvthfhe_types::BfvParameterPreset::insecure512(),
-                "production8192" => pvthfhe_types::BfvParameterPreset::production8192(),
-                other => {
-                    anyhow::bail!("unknown preset: {other}. Use 'production8192' or 'insecure512'")
+            let t = threshold.unwrap_or(n / 2 + 1);
+            match backend.to_lowercase().as_str() {
+                "fhe-rs" => {
+                    let preset = match params.to_lowercase().as_str() {
+                        "insecure512" => pvthfhe_types::BfvParameterPreset::insecure512(),
+                        "production8192" => pvthfhe_types::BfvParameterPreset::production8192(),
+                        other => {
+                            anyhow::bail!(
+                                "unknown preset: {other}. Use 'production8192' or 'insecure512'"
+                            )
+                        }
+                    };
+                    pvthfhe_types::set_active_preset(preset);
+                    info!(%params, "active parameter preset set");
+                    run_demo(n, t, seed)?;
                 }
-            };
-            pvthfhe_types::set_active_preset(preset);
-            info!(%params, "active parameter preset set");
-            run_demo(n, threshold.unwrap_or(n / 2 + 1), seed)?;
+                "poulpy-ckks" => {
+                    run_ckks_demo(n, t, seed)?;
+                }
+                other => {
+                    anyhow::bail!(
+                        "unknown backend: {other}. Use 'fhe-rs' (default) or 'poulpy-ckks'"
+                    );
+                }
+            }
         }
         Commands::Snapshot { action } => {
             r8_snapshot(action)?;
@@ -1119,6 +1138,115 @@ fn run_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
 #[cfg(not(all(feature = "with-fhe", feature = "nova-compressor")))]
 fn run_demo(_n: usize, _threshold: usize, _seed: u64) -> anyhow::Result<()> {
     anyhow::bail!("demo requires the `with-fhe` and `nova-compressor` features")
+}
+
+/// Run a CKKS DKG ceremony using the Poulpy backend.
+#[cfg(all(feature = "with-fhe", feature = "enable-ckks"))]
+fn run_ckks_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
+    use anyhow::Context;
+    use pvthfhe_fhe::{FheBackend, PublicKey};
+    use pvthfhe_fhe_poulpy::PoulpyBackend;
+    use sha2::Digest;
+
+    if n == 0 {
+        anyhow::bail!("invalid n: n=0; must satisfy n >= 1");
+    }
+    if threshold == 0 || threshold > n {
+        anyhow::bail!(
+            "invalid threshold: threshold={threshold} must satisfy 1 <= threshold <= n={n}"
+        );
+    }
+
+    const CKKS_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 300\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
+
+    println!("ckks-demo: n={n} threshold={threshold} seed={seed}");
+    println!("ckks-demo: backend=poulpy-ckks");
+
+    info!("ckks-demo: initializing PoulpyBackend");
+    let backend =
+        PoulpyBackend::load_params(CKKS_PARAMS_TOML).context("Poulpy CKKS backend init")?;
+
+    let mut session_id = [0u8; 32];
+    let mut seed_bytes = [0u8; 32];
+    seed_bytes[..8].copy_from_slice(&seed.to_le_bytes());
+    {
+        let mut h = Sha256::new();
+        h.update(b"pvthfhe-ckks-demo/v1");
+        h.update(seed_bytes);
+        session_id.copy_from_slice(&h.finalize());
+    }
+
+    println!("ckks-demo: generating keygen shares for {n} parties");
+    let mut keygen_shares = Vec::with_capacity(n);
+    for party_id in 1u32..=n as u32 {
+        let mut rng = pvthfhe_rng::OsRng;
+        let share = backend
+            .keygen_share_with_session(&session_id, party_id, &mut rng)
+            .with_context(|| format!("keygen_share party {party_id}"))?;
+        keygen_shares.push(share);
+    }
+    println!("ckks-demo: keygen shares generated ({n} of {n})");
+
+    let session_seed: [u8; 32] = Sha256::digest(session_id).into();
+    backend
+        .setup_threshold(n, threshold, session_seed)
+        .context("setup_threshold")?;
+
+    println!("ckks-demo: aggregating public key");
+    let aggregate_pk = backend
+        .aggregate_keygen(&keygen_shares)
+        .context("aggregate_keygen")?;
+    let pk_hash = hex::encode(Sha256::digest(&aggregate_pk.bytes));
+    println!("ckks-demo: aggregate_pk_hash={pk_hash}");
+
+    let plaintext = 0xB10C_u64.to_le_bytes().to_vec();
+    println!(
+        "ckks-demo: encrypting plaintext {}",
+        hex::encode(&plaintext)
+    );
+
+    let mut encrypt_rng = pvthfhe_rng::OsRng;
+    let ciphertext = backend
+        .encrypt(&aggregate_pk, &plaintext, &mut encrypt_rng)
+        .context("encrypt")?;
+    let ct_hash = hex::encode(Sha256::digest(&ciphertext.bytes));
+    println!("ckks-demo: ciphertext_hash={ct_hash}");
+
+    println!("ckks-demo: producing partial decryption shares");
+    let mut shares = Vec::with_capacity(threshold);
+    for party_id in 1u32..=threshold as u32 {
+        let mut rng = pvthfhe_rng::OsRng;
+        let share = backend
+            .partial_decrypt(&ciphertext, party_id, &mut rng)
+            .with_context(|| format!("partial_decrypt party {party_id}"))?;
+        shares.push(share);
+    }
+    println!("ckks-demo: {threshold} partial decryption shares produced");
+
+    println!("ckks-demo: aggregating decryption shares");
+    let recovered = backend
+        .aggregate_decrypt(&ciphertext, &shares, threshold, session_id.as_ref())
+        .context("aggregate_decrypt")?;
+
+    let roundtrip_ok = recovered.get(..plaintext.len()) == Some(&plaintext);
+    let plaintext_roundtrip = if roundtrip_ok { "OK" } else { "MISMATCH" };
+    println!("ckks-demo: plaintext_roundtrip: {plaintext_roundtrip}");
+
+    if roundtrip_ok {
+        println!("ckks-demo: verify: ACCEPT");
+        info!("ckks-demo complete: ACCEPT");
+    } else {
+        println!("ckks-demo: verify: REJECT");
+        info!("ckks-demo complete: REJECT");
+        anyhow::bail!("ckks-demo: plaintext roundtrip failed");
+    }
+
+    Ok(())
+}
+
+#[cfg(not(feature = "enable-ckks"))]
+fn run_ckks_demo(_n: usize, _threshold: usize, _seed: u64) -> anyhow::Result<()> {
+    anyhow::bail!("CKKS backend requires the `enable-ckks` feature")
 }
 
 #[cfg(all(feature = "with-fhe", feature = "nova-compressor"))]

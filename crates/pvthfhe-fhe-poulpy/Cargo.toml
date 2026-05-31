@@ -1,0 +1,30 @@
+[package]
+name = "pvthfhe-fhe-poulpy"
+version = "0.1.0"
+license = "MIT"
+edition = "2021"
+
+[features]
+default = []
+enable-ckks = ["dep:poulpy-ckks", "dep:poulpy-core", "dep:poulpy-hal", "dep:poulpy-cpu-ref"]
+enable-tfhe = ["dep:poulpy-bin-fhe", "dep:poulpy-core", "dep:poulpy-hal", "dep:poulpy-cpu-ref"]
+
+[dependencies]
+pvthfhe-fhe = { path = "../pvthfhe-fhe" }
+pvthfhe-types = { path = "../pvthfhe-types" }
+pvthfhe-domain-tags = { path = "../pvthfhe-domain-tags" }
+pvthfhe-wire = { path = "../pvthfhe-wire" }
+rand_core = "0.6"
+rand = "0.8"
+serde = { version = "1", features = ["derive"] }
+thiserror = "1"
+
+# Poulpy dependencies (pinned to same rev as pvthfhe-bench)
+poulpy-ckks = { git = "https://github.com/poulpy-fhe/poulpy", rev = "4a1f0c642cef7e5830287c3d6af7e013d8a7bda4", optional = true }
+poulpy-bin-fhe = { git = "https://github.com/poulpy-fhe/poulpy", rev = "4a1f0c642cef7e5830287c3d6af7e013d8a7bda4", optional = true }
+poulpy-core = { git = "https://github.com/poulpy-fhe/poulpy", rev = "4a1f0c642cef7e5830287c3d6af7e013d8a7bda4", optional = true }
+poulpy-hal = { git = "https://github.com/poulpy-fhe/poulpy", rev = "4a1f0c642cef7e5830287c3d6af7e013d8a7bda4", optional = true }
+poulpy-cpu-ref = { git = "https://github.com/poulpy-fhe/poulpy", rev = "4a1f0c642cef7e5830287c3d6af7e013d8a7bda4", optional = true }
+
+[lints]
+workspace = true

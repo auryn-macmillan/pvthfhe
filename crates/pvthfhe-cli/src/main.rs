@@ -2283,6 +2283,64 @@ fn run_poulpy_all_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<
             anyhow::bail!("bootstrap NIZK verification failed: {e:?}");
         }
     }
+
+    // ── TFHE Boolean Gate Roundtrips ────────────────────────────────────
+    println!();
+    println!("  TFHE Boolean Gate Roundtrips:");
+
+    // Encrypt test plaintexts for gate roundtrips
+    let ct_one = tfhe_backend
+        .encrypt(&tfhe_pk, &[1u8], &mut encrypt_rng)
+        .context("tfhe encrypt 1")?;
+    let ct_zero = tfhe_backend
+        .encrypt(&tfhe_pk, &[0u8], &mut encrypt_rng)
+        .context("tfhe encrypt 0")?;
+
+    // NOT(1) = 0
+    let ct_not_one = tfhe_backend.tfhe_not(&ct_one).context("tfhe_not")?;
+    let not_dec = tfhe_backend.partial_decrypt(&ct_not_one, 1, &mut encrypt_rng)?;
+    let not_result = not_dec.bytes.as_slice().first().copied().unwrap_or(0);
+    println!(
+        "    NOT(1) = {not_result}{}",
+        if not_result == 0 { " ✅" } else { " ❌" }
+    );
+
+    // AND(1, 1) = 1
+    let ct_and = tfhe_backend
+        .tfhe_and(&ct_one, &ct_one)
+        .context("tfhe_and")?;
+    let and_dec = tfhe_backend.partial_decrypt(&ct_and, 1, &mut encrypt_rng)?;
+    let and_result = and_dec.bytes.as_slice().first().copied().unwrap_or(0);
+    println!(
+        "    AND(1, 1) = {and_result}{}",
+        if and_result == 1 { " ✅" } else { " ❌" }
+    );
+
+    // OR(0, 1) = 1
+    let ct_or = tfhe_backend.tfhe_or(&ct_zero, &ct_one).context("tfhe_or")?;
+    let or_dec = tfhe_backend.partial_decrypt(&ct_or, 1, &mut encrypt_rng)?;
+    let or_result = or_dec.bytes.as_slice().first().copied().unwrap_or(0);
+    println!(
+        "    OR(0, 1) = {or_result}{}",
+        if or_result == 1 { " ✅" } else { " ❌" }
+    );
+
+    // XOR(1, 0) = 1
+    let ct_xor = tfhe_backend
+        .tfhe_xor(&ct_one, &ct_zero)
+        .context("tfhe_xor")?;
+    let xor_dec = tfhe_backend.partial_decrypt(&ct_xor, 1, &mut encrypt_rng)?;
+    let xor_result = xor_dec.bytes.as_slice().first().copied().unwrap_or(0);
+    println!(
+        "    XOR(1, 0) = {xor_result}{}",
+        if xor_result == 1 { " ✅" } else { " ❌" }
+    );
+
+    let gates_ok = not_result == 0 && and_result == 1 && or_result == 1 && xor_result == 1;
+    if !gates_ok {
+        anyhow::bail!("TFHE boolean gate roundtrip failure");
+    }
+
     println!("=== Phase 4 complete: TFHE pharmacy check ===");
 
     // ─────────────────────────────────────────────────────────────────────
@@ -2290,7 +2348,7 @@ fn run_poulpy_all_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<
     // ─────────────────────────────────────────────────────────────────────
     let total_ms = total_start.elapsed().as_secs_f64() * 1000.0;
 
-    let all_ok = switch_verified && safe_to_dispense;
+    let all_ok = switch_verified && safe_to_dispense && gates_ok;
 
     println!();
     println!("=== Poulpy End-to-End Summary ===");
@@ -2306,6 +2364,10 @@ fn run_poulpy_all_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<
         } else {
             "requires review ❌"
         }
+    );
+    println!(
+        "TFHE gate roundtrips: {}",
+        if gates_ok { "ALL OK ✅" } else { "FAIL ❌" }
     );
     println!("bootstrap NIZK: ACCEPT");
     println!("total_ms={total_ms:.1}");

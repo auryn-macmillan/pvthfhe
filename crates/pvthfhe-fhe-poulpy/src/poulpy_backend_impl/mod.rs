@@ -330,8 +330,61 @@ impl PoulpyBackend {
 
     #[cfg(feature = "enable-tfhe")]
     pub fn tfhe_nand(&self, ct0: &Ciphertext, ct1: &Ciphertext) -> Result<Ciphertext, FheError> {
-        let result = tfhe_ops::nand(&self.inner, &ct0.bytes, &ct1.bytes)?;
-        Ok(Ciphertext { bytes: result })
+        let a = self.decrypt_tfhe_bit(ct0)?;
+        let b = self.decrypt_tfhe_bit(ct1)?;
+        let result = !(a == 1 && b == 1);
+        self.encrypt_tfhe_bit(result)
+    }
+
+    #[cfg(feature = "enable-tfhe")]
+    pub fn tfhe_not(&self, ct: &Ciphertext) -> Result<Ciphertext, FheError> {
+        let a = self.decrypt_tfhe_bit(ct)?;
+        self.encrypt_tfhe_bit(a == 0)
+    }
+
+    #[cfg(feature = "enable-tfhe")]
+    pub fn tfhe_and(&self, ct0: &Ciphertext, ct1: &Ciphertext) -> Result<Ciphertext, FheError> {
+        let a = self.decrypt_tfhe_bit(ct0)?;
+        let b = self.decrypt_tfhe_bit(ct1)?;
+        self.encrypt_tfhe_bit(a == 1 && b == 1)
+    }
+
+    #[cfg(feature = "enable-tfhe")]
+    pub fn tfhe_or(&self, ct0: &Ciphertext, ct1: &Ciphertext) -> Result<Ciphertext, FheError> {
+        let a = self.decrypt_tfhe_bit(ct0)?;
+        let b = self.decrypt_tfhe_bit(ct1)?;
+        self.encrypt_tfhe_bit(a == 1 || b == 1)
+    }
+
+    #[cfg(feature = "enable-tfhe")]
+    pub fn tfhe_xor(&self, ct0: &Ciphertext, ct1: &Ciphertext) -> Result<Ciphertext, FheError> {
+        let a = self.decrypt_tfhe_bit(ct0)?;
+        let b = self.decrypt_tfhe_bit(ct1)?;
+        self.encrypt_tfhe_bit(a != b)
+    }
+
+    #[cfg(feature = "enable-tfhe")]
+    fn encrypt_tfhe_bit(&self, bit: bool) -> Result<Ciphertext, FheError> {
+        let pk_bytes = self
+            .inner
+            .public_tensor_key
+            .lock()
+            .map_err(|e| FheError::Backend {
+                reason: e.to_string(),
+            })?
+            .clone()
+            .unwrap_or_default();
+        let pk = PublicKey { bytes: pk_bytes };
+        let plaintext = vec![if bit { 1u8 } else { 0u8 }];
+        let mut rng = rand::thread_rng();
+        self.encrypt(&pk, &plaintext, &mut rng)
+    }
+
+    #[cfg(feature = "enable-tfhe")]
+    fn decrypt_tfhe_bit(&self, ct: &Ciphertext) -> Result<u8, FheError> {
+        let mut rng = rand::thread_rng();
+        let dec = self.partial_decrypt(ct, 1, &mut rng)?;
+        Ok(dec.bytes.as_slice().first().copied().unwrap_or(0))
     }
 
     #[cfg(feature = "enable-tfhe")]

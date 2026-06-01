@@ -292,4 +292,209 @@ mod tests {
         assert_eq!(ones + neg_ones, 192, "HW=192 ternary secret key");
         assert_eq!(zeros, 8192 - 192, "remaining coefficients must be zero");
     }
+
+    #[cfg(feature = "enable-tfhe")]
+    #[test]
+    fn tfhe_not_roundtrip() {
+        use pvthfhe_fhe::FheBackend;
+        use rand_core::RngCore;
+
+        let backend =
+            PoulpyBackend::load_params(Scheme::Tfhe.default_params_toml()).expect("load_params");
+        let mut rng = rand::thread_rng();
+        let mut session_id = [0u8; 32];
+        rng.fill_bytes(&mut session_id);
+
+        let share = backend
+            .keygen_share_with_session(&session_id, 1, &mut rng)
+            .expect("keygen_share");
+        let pk = backend
+            .aggregate_keygen(&[share])
+            .expect("aggregate_keygen");
+
+        let ct1 = backend.encrypt(&pk, &[1u8], &mut rng).expect("encrypt 1");
+        let ct_not = backend.tfhe_not(&ct1).expect("tfhe_not");
+        let dec = backend
+            .partial_decrypt(&ct_not, 1, &mut rng)
+            .expect("decrypt not");
+        assert_eq!(
+            dec.bytes.as_slice().first().copied().unwrap_or(255),
+            0,
+            "NOT(1) must be 0"
+        );
+
+        let ct0 = backend.encrypt(&pk, &[0u8], &mut rng).expect("encrypt 0");
+        let ct_not = backend.tfhe_not(&ct0).expect("tfhe_not");
+        let dec = backend
+            .partial_decrypt(&ct_not, 1, &mut rng)
+            .expect("decrypt not");
+        assert_eq!(
+            dec.bytes.as_slice().first().copied().unwrap_or(255),
+            1,
+            "NOT(0) must be 1"
+        );
+    }
+
+    #[cfg(feature = "enable-tfhe")]
+    #[test]
+    fn tfhe_and_roundtrip() {
+        use pvthfhe_fhe::FheBackend;
+        use rand_core::RngCore;
+
+        let backend =
+            PoulpyBackend::load_params(Scheme::Tfhe.default_params_toml()).expect("load_params");
+        let mut rng = rand::thread_rng();
+        let mut session_id = [0u8; 32];
+        rng.fill_bytes(&mut session_id);
+
+        let share = backend
+            .keygen_share_with_session(&session_id, 1, &mut rng)
+            .expect("keygen_share");
+        let pk = backend
+            .aggregate_keygen(&[share])
+            .expect("aggregate_keygen");
+
+        let ct1a = backend.encrypt(&pk, &[1u8], &mut rng).expect("encrypt 1");
+        let ct1b = backend.encrypt(&pk, &[1u8], &mut rng).expect("encrypt 1");
+        let ct_and = backend.tfhe_and(&ct1a, &ct1b).expect("tfhe_and");
+        let dec = backend
+            .partial_decrypt(&ct_and, 1, &mut rng)
+            .expect("decrypt and");
+        assert_eq!(
+            dec.bytes.as_slice().first().copied().unwrap_or(255),
+            1,
+            "AND(1,1) must be 1"
+        );
+
+        let ct0 = backend.encrypt(&pk, &[0u8], &mut rng).expect("encrypt 0");
+        let ct_and = backend.tfhe_and(&ct1a, &ct0).expect("tfhe_and");
+        let dec = backend
+            .partial_decrypt(&ct_and, 1, &mut rng)
+            .expect("decrypt and");
+        assert_eq!(
+            dec.bytes.as_slice().first().copied().unwrap_or(255),
+            0,
+            "AND(1,0) must be 0"
+        );
+    }
+
+    #[cfg(feature = "enable-tfhe")]
+    #[test]
+    fn tfhe_or_roundtrip() {
+        use pvthfhe_fhe::FheBackend;
+        use rand_core::RngCore;
+
+        let backend =
+            PoulpyBackend::load_params(Scheme::Tfhe.default_params_toml()).expect("load_params");
+        let mut rng = rand::thread_rng();
+        let mut session_id = [0u8; 32];
+        rng.fill_bytes(&mut session_id);
+
+        let share = backend
+            .keygen_share_with_session(&session_id, 1, &mut rng)
+            .expect("keygen_share");
+        let pk = backend
+            .aggregate_keygen(&[share])
+            .expect("aggregate_keygen");
+
+        let ct0 = backend.encrypt(&pk, &[0u8], &mut rng).expect("encrypt 0");
+        let ct1 = backend.encrypt(&pk, &[1u8], &mut rng).expect("encrypt 1");
+        let ct_or = backend.tfhe_or(&ct0, &ct1).expect("tfhe_or");
+        let dec = backend
+            .partial_decrypt(&ct_or, 1, &mut rng)
+            .expect("decrypt or");
+        assert_eq!(
+            dec.bytes.as_slice().first().copied().unwrap_or(255),
+            1,
+            "OR(0,1) must be 1"
+        );
+
+        let ct0a = backend.encrypt(&pk, &[0u8], &mut rng).expect("encrypt 0");
+        let ct0b = backend.encrypt(&pk, &[0u8], &mut rng).expect("encrypt 0");
+        let ct_or = backend.tfhe_or(&ct0a, &ct0b).expect("tfhe_or");
+        let dec = backend
+            .partial_decrypt(&ct_or, 1, &mut rng)
+            .expect("decrypt or");
+        assert_eq!(
+            dec.bytes.as_slice().first().copied().unwrap_or(255),
+            0,
+            "OR(0,0) must be 0"
+        );
+    }
+
+    #[cfg(feature = "enable-tfhe")]
+    #[test]
+    fn tfhe_xor_roundtrip() {
+        use pvthfhe_fhe::FheBackend;
+        use rand_core::RngCore;
+
+        let backend =
+            PoulpyBackend::load_params(Scheme::Tfhe.default_params_toml()).expect("load_params");
+        let mut rng = rand::thread_rng();
+        let mut session_id = [0u8; 32];
+        rng.fill_bytes(&mut session_id);
+
+        let share = backend
+            .keygen_share_with_session(&session_id, 1, &mut rng)
+            .expect("keygen_share");
+        let pk = backend
+            .aggregate_keygen(&[share])
+            .expect("aggregate_keygen");
+
+        let ct1 = backend.encrypt(&pk, &[1u8], &mut rng).expect("encrypt 1");
+        let ct0 = backend.encrypt(&pk, &[0u8], &mut rng).expect("encrypt 0");
+        let ct_xor = backend.tfhe_xor(&ct1, &ct0).expect("tfhe_xor");
+        let dec = backend
+            .partial_decrypt(&ct_xor, 1, &mut rng)
+            .expect("decrypt xor");
+        assert_eq!(
+            dec.bytes.as_slice().first().copied().unwrap_or(255),
+            1,
+            "XOR(1,0) must be 1"
+        );
+
+        let ct1a = backend.encrypt(&pk, &[1u8], &mut rng).expect("encrypt 1");
+        let ct1b = backend.encrypt(&pk, &[1u8], &mut rng).expect("encrypt 1");
+        let ct_xor = backend.tfhe_xor(&ct1a, &ct1b).expect("tfhe_xor");
+        let dec = backend
+            .partial_decrypt(&ct_xor, 1, &mut rng)
+            .expect("decrypt xor");
+        assert_eq!(
+            dec.bytes.as_slice().first().copied().unwrap_or(255),
+            0,
+            "XOR(1,1) must be 0"
+        );
+    }
+
+    #[cfg(feature = "enable-tfhe")]
+    #[test]
+    fn tfhe_nand_roundtrip() {
+        use pvthfhe_fhe::FheBackend;
+        use rand_core::RngCore;
+
+        let backend =
+            PoulpyBackend::load_params(Scheme::Tfhe.default_params_toml()).expect("load_params");
+        let mut rng = rand::thread_rng();
+        let mut session_id = [0u8; 32];
+        rng.fill_bytes(&mut session_id);
+
+        let share = backend
+            .keygen_share_with_session(&session_id, 1, &mut rng)
+            .expect("keygen_share");
+        let pk = backend
+            .aggregate_keygen(&[share])
+            .expect("aggregate_keygen");
+
+        let ct1a = backend.encrypt(&pk, &[1u8], &mut rng).expect("encrypt 1");
+        let ct1b = backend.encrypt(&pk, &[1u8], &mut rng).expect("encrypt 1");
+        let ct_nand = backend.tfhe_nand(&ct1a, &ct1b).expect("tfhe_nand");
+        let dec = backend
+            .partial_decrypt(&ct_nand, 1, &mut rng)
+            .expect("decrypt nand");
+        assert_eq!(
+            dec.bytes.as_slice().first().copied().unwrap_or(255),
+            0,
+            "NAND(1,1) must be 0"
+        );
+    }
 }

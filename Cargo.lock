@@ -2352,6 +2352,7 @@ dependencies = [
  "poulpy-hal",
  "pvthfhe-domain-tags",
  "pvthfhe-fhe",
+ "pvthfhe-nizk",
  "pvthfhe-types",
  "pvthfhe-wire",
  "rand 0.8.6",

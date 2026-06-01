@@ -22,6 +22,8 @@ pub struct PoulpyInner {
     pub(crate) ckks_module: Option<Module<poulpy_cpu_ref::NTT120Ref>>,
     pub(crate) ckks_glwe_layout: Option<GLWELayout>,
     pub(crate) ckks_tsk_layout: Option<GLWETensorKeyLayout>,
+    #[allow(dead_code)]
+    pub(crate) tfhe_module: Option<Module<poulpy_cpu_ref::NTT120Ref>>,
     pub(crate) secret_keys: Arc<Mutex<HashMap<u32, Vec<u8>>>>,
     pub(crate) tensor_keys: Arc<Mutex<HashMap<u32, Vec<u8>>>>,
     pub(crate) public_tensor_key: Arc<Mutex<Option<Vec<u8>>>>,
@@ -34,6 +36,7 @@ impl Clone for PoulpyInner {
             ckks_module: None,
             ckks_glwe_layout: self.ckks_glwe_layout,
             ckks_tsk_layout: self.ckks_tsk_layout,
+            tfhe_module: None,
             secret_keys: self.secret_keys.clone(),
             tensor_keys: self.tensor_keys.clone(),
             public_tensor_key: self.public_tensor_key.clone(),
@@ -78,20 +81,25 @@ impl PoulpyInner {
                     ckks_module: Some(module),
                     ckks_glwe_layout: Some(glwe_layout),
                     ckks_tsk_layout: Some(tsk_layout),
+                    tfhe_module: None,
                     secret_keys: Arc::new(Mutex::new(HashMap::new())),
                     tensor_keys: Arc::new(Mutex::new(HashMap::new())),
                     public_tensor_key: Arc::new(Mutex::new(None)),
                 })
             }
-            Scheme::Tfhe => Ok(Self {
-                scheme,
-                ckks_module: None,
-                ckks_glwe_layout: None,
-                ckks_tsk_layout: None,
-                secret_keys: Arc::new(Mutex::new(HashMap::new())),
-                tensor_keys: Arc::new(Mutex::new(HashMap::new())),
-                public_tensor_key: Arc::new(Mutex::new(None)),
-            }),
+            Scheme::Tfhe => {
+                let module = Module::<poulpy_cpu_ref::NTT120Ref>::new(1);
+                Ok(Self {
+                    scheme,
+                    ckks_module: None,
+                    ckks_glwe_layout: None,
+                    ckks_tsk_layout: None,
+                    tfhe_module: Some(module),
+                    secret_keys: Arc::new(Mutex::new(HashMap::new())),
+                    tensor_keys: Arc::new(Mutex::new(HashMap::new())),
+                    public_tensor_key: Arc::new(Mutex::new(None)),
+                })
+            }
         }
     }
 

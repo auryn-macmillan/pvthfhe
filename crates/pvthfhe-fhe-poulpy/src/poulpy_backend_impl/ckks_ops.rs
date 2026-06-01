@@ -252,21 +252,7 @@ pub(crate) fn encrypt(
         .map_err(into_fhe)?;
 
     let mut pt_znx = CKKSPlaintextVecZnx::alloc(glwe.n(), glwe.base2k(), meta);
-    eprintln!(
-        "[DEBUG encrypt] pt_znx.max_k() = {:?}, pt_znx.size() = {}, base2k = {:?}",
-        pt_znx.max_k(),
-        pt_znx.size(),
-        pt_znx.base2k()
-    );
-    eprintln!(
-        "[DEBUG encrypt] meta = log_delta={}, log_budget={}",
-        meta.log_delta, meta.log_budget
-    );
     pt_rnx.to_znx(&mut pt_znx).map_err(into_fhe)?;
-    eprintln!(
-        "[DEBUG encrypt] after to_znx: pt_znx.max_k() = {:?}",
-        pt_znx.max_k()
-    );
 
     let k = glwe.max_k();
     let mut ct = CKKSCiphertext::alloc(glwe.n(), k, glwe.base2k());
@@ -337,6 +323,55 @@ pub(crate) fn decrypt(
         .map_err(into_fhe)?;
 
     Ok(re[0].to_le_bytes().to_vec())
+}
+
+/// Regenerate secret key from stored seed bytes and return coefficients as i64.
+///
+/// Replicates the deterministic `fill_ternary_hw(192)` logic using the same
+/// ChaCha8-backed Source RNG, producing identical coefficients to the
+/// `regenerate_secret` path without needing access to GLWESecret internals.
+pub(crate) fn secret_key_coeffs(inner: &PoulpyInner, party_id: u32) -> Result<Vec<i64>, FheError> {
+    let sk_bytes = {
+        let keys = inner.secret_keys.lock().map_err(|e| FheError::Backend {
+            reason: e.to_string(),
+        })?;
+        keys.get(&party_id)
+            .ok_or(FheError::Backend {
+                reason: format!("no secret key for party {party_id}"),
+            })?
+            .clone()
+    };
+
+    if sk_bytes.len() < 36 {
+        return Err(FheError::Backend {
+            reason: format!("secret key bytes too short: {}", sk_bytes.len()),
+        });
+    }
+    let mut seed_xs = [0u8; 32];
+    seed_xs.copy_from_slice(&sk_bytes[..32]);
+
+    let glwe = glwe_layout_from_inner(inner)?;
+    let n: usize = glwe.n().into();
+    let hw: usize = 192;
+
+    let mut source = Source::new(seed_xs);
+    let mut coeffs: Vec<i64> = vec![0i64; n];
+
+    // fill first hw entries with ±1 (matching fill_ternary_hw)
+    for i in 0..hw {
+        let sign_bit = (source.next_u128() & 1) as i64;
+        coeffs[i] = (sign_bit << 1) - 1;
+    }
+
+    // Fisher-Yates shuffle (matching SliceRandom::shuffle behavior)
+    for i in (1..n).rev() {
+        let max = (i + 1) as u64;
+        let mask = max.next_power_of_two() - 1;
+        let j = source.next_u64n(max, mask) as usize;
+        coeffs.swap(i, j);
+    }
+
+    Ok(coeffs)
 }
 
 pub(crate) fn add(

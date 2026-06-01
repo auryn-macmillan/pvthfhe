@@ -301,7 +301,7 @@ artifact-reproduce:
 
 poulpy-all:
     @echo "=== Poulpy End-to-End (CKKS DKG → Scheme Switch → TFHE Bootstrap) ==="
-    cargo run --release -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng,pipeline-extra-checks,enable-ckks,enable-tfhe,with-fhe" -- demo --n 3 --threshold 1 --seed 1 --backend poulpy-all
+    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run --release -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng,pipeline-extra-checks,enable-ckks,enable-tfhe,with-fhe" -- demo --n 3 --threshold 1 --seed 1 --backend poulpy-all
 
 stage1-gate:
     python3 .sisyphus/scripts/stage1-gate.py

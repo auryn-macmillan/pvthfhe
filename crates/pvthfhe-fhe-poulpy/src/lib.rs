@@ -267,4 +267,29 @@ mod tests {
         let result = parse_params("[rlwe]\nn = 8192\nlog2_q = 300\n");
         assert!(matches!(result, Err(FheError::InvalidParams { .. })));
     }
+
+    #[cfg(feature = "enable-ckks")]
+    #[test]
+    fn secret_key_coeffs_returns_ternary_polynomial() {
+        use pvthfhe_fhe::FheBackend;
+        use rand_core::RngCore;
+
+        let backend =
+            PoulpyBackend::load_params(Scheme::Ckks.default_params_toml()).expect("load_params");
+        let mut rng = rand::thread_rng();
+        let mut session_id = [0u8; 32];
+        rng.fill_bytes(&mut session_id);
+
+        let _share = backend
+            .keygen_share_with_session(&session_id, 1, &mut rng)
+            .expect("keygen_share");
+
+        let coeffs = backend.secret_key_coeffs(1).expect("secret_key_coeffs");
+        assert_eq!(coeffs.len(), 8192, "CKKS N=8192 polynomial degree");
+        let ones = coeffs.iter().filter(|&&c| c == 1).count();
+        let neg_ones = coeffs.iter().filter(|&&c| c == -1).count();
+        let zeros = coeffs.iter().filter(|&&c| c == 0).count();
+        assert_eq!(ones + neg_ones, 192, "HW=192 ternary secret key");
+        assert_eq!(zeros, 8192 - 192, "remaining coefficients must be zero");
+    }
 }

@@ -1917,14 +1917,16 @@ fn run_poulpy_switch_demo(_n: usize, _threshold: usize, _seed: u64) -> anyhow::R
     )
 }
 
-/// Run the unified Poulpy end-to-end demo with realistic CHIMERA pattern:
-/// CKKS arithmetic → scheme-switch → TFHE boolean logic.
+/// Run the unified Poulpy end-to-end demo showing a realistic CHIMERA flow:
+/// CKKS arithmetic → hospital decision → scheme-switch → TFHE boolean logic.
 ///
-/// Scenario: "Encrypted eligibility check"
+/// Scenario: "Encrypted patient risk assessment with pharmacy handoff"
 ///   Phase 1: CKKS DKG ceremony (keygen, sigma NIZK, PVSS encryption, aggregate PK)
-///   Phase 2: CKKS encrypt 3.0 × 4.0 = ~12.0 (score from data)
-///   Phase 3: Scheme-switch: CKKS computation-success flag ↔ TFHE pass bit
-///   Phase 4: TFHE NAND(pass, clearance) → eligibility verdict
+///   Phase 2: CKKS encrypts lab_A=2.0, lab_B=2.0, computes risk_score=mul=4.0,
+///            hospital decrypts, checks 4 > 3 → "at risk", sets decision_bit=1
+///   Phase 3: Hospital encrypts decision as CKKS(1.0), scheme-switch proves
+///            CKKS(1.0) ↔ TFHE bit(1) via Nova IVC
+///   Phase 4: Pharmacy receives TFHE at_risk=1, runs NAND(at_risk=1, on_medication=1)=0 → SAFE
 #[cfg(all(
     feature = "with-fhe",
     feature = "enable-ckks",
@@ -2082,23 +2084,26 @@ fn run_poulpy_all_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<
     // Phase 2: CKKS Arithmetic — Hospital computes encrypted risk score
     // ─────────────────────────────────────────────────────────────────────
     println!("=== Phase 2: CKKS — Hospital Computes Encrypted Risk Score ===");
-    println!("  The hospital has two encrypted lab values: lab_A and lab_B.");
+    println!("  The hospital has two encrypted patient lab values: lab_A and lab_B.");
     println!("  It multiplies them under CKKS to produce a risk score —");
-    println!("  entirely on encrypted data. The hospital never sees the raw values.");
+    println!("  entirely on encrypted data. The hospital decrypts only the final score.");
 
-    let plaintext_3 = 3.0f64.to_le_bytes().to_vec();
-    let ct_3 = ckks_backend
-        .encrypt(&aggregate_pk, &plaintext_3, &mut encrypt_rng)
-        .context("ckks encrypt lab_A=3.0")?;
+    let plaintext_lab_a = 2.0f64.to_le_bytes().to_vec();
+    let ct_lab_a = ckks_backend
+        .encrypt(&aggregate_pk, &plaintext_lab_a, &mut encrypt_rng)
+        .context("ckks encrypt lab_A=2.0")?;
 
-    let plaintext_4 = 4.0f64.to_le_bytes().to_vec();
-    let ct_4 = ckks_backend
-        .encrypt(&aggregate_pk, &plaintext_4, &mut encrypt_rng)
-        .context("ckks encrypt lab_B=4.0")?;
+    let plaintext_lab_b = 2.0f64.to_le_bytes().to_vec();
+    let ct_lab_b = ckks_backend
+        .encrypt(&aggregate_pk, &plaintext_lab_b, &mut encrypt_rng)
+        .context("ckks encrypt lab_B=2.0")?;
+
+    println!("  CKKS: encrypt(lab_A=2.0) and encrypt(lab_B=2.0)");
+    println!("  CKKS: computing risk_score = mul(ct_lab_A, ct_lab_B)");
 
     let ct_product = ckks_backend
-        .ckks_mul(&ct_3, &ct_4)
-        .context("ckks_mul 3.0*4.0")?;
+        .ckks_mul(&ct_lab_a, &ct_lab_b)
+        .context("ckks_mul 2.0*2.0")?;
 
     let mut shares = Vec::with_capacity(threshold);
     for party_id in 1u32..=threshold as u32 {
@@ -2119,32 +2124,42 @@ fn run_poulpy_all_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<
             .try_into()
             .unwrap_or([0u8; 8]),
     );
-    let expected = 3.0_f64 * 4.0_f64;
+    let expected = 2.0_f64 * 2.0_f64;
     let diff = (expected - recovered_val).abs();
     let tolerance = expected.abs().max(1.0) * 1e-5;
     let ckks_mul_ok = diff <= tolerance;
     let ckks_score = recovered_val.round() as u64;
     println!(
-        "  CKKS: encrypt(lab_A=3.0) × encrypt(lab_B=4.0) = {recovered_val:.1} (risk_score={ckks_score}, ok={ckks_mul_ok})"
+        "  CKKS: encrypt(lab_A=2.0) × encrypt(lab_B=2.0) = {recovered_val:.1} (risk_score={ckks_score}, ok={ckks_mul_ok})"
     );
-    println!("  This score was computed entirely on encrypted data —");
-    println!("  the hospital never saw the raw lab values.");
 
     if !ckks_mul_ok {
         anyhow::bail!("CKKS multiply failed: expected={expected}, got={recovered_val}");
     }
+
+    // Hospital decrypts and makes a decision
+    println!("  Hospital decrypts: risk_score = {ckks_score}");
+    let decision_bit: u8 = if ckks_score > 3 { 1 } else { 0 };
+    let at_risk = decision_bit == 1;
+    println!(
+        "  Hospital decision: risk_score={ckks_score} > 3 → at_risk = {at_risk} → decision_bit = {decision_bit}"
+    );
+    println!("  (Hospital owns the CKKS key — it can decrypt and decide in the clear.)");
     println!("=== Phase 2 complete: CKKS risk score computed ===");
 
     // ─────────────────────────────────────────────────────────────────────
     // Phase 3: Scheme-Switch CKKS→TFHE
-    //   The hospital has a CKKS risk score.  The pharmacy only speaks TFHE.
-    //   We prove that the CKKS score (non-zero → at-risk) is equivalent to a
-    //   TFHE boolean bit (1 → at-risk) via Nova IVC.
+    //   Hospital encrypts its decision (1.0 = at_risk) under CKKS.
+    //   The pharmacy only speaks TFHE, so we scheme-switch CKKS(decision) ↔ TFHE(bit).
+    //   Nova IVC proves the conversion is correct.
     // ─────────────────────────────────────────────────────────────────────
     println!("=== Phase 3: Scheme-Switch — Hospital Shares At-Risk Flag with Pharmacy ===");
-    println!("  The hospital needs to tell the pharmacy whether the patient is \"at risk.\"");
-    println!("  But the pharmacy only uses TFHE, and the hospital computed in CKKS.");
-    println!("  Scheme-switch converts: CKKS(score) → TFHE boolean flag.");
+    println!(
+        "  Hospital encrypts its decision as: CKKS({:.1})",
+        if at_risk { 1.0 } else { 0.0 }
+    );
+    println!("  The pharmacy only uses TFHE, and the hospital computed in CKKS.");
+    println!("  Scheme-switch converts: CKKS(decision) → TFHE boolean flag.");
     println!("  Nova IVC proves the conversion was correct.");
 
     // Load TFHE backend and set up keys
@@ -2166,38 +2181,43 @@ fn run_poulpy_all_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<
         .aggregate_keygen(&tfhe_keygen_shares)
         .context("tfhe aggregate_keygen")?;
 
-    // Encrypt the success flag: CKKS(1.0) and TFHE(1)
-    let ckks_success = 1.0f64.to_le_bytes().to_vec();
-    let ckks_ct_success = ckks_backend
-        .encrypt(&aggregate_pk, &ckks_success, &mut encrypt_rng)
-        .context("ckks encrypt success=1.0")?;
+    // Hospital encrypts its DECISION (not just a hardcoded 1.0)
+    let decision_float = if at_risk { 1.0_f64 } else { 0.0_f64 };
+    let ckks_decision_pt = decision_float.to_le_bytes().to_vec();
+    let ckks_ct_decision = ckks_backend
+        .encrypt(&aggregate_pk, &ckks_decision_pt, &mut encrypt_rng)
+        .context("ckks encrypt decision")?;
 
-    let tfhe_pass = vec![1u8];
-    let tfhe_ct_pass = tfhe_backend
-        .encrypt(&tfhe_pk, &tfhe_pass, &mut encrypt_rng)
-        .context("tfhe encrypt pass=1")?;
+    let tfhe_decision_pt = vec![decision_bit];
+    let tfhe_ct_decision = tfhe_backend
+        .encrypt(&tfhe_pk, &tfhe_decision_pt, &mut encrypt_rng)
+        .context("tfhe encrypt decision bit")?;
+
+    println!(
+        "  Hospital encrypted its decision: CKKS({decision_float:.1}) and TFHE({decision_bit})"
+    );
 
     // Decode off-circuit for witness
-    let ckks_success_dec = ckks_backend
-        .partial_decrypt(&ckks_ct_success, 1, &mut encrypt_rng)
-        .context("ckks decrypt success witness")?;
-    let tfhe_pass_dec = tfhe_backend
-        .partial_decrypt(&tfhe_ct_pass, 1, &mut encrypt_rng)
-        .context("tfhe decrypt pass witness")?;
+    let ckks_decision_dec = ckks_backend
+        .partial_decrypt(&ckks_ct_decision, 1, &mut encrypt_rng)
+        .context("ckks decrypt decision witness")?;
+    let tfhe_decision_dec = tfhe_backend
+        .partial_decrypt(&tfhe_ct_decision, 1, &mut encrypt_rng)
+        .context("tfhe decrypt decision witness")?;
 
     let (ckks_int, tfhe_bit, equiv) = pvthfhe_compressor::nova::check_scheme_switch_equivalence(
-        ckks_success_dec.bytes.as_slice(),
-        tfhe_pass_dec.bytes.as_slice(),
+        ckks_decision_dec.bytes.as_slice(),
+        tfhe_decision_dec.bytes.as_slice(),
     );
     println!(
-        "  CKKS {recovered_val:.1} (score={ckks_score}) → Scheme-Switch → TFHE bit({tfhe_bit})"
+        "  CKKS decision={decision_float:.1} (score={ckks_score}) → Scheme-Switch → TFHE bit({tfhe_bit})"
     );
     println!("  off-circuit equivalence check: ckks_coeff={ckks_int}, tfhe_bit={tfhe_bit}, equiv={equiv}");
 
     // Prove scheme-switch equivalence via Nova IVC
     let epoch_hash: [u8; 32] = Sha256::digest(b"pvthfhe-scheme-switch-epoch/v1").into();
     let ckks_f64 = f64::from_le_bytes(
-        ckks_success_dec
+        ckks_decision_dec
             .bytes
             .as_slice()
             .get(..8)
@@ -2230,31 +2250,32 @@ fn run_poulpy_all_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<
         anyhow::bail!("scheme-switch proof verification failed");
     }
     println!(
-        "  Scheme-switch: CKKS({ckks_score}) → TFHE bit({tfhe_bit}) — Nova IVC proof accepted"
+        "  Scheme-switch: CKKS({decision_float:.1}) ↔ TFHE({tfhe_bit}) — Nova IVC proof ACCEPTED"
     );
-    println!("  This proves the boolean flag was correctly derived from the CKKS computation.");
+    println!("  This proves the boolean flag matches the CKKS-encrypted decision.");
     println!("=== Phase 3 complete: Scheme-Switch verified ===");
 
     // ─────────────────────────────────────────────────────────────────────
     // Phase 4: TFHE Boolean Logic — Pharmacy checks eligibility
-    //   The pharmacy receives the TFHE at_risk flag and combines it with
-    //   its own encrypted "on_medication" flag via NAND.
-    //   NAND(1,1)=0 means both conditions are true → safe to dispense.
-    //   NAND=1 means at least one condition is false → pharmacist review.
+    //   The pharmacy receives the TFHE at_risk flag from the scheme-switch
+    //   and combines it with its own encrypted "on_medication" flag via NAND.
+    //   NAND(1,1)=0 means both conditions true → safe to dispense.
+    //   NAND=1 means at least one condition false → pharmacist review.
     // ─────────────────────────────────────────────────────────────────────
     println!("=== Phase 4: TFHE — Pharmacy Runs Encrypted Eligibility Check ===");
     println!("  The pharmacy checks: \"is the patient at risk AND on medication X?\"");
-    println!("  Both values are encrypted — the pharmacy sees neither.");
+    println!("  The at_risk flag ({decision_bit}) came from the scheme-switch proof.");
+    println!("  Both values are encrypted — the pharmacy sees neither plaintext.");
 
-    // Encrypt clearance bit (1 = has clearance)
+    // Encrypt clearance bit (1 = on_medication)
     let clearance_val = vec![1u8];
     let tfhe_ct_clearance = tfhe_backend
         .encrypt(&tfhe_pk, &clearance_val, &mut encrypt_rng)
-        .context("tfhe encrypt clearance=1")?;
+        .context("tfhe encrypt on_medication=1")?;
 
-    // NAND(at_risk=1, on_medication=1) = 0 → both true → safe to dispense
+    // NAND(at_risk, on_medication) = ?
     let ct_nand = tfhe_backend
-        .tfhe_nand(&tfhe_ct_pass, &tfhe_ct_clearance)
+        .tfhe_nand(&tfhe_ct_decision, &tfhe_ct_clearance)
         .context("tfhe_nand")?;
 
     // Decrypt NAND result directly to verify correctness
@@ -2263,11 +2284,11 @@ fn run_poulpy_all_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<
         .context("decrypt nand")?;
     let nand_result = nand_dec.bytes.as_slice().first().copied().unwrap_or(0);
     let safe_to_dispense = nand_result == 0;
-    println!("  TFHE: NAND(at_risk=1, on_medication=1) = {nand_result}");
+    println!("  TFHE: NAND(at_risk={decision_bit}, on_medication=1) = {nand_result}");
     if safe_to_dispense {
-        println!("  → Both conditions are true: SAFE to dispense. ✅");
+        println!("  → Both conditions true: SAFE to dispense. ✅");
     } else {
-        println!("  → At least one condition is false: requires pharmacist review. ❌");
+        println!("  → At least one condition false: requires pharmacist review. ❌");
     }
 
     // Bootstrap + sigma NIZK for verifiability
@@ -2308,6 +2329,7 @@ fn run_poulpy_all_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<
     println!("=== Poulpy End-to-End Summary ===");
     println!("CKKS mul: {}", if ckks_mul_ok { "OK" } else { "MISMATCH" });
     println!("CKKS risk score: {ckks_score}");
+    println!("Hospital decision: risk_score={ckks_score} > 3 → at_risk={at_risk} → decision_bit={decision_bit}");
     println!(
         "Scheme-switch: {}",
         if switch_verified { "ACCEPT" } else { "REJECT" }

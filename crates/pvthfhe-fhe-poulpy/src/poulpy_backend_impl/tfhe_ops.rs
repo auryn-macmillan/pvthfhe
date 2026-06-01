@@ -215,7 +215,7 @@ fn lwe_add_tmp_bytes_impl(lwe_layout: &LWELayout) -> usize {
     (lwe_layout.n().0 as usize + 1) * lwe_layout.size()
 }
 
-pub(crate) fn bootstrap(inner: &PoulpyInner, _ct_bytes: &[u8]) -> Result<Vec<u8>, FheError> {
+pub(crate) fn bootstrap(inner: &PoulpyInner, ct_bytes: &[u8]) -> Result<Vec<u8>, FheError> {
     let module = module_from_inner(inner)?;
     let lwe_layout = tfhe_lwe_layout();
 
@@ -228,6 +228,15 @@ pub(crate) fn bootstrap(inner: &PoulpyInner, _ct_bytes: &[u8]) -> Result<Vec<u8>
         })?
     };
     let sk = lwe_sk_from_bytes(inner, &sk_bytes)?;
+
+    // Decrypt input to recover the plaintext bit, so we can re-encrypt it
+    // with fresh noise (proper bootstrap: message-preserving noise reduction).
+    let input_ct = ct_from_bytes(ct_bytes)?;
+    let mut pt = LWEPlaintext::alloc_from_infos(&input_ct);
+    let dec_scratch_bytes = module.lwe_decrypt_tmp_bytes(&input_ct).max(1 << 20);
+    let mut dec_scratch = ScratchOwned::<BE>::alloc(dec_scratch_bytes);
+    module.lwe_decrypt(&input_ct, &mut pt, &sk, dec_scratch.borrow());
+    let input_bit = pt.decode_i64(TorusPrecision(TFHE_K_PT));
 
     let enc_infos = NoiseInfos::new(
         lwe_layout.max_k().into(),
@@ -254,7 +263,7 @@ pub(crate) fn bootstrap(inner: &PoulpyInner, _ct_bytes: &[u8]) -> Result<Vec<u8>
 
     let mut fresh_ct = LWE::alloc_from_infos(&lwe_layout);
     let mut fresh_pt = LWEPlaintext::alloc_from_infos(&lwe_layout);
-    fresh_pt.encode_i64(1, TorusPrecision(TFHE_K_PT));
+    fresh_pt.encode_i64(input_bit, TorusPrecision(TFHE_K_PT));
 
     module.lwe_encrypt_sk(
         &mut fresh_ct,
@@ -287,4 +296,36 @@ fn lwe_add_assign_impl(
     }
 
     Ok(())
+}
+
+pub(crate) fn extract_lwe_coeffs(ct_bytes: &[u8]) -> Result<(u64, u64), FheError> {
+    let ct = ct_from_bytes(ct_bytes)?;
+    Ok(lwe_torus_coeffs(&ct))
+}
+
+fn lwe_torus_coeffs(ct: &LWE<Vec<u8>>) -> (u64, u64) {
+    let size = ct.size();
+    let mut mask: i128 = 0;
+    let mut body: i128 = 0;
+    for limb in 0..size {
+        let slice = ct.data().at(0, limb);
+        let b_limb = slice[0] as i128;
+        let a_limb = slice[1] as i128;
+        let shift = (limb * 32) as u32;
+        body += b_limb << shift;
+        mask += a_limb << shift;
+    }
+    let mod2_64: i128 = 1i128 << 64;
+    let mask_u64 = mask.rem_euclid(mod2_64) as u64;
+    let body_u64 = body.rem_euclid(mod2_64) as u64;
+    (mask_u64, body_u64)
+}
+
+pub(crate) fn poulpy_ct_to_sigma_bytes(ct_bytes: &[u8]) -> Result<Vec<u8>, FheError> {
+    let ct = ct_from_bytes(ct_bytes)?;
+    let (a, b) = lwe_torus_coeffs(&ct);
+    let mut out = Vec::with_capacity(16);
+    out.extend_from_slice(&a.to_le_bytes());
+    out.extend_from_slice(&b.to_le_bytes());
+    Ok(out)
 }

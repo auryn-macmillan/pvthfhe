@@ -341,6 +341,21 @@ impl PoulpyBackend {
     }
 
     #[cfg(feature = "enable-tfhe")]
+    pub fn ct_to_sigma_bytes(&self, ct_bytes: &[u8]) -> Result<Vec<u8>, FheError> {
+        tfhe_ops::poulpy_ct_to_sigma_bytes(ct_bytes)
+    }
+
+    #[cfg(feature = "enable-tfhe")]
+    fn make_sigma_bytes(a: u64, b: u64) -> Vec<u8> {
+        let mut v = Vec::with_capacity(16);
+        v.extend_from_slice(&a.to_le_bytes());
+        v.extend_from_slice(&b.to_le_bytes());
+        v
+    }
+} // end impl PoulpyBackend
+
+impl PoulpyBackend {
+    #[cfg(feature = "enable-tfhe")]
     pub fn bootstrap_prove(
         &self,
         ct_in: &Ciphertext,
@@ -348,22 +363,46 @@ impl PoulpyBackend {
         party_id: u32,
         session_id: &[u8],
     ) -> Result<pvthfhe_nizk::bootstrap_sigma::BootstrapSigmaProof, pvthfhe_nizk::NizkError> {
-        use pvthfhe_nizk::bootstrap_sigma::{
-            BootstrapSigmaProof, BootstrapStatement, BootstrapWitness,
-        };
+        use pvthfhe_nizk::bootstrap_sigma::{BootstrapStatement, BootstrapWitness};
         use rand::rngs::StdRng;
         use rand::SeedableRng;
 
+        let (a_in, b_in) = crate::poulpy_backend_impl::tfhe_ops::extract_lwe_coeffs(&ct_in.bytes)
+            .map_err(|_e| {
+            pvthfhe_nizk::NizkError::InvalidInput("failed to extract ct_in LWE coeffs")
+        })?;
+        let (a_out, b_out) =
+            crate::poulpy_backend_impl::tfhe_ops::extract_lwe_coeffs(&ct_out.bytes).map_err(
+                |_e| pvthfhe_nizk::NizkError::InvalidInput("failed to extract ct_out LWE coeffs"),
+            )?;
+
+        let q: u64 = 18_446_744_073_709_551_557;
+        let q128 = q as u128;
+        let c = ((a_in as u128).wrapping_sub(a_out as u128) % q128) as u64;
+        let d = ((b_in as u128).wrapping_sub(b_out as u128) % q128) as u64;
+
+        let sigma_ct_in = Self::make_sigma_bytes(a_in, b_in);
+        let sigma_ct_out = Self::make_sigma_bytes(a_out, b_out);
+
         let stmt = BootstrapStatement {
-            ct_in_bytes: ct_in.bytes.clone(),
-            ct_out_bytes: ct_out.bytes.clone(),
+            ct_in_bytes: sigma_ct_in,
+            ct_out_bytes: sigma_ct_out,
             bsk_hash: [0u8; 32],
         };
 
         let sk = self
             .secret_key_coeffs(party_id)
             .map_err(|_e| pvthfhe_nizk::NizkError::InvalidInput("no secret key available"))?;
-        let noise = vec![0i64; 1];
+        let s = sk.first().copied().unwrap_or(0);
+
+        let e_raw =
+            ((d as i128).wrapping_sub((c as i128).wrapping_mul(s as i128))).rem_euclid(q as i128);
+        let e_signed = if e_raw > (q as i128) / 2 {
+            e_raw - (q as i128)
+        } else {
+            e_raw
+        };
+        let noise = vec![e_signed as i64];
 
         let wit = BootstrapWitness {
             secret_key: sk,

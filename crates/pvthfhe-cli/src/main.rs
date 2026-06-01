@@ -1646,8 +1646,12 @@ fn run_tfhe_demo(n: usize, threshold: usize, seed: u64, bootstrap: bool) -> anyh
 
         use pvthfhe_nizk::bootstrap_sigma::BootstrapStatement;
         let verify_stmt = BootstrapStatement {
-            ct_in_bytes: ciphertext.bytes.clone(),
-            ct_out_bytes: ct_bootstrapped.bytes.clone(),
+            ct_in_bytes: backend
+                .ct_to_sigma_bytes(&ciphertext.bytes)
+                .context("ct_to_sigma_bytes ciphertext")?,
+            ct_out_bytes: backend
+                .ct_to_sigma_bytes(&ct_bootstrapped.bytes)
+                .context("ct_to_sigma_bytes ct_bootstrapped")?,
             bsk_hash: [0u8; 32],
         };
         let d_commitment = [0u8; 32];
@@ -2258,8 +2262,12 @@ fn run_poulpy_all_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<
         .context("bootstrap_prove")?;
 
     let verify_stmt = BootstrapStatement {
-        ct_in_bytes: ct_nand.bytes.clone(),
-        ct_out_bytes: ct_bootstrapped.bytes.clone(),
+        ct_in_bytes: tfhe_backend
+            .ct_to_sigma_bytes(&ct_nand.bytes)
+            .context("ct_to_sigma_bytes ct_nand")?,
+        ct_out_bytes: tfhe_backend
+            .ct_to_sigma_bytes(&ct_bootstrapped.bytes)
+            .context("ct_to_sigma_bytes ct_bootstrapped")?,
         bsk_hash: [0u8; 32],
     };
     match pvthfhe_nizk::bootstrap_sigma::verify(

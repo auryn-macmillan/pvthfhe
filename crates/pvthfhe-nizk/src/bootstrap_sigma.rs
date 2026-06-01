@@ -44,8 +44,8 @@ pub struct BootstrapSigmaMultiProof {
     pub rounds: Vec<BootstrapSigmaProof>,
 }
 
-const B_Y: i64 = 16_384;
-const B_Z: i64 = 131_072;
+const B_Y: i64 = 2i64.pow(58);
+const B_Z: i64 = 2i64.pow(61);
 
 /// Parse LWE ciphertext coefficients.
 fn parse_lwe_ct(bytes: &[u8]) -> Result<(u64, u64), NizkError> {

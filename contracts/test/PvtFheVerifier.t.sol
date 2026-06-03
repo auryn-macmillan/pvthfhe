@@ -254,7 +254,7 @@ contract PvtFheVerifierTest is BaseVerifierTest {
     }
 
     // -------------------------------------------------------------------------
-    // S6: IVC verify result adversarial tests
+    // S6/F1: caller-supplied IVC verify result is not trusted
     // -------------------------------------------------------------------------
 
     function _buildValidIvcBinding() internal pure returns (IvcBinding memory) {
@@ -277,7 +277,7 @@ contract PvtFheVerifierTest is BaseVerifierTest {
     function test_ivc_verify_result_zero_rejected() public {
         IvcBinding memory ivcBinding = _buildValidIvcBinding();
         ivcBinding.ivcVerifyResult = 0;
-        vm.expectRevert(bytes("PVTHFHE: ivcVerifyResult must be 1"));
+        vm.expectRevert(bytes("PVTHFHE: IVC decider not configured"));
         verifier.verifyWithIvc(
             SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH,
             SAMPLE_HASH, SAMPLE_EPOCH, SAMPLE_HASH, SAMPLE_HASH,
@@ -288,7 +288,7 @@ contract PvtFheVerifierTest is BaseVerifierTest {
     function test_ivc_verify_result_two_rejected() public {
         IvcBinding memory ivcBinding = _buildValidIvcBinding();
         ivcBinding.ivcVerifyResult = 2;
-        vm.expectRevert(bytes("PVTHFHE: ivcVerifyResult must be 1"));
+        vm.expectRevert(bytes("PVTHFHE: IVC decider not configured"));
         verifier.verifyWithIvc(
             SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH,
             SAMPLE_HASH, SAMPLE_EPOCH, SAMPLE_HASH, SAMPLE_HASH,
@@ -299,7 +299,7 @@ contract PvtFheVerifierTest is BaseVerifierTest {
     function test_verifyAndConsumeWithIvc_verify_result_zero_rejected() public {
         IvcBinding memory ivcBinding = _buildValidIvcBinding();
         ivcBinding.ivcVerifyResult = 0;
-        vm.expectRevert(bytes("PVTHFHE: ivcVerifyResult must be 1"));
+        vm.expectRevert(bytes("PVTHFHE: IVC decider not configured"));
         verifier.verifyAndConsumeWithIvc(
             SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH,
             SAMPLE_HASH, SAMPLE_EPOCH, SAMPLE_HASH, SAMPLE_HASH,
@@ -314,6 +314,7 @@ contract PvtFheVerifierTest is BaseVerifierTest {
     function test_bootstrap_result_hash_zero_rejected() public {
         IvcBinding memory ivcBinding = _buildValidIvcBinding();
         ivcBinding.bootstrapResultHash = bytes32(0);
+        verifier.setIvcDeciderVerifier(address(0xDEC1D3));
         vm.expectRevert(bytes("PVTHFHE: bootstrapResultHash zero"));
         verifier.verifyWithIvc(
             SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH,
@@ -325,6 +326,7 @@ contract PvtFheVerifierTest is BaseVerifierTest {
     function test_verifyAndConsumeWithIvc_bootstrap_zero_rejected() public {
         IvcBinding memory ivcBinding = _buildValidIvcBinding();
         ivcBinding.bootstrapResultHash = bytes32(0);
+        verifier.setIvcDeciderVerifier(address(0xDEC1D3));
         vm.expectRevert(bytes("PVTHFHE: bootstrapResultHash zero"));
         verifier.verifyAndConsumeWithIvc(
             SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH,

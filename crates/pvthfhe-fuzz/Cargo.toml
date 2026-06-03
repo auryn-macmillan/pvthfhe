@@ -5,10 +5,14 @@ edition = "2021"
 license = "MIT"
 publish = false
 
+[features]
+production-profile = ["pvthfhe-fhe/production-profile", "pvthfhe-compressor/production-profile"]
+mock = ["pvthfhe-fhe/mock"]
+
 [dependencies]
 pvthfhe-nizk = { path = "../pvthfhe-nizk" }
 pvthfhe-pvss = { path = "../pvthfhe-pvss" }
-pvthfhe-fhe = { path = "../pvthfhe-fhe", features = ["mock"] }
+pvthfhe-fhe = { path = "../pvthfhe-fhe" }
 pvthfhe-compressor = { path = "../pvthfhe-compressor" }
 pvthfhe-types = { path = "../pvthfhe-types" }
 pvthfhe-domain-tags = { path = "../pvthfhe-domain-tags" }
@@ -18,6 +22,7 @@ rand = "0.8"
 rand_chacha = "0.3"
 rand_core = "0.6"
 sha2 = "0.10"
+sha3 = "0.10"
 ark-bn254 = "0.5"
 ark-ff = "0.5"
 fhe-math = { package = "fhe-math", git = "https://github.com/gnosisguild/fhe.rs", rev = "5f24d0b62a7329b789db07a065b68accd614a47b" }
@@ -38,6 +43,7 @@ path = "src/bfv_sigma_fuzzer.rs"
 [[bin]]
 name = "pvss-fuzzer"
 path = "src/pvss_fuzzer.rs"
+required-features = ["mock"]
 
 [[bin]]
 name = "nova-fuzzer"

@@ -36,6 +36,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 [features]
 default = ["transparent-decider"]
+production-profile = ["transparent-decider", "pvthfhe-aggregator/production-profile"]
 # Always produce transparent IVC proof hash without a Groth16 trusted ceremony.
 # The IVC proof bytes and pp_hash are embedded directly in the compressed proof
 # format for on-chain verification via the Poseidon hash shortcut.

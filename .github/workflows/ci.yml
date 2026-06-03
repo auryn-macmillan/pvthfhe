@@ -120,6 +120,26 @@ jobs:
       - name: Run R11.1 no-skeleton-crates lint
         run: bash tests/lints/no_skeleton_crates.sh
 
+  production-profile-quarantine:
+    runs-on: ubuntu-latest
+    env:
+      PVTHFHE_ALLOW_RESEARCH_BUILD: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: production-profile build compiles
+        run: cargo build --workspace --no-default-features --features production-profile
+      - name: policy and gate tests
+        run: |
+          cargo test --test policy_invariants
+          cargo test -p pvthfhe-fhe --test gate_production_profile --no-default-features --features production-profile
+      - name: resolved feature-tree audit
+        run: |
+          if cargo tree -e features --no-default-features --features production-profile \
+             | grep -E 'feature "(mock|surrogate-compressor|surrogate-decrypt-share|trace-decrypt|demo-seeded-rng|legacy-nova|stub|production-stub-allowed|hermine)"'; then
+            echo "FORBIDDEN feature present in production-profile graph"; exit 1
+          fi
+
   forbid-micronova-crate:
     runs-on: ubuntu-latest
     steps:

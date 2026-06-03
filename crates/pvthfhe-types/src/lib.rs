@@ -1,5 +1,6 @@
 //! Shared byte-classification newtypes for PVTHFHE protocol boundaries.
 
+pub mod verification_statement;
 pub mod witness_language;
 
 use core::mem::ManuallyDrop;

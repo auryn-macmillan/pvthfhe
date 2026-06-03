@@ -15,6 +15,8 @@ as_conversions = "warn"
 
 [features]
 default = ["nova-compressor"]
+production-profile = ["pvthfhe-fhe/production-profile"]
+mock = ["pvthfhe-fhe/mock"]
 backend-fhe-rs = ["dep:fhe", "dep:fhe-math"]
 backend-poulpy = ["dep:poulpy-hal", "dep:poulpy-cpu-ref"]
 surrogate-compressor = []
@@ -31,7 +33,7 @@ pvthfhe-rng = { path = "../pvthfhe-rng" }
 pvthfhe-aggregator = { path = "../pvthfhe-aggregator" }
 pvthfhe-types = { path = "../pvthfhe-types" }
 pvthfhe-keygen = { path = "../pvthfhe-keygen" }
-pvthfhe-fhe = { path = "../pvthfhe-fhe", features = ["real-nizk", "mock"] }
+pvthfhe-fhe = { path = "../pvthfhe-fhe", features = ["real-nizk"] }
 rand_core = "0.6"
 sha2 = "0.10"
 hex = "0.4"

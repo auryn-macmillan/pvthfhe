@@ -20,7 +20,9 @@
 //!   z_s                    : u32 BE count + count × i64 LE
 //!   z_e                    : u32 BE count + count × i64 LE
 //!   ch                     : 32 bytes (sign-extended ternary scalar: -1, 0, or 1)
-//! cyclo_accumulator_bytes  : u32 BE length=0 (Phase-2 placeholder)
+//! cyclo_accumulator_bytes  : u32 BE length=0 (non-folded A1 placeholder;
+//!                            accumulator transcript verification is OPEN (A1)
+//!                            and unimplemented)
 //! ```
 //!
 //! # SPEC EXTENSION note
@@ -30,8 +32,9 @@
 //! requires a `SigmaStatement` containing `d_rns`, which the verifier cannot
 //! derive without the witness.  Flag to Prometheus for spec §3.4 update.
 //!
-//! # Phase 2 Placeholder
-//! Phase 2 (F-series): `cyclo_accumulator_bytes` will be populated with real Cyclo fold transcript bytes.
+//! # Non-folded A1 Placeholder
+//! `cyclo_accumulator_bytes` is emitted as an empty non-folded A1 placeholder;
+//! accumulator transcript verification is OPEN (A1) and unimplemented.
 
 use crate::ajtai::{AjtaiCommitment, AjtaiMatrix, AjtaiParams, Rq, AJTAI_RANK, PHI, Q_COMMIT};
 use crate::sigma::{self, rlwe_n, SigmaStatement, SigmaWitness};
@@ -183,7 +186,11 @@ impl NizkAdapter for CycloNizkAdapter {
 
         let acc_len = usize::try_from(cur.read_u32()?)
             .map_err(|_| NizkError::InvalidProof("acc_len overflow"))?;
-        cur.skip(acc_len)?;
+        if acc_len != 0 {
+            return Err(NizkError::VerificationFailed(
+                "cyclo accumulator present but unverified (fail-closed)",
+            ));
+        }
 
         cur.finish()?;
 
@@ -589,7 +596,8 @@ fn encode_proof(
     out.extend_from_slice(&sigma_len.to_be_bytes());
     out.extend_from_slice(&sigma_section);
 
-    // Phase 2 (F-series): populate with real Cyclo fold transcript bytes.
+    // Non-folded A1 placeholder: accumulator transcript verification is OPEN (A1)
+    // and unimplemented.
     out.extend_from_slice(&0u32.to_be_bytes());
 
     Ok(out)

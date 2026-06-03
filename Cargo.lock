@@ -2203,6 +2203,7 @@ dependencies = [
  "ark-bn254",
  "ark-ff",
  "light-poseidon",
+ "pvthfhe-types",
  "thiserror 1.0.69",
 ]
 
@@ -2393,6 +2394,7 @@ dependencies = [
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
  "sha2",
+ "sha3",
 ]
 
 [[package]]
@@ -2530,6 +2532,9 @@ dependencies = [
 name = "pvthfhe-types"
 version = "0.1.0"
 dependencies = [
+ "ark-bn254",
+ "ark-ff",
+ "light-poseidon",
  "quote",
  "serde",
  "syn 2.0.117",

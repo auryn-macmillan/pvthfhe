@@ -8,6 +8,7 @@ license = "MIT"
 ark-bn254 = "0.5"
 ark-ff = "0.5"
 light-poseidon = "0.4"
+pvthfhe-types = { version = "0.1.0", path = "../pvthfhe-types" }
 thiserror = "1"
 
 [[test]]

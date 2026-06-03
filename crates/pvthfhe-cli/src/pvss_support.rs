@@ -2,6 +2,7 @@ use anyhow::Context;
 use pvthfhe_aggregator::keygen::types::DkgTranscript;
 use pvthfhe_fhe::{fhers::FhersBackend, FheBackend, KeygenShare};
 use pvthfhe_pvss::{
+    encrypt::CommittedSmudgeUse,
     nizk_decrypt::{derive_party_binding, DecryptNizkWitness},
     nizk_share::ShareNizkProof,
     DecryptedShare, LatticePvssBfvAdapter, PvssAdapter, PvssContext,
@@ -105,7 +106,11 @@ pub fn run_lattice_pvss(
             let (committed_esm, sk_agg_share, esm_agg_share) = per_party_esm
                 .get(&party_id)
                 .map(|(eb, sk, esm)| (Some(eb.clone()), Some(*sk), Some(*esm)))
-                .unwrap_or((None, None, None));
+                .ok_or_else(|| anyhow::anyhow!("missing committed esm for party {party_id}"))?;
+            let committed_smudge_use = CommittedSmudgeUse {
+                slot_id: u16::try_from(index + 1).context("committed smudge slot id")?,
+                decrypt_round: u64::try_from(seed).context("decrypt round from seed")?,
+            };
             let decrypted_share = adapter
                 .prove_decrypted_share(
                     ciphertext_u,
@@ -121,6 +126,7 @@ pub fn run_lattice_pvss(
                     },
                     &ctx,
                     committed_esm,
+                    Some(committed_smudge_use),
                     sk_agg_share,
                 )
                 .map_err(|err| anyhow::anyhow!("pvss prove_decrypted_share {index}: {err}"))?;

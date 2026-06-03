@@ -2,19 +2,19 @@
   "circuit_timings": [
     {
       "name": "ZkPkBfv",
-      "prove_ms": 2085.5888440000003,
+      "prove_ms": 11.0,
       "verify_ms": null,
       "witness_ms": null,
       "vk_kb": null,
       "proof_kb": null,
       "status": "real",
       "cardinality_tag": "1:N",
-      "instances_run": 5,
+      "instances_run": 3,
       "comparability_note": "Maps to one Sigma+Ajtai proof per party; report aggregate-of-N when wired."
     },
     {
       "name": "ZkShareComputation",
-      "prove_ms": 258.515083,
+      "prove_ms": 10.0,
       "verify_ms": null,
       "witness_ms": null,
       "vk_kb": null,
@@ -26,32 +26,32 @@
     },
     {
       "name": "ZkShareEncryption",
-      "prove_ms": 2795.0,
-      "verify_ms": 825.0,
-      "witness_ms": 2795.0,
+      "prove_ms": 287.0,
+      "verify_ms": 9.0,
+      "witness_ms": 287.0,
       "vk_kb": null,
       "proof_kb": null,
       "status": "real",
       "cardinality_tag": "1:N(N-1)",
-      "instances_run": 20,
+      "instances_run": 3,
       "comparability_note": "Will map to lattice PVSS share-encryption proofs once Phase P lands.",
       "gap_reason": "Verifier key size is not exposed by the PVSS adapter"
     },
     {
       "name": "ZkVerifyShareProofs",
-      "prove_ms": 825.0,
+      "prove_ms": 9.0,
       "verify_ms": null,
       "witness_ms": null,
       "vk_kb": null,
       "proof_kb": null,
       "status": "real",
       "cardinality_tag": "1:N(N-1)",
-      "instances_run": 20,
+      "instances_run": 3,
       "comparability_note": "Will map to verifier-side PVSS share-proof checks once Phase P lands."
     },
     {
       "name": "ZkNodeDkgFold",
-      "prove_ms": 22.237241,
+      "prove_ms": 14.0,
       "verify_ms": null,
       "witness_ms": null,
       "vk_kb": null,
@@ -64,7 +64,7 @@
     },
     {
       "name": "ZkPkAggregation",
-      "prove_ms": 22.237241,
+      "prove_ms": 14.0,
       "verify_ms": null,
       "witness_ms": null,
       "vk_kb": null,
@@ -77,7 +77,7 @@
     },
     {
       "name": "ZkDkgAggregation",
-      "prove_ms": 23782.285233,
+      "prove_ms": 15.0,
       "verify_ms": null,
       "witness_ms": null,
       "vk_kb": null,
@@ -89,31 +89,31 @@
     },
     {
       "name": "ZkThresholdShareDecryption",
-      "prove_ms": 64.937843,
+      "prove_ms": 17.0,
       "verify_ms": null,
       "witness_ms": null,
       "vk_kb": null,
       "proof_kb": null,
       "status": "real",
       "cardinality_tag": "1:N",
-      "instances_run": 2,
+      "instances_run": 1,
       "comparability_note": "Maps to one Sigma+Ajtai decrypt proof per participating party."
     },
     {
       "name": "ZkDkgShareDecryption",
-      "prove_ms": 861.3224849999999,
+      "prove_ms": 13.0,
       "verify_ms": null,
       "witness_ms": null,
       "vk_kb": null,
       "proof_kb": null,
       "status": "real",
       "cardinality_tag": "1:N",
-      "instances_run": 2,
+      "instances_run": 1,
       "comparability_note": "Will map to decrypt-side PVSS proofs once Phase P lands."
     },
     {
       "name": "ZkDecryptedSharesAggregation",
-      "prove_ms": 89.677187,
+      "prove_ms": 18.0,
       "verify_ms": null,
       "witness_ms": null,
       "vk_kb": null,
@@ -126,7 +126,7 @@
     },
     {
       "name": "ZkDecryptionAggregation",
-      "prove_ms": 89.677187,
+      "prove_ms": 18.0,
       "verify_ms": null,
       "witness_ms": null,
       "vk_kb": null,
@@ -139,7 +139,7 @@
     },
     {
       "name": "onchain_verify",
-      "prove_ms": 0.0043,
+      "prove_ms": 20.0,
       "verify_ms": null,
       "witness_ms": null,
       "vk_kb": null,
@@ -152,16 +152,16 @@
     }
   ],
   "phase_totals": {
-    "dkg_ms": 2795.0,
+    "dkg_ms": 300.0,
     "decrypt_ms": null,
     "onchain_verify_ms": null,
-    "end_to_end_ms": 3761.0
+    "end_to_end_ms": 313.0
   },
   "hardware": {
     "cpu": "AMD RYZEN AI MAX+ 395 w/ Radeon 8060S",
     "cpu_cores": 8,
     "ram_gb": 62,
-    "kernel": "Linux version 6.8.0-111-generic"
+    "kernel": "Linux version 6.8.0-117-generic"
   },
   "backend_ids": {
     "fhe": "fhers-bfv",
@@ -170,12 +170,12 @@
     "compressor": "nova-bn254-grumpkin",
     "pvss": "lattice-pvss-bfv-d2"
   },
-  "commit_sha": "ae40650",
+  "commit_sha": "unknown",
   "comparison_target": {
     "name": "Interfold integration_summary.json",
     "source": "https://github.com/gnosisguild/enclave/tree/main/circuits/benchmarks/results_secure",
-    "n": 5,
-    "t": 2,
+    "n": 3,
+    "t": 1,
     "seed": 1,
     "dry_run": true
   }

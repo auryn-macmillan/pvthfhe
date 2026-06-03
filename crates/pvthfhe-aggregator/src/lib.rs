@@ -14,6 +14,9 @@
     unused_variables
 )]
 
+#[cfg(all(feature = "production-profile", feature = "mock"))]
+compile_error!("pvthfhe-aggregator production-profile forbids the mock feature");
+
 use pvthfhe_cyclo::CYCLO_BACKEND_ID;
 
 pub mod decrypt;

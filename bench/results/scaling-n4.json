@@ -18,6 +18,6 @@
     "cpu": "AMD RYZEN AI MAX+ 395 w/ Radeon 8060S",
     "cpu_cores": 8,
     "mem_kb": 65847068,
-    "kernel": "Linux version 6.8.0-111-generic"
+    "kernel": "Linux version 6.8.0-117-generic"
   }
 }

@@ -3,6 +3,9 @@
 #![allow(missing_docs)]
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
+#[cfg(all(feature = "production-profile", feature = "production-stub-allowed"))]
+compile_error!("pvthfhe-pvss production-profile forbids production-stub-allowed");
+
 pub mod dkg_aggregation;
 /// BFV-backed PVSS encryption adapter.
 pub mod encrypt;
@@ -21,7 +24,7 @@ pub mod slot_registry;
 
 use pvthfhe_types::{ProtocolBytes, ShareSecret};
 
-pub use encrypt::LatticePvssBfvAdapter;
+pub use encrypt::{CommittedSmudgeUse, LatticePvssBfvAdapter};
 
 /// Frozen PVSS context shared across backend implementations.
 #[derive(Clone, PartialEq, Eq)]

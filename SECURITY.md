@@ -7,7 +7,7 @@
 > - **Noir circuits implement real aggregation and wrapping logic**
 > - **Do not use for The Interfold or any production deployment**
 >
-> See [SECURITY-ADVISORY-001.md](SECURITY-ADVISORY-001.md) and [WARNING.md](WARNING.md) for details.
+> See [SECURITY-ADVISORY-001.md](SECURITY-ADVISORY-001.md), [WARNING.md](WARNING.md), and [docs/OPEN-PROBLEM-BLOCKERS.md](docs/OPEN-PROBLEM-BLOCKERS.md) for details.
 
 This document outlines the security model, assumptions, and limitations of the PVTHFHE research prototype.
 
@@ -16,7 +16,7 @@ This document outlines the security model, assumptions, and limitations of the P
 - **FHE backend**: Real threshold BFV via `gnosisguild/fhe.rs`.
 - **Nova IVC Proofs**: Maliciously-secure folding via nova-snark (Microsoft Nova v0.71). The IVC proof chain provides soundness guarantees through transparent verification — no Groth16 trusted ceremony required.
 - **NIZK proofs**: Ajtaï D2 sigma + BFV sigma with k-round parallel repetition. Greco quotient-witness verification strengthens soundness from modular to integer-lattice level.
-- **On-chain verifier**: UltraHonk verifier (Solidity) with IVC binding via `ivc_verify_result`. All IVC proof metadata (proof_hash, vk_hash, pp_hash, z0/zi commitments, verification hashes) is bound into the on-chain commitment.
+- **On-chain verifier**: UltraHonk verifier (Solidity) with IVC binding. While proof metadata (proof_hash, vk_hash, pp_hash, z0/zi commitments, verification hashes) is bound into the on-chain commitment, the contract does **NOT** cryptographically verify the IVC proof itself. IVC mode is currently fail-closed (disabled) until a real decider is implemented.
 - **No active surrogates on the default path** — all paths use real cryptographic proofs. The surrogate compressor is exclusively available behind `--features surrogate-compressor` (not in defaults).
 
 ## Threat Model
@@ -53,9 +53,9 @@ The ternary scalar challenge (`ch ∈ {−1,0,1}`) provides log₂(3) ≈ 1.58 b
 
 **Production target**: `SIGMA_REPETITIONS = 90` provides ~2^−53 soundness error per NIZK (≈2^−142 combined folding/SZ/NIZK budget). T4 JL random projection reduces norm-check dimensionality from 8192 to 256, keeping k=90 feasible at ~46M constraints. P1 is resolved; see `.sisyphus/plans/p1-sigma-repetition.md`.
 
-## On-Chain Verification: IVC Binding
+## On-Chain Verification: IVC Binding (UNVERIFIED)
 
-The `IvcBindingData` struct (11 fields: proof_hash, vk_hash, pp_hash, z0_commitment, zi_commitment, ivc_steps, share_verification_hash, decrypt_nizk_hash, dkg_transcript_hash, nova_final_state_commitment, `ivc_verify_result`) provides complete IVC proof binding for on-chain verification. The RecursiveSNARK verification outcome (`ivc_verify_result`: 1 = passed, 0 = failed) is bound into the commitment, ensuring the verifier can detect failed proofs. The Noir `nova_state_commitment` circuit accepts all 15 public inputs and operates in dual-mode: legacy Poseidon hash preimage when `ivc_proof_hash == 0`, full binding hash otherwise.
+The `IvcBindingData` struct (11 fields: proof_hash, vk_hash, pp_hash, z0_commitment, zi_commitment, ivc_steps, share_verification_hash, decrypt_nizk_hash, dkg_transcript_hash, nova_final_state_commitment, `ivc_verify_result`) provides IVC proof binding for the on-chain verifier. However, **on-chain verification of the Nova IVC proof is NOT implemented**. The `ivc_verify_result` field is a placeholder; the Solidity verifier does not yet contain the cryptographic logic to validate the RecursiveSNARK. To prevent insecure usage, IVC mode is currently fail-closed.
 
 ## Known Limitations & Open Problems
 
@@ -67,9 +67,13 @@ The `IvcBindingData` struct (11 fields: proof_hash, vk_hash, pp_hash, z0_commitm
 
 **Status**: OPEN (documented). Cyclo LatticeFold+ over RLWE with Lemma 9 accepted as a documented protocol assumption. Soundness conditional on M-SIS hardness, Cyclo Theorem 3, and the Lemma 9 invertibility assumption. LatticeFold+ provides lattice-native folding in the current prototype.
 
+### P4 (MEDIUM): On-Chain IVC Decider
+
+**Status**: OPEN. The on-chain contract lacks a cryptographic decider for Nova IVC proofs. The system is currently fail-closed (disabled) for on-chain IVC verification.
+
 ### C5 (PK Aggregation Gap)
 
-**Status**: OPEN. No verifiable proof that `pk_agg = Σ pk_i` for the accepted participant set. Aggregate key consistency verified by runtime assertion only.
+**Status**: OPEN. There is **NO** public proof that `pk_agg = Σ pk_i` for the accepted participant set. Aggregate key consistency is verified by runtime assertion only, providing no cryptographic guarantee against a malicious aggregator or coordinator.
 
 ### C2 (Encryption Correctness Gap)
 
@@ -77,7 +81,11 @@ The `IvcBindingData` struct (11 fields: proof_hash, vk_hash, pp_hash, z0_commitm
 
 ### C7 (Final Aggregation Gap)
 
-**Status**: RESOLVED. In-circuit Poseidon R1CS Merkle verification via `C7MerkleStepCircuit` at depth-5 (N=8192) with real Poseidon hashing (~900 constraints per hash8). Noir aggregator_final circuit provides standalone verification.
+**Status**: OPEN. The Noir `aggregator_final` circuit proves only a **hash binding** (via in-circuit Poseidon R1CS Merkle verification), **NOT** the correctness of the threshold-decryption result. It does not cryptographically enforce that the aggregated shares correctly derive the plaintext.
+
+### A1 (Cyclo Accumulator Gap)
+
+**Status**: OPEN. Cyclo accumulator transcript verification is NOT implemented (see [A1](docs/OPEN-PROBLEM-BLOCKERS.md#a1--cyclo-accumulator-transcript-verification)). Nonzero accumulator bytes are rejected fail-closed; the accepted empty `acc_len=0` path is only a non-folded placeholder and is NOT fold verification.
 
 ## Trust Boundary: In-Circuit vs Native
 
@@ -90,8 +98,8 @@ Only the Noir `aggregator_final` circuit is verified on-chain (via HonkVerifier.
 | BFV encryption sigma | — | ✓ |
 | PVSS DKG NIZK | — | ✓ |
 | Cyclo NIZK (lattice fold) | — | ✓ |
-| Nova IVC fold soundness | — | ✓ (bound via `ivc_verify_result`) |
-| C7 decryption aggregation | ✓ (Poseidon R1CS) | — |
+| Nova IVC fold soundness | — | ✓ (bound but NOT verified on-chain) |
+| C7 decryption aggregation | ✓ (Hash binding only) | — |
 
 ## Post-Quantum Proving Stack
 

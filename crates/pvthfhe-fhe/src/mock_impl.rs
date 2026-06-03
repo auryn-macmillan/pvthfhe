@@ -5,14 +5,14 @@
 
 use crate::{error::FheError, types::Params};
 
-#[cfg(any(feature = "mock", test))]
+#[cfg(not(feature = "production-profile"))]
 use crate::{
     types::{Ciphertext, DecryptShare, KeygenShare, PublicKey},
     FheBackend,
 };
-#[cfg(any(feature = "mock", test))]
+#[cfg(not(feature = "production-profile"))]
 use pvthfhe_types::ProtocolBytes;
-#[cfg(any(feature = "mock", test))]
+#[cfg(not(feature = "production-profile"))]
 use rand_core::RngCore;
 
 fn parse_u64_list(value: &str) -> Option<Vec<u64>> {
@@ -83,7 +83,7 @@ pub(crate) fn parse_params(toml: &str) -> Result<Params, FheError> {
     }
 }
 
-#[cfg(any(feature = "mock", test))]
+#[cfg(not(feature = "production-profile"))]
 pub(crate) fn xor_bytes(a: &[u8], b: &[u8]) -> Vec<u8> {
     let len = a.len().max(b.len());
     (0..len)
@@ -96,13 +96,13 @@ pub(crate) fn xor_bytes(a: &[u8], b: &[u8]) -> Vec<u8> {
 }
 
 /// Internal mock backend, always compiled.
-#[cfg(any(feature = "mock", test))]
+#[cfg(not(feature = "production-profile"))]
 #[derive(Clone, Debug)]
 pub struct MockBackendInner {
     pub(crate) _params: Params,
 }
 
-#[cfg(any(feature = "mock", test))]
+#[cfg(not(feature = "production-profile"))]
 impl FheBackend for MockBackendInner {
     fn load_params(toml: &str) -> Result<Self, FheError> {
         let params = parse_params(toml)?;
@@ -192,7 +192,7 @@ impl FheBackend for MockBackendInner {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(feature = "production-profile")))]
 mod unit_tests {
     use super::*;
 

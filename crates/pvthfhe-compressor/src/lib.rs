@@ -15,6 +15,9 @@
     clippy::new_without_default
 )]
 
+#[cfg(all(feature = "production-profile", feature = "legacy-nova"))]
+compile_error!("pvthfhe-compressor production-profile forbids legacy-nova");
+
 /// Poseidon-based 8-ary Merkle tree for share coefficient commitment.
 pub mod merkle;
 

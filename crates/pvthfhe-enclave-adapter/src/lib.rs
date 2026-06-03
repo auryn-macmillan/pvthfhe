@@ -2,6 +2,9 @@
 #![warn(clippy::unwrap_used, clippy::expect_used)]
 #![allow(missing_docs, dead_code)]
 
+#[cfg(all(feature = "production-profile", feature = "stub"))]
+compile_error!("pvthfhe-enclave-adapter production-profile forbids stub enclave bindings");
+
 #[cfg(feature = "stub")]
 pub mod stub {
     include!(concat!(

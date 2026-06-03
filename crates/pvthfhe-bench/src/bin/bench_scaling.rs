@@ -13,7 +13,9 @@ use pvthfhe_aggregator::{
     keygen::simulator::{KeygenResult, KeygenSimulator},
 };
 use pvthfhe_bench::{summarize_samples, BenchEnv, ScalingBenchEnv, ScalingEnvelope};
-use pvthfhe_fhe::{fhers::FhersBackend, mock::MockBackend, FheBackend};
+#[cfg(feature = "mock")]
+use pvthfhe_fhe::mock::MockBackend;
+use pvthfhe_fhe::{fhers::FhersBackend, FheBackend};
 use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
@@ -34,6 +36,7 @@ const COMPRESSOR_BACKEND_ID: &str = "ultra-honk-micronova";
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 enum BackendChoice {
     Fhers,
+    #[cfg(feature = "mock")]
     Mock,
 }
 
@@ -58,6 +61,7 @@ struct RunConfig {
 #[derive(Clone)]
 enum BenchBackendInstance {
     Fhers(FhersBackend),
+    #[cfg(feature = "mock")]
     Mock(MockBackend),
 }
 
@@ -65,6 +69,7 @@ impl BenchBackendInstance {
     fn backend_id(&self) -> &'static str {
         match self {
             Self::Fhers(_) => FHERS_BACKEND_ID,
+            #[cfg(feature = "mock")]
             Self::Mock(_) => MOCK_BACKEND_ID,
         }
     }
@@ -74,6 +79,7 @@ impl BenchBackendInstance {
             Self::Fhers(backend) => {
                 run_pipeline_with_backend(backend, self.backend_id(), n_parties, seed)
             }
+            #[cfg(feature = "mock")]
             Self::Mock(backend) => {
                 run_pipeline_with_backend(backend, self.backend_id(), n_parties, seed)
             }
@@ -90,6 +96,7 @@ fn load_backend(choice: BackendChoice) -> Result<BenchBackendInstance, String> {
         BackendChoice::Fhers => FhersBackend::load_params(PARAMS_TOML)
             .map(BenchBackendInstance::Fhers)
             .map_err(|err| format!("load fhers backend: {err}")),
+        #[cfg(feature = "mock")]
         BackendChoice::Mock => {
             if !mock_acknowledged() {
                 return Err(

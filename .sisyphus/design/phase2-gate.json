@@ -1,13 +1,13 @@
 {
   "schema_version": "1",
   "gate": "phase2",
-  "timestamp": "2026-05-04T20:37:22Z",
-  "status": "PASS",
+  "timestamp": "2026-06-03T19:56:17Z",
+  "status": "FAIL",
   "checks": [
     {
       "id": "artifacts",
-      "status": "PASS",
-      "detail": "All 13 T17-T27 artifacts present"
+      "status": "FAIL",
+      "detail": "Missing 1 artifact(s): crates/pvthfhe-api/src/lib.rs"
     },
     {
       "id": "parameters_toml",
@@ -46,8 +46,8 @@
     },
     {
       "id": "aggregate_1024_smoke",
-      "status": "PASS",
-      "detail": "cargo test -p pvthfhe-aggregator --test aggregate_1024_smoke passed and bench/results/aggregate_1024.json exists"
+      "status": "FAIL",
+      "detail": "cargo test -p pvthfhe-aggregator --test aggregate_1024_smoke failed: ck file, run `cargo update` to use the new\n      version. This may also occur with an optional dependency that is not enabled.\nerror: target `aggregate_1024_smoke` in package `pvthfhe-aggregator` requires the features: `legacy-fold`\nConsider enabling them by passing, e.g., `--features=\"legacy-fold\"`"
     },
     {
       "id": "cargo_check",

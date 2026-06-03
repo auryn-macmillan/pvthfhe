@@ -47,14 +47,9 @@ fn adversary_without_ski_cannot_produce_valid_proof() {
         esm_noise_poly_bytes: None,
     };
 
-    // The adversary (who does not know the real sk_agg_share) produces a proof
-    // using arbitrary bytes as witness.
-    let proof = DecryptNizkProver::prove(&stmt, &wrong_witness)
-        .expect("adversary must be able to call prove");
-
-    // The proof must be REJECTED because the adversary does not provide
-    // the correct sk_agg_share matching expected_sk_agg_share.
-    let result = DecryptNizkVerifier::verify(&stmt, &proof);
+    // The adversary (who does not know the real sk_agg_share) must not even
+    // obtain a legacy proof by falling back to a public-key-derived binding.
+    let result = DecryptNizkProver::prove(&stmt, &wrong_witness);
 
     assert!(
         result.is_err(),

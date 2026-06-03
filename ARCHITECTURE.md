@@ -12,7 +12,7 @@ PVTHFHE targets private-verifiable threshold FHE with O(n) per-party work and O(
 2. **Encryption** — Anyone encrypts data using the aggregate public key (BFV RLWE).
 3. **Partial Decryption** — Parties compute partial decryption shares and provide a NIZK proof of well-formedness (Ajtaï D2 sigma + BFV sigma, k-round parallel repetition).
 4. **Aggregation & Folding** — An untrusted aggregator collects shares and folds the proofs using LatticeFold+ lattice-native folding with Cyclo RLWE.
-5. **On-Chain Verification** — The aggregator submits proof binding metadata on-chain. Verification uses an UltraHonk proof on the Nova state commitment with transparent IVC binding (`ivc_verify_result`).
+5. **On-Chain Verification** — The aggregator submits proof binding metadata on-chain. While the UltraHonk proof commits to the Nova state, the on-chain contract does **NOT** cryptographically verify the IVC proof itself. IVC mode is currently fail-closed.
 
 ```
 [ Parties ] --(Partial Decrypt Shares + NIZK)--> [ Aggregator ]
@@ -48,9 +48,9 @@ Standardized secure parameters for 128-bit security: **N** = 8192, **L** = 3 RNS
 | Noir + BB UltraHonk | Final Lagrange recombination + state commitment | Noir R1CS → UltraHonk |
 | HonkVerifier.sol | On-chain verification | Solidity |
 
-**Transparent IVC**: No Groth16 trusted ceremony required. IVC proof bytes are hashed with Keccak256 and embedded via `IvcBindingData` (11-field binding: proof_hash, vk_hash, pp_hash, z0/zi commitments, steps, verification hashes, `ivc_verify_result`) for on-chain verification.
+**Transparent IVC**: No Groth16 trusted ceremony required. IVC proof bytes are hashed with Keccak256 and embedded via `IvcBindingData` for the on-chain verifier. Note that the on-chain contract does **NOT** currently verify the Nova IVC proof; it only commits to the proof metadata. IVC mode is fail-closed.
 
-**C7 Merkle aggregation**: In-circuit Poseidon R1CS (`poseidon_gadget.rs`, ~900 constraints per hash8) via `C7MerkleStepCircuit` at depth-5 (N=8192).
+**C7 Merkle aggregation**: In-circuit Poseidon R1CS (`poseidon_gadget.rs`, ~900 constraints per hash8) via `C7MerkleStepCircuit` at depth-5 (N=8192). Note that the Noir `aggregator_final` circuit proves only the **hash binding**, not the correctness of the final decryption result.
 
 ## Symphony: Proof-Compression Optimization Techniques
 
@@ -103,9 +103,9 @@ The benchmark pipeline records artifacts under `bench/results/`:
 
 Per-node (`pvthfhe-per-node`) and per-aggregator (`pvthfhe-per-aggregator`) binaries benchmark individual party and aggregator costs across N=128 to 8192.
 
-## End-to-End Verifiability
+## End-to-End Verifiability (CAVEATS)
 
-Each protocol step produces verifiable artifacts. Publicly verifiable steps include: share-encryption NIZK, Cyclo fold accumulator, LatticeFold+ compressed proof (transparent IVC, dual verification path), and on-chain UltraHonk verification with IVC binding. Full aggregate-decrypt verification uses in-circuit C7MerkleStepCircuit with Poseidon R1CS.
+Each protocol step produces verifiable artifacts. Publicly verifiable steps include: share-encryption NIZK, Cyclo fold accumulator (transcript verification is OPEN), LatticeFold+ compressed proof (transparent IVC, on-chain binding only), and on-chain UltraHonk verification of the state commitment. Full aggregate-decrypt verification (C7) is currently OPEN, as the circuit proves only a hash binding. Public key aggregation (C5) is also OPEN.
 
 ## Design Specifications
 

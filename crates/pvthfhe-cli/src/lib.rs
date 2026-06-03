@@ -16,6 +16,13 @@
     clippy::explicit_counter_loop
 )]
 
+#[cfg(all(feature = "production-profile", feature = "mock"))]
+compile_error!("pvthfhe-cli production-profile forbids mock");
+#[cfg(all(feature = "production-profile", feature = "surrogate-compressor"))]
+compile_error!("pvthfhe-cli production-profile forbids surrogate-compressor");
+#[cfg(all(feature = "production-profile", feature = "demo-seeded-rng"))]
+compile_error!("pvthfhe-cli production-profile forbids demo-seeded-rng");
+
 /// Shared lattice-PVSS helpers for CLI binaries and tests.
 #[cfg(feature = "with-fhe")]
 pub mod pvss_support;

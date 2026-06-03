@@ -1,6 +1,6 @@
 # PVTHFHE · Private-Verifiable Threshold FHE
 
-> ⚠️ **RESEARCH PROTOTYPE** — not production-ready. Two security audits (70 + 188 findings), three MPC audits (22+ findings), all automatable findings remediated. Three open problems remain. See [SECURITY.md](SECURITY.md) for threat model and caveats.
+> ⚠️ **RESEARCH PROTOTYPE — DO NOT DEPLOY** — not production-ready. Two security audits (70 + 188 findings), three MPC audits (22+ findings), all automatable findings remediated. Seven open problems remain. See [SECURITY.md](SECURITY.md) for threat model and caveats.
 
 ## What
 
@@ -17,10 +17,15 @@ Private-verifiable threshold Fully Homomorphic Encryption with O(n) per-party wo
 | LatticeFold+ | Lattice-native folding (no EC assumptions) | ✅ Default |
 | Folding | nova-snark (Microsoft) Nova IVC + Symphony T1–T4 | ✅ |
 | Compression | Transparent IVC, no ceremony | ✅ |
-| On-chain | UltraHonk verifier (Solidity) + IVC binding | ✅ |
-| Decrypt | Threshold BFV partial decrypt | ✅ |
+| On-chain | UltraHonk verifier (Solidity) + IVC binding | ⚠️ OPEN¹ |
+| Decrypt | Threshold BFV partial decrypt | ⚠️ OPEN² |
 | Greco | Input validation proofs (`just greco`) | ✅ |
 | Compute | Verifiable FHE ops (`just compute`, Mul+Add in-circuit) | ✅ |
+
+¹ IVC binding is NOT cryptographically verified on-chain; IVC mode is fail-closed.
+² `aggregator_final` circuit proves hash binding only, not decryption correctness (C7).
+
+Critical security blockers are documented in [docs/OPEN-PROBLEM-BLOCKERS.md](docs/OPEN-PROBLEM-BLOCKERS.md).
 
 [Full audit and feature table](ARCHITECTURE.md)
 
@@ -57,6 +62,10 @@ plaintext_roundtrip: OK  verify: ACCEPT
 | P1 | Lattice NIZK well-formedness soundness (Greco M-SIS) | OPEN |
 | P2 | Lattice-native folding over RLWE (Nova substitute) | OPEN |
 | P3 | Parameterized Nova step circuit verification | ✅ Resolved |
+| P4 | On-chain IVC decider verification (currently fail-closed) | OPEN |
+| C5 | Aggregate public-key formation proof (pk_agg = Σ pk_i) | OPEN |
+| C7 | Final aggregation / threshold-decryption correctness | OPEN |
+| A1 | Cyclo accumulator transcript verification | OPEN |
 
 ## Documentation
 

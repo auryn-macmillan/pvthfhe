@@ -1,0 +1,124 @@
+{
+  "cases": [
+    {
+      "case_name": "folding_witness_tamper",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "pvthfhe-aggregator",
+        "--test",
+        "folding_tamper",
+        "real_folding_gaps::test_fold_tampered_witness_rejected",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "exit_status": 0,
+      "note": "Fold witness with a 0xff-tampered proof byte rejected by validate_witness NORM-BOUND check (folding/mod.rs) BEFORE NIZK verification. This is input validation, NOT cryptographic proof rejection.",
+      "observed_test_count": 1,
+      "rejection_class": "input_validation_reject"
+    },
+    {
+      "case_name": "forged_ivc_decider",
+      "command": [
+        "forge",
+        "test",
+        "--root",
+        "contracts",
+        "--match-path",
+        "test/IvcFailClosed.t.sol",
+        "--match-test",
+        "testRejectsForgedIvcVerifyResult",
+        "-vv"
+      ],
+      "exit_status": 0,
+      "note": "Forged IVC verify result rejected because on-chain IVC decider is fail-closed/not configured (P4 OPEN). NON-ACCEPTANCE, not cryptographic soundness.",
+      "observed_test_count": 1,
+      "rejection_class": "fail_closed_blocked_open"
+    },
+    {
+      "case_name": "tampered_c5_pk",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "pvthfhe-compressor",
+        "--test",
+        "bfv_encryption_adversarial",
+        "tampered_pk0_rejected",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "exit_status": 0,
+      "note": "Tampered aggregate/encryption public-key input is not accepted; C5 aggregate-pk proof remains OPEN.",
+      "observed_test_count": 1,
+      "rejection_class": "input_validation_reject"
+    },
+    {
+      "case_name": "committed_smudge_requires_esm",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "pvthfhe-pvss",
+        "--features",
+        "mock",
+        "--test",
+        "nizk_decrypt_committed_smudge",
+        "committed_smudge_requires_explicit_esm_witness",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "exit_status": 0,
+      "note": "Committed-smudge proof construction fails without the explicit ESM witness required by the remediated C6 binding path.",
+      "observed_test_count": 1,
+      "rejection_class": "cryptographic_reject"
+    },
+    {
+      "case_name": "legacy_smudge_fallback_rejected",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "pvthfhe-pvss",
+        "--features",
+        "mock",
+        "--test",
+        "nizk_decrypt_committed_smudge",
+        "committed_smudge_rejects_local_smudge_proof",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "exit_status": 0,
+      "note": "Committed-smudge verifier rejects a legacy/local-smudge proof under a committed-smudge statement.",
+      "observed_test_count": 1,
+      "rejection_class": "cryptographic_reject"
+    },
+    {
+      "case_name": "cyclo_accumulator_fail_closed",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "pvthfhe-nizk",
+        "--test",
+        "accumulator_fail_closed",
+        "accumulator_nonzero_transcript_bytes_fail_closed",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "exit_status": 0,
+      "note": "Bogus Cyclo accumulator transcript bytes fail closed because A1 accumulator verification remains OPEN.",
+      "observed_test_count": 1,
+      "rejection_class": "fail_closed_blocked_open"
+    }
+  ],
+  "disclaimer": "RESEARCH PROTOTYPE \u2014 DO NOT DEPLOY. Cases forged_ivc_decider and cyclo_accumulator_fail_closed demonstrate FAIL-CLOSED NON-ACCEPTANCE for OPEN problems P4/A1, not cryptographic soundness. P4/C7/C5/A1 remain BLOCKED-OPEN.",
+  "generated_at": "2026-06-03T19:47:31.939064+00:00",
+  "overall_pass": true
+}

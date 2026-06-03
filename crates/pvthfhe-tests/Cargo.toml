@@ -5,10 +5,13 @@ edition = "2021"
 license = "MIT"
 publish = false
 
+[features]
+production-profile = ["pvthfhe-fhe/production-profile", "pvthfhe-compressor/production-profile"]
+
 [dependencies]
 pvthfhe-nizk = { path = "../pvthfhe-nizk" }
 pvthfhe-pvss = { path = "../pvthfhe-pvss" }
-pvthfhe-fhe = { path = "../pvthfhe-fhe", features = ["mock"] }
+pvthfhe-fhe = { path = "../pvthfhe-fhe" }
 pvthfhe-compressor = { path = "../pvthfhe-compressor" }
 pvthfhe-types = { path = "../pvthfhe-types" }
 pvthfhe-domain-tags = { path = "../pvthfhe-domain-tags" }

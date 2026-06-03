@@ -1,6 +1,8 @@
+use rand_core::{RngCore, SeedableRng};
+
 #[test]
 fn sigma_fuzz_10k() {
-    let mut rng = rand_chacha::ChaCha20Rng::seed_from_u64(0xFUZZ_0001);
+    let mut rng = rand_chacha::ChaCha20Rng::seed_from_u64(0xF022_0001);
     let n = pvthfhe_nizk::sigma::rlwe_n();
     let l = pvthfhe_nizk::sigma::num_rns_limbs();
 

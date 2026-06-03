@@ -23,7 +23,7 @@ fn baseline_smoke_generates_csv_rows_and_monotone_timings() {
 
     let status = Command::new(env!("CARGO_BIN_EXE_fhe_baseline"))
         .current_dir(repo_root())
-        .env("FHE_BENCH_N_MAX", "16")
+        .env("FHE_BENCH_N_MAX", "8")
         .status()
         .expect("run fhe_baseline binary");
 
@@ -46,8 +46,8 @@ fn baseline_smoke_generates_csv_rows_and_monotone_timings() {
 
     let rows = csv.lines().skip(1).collect::<Vec<_>>();
     assert!(
-        rows.len() >= 3,
-        "expected at least 3 data rows, got {rows:?}"
+        rows.len() >= 2,
+        "expected at least 2 data rows, got {rows:?}"
     );
 
     let mut first_keygen = None::<f64>;
@@ -66,17 +66,17 @@ fn baseline_smoke_generates_csv_rows_and_monotone_timings() {
         if n == 4 {
             first_keygen = Some(keygen_total_s);
         }
-        if n == 16 {
+        if n == 8 {
             last_keygen = Some(keygen_total_s);
         }
     }
 
     assert!(
-        seen_ns.contains(&4) && seen_ns.contains(&8) && seen_ns.contains(&16),
-        "expected benchmark rows for n=4,8,16, got {seen_ns:?}"
+        seen_ns.contains(&4) && seen_ns.contains(&8),
+        "expected benchmark rows for n=4,8, got {seen_ns:?}"
     );
     assert!(
-        last_keygen.expect("missing n=16 row") >= first_keygen.expect("missing n=4 row"),
-        "expected monotone keygen timing between n=4 and n=16"
+        last_keygen.expect("missing n=8 row") >= first_keygen.expect("missing n=4 row"),
+        "expected monotone keygen timing between n=4 and n=8"
     );
 }

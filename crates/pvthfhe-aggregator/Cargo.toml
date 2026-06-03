@@ -28,7 +28,7 @@ ark-ff = "0.5"
 ark-bn254 = "0.5"
 
 [dev-dependencies]
-pvthfhe-fhe = { path = "../pvthfhe-fhe", features = ["mock"] }
+pvthfhe-fhe = { path = "../pvthfhe-fhe" }
 pvthfhe-domain-tags = { path = "../pvthfhe-domain-tags" }
 tokio = { version = "1", features = ["rt", "macros", "test-util"] }
 rand = "0.8"
@@ -38,6 +38,13 @@ walkdir = "2"
 
 [features]
 default = ["real-folding"]
+production-profile = [
+    "real-folding",
+    "real-verifier",
+    "real-pvss",
+    "real-nizk",
+    "pvthfhe-fhe/production-profile",
+]
 real-folding = []
 legacy-fold = []
 real-verifier = ["real-folding"]
@@ -52,24 +59,31 @@ path = "tests/cyclo_wire.rs"
 [[test]]
 name = "adversarial"
 path = "tests/adversarial/mod.rs"
+required-features = ["mock"]
 
 [[test]]
 name = "folding"
 path = "tests/folding.rs"
+required-features = ["legacy-fold"]
 
 [[test]]
 name = "folding_adversarial"
 path = "tests/folding_adversarial.rs"
-required-features = ["real-folding"]
+required-features = ["legacy-fold"]
 
 [[test]]
 name = "p2_bench"
 path = "tests/p2_bench.rs"
-required-features = ["real-folding"]
+required-features = ["legacy-fold"]
 
 [[test]]
 name = "cyclo_norm_enforcement"
 path = "tests/cyclo_norm_enforcement.rs"
+
+[[test]]
+name = "aggregate_1024_smoke"
+path = "tests/aggregate_1024_smoke.rs"
+required-features = ["legacy-fold"]
 
 [[test]]
 name = "ajtai_commitment"
@@ -78,7 +92,57 @@ path = "tests/ajtai_commitment.rs"
 [[test]]
 name = "e2e_real"
 path = "tests/e2e_real.rs"
-required-features = ["real-verifier"]
+required-features = ["real-verifier", "mock"]
+
+[[test]]
+name = "decrypt_rejections"
+path = "tests/decrypt_rejections.rs"
+required-features = ["mock"]
+
+[[test]]
+name = "decrypt_real"
+path = "tests/decrypt_real.rs"
+required-features = ["legacy-fold"]
+
+[[test]]
+name = "decrypt_roundtrip"
+path = "tests/decrypt_roundtrip.rs"
+required-features = ["mock"]
+
+[[test]]
+name = "keygen_honest"
+path = "tests/keygen_honest.rs"
+required-features = ["mock"]
+
+[[test]]
+name = "keygen_malicious"
+path = "tests/keygen_malicious.rs"
+required-features = ["mock"]
+
+[[test]]
+name = "keygen_real_encryption"
+path = "tests/keygen_real_encryption.rs"
+required-features = ["legacy-fold"]
+
+[[test]]
+name = "no_plaintext_without_proof"
+path = "tests/no_plaintext_without_proof.rs"
+required-features = ["mock"]
+
+[[test]]
+name = "folding_multi_track"
+path = "tests/folding_multi_track.rs"
+required-features = ["legacy-fold"]
+
+[[test]]
+name = "folding_relation"
+path = "tests/folding_relation.rs"
+required-features = ["legacy-fold"]
+
+[[test]]
+name = "folding_witness_validation"
+path = "tests/folding_witness_validation.rs"
+required-features = ["legacy-fold"]
 
 [[bench]]
 name = "aggregate_1024"

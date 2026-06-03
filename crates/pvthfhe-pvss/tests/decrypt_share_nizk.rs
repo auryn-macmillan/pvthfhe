@@ -27,7 +27,9 @@ fn sample_witness() -> DecryptNizkWitness {
     DecryptNizkWitness {
         secret_key_bytes: Secret::new(vec![0x11; 64]),
         decryption_noise: Secret::new(vec![0x22; 64]),
-        sk_agg_share: None,
+        sk_agg_share: Some(pvthfhe_pvss::nizk_decrypt::derive_party_binding(
+            &[0x55; 48],
+        )),
         esm_agg_share: None,
         esm_noise_poly_bytes: None,
     }

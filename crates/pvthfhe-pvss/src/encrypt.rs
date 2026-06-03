@@ -9,8 +9,8 @@ use rand_core::{RngCore, SeedableRng};
 
 use crate::dkg_aggregation::{compute_esm_aggregate_commitment, compute_sk_aggregate_commitment};
 use crate::nizk_decrypt::{
-    compute_decrypt_ciphertext_hash, derive_party_binding, DecryptNizkMode, DecryptNizkProof,
-    DecryptNizkProver, DecryptNizkStatement, DecryptNizkVerifier, DecryptNizkWitness,
+    compute_decrypt_ciphertext_hash, DecryptNizkMode, DecryptNizkProof, DecryptNizkProver,
+    DecryptNizkStatement, DecryptNizkVerifier, DecryptNizkWitness,
 };
 use crate::nizk_share::{
     canonical_bfv_params_digest, compute_ciphertext_v, compute_share_commitment, ShareNizkProof,
@@ -43,6 +43,15 @@ const MAX_PARTIES: usize = 65535;
 #[derive(Clone)]
 pub struct LatticePvssBfvAdapter {
     backend: Arc<dyn FheBackend>,
+}
+
+/// Caller-selected committed-smudge slot use bound into a decryption proof.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CommittedSmudgeUse {
+    /// One-based committed smudging slot identifier.
+    pub slot_id: u16,
+    /// Decryption round bound to this committed slot use.
+    pub decrypt_round: u64,
 }
 
 impl core::fmt::Debug for LatticePvssBfvAdapter {
@@ -78,10 +87,11 @@ impl LatticePvssBfvAdapter {
 
     /// Wrap a decrypted share with a deterministic decrypt-side proof.
     ///
-    /// When `committed_esm_noise_bytes` is `Some`, `sk_agg_share` is `Some`,
-    /// and `esm_agg_share` is available in the witness, the proof uses
-    /// `CommittedSmudge` mode.  Otherwise the legacy local-smudge path
-    /// is used (B.2 / B.3).
+    /// When `committed_esm_noise_bytes` and `committed_smudge_use` are both
+    /// `Some`, `sk_agg_share` is `Some`, and `esm_agg_share` is available in
+    /// the witness, the proof uses `CommittedSmudge` mode. Otherwise the
+    /// legacy local-smudge path is used, but still requires an explicit
+    /// DKG-committed `sk_agg_share`.
     #[allow(clippy::too_many_arguments)]
     pub fn prove_decrypted_share(
         &self,
@@ -92,6 +102,7 @@ impl LatticePvssBfvAdapter {
         witness: &DecryptNizkWitness,
         ctx: &PvssContext,
         committed_esm_noise_bytes: Option<Vec<u8>>,
+        committed_smudge_use: Option<CommittedSmudgeUse>,
         sk_agg_share: Option<u64>,
     ) -> Result<DecryptedShare, PvssError> {
         let dkg_root = share_proof_dkg_root(ctx)?;
@@ -99,8 +110,11 @@ impl LatticePvssBfvAdapter {
         let ciphertext_v = compute_ciphertext_v(ciphertext_u).to_vec();
         let effective_sk_share = sk_agg_share.or(witness.sk_agg_share);
         let effective_esm_share = witness.esm_agg_share;
-        let mode = match committed_esm_noise_bytes {
-            Some(_) => {
+        let mode = match (committed_esm_noise_bytes, committed_smudge_use) {
+            (Some(_), Some(committed_use)) => {
+                if committed_use.slot_id == 0 {
+                    return Err(PvssError::InvalidShare);
+                }
                 let sk_val = effective_sk_share.ok_or(PvssError::InvalidShare)?;
                 let esm_val = effective_esm_share.ok_or(PvssError::InvalidShare)?;
                 let ciphertext_hash = compute_decrypt_ciphertext_hash(ciphertext_u, &ciphertext_v);
@@ -121,23 +135,23 @@ impl LatticePvssBfvAdapter {
                     &dkg_root,
                     recipient_id,
                     &accepted_participant_ids,
-                    1, // slot_id = 1
+                    committed_use.slot_id,
                     ark_bn254::Fr::from(esm_val),
                 );
                 DecryptNizkMode::CommittedSmudge {
-                    slot_id: 1,
-                    decrypt_round: 0,
+                    slot_id: committed_use.slot_id,
+                    decrypt_round: committed_use.decrypt_round,
                     ciphertext_hash,
                     accepted_participant_ids,
                     sk_agg_commit,
                     esm_agg_commit,
                 }
             }
-            None => DecryptNizkMode::LegacyLocalSmudge,
+            (None, None) => DecryptNizkMode::LegacyLocalSmudge,
+            _ => return Err(PvssError::InvalidShare),
         };
 
-        let expected_sk_agg_share =
-            effective_sk_share.unwrap_or_else(|| derive_party_binding(party_pk));
+        let expected_sk_agg_share = effective_sk_share.ok_or(PvssError::InvalidShare)?;
         let statement = DecryptNizkStatement {
             session_id: ctx.session_id.clone(),
             party_index,

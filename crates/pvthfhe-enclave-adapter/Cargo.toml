@@ -5,6 +5,8 @@ edition = "2021"
 license = "MIT"
 
 [features]
+production-profile = ["pvthfhe-fhe/production-profile"]
+mock = ["pvthfhe-fhe/mock"]
 stub = []
 
 [dependencies]
@@ -13,8 +15,14 @@ pvthfhe-types = { path = "../pvthfhe-types" }
 rand_core = { version = "0.6", features = ["getrandom"] }
 
 [dev-dependencies]
+pvthfhe-fhe = { path = "../pvthfhe-fhe" }
 rand = "0.8"
 syn = { version = "2", features = ["full"] }
+
+[[test]]
+name = "smoke"
+path = "tests/smoke.rs"
+required-features = ["mock"]
 
 [lints]
 workspace = true

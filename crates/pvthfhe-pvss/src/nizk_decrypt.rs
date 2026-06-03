@@ -373,11 +373,10 @@ fn proof_secret_share(
 ) -> Result<u64, PvssError> {
     match stmt.mode {
         DecryptNizkMode::LegacyLocalSmudge => {
-            // B.3: prefer DKG-committed sk_agg_share when available;
-            // fall back to pk-derived binding when DKG commitment is unavailable.
-            Ok(witness
-                .sk_agg_share
-                .unwrap_or_else(|| derive_party_binding(&stmt.party_pk)))
+            // Phase 0 safety freeze: legacy local smudging may still exist, but
+            // it must not silently replace a missing DKG-committed aggregate
+            // secret-key share with a public-key-derived binding.
+            witness.sk_agg_share.ok_or(PvssError::InvalidShare)
         }
         DecryptNizkMode::CommittedSmudge { .. } => {
             witness.sk_agg_share.ok_or(PvssError::InvalidShare)

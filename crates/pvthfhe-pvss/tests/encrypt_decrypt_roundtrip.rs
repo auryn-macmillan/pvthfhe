@@ -43,7 +43,7 @@ fn encrypt_decrypt_roundtrip_recovers_secret() {
         t: 2,
         session_id: vec![9; 32],
         epoch: 0,
-        dkg_root: vec![],
+        dkg_root: vec![0xD4; 32],
         dealer_index,
     };
 
@@ -85,6 +85,8 @@ fn encrypt_decrypt_roundtrip_recovers_secret() {
                 .aggregate_decrypt(&ciphertext, &[decrypt_share], 1, b"")
                 .expect("aggregate decrypt");
 
+            let sk_agg_share = u64::try_from(index + 1).expect("test index fits u64");
+
             adapter
                 .prove_decrypted_share(
                     ciphertext_bytes,
@@ -94,13 +96,14 @@ fn encrypt_decrypt_roundtrip_recovers_secret() {
                     &DecryptNizkWitness {
                         secret_key_bytes: Secret::new(vec![index as u8 + 1; 64]),
                         decryption_noise: Secret::new(vec![index as u8 + 2; 64]),
-                        sk_agg_share: None,
+                        sk_agg_share: Some(sk_agg_share),
                         esm_agg_share: None,
                         esm_noise_poly_bytes: None,
                     },
                     &ctx,
                     None, // committed_esm_noise_bytes
-                    None, // sk_agg_share
+                    None, // committed_smudge_use
+                    Some(sk_agg_share),
                 )
                 .expect("attach decrypt proof")
         })

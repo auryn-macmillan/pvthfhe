@@ -7,6 +7,13 @@
 
 #![warn(missing_docs)]
 
+#[cfg(all(feature = "production-profile", feature = "mock"))]
+compile_error!("pvthfhe-fhe production-profile forbids the mock backend feature");
+#[cfg(all(feature = "production-profile", feature = "surrogate-decrypt-share"))]
+compile_error!("pvthfhe-fhe production-profile forbids surrogate decrypt-share paths");
+#[cfg(all(feature = "production-profile", feature = "trace-decrypt"))]
+compile_error!("pvthfhe-fhe production-profile forbids trace-decrypt instrumentation");
+
 pub mod error;
 pub mod fhers;
 #[cfg(feature = "real-nizk")]
@@ -16,7 +23,7 @@ pub mod wire;
 
 mod mock_impl;
 
-#[cfg(feature = "mock")]
+#[cfg(not(feature = "production-profile"))]
 pub mod mock;
 
 pub use error::FheError;

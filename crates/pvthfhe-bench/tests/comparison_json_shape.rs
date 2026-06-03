@@ -51,6 +51,9 @@ fn valid_e2e_timings_fixture() -> Value {
             "partial_decrypt": { "total_ms": 17.0, "instances_run": 1, "per_instance_ms": [17.0] },
             "aggregate_decrypt": { "total_ms": 18.0, "instances_run": 1 },
             "noir_nova_wrap": { "total_ms": 19.0, "instances_run": 1 },
+            "noir_aggregator_final": { "total_ms": 19.5, "instances_run": 1 },
+            "c7_decrypt_aggregation": { "total_ms": 19.6, "instances_run": 1 },
+            "c7_merkle_aggregation": { "total_ms": 19.7, "instances_run": 1 },
             "onchain_verify": { "total_ms": 20.0, "instances_run": 1 }
         },
         "produced_at_unix_secs": 1,

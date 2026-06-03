@@ -4,19 +4,26 @@
 //! same recipient public keys) must produce different ciphertext vectors. This
 //! guards against accidental determinism in the encryption pipeline.
 
+#[cfg(not(feature = "production-profile"))]
 use pvthfhe_fhe::{mock::MockBackend, FheBackend};
+#[cfg(not(feature = "production-profile"))]
 use pvthfhe_pvss::{LatticePvssBfvAdapter, PvssAdapter, PvssContext};
+#[cfg(not(feature = "production-profile"))]
 use rand_chacha::ChaCha8Rng;
+#[cfg(not(feature = "production-profile"))]
 use rand_core::SeedableRng;
 
+#[cfg(not(feature = "production-profile"))]
 const TEST_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
 
+#[cfg(not(feature = "production-profile"))]
 fn acknowledge_mock_backend() {
     unsafe {
         std::env::set_var("PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK", "1");
     }
 }
 
+#[cfg(not(feature = "production-profile"))]
 fn recipient_keypair(seed: u64, session_byte: u8) -> (MockBackend, Vec<u8>) {
     let backend = MockBackend::load_params(TEST_PARAMS_TOML).expect("load mock backend");
     let session_id = [session_byte; 32];
@@ -32,18 +39,23 @@ fn recipient_keypair(seed: u64, session_byte: u8) -> (MockBackend, Vec<u8>) {
     (backend, public_key.bytes)
 }
 
+#[cfg(not(feature = "production-profile"))]
 #[test]
 fn enc_randomness_ciphertexts_differ_across_runs() {
     acknowledge_mock_backend();
 
     let backend = MockBackend::load_params(TEST_PARAMS_TOML).expect("load mock backend");
     let adapter = LatticePvssBfvAdapter::new_with_backend(backend);
+    // `dkg_root` must be non-empty: F5 made `share_proof_dkg_root` fail-closed
+    // on an empty root ("must be set to bind proofs to a specific DKG
+    // ceremony"), which previously surfaced as a redacted BackendError on the
+    // first `deal()`. This is a precondition, not a weakening of the assertion.
     let ctx = PvssContext {
         n: 3,
         t: 2,
         session_id: vec![9; 32],
         epoch: 0,
-        dkg_root: vec![],
+        dkg_root: vec![7; 32],
         dealer_index: pvthfhe_pvss::derive_dealer_index(&[9; 32]),
     };
 
@@ -82,6 +94,15 @@ fn enc_randomness_ciphertexts_differ_across_runs() {
         any_pair_differs,
         "ciphertexts must differ between independent deal() calls \
          (expected non-determinism from encryption randomness)"
+    );
+}
+
+#[cfg(feature = "production-profile")]
+#[test]
+fn enc_randomness_mock_path_is_quarantined_from_production_profile() {
+    assert!(
+        !cfg!(feature = "mock"),
+        "production-profile must not compile the mock randomness regression path"
     );
 }
 

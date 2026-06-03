@@ -91,3 +91,7 @@ path = "tests/integration/policy_invariants.rs"
 [[test]]
 name = "docs_truthful"
 path = "tests/integration/docs_truthful.rs"
+
+[features]
+production-profile = []
+default = []

@@ -126,6 +126,10 @@ mod real_folding_gaps {
     ///
     /// Falsifies P2-T3 (ZK Preservation): "folding preserves projected ZK
     /// view".
+    #[cfg_attr(
+        feature = "production-profile",
+        ignore = "legacy placeholder proof bytes are quarantined from production-profile"
+    )]
     #[test]
     fn test_fold_proof_not_deterministic() {
         let acc = base_acc();

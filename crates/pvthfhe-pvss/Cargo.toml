@@ -5,6 +5,8 @@ edition = "2021"
 license = "MIT"
 
 [features]
+production-profile = ["pvthfhe-fhe/production-profile"]
+mock = ["pvthfhe-fhe/mock"]
 production-stub-allowed = []
 
 [dependencies]
@@ -28,9 +30,54 @@ tracing = "0.1"
 
 [dev-dependencies]
 serde_json = "1"
-pvthfhe-fhe = { path = "../pvthfhe-fhe", features = ["mock"] }
+pvthfhe-fhe = { path = "../pvthfhe-fhe" }
 syn = { version = "2", features = ["full"] }
 proptest = "1"
+
+[[test]]
+name = "decrypt_share_nizk"
+path = "tests/decrypt_share_nizk.rs"
+required-features = ["mock"]
+
+[[test]]
+name = "encrypt_decrypt_roundtrip"
+path = "tests/encrypt_decrypt_roundtrip.rs"
+required-features = ["mock"]
+
+[[test]]
+name = "nizk_decrypt_committed_smudge"
+path = "tests/nizk_decrypt_committed_smudge.rs"
+required-features = ["mock"]
+
+[[test]]
+name = "nizk_share_real_verify"
+path = "tests/nizk_share_real_verify.rs"
+required-features = ["mock"]
+
+[[test]]
+name = "nizk_share_fs_binding"
+path = "tests/nizk_share_fs_binding.rs"
+required-features = ["mock"]
+
+[[test]]
+name = "nizk_share_soundness"
+path = "tests/nizk_share_soundness.rs"
+required-features = ["mock"]
+
+[[test]]
+name = "share_nizk"
+path = "tests/share_nizk.rs"
+required-features = ["mock"]
+
+[[test]]
+name = "nizk_share_batched_tracks"
+path = "tests/nizk_share_batched_tracks.rs"
+required-features = ["mock"]
+
+[[test]]
+name = "nizk_share_zk"
+path = "tests/nizk_share_zk.rs"
+required-features = ["mock"]
 
 [lints]
 workspace = true

@@ -6,6 +6,7 @@ edition = "2021"
 
 [features]
 default = ["real-nizk"]
+production-profile = ["real-nizk"]
 mock = []
 real-nizk = []
 surrogate-decrypt-share = []

@@ -58,6 +58,8 @@ fn new_has_all_required_phase_keys() {
         "aggregate_decrypt",
         "noir_nova_wrap",
         "noir_aggregator_final",
+        "c7_decrypt_aggregation",
+        "c7_merkle_aggregation",
         "onchain_verify",
     ] {
         assert!(phases.get(key).is_some(), "missing phase key: {key}");

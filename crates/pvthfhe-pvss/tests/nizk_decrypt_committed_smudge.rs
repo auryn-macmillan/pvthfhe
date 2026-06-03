@@ -1,11 +1,13 @@
+use pvthfhe_fhe::{mock::MockBackend, FheBackend};
 use pvthfhe_pvss::dkg_aggregation::{
     compute_esm_aggregate_commitment, compute_sk_aggregate_commitment,
 };
+use pvthfhe_pvss::encrypt::{CommittedSmudgeUse, LatticePvssBfvAdapter};
 use pvthfhe_pvss::nizk_decrypt::{
-    derive_party_binding, DecryptNizkMode, DecryptNizkProver, DecryptNizkStatement,
-    DecryptNizkVerifier, DecryptNizkWitness,
+    derive_party_binding, DecryptNizkMode, DecryptNizkProof, DecryptNizkProver,
+    DecryptNizkStatement, DecryptNizkVerifier, DecryptNizkWitness,
 };
-use pvthfhe_pvss::PvssError;
+use pvthfhe_pvss::{PvssContext, PvssError};
 use pvthfhe_types::Secret;
 
 const SLOT_ID: u16 = 3;
@@ -74,6 +76,98 @@ fn committed_witness() -> DecryptNizkWitness {
     }
 }
 
+fn acknowledge_mock_backend() {
+    unsafe {
+        std::env::set_var("PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK", "1");
+    }
+}
+
+#[test]
+fn production_adapter_committed_smudge_uses_caller_slot_and_round() {
+    acknowledge_mock_backend();
+
+    let adapter = LatticePvssBfvAdapter::new_with_backend(
+        MockBackend::load_params("[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n")
+            .expect("load mock backend"),
+    );
+    let ctx = PvssContext {
+        n: 4,
+        t: 2,
+        session_id: vec![0x51; 32],
+        epoch: 7,
+        dkg_root: vec![0xD4; 32],
+        dealer_index: pvthfhe_pvss::derive_dealer_index(&[0x51; 32]),
+    };
+    let slot_id = 7;
+    let decrypt_round = 42;
+    let committed_esm = esm_noise_bytes_for_test();
+    let proof_share = adapter
+        .prove_decrypted_share(
+            &[0x10, 0x20, 0x30, 0x40],
+            &[0x55; 48],
+            1,
+            vec![0x01, 0x02, 0x03, 0x04],
+            &committed_witness(),
+            &ctx,
+            Some(committed_esm),
+            Some(CommittedSmudgeUse {
+                slot_id,
+                decrypt_round,
+            }),
+            Some(0x11_u64),
+        )
+        .expect("production adapter committed proof");
+    let proof = DecryptNizkProof::from_bytes(proof_share.proof.0).expect("decode proof envelope");
+    let opened = proof.decode().expect("open decrypt proof");
+
+    match opened.statement.mode {
+        DecryptNizkMode::CommittedSmudge {
+            slot_id: opened_slot_id,
+            decrypt_round: opened_decrypt_round,
+            ..
+        } => {
+            assert_eq!(opened_slot_id, slot_id);
+            assert_eq!(opened_decrypt_round, decrypt_round);
+        }
+        DecryptNizkMode::LegacyLocalSmudge => panic!("expected committed-smudge mode"),
+    }
+}
+
+#[test]
+fn production_adapter_rejects_zero_committed_smudge_slot() {
+    acknowledge_mock_backend();
+
+    let adapter = LatticePvssBfvAdapter::new_with_backend(
+        MockBackend::load_params("[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n")
+            .expect("load mock backend"),
+    );
+    let ctx = PvssContext {
+        n: 4,
+        t: 2,
+        session_id: vec![0x51; 32],
+        epoch: 7,
+        dkg_root: vec![0xD4; 32],
+        dealer_index: pvthfhe_pvss::derive_dealer_index(&[0x51; 32]),
+    };
+
+    let result = adapter.prove_decrypted_share(
+        &[0x10, 0x20, 0x30, 0x40],
+        &[0x55; 48],
+        1,
+        vec![0x01, 0x02, 0x03, 0x04],
+        &committed_witness(),
+        &ctx,
+        Some(esm_noise_bytes_for_test()),
+        Some(CommittedSmudgeUse {
+            slot_id: 0,
+            decrypt_round: 42,
+        }),
+        Some(0x11_u64),
+    );
+
+    assert_eq!(result, Err(PvssError::InvalidShare));
+}
+
 #[test]
 fn committed_smudge_requires_explicit_esm_witness() {
     let statement = committed_statement();
@@ -95,7 +189,7 @@ fn committed_smudge_rejects_local_smudge_proof() {
     let legacy_witness = DecryptNizkWitness {
         secret_key_bytes: Secret::new(vec![0x11; 64]),
         decryption_noise: Secret::new(vec![0x99; 64]),
-        sk_agg_share: None,
+        sk_agg_share: Some(legacy.expected_sk_agg_share),
         esm_agg_share: None,
         esm_noise_poly_bytes: None,
     };
@@ -103,6 +197,26 @@ fn committed_smudge_rejects_local_smudge_proof() {
         .expect("legacy local-smudge proof remains explicit non-equivalent mode");
 
     let result = DecryptNizkVerifier::verify(&committed, &proof);
+
+    assert_eq!(result, Err(PvssError::InvalidShare));
+}
+
+#[test]
+fn committed_smudge_legacy_missing_sk_agg_share_fails_closed() {
+    let mut statement = committed_statement();
+    statement.mode = DecryptNizkMode::LegacyLocalSmudge;
+    statement.expected_sk_agg_share = derive_party_binding(&statement.party_pk);
+
+    let witness = DecryptNizkWitness {
+        secret_key_bytes: Secret::new(vec![0x11; 64]),
+        decryption_noise: Secret::new(vec![0x99; 64]),
+        sk_agg_share: None,
+        esm_agg_share: None,
+        esm_noise_poly_bytes: None,
+    };
+
+    let result = DecryptNizkProver::prove(&statement, &witness)
+        .and_then(|proof| DecryptNizkVerifier::verify(&statement, &proof));
 
     assert_eq!(result, Err(PvssError::InvalidShare));
 }

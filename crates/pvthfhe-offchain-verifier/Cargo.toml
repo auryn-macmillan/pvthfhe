@@ -18,6 +18,7 @@ sha3 = "0.10"
 clap = { version = "4", features = ["derive"] }
 
 [features]
+production-profile = ["pvthfhe-compressor/production-profile"]
 legacy-nova = ["pvthfhe-compressor/legacy-nova"]
 
 [lints]

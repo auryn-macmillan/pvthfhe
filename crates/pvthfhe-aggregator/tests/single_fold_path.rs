@@ -23,7 +23,8 @@ fn should_skip(path: &Path) -> bool {
 }
 
 fn is_fold_path_struct(name: &str) -> bool {
-    name == "HashChainFoldingScheme"
+    name == "HashChainCycloAdapter"
+        || name == "HashChainFoldingScheme"
         || name.ends_with("FoldingScheme")
         || name.ends_with("FoldingAdapter")
 }

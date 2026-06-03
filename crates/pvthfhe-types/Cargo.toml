@@ -9,6 +9,9 @@ zeroize = { version = "1", features = ["zeroize_derive"] }
 serde = { version = "1", features = ["derive"] }
 syn = { version = "2", features = ["full", "parsing", "visit"] }
 walkdir = "2"
+light-poseidon = "0.4"
+ark-bn254 = "0.5"
+ark-ff = "0.5"
 
 [dev-dependencies]
 quote = "1"

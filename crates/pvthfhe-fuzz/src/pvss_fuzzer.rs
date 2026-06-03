@@ -1,3 +1,5 @@
+#![cfg(feature = "mock")]
+
 use pvthfhe_fuzz::FUZZ_ITERATIONS;
 use pvthfhe_pvss::nizk_share::{
     ShareNizkBatchedStatement, ShareNizkBatchedVerifier, ShareNizkProof, ShareNizkProver,

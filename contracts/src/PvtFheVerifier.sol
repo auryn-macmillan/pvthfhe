@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import "./generated/HonkVerifier.sol";
 import "./SessionRegistry.sol";
+import "./VerificationStatementV1.sol";
 
 /// @notice EIP-712 attestation bundle emitted by the off-chain Nova verifier.
 struct AttestationBundle {
@@ -25,7 +26,7 @@ struct IvcBinding {
     bytes32 decryptNizkHash;
     bytes32 dkgTranscriptHash;
     bytes32 novaFinalStateCommitment;
-    /// S6: RecursiveSNARK verification result (1 = passed, 0 = failed).
+    /// DEPRECATED: ivcVerifyResult is ignored ABI baggage and never gates acceptance.
     uint64 ivcVerifyResult;
     /// T6: Bootstrap result hash (binds TFHE bootstrapping integrity).
     /// Must be non-zero when bootstrapping is used.
@@ -48,6 +49,19 @@ interface ISessionRegistry {
         bytes32 ciphertextHash,
         uint64 decryptRound
     ) external;
+}
+
+/// @title IIvcDeciderVerifier
+interface IIvcDeciderVerifier {
+    function verify(
+        bytes calldata proof,
+        bytes32 statementHash,
+        bytes32 vkHash,
+        bytes32 ppHash,
+        bytes32 z0,
+        bytes32 zi,
+        uint64 steps
+    ) external returns (bool);
 }
 
 /// @title IPvthfheVerifier
@@ -166,6 +180,7 @@ contract PvtFheVerifier is IPvthfheVerifier {
     HonkVerifier private immutable _honkVerifier;
     ISessionRegistry public immutable registry;
     address public immutable timelock;
+    address public ivcDeciderVerifier;
     mapping(address => bool) public attestors;
     mapping(bytes32 => DkgPublicAnchors) private _dkgPublicAnchors;
     mapping(bytes32 => bool) private _dkgPublicAnchorsStored;
@@ -223,19 +238,16 @@ contract PvtFheVerifier is IPvthfheVerifier {
         IvcBinding calldata ivcBinding,
         bytes calldata proof
     ) public view override returns (bool) {
+        require(ivcDeciderVerifier != address(0), "PVTHFHE: IVC decider not configured");
+        require(proof.length != 0, "PVTHFHE: empty IVC proof");
         _requireSessionValid(dkgRoot, epoch);
         _requireIvcBindingValid(ivcBinding);
         require(ivcBinding.shareVerificationHash != bytes32(0), "PVTHFHE: shareVerificationHash zero");
 
-        bytes32[] memory publicInputs = new bytes32[](7);
-        publicInputs[0] = ciphertextHash;
-        publicInputs[1] = plaintextHash;
-        publicInputs[2] = aggregatePkHash;
-        publicInputs[3] = dkgRoot;
-        publicInputs[4] = bytes32(uint256(epoch));
-        publicInputs[5] = participantSetHash;
-        publicInputs[6] = dCommitment;
-        return _honkVerifier.verify(proof, publicInputs);
+        bytes32 statementHash = _computeIvcStatementHash(
+            ciphertextHash, plaintextHash, aggregatePkHash, dkgRoot, epoch, participantSetHash, dCommitment, ivcBinding
+        );
+        return _verifyIvcDeciderStatic(proof, statementHash, ivcBinding);
     }
 
     function verifyAndConsume(
@@ -279,6 +291,8 @@ contract PvtFheVerifier is IPvthfheVerifier {
         IvcBinding calldata ivcBinding,
         bytes calldata proof
     ) external override returns (bool) {
+        require(ivcDeciderVerifier != address(0), "PVTHFHE: IVC decider not configured");
+        require(proof.length != 0, "PVTHFHE: empty IVC proof");
         _requireSessionValid(dkgRoot, epoch);
         _requireIvcBindingValid(ivcBinding);
         require(ivcBinding.shareVerificationHash != bytes32(0), "PVTHFHE: shareVerificationHash zero");
@@ -286,16 +300,10 @@ contract PvtFheVerifier is IPvthfheVerifier {
             revert("PVTHFHE: IVC proof replay");
         }
 
-        bytes32[] memory publicInputs = new bytes32[](7);
-        publicInputs[0] = ciphertextHash;
-        publicInputs[1] = plaintextHash;
-        publicInputs[2] = aggregatePkHash;
-        publicInputs[3] = dkgRoot;
-        publicInputs[4] = bytes32(uint256(epoch));
-        publicInputs[5] = participantSetHash;
-        publicInputs[6] = dCommitment;
-
-        bool proofValid = _honkVerifier.verify(proof, publicInputs);
+        bytes32 statementHash = _computeIvcStatementHash(
+            ciphertextHash, plaintextHash, aggregatePkHash, dkgRoot, epoch, participantSetHash, dCommitment, ivcBinding
+        );
+        bool proofValid = _verifyIvcDecider(proof, statementHash, ivcBinding);
         if (!proofValid) {
             return false;
         }
@@ -491,6 +499,11 @@ contract PvtFheVerifier is IPvthfheVerifier {
         attestors[attestor] = false;
     }
 
+    function setIvcDeciderVerifier(address verifier) external {
+        require(msg.sender == timelock, "Unauthorized");
+        ivcDeciderVerifier = verifier;
+    }
+
     // -------------------------------------------------------------------------
     // Internal helpers
     // -------------------------------------------------------------------------
@@ -505,7 +518,7 @@ contract PvtFheVerifier is IPvthfheVerifier {
         }
     }
 
-    /// P4+P1.5+S6: Verify IVC binding data is valid (all fields non-zero, steps positive, verify result == 1).
+    /// P4+P1.5+S6: Verify IVC binding data is well-formed (all fields non-zero, steps positive).
     function _requireIvcBindingValid(IvcBinding calldata ivcBinding) internal pure {
         require(ivcBinding.ivcProofHash != bytes32(0), "PVTHFHE: ivcProofHash zero");
         require(ivcBinding.ivcVkHash != bytes32(0), "PVTHFHE: ivcVkHash zero");
@@ -516,7 +529,7 @@ contract PvtFheVerifier is IPvthfheVerifier {
         require(ivcBinding.decryptNizkHash != bytes32(0), "PVTHFHE: decryptNizkHash zero");
         require(ivcBinding.dkgTranscriptHash != bytes32(0), "PVTHFHE: dkgTranscriptHash zero");
         require(ivcBinding.novaFinalStateCommitment != bytes32(0), "PVTHFHE: novaFinalStateCommitment zero");
-        require(ivcBinding.ivcVerifyResult == 1, "PVTHFHE: ivcVerifyResult must be 1");
+        // F1: caller-supplied verify result is NOT trusted; real decider verification lands in Phase 2.
         require(ivcBinding.bootstrapResultHash != bytes32(0), "PVTHFHE: bootstrapResultHash zero");
     }
 
@@ -524,6 +537,87 @@ contract PvtFheVerifier is IPvthfheVerifier {
     function _ivcProofConsumedValid(bytes32 dkgRoot, uint64 epoch, bytes32 ivcProofHash) internal view returns (bool) {
         return _ivcProofConsumed[dkgRoot][epoch] == bytes32(0)
             || _ivcProofConsumed[dkgRoot][epoch] == ivcProofHash;
+    }
+
+    function _computeIvcStatementHash(
+        bytes32 ciphertextHash,
+        bytes32 plaintextHash,
+        bytes32 aggregatePkHash,
+        bytes32 dkgRoot,
+        uint64 epoch,
+        bytes32 participantSetHash,
+        bytes32 dCommitment,
+        IvcBinding calldata ivcBinding
+    ) internal pure returns (bytes32) {
+        // Phase 2 seam only: binding-invariant tests cover hash sensitivity, but full deployed Noir/Honk
+        // public-input sourcing for contextId/c5/c6/cyclo remains OPEN; these zeros are placeholders.
+        return VerificationStatementV1.computeStatementHashBytes32(
+            VerificationStatementV1.Statement({
+                protocolVersion: 1,
+                contextId: bytes32(0),
+                dkgRoot: dkgRoot,
+                epoch: epoch,
+                participantSetHash: participantSetHash,
+                aggregatePkHash: aggregatePkHash,
+                ciphertextHash: ciphertextHash,
+                plaintextHash: plaintextHash,
+                dCommitment: dCommitment,
+                c5ProofRoot: bytes32(0),
+                c6ProofSetRoot: bytes32(0),
+                cycloAccumulatorRoot: bytes32(0),
+                ivcVkHash: ivcBinding.ivcVkHash,
+                ivcPpHash: ivcBinding.ivcPpHash,
+                ivcProofHash: ivcBinding.ivcProofHash,
+                z0Commitment: ivcBinding.z0Commitment,
+                ziCommitment: ivcBinding.ziCommitment,
+                ivcSteps: ivcBinding.ivcSteps,
+                bootstrapResultHash: ivcBinding.bootstrapResultHash
+            })
+        );
+    }
+
+    function _verifyIvcDeciderStatic(bytes calldata proof, bytes32 statementHash, IvcBinding calldata ivcBinding)
+        internal
+        view
+        returns (bool)
+    {
+        (bool ok, bytes memory returndata) = ivcDeciderVerifier.staticcall(
+            abi.encodeCall(
+                IIvcDeciderVerifier.verify,
+                (
+                    proof,
+                    statementHash,
+                    ivcBinding.ivcVkHash,
+                    ivcBinding.ivcPpHash,
+                    ivcBinding.z0Commitment,
+                    ivcBinding.ziCommitment,
+                    ivcBinding.ivcSteps
+                )
+            )
+        );
+        if (!ok || returndata.length != 32) {
+            return false;
+        }
+        return abi.decode(returndata, (bool));
+    }
+
+    function _verifyIvcDecider(bytes calldata proof, bytes32 statementHash, IvcBinding calldata ivcBinding)
+        internal
+        returns (bool)
+    {
+        try IIvcDeciderVerifier(ivcDeciderVerifier).verify(
+            proof,
+            statementHash,
+            ivcBinding.ivcVkHash,
+            ivcBinding.ivcPpHash,
+            ivcBinding.z0Commitment,
+            ivcBinding.ziCommitment,
+            ivcBinding.ivcSteps
+        ) returns (bool ok) {
+            return ok;
+        } catch {
+            return false;
+        }
     }
 
     /// P4: Record consumption of an IVC proof.

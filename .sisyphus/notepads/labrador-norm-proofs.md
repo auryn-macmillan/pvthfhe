@@ -80,3 +80,5 @@ communication.
 ## 5. Decision Log
 
 - **2026-05-21**: Documented Labrador as recommended upgrade path per `.sisyphus/plans/claude-dkg-improvements.md` Task 2. No implementation at this stage — deferred to T4 (post P2 resolution).
+
+- **2026-06-03**: Verified `bench/results/aggregate_1024.json` exists after running the aggregate smoke test command, but the test target now errors because `legacy-fold` has been removed in R4.3 and the crate expects `real-folding` instead.

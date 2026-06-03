@@ -6,6 +6,7 @@ description = "P4 keygen adapter crate: bridges pvthfhe-keygen-spec interface to
 license = "MIT"
 
 [features]
+production-profile = ["pvthfhe-fhe/production-profile"]
 hermine = []
 
 [dependencies]

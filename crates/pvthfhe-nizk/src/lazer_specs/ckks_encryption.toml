@@ -1,0 +1,38 @@
+# CKKS encryption sigma relation
+# Relation: d = c * s + e mod Q over R_Q = Z_Q[X]/(X^N+1)
+# This is the core RLWE relation proving key correctness for CKKS.
+[relation]
+type = "rlwe"
+name = "ckks-encryption"
+
+# Ring parameters
+[ring]
+n = 8192
+moduli = [288230376173076481, 288230376167047169, 288230376161280001]
+
+# Witness variables and their norm bounds (‖·‖_∞)
+[[witness]]
+name = "s"
+norm_bound = 1
+description = "ternary secret key (coefficients in {-1, 0, 1})"
+
+[[witness]]
+name = "e"
+norm_bound = 16
+description = "error polynomial (‖e‖_∞ ≤ 16)"
+
+# Public statement fields
+[[statement]]
+name = "c"
+type = "poly_rns"
+description = "public polynomial c in RNS power-basis (deterministic challenge)"
+
+[[statement]]
+name = "d"
+type = "poly_rns"
+description = "public polynomial d = c*s + e mod Q (derived from ciphertext)"
+
+[lazer]
+proof_type = "linear"
+protocol = "labrador"
+soundness_bits = 128

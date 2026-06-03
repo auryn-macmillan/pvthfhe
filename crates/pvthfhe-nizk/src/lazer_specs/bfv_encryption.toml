@@ -1,0 +1,63 @@
+# BFV encryption sigma relation
+# Relation: ct0 = pk0 * u + e0 + Δ * m, ct1 = pk1 * u + e1
+# over R_Q = Z_Q[X]/(X^N+1) with N=8192, Q ≅ 2^174 (3 RNS limbs).
+[relation]
+type = "rlwe"
+name = "bfv-encryption"
+
+# Ring parameters
+[ring]
+n = 8192
+moduli = [288230376173076481, 288230376167047169, 288230376161280001]
+
+# Witness variables and their norm bounds (‖·‖_∞)
+[[witness]]
+name = "u"
+norm_bound = 10000
+description = "encryption randomness (CBD variance 10)"
+
+[[witness]]
+name = "e0"
+norm_bound = 10000
+description = "error polynomial for ct0 leg"
+
+[[witness]]
+name = "e1"
+norm_bound = 10000
+description = "error polynomial for ct1 leg"
+
+[[witness]]
+name = "m"
+norm_bound = 32768
+description = "plaintext polynomial (centered representation, |m_i| ≤ t/2 = 32768)"
+
+# Public statement fields
+[[statement]]
+name = "pk0"
+type = "poly_rns"
+description = "public key polynomial pk0 in RNS power-basis"
+
+[[statement]]
+name = "pk1"
+type = "poly_rns"
+description = "public key polynomial pk1 in RNS power-basis"
+
+[[statement]]
+name = "ct0"
+type = "poly_rns"
+description = "ciphertext polynomial ct0 in RNS power-basis"
+
+[[statement]]
+name = "ct1"
+type = "poly_rns"
+description = "ciphertext polynomial ct1 in RNS power-basis"
+
+[[statement]]
+name = "delta"
+type = "scalar_vec"
+description = "BFV scaling factors Δ[ℓ] = ⌊q_ℓ/t⌋ per CRT limb"
+
+[lazer]
+proof_type = "linear"
+protocol = "labrador"
+soundness_bits = 128

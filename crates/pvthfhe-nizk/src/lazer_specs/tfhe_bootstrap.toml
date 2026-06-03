@@ -1,0 +1,39 @@
+# TFHE bootstrapping sigma relation
+# Relation: (a_in - a_out) * s + (e_in - e_out) = (b_in - b_out) mod q
+# over Z_q with q = 2^64 - 2^32 + 1 (Solinas prime).
+# This is an LWE (N=1) relation proving bootstrapping correctness.
+[relation]
+type = "lwe"
+name = "tfhe-bootstrap"
+
+# Ring parameters (N=1 for LWE, scalar relation)
+[ring]
+n = 1
+moduli = [18446744073709551557]
+
+# Witness variables and their norm bounds (‖·‖_∞)
+[[witness]]
+name = "s"
+norm_bound = 1
+description = "ternary secret key (single coefficient in {-1, 0, 1})"
+
+[[witness]]
+name = "bsk_noise"
+norm_bound = 64
+description = "bootstrapping noise difference e_out - e_in (|bsk_noise| ≤ 64)"
+
+# Public statement fields
+[[statement]]
+name = "c"
+type = "scalar"
+description = "c = a_in - a_out mod q (public LWE coefficient difference)"
+
+[[statement]]
+name = "d"
+type = "scalar"
+description = "d = b_in - b_out mod q (public LWE body difference)"
+
+[lazer]
+proof_type = "linear"
+protocol = "labrador"
+soundness_bits = 128

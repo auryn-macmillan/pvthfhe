@@ -87,6 +87,8 @@ pipeline-extra-checks = []
 enable-ckks = ["dep:pvthfhe-fhe-poulpy", "pvthfhe-fhe-poulpy/enable-ckks", "pvthfhe-nizk/enable-ckks"]
 # Enable TFHE backend via Poulpy (requires pvthfhe-fhe-poulpy).
 enable-tfhe = ["dep:pvthfhe-fhe-poulpy", "pvthfhe-fhe-poulpy/enable-tfhe", "pvthfhe-nizk/enable-tfhe"]
+# Enable LaZer auto-generated sigma proofs (P1 Phase 2).
+enable-lazer = ["pvthfhe-nizk/enable-lazer"]
 # Symphony T3/T4 are now compiled unconditionally (S8). Feature flags removed.
 
 [dev-dependencies]

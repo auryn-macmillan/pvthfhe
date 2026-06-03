@@ -11,7 +11,7 @@ PVTHFHE targets private-verifiable threshold FHE with O(n) per-party work and O(
 1. **Key Generation** — Parties perform a 3-round PVSS protocol to establish an aggregate public key and private secret shares.
 2. **Encryption** — Anyone encrypts data using the aggregate public key (BFV RLWE).
 3. **Partial Decryption** — Parties compute partial decryption shares and provide a NIZK proof of well-formedness (Ajtaï D2 sigma + BFV sigma, k-round parallel repetition).
-4. **Aggregation & Folding** — An untrusted aggregator collects shares and folds the proofs using nova-snark Nova IVC with Cyclo RLWE folding.
+4. **Aggregation & Folding** — An untrusted aggregator collects shares and folds the proofs using LatticeFold+ lattice-native folding with Cyclo RLWE.
 5. **On-Chain Verification** — The aggregator submits proof binding metadata on-chain. Verification uses an UltraHonk proof on the Nova state commitment with transparent IVC binding (`ivc_verify_result`).
 
 ```
@@ -25,7 +25,7 @@ PVTHFHE targets private-verifiable threshold FHE with O(n) per-party work and O(
 [ Solidity Verifier ] <------------------ [ Transparent IVC + UltraHonk ]
 ```
 
-The pipeline uses three proving backends: **nova-snark** (Microsoft Nova IVC with Cyclo RLWE folding), **Noir UltraHonk** (final aggregation and wrapping), and **HonkVerifier.sol** (Solidity on-chain). All step circuits implement `nova_snark::traits::circuit::StepCircuit`.
+The pipeline uses three proving backends: **LatticeFold+** (lattice-native folding with Cyclo RLWE), **Noir UltraHonk** (final aggregation and wrapping), and **HonkVerifier.sol** (Solidity on-chain). All step circuits implement the folding circuit trait.
 
 ## Protocol Layers
 
@@ -44,7 +44,7 @@ Standardized secure parameters for 128-bit security: **N** = 8192, **L** = 3 RNS
 
 | Backend | Role | Technology |
 | --- | --- | --- |
-| nova-snark v0.71 | IVC folding + C7 aggregation + compression | R1CS Nova (Bn256EngineKZG + GrumpkinEngine cycle) |
+| LatticeFold+ (lattice-native) | IVC folding + C7 aggregation + compression | Cyclo RLWE (no EC assumptions) |
 | Noir + BB UltraHonk | Final Lagrange recombination + state commitment | Noir R1CS → UltraHonk |
 | HonkVerifier.sol | On-chain verification | Solidity |
 
@@ -75,7 +75,15 @@ T1+T2 are enabled by default. T3+T4 enable k=90-round repetition (~46M constrain
 | `ckks_encryption.toml` | RLWE | N=8192, 3-limb RNS | s, e | LaBRADOR |
 | `tfhe_bootstrap.toml` | LWE | N=1, scalar | s, bsk_noise | LaBRADOR |
 
-LaZer is opt-in via `--features enable-lazer`. Legacy sigma protocols (`sigma.rs`, `bfv_sigma.rs`, `bootstrap_sigma.rs`) remain the default until LaZer FFI state population (lin_params_init) is completed.
+LaZer is the default sigma backend.
+
+## Greyhound: Lattice Polynomial Commitments
+
+Greyhound provides lattice-based polynomial commitment schemes with 53KB proof sizes and no elliptic curve assumptions. It replaces KZG-based commitments throughout the protocol stack, enabling a fully post-quantum commitment layer.
+
+## LatticeFold+: Lattice-Native Folding
+
+LatticeFold+ provides lattice-native folding over RLWE without elliptic curve assumptions, replacing the Nova IVC folding path. It uses Cyclo-based folding with M-SIS hardness, Cyclo Theorem 3 soundness, and Lemma 9 invertibility guarantees. This is the default folding backend for the proving pipeline.
 
 ## Greco: BFV Quotient-Witness Verification
 
@@ -97,7 +105,7 @@ Per-node (`pvthfhe-per-node`) and per-aggregator (`pvthfhe-per-aggregator`) bina
 
 ## End-to-End Verifiability
 
-Each protocol step produces verifiable artifacts. Publicly verifiable steps include: share-encryption NIZK, Cyclo fold accumulator, nova-snark compressed proof (transparent IVC, dual verification path), and on-chain UltraHonk verification with IVC binding. Full aggregate-decrypt verification uses in-circuit C7MerkleStepCircuit with Poseidon R1CS.
+Each protocol step produces verifiable artifacts. Publicly verifiable steps include: share-encryption NIZK, Cyclo fold accumulator, LatticeFold+ compressed proof (transparent IVC, dual verification path), and on-chain UltraHonk verification with IVC binding. Full aggregate-decrypt verification uses in-circuit C7MerkleStepCircuit with Poseidon R1CS.
 
 ## Design Specifications
 

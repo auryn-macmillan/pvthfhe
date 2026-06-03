@@ -65,7 +65,7 @@ The `IvcBindingData` struct (11 fields: proof_hash, vk_hash, pp_hash, z0_commitm
 
 ### P2 (HIGH): LatticeFold+ Linearity
 
-**Status**: OPEN (documented). Cyclo LatticeFold+ over RLWE with Lemma 9 accepted as a documented protocol assumption. Soundness conditional on M-SIS hardness, Cyclo Theorem 3, and the Lemma 9 invertibility assumption. Nova IVC substitutes for lattice-native folding in the current prototype.
+**Status**: OPEN (documented). Cyclo LatticeFold+ over RLWE with Lemma 9 accepted as a documented protocol assumption. Soundness conditional on M-SIS hardness, Cyclo Theorem 3, and the Lemma 9 invertibility assumption. LatticeFold+ provides lattice-native folding in the current prototype.
 
 ### C5 (PK Aggregation Gap)
 
@@ -92,6 +92,10 @@ Only the Noir `aggregator_final` circuit is verified on-chain (via HonkVerifier.
 | Cyclo NIZK (lattice fold) | — | ✓ |
 | Nova IVC fold soundness | — | ✓ (bound via `ivc_verify_result`) |
 | C7 decryption aggregation | ✓ (Poseidon R1CS) | — |
+
+## Post-Quantum Proving Stack
+
+Post-quantum proving stack: LaZer (sigma) → Greyhound (commitments) → LatticeFold+ (folding) → UltraHonk (final proof).
 
 ## G7b Norm Enforcement
 

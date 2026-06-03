@@ -29,10 +29,40 @@ fn nova_roundtrip_dkg_ivc_verifies() {
         .expect("prove dkg ivc");
     let vk = compressor.verifier_key();
 
+    #[cfg(not(feature = "enable-greyhound"))]
     assert_eq!(vk.backend_id, "nova-bn254-grumpkin");
+    #[cfg(feature = "enable-greyhound")]
+    assert_eq!(vk.backend_id, "nova-greyhound-bn254-grumpkin");
     assert!(compressor
         .verify(&vk, &proof, &acc, &public_inputs)
         .expect("verify dkg ivc"));
+}
+
+#[cfg(feature = "enable-greyhound")]
+#[test]
+fn greyhound_feature_wires_transparent_params_and_binds_proof() {
+    let compressor = NovaCompressor::<DkgAggregationStepCircuit<Fr>>::new(epoch(), 2)
+        .expect("construct greyhound nova compressor");
+    let params = compressor.greyhound_public_params();
+    assert_eq!(params.n, 8);
+    assert_eq!(params.m * params.r, 1024);
+    assert_ne!(compressor.greyhound_params_hash(), [0u8; 32]);
+
+    let acc = encode_triple_scalar(2, 0, 0);
+    let public_inputs = encode_quad_scalar(3, 1, 1, 0);
+    let proof = compressor
+        .prove(&acc, &public_inputs)
+        .expect("prove dkg ivc with greyhound binding");
+    assert!(proof.ivc_proof_hash.is_some());
+    assert!(compressor
+        .verify(&compressor.verifier_key(), &proof, &acc, &public_inputs)
+        .expect("verify greyhound-bound dkg ivc"));
+
+    let mut tampered = proof.clone();
+    tampered.ivc_proof_hash = Some([0xadu8; 32]);
+    assert!(!compressor
+        .verify(&compressor.verifier_key(), &tampered, &acc, &public_inputs)
+        .expect("verify should reject wrong greyhound binding"));
 }
 
 #[test]

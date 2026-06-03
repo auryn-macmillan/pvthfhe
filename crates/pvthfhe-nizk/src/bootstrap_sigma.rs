@@ -20,7 +20,7 @@ pub struct BootstrapStatement {
 pub struct BootstrapWitness {
     /// Ternary secret key (single coefficient in {-1, 0, 1}).
     pub secret_key: Vec<i64>,
-    /// Noise difference e_out - e_in (single coefficient, bounded).
+    /// Noise difference e_in - e_out (single coefficient, bounded).
     pub bsk_noise: Vec<i64>,
 }
 
@@ -81,6 +81,11 @@ fn scalar_add_mod(a: u64, b: i64, q: u64) -> u64 {
     let sum = a as i128 + b as i128;
     let r = sum.rem_euclid(q as i128);
     r as u64
+}
+
+fn scalar_add_u64_mod(a: u64, b: u64, q: u64) -> u64 {
+    let sum = a as u128 + b as u128;
+    (sum % q as u128) as u64
 }
 
 fn sample_bounded_scalar(rng: &mut dyn RngCore, bound: i64) -> i64 {
@@ -177,7 +182,7 @@ pub fn verify(
     }
 
     let lhs = scalar_add_mod(scalar_mul_mod(c, proof.z_s, q), proof.z_e, q);
-    let rhs = scalar_add_mod(scalar_mul_mod(d, proof.ch, q), proof.t as i64, q);
+    let rhs = scalar_add_u64_mod(scalar_mul_mod(d, proof.ch, q), proof.t, q);
     if lhs != rhs {
         return Err(NizkError::VerificationFailed("algebraic equation failed"));
     }
@@ -281,7 +286,7 @@ mod tests {
         };
         let wit = BootstrapWitness {
             secret_key: vec![s],
-            bsk_noise: vec![e_out - e_in],
+            bsk_noise: vec![e_in - e_out],
         };
 
         let mut rng = StdRng::seed_from_u64(42);
@@ -308,7 +313,7 @@ mod tests {
         };
         let wrong_wit = BootstrapWitness {
             secret_key: vec![s_false],
-            bsk_noise: vec![e_out - e_in],
+            bsk_noise: vec![e_in - e_out],
         };
 
         let mut rng = StdRng::seed_from_u64(999);
@@ -342,7 +347,7 @@ mod tests {
 
         let wit = BootstrapWitness {
             secret_key: vec![s],
-            bsk_noise: vec![e_out - e_in],
+            bsk_noise: vec![e_in - e_out],
         };
 
         let mut rng = StdRng::seed_from_u64(42);
@@ -368,7 +373,7 @@ mod tests {
         };
         let wit = BootstrapWitness {
             secret_key: vec![s],
-            bsk_noise: vec![e_out - e_in],
+            bsk_noise: vec![e_in - e_out],
         };
 
         let mut rng = StdRng::seed_from_u64(12345);

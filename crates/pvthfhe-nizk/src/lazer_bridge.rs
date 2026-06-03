@@ -18,6 +18,9 @@ use pvthfhe_lazer as lazer;
 
 use crate::NizkError;
 use std::collections::HashMap;
+use std::sync::Once;
+
+static LAZER_INIT_ONCE: Once = Once::new();
 
 /// Describes a witness variable from a TOML relation spec.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -250,7 +253,7 @@ impl LazerSigmaProver {
     pub fn new(spec: LazerSpec) -> Result<Self, NizkError> {
         #[cfg(feature = "enable-lazer")]
         {
-            lazer::init();
+            LAZER_INIT_ONCE.call_once(|| lazer::init());
             let state = unsafe { std::mem::zeroed::<lazer::lin_prover_state_t>() };
             Ok(LazerSigmaProver { spec, state })
         }
@@ -297,7 +300,7 @@ impl LazerSigmaVerifier {
     pub fn new(spec: LazerSpec) -> Result<Self, NizkError> {
         #[cfg(feature = "enable-lazer")]
         {
-            lazer::init();
+            LAZER_INIT_ONCE.call_once(|| lazer::init());
             let state = unsafe { std::mem::zeroed::<lazer::lin_verifier_state_t>() };
             Ok(LazerSigmaVerifier { spec, state })
         }

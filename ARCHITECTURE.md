@@ -65,6 +65,18 @@ Four optimization techniques from the Symphony paper, all compiled unconditional
 
 T1+T2 are enabled by default. T3+T4 enable k=90-round repetition (~46M constraints) within practical budgets.
 
+## LaZer: Auto-Generated Sigma Proofs (P1)
+
+`crates/pvthfhe-lazer/` provides Rust FFI bindings to the LaZer lattice-based NIZK library (LaBRADOR protocol). When `enable-lazer` feature is active, the full pipeline loads LaZer relation specs and validates them at runtime as defense-in-depth. The integration is wired through `pvthfhe-nizk/src/lazer_bridge.rs` with relation specs in `lazer_specs/` (BFV, CKKS, TFHE).
+
+| Spec | Relation | Ring | Witnesses | Protocol |
+|------|----------|------|-----------|----------|
+| `bfv_encryption.toml` | RLWE | N=8192, 3-limb RNS | u, e0, e1, m | LaBRADOR |
+| `ckks_encryption.toml` | RLWE | N=8192, 3-limb RNS | s, e | LaBRADOR |
+| `tfhe_bootstrap.toml` | LWE | N=1, scalar | s, bsk_noise | LaBRADOR |
+
+LaZer is opt-in via `--features enable-lazer`. Legacy sigma protocols (`sigma.rs`, `bfv_sigma.rs`, `bootstrap_sigma.rs`) remain the default until LaZer FFI state population (lin_params_init) is completed.
+
 ## Greco: BFV Quotient-Witness Verification
 
 `bfv_greco.rs` strengthens BFV encryption NIZK soundness from "sigma equation holds modulo q_ℓ" to "valid BFV witness exists with small coefficients." For each RNS limb ℓ, Greco computes quotient witnesses q0,q1 by lifting the sigma equations to the integers and verifies boundedness (`|q0[ℓ]|_∞ ≤ GRECO_BOUND_Q = 2^48`). NTT-accelerated RNS convolution with Garner CRT reconstruction recovers exact integer coefficients. If sigma equations hold AND quotients are bounded, a valid BFV witness exists.

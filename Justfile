@@ -18,19 +18,18 @@ phase2-gate:
 phase3-gate:
     python3 .sisyphus/scripts/phase3-gate.py
 
-# Default: Track B (LatticeFold+/MicroNova). Use `demo-e2e-track-a` for Track A (Sonobe Nova/hash-then-fold).
+# Default demo with optimized lattice features (LatticeFold+ + LaZer).
 demo-e2e n="10" t="4" seed="1":
     @echo "*** PVTHFHE end-to-end demo (research prototype) ***"
     @echo "* Supported range: 1 ≤ t ≤ n ≤ 255 (Shamir over GF(256)) *"
-    @echo "* Track B (LatticeFold+/MicroNova) — default *"
-    @echo "* Pipeline includes keygen, NIZK, RLWE folding, Sonobe Nova compression (see WARNING.md and SECURITY.md for surrogate disclosures) *"
+    @echo "* Backends: LaZer sigma proofs + LatticeFold+ folding (post-quantum) *"
     @echo "* On-chain Solidity verify is NOT run by this demo (use bench-comparison) *"
     @echo "* DO NOT DEPLOY — research prototype only                                 *"
     mkdir -p .sisyphus/evidence
     export PVTHFHE_RUN_C7_SONOBE=1
-    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 RUSTFLAGS="-Awarnings" cargo run --release -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng,pipeline-extra-checks" -- \
+    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 RUSTFLAGS="-Awarnings" cargo run --release -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng,pipeline-extra-checks,enable-lazer,enable-latticefold" -- \
         demo --n {{n}} --threshold {{t}} --seed {{seed}} \
-        2>&1 | tee .sisyphus/evidence/task-40-demo.log
+        2>&1 | tee .sisyphus/evidence/demo-e2e.log
 
 # Track A: Sonobe Nova/hash-then-fold (set PVTHFHE_TRACK=A).
 demo-e2e-track-a n="10" t="4" seed="1":
@@ -38,10 +37,18 @@ demo-e2e-track-a n="10" t="4" seed="1":
 
 # Per-node simulation — measures wall time for ONE party at given n and t
 per-node n="10" t="4" seed="1":
+    cargo run -p pvthfhe-cli --release --bin per-node --features "nova-compressor,enable-lazer,enable-latticefold" -- --n {{n}} --threshold {{t}} --seed {{seed}}
+
+# Per-node baseline (no lattice features)
+per-node-baseline n="10" t="4" seed="1":
     cargo run -p pvthfhe-cli --release --bin per-node --features "nova-compressor" -- --n {{n}} --threshold {{t}} --seed {{seed}}
 
 # Per-aggregator simulation — measures wall time for the aggregator node
 aggregator n="10" t="4" seed="1":
+    cargo run -p pvthfhe-cli --release --bin per-aggregator --features "nova-compressor,enable-lazer,enable-latticefold" -- --n {{n}} --threshold {{t}} --seed {{seed}}
+
+# Per-aggregator baseline (no lattice features)
+aggregator-baseline n="10" t="4" seed="1":
     cargo run -p pvthfhe-cli --release --bin per-aggregator --features "nova-compressor" -- --n {{n}} --threshold {{t}} --seed {{seed}}
 
 bench-p4:
@@ -139,11 +146,11 @@ bench-smoke:
 
 greco:
     @echo "=== Greco-style encryption proof ==="
-    cargo run --release -p pvthfhe-cli --features nova-compressor -- snapshot prove
+    cargo run --release -p pvthfhe-cli --features "nova-compressor,enable-lazer" -- snapshot prove
 
 compute n_ops="3":
     @echo "=== Verifiable FHE Computation (summing {{n_ops}} ciphertexts) ==="
-    cargo run --release -p pvthfhe-cli --features nova-compressor -- compute prove --n {{n_ops}}
+    cargo run --release -p pvthfhe-cli --features "nova-compressor,enable-lazer" -- compute prove --n {{n_ops}}
 
 bench-folding:
     @echo "not implemented"
@@ -301,7 +308,7 @@ artifact-reproduce:
 
 poulpy-all:
     @echo "=== Poulpy End-to-End (CKKS DKG → Scheme Switch → TFHE Bootstrap) ==="
-    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run --release -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng,pipeline-extra-checks,enable-ckks,enable-tfhe,with-fhe" -- demo --n 3 --threshold 1 --seed 1 --backend poulpy-all
+    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run --release -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng,pipeline-extra-checks,enable-ckks,enable-tfhe,with-fhe,enable-lazer" -- demo --n 3 --threshold 1 --seed 1 --backend poulpy-all
 
 stage1-gate:
     python3 .sisyphus/scripts/stage1-gate.py

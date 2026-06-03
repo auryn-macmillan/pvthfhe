@@ -9,6 +9,8 @@ pub mod cyclo_fold_circuit;
 pub mod cyclo_verifier;
 pub mod fhe_compute_circuit;
 pub mod fold_verifier_circuit;
+#[cfg(feature = "enable-greyhound")]
+pub mod greyhound_pcs;
 pub mod heterogeneous;
 pub mod high_arity_fold;
 pub mod lagrange_fold_circuit;
@@ -470,8 +472,22 @@ use crate::{
 };
 
 const BACKEND_ID: &str = "nova-bn254-grumpkin";
+#[cfg(feature = "enable-greyhound")]
+const GREYHOUND_BACKEND_ID: &str = "nova-greyhound-bn254-grumpkin";
 pub(crate) const PROOF_MAGIC: [u8; 4] = *b"SNOB";
 pub(crate) const PROOF_VERSION: u32 = 1;
+
+#[inline]
+fn nova_backend_id() -> &'static str {
+    #[cfg(feature = "enable-greyhound")]
+    {
+        GREYHOUND_BACKEND_ID
+    }
+    #[cfg(not(feature = "enable-greyhound"))]
+    {
+        BACKEND_ID
+    }
+}
 
 #[cfg(feature = "legacy-nova")]
 type NovaIvcProof = IVCProof<G1, G2>;
@@ -1470,7 +1486,7 @@ impl<S: FCircuit<Fr, Params = ()> + StepCircuit + Clone + Debug> NovaCompressor<
         let verifier_key = VerifierKey {
             srs_id,
             step_circuit_hash: circuit_hash,
-            backend_id: BACKEND_ID.to_string(),
+            backend_id: nova_backend_id().to_string(),
             version: PROOF_VERSION,
         };
 
@@ -1566,6 +1582,9 @@ where
     srs_hash: [u8; 32],
     decrypt_nizk_hash: [u8; 32],
     dkg_transcript_hash: [u8; 32],
+    /// Greyhound transparent public parameters, available when `enable-greyhound` is active.
+    #[cfg(feature = "enable-greyhound")]
+    pub greyhound_params: greyhound_pcs::GreyhoundParams,
     _step_circuit: std::marker::PhantomData<S>,
 }
 
@@ -1603,8 +1622,17 @@ where
         let verifier_key = VerifierKey {
             srs_id,
             step_circuit_hash: circuit_hash,
-            backend_id: BACKEND_ID.to_string(),
+            backend_id: nova_backend_id().to_string(),
             version: PROOF_VERSION,
+        };
+
+        // P2: When enable-greyhound is active, generate transparent Greyhound
+        // public parameters from the epoch hash. This replaces the KZG trusted
+        // setup with a lattice-based transparent setup for polynomial commitments.
+        #[cfg(feature = "enable-greyhound")]
+        let greyhound_params = {
+            let ps = greyhound_pcs::GreyhoundParamSet::small();
+            greyhound_pcs::GreyhoundPCS::setup(&srs_hash, &ps)
         };
 
         Ok(Self {
@@ -1615,8 +1643,20 @@ where
             srs_hash,
             decrypt_nizk_hash: [0u8; 32],
             dkg_transcript_hash: [0u8; 32],
+            #[cfg(feature = "enable-greyhound")]
+            greyhound_params,
             _step_circuit: std::marker::PhantomData,
         })
+    }
+
+    #[cfg(feature = "enable-greyhound")]
+    pub fn greyhound_public_params(&self) -> &greyhound_pcs::GreyhoundParams {
+        &self.greyhound_params
+    }
+
+    #[cfg(feature = "enable-greyhound")]
+    pub fn greyhound_params_hash(&self) -> [u8; 32] {
+        greyhound_params_hash(&self.greyhound_params)
     }
 
     /// Returns the structured verifier-key metadata for this backend instance.
@@ -1693,6 +1733,148 @@ type NovaRecursiveSNARK<S> = nova_snark::nova::RecursiveSNARK<
     S,
 >;
 
+#[cfg(feature = "enable-greyhound")]
+fn greyhound_params_hash(params: &greyhound_pcs::GreyhoundParams) -> [u8; 32] {
+    let mut hasher = Keccak256::new();
+    hasher.update(b"pvthfhe-greyhound-public-params-v1");
+    hasher.update((params.n as u64).to_be_bytes());
+    hasher.update((params.m as u64).to_be_bytes());
+    hasher.update((params.r as u64).to_be_bytes());
+    hasher.update(params.b0.to_be_bytes());
+    hasher.update(params.b.to_be_bytes());
+    hasher.update((params.delta0 as u64).to_be_bytes());
+    hasher.update((params.delta as u64).to_be_bytes());
+    for row in &params.a_matrix {
+        for entry in row {
+            hasher.update(encode_scalar(*entry));
+        }
+    }
+    for row in &params.b_matrix {
+        for entry in row {
+            hasher.update(encode_scalar(*entry));
+        }
+    }
+    for row in &params.d_matrix {
+        for entry in row {
+            hasher.update(encode_scalar(*entry));
+        }
+    }
+    hasher.finalize().into()
+}
+
+#[cfg(feature = "enable-greyhound")]
+fn greyhound_point_from_hash(label: &[u8], hash: &[u8; 32]) -> Fr {
+    let mut hasher = Keccak256::new();
+    hasher.update(b"pvthfhe-greyhound-nova-accumulator-eval-v1");
+    hasher.update(label);
+    hasher.update(hash);
+    let digest: [u8; 32] = hasher.finalize().into();
+    Fr::from_be_bytes_mod_order(&digest)
+}
+
+#[cfg(feature = "enable-greyhound")]
+fn greyhound_poly_from_bytes(label: &[u8], bytes: &[u8], capacity: usize) -> Vec<Fr> {
+    if capacity == 0 {
+        return Vec::new();
+    }
+    let mut poly = Vec::new();
+    let len_coeff = Fr::from(bytes.len() as u64);
+    poly.push(len_coeff);
+    for (chunk_idx, chunk) in bytes.chunks(31).enumerate() {
+        if poly.len() + 1 >= capacity {
+            break;
+        }
+        let mut padded = [0u8; 32];
+        padded[0] = chunk.len() as u8;
+        padded[1..1 + chunk.len()].copy_from_slice(chunk);
+        poly.push(Fr::from_le_bytes_mod_order(&padded));
+        let mut hasher = Keccak256::new();
+        hasher.update(b"pvthfhe-greyhound-byte-poly-chunk-v1");
+        hasher.update(label);
+        hasher.update((chunk_idx as u64).to_be_bytes());
+        hasher.update(chunk);
+        let digest: [u8; 32] = hasher.finalize().into();
+        poly.push(Fr::from_be_bytes_mod_order(&digest));
+    }
+    poly.resize(capacity, Fr::zero());
+    poly
+}
+
+#[cfg(feature = "enable-greyhound")]
+fn compute_greyhound_accumulator_hash(
+    params: &greyhound_pcs::GreyhoundParams,
+    acc: &[u8],
+    public_inputs_hash: &[u8; 32],
+    ivc_bytes: &[u8],
+) -> Result<[u8; 32], CompressorError> {
+    let capacity = params.m * params.r;
+    let mut transcript_bytes = Vec::new();
+    transcript_bytes.extend_from_slice(acc);
+    transcript_bytes.extend_from_slice(public_inputs_hash);
+    transcript_bytes.extend_from_slice(ivc_bytes);
+    let poly = greyhound_poly_from_bytes(b"nova-accumulator", &transcript_bytes, capacity);
+    let eval_pt = greyhound_point_from_hash(b"nova-accumulator", public_inputs_hash);
+    let (commitment, witness) = greyhound_pcs::GreyhoundPCS::commit(params, &poly)
+        .map_err(|_| CompressorError::Backend("Greyhound PCS commit failed"))?;
+    let opening = greyhound_pcs::GreyhoundPCS::open(params, &poly, &eval_pt, &witness)
+        .map_err(|_| CompressorError::Backend("Greyhound PCS open failed"))?;
+    let valid =
+        greyhound_pcs::GreyhoundPCS::verify(params, &commitment, &eval_pt, &opening.y, &opening)
+            .map_err(|_| CompressorError::Backend("Greyhound PCS verify failed"))?;
+    if !valid {
+        return Err(CompressorError::InvalidProof);
+    }
+
+    let mut hasher = Keccak256::new();
+    hasher.update(b"pvthfhe-greyhound-nova-accumulator-binding-v1");
+    hasher.update(greyhound_params_hash(params));
+    for elem in &commitment.u {
+        hasher.update(encode_scalar(*elem));
+    }
+    hasher.update(encode_scalar(eval_pt));
+    hasher.update(encode_scalar(opening.y));
+    for elem in &opening.v {
+        hasher.update(encode_scalar(*elem));
+    }
+    for elem in &opening.c {
+        hasher.update(encode_scalar(*elem));
+    }
+    Ok(hasher.finalize().into())
+}
+
+#[cfg(feature = "enable-greyhound")]
+fn append_greyhound_accumulator_opening(
+    params: &greyhound_pcs::GreyhoundParams,
+    proof: &mut CompressedProof,
+    acc: &[u8],
+    public_inputs_hash: &[u8; 32],
+    ivc_bytes: &[u8],
+) -> Result<(), CompressorError> {
+    proof.ivc_proof_hash = Some(compute_greyhound_accumulator_hash(
+        params,
+        acc,
+        public_inputs_hash,
+        ivc_bytes,
+    )?);
+    Ok(())
+}
+
+#[cfg(feature = "enable-greyhound")]
+fn verify_greyhound_accumulator_binding(
+    params: &greyhound_pcs::GreyhoundParams,
+    proof: &CompressedProof,
+    acc: &[u8],
+    public_inputs_hash: &[u8; 32],
+    ivc_bytes: &[u8],
+) -> Result<bool, CompressorError> {
+    let Some(claimed_hash) = proof.ivc_proof_hash else {
+        return Ok(false);
+    };
+    let expected_hash =
+        compute_greyhound_accumulator_hash(params, acc, public_inputs_hash, ivc_bytes)?;
+    Ok(claimed_hash == expected_hash)
+}
+
 impl<S> NovaCompressor<S>
 where
     S: nova_snark::traits::circuit::StepCircuit<NovaScalar> + Clone + Default,
@@ -1744,7 +1926,23 @@ where
         header.extend_from_slice(&(proof_bytes.len() as u32).to_be_bytes());
         header.extend_from_slice(&proof_bytes);
 
-        Ok(CompressedProof::new(header))
+        let proof = CompressedProof::new(header);
+        #[cfg(feature = "enable-greyhound")]
+        {
+            let mut proof = proof;
+            append_greyhound_accumulator_opening(
+                &self.greyhound_params,
+                &mut proof,
+                acc,
+                &public_inputs_hash,
+                &proof_bytes,
+            )?;
+            Ok(proof)
+        }
+        #[cfg(not(feature = "enable-greyhound"))]
+        {
+            Ok(proof)
+        }
     }
 
     /// P2: Batch-folded witness data — single `prove_step` call for all steps.
@@ -1768,7 +1966,7 @@ where
         }
 
         let beta = derive_beta_vector(&self.srs_hash, steps.len());
-        let folded = fold_external_inputs(steps, &beta);
+        let _folded = fold_external_inputs(steps, &beta);
 
         NOVA_BATCH_STEP_COUNT.with(|cell| *cell.borrow_mut() = steps.len());
 
@@ -1802,7 +2000,23 @@ where
             steps = steps.len(),
             "nova: prove_steps_batch done — single IVC fold for all steps"
         );
-        Ok(CompressedProof::new(header))
+        let proof = CompressedProof::new(header);
+        #[cfg(feature = "enable-greyhound")]
+        {
+            let mut proof = proof;
+            append_greyhound_accumulator_opening(
+                &self.greyhound_params,
+                &mut proof,
+                acc,
+                &public_inputs_hash,
+                &proof_bytes,
+            )?;
+            Ok(proof)
+        }
+        #[cfg(not(feature = "enable-greyhound"))]
+        {
+            Ok(proof)
+        }
     }
 
     pub fn prove_steps_high_arity(
@@ -1848,6 +2062,18 @@ where
 
         if parsed.acc_hash != normalized_hash(acc)? {
             tracing::error!(target: "nova", "verify_steps_high_arity: accumulator hash mismatch");
+            return Ok(false);
+        }
+
+        #[cfg(feature = "enable-greyhound")]
+        if !verify_greyhound_accumulator_binding(
+            &self.greyhound_params,
+            proof,
+            acc,
+            &expected_hash,
+            parsed.ivc_bytes,
+        )? {
+            tracing::error!(target: "nova", "verify_steps_high_arity: Greyhound binding mismatch");
             return Ok(false);
         }
 
@@ -1904,6 +2130,18 @@ where
 
         if parsed.acc_hash != normalized_hash(acc)? {
             tracing::error!(target: "nova", "verify_steps: accumulator hash mismatch");
+            return Ok(false);
+        }
+
+        #[cfg(feature = "enable-greyhound")]
+        if !verify_greyhound_accumulator_binding(
+            &self.greyhound_params,
+            proof,
+            acc,
+            &expected_hash,
+            parsed.ivc_bytes,
+        )? {
+            tracing::error!(target: "nova", "verify_steps: Greyhound binding mismatch");
             return Ok(false);
         }
 
@@ -1964,17 +2202,21 @@ where
         acc: &[u8],
         public_inputs: &[u8],
     ) -> Result<bool, CompressorError> {
-        let proof = CompressedProof::new(proof_bytes.to_vec());
-        self.verify_steps(
-            &self.verifier_key,
-            &proof,
-            acc,
-            &[ExternalInputs3(
-                decode_quad(public_inputs).map(|d| d.0).unwrap_or_default(),
-                decode_quad(public_inputs).map(|d| d.1).unwrap_or_default(),
-                decode_quad(public_inputs).map(|d| d.2).unwrap_or_default(),
-            )],
-        )
+        let mut proof = CompressedProof::new(proof_bytes.to_vec());
+        let decoded = decode_quad(public_inputs).unwrap_or_default();
+        let steps = [ExternalInputs3(decoded.0, decoded.1, decoded.2)];
+        #[cfg(feature = "enable-greyhound")]
+        {
+            let parsed = parse_proof(&proof.bytes)?;
+            let public_inputs_hash = committed_public_inputs_hash(&steps);
+            proof.ivc_proof_hash = Some(compute_greyhound_accumulator_hash(
+                &self.greyhound_params,
+                acc,
+                &public_inputs_hash,
+                parsed.ivc_bytes,
+            )?);
+        }
+        self.verify_steps(&self.verifier_key, &proof, acc, &steps)
     }
 
     pub fn prove_steps_ajtai(

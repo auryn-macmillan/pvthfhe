@@ -9,6 +9,7 @@
 use arbitrary::{Arbitrary, Unstructured};
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
+use sha2::Digest;
 use std::fmt;
 
 /// The number of fuzzing iterations per test by default.

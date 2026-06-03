@@ -12,6 +12,7 @@ Private-verifiable threshold Fully Homomorphic Encryption with O(n) per-party wo
 |-------|---------|-------|
 | DKG | Pedersen over BFV/RLWE | ✅ |
 | NIZK | Ajtai D2 sigma + BFV sigma (90-round) | ✅ |
+| LaZer NIZK | Auto-generated sigma proofs (LaBRADOR) via LaZer C lib | 🔧 opt-in |
 | Folding | nova-snark (Microsoft) Nova IVC + Symphony T1–T4 | ✅ |
 | Compression | Transparent IVC, no ceremony | ✅ |
 | On-chain | UltraHonk verifier (Solidity) + IVC binding | ✅ |

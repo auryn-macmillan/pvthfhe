@@ -12,24 +12,82 @@ help: Check that the patched package version and available features are compatib
       with the dependency requirements. If the patch has a different version from
       what is locked in the Cargo.lock file, run `cargo update` to use the new
       version. This may also occur with an optional dependency that is not enabled.
-   Compiling getrandom v0.3.4
 warning: pvthfhe-fhe@0.1.0: MOCK BACKEND ACTIVE — XOR/SHA256 ONLY. Set PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK=1 to use.
 warning: pvthfhe-aggregator@0.1.0: aggregator: folding uses CycloFoldStepCircuit with real Ajtai commitments (CycloNizkAdapter)
-   Compiling tempfile v3.27.0
-   Compiling prost-build v0.12.6
-   Compiling fhe-math v0.1.0-beta.7 (https://github.com/gnosisguild/fhe.rs?rev=5f24d0b62a7329b789db07a065b68accd614a47b#5f24d0b6)
-   Compiling fhe v0.1.0-beta.7 (https://github.com/gnosisguild/fhe.rs?rev=5f24d0b62a7329b789db07a065b68accd614a47b#5f24d0b6)
-   Compiling pvthfhe-nizk v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-nizk)
-   Compiling pvthfhe-cyclo v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-cyclo)
-   Compiling pvthfhe-fhe v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-fhe)
-   Compiling pvthfhe-pvss v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-pvss)
-   Compiling pvthfhe-keygen v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-keygen)
-   Compiling pvthfhe-aggregator v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-aggregator)
-   Compiling pvthfhe-compressor v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-compressor)
-   Compiling pvthfhe-bench v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-bench)
-   Compiling pvthfhe-cli v0.1.0 (/home/dev/pvthfhe/crates/pvthfhe-cli)
-    Finished `release` profile [optimized] target(s) in 32.78s
-     Running `target/release/pvthfhe-cli demo --n n=4 --threshold t=2 --seed seed=1`
-error: invalid value 'n=4' for '--n <N>': invalid digit found in string
-
-For more information, try '--help'.
+    Finished `release` profile [optimized] target(s) in 0.10s
+     Running `target/release/pvthfhe-cli demo --n 3 --threshold 1 --seed 1`
+demo: n=3 threshold=1 seed=1
+pvss_backend_id=lattice-pvss-bfv-d2
+backend_id == "cyclo-ajtai-d2-conditional"
+backend_id_p2: cyclo-rlwe-t10-lemma9-heuristic
+backend_id_p3: nova-bn254-grumpkin
+note: on-chain Solidity verify is NOT run by demo (use bench-comparison)
+pvss_backend_id=lattice-pvss-bfv-d2
+[2m2026-06-03T10:13:18.820636Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m seed flag ignored in production path; will require --insecure-seed in future R3.6
+step 1/14: keygen (n=3 t=1 seed=1)
+keygen: complete (162.723 ms)
+step 2/14: dkg_deal (n=3 dealers)
+dkg_deal: complete (4530.868 ms)
+step 3/14: dkg_aggregate (n=3 recipients)
+dkg_aggregate: complete (0.033 ms)
+step 4/14: dkg_fold (n=3 recipients)
+step 5/14: nizk_prove (dealer=1)
+step 6/14: nizk_verify (dealer=1 recipient=1)
+step 7/14: pvss_share_encrypt (lattice-pvss-bfv-d2)
+pvss_share_encrypt: complete (158.520 ms)
+setup_threshold: complete (25.812 ms)
+step 8/14: cyclo_fold (cyclo-rlwe-t10-lemma9-heuristic)
+cyclo_fold: complete (3.645 ms)
+step 9/14: partial_decrypt (party_id=1)
+partial_decrypt: complete (2.697 ms)
+step 10/14: aggregate_decrypt
+aggregate_decrypt: complete (6.728 ms)
+step 11/14: c7_decrypt_aggregation
+c7_decrypt_aggregation: complete (1140.003 ms)
+step 12/14: compressor_prove (nova-bn254-grumpkin)
+compressor_prove: complete (23.789 ms)
+step 13/14: compressor_verify (nova-bn254-grumpkin)
+compressor_verify: complete (21.787 ms)
+step 14/14: c7_noir_aggregator
+[2m2026-06-03T10:13:46.968002Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m PVTHFHE_NARGO_PATH not set; resolving nargo from PATH (PATH injection risk)
+[aggregator_final] Circuit witness successfully solved
+[aggregator_final] Witness saved to target/aggregator_final.gz
+[aggregator_final] Circuit output: [0x2f9c3a30f83c, 0x0161e4ac3718ae69, 0x03ffc25a8256d038, 0x816c62c97e15, 0x2ed92591fee5, 0x03ffe267cb179abe, 0x2113cf63775d, 0x3c88b9496d8c]
+[2m2026-06-03T10:13:47.113891Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m PVTHFHE_BB_PATH not set; resolving bb from PATH (PATH injection risk)
+Scheme is: ultra_honk, num threads: 8 (mem: 740.68 MiB)
+CircuitProve: Proving key computed in 11 ms (mem: 740.68 MiB)
+VK saved to "target/vk" (mem: 740.68 MiB)
+VK Hash saved to "target/vk_hash" (mem: 740.68 MiB)
+[2m2026-06-03T10:13:47.163285Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m PVTHFHE_BB_PATH not set; resolving bb from PATH (PATH injection risk)
+Scheme is: ultra_honk, num threads: 8 (mem: 740.68 MiB)
+CircuitProve: Proving key computed in 11 ms (mem: 740.68 MiB)
+Public inputs saved to "target/public_inputs" (mem: 740.68 MiB)
+Proof saved to "target/proof" (mem: 740.68 MiB)
+[2m2026-06-03T10:13:47.297671Z[0m [33m WARN[0m [2mpvthfhe_cli::full_pipeline[0m[2m:[0m PVTHFHE_BB_PATH not set; resolving bb from PATH (PATH injection risk)
+Scheme is: ultra_honk, num threads: 8 (mem: 740.68 MiB)
+Proof verified successfully (mem: 740.68 MiB)
+c7_noir_aggregator: complete (342.039 ms)
+plaintext_roundtrip: OK
+aggregate_pk_hash: ad82964c3ef4a13ac84b381502e50bfa99b6411bc96bc916be7e4b15037fb099
+ciphertext_hash: 433345cb267e61744a8b35972bc4b35ce793f175906add008658304fa20fe2bc
+compressed_proof_digest: 9913722fef32daa3ef49b5ec7f6100220a4aa0974e3f79708c00bf2f55827e8b
+keygen_ms=162.723322
+aggregate_keygen_ms=2.133406
+dkg_deal_ms=4530.867652
+dkg_aggregate_ms=0.032917999999999996
+encrypt_ms=2.920112
+share_encryption_proof_ms=77
+partial_decrypt_ms=2.6972490000000002
+aggregate_decrypt_ms=6.727758000000001
+decrypt_ms=9.425007
+threshold=1
+n=3
+per_node_keygen_ms=54.2
+per_node_dkg_deal_ms=1510.3
+per_node_partial_decrypt_ms=2.7
+aggregator_total_ms=58.1
+distributed_estimate_ms=1568.4
+recipient_fold_hashes=[16584843868040638721920970863613169986836230600766713268998020397969119300278, 9826279697623036279726876494390023526254815303829895145470365438778892098155, 2895664044902115426913355720544564081655753573213860359882156767955620896468]
+recipient_parity_proof_hashes=[16584843868040638721920970863613169986836230600766713268998020397969119300278, 9826279697623036279726876494390023526254815303829895145470365438778892098155, 2895664044902115426913355720544564081655753573213860359882156767955620896468]
+verify: ACCEPT
+pvss_backend_id=lattice-pvss-bfv-d2

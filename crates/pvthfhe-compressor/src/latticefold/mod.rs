@@ -13,5 +13,7 @@ pub mod fold;
 pub mod range_proof;
 
 pub use compressor::LatticeFoldCompressor;
-pub use fold::{double_commit, fold_instances, verify_double_commitment, verify_folded_instance};
+pub use fold::{
+    double_commit, fold_instances, smart_commit, verify_double_commitment, verify_folded_instance,
+};
 pub use range_proof::{algebraic_range_check, AlgebraicRangeProof};

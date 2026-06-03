@@ -44,6 +44,36 @@ pub fn double_commit(inner_data: &[u8], domain_separator: &[u8]) -> DoubleCommit
     }
 }
 
+/// Smart commitment — skips outer commitment when n < 10.
+///
+/// For small n, the outer commitment overhead outweighs the proof size benefit.
+/// When n < 10, outer_commitment is set equal to inner_commitment (no extra hashing).
+pub fn smart_commit(inner_data: &[u8], domain_separator: &[u8], n: usize) -> DoubleCommitment {
+    let mut inner = Keccak256::new();
+    inner.update(b"latticefold-inner-commit-v1");
+    inner.update(domain_separator);
+    inner.update(inner_data);
+    let inner_hash: [u8; 32] = inner.finalize().into();
+
+    if n < 10 {
+        DoubleCommitment {
+            inner_commitment: inner_hash,
+            outer_commitment: inner_hash,
+        }
+    } else {
+        let mut outer = Keccak256::new();
+        outer.update(b"latticefold-outer-commit-v1");
+        outer.update(domain_separator);
+        outer.update(&inner_hash);
+        let outer_hash: [u8; 32] = outer.finalize().into();
+
+        DoubleCommitment {
+            inner_commitment: inner_hash,
+            outer_commitment: outer_hash,
+        }
+    }
+}
+
 pub fn verify_double_commitment(
     commitment: &DoubleCommitment,
     inner_data: &[u8],
@@ -224,6 +254,29 @@ mod tests {
         let dc = double_commit(data, b"test");
         let tampered = b"tampered data";
         assert!(!verify_double_commitment(&dc, tampered, b"test"));
+    }
+
+    #[test]
+    fn smart_commit_skips_outer_for_small_n() {
+        let data = b"smart commit data";
+        let small = smart_commit(data, b"test", 3);
+        let large = smart_commit(data, b"test", 11);
+        assert_eq!(
+            small.inner_commitment, small.outer_commitment,
+            "small n: outer equals inner (skipped)"
+        );
+        assert_ne!(
+            large.inner_commitment, large.outer_commitment,
+            "large n: outer differs from inner"
+        );
+    }
+
+    #[test]
+    fn smart_commit_inner_unchanged() {
+        let data = b"same data";
+        let dc = double_commit(data, b"test");
+        let sc = smart_commit(data, b"test", 5);
+        assert_eq!(dc.inner_commitment, sc.inner_commitment);
     }
 
     #[test]

@@ -9,6 +9,7 @@ default = []
 enable-poulpy = ["dep:poulpy-hal"]
 enable-ckks = ["enable-poulpy"]
 enable-tfhe = ["enable-poulpy"]
+enable-lazer = ["dep:pvthfhe-lazer", "pvthfhe-lazer/enable-lazer"]
 
 [dependencies]
 pvthfhe-rng = { path = "../pvthfhe-rng" }
@@ -33,6 +34,8 @@ ark-ec = "0.5"
 
 # Poulpy deps for sigma protocol adaptation (Phase 2)
 poulpy-hal = { git = "https://github.com/poulpy-fhe/poulpy", rev = "4a1f0c642cef7e5830287c3d6af7e013d8a7bda4", optional = true }
+# LaZer FFI bridge for auto-generated sigma proofs (P1 Phase 2)
+pvthfhe-lazer = { path = "../pvthfhe-lazer", optional = true }
 
 [dev-dependencies]
 

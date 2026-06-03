@@ -21,6 +21,9 @@ pub mod bfv_sigma;
 pub mod bootstrap_sigma;
 pub mod fiat_shamir;
 pub mod hash_bridge;
+#[cfg(feature = "enable-lazer")]
+#[doc = "LaZer bridge: auto-generated sigma proofs via LaZer C library."]
+pub mod lazer_bridge;
 #[cfg(feature = "enable-poulpy")]
 #[doc = "Sigma protocol adaptation for Poulpy CKKS (RLWE) and TFHE (LWE) schemes."]
 #[doc = "\n\nPowered by `poulpy-hal` for VecZnx coefficient extraction and S-Z evaluation over per-limb moduli."]

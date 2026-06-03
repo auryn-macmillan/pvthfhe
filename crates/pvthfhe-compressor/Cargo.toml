@@ -44,9 +44,17 @@ transparent-decider = []
 # only active backend. This feature exists solely to preserve legacy code for
 # reference during migration.
 legacy-nova = []
+# Enables the Greyhound lattice-based polynomial commitment scheme as a
+# transparent alternative to KZG commitments in the Nova accumulator.
+# When enabled, NovaCompressor uses Greyhound's transparent setup instead
+# of KZG trusted setup. The KZG path remains available as fallback.
+enable-greyhound = []
 # Symphony T3 (monomial embedding range proofs) and T4 (random projection) are
 # now compiled unconditionally. The feature flags have been removed in S8.
 # See ARCHITECTURE.md §Symphony for details.
+# P3 LatticeFold+: lattice-native folding with algebraic range proofs.
+# Replaces bit-decomposition range checks with polynomial evaluation.
+enable-latticefold = []
 
 [dev-dependencies]
 

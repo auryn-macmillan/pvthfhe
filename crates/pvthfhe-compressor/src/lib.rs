@@ -30,6 +30,10 @@ pub mod nova;
 /// MicroNova recursive compression (P3-M2).
 pub mod micronova;
 
+/// LatticeFold+ lattice-native folding (P3).
+#[cfg(feature = "enable-latticefold")]
+pub mod latticefold;
+
 /// Opaque compressed-proof bytes.
 ///
 /// The wire format encodes an IVC folding proof followed by an optional

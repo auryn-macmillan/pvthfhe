@@ -77,6 +77,7 @@ mock = ["with-fhe", "pvthfhe-fhe/mock", "pvthfhe-aggregator/mock"]
 probe-no-fhe = []
 surrogate-compressor = []
 nova-compressor = ["dep:pvthfhe-compressor", "dep:pvthfhe-circuit-tests"]
+enable-greyhound = ["nova-compressor", "pvthfhe-compressor/enable-greyhound"]
 # Stage 0 tripwire bypass: enable seeded RNG in demo paths.
 # Must NOT be enabled in release/production builds.
 demo-seeded-rng = []
@@ -90,6 +91,8 @@ enable-tfhe = ["dep:pvthfhe-fhe-poulpy", "pvthfhe-fhe-poulpy/enable-tfhe", "pvth
 # Enable LaZer auto-generated sigma proofs (P1 Phase 2).
 enable-lazer = ["pvthfhe-nizk/enable-lazer"]
 # Symphony T3/T4 are now compiled unconditionally (S8). Feature flags removed.
+# P3 LatticeFold+: lattice-native folding with algebraic range proofs.
+enable-latticefold = ["nova-compressor", "pvthfhe-compressor/enable-latticefold"]
 
 [dev-dependencies]
 assert_cmd = "2"

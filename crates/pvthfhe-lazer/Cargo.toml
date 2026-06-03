@@ -1,0 +1,13 @@
+[package]
+name = "pvthfhe-lazer"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "FFI bindings to the LaZer lattice-based NIZK library (LaBRADOR protocol)"
+
+[features]
+default = []
+enable-lazer = []
+
+[build-dependencies]
+cc = { version = "1", features = ["parallel"] }

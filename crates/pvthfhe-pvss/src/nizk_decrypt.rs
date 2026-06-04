@@ -25,7 +25,7 @@ pub const DECRYPT_NIZK_DOMAIN_SEPARATOR: &str = "pvthfhe-pvss-share-decryption-v
 
 const PROOF_VERSION: u16 = 3;
 const WIRE_VERSION: u8 = 3;
-const MAX_FIELD_LEN: usize = 1 << 20;
+const MAX_FIELD_LEN: usize = 33_554_432; // 32 MiB — G1: 90-round sigma inner proof up to 17.7 MB for N=8192
 const RLWE_DEGREE: usize = 8192;
 const RLWE_Q_LOG2: u64 = 174;
 const RLWE_ERROR_BOUND: u64 = 16;

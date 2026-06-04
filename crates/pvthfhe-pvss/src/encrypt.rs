@@ -177,6 +177,21 @@ impl LatticePvssBfvAdapter {
     fn verify_decrypted_share(&self, share: &DecryptedShare) -> Result<(), PvssError> {
         let proof = DecryptNizkProof::from_bytes(share.proof.0.clone())?;
         let opened = proof.decode()?;
+        if opened.statement.party_index != share.index {
+            eprintln!(
+                "DIAG: party_index mismatch: opened={} != share.index={}",
+                opened.statement.party_index, share.index
+            );
+            return Err(PvssError::InvalidShare);
+        }
+        if opened.statement.decrypted_share_bytes != share.share_bytes.expose() {
+            eprintln!(
+                "DIAG: share_bytes mismatch: opened.len={} != share.len={}",
+                opened.statement.decrypted_share_bytes.len(),
+                share.share_bytes.expose().len()
+            );
+            return Err(PvssError::InvalidShare);
+        }
         if opened.statement.party_index != share.index
             || opened.statement.decrypted_share_bytes != share.share_bytes.expose()
         {

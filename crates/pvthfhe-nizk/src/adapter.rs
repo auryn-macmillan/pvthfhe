@@ -145,7 +145,12 @@ impl NizkAdapter for CycloNizkAdapter {
     }
 
     fn verify(&self, stmt: &NizkStatement, proof: &NizkProof) -> Result<(), NizkError> {
-        validate_statement(stmt)?;
+        validate_statement(stmt).inspect_err(|e| {
+            eprintln!(
+                "PVSS adapter validate_statement failed: {e:?} | stmt.session_id={:?} stmt.params={:?}",
+                stmt.session_id, stmt.params
+            );
+        })?;
         if proof.backend_id != BACKEND_ID {
             return Err(NizkError::VerificationFailed("unexpected proof backend"));
         }

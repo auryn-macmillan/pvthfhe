@@ -183,8 +183,14 @@ impl LatticePvssBfvAdapter {
             return Err(PvssError::InvalidShare);
         }
 
-        DecryptNizkVerifier::verify(&opened.statement, &proof)
-            .map_err(|e| PvssError::ShareVerification(format!("decrypt NIZK: {e}")))
+        eprintln!(
+            "PVSS verify_decrypted_share: statement={:?}",
+            opened.statement
+        );
+        DecryptNizkVerifier::verify(&opened.statement, &proof).map_err(|e| {
+            eprintln!("PVSS verify_decrypted_share: raw error={e:?}");
+            PvssError::ShareVerification(format!("decrypt NIZK: {e}"))
+        })
     }
 }
 

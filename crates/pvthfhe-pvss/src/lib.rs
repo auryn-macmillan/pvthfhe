@@ -172,7 +172,7 @@ impl core::fmt::Debug for PvssError {
             Self::D2HashBindingFailed => f.write_str("D2HashBindingFailed"),
             Self::BfvEncryptionProofFailed => f.write_str("BfvEncryptionProofFailed"),
             Self::SmudgeSlotReused { .. } => f.write_str("SmudgeSlotReused(<redacted>)"),
-            Self::ShareVerification(_) => f.write_str("ShareVerification(<redacted>)"),
+            Self::ShareVerification(s) => write!(f, "ShareVerification({s})"),
         }
     }
 }

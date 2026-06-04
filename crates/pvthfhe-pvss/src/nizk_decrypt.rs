@@ -210,7 +210,7 @@ impl DecryptNizkVerifier {
 
         CycloNizkAdapter
             .verify(&inner_stmt, &inner_proof)
-            .map_err(|_| PvssError::InvalidShare)
+            .map_err(|e| PvssError::ShareVerification(format!("sigma verify: {e}")))
     }
 }
 

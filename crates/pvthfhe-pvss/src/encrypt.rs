@@ -184,6 +184,7 @@ impl LatticePvssBfvAdapter {
         }
 
         DecryptNizkVerifier::verify(&opened.statement, &proof)
+            .map_err(|e| PvssError::ShareVerification(format!("decrypt NIZK: {e}")))
     }
 }
 

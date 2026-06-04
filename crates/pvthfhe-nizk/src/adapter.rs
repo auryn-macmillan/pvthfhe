@@ -275,7 +275,13 @@ pub fn extract_sigma_proof(proof_bytes: &[u8]) -> Result<(Vec<u64>, sigma::Sigma
         .map_err(|_| NizkError::InvalidProof("sigma_section_len overflow"))?;
     let sigma_section = cur.read_exact(sigma_section_len)?.to_vec();
 
-    decode_sigma_section(&sigma_section)
+    let (d_rns, multi_proof) = decode_sigma_section_multi(&sigma_section)?;
+    let first_round = multi_proof
+        .rounds
+        .into_iter()
+        .next()
+        .ok_or(NizkError::InvalidProof("sigma multi-proof has zero rounds"))?;
+    Ok((d_rns, first_round))
 }
 
 /// Public extraction of the full sigma verifier input from opaque proof bytes.

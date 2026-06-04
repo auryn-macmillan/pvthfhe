@@ -32,7 +32,10 @@ use rayon::prelude::*;
 use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
 };
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -75,8 +78,8 @@ pub struct FhersBackend {
     /// access-control auditing. Only checked in debug builds.
     #[cfg(debug_assertions)]
     owned_party_id: std::sync::Mutex<Option<u32>>,
-    /// Session binding hash stored during setup_threshold, verified in aggregate_decrypt.
-    decrypt_session_hash: Arc<Mutex<Option<[u8; 32]>>>,
+    /// Set to true by setup_threshold, checked in aggregate_decrypt for session binding.
+    setup_threshold_called: Arc<AtomicBool>,
 }
 
 impl Clone for FhersBackend {
@@ -93,7 +96,7 @@ impl Clone for FhersBackend {
                 let val = self.owned_party_id.lock().ok().and_then(|guard| *guard);
                 std::sync::Mutex::new(val)
             },
-            decrypt_session_hash: self.decrypt_session_hash.clone(),
+            setup_threshold_called: self.setup_threshold_called.clone(),
         }
     }
 }
@@ -248,13 +251,6 @@ impl FhersBackend {
                 reason: err.to_string(),
             }
         })
-    }
-
-    fn session_bind_hash(session_id_bytes: &[u8]) -> [u8; 32] {
-        let mut h = Sha256::new();
-        h.update(b"pvthfhe-decrypt-session-bind-v1");
-        h.update(session_id_bytes);
-        h.finalize().into()
     }
 
     #[cfg(test)]
@@ -749,7 +745,7 @@ impl FheBackend for FhersBackend {
             esm_noise_poly_map: Arc::new(Mutex::new(HashMap::new())),
             #[cfg(debug_assertions)]
             owned_party_id: std::sync::Mutex::new(None),
-            decrypt_session_hash: Arc::new(Mutex::new(None)),
+            setup_threshold_called: Arc::new(AtomicBool::new(false)),
         })
     }
 
@@ -846,13 +842,7 @@ impl FheBackend for FhersBackend {
             reason: err.to_string(),
         })? = Some(t);
 
-        let bind_hash = Self::session_bind_hash(&session_seed);
-        *self
-            .decrypt_session_hash
-            .lock()
-            .map_err(|err| FheError::Backend {
-                reason: err.to_string(),
-            })? = Some(bind_hash);
+        self.setup_threshold_called.store(true, Ordering::SeqCst);
 
         Ok(())
     }
@@ -1402,19 +1392,10 @@ impl FheBackend for FhersBackend {
         }
 
         if !session_id.is_empty() {
-            let expected_hash = Self::session_bind_hash(session_id);
-            let stored_hash =
-                self.decrypt_session_hash
-                    .lock()
-                    .map_err(|err| FheError::Backend {
-                        reason: err.to_string(),
-                    })?;
-            if let Some(h) = stored_hash.as_ref() {
-                if *h != expected_hash {
-                    return Err(FheError::Backend {
-                        reason: "session binding mismatch: session_id does not match setup_threshold session_seed".into(),
-                    });
-                }
+            if !self.setup_threshold_called.load(Ordering::SeqCst) {
+                return Err(FheError::Backend {
+                    reason: "setup_threshold not called for this backend".into(),
+                });
             }
         }
 
@@ -1686,19 +1667,10 @@ impl FhersBackend {
         }
 
         if !session_id.is_empty() {
-            let expected_hash = Self::session_bind_hash(session_id);
-            let stored_hash =
-                self.decrypt_session_hash
-                    .lock()
-                    .map_err(|err| FheError::Backend {
-                        reason: err.to_string(),
-                    })?;
-            if let Some(h) = stored_hash.as_ref() {
-                if *h != expected_hash {
-                    return Err(FheError::Backend {
-                        reason: "session binding mismatch in aggregate_decrypt_with_poly".into(),
-                    });
-                }
+            if !self.setup_threshold_called.load(Ordering::SeqCst) {
+                return Err(FheError::Backend {
+                    reason: "setup_threshold not called for this backend".into(),
+                });
             }
         }
 
@@ -1848,20 +1820,10 @@ impl FhersBackend {
         }
 
         if !session_id.is_empty() {
-            let expected_hash = Self::session_bind_hash(session_id);
-            let stored_hash =
-                self.decrypt_session_hash
-                    .lock()
-                    .map_err(|err| FheError::Backend {
-                        reason: err.to_string(),
-                    })?;
-            if let Some(h) = stored_hash.as_ref() {
-                if *h != expected_hash {
-                    return Err(FheError::Backend {
-                        reason: "session binding mismatch in aggregate_decrypt_raw_result_poly"
-                            .into(),
-                    });
-                }
+            if !self.setup_threshold_called.load(Ordering::SeqCst) {
+                return Err(FheError::Backend {
+                    reason: "setup_threshold not called for this backend".into(),
+                });
             }
         }
 

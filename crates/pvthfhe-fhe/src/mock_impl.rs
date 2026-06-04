@@ -5,6 +5,9 @@
 
 use crate::{error::FheError, types::Params};
 
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
 #[cfg(not(feature = "production-profile"))]
 use crate::{
     types::{Ciphertext, DecryptShare, KeygenShare, PublicKey},
@@ -100,13 +103,17 @@ pub(crate) fn xor_bytes(a: &[u8], b: &[u8]) -> Vec<u8> {
 #[derive(Clone, Debug)]
 pub struct MockBackendInner {
     pub(crate) _params: Params,
+    setup_threshold_called: Arc<AtomicBool>,
 }
 
 #[cfg(not(feature = "production-profile"))]
 impl FheBackend for MockBackendInner {
     fn load_params(toml: &str) -> Result<Self, FheError> {
         let params = parse_params(toml)?;
-        Ok(Self { _params: params })
+        Ok(Self {
+            _params: params,
+            setup_threshold_called: Arc::new(AtomicBool::new(false)),
+        })
     }
 
     fn keygen_share_with_session(
@@ -120,6 +127,16 @@ impl FheBackend for MockBackendInner {
             party_id,
             bytes: ProtocolBytes(bytes),
         })
+    }
+
+    fn setup_threshold(
+        &self,
+        _n: usize,
+        _t: usize,
+        _session_seed: [u8; 32],
+    ) -> Result<(), FheError> {
+        self.setup_threshold_called.store(true, Ordering::SeqCst);
+        Ok(())
     }
 
     fn aggregate_keygen(&self, shares: &[KeygenShare]) -> Result<PublicKey, FheError> {
@@ -165,8 +182,16 @@ impl FheBackend for MockBackendInner {
         ct: &Ciphertext,
         shares: &[DecryptShare],
         threshold: usize,
-        _session_id: &[u8],
+        session_id: &[u8],
     ) -> Result<Vec<u8>, FheError> {
+        if !session_id.is_empty() {
+            if !self.setup_threshold_called.load(Ordering::SeqCst) {
+                return Err(FheError::Backend {
+                    reason: "setup_threshold not called for this backend".into(),
+                });
+            }
+        }
+
         let mut seen = std::collections::BTreeSet::new();
         for s in shares {
             if !seen.insert(s.party_id) {

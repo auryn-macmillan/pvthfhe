@@ -189,11 +189,15 @@ fn different_session_ids_produce_different_challenges() {
     );
 }
 
-/// Offset inside the sigma section where z_e[0] data lives.
+/// Offset inside the sigma section where z_e[0] data lives (first round).
 ///
+/// Sigma section layout (multi-round):
+///   d_rns: count(4) + values(n*3*8)
+///   num_rounds: 4
+///   round 0: t_rns count(4)+values | z_s count(4)+values | z_e count(4)+values | ch(32)
 fn sigma_z_e_data_offset() -> usize {
     let n = rlwe_n();
-    (4 + n * 3 * 8) + (4 + n * 3 * 8) + (4 + n * 8) + 4
+    (4 + n * 3 * 8) + 4 /* num_rounds */ + (4 + n * 3 * 8) + (4 + n * 8) + 4
 }
 
 #[test]
@@ -203,8 +207,8 @@ fn scenario_01_tampered_ajtai_commitment() -> Result<(), NizkError> {
     // Tamper with first t_rns coefficient value in sigma section (guaranteed
     // to break algebraic verification equation).
     let sigma_start = sigma_section_offset("n8-session");
-    // Layout: d_rns count(4) | d_rns values(24576*8) | t_rns count(4) | t_rns values
-    let t_rns_first_val = sigma_start + 4 + rlwe_n() * 3 * 8 + 4;
+    // Layout: d_rns count(4) | d_rns values(24576*8) | num_rounds(4) | t_rns count(4) | t_rns values
+    let t_rns_first_val = sigma_start + 4 + rlwe_n() * 3 * 8 + 4 /* num_rounds */ + 4;
     if t_rns_first_val + 7 < proof.proof_bytes.len() {
         proof.proof_bytes[t_rns_first_val] ^= 0xFF;
     }

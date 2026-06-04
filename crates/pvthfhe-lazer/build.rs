@@ -19,13 +19,23 @@ fn main() {
 }
 
 fn build_lazer() {
-    let lazer_dir = PathBuf::from(
-        env::var("LAZER_DIR").unwrap_or_else(|_| format!("{}/lazer", env::var("HOME").unwrap())),
-    );
+    // LAZER_DIR overrides the default (git submodule at repo root).
+    let lazer_dir = env::var("LAZER_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            // Default: git submodule at <repo-root>/lazer
+            let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+            manifest_dir
+                .parent()
+                .unwrap()
+                .parent()
+                .unwrap()
+                .join("lazer")
+        });
 
     if !lazer_dir.join("Makefile").exists() {
         panic!(
-            "LaZer source not found at {}. Set LAZER_DIR env var or clone https://github.com/auryn-macmillan/lazer",
+            "LaZer source not found at {}. Set LAZER_DIR env var or clone https://github.com/lazer-crypto/lazer",
             lazer_dir.display()
         );
     }

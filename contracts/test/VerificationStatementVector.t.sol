@@ -6,12 +6,12 @@ import "../src/VerificationStatementV1.sol";
 
 contract VerificationStatementVectorTest is Test {
     uint256 internal constant GOLDEN_HASH =
-        2717525839999002672616025848791696639911259589570414897881626410761076250408;
+        7807432589986464173440955546194920105762623084817847309522180293390994111;
 
     function testVerificationStatementPreimageMatchesGoldenJson() public pure {
         VerificationStatementV1.Statement memory statement = _goldenStatement();
-        uint256[76] memory preimage = VerificationStatementV1.poseidonPreimage(statement);
-        uint256[76] memory expected = _goldenPreimage();
+        uint256[92] memory preimage = VerificationStatementV1.poseidonPreimage(statement);
+        uint256[92] memory expected = _goldenPreimage();
 
         for (uint256 i = 0; i < expected.length; i++) {
             assertEq(preimage[i], expected[i], "preimage element mismatch");
@@ -123,6 +123,23 @@ contract VerificationStatementVectorTest is Test {
         statement = _goldenStatement();
         statement.bootstrapResultHash = _mutateBytes32(statement.bootstrapResultHash);
         _assertStatementHashChanged(statement, "bootstrapResultHash");
+
+        // P0-4: new fields 20-23
+        statement = _goldenStatement();
+        statement.shareVerificationHash = _mutateBytes32(statement.shareVerificationHash);
+        _assertStatementHashChanged(statement, "shareVerificationHash");
+
+        statement = _goldenStatement();
+        statement.decryptNizkHash = _mutateBytes32(statement.decryptNizkHash);
+        _assertStatementHashChanged(statement, "decryptNizkHash");
+
+        statement = _goldenStatement();
+        statement.dkgTranscriptHash = _mutateBytes32(statement.dkgTranscriptHash);
+        _assertStatementHashChanged(statement, "dkgTranscriptHash");
+
+        statement = _goldenStatement();
+        statement.novaFinalStateCommitment = _mutateBytes32(statement.novaFinalStateCommitment);
+        _assertStatementHashChanged(statement, "novaFinalStateCommitment");
     }
 
     function _goldenStatement() internal pure returns (VerificationStatementV1.Statement memory statement) {
@@ -145,6 +162,10 @@ contract VerificationStatementVectorTest is Test {
         statement.ziCommitment = _bytesFromSeed(0xf0);
         statement.ivcSteps = 7;
         statement.bootstrapResultHash = _bytesFromSeed(0x08);
+        statement.shareVerificationHash = _bytesFromSeed(0x11);
+        statement.decryptNizkHash = _bytesFromSeed(0x12);
+        statement.dkgTranscriptHash = _bytesFromSeed(0x13);
+        statement.novaFinalStateCommitment = _bytesFromSeed(0x14);
     }
 
     function _bytesFromSeed(uint8 seed) internal pure returns (bytes32 out) {
@@ -166,11 +187,11 @@ contract VerificationStatementVectorTest is Test {
         assertTrue(VerificationStatementV1.computeStatementHash(statement) != GOLDEN_HASH, fieldName);
     }
 
-    function _goldenPreimage() internal pure returns (uint256[76] memory expected) {
+    function _goldenPreimage() internal pure returns (uint256[92] memory expected) {
         expected = [
             uint256(11843706111462126810235743653006615712282455314701937352287001081393),
             uint256(1),
-            uint256(19),
+            uint256(23),
             uint256(1),
             uint256(4),
             uint256(1),
@@ -243,7 +264,23 @@ contract VerificationStatementVectorTest is Test {
             uint256(19),
             uint256(32),
             uint256(10680758337341567149999962687708403223),
-            uint256(32031808810812215837897977271662487079)
+            uint256(32031808810812215837897977271662487079),
+            uint256(20),
+            uint256(32),
+            uint256(22690724228668807036942595891182575392),
+            uint256(44041774702139455724840610475136659248),
+            uint256(21),
+            uint256(32),
+            uint256(24025164883260722579936221802679705633),
+            uint256(45376215356731371267834236386633789489),
+            uint256(22),
+            uint256(32),
+            uint256(25359605537852638122929847714176835874),
+            uint256(46710656011323286810827862298130919730),
+            uint256(23),
+            uint256(32),
+            uint256(26694046192444553665923473625673966115),
+            uint256(48045096665915202353821488209628049971)
         ];
     }
 }

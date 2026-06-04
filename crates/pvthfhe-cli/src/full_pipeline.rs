@@ -38,7 +38,7 @@ use pvthfhe_domain_tags::Tag;
 use pvthfhe_fhe::{
     fhers::FhersBackend,
     real_nizk::{LatticeNizk, NizkProof, NizkStatement, NizkWitness, RealNizkAdapter},
-    FheBackend, KeygenShare, PublicKey,
+    Ciphertext, DecryptShare, FheBackend, KeygenShare, PublicKey,
 };
 use pvthfhe_nizk::adapter::extract_sigma_proof;
 use pvthfhe_nizk::schnorr;
@@ -198,6 +198,10 @@ pub struct PipelineReport {
     ///   acc = Poseidon(acc, phase_hash). Passed to aggregator_final as a
     /// public input to verify the cross-circuit DKG commitment chain.
     pub pipeline_integrity_hash: Fr,
+    /// C5 aggregate public-key formation proof root (SHA-256).
+    /// Populated from the keygen simulator's Round3Aggregate. Used as a verifier
+    /// statement anchor to prove that `pk_agg = Σ pk_i` with per-participant PoP.
+    pub c5_proof_root: [u8; 32],
 }
 
 /// Observer hooks for pipeline narration and metrics.
@@ -237,12 +241,13 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         );
     }
 
-    let max_t = (cfg.n - 1) / 2;
+    let max_t = cfg.n / 2 + 1;
     if cfg.t > max_t {
         anyhow::bail!(
-            "the upstream fhe.rs backend requires threshold t <= (n-1)/2; for n={} maximum t is {}",
-            cfg.n,
-            max_t
+            "threshold t={} exceeds max_t={} for n={}. Must satisfy t <= floor(n/2)+1 for the honest-majority threshold policy; Shamir privacy holds against fewer than t shares.",
+            cfg.t,
+            max_t,
+            cfg.n
         );
     }
 
@@ -417,8 +422,13 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         };
         let party_ids: Vec<Fr> = (0..cfg.n).map(|i| Fr::from((i + 1) as u64)).collect();
         set_pk_contribution_data(party_ids, cfg.n);
-        let c1_compressor = NovaCompressor::<KeyContributionStepCircuit<Fr>>::new([0u8; 32], cfg.n)
-            .map_err(|e| anyhow::anyhow!("c1 compressor: {e:?}"))?;
+        let c1_compressor = NovaCompressor::<KeyContributionStepCircuit<Fr>>::new(
+            [0u8; 32],
+            cfg.n,
+            [0u8; 32],
+            pvthfhe_compressor::nova::SBIND_KEY_CONTRIBUTION,
+        )
+        .map_err(|e| anyhow::anyhow!("c1 compressor: {e:?}"))?;
         let c1_acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
         let c1_steps: Vec<ExternalInputs3<Fr>> =
             vec![ExternalInputs3(Fr::from(1u64), Fr::zero(), Fr::from(cfg.n as u64)); cfg.n];
@@ -545,7 +555,10 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 );
 
                 let parity_compressor = NovaCompressor::<DealerParityStepCircuit<Fr>>::new(
-                    [0u8; 32], 1,
+                    [0u8; 32],
+                    1,
+                    [0u8; 32],
+                    pvthfhe_compressor::nova::SBIND_DEALER_PARITY,
                 )
                 .map_err(|e| anyhow::anyhow!("parity compressor (dealer={dealer_id}): {e:?}"))?;
 
@@ -675,8 +688,13 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             // failures are logged but non-fatal — the pipeline integrity hash provides
             // defense-in-depth. See .sisyphus/plans/fix-ivc-verify-p3.md.
             set_dkg_agg_data(grouped_by_recipient);
-            let c4_compressor = NovaCompressor::<DkgAggregationStepCircuit<Fr>>::new([0u8; 32], n)
-                .map_err(|e| anyhow::anyhow!("c4 compressor: {e:?}"))?;
+            let c4_compressor = NovaCompressor::<DkgAggregationStepCircuit<Fr>>::new(
+                [0u8; 32],
+                n,
+                [0u8; 32],
+                pvthfhe_compressor::nova::SBIND_DKG_AGGREGATION,
+            )
+            .map_err(|e| anyhow::anyhow!("c4 compressor: {e:?}"))?;
             let c4_acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
             let external_inputs: Vec<ExternalInputs3<Fr>> = (0..n)
                 .map(|_| ExternalInputs3(Fr::from(1u64), Fr::zero(), Fr::from(n as u64)))
@@ -710,8 +728,13 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             use pvthfhe_compressor::witness::{AjtaiCommitmentWitness, AjtaiCommitmentWitnessSet};
 
             let epoch_hash: [u8; 32] = Sha256::digest(cfg.seed.to_be_bytes()).into();
-            let ajtai_compressor = NovaCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, n)
-                .map_err(|e| anyhow::anyhow!("ajtai compressor init: {e:?}"))?;
+            let ajtai_compressor = NovaCompressor::<CycloFoldStepCircuit<Fr>>::new(
+                epoch_hash,
+                n,
+                [0u8; 32],
+                pvthfhe_compressor::nova::SBIND_CYCLO_FOLD,
+            )
+            .map_err(|e| anyhow::anyhow!("ajtai compressor init: {e:?}"))?;
             let acc = encode_hex((
                 Fr::zero(),
                 Fr::zero(),
@@ -891,6 +914,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 let ajtai_compressor = NovaCompressor::<CycloFoldStepCircuit<Fr>>::new(
                     epoch,
                     witness_set.witnesses.len(),
+                    [0u8; 32],
+                    pvthfhe_compressor::nova::SBIND_CYCLO_FOLD,
                 )
                 .map_err(|e| anyhow::anyhow!("Ajtai compressor init failed: {e:?}"))?;
                 let acc = encode_hex((
@@ -1161,8 +1186,13 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             .collect();
         // P3 (known limitation): same Nova Nova verify bug as C4.
         set_pk_agg_data(per_party_pks);
-        let c5_compressor = NovaCompressor::<PkAggregationStepCircuit<Fr>>::new([0u8; 32], cfg.n)
-            .map_err(|e| anyhow::anyhow!("c5 compressor: {e:?}"))?;
+        let c5_compressor = NovaCompressor::<PkAggregationStepCircuit<Fr>>::new(
+            [0u8; 32],
+            cfg.n,
+            [0u8; 32],
+            pvthfhe_compressor::nova::SBIND_PK_AGGREGATION,
+        )
+        .map_err(|e| anyhow::anyhow!("c5 compressor: {e:?}"))?;
         let c5_acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
         let c5_steps: Vec<ExternalInputs3<Fr>> =
             vec![ExternalInputs3(Fr::from(1u64), Fr::zero(), Fr::from(cfg.n as u64)); cfg.n];
@@ -1339,7 +1369,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         let leaves: Vec<Fr> = input_hashes
             .iter()
             .map(|h| Fr::from_be_bytes_mod_order(h))
-            .chain(std::iter::repeat(Fr::from(0u64)).take(3))
+            .chain(std::iter::repeat_n(Fr::from(0u64), 3))
             .collect();
         let (tree, merkle_root) = build_merkle_tree(&leaves, 8);
         let merkle_root_bytes: [u8; 32] = {
@@ -1417,7 +1447,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         // Initial state: z[0] = Poseidon commitment of zero coeffs [0..12],
         // z[1] = Poseidon commitment of zero coeffs [12..24]. The Merkle tree
         // commits only input ciphertexts; intermediate outputs live in state.
-        let zero_coeffs = vec![0u64; BFV_CT_COEFFS_LEN];
+        let zero_coeffs = [0u64; BFV_CT_COEFFS_LEN];
         let commit_coeffs_half = |coeffs: &[u64]| -> Fr {
             let mut first = vec![Fr::zero(); 8];
             let mut second = vec![Fr::zero(); 8];
@@ -1445,9 +1475,13 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
         let compute_epoch = merkle_root_bytes;
         set_fhe_compute_data(witnesses.clone());
-        let compute_compressor =
-            NovaCompressor::<FheComputeStepCircuit<Fr>>::new(compute_epoch, n_compute_steps)
-                .map_err(|e| anyhow::anyhow!("fhe compute compressor init: {e:?}"))?;
+        let compute_compressor = NovaCompressor::<FheComputeStepCircuit<Fr>>::new(
+            compute_epoch,
+            n_compute_steps,
+            [0u8; 32],
+            pvthfhe_compressor::nova::SBIND_FHE_COMPUTE,
+        )
+        .map_err(|e| anyhow::anyhow!("fhe compute compressor init: {e:?}"))?;
 
         let compute_acc =
             pvthfhe_compressor::nova::encode_triple((z0_commit_lo, z0_commit_hi, merkle_root));
@@ -1949,9 +1983,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
     observer.phase_start("aggregate_decrypt", None);
     let aggregate_decrypt_started = Instant::now();
-    // G3: obtain plaintext polynomial bytes for post-Nova Schwartz-Zippel check.
-    let (aggregate_plaintext, _plaintext_poly_bytes) = backend
-        .aggregate_decrypt_with_poly(
+    let aggregate_plaintext = backend
+        .aggregate_decrypt(
             &ciphertext,
             &shares,
             backend_threshold,
@@ -2118,6 +2151,10 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     }
     let c7_passed = {
         let passed = run_c7_verification(
+            &backend,
+            &ciphertext,
+            &shares,
+            backend_threshold,
             &share_coeffs_fr,
             &lagrange_coeffs_fr,
             session_id,
@@ -2136,7 +2173,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     }
 
     // G.16: compute hash(C7_final_state) for cross-circuit binding.
-    let c7_final_hash = {
+    // Also extracts C7 witness data (share_evals, pt_eval) for the Noir circuit.
+    let (c7_final_hash, c7_share_evals, c7_pt_eval) = {
         use ark_bn254::Fr;
         use ark_ff::Zero;
         use pvthfhe_compressor::poly_eval::{eval_with_powers, precompute_powers_r};
@@ -2152,7 +2190,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             .map(|(&sev, &lc)| sev * lc)
             .fold(Fr::zero(), |a, x| a + x);
         let z1: Fr = lagrange_coeffs_fr.iter().fold(Fr::zero(), |a, &x| a + x);
-        poseidon_hash_of_c7_state((z0, z1))
+        (poseidon_hash_of_c7_state((z0, z1)), share_evals, z0)
     };
 
     // ── CycloFold Nova compressor (moved after C7 for G.16 hash-chain binding) ──
@@ -2316,6 +2354,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         let sv_compressor = NovaCompressor::<CycloFoldStepCircuit<Fr>>::new(
             epoch_hash,
             sv_witness_set.witnesses.len(),
+            [0u8; 32],
+            pvthfhe_compressor::nova::SBIND_CYCLO_FOLD,
         )
         .map_err(|e| anyhow::anyhow!("share_verify_compressor_new: {e:?}"))?;
         let sv_acc = encode_hex((
@@ -2415,6 +2455,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         poseidon_sponge_native_noir(&inputs)
     };
 
+    let n_shares_field = Fr::from(share_coeffs.len() as u64);
+
     let prover_toml = build_c7_prover_toml(
         ciphertext_hash,
         aggregate_pk_hash,
@@ -2428,6 +2470,11 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         compressed_proof_hash,
         &nova_final_plaintext,
         combined_share_hash,
+        c7_r,
+        n_shares_field,
+        &c7_share_evals,
+        &lagrange_coeffs_fr,
+        c7_pt_eval,
     );
     let mut noir_passed = true;
 
@@ -2596,6 +2643,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         acc
     };
 
+    let c5_proof_root = transcript.round3_aggregate.c5_proof_root;
+
     let mut report = PipelineReport {
         timings,
         plaintext_roundtrip_ok,
@@ -2632,6 +2681,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         ivc_binding: compressed.ivc_binding.clone(),
         share_verification_hash: compressed.share_verification_hash,
         pipeline_integrity_hash,
+        c5_proof_root,
     };
 
     let report_failures = verify_pipeline_report(&report);
@@ -3224,26 +3274,26 @@ fn compute_lagrange_coeffs_bn254(xs: &[Fr], eval_point: Fr) -> Vec<Fr> {
 ///
 /// # G3: Plaintext binding (M1 — native accumulator consistency)
 ///
-/// This function performs the C7 decryption aggregation verification via Nova IVC
-/// folding. The G3 trust gap is partially closed by verifying that the native
-/// accumulator computation (`z0 = Σ λ_i·d_i(r)`, `z1 = Σ λ_i`) is internally
-/// consistent and that the Lagrange sum equals 1.
+/// G3: resolved.
 ///
-/// **Full G3 closure (Schwartz-Zippel against unscaled plaintext) is deferred**
-/// because the fhe.rs `decrypt_from_shares` API applies RNS scaling that converts
-/// the raw polynomial coefficients from [0, Q) to the plaintext modulus space [0, t).
-/// Verifying `z0 == plaintext_raw(r) - c0(r)` requires the unscaled plaintext
-/// polynomial, which the current backend does not expose. See the docstring on
-/// [`verify_c7_plaintext_binding`] for details.
+/// This function performs the C7 decryption aggregation verification via Nova IVC
+/// folding. G3 is fully resolved: the raw (pre-scaling) result polynomial from
+/// the FHE backend is evaluated at the challenge point `r` and compared against
+/// the native accumulator computation (`z0 = Σ λ_i·d_i(r)`) via Schwartz-Zippel.
+/// The Lagrange sum identity (`z1 = Σ λ_i = 1`) is also verified.
 ///
 /// `share_coeffs` must be CRT-reconstructed polynomial coefficients (not raw RNS
 /// residues). The caller is responsible for CRT reconstruction via
 /// [`FhersBackend::poly_coeffs_fr_reconstruct`].
 #[cfg(feature = "nova-compressor")]
 fn run_c7_verification(
+    backend: &FhersBackend,
+    ciphertext: &Ciphertext,
+    shares: &[DecryptShare],
+    threshold: usize,
     share_coeffs: &[Vec<Fr>],
     lagrange_coeffs: &[Fr],
-    _session_id: &str,
+    session_id: &str,
     _seed: u64,
     aggregate_pk_bytes: &[u8],
     dkg_root_bytes: &[u8],
@@ -3274,7 +3324,7 @@ fn run_c7_verification(
         .collect();
 
     // G3: Pre-compute expected accumulator state natively for plaintext binding check.
-    // z0_expected = Σ λ_i · d_i(r)  — must equal plaintext(r) - c0(r) (Schwartz-Zippel)
+    // z0_expected = Σ λ_i · d_i(r)  — must equal raw_result_poly(r) (Schwartz-Zippel)
     // z1_expected = Σ λ_i           — must equal 1 (Lagrange interpolation)
     let z0_expected: Fr = share_evals
         .iter()
@@ -3282,6 +3332,45 @@ fn run_c7_verification(
         .map(|(&sev, &lc)| sev * lc)
         .fold(Fr::zero(), |a, x| a + x);
     let z1_expected: Fr = lagrange_coeffs.iter().fold(Fr::zero(), |a, &x| a + x);
+
+    // G3: Resolve full plaintext binding by pulling the raw (pre-scaling) result
+    // polynomial directly from the FHE backend inside the C7 verification path.
+    let raw_result_poly_bytes = match backend.aggregate_decrypt_raw_result_poly(
+        ciphertext,
+        shares,
+        threshold,
+        session_id.as_bytes(),
+    ) {
+        Ok((raw_result_poly_bytes, _decoded_plaintext)) => raw_result_poly_bytes,
+        Err(err) => {
+            tracing::warn!("C7: G3 raw result polynomial extraction failed: {err:?}");
+            return false;
+        }
+    };
+    let raw_result_poly_i64 = match backend.poly_coeffs_from_bytes(&raw_result_poly_bytes) {
+        Ok(coeffs) => coeffs,
+        Err(err) => {
+            tracing::warn!("C7: G3 raw result polynomial decode failed: {err:?}");
+            return false;
+        }
+    };
+    let raw_result_poly_fr = backend.poly_coeffs_fr_reconstruct(&raw_result_poly_i64);
+
+    // G3: Evaluate raw (pre-scaling) result polynomial from FHE backend at challenge point r.
+    // The raw result poly is Σ λ_i·d_i (Lagrange reconstruction in [0,Q) domain).
+    // Schwartz-Zippel: if this equals z0_expected at random r, the polynomials are identical.
+    let raw_poly_at_r: Fr = if raw_result_poly_fr.is_empty() {
+        Fr::zero()
+    } else {
+        let raw_r_powers = precompute_powers_r(r, raw_result_poly_fr.len());
+        eval_with_powers(&raw_result_poly_fr, &raw_r_powers)
+    };
+    tracing::trace!(
+        "C7: G3 resolved z0_expected={:?} z1_expected={:?} raw_poly_at_r={:?}",
+        z0_expected.into_bigint(),
+        z1_expected.into_bigint(),
+        raw_poly_at_r.into_bigint(),
+    );
 
     // Batch C7 steps (A.1): group t share evaluations into batches of k=8.
     // Each step folds k Lagrange contributions, reducing Nova IVC step count
@@ -3324,8 +3413,8 @@ fn run_c7_verification(
         }
     };
 
-    // G3 M1: Verify Lagrange sum = 1 and log accumulator after tree folding.
-    if !verify_c7_plaintext_binding(z0_expected, z1_expected) {
+    // G3 M1: Verify Lagrange sum = 1 and Schwartz-Zippel plaintext binding.
+    if !verify_c7_plaintext_binding(z0_expected, z1_expected, raw_poly_at_r) {
         tracing::warn!("C7: G3 plaintext binding failed for tree path");
         return false;
     }
@@ -3336,25 +3425,21 @@ fn run_c7_verification(
 
 /// G3: Verify plaintext binding via Schwartz-Zippel polynomial identity check.
 ///
-/// Checks two invariants:
-///   z0 = Σ λ_i · d_i(r)  must equal  expected_z0  (native accumulator check)
-///   z1 = Σ λ_i            must equal  1           (Lagrange interpolation)
+/// Checks three invariants:
+///   z0 = Σ λ_i · d_i(r)  must equal  raw_poly_at_r  (backend polynomial identity)
+///   z1 = Σ λ_i            must equal  1              (Lagrange interpolation)
 ///
-/// # Full G3 plaintext binding (deferred)
+/// # Full G3 plaintext binding (resolved)
 ///
-/// The full G3 check requires comparing Σ λ_i·d_i(r) against the UNSCALED plaintext
-/// polynomial evaluation `plaintext_raw(r)`. However, `decrypt_from_shares` in fhe.rs
-/// applies RNS scaling (via `Scaler`) that converts coefficients from [0, Q) to the
-/// plaintext modulus space [0, t). The raw unscaled polynomial is not exposed by the
-/// current fhe.rs API. Full G3 closure requires a backend extension to return the
-/// pre-scaling polynomial (`result_poly` before `Scaler::new` in `decrypt_from_shares`).
-///
-/// For M1, this check verifies the native accumulator computation is internally
-/// consistent and the Lagrange sum identity holds. The Nova proof itself verifies
-/// that the circuit folding matches the external inputs.
+/// The full G3 check compares the native accumulator Σ λ_i·d_i(r) against the
+/// FHE backend's raw (pre-scaling) Lagrange-reconstructed result polynomial
+/// evaluated at the same challenge point r. Equality verifies that the per-share
+/// coefficient polynomials (verified via Nova folding) are consistent with the
+/// backend's aggregate decryption polynomial — closing the G3 trust gap via
+/// Schwartz-Zippel.
 ///
 /// See .sisyphus/plans/in-circuit-verification.md §G3 for full design.
-fn verify_c7_plaintext_binding(z0: Fr, z1: Fr) -> bool {
+fn verify_c7_plaintext_binding(z0: Fr, z1: Fr, raw_poly_at_r: Fr) -> bool {
     // Lagrange interpolation: Σ λ_i must equal 1
     if z1 != Fr::from(1u64) {
         tracing::warn!(
@@ -3364,8 +3449,18 @@ fn verify_c7_plaintext_binding(z0: Fr, z1: Fr) -> bool {
         return false;
     }
 
+    // G3 full plaintext binding: native accumulator must match backend raw poly
+    if z0 != raw_poly_at_r {
+        tracing::warn!(
+            "C7: G3 plaintext binding failed: z0={:?}, raw_poly_at_r={:?}",
+            z0.into_bigint(),
+            raw_poly_at_r.into_bigint(),
+        );
+        return false;
+    }
+
     tracing::info!(
-        "C7: G3 native check passed ✓ (z0={:?}, z1=1, full plaintext binding deferred)",
+        "C7: G3 plaintext binding passed ✓ (z0={:?}, z1=1, raw_poly_at_r matches)",
         z0.into_bigint(),
     );
     true
@@ -3564,6 +3659,11 @@ pub fn build_c7_prover_toml(
     ivc_snark_proof_hash: Fr,
     nova_final_plaintext: &[Fr],
     nova_share_chain_hash: Fr,
+    challenge_r: Fr,
+    n_shares: Fr,
+    share_evals: &[Fr],
+    lagrange_coeffs_fr: &[Fr],
+    pt_eval: Fr,
 ) -> String {
     use std::fmt::Write;
     let mut s = String::new();
@@ -3612,6 +3712,11 @@ pub fn build_c7_prover_toml(
         field_hex_be(ivc_snark_proof_hash)
     )
     .unwrap();
+
+    // C7 public inputs
+    writeln!(s, "challenge_r = \"0x{}\"", field_hex_be(challenge_r)).unwrap();
+    writeln!(s, "n_shares = \"0x{}\"", field_hex_be(n_shares)).unwrap();
+
     writeln!(
         s,
         "nova_final_plaintext = [{}]",
@@ -3628,6 +3733,31 @@ pub fn build_c7_prover_toml(
         field_hex_be(nova_share_chain_hash)
     )
     .unwrap();
+
+    // C7 witness arrays (padded to 128 entries)
+    const MAX: usize = 128;
+    write!(s, "share_evals = [").unwrap();
+    for i in 0..MAX {
+        let val = share_evals.get(i).copied().unwrap_or(Fr::zero());
+        if i > 0 {
+            write!(s, ", ").unwrap();
+        }
+        write!(s, "\"0x{}\"", field_hex_be(val)).unwrap();
+    }
+    writeln!(s, "]").unwrap();
+
+    write!(s, "lagrange_coeffs = [").unwrap();
+    for i in 0..MAX {
+        let val = lagrange_coeffs_fr.get(i).copied().unwrap_or(Fr::zero());
+        if i > 0 {
+            write!(s, ", ").unwrap();
+        }
+        write!(s, "\"0x{}\"", field_hex_be(val)).unwrap();
+    }
+    writeln!(s, "]").unwrap();
+
+    writeln!(s, "pt_eval = \"0x{}\"", field_hex_be(pt_eval)).unwrap();
+
     s
 }
 
@@ -3735,6 +3865,12 @@ mod tests {
         assert_eq!(report.dkg_share_count, 25);
         assert!(report.timings.phases.cyclo_fold.total_ms > 0.0);
         assert!(report.timings.phases.compressor_prove.total_ms > 0.0);
+
+        // C5 proof root must be nonzero after a fresh keygen round
+        assert_ne!(
+            report.c5_proof_root, [0u8; 32],
+            "c5_proof_root must be nonzero after keygen"
+        );
     }
 
     #[test]
@@ -3782,6 +3918,15 @@ mod tests {
         let ivc_snark_proof_hash = Fr::from(7u64);
         let nova_final_plaintext = [Fr::from(42u64); 8];
         let nova_share_chain_hash = Fr::from(8u64);
+        let challenge_r = Fr::from(0u64);
+        let n_shares_field = Fr::from(1u64);
+        let share_evals = vec![Fr::from(0u64); 128];
+        let lagrange_coeffs_fr = {
+            let mut v = vec![Fr::from(0u64); 128];
+            v[0] = Fr::from(1u64);
+            v
+        };
+        let pt_eval = Fr::from(0u64);
         let prover_toml = build_c7_prover_toml(
             ciphertext_hash,
             aggregate_pk_hash,
@@ -3795,6 +3940,11 @@ mod tests {
             ivc_snark_proof_hash,
             &nova_final_plaintext,
             nova_share_chain_hash,
+            challenge_r,
+            n_shares_field,
+            &share_evals,
+            &lagrange_coeffs_fr,
+            pt_eval,
         );
         assert!(
             prover_toml.contains("decrypt_nizk_hash ="),

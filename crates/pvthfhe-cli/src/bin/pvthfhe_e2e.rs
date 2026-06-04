@@ -431,6 +431,30 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
         poseidon_sponge_native_noir(&inputs)
     };
 
+    let n_shares_field = Fr::from(report.share_coeffs.len() as u64);
+
+    // Compute C7 witness values (share evals and pt_eval) for Noir circuit.
+    // Uses a deterministic challenge_r=0 for the e2e test path (the actual
+    // Fiat-Shamir derivation is in full_pipeline::run_full_pipeline).
+    use pvthfhe_compressor::poly_eval::{eval_with_powers, precompute_powers_r};
+    let challenge_r = Fr::from(0u64);
+    let coeffs_per_poly = report.share_coeffs.first().map(|c| c.len()).unwrap_or(0);
+    let r_powers = precompute_powers_r(challenge_r, coeffs_per_poly);
+    let share_coeffs_fr: Vec<Vec<Fr>> = report
+        .share_coeffs
+        .iter()
+        .map(|coeffs| coeffs.iter().map(|&c| Fr::from(c as i128)).collect())
+        .collect();
+    let share_evals: Vec<Fr> = share_coeffs_fr
+        .iter()
+        .map(|s| eval_with_powers(s, &r_powers))
+        .collect();
+    let pt_eval: Fr = share_evals
+        .iter()
+        .zip(report.lagrange_coeffs.iter())
+        .map(|(&sev, &lc)| sev * lc)
+        .fold(Fr::zero(), |a, x| a + x);
+
     let prover_toml_data = build_c7_prover_toml(
         ciphertext_hash,
         aggregate_pk_hash,
@@ -444,6 +468,11 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
         report.compressed_proof_hash,
         &nova_final_plaintext,
         report.combined_share_hash,
+        challenge_r,
+        n_shares_field,
+        &share_evals,
+        &report.lagrange_coeffs,
+        pt_eval,
     );
     if let Err(e) = std::fs::write(&prover_toml_path, &prover_toml_data) {
         warn!(phase = "noir_aggregator_final", error = %e, "Noir aggregator_final: failed to write Prover.toml");
@@ -480,7 +509,7 @@ fn run_c7_nova_optional(_n: usize, _seed: u64) -> (f64, bool) {
         let epoch_hash: [u8; 32] = Sha256::digest(&seed_bytes).into();
 
         let start = Instant::now();
-        let compressor = NovaCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch_hash, n)
+        let compressor = NovaCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch_hash, n, [0u8; 32], pvthfhe_compressor::nova::SBIND_C7_DECRYPT)
             .expect("C7 nova compressor construction failed");
         let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
         let coeff_commitment = hash_all_coeffs(&vec![Fr::from(0u64); 8192]);
@@ -528,7 +557,7 @@ fn run_c7_merkle_optional(_n: usize, _seed: u64) -> (f64, bool) {
         let epoch_hash: [u8; 32] = Sha256::digest(&seed_bytes).into();
 
         let start = Instant::now();
-        let compressor = NovaCompressor::<C7MerkleStepCircuit<Fr>>::new(epoch_hash, n)
+        let compressor = NovaCompressor::<C7MerkleStepCircuit<Fr>>::new(epoch_hash, n, [0u8; 32], pvthfhe_compressor::nova::SBIND_C7_DECRYPT)
             .expect("C7 merkle nova compressor construction failed");
         let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
 

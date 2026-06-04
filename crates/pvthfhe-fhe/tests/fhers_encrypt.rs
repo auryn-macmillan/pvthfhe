@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Integration tests for real encryption in `FhersBackend`.
 
 use fhe::bfv::{Ciphertext as BfvCiphertext, PublicKey as BfvPublicKey};
@@ -25,8 +26,8 @@ fn fhers_encrypt_uses_real_public_key_encryption() {
         .bfv_params()
         .ctx_at_level(0)
         .expect("level-0 context");
-    let p0 = Poly::from_bytes(&decoded_pk.p0, &ctx).expect("deserialize p0");
-    let p1 = Poly::from_bytes(&decoded_pk.p1, &ctx).expect("deserialize p1");
+    let p0 = Poly::from_bytes(&decoded_pk.p0, ctx).expect("deserialize p0");
+    let p1 = Poly::from_bytes(&decoded_pk.p1, ctx).expect("deserialize p1");
     let reconstructed_pk = BfvPublicKey {
         par: backend.bfv_params().clone(),
         c: BfvCiphertext::new(vec![p0, p1], backend.bfv_params()).expect("ciphertext from polys"),

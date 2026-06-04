@@ -1,3 +1,5 @@
+//! Integration tests for the witness-language schema bindings.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 use pvthfhe_types::witness_language::{
     BfvParameters, R3Relation, SchemaError, WitnessSchemaVersion, WitnessStatement,
 };

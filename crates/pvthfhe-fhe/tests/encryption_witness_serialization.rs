@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Serialization roundtrip tests for [`EncryptionWitness`].
 //!
 //! Since [`EncryptionWitness`] intentionally does not implement `Serialize` or

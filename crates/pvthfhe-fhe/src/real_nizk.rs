@@ -24,7 +24,9 @@ pub struct NizkStatement {
     pub participant_id: u16,
     /// On-chain epoch that binds the CRS (Ajtai matrix derivation seed).
     pub epoch: u64,
+    /// Optional override for the RNS-encoded `c` relation limbs (test/diagnostic use).
     pub c_rns_override: Option<Vec<u64>>,
+    /// Optional override for the RNS-encoded `d` relation limbs (test/diagnostic use).
     pub d_rns_override: Option<Vec<u64>>,
 }
 

@@ -5,6 +5,7 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use pvthfhe_aggregator::folding::HashChainCycloAdapter;
 use pvthfhe_cyclo::CcsPShareInstance;
 use pvthfhe_cyclo::CycloError;
+use pvthfhe_types::CcsWitnessSecret;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use serde::Serialize;
@@ -40,10 +41,10 @@ fn make_share(participant_id: u16) -> CcsPShareInstance {
 
     CcsPShareInstance {
         participant_id,
-        ajtai_commitment_bytes,
-        public_io_bytes,
-        ccs_witness_bytes,
-        sha256_binding_bytes: sha256_binding_bytes.to_vec(),
+        ajtai_commitment_bytes: ajtai_commitment_bytes.into(),
+        public_io_bytes: public_io_bytes.into(),
+        ccs_witness_bytes: CcsWitnessSecret::new(ccs_witness_bytes),
+        sha256_binding_bytes: sha256_binding_bytes.to_vec().into(),
         ccs_matrix_bytes: vec![].into(),
     }
 }

@@ -113,4 +113,14 @@ impl FheBackend for MockBackend {
         self.inner
             .aggregate_decrypt(ct, shares, threshold, _session_id)
     }
+
+    fn decode_pk_polys(&self, pk: &PublicKey) -> Result<(Vec<u8>, Vec<u8>), FheError> {
+        assert_mock_acknowledged();
+        self.inner.decode_pk_polys(pk)
+    }
+
+    fn keygen_witness(&self, party_id: u32) -> Result<Option<(Vec<i64>, Vec<u8>)>, FheError> {
+        assert_mock_acknowledged();
+        self.inner.keygen_witness(party_id)
+    }
 }

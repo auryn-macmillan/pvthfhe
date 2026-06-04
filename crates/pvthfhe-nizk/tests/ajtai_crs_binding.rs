@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! R3.3 RED: Ajtai matrix `A` must be CRS-bound to on-chain epoch.
 //!
 //! The current `compute_ajtai_commitment` seeds the Ajtai matrix with

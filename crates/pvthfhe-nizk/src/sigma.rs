@@ -282,7 +282,7 @@ fn prove_round(
     stmt: &SigmaStatement,
     wit: &SigmaWitness,
     rng: &mut dyn RngCore,
-    _d_commitment: &[u8; 32],
+    d_commitment: &[u8; 32],
     round_index: usize,
 ) -> Result<SigmaProof, NizkError> {
     let n = rlwe_n();
@@ -315,6 +315,7 @@ fn prove_round(
             session_id,
             participant_id,
             round_index,
+            d_commitment,
         );
 
         let z_s: Vec<i64> = y_s
@@ -456,15 +457,6 @@ fn verify_scalar_round(
 
     let ctx = rlwe_context()?;
 
-    let _legacy_ch = derive_challenge_scalar(
-        session_id,
-        participant_id,
-        &proof.t_rns,
-        &stmt.c_rns,
-        &stmt.d_rns,
-        d_commitment,
-        round_index,
-    );
     let transcript_commitment =
         derive_transcript_commitment(&proof.t_rns, &stmt.c_rns, &stmt.d_rns);
     let expected_ch = derive_challenge_from_commitment(
@@ -472,6 +464,7 @@ fn verify_scalar_round(
         session_id,
         participant_id,
         round_index,
+        d_commitment,
     );
     // Constant-time comparison for challenge
     let ch_match = (proof.ch ^ expected_ch) == 0;
@@ -720,6 +713,7 @@ pub fn derive_challenge_from_commitment(
     session_id: &[u8],
     participant_id: u32,
     round_index: usize,
+    d_commitment: &[u8; 32],
 ) -> i64 {
     let mut prefix = Sha256::new();
     prefix.update(SCALAR_CHALLENGE_DOMAIN);
@@ -727,6 +721,9 @@ pub fn derive_challenge_from_commitment(
     prefix.update(session_id);
     prefix.update(participant_id.to_le_bytes());
     prefix.update((round_index as u64).to_le_bytes());
+    // P2-1: bind PVSS d_commitment into the FS challenge to prevent
+    // cross-commitment proof replay.
+    prefix.update(d_commitment);
 
     let digest = labeled_sha256(&prefix, b"commitment", commitment);
     let lo = bytes16_to_fr(&digest[..16]);
@@ -1186,9 +1183,9 @@ mod tests {
         let session_a = b"session-alpha-123";
         let session_b = b"session-beta-456";
         let t_rns = vec![1u64; rlwe_n() * num_rns_limbs()];
-        let c_rns = vec![2u64; rlwe_n() * num_rns_limbs()];
-        let d_rns = vec![3u64; rlwe_n() * num_rns_limbs()];
-        let pvss = [0u8; 32];
+        let _c_rns = vec![2u64; rlwe_n() * num_rns_limbs()];
+        let _d_rns = vec![3u64; rlwe_n() * num_rns_limbs()];
+        let _pvss = [0u8; 32];
 
         // Verify SHA-256 prefix differs with different session IDs (binding)
         let mut prefix_a = Sha256::new();
@@ -1207,6 +1204,40 @@ mod tests {
         assert_ne!(
             digest_a, digest_b,
             "SHA-256 digests must differ with different session IDs"
+        );
+    }
+
+    /// P2-1 RED: challenge must change when d_commitment differs.
+    /// The PVSS commitment must be bound into the T2 Fiat-Shamir challenge
+    /// to prevent an adversary from reusing a proof with a different commitment.
+    #[test]
+    fn challenge_depends_on_d_commitment() {
+        let d_commit_a = [0xAAu8; 32];
+        let d_commit_b = [0xBBu8; 32];
+        let session_id = b"test-session";
+        let participant_id = 1u32;
+        let round_index = 0usize;
+
+        let transcript_commitment = [0x42u8; 32];
+
+        let ch_a = derive_challenge_from_commitment(
+            &transcript_commitment,
+            session_id,
+            participant_id,
+            round_index,
+            &d_commit_a,
+        );
+        let ch_b = derive_challenge_from_commitment(
+            &transcript_commitment,
+            session_id,
+            participant_id,
+            round_index,
+            &d_commit_b,
+        );
+
+        assert_ne!(
+            ch_a, ch_b,
+            "P2-1: challenge must differ when d_commitment changes"
         );
     }
 }

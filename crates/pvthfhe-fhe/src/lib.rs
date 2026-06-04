@@ -5,6 +5,7 @@
 //! - **Mock** (feature `mock`): deterministic, test-only, no cryptographic security.
 //! - **Primary** (`fhers` module): wraps gnosisguild/fhe.rs BFV APIs.
 
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 #![warn(missing_docs)]
 
 #[cfg(all(feature = "production-profile", feature = "mock"))]

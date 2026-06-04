@@ -1,6 +1,6 @@
 {
   "n": 1024,
-  "wall_ms": 1,
+  "wall_ms": 4005,
   "status": "pass",
   "batch_count": 103,
   "batch_size": 10

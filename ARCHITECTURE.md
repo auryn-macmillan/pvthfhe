@@ -105,7 +105,7 @@ Per-node (`pvthfhe-per-node`) and per-aggregator (`pvthfhe-per-aggregator`) bina
 
 ## End-to-End Verifiability (CAVEATS)
 
-Each protocol step produces verifiable artifacts. Publicly verifiable steps include: share-encryption NIZK, Cyclo fold accumulator (transcript verification is OPEN), LatticeFold+ compressed proof (transparent IVC, on-chain binding only), and on-chain UltraHonk verification of the state commitment. Full aggregate-decrypt verification (C7) is currently OPEN, as the circuit proves only a hash binding. Public key aggregation (C5) is also OPEN.
+Each protocol step produces verifiable artifacts. Publicly verifiable steps include: share-encryption NIZK, Cyclo fold accumulator (transcript verification is RESOLVED — versioned codec + real verify dispatch), LatticeFold+ compressed proof (transparent IVC, on-chain binding only), on-chain UltraHonk verification of the state commitment, and aggregate public-key formation proof (C5 — RESOLVED with PoP + on-chain binding). Full aggregate-decrypt verification (C7) is RESOLVED — Schwartz-Zippel Lagrange recombination with G3/G4 plaintext and PK binding, 18 Noir tests passing.
 
 ## Design Specifications
 

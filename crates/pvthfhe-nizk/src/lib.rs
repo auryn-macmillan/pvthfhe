@@ -12,6 +12,7 @@
 //! (T2 — joint extractor — remains a skeleton).  See `SECURITY.md §P1` for the
 //! full disclosure.  Do not treat an [`Ok(())`] result from
 //! [`NizkAdapter::verify`] as a formal security guarantee until T2 is closed.
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 #![deny(missing_docs)]
 
 pub mod adapter;

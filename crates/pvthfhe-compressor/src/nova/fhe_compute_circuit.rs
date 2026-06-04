@@ -240,6 +240,7 @@ impl<F: PrimeField> StepCircuit for FheComputeStepCircuit<F> {
 ///   ct_out = ct0 + ct1 - k * q_modulus   where k ∈ {0, 1}
 ///
 /// Uses 2 constraints per coefficient (boolean check + modular reduction).
+#[allow(clippy::too_many_arguments)]
 fn add_fhe_ct_bp<CS: ConstraintSystem<NovaScalar>>(
     cs: &mut CS,
     ct0_coeffs: &[u64],
@@ -354,6 +355,7 @@ fn nova_to_u128(v: NovaScalar) -> u128 {
 /// In-circuit negacyclic convolution for a single polynomial pair across
 /// one RNS limb.  Takes raw u64 slices for native computation and allocated
 /// variables for constraint enforcement.
+#[allow(clippy::too_many_arguments)]
 fn negacyclic_conv_one_poly_bp<CS: ConstraintSystem<NovaScalar>>(
     cs: &mut CS,
     ct_a_raw: &[u64],
@@ -452,14 +454,13 @@ fn negacyclic_conv_one_poly_bp<CS: ConstraintSystem<NovaScalar>>(
         });
         let q128 = q as u128;
 
-        let k_q_val: u64;
-        if pos_u128 >= neg_u128 {
+        let k_q_val: u64 = if pos_u128 >= neg_u128 {
             let diff = pos_u128 - neg_u128;
-            k_q_val = (diff / q128) as u64;
+            (diff / q128) as u64
         } else {
             let diff = neg_u128 - pos_u128;
-            k_q_val = ((diff + q128 - 1) / q128) as u64;
-        }
+            diff.div_ceil(q128) as u64
+        };
 
         let k_var = AllocatedNum::alloc(cs.namespace(|| format!("{base}_k")), || {
             Ok(NovaScalar::from(k_q_val))
@@ -491,6 +492,7 @@ fn negacyclic_conv_one_poly_bp<CS: ConstraintSystem<NovaScalar>>(
 
 /// In-circuit BFV RNS multiplication: ct_out = ct0 * ct1 in R_q.
 /// Produces a 3-polynomial ciphertext (36 coefficients for N=4, L=3).
+#[allow(clippy::too_many_arguments)]
 fn mul_fhe_ct_bp<CS: ConstraintSystem<NovaScalar>>(
     cs: &mut CS,
     ct0_coeffs: &[u64],
@@ -507,13 +509,13 @@ fn mul_fhe_ct_bp<CS: ConstraintSystem<NovaScalar>>(
     assert_eq!(ct1_coeffs.len(), two_poly);
     assert_eq!(ct_out_coeffs.len(), three_poly);
 
-    fn poly_limb_slice<'a>(
-        coeffs: &'a [u64],
+    fn poly_limb_slice(
+        coeffs: &[u64],
         poly: usize,
         limb: usize,
         stride: usize,
         n: usize,
-    ) -> &'a [u64] {
+    ) -> &[u64] {
         let start = poly * stride + limb * n;
         &coeffs[start..start + n]
     }
@@ -758,19 +760,9 @@ fn poseidon_commit_coeffs_bp<CS: ConstraintSystem<NovaScalar>>(
         .collect::<Result<_, _>>()?;
 
     // Hash groups of 8: [0..8], [8..16], [16..24]
-    let h0 = poseidon_hash8_bp(cs, &coeff_vars[0..8].to_vec(), step_idx, commit_idx * 3)?;
-    let h1 = poseidon_hash8_bp(
-        cs,
-        &coeff_vars[8..16].to_vec(),
-        step_idx,
-        commit_idx * 3 + 1,
-    )?;
-    let h2 = poseidon_hash8_bp(
-        cs,
-        &coeff_vars[16..24].to_vec(),
-        step_idx,
-        commit_idx * 3 + 2,
-    )?;
+    let h0 = poseidon_hash8_bp(cs, &coeff_vars[0..8], step_idx, commit_idx * 3)?;
+    let h1 = poseidon_hash8_bp(cs, &coeff_vars[8..16], step_idx, commit_idx * 3 + 1)?;
+    let h2 = poseidon_hash8_bp(cs, &coeff_vars[16..24], step_idx, commit_idx * 3 + 2)?;
 
     // Combine: hash([h0, h1, h2, 0, 0, 0, 0, 0])
     let zero = AllocatedNum::alloc(cs.namespace(|| format!("{base}_z0")), || {
@@ -908,7 +900,7 @@ fn full_sbox_bp<CS: ConstraintSystem<NovaScalar>>(
 /// Apply partial S-box to state[0] only, in-place.
 fn partial_sbox_bp<CS: ConstraintSystem<NovaScalar>>(
     cs: &mut CS,
-    state: &mut Vec<AllocatedNum<NovaScalar>>,
+    state: &mut [AllocatedNum<NovaScalar>],
     base: &str,
     round: usize,
 ) -> Result<(), SynthesisError> {
@@ -1344,14 +1336,15 @@ impl
             s
         });
 
-        let step = FHE_COMPUTE_DATA.with(|cell| {
-            let len = cell.borrow().len();
-            if len == 0 {
-                raw_step
-            } else {
-                raw_step % len
+        let data_len = FHE_COMPUTE_DATA.with(|cell| cell.borrow().len());
+        let step = if data_len > 0 {
+            if raw_step >= data_len {
+                return Err(SynthesisError::AssignmentMissing);
             }
-        });
+            raw_step
+        } else {
+            raw_step
+        };
 
         let has_data = FHE_COMPUTE_DATA.with(|cell| {
             let data = cell.borrow();
@@ -1359,15 +1352,7 @@ impl
         });
 
         if !has_data {
-            let one =
-                AllocatedNum::alloc(cs.namespace(|| "idle_one"), || Ok(NovaScalar::from(1u64)))?;
-            let new_step_count = z[3].add(cs.namespace(|| "sc_inc"), &one)?;
-            return Ok(vec![
-                z[0].clone(),
-                z[1].clone(),
-                z[2].clone(),
-                new_step_count,
-            ]);
+            return Err(SynthesisError::AssignmentMissing);
         }
 
         FHE_COMPUTE_DATA.with(|cell| {
@@ -1387,10 +1372,39 @@ impl
                     })?,
                 )
             };
+            let seed = super::session_bind_seed();
+            let seed_var =
+                AllocatedNum::alloc(cs.namespace(|| format!("session_seed_s{step}")), || {
+                    Ok(seed)
+                })?;
+            let initial_selector = AllocatedNum::alloc(
+                cs.namespace(|| format!("session_seed_selector_s{step}")),
+                || {
+                    Ok(if raw_step == 0 {
+                        NovaScalar::from(1u64)
+                    } else {
+                        NovaScalar::from(0u64)
+                    })
+                },
+            )?;
+            cs.enforce(
+                || format!("session_seed_selector_bool_s{step}"),
+                |lc| lc + initial_selector.get_variable(),
+                |lc| lc + initial_selector.get_variable() - CS::one(),
+                |lc| lc,
+            );
+            let gated_seed = seed_var.mul(
+                cs.namespace(|| format!("session_seed_gated_s{step}")),
+                &initial_selector,
+            )?;
+            let expected_old_commit_lo = old_commit_lo.add(
+                cs.namespace(|| format!("old_commit_lo_seed_s{step}")),
+                &gated_seed,
+            )?;
             // Constrain: old coefficient halves equal previous step's output state.
             cs.enforce(
                 || format!("old_commit_lo_eq_s{step}"),
-                |lc| lc + old_commit_lo.get_variable(),
+                |lc| lc + expected_old_commit_lo.get_variable(),
                 |lc| lc + CS::one(),
                 |lc| lc + z[0].get_variable(),
             );
@@ -2137,8 +2151,13 @@ mod tests {
         ));
 
         set_fhe_compute_data(witnesses.clone());
-        let compressor = NovaCompressor::<FheComputeStepCircuit<Fr>>::new(merkle_root_bytes, 2)
-            .expect("construct split-state fhe compute nova compressor");
+        let compressor = NovaCompressor::<FheComputeStepCircuit<Fr>>::new(
+            merkle_root_bytes,
+            2,
+            [0u8; 32],
+            crate::nova::SBIND_FHE_COMPUTE,
+        )
+        .expect("construct split-state fhe compute nova compressor");
         let steps = vec![ExternalInputs3::default(); 2];
 
         set_fhe_compute_data(witnesses.clone());
@@ -2327,8 +2346,13 @@ mod tests {
         ));
 
         set_fhe_compute_data(witnesses.clone());
-        let compressor = NovaCompressor::<FheComputeStepCircuit<Fr>>::new(merkle_root_bytes, 3)
-            .expect("construct fhe compute nova compressor");
+        let compressor = NovaCompressor::<FheComputeStepCircuit<Fr>>::new(
+            merkle_root_bytes,
+            3,
+            [0u8; 32],
+            crate::nova::SBIND_FHE_COMPUTE,
+        )
+        .expect("construct fhe compute nova compressor");
         let steps = vec![ExternalInputs3::default(); 3];
 
         set_fhe_compute_data(witnesses.clone());

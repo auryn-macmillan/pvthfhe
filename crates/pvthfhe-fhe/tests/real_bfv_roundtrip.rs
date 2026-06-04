@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Real BFV encrypt→decrypt roundtrip with noise tolerance verification.
 //!
 //! Verifies that `FhersBackend` exercises real `gnosisguild/fhe.rs` lattice
@@ -54,7 +55,7 @@ fn real_bfv_backend_does_not_require_mock_acknowledgement() {
 
 #[test]
 fn real_bfv_roundtrip_n5_t3_recovers_plaintext() {
-    // n=5, t=3 satisfies fhe.rs constraint: polynomial degree=2 <= (5-1)/2=2
+    // n=5, t=3 satisfies the honest-majority threshold policy: t <= floor(n/2)+1 = 3
     let recovered = roundtrip_bfv(5, 3, b"bfv-roundtrip-v1").expect("roundtrip");
 
     assert_eq!(
@@ -65,11 +66,7 @@ fn real_bfv_roundtrip_n5_t3_recovers_plaintext() {
 
 #[test]
 fn real_bfv_roundtrip_n8_t5_recovers_plaintext() {
-    // n=8, t=5 → polynomial degree=4 <= (8-1)/2=3... wait:
-    // fhe.rs constraint: threshold <= (n-1)/2
-    // shamir_threshold(8,5) = 4, need 4 <= (8-1)/2 = 3 → FAILS!
-    // Use n=8, t=4 instead: shamir_threshold(8,4) = 3, 3 <= 7/2 = 3 → OK
-    // Actually let me use n=7, t=4: shamir_threshold(7,4) = 3, 3 <= (7-1)/2 = 3 → OK
+    // n=7, t=4 satisfies the honest-majority threshold policy: t <= floor(n/2)+1 = 4.
     let recovered = roundtrip_bfv(7, 4, b"hello real bfv").expect("roundtrip");
 
     assert_eq!(recovered, b"hello real bfv");
@@ -77,7 +74,7 @@ fn real_bfv_roundtrip_n8_t5_recovers_plaintext() {
 
 #[test]
 fn real_bfv_roundtrip_n3_t2_recovers_plaintext() {
-    // n=3, t=2 → shamir_threshold(3,2) = 1, 1 <= (3-1)/2 = 1 → OK
+    // n=3, t=2 satisfies the honest-majority threshold policy: t <= floor(n/2)+1 = 2.
     let recovered = roundtrip_bfv(3, 2, b"ab").expect("roundtrip");
 
     assert_eq!(recovered, b"ab");

@@ -3,21 +3,32 @@
 use ark_bn254::Fr;
 use pvthfhe_compressor::nova::DkgAggregationStepCircuit;
 use pvthfhe_compressor::nova::NovaCompressor;
+use pvthfhe_compressor::nova::SBIND_DKG_AGGREGATION;
 
 #[test]
 fn srs_hash_method_exists_and_is_deterministic() {
     let epoch: [u8; 32] = [0x5Au8; 32];
 
-    let compressor = NovaCompressor::<DkgAggregationStepCircuit<Fr>>::new(epoch, 4)
-        .expect("construct compressor");
+    let compressor = NovaCompressor::<DkgAggregationStepCircuit<Fr>>::new(
+        epoch,
+        4,
+        [0u8; 32],
+        SBIND_DKG_AGGREGATION,
+    )
+    .expect("construct compressor");
 
     // srsHash() returns a 32-byte hash.
     let hash = compressor.srs_hash();
     assert_eq!(hash.len(), 32, "srsHash must be 32 bytes");
 
     // Same epoch → same srsHash (deterministic).
-    let compressor2 = NovaCompressor::<DkgAggregationStepCircuit<Fr>>::new(epoch, 4)
-        .expect("construct second compressor");
+    let compressor2 = NovaCompressor::<DkgAggregationStepCircuit<Fr>>::new(
+        epoch,
+        4,
+        [0u8; 32],
+        SBIND_DKG_AGGREGATION,
+    )
+    .expect("construct second compressor");
     assert_eq!(
         hash,
         compressor2.srs_hash(),
@@ -26,8 +37,13 @@ fn srs_hash_method_exists_and_is_deterministic() {
 
     // Different epoch → different srsHash.
     let other_epoch: [u8; 32] = [0x5Bu8; 32];
-    let compressor3 = NovaCompressor::<DkgAggregationStepCircuit<Fr>>::new(other_epoch, 4)
-        .expect("construct third compressor");
+    let compressor3 = NovaCompressor::<DkgAggregationStepCircuit<Fr>>::new(
+        other_epoch,
+        4,
+        [0u8; 32],
+        SBIND_DKG_AGGREGATION,
+    )
+    .expect("construct third compressor");
     assert_ne!(
         hash,
         compressor3.srs_hash(),
@@ -40,8 +56,13 @@ fn srs_committed_onchain_contract_has_matching_hash() {
     // This test exists to assert that the srsHash() method is part of the
     // public API. The actual on-chain matching is tested in R6.
     let epoch: [u8; 32] = [0xAAu8; 32];
-    let compressor = NovaCompressor::<DkgAggregationStepCircuit<Fr>>::new(epoch, 4)
-        .expect("construct compressor");
+    let compressor = NovaCompressor::<DkgAggregationStepCircuit<Fr>>::new(
+        epoch,
+        4,
+        [0u8; 32],
+        SBIND_DKG_AGGREGATION,
+    )
+    .expect("construct compressor");
 
     let _hash = compressor.srs_hash();
 }

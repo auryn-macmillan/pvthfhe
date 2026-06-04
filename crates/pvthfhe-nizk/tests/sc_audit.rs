@@ -1,9 +1,10 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! SC audit: constant-time challenge comparison.
 //! Verifies that sigma::verify uses constant-time comparison for the challenge.
 
 use pvthfhe_nizk::sigma::{
-    compute_d_rns, num_rns_limbs, prove, rlwe_n, verify, verify_scalar, SigmaStatement,
-    SigmaWitness, RLWE_Q0, RLWE_Q1, RLWE_Q2, SIGMA_B_E,
+    compute_d_rns, prove, rlwe_n, verify, verify_scalar, SigmaStatement, SigmaWitness, RLWE_Q0,
+    RLWE_Q1, RLWE_Q2, SIGMA_B_E,
 };
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
@@ -96,7 +97,7 @@ fn scalar_sigma_roundtrip_uses_single_ternary_challenge() -> Result<(), Box<dyn 
     let proof = prove(b"scalar-session", 11, &stmt, &wit, &mut rng, &[1u8; 32])?;
 
     assert!(
-        matches!(proof.ch, -1 | 0 | 1),
+        matches!(proof.ch, -1..=1),
         "scalar sigma challenge must be one ternary scalar"
     );
     verify_scalar(b"scalar-session", 11, &stmt, &proof, &[1u8; 32])?;

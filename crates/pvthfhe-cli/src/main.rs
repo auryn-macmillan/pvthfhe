@@ -283,9 +283,13 @@ fn main() -> anyhow::Result<()> {
             {
                 use pvthfhe_compressor::nova::{CycloFoldStepCircuit, NovaCompressor};
                 use pvthfhe_compressor::{CompressedProof, ProofCompressor};
-                let compressor =
-                    NovaCompressor::<CycloFoldStepCircuit<ark_bn254::Fr>>::new([0u8; 32], 1)
-                        .map_err(|e| anyhow::anyhow!("compressor init: {e:?}"))?;
+                let compressor = NovaCompressor::<CycloFoldStepCircuit<ark_bn254::Fr>>::new(
+                    [0u8; 32],
+                    1,
+                    [0u8; 32],
+                    pvthfhe_compressor::nova::SBIND_CYCLO_FOLD,
+                )
+                .map_err(|e| anyhow::anyhow!("compressor init: {e:?}"))?;
                 let vk = compressor.verifier_key();
                 let compressed_proof = CompressedProof::new(proof_bytes);
                 let zero_acc = vec![0u8; 256];
@@ -308,10 +312,10 @@ fn main() -> anyhow::Result<()> {
                 use pvthfhe_cli::protocol_verifier::ProtocolVerifier;
 
                 let t = threshold.unwrap_or(n / 2 + 1);
-                let max_t = (n - 1) / 2;
+                let max_t = n / 2 + 1;
                 if t > max_t {
                     anyhow::bail!(
-                        "threshold t={t} exceeds maximum allowed t <= (n-1)/2 = {max_t} for n={n}"
+                        "threshold t={t} exceeds max_t={max_t} for n={n}. Must satisfy t <= floor(n/2)+1 for the honest-majority threshold policy; Shamir privacy holds against fewer than t shares."
                     );
                 }
 
@@ -590,7 +594,7 @@ fn r8_snapshot(action: SnapshotCommand) -> anyhow::Result<()> {
                 .map_err(|e| anyhow::anyhow!("snapshot prove failed: {e:?}"))?;
             let prove_ms = prove_started.elapsed().as_secs_f64() * 1000.0;
 
-            let proof_hex = hex::encode(&proof.bytes);
+            let _proof_hex = hex::encode(&proof.bytes);
             let verify_started = std::time::Instant::now();
             let verify_ms = match verify_bfv_snapshot(&proof, &snapshot, session_bytes) {
                 Ok(true) => verify_started.elapsed().as_secs_f64() * 1000.0,
@@ -661,9 +665,13 @@ fn r8_compute(action: ComputeCommand) -> anyhow::Result<()> {
                 .map_err(|_| anyhow::anyhow!("root_hash must be 32 bytes (64 hex chars)"))?;
 
             let compressed = CompressedProof::new(proof_bytes);
-            let compressor =
-                NovaCompressor::<FheComputeStepCircuit<Fr>>::new(root_hash_bytes, steps)
-                    .map_err(|e| anyhow::anyhow!("compressor init: {e:?}"))?;
+            let compressor = NovaCompressor::<FheComputeStepCircuit<Fr>>::new(
+                root_hash_bytes,
+                steps,
+                [0u8; 32],
+                pvthfhe_compressor::nova::SBIND_FHE_COMPUTE,
+            )
+            .map_err(|e| anyhow::anyhow!("compressor init: {e:?}"))?;
             let vk = compressor.verifier_key();
             let ext_steps: Vec<ExternalInputs3<Fr>> = vec![ExternalInputs3::default(); steps];
             let zero_acc = vec![0u8; 32];
@@ -848,8 +856,13 @@ fn r8_compute_n(count: usize) -> anyhow::Result<()> {
     let z0_state = encode_triple_inline(z0_lo, z0_hi, merkle_root);
 
     // ── 5. Prove ────────────────────────────────────────────────
-    let compressor = NovaCompressor::<FheComputeStepCircuit<Fr>>::new(merkle_root_bytes, n_steps)
-        .map_err(|e| anyhow::anyhow!("compressor init failed: {e:?}"))?;
+    let compressor = NovaCompressor::<FheComputeStepCircuit<Fr>>::new(
+        merkle_root_bytes,
+        n_steps,
+        [0u8; 32],
+        pvthfhe_compressor::nova::SBIND_FHE_COMPUTE,
+    )
+    .map_err(|e| anyhow::anyhow!("compressor init failed: {e:?}"))?;
 
     let ext_steps: Vec<ExternalInputs3<Fr>> = vec![ExternalInputs3::default(); n_steps];
 
@@ -1038,12 +1051,10 @@ fn run_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
             "invalid threshold: threshold={threshold} must satisfy 1 <= threshold <= n={n}"
         );
     }
-    let max_t = (n - 1) / 2;
+    let max_t = n / 2 + 1;
     if threshold > max_t {
         anyhow::bail!(
-            "the upstream fhe.rs backend requires threshold t <= (n-1)/2; for n={} maximum t is {}",
-            n,
-            max_t
+            "threshold t={threshold} exceeds max_t={max_t} for n={n}. Must satisfy t <= floor(n/2)+1 for the honest-majority threshold policy; Shamir privacy holds against fewer than t shares."
         );
     }
     let mut observer = DemoObserver::default();
@@ -1661,6 +1672,7 @@ fn run_tfhe_demo(n: usize, threshold: usize, seed: u64, bootstrap: bool) -> anyh
             &verify_stmt,
             &proof,
             &d_commitment,
+            0,
         ) {
             Ok(()) => println!("step 8/9: bootstrap NIZK verify: ACCEPT"),
             Err(e) => {
@@ -1870,8 +1882,13 @@ fn run_poulpy_switch_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Resu
 
     let compressor = {
         let start = Instant::now();
-        let result = NovaCompressor::<SchemeSwitchStepCircuit>::new(epoch_hash, 1)
-            .map_err(|e| anyhow::anyhow!("SchemeSwitch NovaCompressor::new: {e:?}"))?;
+        let result = NovaCompressor::<SchemeSwitchStepCircuit>::new(
+            epoch_hash,
+            1,
+            [0u8; 32],
+            pvthfhe_compressor::nova::SBIND_SCHEME_SWITCH,
+        )
+        .map_err(|e| anyhow::anyhow!("SchemeSwitch NovaCompressor::new: {e:?}"))?;
         let ms = start.elapsed().as_secs_f64() * 1000.0;
         println!("  nova_setup: {ms:.1}ms");
         result
@@ -2191,8 +2208,13 @@ fn run_poulpy_all_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<
     reset_scheme_switch_step_counter();
 
     let epoch_hash: [u8; 32] = Sha256::digest(b"pvthfhe-scheme-switch-epoch/v1").into();
-    let compressor = NovaCompressor::<SchemeSwitchStepCircuit>::new(epoch_hash, 1)
-        .map_err(|e| anyhow::anyhow!("SchemeSwitch NovaCompressor::new: {e:?}"))?;
+    let compressor = NovaCompressor::<SchemeSwitchStepCircuit>::new(
+        epoch_hash,
+        1,
+        [0u8; 32],
+        pvthfhe_compressor::nova::SBIND_SCHEME_SWITCH,
+    )
+    .map_err(|e| anyhow::anyhow!("SchemeSwitch NovaCompressor::new: {e:?}"))?;
 
     let zero_state = vec![0u8; 3 * 32];
     let zero_public_inputs = vec![0u8; 4 * 32];
@@ -2276,6 +2298,7 @@ fn run_poulpy_all_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<
         &verify_stmt,
         &bootstrap_proof,
         &d_commitment,
+        0,
     ) {
         Ok(()) => println!("  bootstrap NIZK verify: ACCEPT"),
         Err(e) => {
@@ -2435,7 +2458,7 @@ impl DemoObserver {
                 "step {step}/{total}: {name} ({detail})",
                 total = Self::STEP_COUNT
             ),
-            None => println!("step {step}/{total}: {name}", total = Self::STEP_COUNT),
+            Option::None => println!("step {step}/{total}: {name}", total = Self::STEP_COUNT),
         }
     }
 }

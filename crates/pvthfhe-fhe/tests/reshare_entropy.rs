@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 #![allow(unexpected_cfgs)]
 
 //! Regression test: reshare randomness is non-deterministic (audit finding F23).
@@ -40,9 +41,9 @@ fn reshare_entropy() {
     let mut fingerprints = HashSet::new();
 
     for _ in 0..ITERATIONS {
-        let mut rng = OsRng;
+        let rng = OsRng;
         let shares = share_manager
-            .generate_secret_shares_from_poly(sk_poly.clone(), &mut rng)
+            .generate_secret_shares_from_poly(sk_poly.clone(), rng)
             .expect("generate secret shares");
 
         // Fingerprint: first 8 coefficients of row 0 for each share matrix

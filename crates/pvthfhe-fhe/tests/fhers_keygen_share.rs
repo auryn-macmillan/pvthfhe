@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Integration test for real keygen shares in `FhersBackend`.
 
 use pvthfhe_fhe::{fhers::FhersBackend, wire, FheBackend};

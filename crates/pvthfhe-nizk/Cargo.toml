@@ -14,6 +14,7 @@ enable-lazer = ["dep:pvthfhe-lazer", "pvthfhe-lazer/enable-lazer"]
 [dependencies]
 pvthfhe-rng = { path = "../pvthfhe-rng" }
 pvthfhe-types = { path = "../pvthfhe-types" }
+pvthfhe-cyclo = { path = "../pvthfhe-cyclo" }
 rand = "0.8"
 rand_core = "0.6"
 rand_chacha = "0.3"

@@ -59,7 +59,11 @@ def step_workspace_tests():
     test_crates = [
         "pvthfhe-cyclo",
         "pvthfhe-aggregator",
-        "pvthfhe-micronova",
+        # R4.3 gate-reconciliation: `pvthfhe-micronova` was deleted (commit 8998157); its
+        # Nova-compression role was absorbed into `pvthfhe-compressor`. Point the workspace-test
+        # step at the live successor crate. NOTE: default `cargo test -p pvthfhe-compressor` does
+        # NOT exercise the `--features nova-compressor` e2e path (separate/uncovered here).
+        "pvthfhe-compressor",
     ]
     for crate in test_crates:
         rc, out = run(["cargo", "test", "-p", crate])

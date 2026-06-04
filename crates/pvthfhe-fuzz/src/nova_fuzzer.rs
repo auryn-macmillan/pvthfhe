@@ -7,12 +7,11 @@
 
 use pvthfhe_compressor::{
     verify_compressed_public_anchors, CompressedDecryptionPublicAnchors,
-    CompressedDkgPublicAnchors, CompressedProof, CompressorError, VerifierKey,
+    CompressedDkgPublicAnchors, CompressedProof, VerifierKey,
 };
-use pvthfhe_fuzz::{rng_from_bytes, FuzzStatus, FUZZ_ITERATIONS};
+use pvthfhe_fuzz::FUZZ_ITERATIONS;
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
-use sha3::{Digest, Keccak256};
 
 fn generate_random_dkg_anchors(rng: &mut dyn RngCore) -> CompressedDkgPublicAnchors {
     let mut dkg_root = [0u8; 32];
@@ -89,8 +88,8 @@ fn main() {
 
         // 2. Test with matching anchors
         {
-            let mut matching_dkg = generate_random_dkg_anchors(&mut rng);
-            let mut matching_decrypt = CompressedDecryptionPublicAnchors {
+            let matching_dkg = generate_random_dkg_anchors(&mut rng);
+            let matching_decrypt = CompressedDecryptionPublicAnchors {
                 dkg_root: matching_dkg.dkg_root,
                 ciphertext_hash: [0u8; 32],
                 expected_sk_commits_root: matching_dkg.sk_agg_commits_root,

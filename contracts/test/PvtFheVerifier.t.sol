@@ -5,6 +5,29 @@ import "forge-std/Test.sol";
 import "../test/BaseVerifierTest.t.sol";
 import "../src/PvtFheVerifier.sol";
 import "../src/SessionRegistry.sol";
+import "../src/VerificationStatementV1.sol";
+
+/// @notice Mock IVC decider that returns true only when the statement hash matches an expected value.
+/// Used by P2-6 cross-session proof replay tests.
+contract IvcDeciderMock {
+    bytes32 public immutable expectedStatementHash;
+
+    constructor(bytes32 _expectedStatementHash) {
+        expectedStatementHash = _expectedStatementHash;
+    }
+
+    function verify(
+        bytes calldata,
+        bytes32 statementHash,
+        bytes32,
+        bytes32,
+        bytes32,
+        bytes32,
+        uint64
+    ) external view returns (bool) {
+        return statementHash == expectedStatementHash;
+    }
+}
 
 /// @title PvtFheVerifierTest
 /// @notice Foundry tests for the PvtFheVerifier wiring with the real HonkVerifier.
@@ -268,6 +291,7 @@ contract PvtFheVerifierTest is BaseVerifierTest {
             shareVerificationHash: bytes32(uint256(0x07)),
             decryptNizkHash: bytes32(uint256(0x08)),
             dkgTranscriptHash: bytes32(uint256(0x09)),
+            c5ProofRoot: bytes32(uint256(0x0c)),
             novaFinalStateCommitment: bytes32(uint256(0x0a)),
             ivcVerifyResult: 1,
             bootstrapResultHash: bytes32(uint256(0x0b))
@@ -321,6 +345,169 @@ contract PvtFheVerifierTest is BaseVerifierTest {
             SAMPLE_HASH, SAMPLE_EPOCH, SAMPLE_HASH, SAMPLE_HASH,
             ivcBinding, sampleProof
         );
+    }
+
+    // -------------------------------------------------------------------------
+    // P2-6: Cross-session proof replay — adversarial tests
+    // -------------------------------------------------------------------------
+
+    /// @dev Builds a VerificationStatementV1.Statement that mirrors _buildIvcStatement
+    ///      using the same values as _buildValidIvcBinding and the given caller-controlled params.
+    function _buildTestStatement(
+        bytes32 participantSetHash,
+        bytes32 c5ProofRoot,
+        bytes32 shareVerificationHash
+    ) internal pure returns (VerificationStatementV1.Statement memory stmt) {
+        stmt.protocolVersion = 1;
+        stmt.contextId = bytes32(0);
+        stmt.dkgRoot = SAMPLE_HASH;
+        stmt.epoch = SAMPLE_EPOCH;
+        stmt.participantSetHash = participantSetHash;
+        stmt.aggregatePkHash = SAMPLE_HASH;
+        stmt.ciphertextHash = SAMPLE_HASH;
+        stmt.plaintextHash = SAMPLE_HASH;
+        stmt.dCommitment = SAMPLE_HASH;
+        stmt.c5ProofRoot = c5ProofRoot;
+        stmt.c6ProofSetRoot = bytes32(0);
+        stmt.cycloAccumulatorRoot = bytes32(0);
+        stmt.ivcVkHash = bytes32(uint256(0x02));
+        stmt.ivcPpHash = bytes32(uint256(0x03));
+        stmt.ivcProofHash = bytes32(uint256(0x01));
+        stmt.z0Commitment = bytes32(uint256(0x04));
+        stmt.ziCommitment = bytes32(uint256(0x05));
+        stmt.ivcSteps = 1;
+        stmt.bootstrapResultHash = bytes32(uint256(0x0b));
+        stmt.shareVerificationHash = shareVerificationHash;
+        stmt.decryptNizkHash = bytes32(uint256(0x08));
+        stmt.dkgTranscriptHash = bytes32(uint256(0x09));
+        stmt.novaFinalStateCommitment = bytes32(uint256(0x0a));
+    }
+
+    /// @notice P2-6: Valid IVC proof but c5ProofRoot from wrong DKG session → REJECT.
+    /// The statement hash must bind c5ProofRoot so an attacker cannot replay a valid proof
+    /// from session A as session B by substituting a different c5ProofRoot.
+    function test_wrong_c5ProofRoot_with_valid_proof_rejected() public {
+        bytes32 correctC5 = bytes32(uint256(0x0c));
+        bytes32 wrongC5 = bytes32(uint256(0xDEAD));
+        bytes32 svHash = bytes32(uint256(0x07));
+
+        // Verify statement hash changes when c5ProofRoot changes
+        bytes32 correctHash = VerificationStatementV1.computeStatementHashBytes32(
+            _buildTestStatement(SAMPLE_HASH, correctC5, svHash)
+        );
+        bytes32 wrongHash = VerificationStatementV1.computeStatementHashBytes32(
+            _buildTestStatement(SAMPLE_HASH, wrongC5, svHash)
+        );
+        assertNotEq(correctHash, wrongHash, "c5ProofRoot mutation must change statement hash");
+
+        // Integration: full verifyWithIvc path with mock decider
+        IvcDeciderMock mock = new IvcDeciderMock(correctHash);
+        verifier.setIvcDeciderVerifier(address(mock));
+
+        IvcBinding memory ivcBinding = _buildValidIvcBinding();
+        bool result = verifier.verifyWithIvc(
+            SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH,
+            SAMPLE_HASH, SAMPLE_EPOCH, SAMPLE_HASH, SAMPLE_HASH,
+            ivcBinding, sampleProof
+        );
+        assertTrue(result, "correct c5ProofRoot should verify");
+
+        // Attack: replay with c5ProofRoot from different DKG session
+        mock = new IvcDeciderMock(correctHash);
+        verifier.setIvcDeciderVerifier(address(mock));
+
+        IvcBinding memory wrongIvc = _buildValidIvcBinding();
+        wrongIvc.c5ProofRoot = wrongC5;
+        result = verifier.verifyWithIvc(
+            SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH,
+            SAMPLE_HASH, SAMPLE_EPOCH, SAMPLE_HASH, SAMPLE_HASH,
+            wrongIvc, sampleProof
+        );
+        assertFalse(result, "wrong c5ProofRoot must be rejected by statement hash mismatch");
+    }
+
+    /// @notice P2-6: Valid proof but participantSetHash differs from registered roster → REJECT.
+    /// An attacker claiming a proof is for a different participant set (with a different roster
+    /// hash) must have the statement hash change and the decider reject.
+    function test_wrong_participant_set_hash_rejected() public {
+        bytes32 correctPsh = SAMPLE_HASH;
+        bytes32 wrongPsh = keccak256("adversary-roster");
+
+        // Verify statement hash changes when participantSetHash changes
+        bytes32 correctHash = VerificationStatementV1.computeStatementHashBytes32(
+            _buildTestStatement(correctPsh, bytes32(uint256(0x0c)), bytes32(uint256(0x07)))
+        );
+        bytes32 wrongHash = VerificationStatementV1.computeStatementHashBytes32(
+            _buildTestStatement(wrongPsh, bytes32(uint256(0x0c)), bytes32(uint256(0x07)))
+        );
+        assertNotEq(correctHash, wrongHash, "participantSetHash mutation must change statement hash");
+
+        // Integration: full verifyWithIvc path
+        IvcDeciderMock mock = new IvcDeciderMock(correctHash);
+        verifier.setIvcDeciderVerifier(address(mock));
+
+        IvcBinding memory ivcBinding = _buildValidIvcBinding();
+        bool result = verifier.verifyWithIvc(
+            SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH,
+            SAMPLE_HASH, SAMPLE_EPOCH, correctPsh, SAMPLE_HASH,
+            ivcBinding, sampleProof
+        );
+        assertTrue(result, "correct participantSetHash should verify");
+
+        // Attack: replay with different participant set hash
+        mock = new IvcDeciderMock(correctHash);
+        verifier.setIvcDeciderVerifier(address(mock));
+
+        result = verifier.verifyWithIvc(
+            SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH,
+            SAMPLE_HASH, SAMPLE_EPOCH, wrongPsh, SAMPLE_HASH,
+            ivcBinding, sampleProof
+        );
+        assertFalse(result, "wrong participantSetHash must be rejected by statement hash mismatch");
+    }
+
+    /// @notice P2-6: Mutated shareVerificationHash with original IVC proof → REJECT.
+    /// P0-4 added shareVerificationHash (field 20) to the statement hash. Pre-P0-4, an attacker
+    /// could change shareVerificationHash without changing the statement hash. Post-P0-4, the
+    /// statement hash changes and the decider rejects.
+    function test_mutated_shareVerificationHash_same_statement_hash_rejected() public {
+        bytes32 correctSvHash = bytes32(uint256(0x07));
+        bytes32 wrongSvHash = bytes32(uint256(0xBAD));
+
+        // Verify statement hash changes when shareVerificationHash changes
+        bytes32 correctHash = VerificationStatementV1.computeStatementHashBytes32(
+            _buildTestStatement(SAMPLE_HASH, bytes32(uint256(0x0c)), correctSvHash)
+        );
+        bytes32 wrongHash = VerificationStatementV1.computeStatementHashBytes32(
+            _buildTestStatement(SAMPLE_HASH, bytes32(uint256(0x0c)), wrongSvHash)
+        );
+        assertNotEq(correctHash, wrongHash,
+            "P0-4: shareVerificationHash must change statement hash (was previously omitted)");
+
+        // Integration: full verifyWithIvc path
+        IvcDeciderMock mock = new IvcDeciderMock(correctHash);
+        verifier.setIvcDeciderVerifier(address(mock));
+
+        IvcBinding memory ivcBinding = _buildValidIvcBinding();
+        bool result = verifier.verifyWithIvc(
+            SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH,
+            SAMPLE_HASH, SAMPLE_EPOCH, SAMPLE_HASH, SAMPLE_HASH,
+            ivcBinding, sampleProof
+        );
+        assertTrue(result, "correct shareVerificationHash should verify");
+
+        // Attack: mutate shareVerificationHash with same proof
+        mock = new IvcDeciderMock(correctHash);
+        verifier.setIvcDeciderVerifier(address(mock));
+
+        IvcBinding memory wrongIvc = _buildValidIvcBinding();
+        wrongIvc.shareVerificationHash = wrongSvHash;
+        result = verifier.verifyWithIvc(
+            SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH,
+            SAMPLE_HASH, SAMPLE_EPOCH, SAMPLE_HASH, SAMPLE_HASH,
+            wrongIvc, sampleProof
+        );
+        assertFalse(result, "mutated shareVerificationHash must be rejected by statement hash mismatch");
     }
 
     function test_verifyAndConsumeWithIvc_bootstrap_zero_rejected() public {

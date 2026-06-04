@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Roundtrip tests for [`EncryptionWitness`] returned by
 //! [`FheBackend::encrypt_with_witness`].
 //!

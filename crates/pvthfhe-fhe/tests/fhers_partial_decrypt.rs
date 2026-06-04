@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Integration tests for real partial decryption in `FhersBackend`.
 
 use fhe::bfv::Ciphertext as BfvCiphertext;
@@ -26,7 +27,7 @@ fn fhers_partial_decrypt_returns_real_decryption_share_polynomials() {
 
     let pk = backend.aggregate_keygen(&shares).expect("aggregate keygen");
     let ciphertext = backend.encrypt(&pk, b"42", &mut rng).expect("encrypt");
-    let ct = BfvCiphertext::from_bytes(&ciphertext.bytes, backend.bfv_params())
+    let _ct = BfvCiphertext::from_bytes(&ciphertext.bytes, backend.bfv_params())
         .expect("deserialize ciphertext");
 
     for party_id in 2u32..=5 {

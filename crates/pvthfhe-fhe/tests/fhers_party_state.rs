@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Integration tests for per-party decryption state plumbing in `FhersBackend`.
 
 use pvthfhe_fhe::{fhers::FhersBackend, FheBackend, FheError};

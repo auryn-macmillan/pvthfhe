@@ -6,14 +6,15 @@
 //! 2. Tampered proofs are rejected
 //! 3. Challenge-dependent behavior across sessions
 
-use pvthfhe_fuzz::{
-    rng_from_bytes, sample_bounded_i64, sample_ternary, FuzzStatus, FUZZ_ITERATIONS,
-};
+// Fuzz harness: expect() on setup is an acceptable failure signal.
+#![allow(clippy::expect_used)]
+
+use pvthfhe_fuzz::{sample_bounded_i64, sample_ternary, FUZZ_ITERATIONS};
 use pvthfhe_nizk::sigma::{
-    self, compute_d_rns, int_poly_to_rns, num_rns_limbs, prove, rlwe_n, rns_add, sample_bounded,
-    verify, B_Y, B_Z_E, B_Z_S, RLWE_Q0, RLWE_Q1, RLWE_Q2, SIGMA_B_E, SIGMA_REPETITIONS,
+    compute_d_rns, num_rns_limbs, prove, rlwe_n, verify, RLWE_Q0, RLWE_Q1, RLWE_Q2, SIGMA_B_E,
+    SIGMA_REPETITIONS,
 };
-use pvthfhe_nizk::sigma::{SigmaMultiProof, SigmaProof, SigmaStatement, SigmaWitness};
+use pvthfhe_nizk::sigma::{SigmaStatement, SigmaWitness};
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
 

@@ -1,12 +1,20 @@
-//! Regression tests for the non-folded A1 Cyclo accumulator placeholder.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+//! Regression tests for the Cyclo accumulator transcript verification (A1).
 //!
-//! Until full Cyclo accumulator transcript verification lands, verifier acceptance
-//! is only for proofs that carry the encoder's documented empty non-folded placeholder.
+//! Covers the transition from fail-closed stub to real codec-based verification:
+//!   - Empty (non-folded) placeholder still accepted
+//!   - Invalid accumulator bytes rejected by codec
+//!   - Valid accumulator transcripts accepted
+//!   - Framing errors (length without bytes) rejected
 
-use pvthfhe_nizk::adapter::CycloNizkAdapter;
+use pvthfhe_cyclo::accumulator_codec;
+use pvthfhe_cyclo::fold::AJTAI_COMMITMENT_BYTES;
+use pvthfhe_cyclo::{CcsPShareInstance, CycloAccumulator, PVTHFHE_CYCLO_PARAMS};
+use pvthfhe_nizk::adapter::{self, CycloNizkAdapter};
 use pvthfhe_nizk::hash_bridge;
 use pvthfhe_nizk::sigma::rlwe_n;
 use pvthfhe_nizk::{NizkAdapter, NizkError, NizkProof, NizkStatement, NizkWitness};
+use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
 
@@ -75,7 +83,7 @@ fn valid_accumulator_placeholder_proof(seed: u64) -> (CycloNizkAdapter, NizkStat
 }
 
 #[test]
-fn accumulator_nonzero_transcript_bytes_fail_closed() {
+fn accumulator_invalid_nonzero_transcript_bytes_rejected() {
     let (adapter, stmt, mut proof) = valid_accumulator_placeholder_proof(0xF4_00);
 
     let acc_len_offset = proof
@@ -92,18 +100,13 @@ fn accumulator_nonzero_transcript_bytes_fail_closed() {
 
     let result = adapter.verify(&stmt, &proof);
     assert!(
-        matches!(
-            result,
-            Err(NizkError::VerificationFailed(
-                "cyclo accumulator present but unverified (fail-closed)"
-            ))
-        ),
-        "nonzero accumulator bytes must fail closed, got {result:?}"
+        result.is_err(),
+        "invalid accumulator bytes must be rejected, got {result:?}"
     );
 }
 
 #[test]
-fn accumulator_nonzero_length_without_bytes_fails_closed() {
+fn accumulator_nonzero_length_without_bytes_rejected() {
     let (adapter, stmt, mut proof) = valid_accumulator_placeholder_proof(0xF4_02);
 
     let acc_len_offset = proof
@@ -116,15 +119,7 @@ fn accumulator_nonzero_length_without_bytes_fails_closed() {
     proof.proof_bytes[acc_len_offset..].copy_from_slice(&4u32.to_be_bytes());
 
     let result = adapter.verify(&stmt, &proof);
-    assert!(
-        matches!(
-            result,
-            Err(NizkError::VerificationFailed(
-                "cyclo accumulator present but unverified (fail-closed)"
-            ))
-        ),
-        "nonzero accumulator length without bytes must fail closed before any parse/skip semantics, got {result:?}"
-    );
+    assert!(result.is_err(), "nonzero length without bytes must reject");
 }
 
 #[test]
@@ -138,4 +133,97 @@ fn accumulator_empty_placeholder_honest_proof_still_verifies() {
     adapter
         .verify(&stmt, &proof)
         .expect("empty accumulator placeholder must remain accepted");
+}
+
+#[test]
+fn valid_accumulator_transcript_accepted() {
+    let (adapter, stmt, mut proof) = valid_accumulator_placeholder_proof(0xF4_10);
+
+    let proof_commitment_bytes = &proof.proof_bytes[34..34 + AJTAI_COMMITMENT_BYTES];
+
+    let acc = CycloAccumulator {
+        fold_depth: 1,
+        acc_commitment_bytes: proof_commitment_bytes.to_vec(),
+        acc_public_io_bytes: vec![0u8; 32],
+        norm_bound_current: PVTHFHE_CYCLO_PARAMS.beta_at_t,
+        session_id: stmt.session_id.clone(),
+        params_digest: accumulator_codec::params_digest(),
+    };
+
+    let mut sha_binding = [0u8; 32];
+    sha_binding[0..2].copy_from_slice(&stmt.participant_id.to_be_bytes());
+
+    let instances = vec![CcsPShareInstance {
+        participant_id: stmt.participant_id,
+        ajtai_commitment_bytes: ProtocolBytes(proof_commitment_bytes.to_vec()),
+        public_io_bytes: ProtocolBytes(vec![0u8; 32]),
+        ccs_witness_bytes: CcsWitnessSecret::new({
+            let mut w = Vec::new();
+            w.extend_from_slice(&1u32.to_be_bytes());
+            w.extend_from_slice(&[0u8; 32]);
+            w
+        }),
+        sha256_binding_bytes: ProtocolBytes(sha_binding.to_vec()),
+        ccs_matrix_bytes: ProtocolBytes({
+            let mut m = Vec::new();
+            m.extend_from_slice(&1u32.to_be_bytes());
+            m.extend_from_slice(&1u32.to_be_bytes());
+            m.extend_from_slice(&[0u8; 32]);
+            m
+        }),
+    }];
+
+    adapter::append_accumulator_to_proof(&mut proof.proof_bytes, &acc, &instances)
+        .expect("append accumulator");
+
+    adapter
+        .verify(&stmt, &proof)
+        .expect("valid accumulator transcript must be accepted");
+}
+
+#[test]
+fn accumulator_too_many_bytes_rejected() {
+    let (adapter, stmt, mut proof) = valid_accumulator_placeholder_proof(0xF4_20);
+
+    let proof_commitment_bytes = &proof.proof_bytes[34..34 + AJTAI_COMMITMENT_BYTES];
+
+    let acc = CycloAccumulator {
+        fold_depth: 1,
+        acc_commitment_bytes: proof_commitment_bytes.to_vec(),
+        acc_public_io_bytes: vec![0u8; 32],
+        norm_bound_current: PVTHFHE_CYCLO_PARAMS.beta_at_t,
+        session_id: stmt.session_id.clone(),
+        params_digest: accumulator_codec::params_digest(),
+    };
+
+    let mut sha_binding = [0u8; 32];
+    sha_binding[0..2].copy_from_slice(&stmt.participant_id.to_be_bytes());
+
+    let instances = vec![CcsPShareInstance {
+        participant_id: stmt.participant_id,
+        ajtai_commitment_bytes: ProtocolBytes(proof_commitment_bytes.to_vec()),
+        public_io_bytes: ProtocolBytes(vec![0u8; 32]),
+        ccs_witness_bytes: CcsWitnessSecret::new({
+            let mut w = Vec::new();
+            w.extend_from_slice(&1u32.to_be_bytes());
+            w.extend_from_slice(&[0u8; 32]);
+            w
+        }),
+        sha256_binding_bytes: ProtocolBytes(sha_binding.to_vec()),
+        ccs_matrix_bytes: ProtocolBytes({
+            let mut m = Vec::new();
+            m.extend_from_slice(&1u32.to_be_bytes());
+            m.extend_from_slice(&1u32.to_be_bytes());
+            m.extend_from_slice(&[0u8; 32]);
+            m
+        }),
+    }];
+
+    adapter::append_accumulator_to_proof(&mut proof.proof_bytes, &acc, &instances)
+        .expect("append accumulator");
+
+    proof.proof_bytes.extend_from_slice(&[0xDE, 0xAD]);
+
+    let result = adapter.verify(&stmt, &proof);
+    assert!(result.is_err(), "trailing proof bytes must reject");
 }

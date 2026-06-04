@@ -42,6 +42,10 @@ fn golden_statement() -> VerificationStatementV1 {
         zi_commitment: bytes(0xf0),
         ivc_steps: 7,
         bootstrap_result_hash: bytes(0x08),
+        share_verification_hash: bytes(0x11),
+        decrypt_nizk_hash: bytes(0x12),
+        dkg_transcript_hash: bytes(0x13),
+        nova_final_state_commitment: bytes(0x14),
     }
 }
 

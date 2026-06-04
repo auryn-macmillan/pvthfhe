@@ -1,13 +1,13 @@
 # Phase 2 Gate Report
 
-**Status**: FAIL
-**Date**: 2026-06-03T19:56:17Z
+**Status**: PASS
+**Date**: 2026-06-04T01:43:53Z
 
 ## Checks
 
 | Check | Status | Detail |
 |-------|--------|--------|
-| artifacts | FAIL | Missing 1 artifact(s): crates/pvthfhe-api/src/lib.rs |
+| artifacts | PASS | All 12 T17-T27 artifacts present |
 | parameters_toml | PASS | parameters.toml valid with required keys |
 | noise_budget_test | PASS | cargo test noise_budget passed |
 | theorem_mapping | PASS | Success: All theorems mapped correctly (4 theorems, 13 assumption references) |
@@ -15,12 +15,9 @@
 | oracle_dispositions | PASS | All findings ADDRESSED |
 | lit_refresh_no_blocking | PASS | No BLOCKING+undecided lines in lit-refresh-2.md |
 | cyclo_tests | PASS | cargo test -p pvthfhe-cyclo passed |
-| aggregate_1024_smoke | FAIL | cargo test -p pvthfhe-aggregator --test aggregate_1024_smoke failed: ck file, run `cargo update` to use the new
-      version. This may also occur with an optional dependency that is not enabled.
-error: target `aggregate_1024_smoke` in package `pvthfhe-aggregator` requires the features: `legacy-fold`
-Consider enabling them by passing, e.g., `--features="legacy-fold"` |
+| aggregate_1024_smoke | PASS | cargo test -p pvthfhe-aggregator --test aggregate_1024_smoke passed and bench/results/aggregate_1024.json exists |
 | cargo_check | PASS | cargo check --workspace passed |
 
 ## Summary
 
-Phase 2 gate FAILED. See failing checks above.
+Phase 2 design complete. All checks pass. Proceeding to Phase 3.

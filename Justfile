@@ -208,10 +208,10 @@ stage0-gate:
     head -15 ARCHITECTURE.md | grep -q "DO NOT DEPLOY" || { echo "FAIL: ARCHITECTURE.md missing banner"; exit 1; }
     head -15 SECURITY.md | grep -q "DO NOT DEPLOY" || { echo "FAIL: SECURITY.md missing banner"; exit 1; }
 
-    # Check 3: Stage-0 default banner on cargo build
-    echo "[3] Checking cargo surrogate tripwire..."
+    # Check 3: Stage-0 real-backend banner on cargo build
+    echo "[3] Checking cargo real-backend tripwire..."
     cargo clean -p pvthfhe-fhe >/dev/null 2>&1
-    cargo build -p pvthfhe-fhe 2>&1 | grep -q "FOLDING ACCUMULATOR IS A SURROGATE" || { echo "FAIL: cargo build missing Stage-0 folding warning"; exit 1; }
+    cargo build -p pvthfhe-fhe 2>&1 | grep -q "BFV backend is real" || { echo "FAIL: cargo build missing Stage-0 real-backend warning"; exit 1; }
 
     # Check 4: no mock in default features
     echo "[4] Checking mock feature gates..."

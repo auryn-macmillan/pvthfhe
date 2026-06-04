@@ -75,6 +75,8 @@ pub struct FhersBackend {
     /// access-control auditing. Only checked in debug builds.
     #[cfg(debug_assertions)]
     owned_party_id: std::sync::Mutex<Option<u32>>,
+    /// Session binding hash stored during setup_threshold, verified in aggregate_decrypt.
+    decrypt_session_hash: Arc<Mutex<Option<[u8; 32]>>>,
 }
 
 impl Clone for FhersBackend {
@@ -91,6 +93,7 @@ impl Clone for FhersBackend {
                 let val = self.owned_party_id.lock().ok().and_then(|guard| *guard);
                 std::sync::Mutex::new(val)
             },
+            decrypt_session_hash: self.decrypt_session_hash.clone(),
         }
     }
 }
@@ -245,6 +248,13 @@ impl FhersBackend {
                 reason: err.to_string(),
             }
         })
+    }
+
+    fn session_bind_hash(session_id_bytes: &[u8]) -> [u8; 32] {
+        let mut h = Sha256::new();
+        h.update(b"pvthfhe-decrypt-session-bind-v1");
+        h.update(session_id_bytes);
+        h.finalize().into()
     }
 
     #[cfg(test)]
@@ -692,6 +702,31 @@ fn decode_plaintext_slots(slots: &[u64]) -> Result<Vec<u8>, FheError> {
     Ok(slots_to_bytes(payload_slots, original_len))
 }
 
+fn decrypt_share_ciphertext_hash(ciphertext_bytes: &[u8]) -> [u8; 32] {
+    Sha256::digest(ciphertext_bytes).into()
+}
+
+fn validate_decrypt_share_context(
+    submitted_party_id: u32,
+    expected_ciphertext_hash: &[u8; 32],
+    decoded: &wire::DecryptShareV2,
+) -> Result<(), FheError> {
+    if decoded.party_id != submitted_party_id {
+        return Err(FheError::DecryptShareContextMismatch {
+            party_id: submitted_party_id,
+            field: "party_id",
+        });
+    }
+    if &decoded.ciphertext_hash != expected_ciphertext_hash {
+        return Err(FheError::DecryptShareContextMismatch {
+            party_id: submitted_party_id,
+            field: "ct_hash",
+        });
+    }
+
+    Ok(())
+}
+
 impl FheBackend for FhersBackend {
     fn load_params(toml: &str) -> Result<Self, FheError> {
         // Parse and validate params — this succeeds so callers can inspect them.
@@ -714,6 +749,7 @@ impl FheBackend for FhersBackend {
             esm_noise_poly_map: Arc::new(Mutex::new(HashMap::new())),
             #[cfg(debug_assertions)]
             owned_party_id: std::sync::Mutex::new(None),
+            decrypt_session_hash: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -788,10 +824,13 @@ impl FheBackend for FhersBackend {
                 reason: format!("invalid threshold parameters: n={n}, t={t}"),
             });
         }
-        let max_t = (n - 1) / 2;
+        // Honest-majority reconstruction threshold per threat-model-v1.md §2.2
+        // (t = floor(n/2)+1). Prior (n-1)/2 bound (commit 80a0c82)
+        // contradicted the documented model; this is spec conformance, not a relaxation.
+        let max_t = n / 2 + 1;
         if t > max_t {
             return Err(FheError::Backend {
-                reason: format!("threshold t={t} exceeds max_t={max_t} for n={n}. Must satisfy t ≤ (n-1)/2 for Shamir security.")
+                reason: format!("threshold t={t} exceeds max_t={max_t} for n={n}. Must satisfy t ≤ floor(n/2)+1 for the honest-majority threshold policy; Shamir privacy holds against fewer than t shares.")
             });
         }
         if std::env::var("PVTHFHE_SKIP_SETUP_THRESHOLD").as_deref() != Ok("1") {
@@ -806,6 +845,14 @@ impl FheBackend for FhersBackend {
         *self.threshold_t.lock().map_err(|err| FheError::Backend {
             reason: err.to_string(),
         })? = Some(t);
+
+        let bind_hash = Self::session_bind_hash(&session_seed);
+        *self
+            .decrypt_session_hash
+            .lock()
+            .map_err(|err| FheError::Backend {
+                reason: err.to_string(),
+            })? = Some(bind_hash);
 
         Ok(())
     }
@@ -997,6 +1044,7 @@ impl FheBackend for FhersBackend {
         }
 
         let (n, t) = self.threshold_params()?;
+        let ciphertext_hash = decrypt_share_ciphertext_hash(&ct.bytes);
         let ct = BfvCiphertext::from_bytes(&ct.bytes, &self.bfv_params)
             .map_err(|_| FheError::MalformedCiphertext)?;
 
@@ -1037,7 +1085,11 @@ impl FheBackend for FhersBackend {
 
         Ok(DecryptShare {
             party_id,
-            bytes: ProtocolBytes(wire::encode_decrypt_share(&poly_bytes)),
+            bytes: ProtocolBytes(wire::encode_decrypt_share(
+                party_id,
+                &ciphertext_hash,
+                &poly_bytes,
+            )),
             nizk_proof_bytes: None,
         })
     }
@@ -1120,7 +1172,9 @@ impl FheBackend for FhersBackend {
         let mut d_share_poly = pre_smudge_d_share;
         d_share_poly += &noise_poly;
         let d_share_poly_bytes = d_share_poly.to_bytes();
-        let wire_bytes = wire::encode_decrypt_share(&d_share_poly_bytes);
+        let ciphertext_hash = decrypt_share_ciphertext_hash(&ct.bytes);
+        let wire_bytes =
+            wire::encode_decrypt_share(party_id, &ciphertext_hash, &d_share_poly_bytes);
 
         let witness = DecryptionWitness {
             ct0_poly_bytes,
@@ -1180,10 +1234,15 @@ impl FheBackend for FhersBackend {
 
         d_share_poly += &esm_noise_poly;
         let poly_bytes = d_share_poly.to_bytes();
+        let ciphertext_hash = decrypt_share_ciphertext_hash(&ct.bytes);
 
         Ok(DecryptShare {
             party_id,
-            bytes: ProtocolBytes(wire::encode_decrypt_share(&poly_bytes)),
+            bytes: ProtocolBytes(wire::encode_decrypt_share(
+                party_id,
+                &ciphertext_hash,
+                &poly_bytes,
+            )),
             nizk_proof_bytes: None,
         })
     }
@@ -1257,7 +1316,9 @@ impl FheBackend for FhersBackend {
         let mut d_share_poly = pre_smudge_d_share;
         d_share_poly += &esm_noise_poly;
         let d_share_poly_bytes = d_share_poly.to_bytes();
-        let wire_bytes = wire::encode_decrypt_share(&d_share_poly_bytes);
+        let ciphertext_hash = decrypt_share_ciphertext_hash(&ct.bytes);
+        let wire_bytes =
+            wire::encode_decrypt_share(party_id, &ciphertext_hash, &d_share_poly_bytes);
 
         let witness = DecryptionWitness {
             ct0_poly_bytes,
@@ -1323,7 +1384,7 @@ impl FheBackend for FhersBackend {
         ct: &Ciphertext,
         shares: &[DecryptShare],
         threshold: usize,
-        _session_id: &[u8],
+        session_id: &[u8],
     ) -> Result<Vec<u8>, FheError> {
         let (n, configured_threshold) = self.threshold_params()?;
         if shares.len() < configured_threshold {
@@ -1338,6 +1399,23 @@ impl FheBackend for FhersBackend {
                     "threshold mismatch: requested {threshold}, configured {configured_threshold}"
                 ),
             });
+        }
+
+        if !session_id.is_empty() {
+            let expected_hash = Self::session_bind_hash(session_id);
+            let stored_hash =
+                self.decrypt_session_hash
+                    .lock()
+                    .map_err(|err| FheError::Backend {
+                        reason: err.to_string(),
+                    })?;
+            if let Some(h) = stored_hash.as_ref() {
+                if *h != expected_hash {
+                    return Err(FheError::Backend {
+                        reason: "session binding mismatch: session_id does not match setup_threshold session_seed".into(),
+                    });
+                }
+            }
         }
 
         for share in shares {
@@ -1356,6 +1434,7 @@ impl FheBackend for FhersBackend {
             }
         }
 
+        let expected_ciphertext_hash = decrypt_share_ciphertext_hash(&ct.bytes);
         let ciphertext = BfvCiphertext::from_bytes(&ct.bytes, &self.bfv_params)
             .map_err(|_| FheError::MalformedCiphertext)?;
         let ciphertext = Arc::new(ciphertext);
@@ -1374,6 +1453,11 @@ impl FheBackend for FhersBackend {
                         party_id: share.party_id,
                     }
                 })?;
+                validate_decrypt_share_context(
+                    share.party_id,
+                    &expected_ciphertext_hash,
+                    &decoded,
+                )?;
                 let poly =
                     Poly::from_bytes(decoded.d_share_poly.as_slice(), ctx).map_err(|err| {
                         FheError::Backend {
@@ -1584,7 +1668,7 @@ impl FhersBackend {
         ct: &Ciphertext,
         shares: &[DecryptShare],
         threshold: usize,
-        _session_id: &[u8],
+        session_id: &[u8],
     ) -> Result<(Vec<u8>, Vec<u8>), FheError> {
         let (n, configured_threshold) = self.threshold_params()?;
         if shares.len() < configured_threshold {
@@ -1599,6 +1683,23 @@ impl FhersBackend {
                     "threshold mismatch: requested {threshold}, configured {configured_threshold}"
                 ),
             });
+        }
+
+        if !session_id.is_empty() {
+            let expected_hash = Self::session_bind_hash(session_id);
+            let stored_hash =
+                self.decrypt_session_hash
+                    .lock()
+                    .map_err(|err| FheError::Backend {
+                        reason: err.to_string(),
+                    })?;
+            if let Some(h) = stored_hash.as_ref() {
+                if *h != expected_hash {
+                    return Err(FheError::Backend {
+                        reason: "session binding mismatch in aggregate_decrypt_with_poly".into(),
+                    });
+                }
+            }
         }
 
         for share in shares {
@@ -1617,6 +1718,7 @@ impl FhersBackend {
             }
         }
 
+        let expected_ciphertext_hash = decrypt_share_ciphertext_hash(&ct.bytes);
         let ciphertext = BfvCiphertext::from_bytes(&ct.bytes, &self.bfv_params)
             .map_err(|_| FheError::MalformedCiphertext)?;
         let ciphertext = Arc::new(ciphertext);
@@ -1637,6 +1739,11 @@ impl FhersBackend {
                         party_id: share.party_id,
                     }
                 })?;
+                validate_decrypt_share_context(
+                    share.party_id,
+                    &expected_ciphertext_hash,
+                    &decoded,
+                )?;
                 let poly =
                     Poly::from_bytes(decoded.d_share_poly.as_slice(), ctx).map_err(|err| {
                         FheError::Backend {
@@ -1723,7 +1830,7 @@ impl FhersBackend {
         ct: &Ciphertext,
         shares: &[DecryptShare],
         threshold: usize,
-        _session_id: &[u8],
+        session_id: &[u8],
     ) -> Result<(Vec<u8>, Vec<u8>), FheError> {
         let (n, configured_threshold) = self.threshold_params()?;
         if shares.len() < configured_threshold {
@@ -1738,6 +1845,24 @@ impl FhersBackend {
                     "threshold mismatch: requested {threshold}, configured {configured_threshold}"
                 ),
             });
+        }
+
+        if !session_id.is_empty() {
+            let expected_hash = Self::session_bind_hash(session_id);
+            let stored_hash =
+                self.decrypt_session_hash
+                    .lock()
+                    .map_err(|err| FheError::Backend {
+                        reason: err.to_string(),
+                    })?;
+            if let Some(h) = stored_hash.as_ref() {
+                if *h != expected_hash {
+                    return Err(FheError::Backend {
+                        reason: "session binding mismatch in aggregate_decrypt_raw_result_poly"
+                            .into(),
+                    });
+                }
+            }
         }
 
         for share in shares {
@@ -1756,6 +1881,7 @@ impl FhersBackend {
             }
         }
 
+        let expected_ciphertext_hash = decrypt_share_ciphertext_hash(&ct.bytes);
         let ciphertext = BfvCiphertext::from_bytes(&ct.bytes, &self.bfv_params)
             .map_err(|_| FheError::MalformedCiphertext)?;
         let ciphertext = Arc::new(ciphertext);
@@ -1774,6 +1900,11 @@ impl FhersBackend {
                         party_id: share.party_id,
                     }
                 })?;
+                validate_decrypt_share_context(
+                    share.party_id,
+                    &expected_ciphertext_hash,
+                    &decoded,
+                )?;
                 let poly =
                     Poly::from_bytes(decoded.d_share_poly.as_slice(), ctx).map_err(|err| {
                         FheError::Backend {
@@ -2006,8 +2137,7 @@ variance = 10
         assert_eq!(decoded, plaintext.as_ref(), "decoded plaintext must match");
 
         let ctx = backend.bfv_params.ctx_at_level(0).expect("ctx_at_level");
-        let raw_poly =
-            Poly::from_bytes(&raw_poly_bytes, &ctx).expect("raw result poly deserialize");
+        let raw_poly = Poly::from_bytes(&raw_poly_bytes, ctx).expect("raw result poly deserialize");
         assert!(
             !raw_poly_bytes.is_empty(),
             "raw result poly bytes must not be empty"

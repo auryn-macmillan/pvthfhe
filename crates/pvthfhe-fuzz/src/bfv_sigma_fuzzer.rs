@@ -1,3 +1,8 @@
+//! BFV sigma protocol fuzzer.
+
+// Fuzz harness: expect() on setup is an acceptable failure signal.
+#![allow(clippy::expect_used)]
+
 use fhe_math::rq::Context;
 use pvthfhe_fuzz::{sample_bounded_i64, FUZZ_ITERATIONS};
 use pvthfhe_nizk::bfv_sigma::{

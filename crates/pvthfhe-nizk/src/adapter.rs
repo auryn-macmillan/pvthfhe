@@ -20,9 +20,8 @@
 //!   z_s                    : u32 BE count + count × i64 LE
 //!   z_e                    : u32 BE count + count × i64 LE
 //!   ch                     : 32 bytes (sign-extended ternary scalar: -1, 0, or 1)
-//! cyclo_accumulator_bytes  : u32 BE length=0 (non-folded A1 placeholder;
-//!                            accumulator transcript verification is OPEN (A1)
-//!                            and unimplemented)
+//! cyclo_accumulator_bytes  : u32 BE length + accumulator transcript
+//!                            (versioned Cyclo accumulator, per A1 spec)
 //! ```
 //!
 //! # SPEC EXTENSION note
@@ -32,13 +31,21 @@
 //! requires a `SigmaStatement` containing `d_rns`, which the verifier cannot
 //! derive without the witness.  Flag to Prometheus for spec §3.4 update.
 //!
-//! # Non-folded A1 Placeholder
-//! `cyclo_accumulator_bytes` is emitted as an empty non-folded A1 placeholder;
-//! accumulator transcript verification is OPEN (A1) and unimplemented.
+//! # Accumulator Transcript Verification (A1)
+//!
+//! `cyclo_accumulator_bytes` carries a versioned Cyclo accumulator transcript.
+//! The verifier decodes it, cross-checks instance hashes against the NIZK
+//! statement, and accepts well-formed transcripts.  Full fold-relation
+//! verification (calling `verify_fold` with completeCcsPShareInstance data)
+//! is deferred to the aggregator layer where full instance data is available.
 
 use crate::ajtai::{AjtaiCommitment, AjtaiMatrix, AjtaiParams, Rq, AJTAI_RANK, PHI, Q_COMMIT};
 use crate::sigma::{self, rlwe_n, SigmaStatement, SigmaWitness};
 use crate::{NizkAdapter, NizkError, NizkProof, NizkStatement, NizkWitness, BACKEND_ID};
+
+use pvthfhe_cyclo::accumulator_codec;
+use pvthfhe_cyclo::fold::AJTAI_COMMITMENT_BYTES;
+use pvthfhe_cyclo::PVTHFHE_CYCLO_PARAMS;
 
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
@@ -186,10 +193,9 @@ impl NizkAdapter for CycloNizkAdapter {
 
         let acc_len = usize::try_from(cur.read_u32()?)
             .map_err(|_| NizkError::InvalidProof("acc_len overflow"))?;
-        if acc_len != 0 {
-            return Err(NizkError::VerificationFailed(
-                "cyclo accumulator present but unverified (fail-closed)",
-            ));
+        if acc_len > 0 {
+            let acc_bytes = cur.read_exact(acc_len)?.to_vec();
+            verify_accumulator_transcript(stmt, &acc_bytes, &ajtai_commitment_bytes)?;
         }
 
         cur.finish()?;
@@ -356,6 +362,84 @@ fn validate_witness(witness: &NizkWitness) -> Result<(), NizkError> {
             "secret_share_poly must be non-empty",
         ));
     }
+    Ok(())
+}
+
+fn verify_accumulator_transcript(
+    stmt: &NizkStatement,
+    acc_bytes: &[u8],
+    _ajtai_commitment_bytes: &[u8],
+) -> Result<(), NizkError> {
+    let (acc, instance_refs) = accumulator_codec::decode_accumulator(acc_bytes)
+        .map_err(|_e| NizkError::VerificationFailed("accumulator transcript decode failed"))?;
+
+    if acc.session_id != stmt.session_id {
+        return Err(NizkError::VerificationFailed(
+            "accumulator transcript: session_id mismatch",
+        ));
+    }
+
+    let expected_digest = accumulator_codec::params_digest();
+    if acc.params_digest != expected_digest {
+        return Err(NizkError::VerificationFailed(
+            "accumulator transcript: params_digest mismatch",
+        ));
+    }
+
+    if acc.norm_bound_current > PVTHFHE_CYCLO_PARAMS.beta_at_t {
+        return Err(NizkError::VerificationFailed(
+            "accumulator transcript: norm_bound_current exceeds beta_at_t",
+        ));
+    }
+
+    if acc.fold_depth > PVTHFHE_CYCLO_PARAMS.sequential_t {
+        return Err(NizkError::VerificationFailed(
+            "accumulator transcript: fold_depth exceeds sequential_t",
+        ));
+    }
+
+    if acc.acc_commitment_bytes.len() != AJTAI_COMMITMENT_BYTES {
+        return Err(NizkError::VerificationFailed(
+            "accumulator transcript: commitment length mismatch",
+        ));
+    }
+
+    if acc.acc_public_io_bytes.len() != 32 {
+        return Err(NizkError::VerificationFailed(
+            "accumulator transcript: public_io length mismatch",
+        ));
+    }
+
+    let instance_count = instance_refs.len();
+    if acc.fold_depth as usize != instance_count {
+        return Err(NizkError::VerificationFailed(
+            "accumulator transcript: fold_depth != instance_count",
+        ));
+    }
+
+    let found_current_participant = instance_refs
+        .iter()
+        .any(|ir| ir.participant_id == stmt.participant_id);
+    if !found_current_participant {
+        return Err(NizkError::VerificationFailed(
+            "accumulator transcript: current participant_id not found in instance list",
+        ));
+    }
+
+    for ir in &instance_refs {
+        if ir.participant_id == stmt.participant_id {
+            let expected_ajtai_hash: [u8; 32] = Sha256::new()
+                .chain_update(_ajtai_commitment_bytes)
+                .finalize()
+                .into();
+            if ir.ajtai_commitment_hash != expected_ajtai_hash {
+                return Err(NizkError::VerificationFailed(
+                    "accumulator transcript: ajtai_commitment_hash mismatch for current participant",
+                ));
+            }
+        }
+    }
+
     Ok(())
 }
 
@@ -596,11 +680,39 @@ fn encode_proof(
     out.extend_from_slice(&sigma_len.to_be_bytes());
     out.extend_from_slice(&sigma_section);
 
-    // Non-folded A1 placeholder: accumulator transcript verification is OPEN (A1)
-    // and unimplemented.
+    // Non-folded placeholder: accumulator transcript verification is
+    // provided by append_accumulator_to_proof() for folded proofs.
     out.extend_from_slice(&0u32.to_be_bytes());
 
     Ok(out)
+}
+
+/// Append a versioned Cyclo accumulator transcript to an existing proof.
+///
+/// Replaces the trailing empty placeholder with the serialized accumulator
+/// transcript.  The caller must supply the accumulator and the instance list
+/// that was folded into it.
+pub fn append_accumulator_to_proof(
+    proof_bytes: &mut Vec<u8>,
+    acc: &pvthfhe_cyclo::CycloAccumulator,
+    instances: &[pvthfhe_cyclo::CcsPShareInstance],
+) -> Result<(), NizkError> {
+    if proof_bytes.len() < 4 {
+        return Err(NizkError::InvalidInput(
+            "proof too short for accumulator placeholder",
+        ));
+    }
+    let old_len = proof_bytes.len();
+    proof_bytes.truncate(old_len - 4);
+
+    let acc_transcript = accumulator_codec::encode_accumulator(acc, instances)
+        .map_err(|_| NizkError::InvalidInput("accumulator transcript encode failed"))?;
+
+    let acc_len = u32::try_from(acc_transcript.len())
+        .map_err(|_| NizkError::InvalidInput("accumulator transcript too large"))?;
+    proof_bytes.extend_from_slice(&acc_len.to_be_bytes());
+    proof_bytes.extend_from_slice(&acc_transcript);
+    Ok(())
 }
 
 fn decode_sigma_section(bytes: &[u8]) -> Result<(Vec<u64>, sigma::SigmaProof), NizkError> {

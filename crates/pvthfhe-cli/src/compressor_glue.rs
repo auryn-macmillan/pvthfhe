@@ -89,8 +89,13 @@ impl Compressor {
             // accumulator down to 3 field elements before entering the IVC because
             // lattice-native folding is infeasible inside a Nova Nova step circuit.
             // Full Ajtai folding remains an open problem (P2).
-            let inner = NovaCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, ivc_steps)
-                .map_err(compressor_error_to_anyhow)?;
+            let inner = NovaCompressor::<CycloFoldStepCircuit<Fr>>::new(
+                epoch_hash,
+                ivc_steps,
+                [0u8; 32],
+                pvthfhe_compressor::nova::SBIND_CYCLO_FOLD,
+            )
+            .map_err(compressor_error_to_anyhow)?;
             let verifier_key = inner.verifier_key();
             Ok(Self::Nova {
                 inner,
@@ -108,18 +113,28 @@ impl Compressor {
     /// Return the active compressor backend identifier.
     pub fn backend_id(&self) -> &'static str {
         #[cfg(all(feature = "nova-compressor", feature = "enable-latticefold"))]
-        if let Self::LatticeFold { .. } = self {
-            return LATTICEFOLD_COMPRESSOR_ID;
+        {
+            let Self::LatticeFold { .. } = self;
+            LATTICEFOLD_COMPRESSOR_ID
         }
         #[cfg(all(feature = "nova-compressor", not(feature = "enable-latticefold")))]
-        if let Self::Nova { .. } = self {
-            return SONOBE_COMPRESSOR_ID;
+        {
+            let Self::Nova { .. } = self;
+            SONOBE_COMPRESSOR_ID
         }
         #[cfg(all(feature = "surrogate-compressor", not(feature = "nova-compressor")))]
-        if let Self::Surrogate = self {
-            return SURROGATE_COMPRESSOR_ID;
+        {
+            let Self::Surrogate = self;
+            SURROGATE_COMPRESSOR_ID
         }
-        "unknown-compressor"
+        #[cfg(not(any(
+            all(feature = "nova-compressor", feature = "enable-latticefold"),
+            all(feature = "nova-compressor", not(feature = "enable-latticefold")),
+            all(feature = "surrogate-compressor", not(feature = "nova-compressor"))
+        )))]
+        {
+            "unknown-compressor"
+        }
     }
 
     /// Set the decrypt NIZK hash for IVC proof binding (P1.5).
@@ -129,9 +144,9 @@ impl Compressor {
             inner.set_decrypt_nizk_hash(hash);
         }
         #[cfg(all(feature = "nova-compressor", not(feature = "enable-latticefold")))]
-        if let Self::Nova { inner, .. } = self {
-            inner.set_decrypt_nizk_hash(hash);
-        }
+        let Self::Nova { inner, .. } = self;
+        #[cfg(all(feature = "nova-compressor", not(feature = "enable-latticefold")))]
+        inner.set_decrypt_nizk_hash(hash);
     }
 
     /// Set the DKG transcript hash for IVC proof binding (P1.5).
@@ -141,9 +156,9 @@ impl Compressor {
             inner.set_dkg_transcript_hash(hash);
         }
         #[cfg(all(feature = "nova-compressor", not(feature = "enable-latticefold")))]
-        if let Self::Nova { inner, .. } = self {
-            inner.set_dkg_transcript_hash(hash);
-        }
+        let Self::Nova { inner, .. } = self;
+        #[cfg(all(feature = "nova-compressor", not(feature = "enable-latticefold")))]
+        inner.set_dkg_transcript_hash(hash);
     }
 
     /// Produce a compressed proof for the fold-all report.
@@ -155,7 +170,9 @@ impl Compressor {
         c7_final_hash: Fr,
     ) -> anyhow::Result<E2eCompressedProof> {
         #[cfg(all(feature = "nova-compressor", feature = "enable-latticefold"))]
-        if let Self::LatticeFold { inner, .. } = self {
+        let Self::LatticeFold { inner, .. } = self;
+        #[cfg(all(feature = "nova-compressor", feature = "enable-latticefold"))]
+        {
             let (acc, public_inputs) = compressor_inputs(report, c7_final_hash);
             let proof = inner
                 .prove(&acc, &public_inputs)
@@ -163,17 +180,19 @@ impl Compressor {
             let ivc_hash = proof.ivc_proof_hash;
             let ivc_binding = proof.ivc_binding.clone();
             let share_verification_hash = proof.share_verification_hash;
-            return Ok(E2eCompressedProof {
+            Ok(E2eCompressedProof {
                 digest: sha256_bytes(inner.compressed_proof_bytes(&proof)),
                 ivc_proof_hash: ivc_hash,
                 ivc_binding,
                 share_verification_hash,
                 nova_proof: Some(proof),
-            });
+            })
         }
 
         #[cfg(all(feature = "nova-compressor", not(feature = "enable-latticefold")))]
-        if let Self::Nova { inner, .. } = self {
+        let Self::Nova { inner, .. } = self;
+        #[cfg(all(feature = "nova-compressor", not(feature = "enable-latticefold")))]
+        {
             let (acc, public_inputs) = compressor_inputs(report, c7_final_hash);
             let proof = inner
                 .prove(&acc, &public_inputs)
@@ -181,13 +200,13 @@ impl Compressor {
             let ivc_hash = proof.ivc_proof_hash;
             let ivc_binding = proof.ivc_binding.clone();
             let share_verification_hash = proof.share_verification_hash;
-            return Ok(E2eCompressedProof {
+            Ok(E2eCompressedProof {
                 digest: sha256_bytes(inner.compressed_proof_bytes(&proof)),
                 ivc_proof_hash: ivc_hash,
                 ivc_binding,
                 share_verification_hash,
                 nova_proof: Some(proof),
-            });
+            })
         }
 
         #[cfg(all(feature = "surrogate-compressor", not(feature = "nova-compressor")))]
@@ -208,7 +227,14 @@ impl Compressor {
             });
         }
 
-        Err(anyhow::anyhow!("no compressor backend for prove"))
+        #[cfg(not(any(
+            all(feature = "nova-compressor", feature = "enable-latticefold"),
+            all(feature = "nova-compressor", not(feature = "enable-latticefold")),
+            all(feature = "surrogate-compressor", not(feature = "nova-compressor"))
+        )))]
+        {
+            Err(anyhow::anyhow!("no compressor backend for prove"))
+        }
     }
 
     /// Verify a compressed proof for the fold-all report.
@@ -219,10 +245,11 @@ impl Compressor {
         c7_final_hash: Fr,
     ) -> anyhow::Result<()> {
         #[cfg(all(feature = "nova-compressor", feature = "enable-latticefold"))]
-        if let Self::LatticeFold {
+        let Self::LatticeFold {
             inner,
             verifier_key,
-        } = self
+        } = self;
+        #[cfg(all(feature = "nova-compressor", feature = "enable-latticefold"))]
         {
             let (acc, public_inputs) = compressor_inputs(report, c7_final_hash);
             let Some(nova_proof) = proof.nova_proof.as_ref() else {
@@ -238,14 +265,15 @@ impl Compressor {
             if expected_digest != proof.digest {
                 anyhow::bail!("compressed proof digest mismatch");
             }
-            return Ok(());
+            Ok(())
         }
 
         #[cfg(all(feature = "nova-compressor", not(feature = "enable-latticefold")))]
-        if let Self::Nova {
+        let Self::Nova {
             inner,
             verifier_key,
-        } = self
+        } = self;
+        #[cfg(all(feature = "nova-compressor", not(feature = "enable-latticefold")))]
         {
             let (acc, public_inputs) = compressor_inputs(report, c7_final_hash);
             let Some(nova_proof) = proof.nova_proof.as_ref() else {
@@ -261,7 +289,7 @@ impl Compressor {
             if expected_digest != proof.digest {
                 anyhow::bail!("compressed proof digest mismatch");
             }
-            return Ok(());
+            Ok(())
         }
 
         #[cfg(all(feature = "surrogate-compressor", not(feature = "nova-compressor")))]
@@ -273,7 +301,14 @@ impl Compressor {
             return Ok(());
         }
 
-        Err(anyhow::anyhow!("no compressor backend for verify"))
+        #[cfg(not(any(
+            all(feature = "nova-compressor", feature = "enable-latticefold"),
+            all(feature = "nova-compressor", not(feature = "enable-latticefold")),
+            all(feature = "surrogate-compressor", not(feature = "nova-compressor"))
+        )))]
+        {
+            Err(anyhow::anyhow!("no compressor backend for verify"))
+        }
     }
 }
 
@@ -365,22 +400,19 @@ pub fn external_verify_compressed_proof(
     report: &pvthfhe_aggregator::folding::CycloFoldAllReport,
     c7_final_hash: Fr,
 ) -> anyhow::Result<()> {
-    if let Compressor::Nova { inner, .. } = compressor {
-        let (acc, public_inputs) = compressor_inputs(report, c7_final_hash);
-        let Some(nova_proof) = proof.nova_proof.as_ref() else {
-            anyhow::bail!("missing nova compressed proof bytes for external verification");
-        };
-        let proof_bytes = inner.compressed_proof_bytes(nova_proof);
-        let verified = inner
-            .verify_external(proof_bytes, &acc, &public_inputs)
-            .map_err(compressor_error_to_anyhow)?;
-        if !verified {
-            anyhow::bail!("external nova compressed proof verification failed");
-        }
-        Ok(())
-    } else {
-        Err(anyhow::anyhow!("external verify: not a Nova compressor"))
+    let Compressor::Nova { inner, .. } = compressor;
+    let (acc, public_inputs) = compressor_inputs(report, c7_final_hash);
+    let Some(nova_proof) = proof.nova_proof.as_ref() else {
+        anyhow::bail!("missing nova compressed proof bytes for external verification");
+    };
+    let proof_bytes = inner.compressed_proof_bytes(nova_proof);
+    let verified = inner
+        .verify_external(proof_bytes, &acc, &public_inputs)
+        .map_err(compressor_error_to_anyhow)?;
+    if !verified {
+        anyhow::bail!("external nova compressed proof verification failed");
     }
+    Ok(())
 }
 
 #[cfg(all(feature = "nova-compressor", feature = "enable-latticefold"))]

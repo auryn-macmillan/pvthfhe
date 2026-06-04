@@ -13,6 +13,7 @@
 
 #![allow(missing_docs)]
 
+pub mod accumulator_codec;
 pub mod adapter;
 pub mod ajtai;
 pub mod ccs_encode;
@@ -23,6 +24,8 @@ pub mod fiat_shamir;
 pub mod fold;
 pub mod range_check;
 pub mod ring;
+
+pub use accumulator_codec::{AccumulatorInstanceRef, ACCUMULATOR_VERSION};
 
 use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
 

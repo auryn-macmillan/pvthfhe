@@ -28,6 +28,8 @@ const N_RUNS: usize = 5;
 const VERIFIER_GAS: u64 = 1278;
 const DEFAULT_SEED: u64 = 1;
 const FHERS_BACKEND_ID: &str = "fhers-bfv";
+// R4.3: retained for the optional mock backend feature.
+#[allow(dead_code)]
 const MOCK_BACKEND_ID: &str = "mock-xor";
 const NIZK_BACKEND_ID: &str = "cyclo-ajtai-d2-conditional";
 const FOLDING_BACKEND_ID: &str = "cyclo-rlwe-t10-lemma9-heuristic";
@@ -87,6 +89,8 @@ impl BenchBackendInstance {
     }
 }
 
+// R4.3: retained for the optional mock backend feature.
+#[allow(dead_code)]
 fn mock_acknowledged() -> bool {
     std::env::var("PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK").as_deref() == Ok("1")
 }

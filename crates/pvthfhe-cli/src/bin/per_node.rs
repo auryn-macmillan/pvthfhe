@@ -88,10 +88,10 @@ fn main() -> anyhow::Result<()> {
             args.n
         );
     }
-    let max_t = (args.n - 1) / 2;
+    let max_t = args.n / 2 + 1;
     if args.threshold > max_t {
         anyhow::bail!(
-            "threshold t must be <= floor((n-1)/2) = {} (got t={}, n={})",
+            "threshold t must be <= floor(n/2)+1 = {} for the honest-majority threshold policy; Shamir privacy holds against fewer than t shares (got t={}, n={})",
             max_t,
             args.threshold,
             args.n
@@ -444,7 +444,7 @@ fn main() -> anyhow::Result<()> {
             })
             .collect();
         let witness_set = AjtaiCommitmentWitnessSet { witnesses };
-        let ajtai_compressor = NovaCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, args.n)
+        let ajtai_compressor = NovaCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, args.n, [0u8; 32], pvthfhe_compressor::nova::SBIND_CYCLO_FOLD)
             .map_err(|e| anyhow::anyhow!("dkg fold compressor init: {e:?}"))?;
         let acc = encode_hex((
             Fr::from(0u64),

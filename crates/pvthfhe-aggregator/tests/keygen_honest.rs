@@ -63,17 +63,17 @@ fn new_rejects_n_zero() {
 #[test]
 fn new_rejects_t_exceeds_max_threshold() {
     let backend = mock_backend();
-    // n=10, max_t = (10-1)/2 = 4. t=6 exceeds.
-    let result = KeygenSimulator::new(10, 6, backend);
+    // n=10, max_t = 10/2+1 = 6. t=7 exceeds.
+    let result = KeygenSimulator::new(10, 7, backend);
     assert!(matches!(
         result,
-        Err(KeygenError::InvalidThreshold { n: 10, t: 6 })
+        Err(KeygenError::InvalidThreshold { n: 10, t: 7 })
     ));
 }
 
 #[test]
 fn new_accepts_valid_threshold() {
     let backend = mock_backend();
-    // n=10, max_t = (10-1)/2 = 4. t=4 is valid.
+    // n=10, max_t = 10/2+1 = 6. t=4 is valid.
     assert!(KeygenSimulator::new(10, 4, backend).is_ok());
 }

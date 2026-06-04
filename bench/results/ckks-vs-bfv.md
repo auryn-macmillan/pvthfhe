@@ -11,7 +11,7 @@ CKKS backend: Poulpy (poulpy-fhe/poulpy, rev `4a1f0c6`), N=8192, 3 RNS limbs, lo
 - **BFV**: `pvthfhe-cli demo --n <N> --threshold 1 --seed 1 --backend fhe-rs` — full pipeline (DKG, NIZK, PVSS, Cyclo folding, Nova compression, Noir aggregation)
 - **CKKS**: `pvthfhe-cli demo --n <N> --threshold 1 --seed 1 --backend poulpy-ckks` — standalone CKKS pipeline (keygen, sigma NIZK, PVSS, encrypt, decrypt)
 - Metrics extracted from demo stdout; wall clock measured via `/usr/bin/time`
-- BFV n=1 is unsupported (requires `t ≤ (n-1)/2 = 0`, but `t ≥ 1`)
+- BFV n=1 was unsupported in this historical run under the prior minority-threshold validator; current code follows the honest-majority policy `t ≤ floor(n/2)+1`.
 - Raw logs: `bench/results/bfv-*.log`, `bench/results/ckks-*.log`
 
 ## Results

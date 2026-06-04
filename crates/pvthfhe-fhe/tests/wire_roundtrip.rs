@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Round-trip tests for versioned FHE wire payloads.
 
 use pvthfhe_fhe::wire::{
@@ -32,12 +33,16 @@ fn wire_public_key_round_trips_with_v1_prefix() {
 }
 
 #[test]
-fn wire_decrypt_share_round_trips_with_v1_prefix() {
+fn wire_decrypt_share_round_trips_with_v2_prefix() {
+    let party_id = 7;
+    let ciphertext_hash = [0x42; 32];
     let d_share_poly = [0xde, 0xad, 0xbe, 0xef];
 
-    let encoded = encode_decrypt_share(&d_share_poly);
+    let encoded = encode_decrypt_share(party_id, &ciphertext_hash, &d_share_poly);
     let decoded = decode_decrypt_share(&encoded).expect("decrypt share should decode");
 
-    assert_eq!(encoded[0], 0x01);
+    assert_eq!(encoded[0], 0x02);
+    assert_eq!(decoded.party_id, party_id);
+    assert_eq!(decoded.ciphertext_hash, ciphertext_hash);
     assert_eq!(decoded.d_share_poly.as_slice(), d_share_poly);
 }

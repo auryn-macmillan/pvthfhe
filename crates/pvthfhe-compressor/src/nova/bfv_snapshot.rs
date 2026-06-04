@@ -87,6 +87,8 @@ impl nova_snark::traits::circuit::StepCircuit<NovaScalar> for BfvEncryptionSnaps
         Vec<nova_snark::frontend::num::AllocatedNum<NovaScalar>>,
         nova_snark::frontend::SynthesisError,
     > {
+        super::bind_initial_session_seed_bp(cs, z)?;
+
         // Allocate public input commitments in-circuit.
         // pk_rns and ct_rns are large — we hash them and check the hash
         // matches, rather than allocating every coefficient.
@@ -135,6 +137,23 @@ fn compute_public_input_hash_scalar(pk_rns: &[u64], ct_rns: &[u64]) -> NovaScala
     }
     let digest: [u8; 32] = hasher.finalize().into();
     ark_to_nova_scalar(Fr::from_be_bytes_mod_order(&digest))
+}
+
+fn snapshot_session_epoch(snapshot: &BfvEncryptionSnapshot<Fr>) -> [u8; 32] {
+    let mut hasher = Keccak256::new();
+    hasher.update(b"pvthfhe-bfv-snapshot-session-epoch-v1");
+    hasher.update((snapshot.pk_rns.len() as u64).to_be_bytes());
+    for &v in &snapshot.pk_rns {
+        hasher.update(v.to_le_bytes());
+    }
+    hasher.update((snapshot.ct_rns.len() as u64).to_be_bytes());
+    for &v in &snapshot.ct_rns {
+        hasher.update(v.to_le_bytes());
+    }
+    let buf = snapshot.plaintext_hash.into_bigint().to_bytes_le();
+    hasher.update((buf.len() as u64).to_be_bytes());
+    hasher.update(buf);
+    hasher.finalize().into()
 }
 
 /// Compute a Keccak256 hash of snapshot public inputs for proof-header binding.
@@ -193,7 +212,13 @@ pub fn prove_bfv_snapshot(
         CompressorError::Backend("nova-snark PublicParams::setup for bfv-snapshot failed")
     })?;
 
-    let z0_primary: Vec<NovaScalar> = vec![NovaScalar::zero()];
+    let z0_primary: Vec<NovaScalar> = vec![super::compute_session_bound_seed(
+        session_id,
+        snapshot_session_epoch(snapshot),
+        super::SBIND_BFV_SNAPSHOT,
+    )];
+    super::set_session_bind_seed(z0_primary[0]);
+    super::set_session_bind_initial_z0(z0_primary[0]);
 
     let mut recursive_snark: nova_snark::nova::RecursiveSNARK<
         nova_snark::provider::Bn256EngineKZG,
@@ -289,7 +314,13 @@ pub fn verify_bfv_snapshot(
         BfvEncryptionSnapshot<Fr>,
     > = bincode::deserialize(parsed.pp_bytes).map_err(|_| CompressorError::InvalidProof)?;
 
-    let z0_primary: Vec<NovaScalar> = vec![NovaScalar::zero()];
+    let z0_primary: Vec<NovaScalar> = vec![super::compute_session_bound_seed(
+        session_id,
+        snapshot_session_epoch(snapshot),
+        super::SBIND_BFV_SNAPSHOT,
+    )];
+    super::set_session_bind_seed(z0_primary[0]);
+    super::set_session_bind_initial_z0(z0_primary[0]);
 
     let recursive_snark: nova_snark::nova::RecursiveSNARK<
         nova_snark::provider::Bn256EngineKZG,
@@ -479,6 +510,31 @@ mod tests {
         let result =
             verify_bfv_snapshot(&proof, &snapshot, bad_session).expect("verify should not error");
         assert!(!result, "wrong session_id should be rejected");
+    }
+
+    #[test]
+    fn bfv_snapshot_r1cs_rejects_wrong_initial_session_state() {
+        use nova_snark::frontend::num::AllocatedNum;
+        use nova_snark::frontend::util_cs::test_cs::TestConstraintSystem;
+        use nova_snark::frontend::ConstraintSystem;
+
+        let (_witness_data, snapshot) = make_test_witness();
+        let mut cs = TestConstraintSystem::<NovaScalar>::new();
+        let expected = NovaScalar::from(11u64);
+        let wrong = NovaScalar::from(7u64);
+        super::super::set_session_bind_initial_z0(expected);
+
+        let z0 = AllocatedNum::alloc(cs.namespace(|| "z0"), || Ok(wrong)).unwrap();
+        let _ = <BfvEncryptionSnapshot<Fr> as nova_snark::traits::circuit::StepCircuit<
+            NovaScalar,
+        >>::synthesize(&snapshot, &mut cs, &[z0])
+        .unwrap();
+
+        assert!(
+            !cs.is_satisfied(),
+            "bfv snapshot R1CS must bind the initial session z0"
+        );
+        super::super::clear_session_bind_initial_z0();
     }
 
     #[test]

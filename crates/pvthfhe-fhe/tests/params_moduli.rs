@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Integration test for explicit RLWE moduli and variance parsing.
 
 use pvthfhe_fhe::Params;

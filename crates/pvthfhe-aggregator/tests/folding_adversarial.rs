@@ -17,6 +17,12 @@ fn base_params() -> (u64, usize, u64) {
     (65537, 1024, 17)
 }
 
+#[cfg(feature = "real-nizk")]
+const VALID_SYNTHETIC_PROOF_LEN: usize = 2 + 32 + 26624;
+
+#[cfg(not(feature = "real-nizk"))]
+const VALID_SYNTHETIC_PROOF_LEN: usize = 32;
+
 fn make_statement(
     fold_index: u64,
     session_id: &str,
@@ -40,7 +46,7 @@ fn make_witness(_tag: u8) -> FoldWitness {
     FoldWitness {
         nizk_proof: NizkProof {
             nizk_backend_id: NizkProof::EXPECTED_BACKEND_ID,
-            proof_bytes: vec![0u8; 32],
+            proof_bytes: vec![0u8; VALID_SYNTHETIC_PROOF_LEN],
         },
         fold_randomness: vec![0u8; 32],
     }
@@ -100,23 +106,23 @@ fn test_two_byte_non_uniform_proof_rejected() {
 }
 
 #[test]
-fn test_non_uniform_proof_bytes_rejected() {
+fn test_out_of_bound_proof_bytes_rejected() {
     let params = base_params();
     let acc = make_acc("sess-3", params, 0, [0u8; 32]);
     let stmt = make_statement(1, "sess-3", params, 3);
-    // Mixed non-uniform bytes: not all the same value
+    // Mixed bytes with values above the statement's error bound.
     let wit = FoldWitness {
         nizk_proof: NizkProof {
             nizk_backend_id: NizkProof::EXPECTED_BACKEND_ID,
             proof_bytes: vec![
                 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
-                0x0F, 0x10,
+                0x0F, 0x12,
             ],
         },
         fold_randomness: vec![3u8; 32],
     };
     let result = fold(&acc, &wit, &stmt);
-    assert!(result.is_err(), "non-uniform mixed bytes must be rejected");
+    assert!(result.is_err(), "out-of-bound proof bytes must be rejected");
 }
 
 // ── Category 2: Accumulator forgery ────────────────────────────────────────
@@ -148,12 +154,36 @@ fn test_acc_wrong_params_rejected() {
 }
 
 #[test]
-fn test_statement_proof_mismatch_rejected() {
+fn test_wrong_nizk_backend_rejected() {
     let params = base_params();
     let acc = make_acc("sess-4b", params, 0, [0u8; 32]);
     let stmt = make_statement(1, "sess-4b", params, 12);
-    let result = fold(&acc, &make_witness(13), &stmt);
-    assert!(result.is_err(), "proof/statement mismatch must be rejected");
+    let mut wit = make_witness(12);
+    wit.nizk_proof.nizk_backend_id = "wrong-backend";
+    let result = fold(&acc, &wit, &stmt);
+    assert!(result.is_err(), "wrong NIZK backend must be rejected");
+}
+
+#[test]
+#[ignore = "A1/P2 open: real folding does not yet verify proof-to-ciphertext/statement binding (fold derives a demo Cyclo witness instead of verifying the supplied NIZK transcript); a wrong-backend-id check is NOT a substitute for this binding. Re-enable when A1 verifier consumes the real witness. (docs/OPEN-PROBLEM-BLOCKERS.md:86-99, SECURITY.md:66-68,86-88)"]
+fn test_statement_proof_ciphertext_mismatch_rejected() {
+    let params = base_params();
+    let acc = make_acc("sess-4c", params, 0, [0u8; 32]);
+    let stmt = make_statement(1, "sess-4c", params, 0x01);
+    let wit = FoldWitness {
+        nizk_proof: NizkProof {
+            nizk_backend_id: NizkProof::EXPECTED_BACKEND_ID,
+            // Large enough to pass the real-nizk minimum-size surrogate, but
+            // semantically bound to a different ciphertext tag than `stmt`.
+            proof_bytes: vec![0x02; 2 + 32 + 26624],
+        },
+        fold_randomness: vec![0x02; 32],
+    };
+    let result = fold(&acc, &wit, &stmt);
+    assert!(
+        result.is_err(),
+        "proof/statement ciphertext mismatch must be rejected"
+    );
 }
 
 // ── Category 3: FS challenge grinding (bit-flip triggers rejection) ─────────
@@ -215,18 +245,22 @@ fn test_depth_bomb_fold_to_depth_10_exact() {
 }
 
 #[test]
-fn test_depth_bomb_fold_to_depth_12_exact() {
+fn test_depth_bomb_rejects_after_cyclo_t10_limit() {
     let params = base_params();
     let mut acc = make_acc("sess-depth12", params, 0, [0u8; 32]);
-    for i in 1u64..=12 {
+    for i in 1u64..=10 {
         let stmt = make_statement(i, "sess-depth12", params, (i % 256) as u8);
         let wit = make_witness((i % 256) as u8);
         acc = ok(fold(&acc, &wit, &stmt), "fold should succeed at depth step");
     }
-    assert_eq!(
-        acc.fold_depth(),
-        12,
-        "fold_depth must equal 12 after 12 folds"
+    let overflow = fold(
+        &acc,
+        &make_witness(11),
+        &make_statement(11, "sess-depth12", params, 11),
+    );
+    assert!(
+        overflow.is_err(),
+        "real Cyclo folding must reject folds beyond sequential T=10"
     );
 }
 

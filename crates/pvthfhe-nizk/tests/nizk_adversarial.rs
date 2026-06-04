@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! N8 adversarial test suite: 10 scenarios exercising tamper-rejection and
 //! edge-case completeness for `CycloNizkAdapter`.
 //!
@@ -92,7 +93,7 @@ fn sigma_section_offset(session_id: &str) -> usize {
 /// Test: mismatched pvss_commitment must produce VerificationFailed, not ConditionalSoundnessDisclosure.
 #[test]
 fn mismatched_pvss_commitment_produces_verification_failed() {
-    let mut rng = ChaCha20Rng::seed_from_u64(0xDEAD_BEEF_C4);
+    let mut rng = ChaCha20Rng::seed_from_u64(0x00DE_ADBE_EFC4);
     let adapter = CycloNizkAdapter;
 
     let s_i = sample_ternary(&mut rng);

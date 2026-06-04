@@ -108,7 +108,7 @@ impl CompressionTree {
 
         // Fold the entire tree through the heterogeneous compressor.
         let epoch = [6u8; 32];
-        let compressor = MicroNovaCompressor::new(depth, epoch);
+        let compressor = MicroNovaCompressor::new(depth, epoch, [0u8; 32]);
         let root_proof = compressor.prove_tree(&steps)?;
 
         Ok(Self { depth, root_proof })

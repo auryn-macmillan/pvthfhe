@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Golden-vector tests for byte/slot encoding boundaries.
 
 use pvthfhe_fhe::{

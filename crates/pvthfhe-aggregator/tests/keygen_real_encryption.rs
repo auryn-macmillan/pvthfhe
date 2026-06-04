@@ -7,9 +7,7 @@ use pvthfhe_aggregator::keygen::simulator::{KeygenResult, KeygenSimulator};
 use pvthfhe_fhe::fhers::FhersBackend;
 use pvthfhe_fhe::FheBackend;
 use pvthfhe_nizk::adapter::CycloNizkAdapter;
-use pvthfhe_nizk::{NizkAdapter, NizkProof, NizkStatement};
-use rand_chacha::ChaCha8Rng;
-use rand_core::SeedableRng;
+use pvthfhe_nizk::{NizkAdapter, NizkProof};
 use sha2::{Digest, Sha256};
 
 const TEST_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
@@ -30,13 +28,12 @@ fn party_id(index: usize) -> u32 {
     u32::try_from(index.saturating_add(1)).unwrap_or(u32::MAX)
 }
 
-/// Hash bytes with SHA-256.
-fn hash_bytes(data: &[u8]) -> [u8; 32] {
+fn simulator_hash_bytes(domain: &[u8], data: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
+    hasher.update(b"pvthfhe/");
+    hasher.update(domain);
     hasher.update(data);
-    let mut out = [0u8; 32];
-    out.copy_from_slice(&hasher.finalize());
-    out
+    hasher.finalize().into()
 }
 
 /// Compute `session_id` the same way the simulator does.
@@ -48,39 +45,28 @@ fn compute_session_id(n_parties: usize, threshold: usize) -> [u8; 32] {
     for i in 0..n_parties {
         psh_data.extend_from_slice(&party_id(i).to_be_bytes());
     }
-    let psh = hash_bytes(&psh_data);
+    let psh = simulator_hash_bytes(b"participant-set/v1", &psh_data);
 
     let mut data = Vec::with_capacity(72);
     data.extend_from_slice(tag);
     data.extend_from_slice(&psh);
-    data.extend_from_slice(&(threshold as u32).to_be_bytes());
-    hash_bytes(&data)
+    data.extend_from_slice(&threshold.to_be_bytes());
+
+    simulator_hash_bytes(b"session-id/v1", &data)
 }
 
-/// Derive the keygen share for a (session_id, party_id) pair using a fresh
-/// backend with the same parameters.  This produces the same bytes that the
-/// simulator would encrypt.
-fn derive_share(
-    backend: &FhersBackend,
+/// Derive the plaintext share encrypted for a recipient by the simulator.
+fn derive_encrypted_share_plaintext(
     session_id: &[u8; 32],
-    pid: u32,
-) -> pvthfhe_fhe::KeygenShare {
+    dealer_id: u32,
+    recipient_id: u32,
+) -> Vec<u8> {
     let mut hasher = Sha256::new();
-    hasher.update(b"pvthfhe-sim-keygen-v1");
+    hasher.update(b"pvthfhe-sim-share-v1");
     hasher.update(session_id);
-    hasher.update(&pid.to_be_bytes());
-    let seed: [u8; 32] = hasher.finalize().into();
-    let mut rng = ChaCha8Rng::from_seed(seed); // allow-seeded-rng: deterministic simulator
-
-    if backend.supports_session_scoped_keygen() {
-        backend
-            .keygen_share_with_session(session_id, pid, &mut rng)
-            .expect("fresh backend keygen_share_with_session")
-    } else {
-        backend
-            .keygen_share(pid, &mut rng)
-            .expect("fresh backend keygen_share")
-    }
+    hasher.update(&dealer_id.to_be_bytes());
+    hasher.update(&recipient_id.to_be_bytes());
+    hasher.finalize().to_vec()
 }
 
 /// Deserialize a NIZK proof bundle (produced by `serialize_nizk_bundle`).
@@ -266,12 +252,6 @@ fn keygen_nizk_verify_passes() {
     let session_id = compute_session_id(n_parties, threshold);
     let session_str = hex::encode(session_id);
 
-    // Fresh backend for witness derivation.
-    let witness_backend = must(
-        FhersBackend::load_params(TEST_PARAMS_TOML),
-        "load witness backend",
-    );
-
     let adapter = CycloNizkAdapter;
 
     for msg in &transcript.round1_messages {
@@ -299,8 +279,7 @@ fn keygen_nizk_verify_passes() {
 
         for (recipient_id, ct_bytes) in &pairs {
             // Derive the plaintext (same as what the simulator encrypted).
-            let share = derive_share(&witness_backend, &session_id, dealer_id);
-            let plaintext = share.bytes.0.clone();
+            let plaintext = derive_encrypted_share_plaintext(&session_id, dealer_id, *recipient_id);
 
             let pvss_commitment = compute_pvss_commitment(&session_id, dealer_id, &plaintext);
 

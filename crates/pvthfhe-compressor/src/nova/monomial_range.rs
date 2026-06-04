@@ -42,7 +42,7 @@ pub fn monomial_range_check_bp<CS: ConstraintSystem<NovaScalar>>(
 
     let bits: Vec<AllocatedNum<NovaScalar>> = (0..num_bits)
         .map(|idx| {
-            let bit_val = NovaScalar::from(((value >> idx) & 1) as u64);
+            let bit_val = NovaScalar::from((value >> idx) & 1);
             AllocatedNum::alloc(cs.namespace(|| format!("{tag}_m_bit_{idx}")), || {
                 Ok(bit_val)
             })
@@ -50,7 +50,7 @@ pub fn monomial_range_check_bp<CS: ConstraintSystem<NovaScalar>>(
         .collect::<Result<_, _>>()?;
 
     for idx in 0..num_bits {
-        let bit_val = NovaScalar::from(((value >> idx) & 1) as u64);
+        let bit_val = NovaScalar::from((value >> idx) & 1);
 
         let bit_minus_one_val = if bit_val == NovaScalar::ONE {
             NovaScalar::ZERO
@@ -106,7 +106,7 @@ pub fn monomial_range_check_bp<CS: ConstraintSystem<NovaScalar>>(
     );
 
     if bound > 1 && !bound.is_power_of_two() {
-        let bound_msb = (usize::BITS as u32 - bound.leading_zeros() - 1) as usize;
+        let bound_msb = (usize::BITS - bound.leading_zeros() - 1) as usize;
         if num_bits > bound_msb {
             for idx in bound_msb..num_bits {
                 let zero_val =
@@ -134,7 +134,7 @@ fn monomial_bit_count(bound: u64) -> usize {
     if bound <= 1 {
         return 1;
     }
-    (usize::BITS as u32 - (bound - 1).leading_zeros()) as usize
+    (usize::BITS - (bound - 1).leading_zeros()) as usize
 }
 
 /// Precomputed monomial table polynomial for embedding-based range proofs.

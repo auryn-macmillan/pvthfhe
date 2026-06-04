@@ -56,6 +56,35 @@ mod tests {
             compute_round1_commitment(party_id, &session_id, &pk_i_hash, &different_nonce)
         );
     }
+
+    /// P0-3: H2 commit-reveal verification — wrong commitment must be detectable.
+    /// The aggregator MUST verify SHA256("pvthfhe-dkg-commit-reveal/v2" || party_id ||
+    /// session_id || pk_i_hash || nonce) during Round 1 validation.
+    #[test]
+    fn test_wrong_round1_commitment_is_detectable() {
+        let party_id = 7u32;
+        let session_id = [0x11u8; 32];
+        let pk_i_hash = [0x22u8; 32];
+        let commitment_nonce = [0x33u8; 32];
+
+        let commitment =
+            compute_round1_commitment(party_id, &session_id, &pk_i_hash, &commitment_nonce);
+        let wrong = [0xDEu8; 32];
+
+        assert_ne!(
+            commitment, wrong,
+            "wrong commitment must differ from correct one"
+        );
+
+        // Changing pk_i_hash (rogue key attack) must change the commitment.
+        let mut different_pk = pk_i_hash;
+        different_pk[0] ^= 0xff;
+        assert_ne!(
+            commitment,
+            compute_round1_commitment(party_id, &session_id, &different_pk, &commitment_nonce),
+            "rogue pk must produce different commitment"
+        );
+    }
 }
 
 #[derive(Debug)]
@@ -67,7 +96,7 @@ pub enum KeygenResult {
 /// Error returned when [`KeygenSimulator::new`] receives invalid parameters.
 #[derive(Debug)]
 pub enum KeygenError {
-    /// Threshold t must satisfy 1 ≤ t ≤ ⌊(n-1)/2⌋.
+    /// Threshold t must satisfy 1 ≤ t ≤ ⌊n/2⌋+1.
     InvalidThreshold { n: usize, t: usize },
 }
 
@@ -77,7 +106,7 @@ impl fmt::Display for KeygenError {
             Self::InvalidThreshold { n, t } => {
                 write!(
                     f,
-                    "invalid threshold: n={n}, t={t} (must satisfy 1 ≤ t ≤ ⌊(n-1)/2⌋)"
+                    "invalid threshold: n={n}, t={t} (must satisfy 1 ≤ t ≤ ⌊n/2⌋+1 for the honest-majority threshold policy)"
                 )
             }
         }
@@ -140,7 +169,10 @@ impl KeygenSimulator {
                 t: threshold,
             });
         }
-        let max_t = (n_parties - 1) / 2;
+        // Honest-majority reconstruction threshold per threat-model-v1.md §2.2
+        // (t = floor(n/2)+1). Prior (n-1)/2 bound (commit 80a0c82)
+        // contradicted the documented model; this is spec conformance, not a relaxation.
+        let max_t = n_parties / 2 + 1;
         if threshold > max_t {
             return Err(KeygenError::InvalidThreshold {
                 n: n_parties,
@@ -287,6 +319,17 @@ impl KeygenSimulator {
                 }
                 continue;
             }
+            // H2: verify commit-reveal binding to prevent rogue-key attacks.
+            let expected_commitment = compute_round1_commitment(
+                msg.party_id,
+                &session_id,
+                &msg.pk_i_hash,
+                &msg.commitment_nonce,
+            );
+            if msg.commitment != expected_commitment {
+                blames.push(msg.party_id);
+                continue;
+            }
             // For WithholdShare, another party will complain in Round 2
             valid_r1.push(msg.clone());
         }
@@ -344,6 +387,47 @@ impl KeygenSimulator {
 
         let aggregate_pk = self.backend.aggregate_keygen(&shares)?;
 
+        // C5: Aggregate public-key formation proof with per-participant PoP.
+        let c5_proof_root = {
+            let mut pops = Vec::new();
+            for share in &shares {
+                let pk_i = all_pks
+                    .get(&share.party_id)
+                    .cloned()
+                    .unwrap_or_else(|| PublicKey {
+                        bytes: share.bytes.0.clone(),
+                    });
+                let mut nonce = [0u8; 32];
+                OsRng.fill_bytes(&mut nonce);
+                let pop = super::c5_proof::generate_pop(
+                    share.party_id,
+                    &session_id,
+                    &pk_i.bytes,
+                    share.bytes.0.clone(),
+                    nonce,
+                );
+                pops.push(pop);
+            }
+            let pks: Vec<PublicKey> = shares
+                .iter()
+                .map(|s| {
+                    all_pks
+                        .get(&s.party_id)
+                        .cloned()
+                        .unwrap_or_else(|| PublicKey {
+                            bytes: s.bytes.0.clone(),
+                        })
+                })
+                .collect();
+            let proof = super::c5_proof::bundle_c5_proof(
+                &pks,
+                &aggregate_pk,
+                pops,
+                self.participant_set_hash(),
+            );
+            super::c5_proof::compute_c5_proof_root(&proof)
+        };
+
         // Merkle root and hash mock
         let participant_set_hash = self.participant_set_hash();
 
@@ -384,6 +468,7 @@ impl KeygenSimulator {
             round3_aggregate: Round3Aggregate {
                 aggregate_pk,
                 participant_set_hash,
+                c5_proof_root,
             },
             dkg_root,
             transcript_hash,
@@ -404,8 +489,12 @@ impl KeygenSimulator {
         };
         let pk_i_hash = hash_bytes(b"participant-pk-hash/v1", pk_i.bytes.as_slice());
 
-        // Generate real BFV keypair correctness NIZK (C0).
-        let keygen_nizk = self
+        // Generate real BFV keypair correctness NIZK (C0). The current
+        // Round1Message wire slot carries the per-recipient encrypted-share
+        // proof bundle below; keep this proof generation here as a fail-fast
+        // simulator self-check until the transcript schema grows a distinct C0
+        // proof field.
+        let _keygen_nizk = self
             .generate_keygen_nizk(session_id, party_id, &pk_i, &share)
             .map_err(|e| pvthfhe_fhe::FheError::Backend { reason: e })?;
 
@@ -444,6 +533,11 @@ impl KeygenSimulator {
         let commitment =
             { compute_round1_commitment(party_id, session_id, &pk_i_hash, &commitment_nonce) };
 
+        let nizk =
+            serialize_nizk_bundle(&nizk_proofs).map_err(|e| pvthfhe_fhe::FheError::Backend {
+                reason: format!("serialize encrypted-share NIZK bundle: {e}"),
+            })?;
+
         Ok(Round1Message {
             party_id,
             pk_i,
@@ -458,7 +552,7 @@ impl KeygenSimulator {
                 hash_bytes(b"poly-commit/v1", &data)
             },
             encrypted_shares,
-            nizk: keygen_nizk,
+            nizk,
         })
     }
 

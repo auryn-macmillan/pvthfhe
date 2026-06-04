@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Integration test for rejecting RLWE params without explicit moduli.
 
 mod error {

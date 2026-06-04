@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! TDD test suite for committed-smudge path (Batch B.3).
 //!
 //! RED state: these tests will NOT compile until `partial_decrypt_committed_smudge`
@@ -237,8 +238,8 @@ fn committed_smudge_produces_different_bytes_than_fresh_local() {
 
     for share_bytes in [&decrypt_share_fresh.bytes, &decrypt_share_committed.bytes] {
         let decoded = wire::decode_decrypt_share(share_bytes).expect("decode decrypt share");
-        let _poly = Poly::from_bytes(decoded.d_share_poly.as_slice(), &ctx)
-            .expect("deserialize share poly");
+        let _poly =
+            Poly::from_bytes(decoded.d_share_poly.as_slice(), ctx).expect("deserialize share poly");
     }
 }
 

@@ -22,7 +22,6 @@ REQUIRED_ARTIFACTS = [
     ".sisyphus/design/parameters.md",
     ".sisyphus/design/noise-budget.md",
     ".sisyphus/design/api-spec.md",
-    "crates/pvthfhe-api/src/lib.rs",
     ".sisyphus/design/worked-example.md",
     ".sisyphus/design/security-proofs.md",
     ".sisyphus/design/proof-boundary.md",

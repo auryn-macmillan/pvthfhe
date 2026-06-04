@@ -164,6 +164,7 @@ fn write_results(n: usize, rows: Vec<BenchRow>) {
 // ---------- test entry points -------------------------------------------------
 
 #[test]
+#[ignore = "P2 performance benchmark; run with --ignored or via just bench"]
 fn bench_p2_n128() {
     let n = 128;
     let rows: Vec<BenchRow> = [1u32, 5, 10]
@@ -185,6 +186,7 @@ fn bench_p2_n128() {
 }
 
 #[test]
+#[ignore = "P2 performance benchmark; run with --ignored or via just bench"]
 fn bench_p2_n512() {
     let n = 512;
     let rows: Vec<BenchRow> = [1u32, 5, 10]
@@ -206,6 +208,7 @@ fn bench_p2_n512() {
 }
 
 #[test]
+#[ignore = "P2 performance benchmark; run with --ignored or via just bench"]
 fn bench_p2_n1024() {
     let n = 1024;
     let rows: Vec<BenchRow> = [1u32, 5, 10]

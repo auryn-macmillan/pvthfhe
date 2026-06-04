@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Integration tests for aggregate public-key generation in `FhersBackend`.
 
 use pvthfhe_fhe::{fhers::FhersBackend, wire, FheBackend};

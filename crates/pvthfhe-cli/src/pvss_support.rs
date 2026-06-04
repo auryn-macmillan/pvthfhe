@@ -109,7 +109,7 @@ pub fn run_lattice_pvss(
                 .ok_or_else(|| anyhow::anyhow!("missing committed esm for party {party_id}"))?;
             let committed_smudge_use = CommittedSmudgeUse {
                 slot_id: u16::try_from(index + 1).context("committed smudge slot id")?,
-                decrypt_round: u64::try_from(seed).context("decrypt round from seed")?,
+                decrypt_round: seed,
             };
             let decrypted_share = adapter
                 .prove_decrypted_share(

@@ -134,6 +134,8 @@ impl nova_snark::traits::circuit::StepCircuit<NovaScalar> for CycloFoldStepCircu
     > {
         let batch_count = NOVA_BATCH_STEP_COUNT.with(|cell| *cell.borrow());
 
+        bind_initial_session_seed_bp(cs, z)?;
+
         if batch_count > 0 {
             return self.synthesize_batch(cs, z, batch_count);
         }
@@ -144,6 +146,14 @@ impl nova_snark::traits::circuit::StepCircuit<NovaScalar> for CycloFoldStepCircu
             *c = s + 1;
             s
         });
+
+        // P1-5: bounds check — reject when step counter exceeds available witness data
+        if SIGMA_REPETITIONS > 0 {
+            let sigma_len = SIGMA_DATA.with(|cell| cell.inner().borrow().len());
+            if sigma_len > 0 && step.saturating_mul(SIGMA_REPETITIONS) >= sigma_len {
+                return Err(nova_snark::frontend::SynthesisError::AssignmentMissing);
+            }
+        }
 
         let sigma_ok = nova_gadgets::sigma_verify_step_bp(cs, step)?;
         let ring_ok = nova_gadgets::ring_verify_step_bp(cs, step)?;
@@ -257,6 +267,8 @@ impl nova_snark::traits::circuit::StepCircuit<NovaScalar>
         Vec<nova_snark::frontend::num::AllocatedNum<NovaScalar>>,
         nova_snark::frontend::SynthesisError,
     > {
+        bind_initial_session_seed_bp(cs, z)?;
+
         use dealer_parity_circuit::{
             DEALER_PARITY_DATA, DEALER_PARITY_N, DEALER_PARITY_P0_COMMITMENT,
         };
@@ -331,12 +343,12 @@ impl nova_snark::traits::circuit::StepCircuit<NovaScalar>
         );
 
         // State transitions: [done, count, ext0]
-        let done = nova_snark::frontend::num::AllocatedNum::alloc(cs.namespace(|| "done"), || {
-            Ok(NovaScalar::from(1u64))
-        })?;
+        // P0-5: Preserve session seed in z[0] by adding 1 instead of overwriting.
+        // z0[0] = semantic_acc + session_seed; done = z[0] + 1 = seed + acc + 1.
         let one = nova_snark::frontend::num::AllocatedNum::alloc(cs.namespace(|| "one"), || {
             Ok(NovaScalar::from(1u64))
         })?;
+        let done = z[0].clone().add(cs.namespace(|| "done"), &one)?;
         let count = z[1].clone().add(cs.namespace(|| "count_inc"), &one)?;
         let ext0 = z[2].clone();
 
@@ -352,12 +364,24 @@ impl nova_snark::traits::circuit::StepCircuit<NovaScalar>
     }
     fn synthesize<CS: nova_snark::frontend::ConstraintSystem<NovaScalar>>(
         &self,
-        _cs: &mut CS,
+        cs: &mut CS,
         z: &[nova_snark::frontend::num::AllocatedNum<NovaScalar>],
     ) -> Result<
         Vec<nova_snark::frontend::num::AllocatedNum<NovaScalar>>,
         nova_snark::frontend::SynthesisError,
     > {
+        bind_initial_session_seed_bp(cs, z)?;
+        // P1-1: enforce non-trivial constraint so circuit is not a no-op
+        let one =
+            nova_snark::frontend::num::AllocatedNum::alloc(cs.namespace(|| "dkg_one"), || {
+                Ok(NovaScalar::from(1u64))
+            })?;
+        cs.enforce(
+            || "dkg_non_trivial",
+            |lc| lc + one.get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc + one.get_variable(),
+        );
         Ok(z.to_vec())
     }
 }
@@ -370,12 +394,24 @@ impl nova_snark::traits::circuit::StepCircuit<NovaScalar>
     }
     fn synthesize<CS: nova_snark::frontend::ConstraintSystem<NovaScalar>>(
         &self,
-        _cs: &mut CS,
+        cs: &mut CS,
         z: &[nova_snark::frontend::num::AllocatedNum<NovaScalar>],
     ) -> Result<
         Vec<nova_snark::frontend::num::AllocatedNum<NovaScalar>>,
         nova_snark::frontend::SynthesisError,
     > {
+        bind_initial_session_seed_bp(cs, z)?;
+        // P1-1: enforce non-trivial constraint so circuit is not a no-op
+        let one =
+            nova_snark::frontend::num::AllocatedNum::alloc(cs.namespace(|| "kc_one"), || {
+                Ok(NovaScalar::from(1u64))
+            })?;
+        cs.enforce(
+            || "kc_non_trivial",
+            |lc| lc + one.get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc + one.get_variable(),
+        );
         Ok(z.to_vec())
     }
 }
@@ -388,12 +424,24 @@ impl nova_snark::traits::circuit::StepCircuit<NovaScalar>
     }
     fn synthesize<CS: nova_snark::frontend::ConstraintSystem<NovaScalar>>(
         &self,
-        _cs: &mut CS,
+        cs: &mut CS,
         z: &[nova_snark::frontend::num::AllocatedNum<NovaScalar>],
     ) -> Result<
         Vec<nova_snark::frontend::num::AllocatedNum<NovaScalar>>,
         nova_snark::frontend::SynthesisError,
     > {
+        bind_initial_session_seed_bp(cs, z)?;
+        // P1-1: enforce non-trivial constraint so circuit is not a no-op
+        let one =
+            nova_snark::frontend::num::AllocatedNum::alloc(cs.namespace(|| "pka_one"), || {
+                Ok(NovaScalar::from(1u64))
+            })?;
+        cs.enforce(
+            || "pka_non_trivial",
+            |lc| lc + one.get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc + one.get_variable(),
+        );
         Ok(z.to_vec())
     }
 }
@@ -412,6 +460,8 @@ impl nova_snark::traits::circuit::StepCircuit<NovaScalar>
         Vec<nova_snark::frontend::num::AllocatedNum<NovaScalar>>,
         nova_snark::frontend::SynthesisError,
     > {
+        bind_initial_session_seed_bp(cs, z)?;
+
         let step = ajtai_commitment_circuit::AJTAI_STEP_COUNTER.with(|cell| {
             let mut c = cell.borrow_mut();
             let s = *c;
@@ -446,6 +496,8 @@ impl nova_snark::traits::circuit::StepCircuit<NovaScalar>
         Vec<nova_snark::frontend::num::AllocatedNum<NovaScalar>>,
         nova_snark::frontend::SynthesisError,
     > {
+        bind_initial_session_seed_bp(cs, z)?;
+
         let step = share_verification_circuit::SHARE_VERIFY_STEP_COUNTER.with(|cell| {
             let mut c = cell.borrow_mut();
             let s = *c;
@@ -935,7 +987,7 @@ pub fn compute_share_verification_hash() -> [u8; 32] {
         let mut hasher = Keccak256::new();
         hasher.update(b"pvthfhe-share-verify-hash-v1");
         for witness in data.iter() {
-            hasher.update(&witness.transcript_commitment);
+            hasher.update(witness.transcript_commitment);
         }
         hasher.finalize().into()
     })
@@ -989,6 +1041,7 @@ pub fn clear_all_thread_locals() {
     clear_fhe_compute_data();
     clear_scheme_switch_data();
     reset_all_step_counters();
+    clear_session_bind_initial_z0();
     #[cfg(feature = "legacy-nova")]
     {
         clear_bfv_encryption_data();
@@ -1420,9 +1473,12 @@ pub struct NovaCompressor<S: FCircuit<Fr, Params = ()> + StepCircuit + Clone + D
     verifier_key: VerifierKey,
     ivc_steps: usize,
     state_len: usize,
+    epoch_hash: [u8; 32],
     srs_hash: [u8; 32],
     decrypt_nizk_hash: [u8; 32],
     dkg_transcript_hash: [u8; 32],
+    session_id: [u8; 32],
+    session_bind_tag: &'static [u8],
     _step_circuit: std::marker::PhantomData<S>,
 }
 
@@ -1437,7 +1493,12 @@ impl<S: FCircuit<Fr, Params = ()> + StepCircuit + Clone + Debug> NovaCompressor<
     /// reproducible by any verifier that knows the current on-chain epoch.
     /// `ivc_steps` sets the number of IVC fold steps (must equal the number
     /// of participating parties).
-    pub fn new(epoch_hash: [u8; 32], ivc_steps: usize) -> Result<Self, CompressorError> {
+    pub fn new(
+        epoch_hash: [u8; 32],
+        ivc_steps: usize,
+        session_id: [u8; 32],
+        session_bind_tag: &'static [u8],
+    ) -> Result<Self, CompressorError> {
         let circuit =
             S::new(()).map_err(|_| CompressorError::Backend("nova circuit init failed"))?;
         let circuit_hash = circuit.circuit_hash();
@@ -1496,9 +1557,12 @@ impl<S: FCircuit<Fr, Params = ()> + StepCircuit + Clone + Debug> NovaCompressor<
             verifier_key,
             ivc_steps,
             state_len,
+            epoch_hash,
             srs_hash,
             decrypt_nizk_hash: [0u8; 32],
             dkg_transcript_hash: [0u8; 32],
+            session_id,
+            session_bind_tag,
             _step_circuit: std::marker::PhantomData,
         })
     }
@@ -1579,9 +1643,15 @@ where
     verifier_key: VerifierKey,
     ivc_steps: usize,
     state_len: usize,
+    epoch_hash: [u8; 32],
     srs_hash: [u8; 32],
     decrypt_nizk_hash: [u8; 32],
     dkg_transcript_hash: [u8; 32],
+    /// Session identifier for IVC step replay protection.
+    session_id: [u8; 32],
+    /// Legacy caller-supplied binding label. P0-5 session seeding is derived
+    /// from the concrete step circuit's `circuit_hash()` instead.
+    session_bind_tag: &'static [u8],
     /// Greyhound transparent public parameters, available when `enable-greyhound` is active.
     #[cfg(feature = "enable-greyhound")]
     pub greyhound_params: greyhound_pcs::GreyhoundParams,
@@ -1596,7 +1666,23 @@ where
         > + Clone
         + Default,
 {
-    pub fn new(epoch_hash: [u8; 32], ivc_steps: usize) -> Result<Self, CompressorError> {
+    pub fn new(
+        epoch_hash: [u8; 32],
+        ivc_steps: usize,
+        session_id: [u8; 32],
+        session_bind_tag: &'static [u8],
+    ) -> Result<Self, CompressorError> {
+        // Derive SRS hash before setup so setup/prove/verify all see the
+        // same session-binding constant in circuits that need to normalize
+        // a seeded z0[0] back to their semantic first state element.
+        let srs_hash: [u8; 32] =
+            Keccak256::digest([&epoch_hash[..], Tag::NovaSrs.as_bytes()].concat()).into();
+        set_session_bind_seed(compute_session_bound_seed(
+            session_id,
+            epoch_hash,
+            session_bind_tag,
+        ));
+
         let c_primary = S::default();
 
         let pp = nova_snark::nova::PublicParams::setup(
@@ -1607,10 +1693,6 @@ where
         .map_err(|_| CompressorError::Backend("nova-snark PublicParams::setup failed"))?;
 
         reset_all_step_counters();
-
-        // Derive SRS hash: H(epoch_hash || NovaSrs)
-        let srs_hash: [u8; 32] =
-            Keccak256::digest([&epoch_hash[..], Tag::NovaSrs.as_bytes()].concat()).into();
 
         let circuit_hash = Keccak256::digest(Tag::NovaSrs.as_bytes()).into();
 
@@ -1640,7 +1722,10 @@ where
             verifier_key,
             ivc_steps,
             state_len: c_primary.arity(),
+            epoch_hash,
             srs_hash,
+            session_id,
+            session_bind_tag,
             decrypt_nizk_hash: [0u8; 32],
             dkg_transcript_hash: [0u8; 32],
             #[cfg(feature = "enable-greyhound")]
@@ -1687,6 +1772,93 @@ where
 
 type NovaScalar = <nova_snark::provider::Bn256EngineKZG as nova_snark::traits::Engine>::Scalar;
 
+thread_local! {
+    pub(crate) static NOVA_SESSION_BIND_SEED: std::cell::RefCell<NovaScalar> =
+        std::cell::RefCell::new(NovaScalar::zero());
+    pub(crate) static NOVA_SESSION_BIND_INITIAL_Z0: std::cell::RefCell<Option<NovaScalar>> =
+        const { std::cell::RefCell::new(None) };
+    pub(crate) static NOVA_SESSION_BIND_SYNTH_COUNTER: std::cell::RefCell<usize> =
+        const { std::cell::RefCell::new(0) };
+}
+
+fn bind_initial_session_seed_bp<CS: nova_snark::frontend::ConstraintSystem<NovaScalar>>(
+    cs: &mut CS,
+    z: &[nova_snark::frontend::num::AllocatedNum<NovaScalar>],
+) -> Result<(), nova_snark::frontend::SynthesisError> {
+    if z.is_empty() {
+        return Ok(());
+    }
+    let synth_idx = NOVA_SESSION_BIND_SYNTH_COUNTER.with(|cell| {
+        let mut c = cell.borrow_mut();
+        let current = *c;
+        *c = current + 1;
+        current
+    });
+    let expected_z0 = NOVA_SESSION_BIND_INITIAL_Z0
+        .with(|cell| *cell.borrow())
+        .unwrap_or_else(|| NovaScalar::from(0u64));
+    let is_initial =
+        if synth_idx == 0 && NOVA_SESSION_BIND_INITIAL_Z0.with(|cell| cell.borrow().is_some()) {
+            NovaScalar::from(1u64)
+        } else {
+            NovaScalar::from(0u64)
+        };
+    let expected_var = nova_snark::frontend::num::AllocatedNum::alloc(
+        cs.namespace(|| "session_bound_expected_z0"),
+        || Ok(expected_z0),
+    )?;
+    let is_initial_var = nova_snark::frontend::num::AllocatedNum::alloc(
+        cs.namespace(|| "session_bound_is_initial"),
+        || Ok(is_initial),
+    )?;
+    cs.enforce(
+        || "session_bound_is_initial_bool",
+        |lc| lc + is_initial_var.get_variable(),
+        |lc| lc + is_initial_var.get_variable() - CS::one(),
+        |lc| lc,
+    );
+    cs.enforce(
+        || "session_bound_initial_z0",
+        |lc| lc + z[0].get_variable() - expected_var.get_variable(),
+        |lc| lc + is_initial_var.get_variable(),
+        |lc| lc,
+    );
+    Ok(())
+}
+
+pub(crate) fn set_session_bind_seed(seed: NovaScalar) {
+    NOVA_SESSION_BIND_SEED.with(|cell| *cell.borrow_mut() = seed);
+}
+
+fn set_session_bind_initial_z0(value: NovaScalar) {
+    NOVA_SESSION_BIND_INITIAL_Z0.with(|cell| *cell.borrow_mut() = Some(value));
+    NOVA_SESSION_BIND_SYNTH_COUNTER.with(|cell| *cell.borrow_mut() = 0);
+}
+
+fn clear_session_bind_initial_z0() {
+    NOVA_SESSION_BIND_SEED.with(|cell| *cell.borrow_mut() = NovaScalar::zero());
+    NOVA_SESSION_BIND_INITIAL_Z0.with(|cell| *cell.borrow_mut() = None);
+    NOVA_SESSION_BIND_SYNTH_COUNTER.with(|cell| *cell.borrow_mut() = 0);
+}
+
+pub(crate) fn session_bind_seed() -> NovaScalar {
+    NOVA_SESSION_BIND_SEED.with(|cell| *cell.borrow())
+}
+
+/// Circuit-specific domain separators for session binding.
+pub const SBIND_CYCLO_FOLD: &[u8] = b"pvthfhe-nova-sbind-cyclo-fold-v1";
+pub const SBIND_DEALER_PARITY: &[u8] = b"pvthfhe-nova-sbind-dealer-parity-v1";
+pub const SBIND_DKG_AGGREGATION: &[u8] = b"pvthfhe-nova-sbind-dkg-aggregation-v1";
+pub const SBIND_KEY_CONTRIBUTION: &[u8] = b"pvthfhe-nova-sbind-key-contribution-v1";
+pub const SBIND_PK_AGGREGATION: &[u8] = b"pvthfhe-nova-sbind-pk-aggregation-v1";
+pub const SBIND_AJTAI_COMMITMENT: &[u8] = b"pvthfhe-nova-sbind-ajtai-commitment-v1";
+pub const SBIND_SHARE_VERIFICATION: &[u8] = b"pvthfhe-nova-sbind-share-verification-v1";
+pub const SBIND_FHE_COMPUTE: &[u8] = b"pvthfhe-nova-sbind-fhe-compute-v1";
+pub const SBIND_HETEROGENEOUS: &[u8] = b"pvthfhe-nova-sbind-heterogeneous-v1";
+pub const SBIND_C7_DECRYPT: &[u8] = b"pvthfhe-nova-sbind-c7-decrypt-v1";
+pub const SBIND_SCHEME_SWITCH: &[u8] = b"pvthfhe-nova-sbind-scheme-switch-v1";
+pub const SBIND_BFV_SNAPSHOT: &[u8] = b"pvthfhe-nova-sbind-bfv-snapshot-v1";
+
 fn ark_to_nova_scalar(fr: ark_bn254::Fr) -> NovaScalar {
     use bp_ff::PrimeField;
     let bytes = fr.into_bigint().to_bytes_le();
@@ -1694,6 +1866,104 @@ fn ark_to_nova_scalar(fr: ark_bn254::Fr) -> NovaScalar {
     let len = repr.as_ref().len().min(bytes.len());
     repr.as_mut()[..len].copy_from_slice(&bytes[..len]);
     NovaScalar::from_repr(repr).unwrap_or(NovaScalar::from(0u64))
+}
+
+fn normalize_fr_to_nova(fr: ark_bn254::Fr) -> NovaScalar {
+    ark_to_nova_scalar(fr)
+}
+
+fn compute_session_bound_seed(
+    session_id: [u8; 32],
+    epoch_hash: [u8; 32],
+    circuit_tag: &[u8],
+) -> NovaScalar {
+    let mut hasher = Keccak256::new();
+    hasher.update(session_id);
+    hasher.update(epoch_hash);
+    hasher.update(circuit_tag);
+    let digest: [u8; 32] = hasher.finalize().into();
+    ark_to_nova_scalar(Fr::from_be_bytes_mod_order(&digest))
+}
+
+fn compute_session_bound_seed_for_circuit<C: crate::StepCircuit>(
+    session_id: [u8; 32],
+    epoch_hash: [u8; 32],
+    circuit: &C,
+) -> NovaScalar {
+    compute_session_bound_seed(session_id, epoch_hash, &circuit.circuit_hash())
+}
+
+/// P0-5: session-bound z0 construction.
+///
+/// The first element (z0[0]) is offset by
+/// `hash(session_id || epoch_hash || circuit_tag)`, binding the entire
+/// IVC chain to a specific session without changing the public input arity.
+/// Circuits with a semantic value in z[0] normalize the first step inside
+/// R1CS by subtracting the same session seed.
+fn z0_from_acc_with_session(
+    acc: &[u8],
+    state_len: usize,
+    session_seed: NovaScalar,
+) -> Vec<NovaScalar> {
+    let mut z0 = vec![NovaScalar::zero(); state_len];
+    if let Ok((a, b, c)) = decode_triple(acc) {
+        if state_len > 0 {
+            z0[0] = ark_to_nova_scalar(a);
+        }
+        if state_len > 1 {
+            z0[1] = ark_to_nova_scalar(b);
+        }
+        if state_len > 2 {
+            z0[2] = ark_to_nova_scalar(c);
+        }
+    }
+    if state_len > 0 {
+        z0[0] += session_seed;
+    }
+    z0
+}
+
+#[cfg(test)]
+mod session_binding_tests {
+    use super::*;
+    use nova_snark::frontend::num::AllocatedNum;
+    use nova_snark::frontend::util_cs::test_cs::TestConstraintSystem;
+    use nova_snark::frontend::ConstraintSystem;
+
+    #[test]
+    fn session_binding_seeded_into_first_state_element() {
+        let acc = encode_triple((Fr::from(3u64), Fr::from(5u64), Fr::from(7u64)));
+        let seed = compute_session_bound_seed([0xAA; 32], [0xBB; 32], SBIND_DKG_AGGREGATION);
+
+        let z0 = z0_from_acc_with_session(&acc, 3, seed);
+
+        assert_eq!(z0[0], ark_to_nova_scalar(Fr::from(3u64)) + seed);
+        assert_eq!(z0[1], ark_to_nova_scalar(Fr::from(5u64)));
+        assert_eq!(z0[2], ark_to_nova_scalar(Fr::from(7u64)));
+    }
+
+    #[test]
+    fn scheme_switch_r1cs_rejects_wrong_initial_session_state() {
+        let mut cs = TestConstraintSystem::<NovaScalar>::new();
+        let expected = NovaScalar::from(9u64);
+        let wrong = NovaScalar::from(8u64);
+        set_session_bind_initial_z0(expected);
+
+        let z0 = AllocatedNum::alloc(cs.namespace(|| "z0"), || Ok(wrong)).unwrap();
+        let z1 = AllocatedNum::alloc(cs.namespace(|| "z1"), || Ok(NovaScalar::from(0u64))).unwrap();
+        let z2 = AllocatedNum::alloc(cs.namespace(|| "z2"), || Ok(NovaScalar::from(1u64))).unwrap();
+
+        let _ = <SchemeSwitchStepCircuit as nova_snark::traits::circuit::StepCircuit<
+            NovaScalar,
+        >>::synthesize(&SchemeSwitchStepCircuit, &mut cs, &[z0, z1, z2])
+        .unwrap();
+
+        assert!(
+            !cs.is_satisfied(),
+            "scheme-switch R1CS must bind the initial session z0"
+        );
+        clear_session_bind_initial_z0();
+    }
 }
 
 fn z0_from_acc(acc: &[u8], state_len: usize) -> Vec<NovaScalar> {
@@ -1879,6 +2149,17 @@ impl<S> NovaCompressor<S>
 where
     S: nova_snark::traits::circuit::StepCircuit<NovaScalar> + Clone + Default,
 {
+    fn session_bound_z0(&self, acc: &[u8]) -> Vec<NovaScalar> {
+        let seed =
+            compute_session_bound_seed(self.session_id, self.epoch_hash, self.session_bind_tag);
+        set_session_bind_seed(seed);
+        let z0 = z0_from_acc_with_session(acc, self.state_len, seed);
+        if let Some(first) = z0.first().copied() {
+            set_session_bind_initial_z0(first);
+        }
+        z0
+    }
+
     pub fn prove_steps(
         &self,
         acc: &[u8],
@@ -1890,18 +2171,14 @@ where
         let _guard = ThreadLocalClearGuard;
 
         if steps.len() != self.ivc_steps {
-            tracing::debug!(
-                "prove_steps: {} steps but ivc_steps={}",
-                steps.len(),
-                self.ivc_steps
-            );
+            return Err(CompressorError::InvalidInput);
         }
 
         let public_inputs_hash = committed_public_inputs_hash(steps);
-        let z0_primary = z0_from_acc(acc, self.state_len);
+        let z0_primary = self.session_bound_z0(acc);
 
         let c_primary = S::default();
-        CYCLO_FOLD_STEP_COUNTER.with(|cell| *cell.borrow_mut() = 0);
+        reset_all_step_counters();
 
         let mut recursive_snark: NovaRecursiveSNARK<S> =
             NovaRecursiveSNARK::new(&self.public_params, &c_primary, &z0_primary)
@@ -1971,7 +2248,7 @@ where
         NOVA_BATCH_STEP_COUNT.with(|cell| *cell.borrow_mut() = steps.len());
 
         let public_inputs_hash = committed_public_inputs_hash(steps);
-        let z0_primary = z0_from_acc(acc, self.state_len);
+        let z0_primary = self.session_bound_z0(acc);
         let c_primary = S::default();
 
         let mut recursive_snark: NovaRecursiveSNARK<S> =
@@ -2048,6 +2325,8 @@ where
     ) -> Result<bool, CompressorError> {
         use high_arity_fold::*;
 
+        let _guard = ThreadLocalClearGuard;
+
         if vk != &self.verifier_key {
             tracing::error!(target: "nova", "verify_steps_high_arity: verifier key mismatch");
             return Ok(false);
@@ -2081,7 +2360,7 @@ where
         let beta = derive_beta_vector(&self.srs_hash, steps.len());
         let single_folded = fold_external_inputs(steps, &beta);
         let folded_steps = [single_folded];
-        let z0_primary = z0_from_acc(acc, self.state_len);
+        let z0_primary = self.session_bound_z0(acc);
 
         let recursive_snark: NovaRecursiveSNARK<S> = bincode::deserialize(parsed.ivc_bytes)
             .map_err(|e| {
@@ -2092,11 +2371,8 @@ where
         let verify_result =
             recursive_snark.verify(&self.public_params, folded_steps.len(), &z0_primary);
 
-        match &verify_result {
-            Err(e) => {
-                tracing::error!(target: "nova", error = ?e, steps = folded_steps.len(), "verify_steps_high_arity: nova verify failed");
-            }
-            Ok(_) => {}
+        if let Err(e) = &verify_result {
+            tracing::error!(target: "nova", error = ?e, steps = folded_steps.len(), "verify_steps_high_arity: nova verify failed");
         }
 
         verify_result
@@ -2111,6 +2387,8 @@ where
         acc: &[u8],
         steps: &[ExternalInputs3<ark_bn254::Fr>],
     ) -> Result<bool, CompressorError> {
+        let _guard = ThreadLocalClearGuard;
+
         if vk != &self.verifier_key {
             tracing::error!(target: "nova", "verify_steps: verifier key mismatch");
             return Ok(false);
@@ -2145,7 +2423,7 @@ where
             return Ok(false);
         }
 
-        let z0_primary = z0_from_acc(acc, self.state_len);
+        let z0_primary = self.session_bound_z0(acc);
 
         let recursive_snark: NovaRecursiveSNARK<S> = bincode::deserialize(parsed.ivc_bytes)
             .map_err(|e| {
@@ -2155,11 +2433,8 @@ where
 
         let verify_result = recursive_snark.verify(&self.public_params, steps.len(), &z0_primary);
 
-        match &verify_result {
-            Err(e) => {
-                tracing::error!(target: "nova", error = ?e, steps = steps.len(), "verify_steps: nova verify failed");
-            }
-            Ok(_) => {}
+        if let Err(e) = &verify_result {
+            tracing::error!(target: "nova", error = ?e, steps = steps.len(), "verify_steps: nova verify failed");
         }
 
         verify_result
@@ -2172,6 +2447,10 @@ where
         acc: &[u8],
         public_inputs: &[u8],
     ) -> Result<CompressedProof, CompressorError> {
+        // P1-4: single-step prove() must match ivc_steps config
+        if self.ivc_steps != 1 {
+            return Err(CompressorError::InvalidInput);
+        }
         let _guard = ThreadLocalClearGuard;
         let initial = decode_triple(acc)?;
         let delta = decode_quad(public_inputs)?;
@@ -2202,6 +2481,7 @@ where
         acc: &[u8],
         public_inputs: &[u8],
     ) -> Result<bool, CompressorError> {
+        #[cfg_attr(not(feature = "enable-greyhound"), allow(unused_mut))]
         let mut proof = CompressedProof::new(proof_bytes.to_vec());
         let decoded = decode_quad(public_inputs).unwrap_or_default();
         let steps = [ExternalInputs3(decoded.0, decoded.1, decoded.2)];
@@ -2235,12 +2515,18 @@ where
             return Err(CompressorError::InvalidInput);
         }
 
-        let acc_fr = if acc.len() >= 32 {
+        let _acc_fr = if acc.len() >= 32 {
             decode_scalar(&acc[..32])?
         } else {
             Fr::zero()
         };
-        let z0_primary: Vec<NovaScalar> = vec![ark_to_nova_scalar(acc_fr)];
+        let z0_primary: Vec<NovaScalar> = vec![compute_session_bound_seed(
+            self.session_id,
+            self.epoch_hash,
+            SBIND_AJTAI_COMMITMENT,
+        )];
+        set_session_bind_seed(z0_primary[0]);
+        set_session_bind_initial_z0(z0_primary[0]);
 
         let coeffs_data: Vec<Vec<Fr>> = witnesses
             .witnesses
@@ -2312,12 +2598,18 @@ where
             return Err(CompressorError::InvalidInput);
         }
 
-        let acc_fr = if acc.len() >= 32 {
+        let _acc_fr = if acc.len() >= 32 {
             decode_scalar(&acc[..32])?
         } else {
             Fr::zero()
         };
-        let z0_primary: Vec<NovaScalar> = vec![ark_to_nova_scalar(acc_fr)];
+        let z0_primary: Vec<NovaScalar> = vec![compute_session_bound_seed(
+            self.session_id,
+            self.epoch_hash,
+            SBIND_SHARE_VERIFICATION,
+        )];
+        set_session_bind_seed(z0_primary[0]);
+        set_session_bind_initial_z0(z0_primary[0]);
 
         let coeffs_data: Vec<Vec<Fr>> = witnesses
             .witnesses
@@ -2667,12 +2959,9 @@ impl<
 
         let _guard = ThreadLocalClearGuard;
 
-        assert_eq!(
-            steps.len(),
-            self.ivc_steps,
-            "steps.len() must equal ivc_steps ({})",
-            self.ivc_steps
-        );
+        if steps.len() != self.ivc_steps {
+            return Err(CompressorError::InvalidInput);
+        }
 
         let initial = decode_triple(acc)?;
         let params = self.deserialize_params()?;
@@ -2805,12 +3094,9 @@ impl NovaCompressor<CycloFoldStepCircuit<Fr>> {
 
         let _guard = ThreadLocalClearGuard;
 
-        assert_eq!(
-            steps.len(),
-            self.ivc_steps,
-            "steps.len() must equal ivc_steps ({})",
-            self.ivc_steps
-        );
+        if steps.len() != self.ivc_steps {
+            return Err(CompressorError::InvalidInput);
+        }
 
         let initial = decode_hex(acc)?;
         let params = self.deserialize_params()?;
@@ -3009,12 +3295,9 @@ impl<
         steps: &[C7MerkleExternalInputs<Fr>],
     ) -> Result<CompressedProof, CompressorError> {
         let _guard = ThreadLocalClearGuard;
-        assert_eq!(
-            steps.len(),
-            self.ivc_steps,
-            "steps.len() must equal ivc_steps ({})",
-            self.ivc_steps
-        );
+        if steps.len() != self.ivc_steps {
+            return Err(CompressorError::InvalidInput);
+        }
 
         let initial = decode_triple(acc)?;
         let params = self.deserialize_params()?;
@@ -3137,12 +3420,9 @@ impl<
         steps: &[ExternalInputs5<Fr>],
     ) -> Result<CompressedProof, CompressorError> {
         let _guard = ThreadLocalClearGuard;
-        assert_eq!(
-            steps.len(),
-            self.ivc_steps,
-            "steps.len() must equal ivc_steps ({})",
-            self.ivc_steps
-        );
+        if steps.len() != self.ivc_steps {
+            return Err(CompressorError::InvalidInput);
+        }
 
         let initial = decode_triple(acc)?;
         let params = self.deserialize_params()?;

@@ -332,6 +332,7 @@ contract IvcDeciderWiringTest is BaseVerifierTest {
             shareVerificationHash: bytes32(uint256(0x07)),
             decryptNizkHash: bytes32(uint256(0x08)),
             dkgTranscriptHash: bytes32(uint256(0x09)),
+            c5ProofRoot: bytes32(uint256(0x0c)),
             novaFinalStateCommitment: bytes32(uint256(0x0a)),
             ivcVerifyResult: ivcVerifyResult,
             bootstrapResultHash: bytes32(uint256(0x0b))
@@ -350,7 +351,7 @@ contract IvcDeciderWiringTest is BaseVerifierTest {
                 ciphertextHash: CIPHERTEXT_HASH,
                 plaintextHash: PLAINTEXT_HASH,
                 dCommitment: D_COMMITMENT,
-                c5ProofRoot: bytes32(0),
+                c5ProofRoot: binding.c5ProofRoot,
                 c6ProofSetRoot: bytes32(0),
                 cycloAccumulatorRoot: bytes32(0),
                 ivcVkHash: binding.ivcVkHash,
@@ -359,7 +360,11 @@ contract IvcDeciderWiringTest is BaseVerifierTest {
                 z0Commitment: binding.z0Commitment,
                 ziCommitment: binding.ziCommitment,
                 ivcSteps: binding.ivcSteps,
-                bootstrapResultHash: binding.bootstrapResultHash
+                bootstrapResultHash: binding.bootstrapResultHash,
+                shareVerificationHash: binding.shareVerificationHash,
+                decryptNizkHash: binding.decryptNizkHash,
+                dkgTranscriptHash: binding.dkgTranscriptHash,
+                novaFinalStateCommitment: binding.novaFinalStateCommitment
             })
         );
     }

@@ -70,6 +70,8 @@ impl nova_snark::traits::circuit::StepCircuit<NovaScalar> for SchemeSwitchStepCi
         Vec<nova_snark::frontend::num::AllocatedNum<NovaScalar>>,
         nova_snark::frontend::SynthesisError,
     > {
+        super::bind_initial_session_seed_bp(cs, z)?;
+
         let step = SCHEME_SWITCH_STEP_COUNTER.with(|cell| {
             let mut c = cell.borrow_mut();
             let s = *c;

@@ -9,8 +9,8 @@ library VerificationStatementV1 {
     uint256 internal constant DOMAIN_FIELD =
         0x707674686668652d766572696669636174696f6e2d73746d742d7631;
     uint256 internal constant SCHEMA_VERSION = 1;
-    uint256 internal constant FIELD_COUNT = 19;
-    uint256 internal constant PREIMAGE_LEN = 76;
+    uint256 internal constant FIELD_COUNT = 23;
+    uint256 internal constant PREIMAGE_LEN = 92;
 
     struct Statement {
         uint32 protocolVersion;
@@ -32,6 +32,10 @@ library VerificationStatementV1 {
         bytes32 ziCommitment;
         uint64 ivcSteps;
         bytes32 bootstrapResultHash;
+        bytes32 shareVerificationHash;
+        bytes32 decryptNizkHash;
+        bytes32 dkgTranscriptHash;
+        bytes32 novaFinalStateCommitment;
     }
 
     function computeStatementHash(Statement memory statement) internal pure returns (uint256) {
@@ -42,7 +46,7 @@ library VerificationStatementV1 {
         return bytes32(computeStatementHash(statement));
     }
 
-    function poseidonPreimage(Statement memory statement) internal pure returns (uint256[76] memory out) {
+    function poseidonPreimage(Statement memory statement) internal pure returns (uint256[92] memory out) {
         uint256 offset;
         out[offset++] = DOMAIN_FIELD;
         out[offset++] = SCHEMA_VERSION;
@@ -67,12 +71,16 @@ library VerificationStatementV1 {
         offset = _pushBytes32(out, offset, 17, statement.ziCommitment);
         offset = _pushNumeric(out, offset, 18, 8, statement.ivcSteps);
         offset = _pushBytes32(out, offset, 19, statement.bootstrapResultHash);
+        offset = _pushBytes32(out, offset, 20, statement.shareVerificationHash);
+        offset = _pushBytes32(out, offset, 21, statement.decryptNizkHash);
+        offset = _pushBytes32(out, offset, 22, statement.dkgTranscriptHash);
+        offset = _pushBytes32(out, offset, 23, statement.novaFinalStateCommitment);
 
         assert(offset == PREIMAGE_LEN);
     }
 
     function _pushNumeric(
-        uint256[76] memory out,
+        uint256[92] memory out,
         uint256 offset,
         uint256 fieldId,
         uint256 byteLen,
@@ -84,7 +92,7 @@ library VerificationStatementV1 {
         return offset;
     }
 
-    function _pushBytes32(uint256[76] memory out, uint256 offset, uint256 fieldId, bytes32 value)
+    function _pushBytes32(uint256[92] memory out, uint256 offset, uint256 fieldId, bytes32 value)
         private
         pure
         returns (uint256)

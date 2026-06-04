@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Stage-0 banner checks.
 
 use std::{
@@ -77,15 +78,15 @@ fn cargo_build_stderr(label: &str, dependency_spec: &str) -> String {
 }
 
 #[test]
-fn banner_default_backend_emits_folding_warning_and_not_old_banner() {
+fn banner_default_backend_emits_real_backend_warning_and_not_surrogate() {
     let stderr = cargo_build_stderr(
         "default",
         &format!("path = {:?}", crate_dir().display().to_string()),
     );
 
     assert!(
-        stderr.contains("FOLDING ACCUMULATOR IS A SURROGATE"),
-        "expected default-backend folding warning in stderr:\n{stderr}"
+        stderr.contains("BFV backend is real"),
+        "expected default-backend real-backend warning in stderr:\n{stderr}"
     );
     assert!(
         !stderr.contains("MOCK BACKEND ACTIVE — XOR/SHA256 ONLY"),
@@ -94,6 +95,10 @@ fn banner_default_backend_emits_folding_warning_and_not_old_banner() {
     assert!(
         !stderr.contains(OLD_SURROGATE_BANNER),
         "default build should not emit old surrogate banner:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("FOLDING ACCUMULATOR IS A SURROGATE"),
+        "default build should not emit surrogate folding warning:\n{stderr}"
     );
 }
 
@@ -112,8 +117,8 @@ fn banner_mock_feature_emits_mock_warning_and_not_default_warning() {
         "expected mock-backend warning in stderr:\n{stderr}"
     );
     assert!(
-        !stderr.contains("FOLDING ACCUMULATOR IS A SURROGATE"),
-        "mock build should not emit default folding warning:\n{stderr}"
+        !stderr.contains("BFV backend is real"),
+        "mock build should not emit default real-backend warning:\n{stderr}"
     );
 }
 
@@ -122,8 +127,8 @@ fn banner_source_replaces_old_surrogate_wording() {
     let build_rs = read_build_rs();
 
     assert!(
-        build_rs.contains("FOLDING ACCUMULATOR IS A SURROGATE"),
-        "expected default-backend folding warning in build.rs"
+        build_rs.contains("BFV backend is real"),
+        "expected default-backend real-backend warning in build.rs"
     );
     assert!(
         build_rs.contains("MOCK BACKEND ACTIVE — XOR/SHA256 ONLY"),
@@ -133,6 +138,10 @@ fn banner_source_replaces_old_surrogate_wording() {
         !build_rs.contains(OLD_SURROGATE_BANNER),
         "old surrogate banner should be absent from build.rs"
     );
+    assert!(
+        !build_rs.contains("FOLDING ACCUMULATOR IS A SURROGATE"),
+        "surrogate folding warning should be absent from build.rs"
+    );
 }
 
 #[test]
@@ -140,7 +149,7 @@ fn banner_stage0_gate_checks_new_default_warning() {
     let justfile = read_justfile();
 
     assert!(
-        justfile.contains("FOLDING ACCUMULATOR IS A SURROGATE"),
-        "expected stage0-gate cargo tripwire to check new default warning"
+        justfile.contains("BFV backend is real"),
+        "expected stage0-gate cargo tripwire to check current real-backend warning"
     );
 }

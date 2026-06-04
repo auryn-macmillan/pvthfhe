@@ -1,3 +1,5 @@
+//! Integration tests for deterministic-RNG encryption reproducibility.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 use pvthfhe_fhe::{fhers::FhersBackend, FheBackend};
 use rand_chacha::ChaCha8Rng;
 use rand_core::SeedableRng;

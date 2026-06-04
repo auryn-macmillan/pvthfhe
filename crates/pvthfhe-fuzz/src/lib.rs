@@ -6,7 +6,6 @@
 //! - PVSS share NIZK
 //! - Nova inputs
 
-use arbitrary::{Arbitrary, Unstructured};
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
 use sha2::Digest;
@@ -65,7 +64,9 @@ pub fn arbitrary_bytes(rng: &mut dyn RngCore, max_len: usize) -> Vec<u8> {
 /// Fuzz status for progress tracking.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FuzzStatus {
+    /// Fuzz iteration completed successfully.
     Pass,
+    /// Fuzz iteration failed with a diagnostic message.
     Fail(String),
 }
 

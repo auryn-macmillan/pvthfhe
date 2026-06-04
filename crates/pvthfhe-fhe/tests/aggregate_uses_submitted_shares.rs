@@ -1,15 +1,16 @@
-//! RED test for F67: `aggregate_decrypt` MUST consume submitted shares,
-//! not silently recompute from internal state by `party_id`.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+//! Regression test for F67: `aggregate_decrypt` MUST reject submitted
+//! decrypt-share envelopes that are bound to a different ciphertext.
 //!
-//! On current `main`, `fhers.rs:680-691` parses submitted shares, discards them,
-//! and recomputes from internal state. This test provides shares from a
-//! DIFFERENT ciphertext (valid wire format + valid polynomial) and asserts
-//! `aggregate_decrypt` FAILS. Currently the function succeeds because
-//! internal state is used — which is the F67 vulnerability.
+//! A share polynomial produced for one ciphertext is structurally valid, so a
+//! recombination-only path can fail nondeterministically by decoding garbage.
+//! The v2 decrypt-share wire envelope binds `party_id` and `SHA256(ct.bytes)`
+//! so cross-ciphertext substitution is rejected deterministically before any
+//! recombination.
 
-use pvthfhe_fhe::wire;
-use pvthfhe_fhe::{fhers::FhersBackend, FheBackend};
-use rand::thread_rng;
+use pvthfhe_fhe::{fhers::FhersBackend, FheBackend, FheError};
+use rand_chacha::ChaCha8Rng;
+use rand_core::SeedableRng;
 use sha2::{Digest, Sha256};
 
 const CANONICAL_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
@@ -17,7 +18,7 @@ const CANONICAL_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 6
 fn setup_backend() -> (FhersBackend, pvthfhe_fhe::PublicKey) {
     let backend = FhersBackend::load_params(CANONICAL_PARAMS_TOML).expect("load params");
     let session_id = [51u8; 32];
-    let mut rng = thread_rng();
+    let mut rng = ChaCha8Rng::seed_from_u64(0xF67A_0001);
     let shares = (1u32..=5)
         .map(|party_id| backend.keygen_share_with_session(&session_id, party_id, &mut rng))
         .collect::<Result<Vec<_>, _>>()
@@ -33,7 +34,7 @@ fn setup_backend() -> (FhersBackend, pvthfhe_fhe::PublicKey) {
 #[test]
 fn aggregate_must_use_submitted_shares_not_internal_state() {
     let (backend, pk) = setup_backend();
-    let mut rng = thread_rng();
+    let mut rng = ChaCha8Rng::seed_from_u64(0xF67A_0002);
     let ct_hello = backend
         .encrypt(&pk, b"hello", &mut rng)
         .expect("encrypt hello");
@@ -51,26 +52,18 @@ fn aggregate_must_use_submitted_shares_not_internal_state() {
         .partial_decrypt(&ct_other, 3, &mut rng)
         .expect("share 3 for other");
 
-    let mut decoded = wire::decode_decrypt_share(&share3_other.bytes).expect("decode share3");
-    let len = decoded.d_share_poly.len();
-    decoded.d_share_poly[len - 1] ^= 0x01;
-    let mut tampered_share3 = share3_other.clone();
-    tampered_share3.bytes = wire::encode_decrypt_share(decoded.d_share_poly.as_slice()).into();
+    let tampered_share3 = share3_other.clone();
 
     let result = backend.aggregate_decrypt(&ct_hello, &[share1, share2, tampered_share3], 3, b"");
 
-    // RED assertion: submitted share3 is from ct_other (+ byte flip).
-    // Valid wire format, valid Poly — validation at fhers.rs:664-679 passes.
-    // But internal-state recomputation at fhers.rs:680-691 silently uses
-    // party_id=3 internal state for ct_hello, ignoring submitted data.
-    //
-    // On current main, this ASSERTION FAILS — function returns Ok("hello").
     assert!(
-        result.is_err(),
-        "F67: aggregate_decrypt returned Ok even though share3 was from \
-         a different ciphertext (+ byte flip). Got: {:?}. \
-         This confirms fhers.rs:680-691 silently recomputes shares from \
-         internal state by party_id instead of using submitted share bytes.",
-        result
+        matches!(
+            result,
+            Err(FheError::DecryptShareContextMismatch {
+                party_id: 3,
+                field: "ct_hash"
+            })
+        ),
+        "F67: expected deterministic ct_hash mismatch for share3 from a different ciphertext: {result:?}"
     );
 }

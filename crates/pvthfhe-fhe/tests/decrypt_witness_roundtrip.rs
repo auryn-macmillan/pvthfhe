@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! TDD test: verify that `partial_decrypt` returns only bytes (no witness material)
 //! and that `partial_decrypt_with_witness` exposes the structured `DecryptionWitness`.
 //!
@@ -142,7 +143,7 @@ fn decrypt_witness_roundtrip_produces_structured_witness() {
         .bfv_params()
         .ctx_at_level(0)
         .expect("level-0 context");
-    let share_poly = Poly::from_bytes(decoded.d_share_poly.as_slice(), &ctx)
+    let share_poly = Poly::from_bytes(decoded.d_share_poly.as_slice(), ctx)
         .expect("deserialize share poly from witness");
     assert!(
         !share_poly.to_bytes().is_empty(),

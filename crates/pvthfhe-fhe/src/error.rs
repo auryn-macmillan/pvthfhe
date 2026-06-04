@@ -42,6 +42,15 @@ pub enum FheError {
         party_id: u32,
     },
 
+    /// A structurally valid decryption share is bound to a different context.
+    #[error("decrypt share context mismatch for party {party_id}: {field}")]
+    DecryptShareContextMismatch {
+        /// The submitted party identifier whose share failed context binding.
+        party_id: u32,
+        /// The mismatched binding field (`party_id` or `ct_hash`).
+        field: &'static str,
+    },
+
     /// No backend state exists for the requested party.
     #[error("unknown party: {party_id}")]
     UnknownParty {

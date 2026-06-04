@@ -206,6 +206,7 @@ mod tests {
             ivc_snark_proof_hash: Some([4u8; 32]),
             ivc_binding: None,
             share_verification_hash: Some([5u8; 32]),
+            c5_proof_root: [6u8; 32],
         }
     }
 

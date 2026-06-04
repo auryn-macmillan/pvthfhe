@@ -26,6 +26,7 @@ pub struct Round2Message {
 pub struct Round3Aggregate {
     pub aggregate_pk: PublicKey,
     pub participant_set_hash: [u8; 32],
+    pub c5_proof_root: [u8; 32],
 }
 
 #[derive(Clone, Debug)]

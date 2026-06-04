@@ -18,16 +18,16 @@ pub const DOMAIN_FIELD_HEX: &str = "0x707674686668652d766572696669636174696f6e2d
 /// Schema version encoded in the TLV header and Poseidon preimage.
 pub const SCHEMA_VERSION: u32 = 1;
 /// Number of fields in VerificationStatementV1.
-pub const FIELD_COUNT: u32 = 19;
-/// Fixed Poseidon preimage length: 3 header elements + 3 numerics*3 + 16 roots*4.
-pub const POSEIDON_PREIMAGE_LEN: usize = 76;
+pub const FIELD_COUNT: u32 = 23;
+/// Fixed Poseidon preimage length: 3 header elements + 3 numerics*3 + 20 roots*4.
+pub const POSEIDON_PREIMAGE_LEN: usize = 92;
 
 /// Rust Noir-sponge replica / Noir parity hash for the committed golden vector.
 pub const GOLDEN_STATEMENT_HASH_DECIMAL: &str =
-    "2717525839999002672616025848791696639911259589570414897881626410761076250408";
+    "7807432589986464173440955546194920105762623084817847309522180293390994111";
 /// Hex rendering of [`GOLDEN_STATEMENT_HASH_DECIMAL`].
 pub const GOLDEN_STATEMENT_HASH_HEX: &str =
-    "0x060210ab9a90369d1ed6dd70d8687f5a82ba942418742add1569ba42fd329728";
+    "0x046b39c51423acca3390ca18deddf1a5c98c3b391b53a70fe5d17b205b8abf";
 
 /// Error returned by canonical statement parsing or hashing.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -77,6 +77,10 @@ pub struct VerificationStatementV1 {
     pub zi_commitment: [u8; 32],
     pub ivc_steps: u64,
     pub bootstrap_result_hash: [u8; 32],
+    pub share_verification_hash: [u8; 32],
+    pub decrypt_nizk_hash: [u8; 32],
+    pub dkg_transcript_hash: [u8; 32],
+    pub nova_final_state_commitment: [u8; 32],
 }
 
 /// Statement hash rendered in decimal and canonical lowercase hex.
@@ -123,6 +127,10 @@ impl VerificationStatementV1 {
         encode_tlv(&mut out, 17, &self.zi_commitment)?;
         encode_tlv(&mut out, 18, &self.ivc_steps.to_be_bytes())?;
         encode_tlv(&mut out, 19, &self.bootstrap_result_hash)?;
+        encode_tlv(&mut out, 20, &self.share_verification_hash)?;
+        encode_tlv(&mut out, 21, &self.decrypt_nizk_hash)?;
+        encode_tlv(&mut out, 22, &self.dkg_transcript_hash)?;
+        encode_tlv(&mut out, 23, &self.nova_final_state_commitment)?;
         Ok(out)
     }
 
@@ -163,6 +171,10 @@ impl VerificationStatementV1 {
         let zi_commitment = read_32_field(&mut cur, 17)?;
         let ivc_steps = read_u64_field(&mut cur, 18)?;
         let bootstrap_result_hash = read_32_field(&mut cur, 19)?;
+        let share_verification_hash = read_32_field(&mut cur, 20)?;
+        let decrypt_nizk_hash = read_32_field(&mut cur, 21)?;
+        let dkg_transcript_hash = read_32_field(&mut cur, 22)?;
+        let nova_final_state_commitment = read_32_field(&mut cur, 23)?;
         cur.finish()?;
 
         Ok(Self {
@@ -185,6 +197,10 @@ impl VerificationStatementV1 {
             zi_commitment,
             ivc_steps,
             bootstrap_result_hash,
+            share_verification_hash,
+            decrypt_nizk_hash,
+            dkg_transcript_hash,
+            nova_final_state_commitment,
         })
     }
 
@@ -214,6 +230,10 @@ impl VerificationStatementV1 {
         push_bytes32(&mut out, 17, &self.zi_commitment);
         push_numeric(&mut out, 18, 8, self.ivc_steps);
         push_bytes32(&mut out, 19, &self.bootstrap_result_hash);
+        push_bytes32(&mut out, 20, &self.share_verification_hash);
+        push_bytes32(&mut out, 21, &self.decrypt_nizk_hash);
+        push_bytes32(&mut out, 22, &self.dkg_transcript_hash);
+        push_bytes32(&mut out, 23, &self.nova_final_state_commitment);
 
         assert_eq!(out.len(), POSEIDON_PREIMAGE_LEN);
         out
@@ -230,7 +250,7 @@ impl VerificationStatementV1 {
     ) -> Result<StatementHash, VerificationStatementError> {
         let mut preimage = self.poseidon_preimage();
         let mut offset = 3;
-        for field_id in 1..=19 {
+        for field_id in 1..=23 {
             if matches!(field_id, 1 | 4 | 18) {
                 offset += 3;
             } else {
@@ -269,6 +289,10 @@ impl VerificationStatementV1 {
         push_bytes32_le_limbs(&mut out, 17, &self.zi_commitment);
         push_numeric(&mut out, 18, 8, self.ivc_steps);
         push_bytes32_le_limbs(&mut out, 19, &self.bootstrap_result_hash);
+        push_bytes32_le_limbs(&mut out, 20, &self.share_verification_hash);
+        push_bytes32_le_limbs(&mut out, 21, &self.decrypt_nizk_hash);
+        push_bytes32_le_limbs(&mut out, 22, &self.dkg_transcript_hash);
+        push_bytes32_le_limbs(&mut out, 23, &self.nova_final_state_commitment);
         hash_preimage(&out)
     }
 
@@ -300,6 +324,10 @@ impl VerificationStatementV1 {
         push_bytes32_mod_p(&mut out, 17, &self.zi_commitment);
         push_numeric(&mut out, 18, 8, self.ivc_steps);
         push_bytes32_mod_p(&mut out, 19, &self.bootstrap_result_hash);
+        push_bytes32_mod_p(&mut out, 20, &self.share_verification_hash);
+        push_bytes32_mod_p(&mut out, 21, &self.decrypt_nizk_hash);
+        push_bytes32_mod_p(&mut out, 22, &self.dkg_transcript_hash);
+        push_bytes32_mod_p(&mut out, 23, &self.nova_final_state_commitment);
         hash_preimage(&out)
     }
 
@@ -357,6 +385,10 @@ fn golden_statement() -> VerificationStatementV1 {
         zi_commitment: bytes(0xf0),
         ivc_steps: 7,
         bootstrap_result_hash: bytes(0x08),
+        share_verification_hash: bytes(0x11),
+        decrypt_nizk_hash: bytes(0x12),
+        dkg_transcript_hash: bytes(0x13),
+        nova_final_state_commitment: bytes(0x14),
     }
 }
 

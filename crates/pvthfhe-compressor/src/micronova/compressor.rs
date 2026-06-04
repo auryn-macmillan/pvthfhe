@@ -30,15 +30,17 @@ pub struct MicroNovaCompressor {
     depth: usize,
     total_steps: usize,
     epoch: [u8; 32],
+    session_id: [u8; 32],
 }
 
 impl MicroNovaCompressor {
-    pub fn new(depth: usize, epoch: [u8; 32]) -> Self {
+    pub fn new(depth: usize, epoch: [u8; 32], session_id: [u8; 32]) -> Self {
         let total_steps = (1usize << (depth + 1)) - 1;
         Self {
             depth,
             total_steps,
             epoch,
+            session_id,
         }
     }
 
@@ -63,8 +65,12 @@ impl MicroNovaCompressor {
 
         #[cfg(feature = "legacy-nova")]
         {
-            let compressor =
-                NovaCompressor::<HeterogeneousStepCircuit<Fr>>::new(self.epoch, self.total_steps)?;
+            let compressor = NovaCompressor::<HeterogeneousStepCircuit<Fr>>::new(
+                self.epoch,
+                self.total_steps,
+                self.session_id,
+                crate::nova::SBIND_HETEROGENEOUS,
+            )?;
             let acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
             compressor.prove_steps(&acc, steps)
         }
@@ -75,7 +81,12 @@ impl MicroNovaCompressor {
             // provides the hash chain binding without needing heterogeneous dispatching.
             let compressor = NovaCompressor::<
                 crate::nova::dkg_aggregation_circuit::DkgAggregationStepCircuit<Fr>,
-            >::new(self.epoch, self.total_steps)?;
+            >::new(
+                self.epoch,
+                self.total_steps,
+                self.session_id,
+                crate::nova::SBIND_DKG_AGGREGATION,
+            )?;
             let acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
             compressor.prove_steps(&acc, steps)
         }
@@ -101,8 +112,12 @@ impl MicroNovaCompressor {
         let family_for_check = family.clone();
         HeterogeneousStepCircuit::<Fr>::set_family(family);
 
-        let compressor =
-            NovaCompressor::<HeterogeneousStepCircuit<Fr>>::new(self.epoch, self.total_steps)?;
+        let compressor = NovaCompressor::<HeterogeneousStepCircuit<Fr>>::new(
+            self.epoch,
+            self.total_steps,
+            self.session_id,
+            crate::nova::SBIND_HETEROGENEOUS,
+        )?;
         let vk = compressor.verifier_key();
 
         // Per-step circuit variant check: verify that each step used the correct

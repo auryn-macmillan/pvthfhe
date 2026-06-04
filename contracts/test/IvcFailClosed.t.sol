@@ -102,6 +102,7 @@ contract IvcFailClosedTest is BaseVerifierTest {
             shareVerificationHash: bytes32(uint256(0x07)),
             decryptNizkHash: bytes32(uint256(0x08)),
             dkgTranscriptHash: bytes32(uint256(0x09)),
+            c5ProofRoot: bytes32(uint256(0x0c)),
             novaFinalStateCommitment: bytes32(uint256(0x0a)),
             ivcVerifyResult: ivcVerifyResult,
             bootstrapResultHash: bytes32(uint256(0x0b))

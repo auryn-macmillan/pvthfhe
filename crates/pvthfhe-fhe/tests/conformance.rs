@@ -25,8 +25,8 @@ variance = 10
 
 /// Generic round-trip test: keygen → encrypt → partial_decrypt × t → aggregate_decrypt.
 ///
-/// Uses 1-based party IDs and n=3, t=2 (minimum values satisfying fhe.rs
-/// constraint `t-1 <= (n-1)/2`).
+/// Uses 1-based party IDs and n=3, t=2 (minimum values satisfying the
+/// honest-majority threshold policy `t <= floor(n/2)+1`).
 fn test_round_trip<B: FheBackend>(backend: B) {
     let mut rng = StdRng::seed_from_u64(42);
     let plaintext = b"hello threshold fhe";
@@ -150,7 +150,7 @@ fn test_insufficient_shares<B: FheBackend>(backend: B) {
         .partial_decrypt(&ct, 3, &mut rng)
         .expect("partial_decrypt(3)");
     // Only t-1 shares when threshold is t — must fail
-    let result = backend.aggregate_decrypt(&ct, &[ds1.clone()], t, b"");
+    let result = backend.aggregate_decrypt(&ct, std::slice::from_ref(&ds1), t, b"");
     assert!(
         matches!(result, Err(FheError::InsufficientShares { .. })),
         "expected InsufficientShares, got {:?}",

@@ -1,3 +1,5 @@
+//! Integration tests for NIZK denial-of-service input bounds.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 use pvthfhe_nizk::adapter::CycloNizkAdapter;
 use pvthfhe_nizk::hash_bridge;
 use pvthfhe_nizk::sigma::rlwe_n;
@@ -50,7 +52,7 @@ fn oversized_session_id_rejected() {
         error: vec![0i64; rlwe_n()],
         randomness: vec![],
     };
-    let mut rng = rand_chacha::ChaCha20Rng::seed_from_u64(0xD05_B0);
+    let mut rng = rand_chacha::ChaCha20Rng::seed_from_u64(0x000D_05B0);
     let result = adapter.prove(&stmt, &witness, &mut rng);
     assert!(
         result.is_err(),
@@ -76,8 +78,8 @@ fn batch_verify_excessive_count_rejected() {
         backend_id: pvthfhe_nizk::BACKEND_ID.to_owned(),
         proof_bytes: vec![0u8; 32],
     };
-    let stmts: Vec<NizkStatement> = std::iter::repeat(stmt).take(1025).collect();
-    let proofs: Vec<NizkProof> = std::iter::repeat(proof).take(1025).collect();
+    let stmts: Vec<NizkStatement> = std::iter::repeat_n(stmt, 1025).collect();
+    let proofs: Vec<NizkProof> = std::iter::repeat_n(proof, 1025).collect();
     let result = adapter.batch_verify(&stmts, &proofs);
     assert!(
         result.is_err(),

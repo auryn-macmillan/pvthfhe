@@ -154,10 +154,10 @@ These are tracked in `pvthfhe-followon.md` (183 items, 9-18 months calendar):
 
 | ID | Problem | Status |
 |----|---------|--------|
-| **P1** | Lattice NIZK well-formedness soundness (Greco M-SIS reduction) | OPEN |
-| **P2** | LatticeFold+ over RLWE (Cyclo Theorem 3 / Lemma 9) | OPEN (Nova substitute in use) |
+| **P1** | Lattice NIZK well-formedness soundness (Greco M-SIS reduction). Canonical source: `SECURITY.md §P1` and `docs/OPEN-PROBLEM-BLOCKERS.md`. Dedicated plan: `.sisyphus/plans/p1-sigma-repetition.md` (382 lines, 30+ unchecked tasks, PLAN status 2026-05-28). Adds 90-round sigma repetition for 2^-128 soundness. Also: `.sisyphus/plans/p1-t3-zk-remove-openings.md` (COMPLETE — ZK property of serialized proofs verified). NOTE: `SECURITY.md` is internally inconsistent — line 54 says "P1 is resolved" but line 62 says "OPEN (mitigated)". Canonical status: OPEN (mitigated via SIGMA_REPETITIONS=90 in production). | OPEN |
+| **P2** | LatticeFold+ over RLWE (Cyclo Theorem 3 / Lemma 9). Canonical source: `SECURITY.md §P2`. Dedicated plan: `.sisyphus/plans/p2-lattice-folding.md` (250 lines, 36 unchecked tasks, PLAN status 2026-05-28). Goal: complete Symphony adoption — enable T1 (high-arity folding) and T2 (FS outside circuit) by default. Nova IVC currently serves as folding substitute. Sub-plans: `p2-m1` through `p2-m6`. NOTE: The `Compressor` enum in `compressor_glue.rs` was restructured during gate reconciliation (2026-06-04) to cfg-mutually-exclusive LatticeFold/Nova/Surrogate variants — this affects the code surface that P2's Symphony enablement would modify. | OPEN (Nova substitute in use) |
 | **P3** | Parameterized Nova step circuit verification (ext-scaling) | OPEN (documented limitation) |
-| **P4** | Hermine PVSS upgrade | FUTURE |
+| **P4** | On-chain IVC decider verification — `ivcDeciderVerifier` at `address(0)`, fail-closed. Canonical source: `docs/OPEN-PROBLEM-BLOCKERS.md §P4` and `SECURITY.md`. Dedicated plan: `.sisyphus/plans/p4-onchain-ivc.md` (426 lines, 36 unchecked tasks, PLAN status 2026-05-28). Two options: Noir native RecursiveSNARK verifier (blocked on BN254 pairing precompile) or Groth16/PLONK UltraHonk wrapper. | OPEN (fail-closed) |
 
 ---
 
@@ -200,6 +200,9 @@ These are tracked in `pvthfhe-followon.md` (183 items, 9-18 months calendar):
 - [x] `just demo-e2e` ACCEPT at every level
 - [x] `just paper-gate` PASSES
 - [x] All existing tests pass (`cargo test --workspace`, `forge test`, `just phase1-gate`, `just phase2-gate`, `just phase3-gate`)
+- [x] H.1: `.sisyphus/plans/c7-correctness.md` exists — C7 threshold-decryption correctness plan with Noir circuit design and test vectors
+- [x] H.2: `.sisyphus/plans/c5-formation-proof.md` exists — C5 aggregate pk formation proof plan with rogue-key protection
+- [x] H.3: `.sisyphus/plans/a1-accumulator-transcript.md` exists — A1 Cyclo accumulator transcript plan with codec design and adversarial tests
 
 ---
 
@@ -252,6 +255,36 @@ These are tracked in `pvthfhe-followon.md` (183 items, 9-18 months calendar):
 
 ---
 
+---
+
+## 🟤 Phase H — Uncovered OPEN Research Problems (needs plan creation)
+
+These OPEN problems from `docs/OPEN-PROBLEM-BLOCKERS.md` and `SECURITY.md` have NO dedicated sub-plan and are NOT covered above by Phases A–G. Each needs a scoped plan created before work begins.
+
+### H.1 — C7: Threshold-decryption correctness
+- **Canonical source**: `docs/OPEN-PROBLEM-BLOCKERS.md §C7`
+- **Status**: OPEN — `aggregator_final` Noir circuit proves hash binding only, NOT Lagrange recombination arithmetic (Σ λ_i · d_i ≡ plaintext).
+- **Coverage gap**: `c7-p3-final.md` covers C7 N=8192 SCALING (6/6 tasks checked — DONE) but NOT decryption CORRECTNESS. Phase B.1 (G3: full plaintext binding) covers proving decryption result matches submitted shares in R1CS — tangentially related but NOT the full C7 recombination correctness proof.
+- **Missing**: A Noir circuit proving that Lagrange-recombined shares correctly reconstruct the plaintext. Requires in-circuit field arithmetic over the ciphertext ring.
+- **Existing related work**: `circuits/aggregator_final/src/main.nr` (Poseidon hash checks only). F67 decrypt-share wire-v2 (ct_hash binding) is an orthogonal robustness fix — does NOT address C7 correctness.
+- [x] H.1 Create plan `.sisyphus/plans/c7-correctness.md`: wire threshold-decryption arithmetic into `aggregator_final` Noir circuit with test vectors covering valid/invalid partial shares and manipulated Lagrange coefficients.
+
+### H.2 — C5: Aggregate public-key formation proof
+- **Canonical source**: `docs/OPEN-PROBLEM-BLOCKERS.md §C5`
+- **Status**: OPEN — no proof that `pk_agg = Σ pk_i`. `c5_proof_root` is `bytes32(0)` placeholder.
+- **Coverage gap**: Phase B.2 (G4: Merkle-path proof that dkg_root commits to aggregate_pk leaf) covers PK BINDING (proving aggregate_pk is committed in DKG transcript) but NOT PK FORMATION (proving the committed pk_agg IS the sum of individual pk_i). Rogue-key attacks are not addressed.
+- **Missing**: A proof (SNARK or Sigma-aggregate) that `pk_agg` correctly sums participant keys, with rogue-key protection.
+- [x] H.2 Create plan `.sisyphus/plans/c5-formation-proof.md`: design aggregate pk formation proof with rogue-key protection (PoP or key-registration model).
+
+### H.3 — A1: Cyclo accumulator transcript verification
+- **Canonical source**: `docs/OPEN-PROBLEM-BLOCKERS.md §A1`
+- **Status**: OPEN — nonzero accumulator bytes rejected ("cyclo accumulator present but unverified (fail-closed)"). Only empty placeholder accepted.
+- **Coverage gap**: Not referenced anywhere in meta-plan. `close-nova-gaps.md` (12/12 checked — DONE) covered CycloFoldStepCircuit validation but NOT the full accumulator transcript verifier. The 26,658-byte minimum-proof-size surrogate in `fold_e2e_soundness.rs` is a SIZE GATE, not real A1 transcript verification.
+- **Missing**: A real versioned accumulator transcript plus verifier wired to Cyclo fold relation and NIZK statement.
+- [x] H.3 Create plan `.sisyphus/plans/a1-accumulator-transcript.md`: implement Cyclo accumulator transcript codec with versioning, wire into NIZK adapter, and add adversarial tests (wrong statement hash, wrong commitment root, norm-bound violation, wrong instance count).
+
+---
+
 ## Estimated Effort
 
 | Phase | Scope | Effort |
@@ -262,6 +295,7 @@ These are tracked in `pvthfhe-followon.md` (183 items, 9-18 months calendar):
 | D — Paper | Remaining alignment batches | ~1 week |
 | E — Gates | Oracle reviews + dress rehearsal + freeze | ~3-4 weeks |
 | **G — Security Review** | **32 items (May 18 audit)** | **~28 days** |
-| **Total** | | **~11-15 weeks** |
+| **H — OPEN Problems** | **C7 correctness (plan needed), C5 formation proof (plan needed), A1 accumulator transcript (plan needed)** | **TPL: plan creation first; 4-6 weeks implementation** |
+| **Total** | | **~15-21 weeks** |
 
-Phase F (research: P1-P4 open problems, `pvthfhe-followon.md`) is 9-18 months and excluded from this estimate.
+Phase F (research: P1-P4 open problems, `pvthfhe-followon.md`) is 9-18 months and excluded from the estimate above. Phase H (C5, C7 correctness, A1 — plan creation needed) is TBD.

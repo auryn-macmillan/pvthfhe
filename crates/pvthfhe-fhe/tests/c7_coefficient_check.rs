@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! C7 ring-aware coefficient check tests.
 //!
 //! Tests validated:
@@ -165,13 +166,13 @@ fn c7_coeff_check_zero_mismatches() {
     for i in 0..threshold {
         // Dummy Shamir share: multiply sk coeffs by i+1
         let share_coeffs: Vec<i64> = sk_coeffs.iter().map(|c| c * (i as i64 + 1)).collect();
-        let poly = Poly::try_convert_from(&share_coeffs, &ctx, false, Representation::PowerBasis)
+        let poly = Poly::try_convert_from(&share_coeffs, ctx, false, Representation::PowerBasis)
             .expect("convert share poly");
         share_polys.push(poly);
     }
 
     let mut d_share_bytes_list = Vec::with_capacity(threshold);
-    let zero_poly = Poly::zero(&ctx, Representation::PowerBasis);
+    let zero_poly = Poly::zero(ctx, Representation::PowerBasis);
     for poly in &share_polys {
         let d_share = share_manager
             .decryption_share(ct_arc.clone(), poly.clone(), zero_poly.clone())
@@ -203,9 +204,9 @@ fn c7_coeff_check_zero_mismatches() {
             let xi = party_ids[i] as i128;
             let mut num: i128 = 1;
             let mut den: i128 = 1;
-            for j in 0..n {
+            for (j, &xj_id) in party_ids.iter().enumerate() {
                 if i != j {
-                    let xj = party_ids[j] as i128;
+                    let xj = xj_id as i128;
                     num *= -xj;
                     den *= xi - xj;
                 }

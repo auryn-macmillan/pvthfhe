@@ -25,6 +25,9 @@ struct IvcBinding {
     bytes32 shareVerificationHash;
     bytes32 decryptNizkHash;
     bytes32 dkgTranscriptHash;
+    /// C5 aggregate public-key formation proof root (SHA-256).
+    /// Binds the per-participant PoP proofs and the pk_agg = Σ pk_i relation.
+    bytes32 c5ProofRoot;
     bytes32 novaFinalStateCommitment;
     /// DEPRECATED: ivcVerifyResult is ignored ABI baggage and never gates acceptance.
     uint64 ivcVerifyResult;
@@ -528,6 +531,7 @@ contract PvtFheVerifier is IPvthfheVerifier {
         require(ivcBinding.ivcSteps > 0, "PVTHFHE: ivcSteps zero");
         require(ivcBinding.decryptNizkHash != bytes32(0), "PVTHFHE: decryptNizkHash zero");
         require(ivcBinding.dkgTranscriptHash != bytes32(0), "PVTHFHE: dkgTranscriptHash zero");
+        require(ivcBinding.c5ProofRoot != bytes32(0), "PVTHFHE: c5ProofRoot zero");
         require(ivcBinding.novaFinalStateCommitment != bytes32(0), "PVTHFHE: novaFinalStateCommitment zero");
         // F1: caller-supplied verify result is NOT trusted; real decider verification lands in Phase 2.
         require(ivcBinding.bootstrapResultHash != bytes32(0), "PVTHFHE: bootstrapResultHash zero");
@@ -549,31 +553,53 @@ contract PvtFheVerifier is IPvthfheVerifier {
         bytes32 dCommitment,
         IvcBinding calldata ivcBinding
     ) internal pure returns (bytes32) {
-        // Phase 2 seam only: binding-invariant tests cover hash sensitivity, but full deployed Noir/Honk
-        // public-input sourcing for contextId/c5/c6/cyclo remains OPEN; these zeros are placeholders.
-        return VerificationStatementV1.computeStatementHashBytes32(
-            VerificationStatementV1.Statement({
-                protocolVersion: 1,
-                contextId: bytes32(0),
-                dkgRoot: dkgRoot,
-                epoch: epoch,
-                participantSetHash: participantSetHash,
-                aggregatePkHash: aggregatePkHash,
-                ciphertextHash: ciphertextHash,
-                plaintextHash: plaintextHash,
-                dCommitment: dCommitment,
-                c5ProofRoot: bytes32(0),
-                c6ProofSetRoot: bytes32(0),
-                cycloAccumulatorRoot: bytes32(0),
-                ivcVkHash: ivcBinding.ivcVkHash,
-                ivcPpHash: ivcBinding.ivcPpHash,
-                ivcProofHash: ivcBinding.ivcProofHash,
-                z0Commitment: ivcBinding.z0Commitment,
-                ziCommitment: ivcBinding.ziCommitment,
-                ivcSteps: ivcBinding.ivcSteps,
-                bootstrapResultHash: ivcBinding.bootstrapResultHash
-            })
+        // Delegate struct construction to a pure helper to avoid stack-too-deep with 23-field Statement.
+        VerificationStatementV1.Statement memory stmt = _buildIvcStatement(
+            ciphertextHash, plaintextHash, aggregatePkHash, dkgRoot,
+            epoch, participantSetHash, dCommitment, ivcBinding
         );
+        return VerificationStatementV1.computeStatementHashBytes32(stmt);
+    }
+
+    function _buildIvcStatement(
+        bytes32 ciphertextHash,
+        bytes32 plaintextHash,
+        bytes32 aggregatePkHash,
+        bytes32 dkgRoot,
+        uint64 epoch,
+        bytes32 participantSetHash,
+        bytes32 dCommitment,
+        IvcBinding calldata ivcBinding
+    ) private pure returns (VerificationStatementV1.Statement memory stmt) {
+        stmt.protocolVersion = 1;
+        // P2-7: contextId is a placeholder (hardcoded to bytes32(0)) pending Phase 2 seam closure.
+        // When the Phase 2 IVC decider integration lands, contextId MUST be populated from the
+        // protocol execution context hash: contextId := Poseidon(dkgRoot, epoch, decider instance ID).
+        // Until then, cross-context binding is enforced via dkgRoot + epoch + ivcBinding fields
+        // (all included in the statement hash), which already provides unique session binding.
+        // Planned resolution milestone: Phase 2 gate (on-chain IVC decider verification).
+        stmt.contextId = bytes32(0);
+        stmt.dkgRoot = dkgRoot;
+        stmt.epoch = epoch;
+        stmt.participantSetHash = participantSetHash;
+        stmt.aggregatePkHash = aggregatePkHash;
+        stmt.ciphertextHash = ciphertextHash;
+        stmt.plaintextHash = plaintextHash;
+        stmt.dCommitment = dCommitment;
+        stmt.c5ProofRoot = ivcBinding.c5ProofRoot;
+        stmt.c6ProofSetRoot = bytes32(0);
+        stmt.cycloAccumulatorRoot = bytes32(0);
+        stmt.ivcVkHash = ivcBinding.ivcVkHash;
+        stmt.ivcPpHash = ivcBinding.ivcPpHash;
+        stmt.ivcProofHash = ivcBinding.ivcProofHash;
+        stmt.z0Commitment = ivcBinding.z0Commitment;
+        stmt.ziCommitment = ivcBinding.ziCommitment;
+        stmt.ivcSteps = ivcBinding.ivcSteps;
+        stmt.bootstrapResultHash = ivcBinding.bootstrapResultHash;
+        stmt.shareVerificationHash = ivcBinding.shareVerificationHash;
+        stmt.decryptNizkHash = ivcBinding.decryptNizkHash;
+        stmt.dkgTranscriptHash = ivcBinding.dkgTranscriptHash;
+        stmt.novaFinalStateCommitment = ivcBinding.novaFinalStateCommitment;
     }
 
     function _verifyIvcDeciderStatic(bytes calldata proof, bytes32 statementHash, IvcBinding calldata ivcBinding)

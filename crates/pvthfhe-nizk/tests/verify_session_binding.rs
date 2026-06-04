@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! C2 regression test: proof-encoded session_id and participant_id
 //! MUST be compared against the input statement during verify.
 //!

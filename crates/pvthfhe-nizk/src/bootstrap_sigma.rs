@@ -52,8 +52,14 @@ fn parse_lwe_ct(bytes: &[u8]) -> Result<(u64, u64), NizkError> {
     if bytes.len() < 16 {
         return Err(NizkError::InvalidInput("ciphertext bytes too short"));
     }
-    let a = u64::from_le_bytes(bytes[..8].try_into().unwrap());
-    let b = u64::from_le_bytes(bytes[8..16].try_into().unwrap());
+    let a_bytes: [u8; 8] = bytes[..8]
+        .try_into()
+        .map_err(|_| NizkError::InvalidInput("ciphertext bytes too short"))?;
+    let b_bytes: [u8; 8] = bytes[8..16]
+        .try_into()
+        .map_err(|_| NizkError::InvalidInput("ciphertext bytes too short"))?;
+    let a = u64::from_le_bytes(a_bytes);
+    let b = u64::from_le_bytes(b_bytes);
     Ok((a, b))
 }
 
@@ -126,6 +132,9 @@ fn derive_challenge(t: u64, c: u64, d: u64, session_id: &[u8], party_id: u32, ro
 }
 
 /// Produce a single-round bootstrap sigma proof.
+///
+/// `round_index` binds the repetition round into the FS transcript to prevent
+/// cross-round replay when SIGMA_REPETITIONS > 1.
 pub fn prove(
     session_id: &[u8],
     party_id: u32,
@@ -133,6 +142,7 @@ pub fn prove(
     wit: &BootstrapWitness,
     rng: &mut dyn RngCore,
     _d_commitment: &[u8; 32],
+    round_index: usize,
 ) -> Result<BootstrapSigmaProof, NizkError> {
     let (c, d) = derive_sigma_relation(&stmt.ct_in_bytes, &stmt.ct_out_bytes)?;
     let q = TFHE_Q;
@@ -143,7 +153,7 @@ pub fn prove(
         let y_s = sample_bounded_scalar(rng, B_Y);
         let y_e = sample_bounded_scalar(rng, B_Y);
         let t = scalar_add_mod(scalar_mul_mod(c, y_s, q), y_e, q);
-        let ch = derive_challenge(t, c, d, session_id, party_id, 0);
+        let ch = derive_challenge(t, c, d, session_id, party_id, round_index);
         let z_s = y_s + ch * s;
         let z_e = y_e + ch * e;
 
@@ -158,12 +168,16 @@ pub fn prove(
 }
 
 /// Verify a single-round bootstrap sigma proof.
+///
+/// `round_index` must match the value used during [`prove`] to ensure
+/// round-serial-number binding in multi-round protocols.
 pub fn verify(
     session_id: &[u8],
     party_id: u32,
     stmt: &BootstrapStatement,
     proof: &BootstrapSigmaProof,
     _d_commitment: &[u8; 32],
+    round_index: usize,
 ) -> Result<(), NizkError> {
     let (c, d) = derive_sigma_relation(&stmt.ct_in_bytes, &stmt.ct_out_bytes)?;
     let q = TFHE_Q;
@@ -173,7 +187,7 @@ pub fn verify(
             "challenge must be -1, 0, or 1",
         ));
     }
-    let expected_ch = derive_challenge(proof.t, c, d, session_id, party_id, 0);
+    let expected_ch = derive_challenge(proof.t, c, d, session_id, party_id, round_index);
     if proof.ch != expected_ch {
         return Err(NizkError::VerificationFailed("challenge mismatch"));
     }
@@ -200,8 +214,16 @@ pub fn prove_multi(
     num_rounds: usize,
 ) -> Result<BootstrapSigmaMultiProof, NizkError> {
     let mut rounds = Vec::with_capacity(num_rounds);
-    for _ in 0..num_rounds {
-        rounds.push(prove(session_id, party_id, stmt, wit, rng, d_commitment)?);
+    for i in 0..num_rounds {
+        rounds.push(prove(
+            session_id,
+            party_id,
+            stmt,
+            wit,
+            rng,
+            d_commitment,
+            i,
+        )?);
     }
     Ok(BootstrapSigmaMultiProof { rounds })
 }
@@ -214,8 +236,13 @@ pub fn verify_multi(
     proof: &BootstrapSigmaMultiProof,
     d_commitment: &[u8; 32],
 ) -> Result<(), NizkError> {
-    for round_proof in &proof.rounds {
-        verify(session_id, party_id, stmt, round_proof, d_commitment)?;
+    if proof.rounds.is_empty() {
+        return Err(NizkError::VerificationFailed(
+            "bootstrap sigma multi-proof must have at least one round",
+        ));
+    }
+    for (i, round_proof) in proof.rounds.iter().enumerate() {
+        verify(session_id, party_id, stmt, round_proof, d_commitment, i)?;
     }
     Ok(())
 }
@@ -230,7 +257,7 @@ pub fn compute_bootstrap_result_hash(
     hasher.update(b"pvthfhe-bootstrap-result/v1");
     hasher.update(session_id);
     hasher.update(party_id.to_le_bytes());
-    hasher.update(&stmt.bsk_hash);
+    hasher.update(stmt.bsk_hash);
     hasher.update(&stmt.ct_in_bytes);
     hasher.update(&stmt.ct_out_bytes);
     hasher.finalize().into()
@@ -256,7 +283,7 @@ mod tests {
 
     #[test]
     fn test_derive_sigma_relation_zero_diff() {
-        let q = TFHE_Q;
+        let _q = TFHE_Q;
         let a = 1u64;
         let s = 0i64;
         let e = 0i64;
@@ -290,8 +317,8 @@ mod tests {
         };
 
         let mut rng = StdRng::seed_from_u64(42);
-        let proof = prove(b"test", 1, &stmt, &wit, &mut rng, &[0u8; 32]).unwrap();
-        verify(b"test", 1, &stmt, &proof, &[0u8; 32]).unwrap();
+        let proof = prove(b"test", 1, &stmt, &wit, &mut rng, &[0u8; 32], 0).unwrap();
+        verify(b"test", 1, &stmt, &proof, &[0u8; 32], 0).unwrap();
     }
 
     #[test]
@@ -317,8 +344,8 @@ mod tests {
         };
 
         let mut rng = StdRng::seed_from_u64(999);
-        let proof = prove(b"test", 1, &stmt, &wrong_wit, &mut rng, &[0u8; 32]).unwrap();
-        assert!(verify(b"test", 1, &stmt, &proof, &[0u8; 32]).is_err());
+        let proof = prove(b"test", 1, &stmt, &wrong_wit, &mut rng, &[0u8; 32], 0).unwrap();
+        assert!(verify(b"test", 1, &stmt, &proof, &[0u8; 32], 0).is_err());
     }
 
     #[test]
@@ -351,8 +378,8 @@ mod tests {
         };
 
         let mut rng = StdRng::seed_from_u64(42);
-        let proof = prove(b"test", 1, &stmt, &wit, &mut rng, &[0u8; 32]).unwrap();
-        assert!(verify(b"test", 1, &tampered_stmt, &proof, &[0u8; 32]).is_err());
+        let proof = prove(b"test", 1, &stmt, &wit, &mut rng, &[0u8; 32], 0).unwrap();
+        assert!(verify(b"test", 1, &tampered_stmt, &proof, &[0u8; 32], 0).is_err());
     }
 
     #[test]
@@ -380,6 +407,19 @@ mod tests {
         let multi = prove_multi(b"multi", 2, &stmt, &wit, &mut rng, &[0u8; 32], 4).unwrap();
         assert_eq!(multi.rounds.len(), 4);
         verify_multi(b"multi", 2, &stmt, &multi, &[0u8; 32]).unwrap();
+    }
+
+    /// P0-1: Empty multi-round proof must be rejected (vacuous verification).
+    #[test]
+    fn test_empty_multi_round_proof_rejected() {
+        let stmt = BootstrapStatement {
+            ct_in_bytes: vec![1u8; 16],
+            ct_out_bytes: vec![2u8; 16],
+            bsk_hash: [3u8; 32],
+        };
+        let proof = BootstrapSigmaMultiProof { rounds: vec![] };
+        let result = verify_multi(b"session", 1, &stmt, &proof, &[0u8; 32]);
+        assert!(result.is_err(), "empty multi-round proof must be rejected");
     }
 
     #[test]

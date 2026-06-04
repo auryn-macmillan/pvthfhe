@@ -12,7 +12,8 @@ use std::{
 
 use ark_bn254::Fr;
 use pvthfhe_compressor::nova::{
-    encode_quad, encode_triple, DkgAggregationStepCircuit, NovaCompressor,
+    encode_triple, DkgAggregationStepCircuit, ExternalInputs3, NovaCompressor,
+    SBIND_DKG_AGGREGATION,
 };
 use sha2::{Digest, Sha256};
 
@@ -66,23 +67,22 @@ fn nova_prove_peak_rss_under_12gb() {
     const SEED: u64 = 0x736f6e6f62655f6d;
     let seed_bytes = SEED.to_be_bytes();
     let epoch_hash: [u8; 32] = Sha256::digest(&seed_bytes).into();
-    let compressor = NovaCompressor::<DkgAggregationStepCircuit<Fr>>::new(epoch_hash, 4)
-        .expect("construct nova compressor");
+    let compressor = NovaCompressor::<DkgAggregationStepCircuit<Fr>>::new(
+        epoch_hash,
+        4,
+        [0u8; 32],
+        SBIND_DKG_AGGREGATION,
+    )
+    .expect("construct nova compressor");
     let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
-    let public_inputs = encode_quad((
-        Fr::from(0u64),
-        Fr::from(0u64),
-        Fr::from(0u64),
-        Fr::from(0u64),
-    ))
-    .to_vec();
+    let steps = vec![ExternalInputs3(Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)); 4];
     let proof = compressor
-        .prove(&acc, &public_inputs)
+        .prove_steps(&acc, &steps)
         .expect("prove isolated nova");
     let vk = compressor.verifier_key();
 
     assert!(compressor
-        .verify(&vk, &proof, &acc, &public_inputs)
+        .verify_steps(&vk, &proof, &acc, &steps)
         .expect("verify isolated nova"));
 
     stop.store(true, Ordering::Relaxed);

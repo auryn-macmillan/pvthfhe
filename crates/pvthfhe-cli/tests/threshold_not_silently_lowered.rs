@@ -1,7 +1,6 @@
 //! R8.2a RED: CLI must NEVER silently lower the threshold.
 //!
-//! On current `main`, `full_pipeline.rs:78` caps `backend_threshold` at
-//! `cfg.t.min((cfg.n+1)/2)`, silently reducing it from 5 to 4 for `n=8`.
+//! Historical code capped `backend_threshold`, silently reducing over-policy thresholds.
 //! This test asserts that the pipeline returns an error instead of silently
 //! lowering the threshold — the plan requires a hard `InvalidThreshold` error,
 //! never a silent reduction.
@@ -31,19 +30,19 @@ impl PipelineObserver for DetectObserver {
 }
 
 #[test]
-fn threshold_not_silently_lowered_n8_t5() {
-    // Plan: t=5, n=8 has t > (n+1)/2 = 4. The pipeline must NOT
-    // silently lower t to 4; it must return a hard error.
+fn threshold_not_silently_lowered_n8_t6() {
+    // Plan: t=6, n=8 has t > floor(n/2)+1 = 5. The pipeline must NOT
+    // silently lower t; it must return a hard error.
     //
-    // On current main, `run_full_pipeline` silently replaces t=5 with
-    // backend_threshold=4 and continues. This RED test asserts the
+    // On current main, `run_full_pipeline` silently replaced excessive thresholds
+    // with a lower backend threshold and continued. This test asserts the
     // pipeline returns an Err, which will FAIL on current main and
     // PASS only after the GREEN hard-error guard is in place.
     let mut observer = DetectObserver::default();
     let result = run_full_pipeline(
         &PipelineConfig {
             n: 8,
-            t: 5,
+            t: 6,
             seed: 0,
         },
         &mut observer,
@@ -69,19 +68,19 @@ fn threshold_not_silently_lowered_n8_t5() {
             // RED: pipeline succeeded — this means the threshold was
             // silently lowered on current main. Assert we detect this.
             if let Some(detail) = &observer.setup_threshold_detail {
-                let lowered = detail.contains("backend_threshold=4");
+                let lowered = detail.contains("backend_threshold=");
                 if lowered {
                     panic!(
-                        "RED failure: threshold silently lowered to 4 \
+                        "RED failure: threshold silently lowered \
                          (setup_threshold detail: {detail}). \
                          Pipeline must return InvalidThreshold error, \
-                         not silently lower t=5 -> backend_threshold=4."
+                         not silently lower t=6."
                     );
                 }
             }
             panic!(
-                "RED failure: full_pipeline succeeded with t=5, n=8 \
-                 (t > (n+1)/2 = 4). Pipeline must return error, not \
+                "RED failure: full_pipeline succeeded with t=6, n=8 \
+                 (t > floor(n/2)+1 = 5). Pipeline must return error, not \
                  silently cap the threshold."
             );
         }

@@ -64,17 +64,14 @@ required-features = ["mock"]
 [[test]]
 name = "folding"
 path = "tests/folding.rs"
-required-features = ["legacy-fold"]
 
 [[test]]
 name = "folding_adversarial"
 path = "tests/folding_adversarial.rs"
-required-features = ["legacy-fold"]
 
 [[test]]
 name = "p2_bench"
 path = "tests/p2_bench.rs"
-required-features = ["legacy-fold"]
 
 [[test]]
 name = "cyclo_norm_enforcement"
@@ -83,7 +80,6 @@ path = "tests/cyclo_norm_enforcement.rs"
 [[test]]
 name = "aggregate_1024_smoke"
 path = "tests/aggregate_1024_smoke.rs"
-required-features = ["legacy-fold"]
 
 [[test]]
 name = "ajtai_commitment"
@@ -102,7 +98,6 @@ required-features = ["mock"]
 [[test]]
 name = "decrypt_real"
 path = "tests/decrypt_real.rs"
-required-features = ["legacy-fold"]
 
 [[test]]
 name = "decrypt_roundtrip"
@@ -122,7 +117,6 @@ required-features = ["mock"]
 [[test]]
 name = "keygen_real_encryption"
 path = "tests/keygen_real_encryption.rs"
-required-features = ["legacy-fold"]
 
 [[test]]
 name = "no_plaintext_without_proof"
@@ -130,19 +124,21 @@ path = "tests/no_plaintext_without_proof.rs"
 required-features = ["mock"]
 
 [[test]]
+name = "c5_formation_proof"
+path = "tests/c5_formation_proof.rs"
+required-features = ["mock"]
+
+[[test]]
 name = "folding_multi_track"
 path = "tests/folding_multi_track.rs"
-required-features = ["legacy-fold"]
 
 [[test]]
 name = "folding_relation"
 path = "tests/folding_relation.rs"
-required-features = ["legacy-fold"]
 
 [[test]]
 name = "folding_witness_validation"
 path = "tests/folding_witness_validation.rs"
-required-features = ["legacy-fold"]
 
 [[bench]]
 name = "aggregate_1024"

@@ -190,6 +190,51 @@ impl FheBackend for MockBackendInner {
 
         Ok(xor_bytes(&ct.bytes, &reconstructed_pk))
     }
+
+    fn decode_pk_polys(&self, _pk: &PublicKey) -> Result<(Vec<u8>, Vec<u8>), FheError> {
+        let n = usize::try_from(self._params.n).unwrap_or(1024);
+        let moduli = if self._params.moduli.is_empty() {
+            vec![288_230_376_173_076_481u64]
+        } else {
+            self._params.moduli.clone()
+        };
+        let ctx = std::sync::Arc::new(fhe_math::rq::Context::new(&moduli, n).map_err(|e| {
+            FheError::Backend {
+                reason: format!("mock context creation failed: {e:?}"),
+            }
+        })?);
+
+        use fhe_math::rq::{Poly, Representation};
+        let zero_poly = Poly::zero(&ctx, Representation::PowerBasis);
+
+        use fhe_traits::Serialize as _;
+        let pk0_bytes = zero_poly.to_bytes();
+        let pk1_bytes = zero_poly.to_bytes();
+        Ok((pk0_bytes, pk1_bytes))
+    }
+
+    fn keygen_witness(&self, _party_id: u32) -> Result<Option<(Vec<i64>, Vec<u8>)>, FheError> {
+        let n = usize::try_from(self._params.n).unwrap_or(1024);
+        let sk = vec![0i64; n];
+        let moduli = if self._params.moduli.is_empty() {
+            vec![288_230_376_173_076_481u64]
+        } else {
+            self._params.moduli.clone()
+        };
+        let ctx = std::sync::Arc::new(fhe_math::rq::Context::new(&moduli, n).map_err(|e| {
+            FheError::Backend {
+                reason: format!("mock witness context creation failed: {e:?}"),
+            }
+        })?);
+        let zero_poly = fhe_math::rq::Poly::zero(&ctx, fhe_math::rq::Representation::PowerBasis);
+        use fhe_traits::Serialize as _;
+        let err = zero_poly.to_bytes();
+        Ok(Some((sk, err)))
+    }
+
+    fn supports_session_scoped_keygen(&self) -> bool {
+        true
+    }
 }
 
 #[cfg(all(test, not(feature = "production-profile")))]

@@ -61,10 +61,10 @@ fn main() -> anyhow::Result<()> {
             args.n
         );
     }
-    let max_t = (args.n - 1) / 2;
+    let max_t = args.n / 2 + 1;
     if args.threshold > max_t {
         anyhow::bail!(
-            "threshold t must be <= floor((n-1)/2) = {} (got t={}, n={})",
+            "threshold t must be <= floor(n/2)+1 = {} for the honest-majority threshold policy; Shamir privacy holds against fewer than t shares (got t={}, n={})",
             max_t,
             args.threshold,
             args.n
@@ -278,7 +278,7 @@ fn main() -> anyhow::Result<()> {
         } else {
             let compressor = NovaCompressor::<
                 pvthfhe_compressor::nova::dkg_aggregation_circuit::DkgAggregationStepCircuit<Fr>,
-            >::new(epoch_hash, batch_count)
+            >::new(epoch_hash, batch_count, [0u8; 32], pvthfhe_compressor::nova::SBIND_DKG_AGGREGATION)
             .map_err(|e| anyhow::anyhow!("compressor init: {e:?}"))?;
             let acc = encode_hex((
                 Fr::from(0u64),
@@ -375,7 +375,7 @@ fn main() -> anyhow::Result<()> {
             let _derived_r = hash_all_coeffs(&[coeff_commitment, dkg_root_fr]);
             let c7_compressor = NovaCompressor::<
                 pvthfhe_compressor::nova::dkg_aggregation_circuit::DkgAggregationStepCircuit<Fr>,
-            >::new(epoch_hash, args.threshold)
+            >::new(epoch_hash, args.threshold, [0u8; 32], pvthfhe_compressor::nova::SBIND_DKG_AGGREGATION)
             .map_err(|e| anyhow::anyhow!("C7 compressor init: {e:?}"))?;
             let c7_acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
             let c7_steps: Vec<ExternalInputs3<Fr>> = (0..args.threshold)
@@ -428,7 +428,7 @@ fn main() -> anyhow::Result<()> {
         let witness_set = AjtaiCommitmentWitnessSet { witnesses };
         let ajtai_compressor = NovaCompressor::<
             pvthfhe_compressor::nova::dkg_aggregation_circuit::DkgAggregationStepCircuit<Fr>,
-        >::new(epoch_hash, args.n)
+        >::new(epoch_hash, args.n, [0u8; 32], pvthfhe_compressor::nova::SBIND_DKG_AGGREGATION)
         .map_err(|e| anyhow::anyhow!("ajtai compressor init: {e:?}"))?;
         let acc = encode_hex((
             Fr::from(0u64),
@@ -527,7 +527,7 @@ fn time_micronova_compressor(epoch_hash: [u8; 32], batch_count: usize) -> anyhow
     use pvthfhe_compressor::micronova::compressor::MicroNovaCompressor;
 
     let depth = (batch_count as f64).log2().ceil() as usize;
-    let compressor = MicroNovaCompressor::new(depth, epoch_hash);
+    let compressor = MicroNovaCompressor::new(depth, epoch_hash, [0u8; 32]);
     let total_steps = compressor.total_steps();
     // Derive ExternalInputs3 fields from real epoch_hash (SHA-256 of seed).
     // This function does not have access to transcript data, so values are

@@ -471,6 +471,7 @@ impl PoulpyBackend {
             &wit,
             &mut rng,
             &d_commitment,
+            0,
         )
     }
 }

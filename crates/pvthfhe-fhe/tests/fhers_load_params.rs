@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Integration test for real BFV parameter construction in `FhersBackend`.
 
 use pvthfhe_fhe::{fhers::FhersBackend, FheBackend};

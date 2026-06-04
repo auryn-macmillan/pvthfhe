@@ -5,11 +5,11 @@
 //!
 //! 1. **β derivation**: `derive_beta_vector(session_id, num_steps)` produces a
 //!    vector β ∈ Frⁿ via Keccak256-based Fiat-Shamir:
-//!    ```
+//!    ```text
 //!    β_k = Keccak256(session_id || k || num_steps) mod Fr.order()
 //!    ```
 //! 2. **Input folding**: `fold_external_inputs(inputs, β)` computes
-//!    ```
+//!    ```text
 //!    folded = Σ_{k=0}^{n-1} β_k · inputs[k]
 //!    ```
 //!    where multiplication is component-wise on `(a, b, c)` triples over Fr.
@@ -49,7 +49,7 @@ impl Default for HighArityConfig {
 ///
 /// The β vector is derived from `session_id` (a unique session binding) and
 /// the number of steps. Each β_k is independently derived via:
-/// ```
+/// ```text
 /// β_k = Keccak256(session_id || "beta" || k || num_steps) mod Fr.order()
 /// ```
 ///
@@ -81,7 +81,7 @@ pub fn derive_beta_vector(session_id: &[u8], num_steps: usize) -> Vec<Fr> {
 /// Fold a slice of `ExternalInputs3<Fr>` into a single `ExternalInputs3<Fr>`
 /// using linear combination with β coefficients.
 ///
-/// ```
+/// ```text
 /// folded = Σ_{k=0}^{n-1} β_k · inputs[k]
 /// ```
 ///
@@ -140,7 +140,7 @@ pub fn fold_external_inputs_in_batches(
 /// Fold a slice of witness vectors into a single witness vector using linear
 /// combination with β coefficients.
 ///
-/// ```
+/// ```text
 /// folded[i] = Σ_{k=0}^{n-1} β_k · witnesses[k][i]
 /// ```
 ///

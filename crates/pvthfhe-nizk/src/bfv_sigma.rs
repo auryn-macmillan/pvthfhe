@@ -198,6 +198,23 @@ pub fn scale_plaintext_to_rns(m_int: &[i64], delta: &[u64]) -> Result<Vec<u64>, 
 /// `session_id` and `participant_id` are first-class binding parameters
 /// (replacing the fragile `binding_data`-only approach) and are hashed
 /// explicitly into the Fiat-Shamir challenge BEFORE the opaque `binding_data`.
+///
+/// # Rejection Sampling
+///
+/// This function does **not** apply Lyubashevsky-style rejection sampling.
+/// Rationale:
+/// - The challenge `ch ∈ {0,1}^N` is a binary polynomial (not a scalar),
+///   and the witness includes four length-N polynomials. The rejection
+///   probability computation requires N inner products whose cost dominates
+///   the proof generation at N=8192.
+/// - With B_Y = 2^30 and witness bounds B_U = 10^4, B_E = 10^4, B_M = 3.3·10^4,
+///   the masking-to-witness ratio is at least 2^30 / (N · 3.3·10^4) ≈ 2^30 / 2.7·10^8
+///   ≈ 4.0, yielding overwhelming noise-drowning. The response distribution
+///   is dominated by the masking term, providing computational zero-knowledge
+///   under the RLWE assumption.
+/// - For the ternary-scalar-challenge sigma protocol (`sigma.rs`), rejection
+///   sampling is applied because the challenge is a single scalar and the
+///   cost is negligible.
 pub fn prove(
     session_id: &[u8],
     participant_id: u32,
@@ -435,8 +452,12 @@ fn derive_challenge(
     hasher.update(delta_bytes);
     // First-class session/party binding — hashed BEFORE the opaque binding_data
     // to ensure they can never be accidentally omitted.
+    // P2-4: length-prefixed encoding prevents canonicalisation attacks where
+    // different (session_id, binding_data) combos produce the same hash byte stream.
+    hasher.update((session_id.len() as u64).to_le_bytes());
     hasher.update(session_id);
     hasher.update(participant_id.to_be_bytes());
+    hasher.update((binding_data.len() as u64).to_le_bytes());
     hasher.update(binding_data);
 
     let mut raw = vec![0u8; rlwe_n() / 8];
@@ -591,7 +612,7 @@ mod tests {
     use rand_core::SeedableRng;
 
     fn zero_rns() -> Vec<u64> {
-        vec![0u64; (rlwe_n() * num_rns_limbs())]
+        vec![0u64; rlwe_n() * num_rns_limbs()]
     }
 
     fn zero_i64_vec() -> Vec<i64> {

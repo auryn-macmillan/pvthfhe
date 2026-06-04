@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! RED test for R1.4: verifies smudging noise is absent from `partial_decrypt`.
 //!
 //! Without smudging, every call to `partial_decrypt` produces the same result
@@ -14,7 +15,7 @@ const CANONICAL_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 6
 
 /// Smudging variance σ² = (3.5062048768e12)² ≈ 1.229e25.
 /// See `.sisyphus/design/smudging.md` §4.
-const SIGMA_SMUDGE_SQ: f64 = 1.229_347_346_789_580_8e25;
+const SIGMA_SMUDGE_SQ: f64 = 1.229_347_346_789_581e25;
 
 /// Minimum acceptable variance for smudging detection.
 /// We use σ²/2 as a conservative threshold — actual variance should be
@@ -57,8 +58,8 @@ fn smudging_noise_is_present_in_partial_decrypt() {
 
         let decoded =
             wire::decode_decrypt_share(&decrypt_share.bytes).expect("decode decrypt share");
-        let poly = Poly::from_bytes(decoded.d_share_poly.as_slice(), &ctx)
-            .expect("deserialize share poly");
+        let poly =
+            Poly::from_bytes(decoded.d_share_poly.as_slice(), ctx).expect("deserialize share poly");
 
         // Coefficient 0 of limb 0
         let coeffs = poly.coefficients();

@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 //! Follow-on plan coverage checks for deferred real-FHE work.
 
 use std::{fs, path::PathBuf};

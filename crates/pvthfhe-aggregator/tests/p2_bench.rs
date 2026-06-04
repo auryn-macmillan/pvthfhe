@@ -49,17 +49,23 @@ fn make_stmt(fold_index: u64, n: usize, tag: u8) -> FoldStatement {
             session_id: session,
             params,
             ciphertext_bytes: vec![tag; n / 8], // scales with n for realistic sizing
+            decrypt_share_bytes: vec![0u8; 32],
+            pvss_commitment: [0u8; 32],
             multi_track_metadata: None,
         },
     }
 }
 
 fn make_witness(tag: u8, n: usize) -> FoldWitness {
+    #[cfg(feature = "real-nizk")]
+    let proof_len = 2 + 32 + 26624;
+    #[cfg(not(feature = "real-nizk"))]
+    let proof_len = n;
+
     FoldWitness {
         nizk_proof: NizkProof {
             nizk_backend_id: NizkProof::EXPECTED_BACKEND_ID,
-            // All-same-byte vector passes the uniformity check in validate_witness.
-            proof_bytes: vec![tag; n],
+            proof_bytes: vec![tag; proof_len],
         },
         fold_randomness: vec![tag; 32],
     }

@@ -17,6 +17,12 @@ mod real_folding_gaps {
     const SESSION: &str = "test-session-p2";
     const CTXT_TAG: u8 = 0x05;
 
+    #[cfg(feature = "real-nizk")]
+    const VALID_SYNTHETIC_PROOF_LEN: usize = 2 + 32 + 26624;
+
+    #[cfg(not(feature = "real-nizk"))]
+    const VALID_SYNTHETIC_PROOF_LEN: usize = 32;
+
     fn base_acc() -> FoldAccumulator {
         FoldAccumulator::new(vec![0x01; 32], 0, SESSION.to_owned(), PARAMS, [0u8; 32])
     }
@@ -30,6 +36,8 @@ mod real_folding_gaps {
                 session_id: SESSION.to_owned(),
                 params: PARAMS,
                 ciphertext_bytes: vec![CTXT_TAG; 4],
+                decrypt_share_bytes: vec![0u8; 32],
+                pvss_commitment: [0u8; 32],
                 multi_track_metadata: None,
             },
         }
@@ -54,6 +62,8 @@ mod real_folding_gaps {
                 session_id: SESSION.to_owned(),
                 params: PARAMS,
                 ciphertext_bytes: vec![200u8; 4],
+                decrypt_share_bytes: vec![0u8; 32],
+                pvss_commitment: [0u8; 32],
                 multi_track_metadata: None,
             },
         }
@@ -68,7 +78,7 @@ mod real_folding_gaps {
     fn test_fold_tampered_witness_rejected() {
         let acc = base_acc();
         let s = stmt(1);
-        let mut tampered = valid_witness(4);
+        let mut tampered = valid_witness(VALID_SYNTHETIC_PROOF_LEN);
         tampered.nizk_proof.proof_bytes[2] ^= 0xFF;
         assert!(
             fold(&acc, &tampered, &s).is_err(),
@@ -86,7 +96,7 @@ mod real_folding_gaps {
         let acc = base_acc();
         let mut bad_stmt = stmt(1);
         bad_stmt.params = (65_537, 512, 17);
-        let w = valid_witness(4);
+        let w = valid_witness(VALID_SYNTHETIC_PROOF_LEN);
         let result = fold(&acc, &w, &bad_stmt);
         assert!(result.is_err(), "fold must reject mismatched params");
         assert!(
@@ -111,7 +121,7 @@ mod real_folding_gaps {
                 nizk_backend_id: NizkProof::EXPECTED_BACKEND_ID,
                 // Uniform bytes with correct tag (200) but value 200 >> B_e=17.
                 // Tag check passes; only an arithmetic norm check catches this.
-                proof_bytes: vec![200u8; 4],
+                proof_bytes: vec![200u8; VALID_SYNTHETIC_PROOF_LEN],
             },
             fold_randomness: vec![0x44, 0x55],
         };
@@ -134,8 +144,8 @@ mod real_folding_gaps {
     fn test_fold_proof_not_deterministic() {
         let acc = base_acc();
         let s = stmt(1);
-        let mut w1 = valid_witness(4);
-        let mut w2 = valid_witness(4);
+        let mut w1 = valid_witness(VALID_SYNTHETIC_PROOF_LEN);
+        let mut w2 = valid_witness(VALID_SYNTHETIC_PROOF_LEN);
         w1.fold_randomness = vec![0x01, 0x02, 0x03];
         w2.fold_randomness = vec![0xAA, 0xBB, 0xCC];
         let acc1 = ok(fold(&acc, &w1, &s), "first fold should succeed");

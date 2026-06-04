@@ -559,6 +559,17 @@ pub fn int_poly_to_rns(coeffs: &[i64], ctx: &Arc<Context>) -> Result<Vec<u64>, N
 }
 
 /// Multiply two polynomials in RNS power-basis representation over R_Q.
+///
+/// # Trust Assumption (G7)
+///
+/// NTT correctness is assumed from the `fhe-math` backend. The polynomial
+/// multiplication converts to NTT domain, multiplies pointwise, and converts
+/// back. Native NTT bugs in `fhe-math` could produce valid-looking sigma proofs
+/// for invalid computations.
+///
+/// The Schwarz-Zippel evaluation path (`compute_sigma_sz_data`) sidesteps NTT
+/// in-circuit by evaluating polynomials at random points. However, the native
+/// proof generation and verification still use NTT for RNS arithmetic.
 pub fn poly_mul_rq(
     a_rns: &[u64],
     b_rns: &[u64],

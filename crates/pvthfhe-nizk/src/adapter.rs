@@ -118,22 +118,24 @@ impl NizkAdapter for CycloNizkAdapter {
             s_i: s_i.clone(),
             e_i,
         };
-        let sigma_proof = sigma::prove(
+        // G1 Option B: produce 90-round sigma proof for 142-bit soundness.
+        let sigma_multi = sigma::prove_multi(
             &sigma_binding,
             u32::from(stmt.participant_id),
             &sigma_stmt,
             &sigma_wit,
             rng,
             &stmt.pvss_commitment,
+            sigma::SIGMA_REPETITIONS,
         )?;
 
-        let proof_bytes = encode_proof(
+        let proof_bytes = encode_proof_multi(
             &ccs_id,
             &ajtai_commitment,
             stmt,
             &stmt.pvss_commitment,
             &d_rns,
-            &sigma_proof,
+            &sigma_multi,
         )?;
 
         Ok(NizkProof {
@@ -200,7 +202,7 @@ impl NizkAdapter for CycloNizkAdapter {
 
         cur.finish()?;
 
-        let (d_rns, sigma_proof) = decode_sigma_section(&sigma_section)?;
+        let (d_rns, sigma_multi) = decode_sigma_section_multi(&sigma_section)?;
 
         let c_rns = expand_c_rns(&ccs_id)?;
         let sigma_stmt = SigmaStatement { c_rns, d_rns };
@@ -212,11 +214,11 @@ impl NizkAdapter for CycloNizkAdapter {
             &stmt.decrypt_share_bytes,
         );
 
-        sigma::verify_scalar(
+        sigma::verify_multi(
             &sigma_binding,
             u32::from(stmt.participant_id),
             &sigma_stmt,
-            &sigma_proof,
+            &sigma_multi,
             &stmt.pvss_commitment,
         )?;
 
@@ -281,10 +283,11 @@ pub fn extract_sigma_proof(proof_bytes: &[u8]) -> Result<(Vec<u64>, sigma::Sigma
 /// Returns `(c_rns, d_rns, SigmaProof)` where `c_rns` is the deterministic
 /// statement polynomial derived from the encoded CCS instance id and `d_rns`
 /// is the proof-embedded decrypt-share polynomial used by the sigma verifier.
+/// Returns a `SigmaMultiProof` with all 90 parallel repetition rounds (G1 Option B).
 pub fn extract_sigma_statement_and_proof(
     stmt: &NizkStatement,
     proof_bytes: &[u8],
-) -> Result<(Vec<u64>, Vec<u64>, sigma::SigmaProof), NizkError> {
+) -> Result<(Vec<u64>, Vec<u64>, sigma::SigmaMultiProof), NizkError> {
     validate_statement(stmt)?;
     let mut cur = Cursor::new(proof_bytes);
 
@@ -313,10 +316,10 @@ pub fn extract_sigma_statement_and_proof(
     let sigma_section_len = usize::try_from(cur.read_u32()?)
         .map_err(|_| NizkError::InvalidProof("sigma_section_len overflow"))?;
     let sigma_section = cur.read_exact(sigma_section_len)?.to_vec();
-    let (d_rns, sigma_proof) = decode_sigma_section(&sigma_section)?;
+    let (d_rns, sigma_multi) = decode_sigma_section_multi(&sigma_section)?;
     let c_rns = expand_c_rns(&ccs_id)?;
 
-    Ok((c_rns, d_rns, sigma_proof))
+    Ok((c_rns, d_rns, sigma_multi))
 }
 
 fn validate_statement(stmt: &NizkStatement) -> Result<(), NizkError> {
@@ -641,13 +644,13 @@ fn encode_i64s_le(out: &mut Vec<u8>, vals: &[i64]) {
     }
 }
 
-fn encode_proof(
+fn encode_proof_multi(
     ccs_id: &[u8; 32],
     ajtai: &AjtaiCommitment,
     stmt: &NizkStatement,
     hash_commitment: &[u8; 32],
     d_rns: &[u64],
-    sigma_proof: &sigma::SigmaProof,
+    sigma_multi: &sigma::SigmaMultiProof,
 ) -> Result<Vec<u8>, NizkError> {
     let mut out = Vec::new();
 
@@ -670,10 +673,16 @@ fn encode_proof(
 
     let mut sigma_section = Vec::new();
     encode_u64s_le(&mut sigma_section, d_rns);
-    encode_u64s_le(&mut sigma_section, &sigma_proof.t_rns);
-    encode_i64s_le(&mut sigma_section, &sigma_proof.z_s);
-    encode_i64s_le(&mut sigma_section, &sigma_proof.z_e);
-    encode_ch_ternary_32(&mut sigma_section, sigma_proof.ch)?;
+    // Encode round count followed by per-round proofs
+    let num_rounds = u32::try_from(sigma_multi.rounds.len())
+        .map_err(|_| NizkError::InvalidInput("too many sigma rounds"))?;
+    sigma_section.extend_from_slice(&num_rounds.to_be_bytes());
+    for proof in &sigma_multi.rounds {
+        encode_u64s_le(&mut sigma_section, &proof.t_rns);
+        encode_i64s_le(&mut sigma_section, &proof.z_s);
+        encode_i64s_le(&mut sigma_section, &proof.z_e);
+        encode_ch_ternary_32(&mut sigma_section, proof.ch)?;
+    }
 
     let sigma_len = u32::try_from(sigma_section.len())
         .map_err(|_| NizkError::InvalidInput("sigma section too large"))?;
@@ -732,6 +741,30 @@ fn decode_sigma_section(bytes: &[u8]) -> Result<(Vec<u64>, sigma::SigmaProof), N
             ch,
         },
     ))
+}
+
+fn decode_sigma_section_multi(
+    bytes: &[u8],
+) -> Result<(Vec<u64>, sigma::SigmaMultiProof), NizkError> {
+    let mut cur = Cursor::new(bytes);
+    let d_rns = cur.read_u64s()?;
+    let num_rounds = usize::try_from(cur.read_u32()?)
+        .map_err(|_| NizkError::InvalidProof("sigma round count overflow"))?;
+    let mut rounds = Vec::with_capacity(num_rounds);
+    for _ in 0..num_rounds {
+        let t_rns = cur.read_u64s()?;
+        let z_s = cur.read_i64s()?;
+        let z_e = cur.read_i64s()?;
+        let ch = cur.read_ch_ternary_32()?;
+        rounds.push(sigma::SigmaProof {
+            t_rns,
+            z_s,
+            z_e,
+            ch,
+        });
+    }
+    cur.finish()?;
+    Ok((d_rns, sigma::SigmaMultiProof { rounds }))
 }
 
 fn encode_ch_ternary_32(out: &mut Vec<u8>, ch: i64) -> Result<(), NizkError> {

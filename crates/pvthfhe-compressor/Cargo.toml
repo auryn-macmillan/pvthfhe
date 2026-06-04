@@ -53,6 +53,11 @@ enable-greyhound = []
 # Symphony T3 (monomial embedding range proofs) and T4 (random projection) are
 # now compiled unconditionally. The feature flags have been removed in S8.
 # See ARCHITECTURE.md §Symphony for details.
+# G4: Real relinearization gate. When enabled, the Relinearize operation uses
+# a relin key from the FHE backend. When disabled (default), Relinearize returns
+# SynthesisError because the current stub is truncation-only (unsound).
+# See .sisyphus/plans/proof-gap-remediation.md §G4.
+real-relin = []
 # P3 LatticeFold+: lattice-native folding with algebraic range proofs.
 # Replaces bit-decomposition range checks with polynomial evaluation.
 enable-latticefold = []

@@ -11,6 +11,12 @@ use pvthfhe_aggregator::folding::{
 const SESSION: &str = "h2-aggregator-session";
 const PARAMS: (u64, usize, u64) = (65_537, 1_024, 17);
 
+#[cfg(feature = "real-nizk")]
+const VALID_SYNTHETIC_PROOF_LEN: usize = 2 + 32 + 26624;
+
+#[cfg(not(feature = "real-nizk"))]
+const VALID_SYNTHETIC_PROOF_LEN: usize = 32;
+
 fn track(
     kind: FoldTrackKind,
     slot_index: Option<u16>,
@@ -48,6 +54,8 @@ fn statement(meta: MultiTrackFoldMetadata) -> FoldStatement {
             session_id: SESSION.to_string(),
             params: PARAMS,
             ciphertext_bytes: vec![0x05; 4],
+            decrypt_share_bytes: vec![0u8; 32],
+            pvss_commitment: [0u8; 32],
             multi_track_metadata: Some(meta),
         },
     }
@@ -57,7 +65,7 @@ fn witness() -> FoldWitness {
     FoldWitness {
         nizk_proof: NizkProof {
             nizk_backend_id: NizkProof::EXPECTED_BACKEND_ID,
-            proof_bytes: vec![0u8; 4],
+            proof_bytes: vec![0u8; VALID_SYNTHETIC_PROOF_LEN],
         },
         fold_randomness: vec![0x11, 0x22],
     }

@@ -24,6 +24,27 @@
 //! z_e1 = y_e1 + ch * e1 (bound b_z_e() = B_Y + N * BFV_SIGMA_B_E)
 //! z_m = y_m + ch * m   (bound b_z_m() = B_Y + N * B_M)
 //! All fit in i64 since largest bound < 2^31 << 2^63.
+//!
+//! # CAVEATS (G6 Documentation — See SECURITY.md)
+//!
+//! **No rejection sampling**: The Lyubashevsky rejection-sampling loop is NOT
+//! implemented for this module. With binary polynomial challenges `ch ∈ {0,1}^N`
+//! and four witness polynomials (u, e0, e1, m), the rejection probability
+//! computation requires N inner products whose cost dominates proof generation
+//! at N=8192.
+//!
+//! **Computational ZK via noise drowning**: With masking bound B_Y = 2^30 and
+//! witness bounds B_U = 10^4, B_E = 10^4, B_M = 3.3×10^4, the witness-to-mask
+//! ratio is ≥ 4.0 (≈2^30 / (N × 3.3×10^4)), yielding overwhelming noise-drowning.
+//! The response distribution is dominated by the masking term, providing
+//! computational zero-knowledge under the RLWE assumption. Statistical ZK is
+//! NOT achieved (no rejection sampling → honest-verifier zero-knowledge does
+//! not extend to statistical ZK against malicious verifiers).
+//!
+//! **No in-circuit verification**: No Noir/R1CS verifier exists for BFV sigma
+//! proofs. BFV sigma proofs CANNOT be used inside Nova step circuits. For BFV
+//! ciphertext verification in circuits, use the Schwarz-Zippel evaluation
+//! approach instead (see `sigma.rs::compute_sigma_sz_data`).
 
 use fhe_math::rq::{Context, Poly, Representation};
 use fhe_traits::DeserializeWithContext;

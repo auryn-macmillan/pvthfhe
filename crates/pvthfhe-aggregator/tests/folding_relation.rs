@@ -28,6 +28,12 @@ fn base_params() -> (u64, usize, u64) {
 
 const SESSION: &str = "r4-rel-test";
 
+#[cfg(feature = "real-nizk")]
+const VALID_SYNTHETIC_PROOF_LEN: usize = 2 + 32 + 26624;
+
+#[cfg(not(feature = "real-nizk"))]
+const VALID_SYNTHETIC_PROOF_LEN: usize = 32;
+
 // ── Tests ───────────────────────────────────────────────────────────────────
 
 /// R4.1-T1: fold must commit to a Cyclo-verifiable RLWE relation.
@@ -50,13 +56,15 @@ fn test_fold_commits_to_cyclo_relation() {
             session_id: SESSION.to_string(),
             params,
             ciphertext_bytes: vec![tag; 32],
+            decrypt_share_bytes: vec![0u8; 32],
+            pvss_commitment: [0u8; 32],
             multi_track_metadata: None,
         },
     };
     let wit = FoldWitness {
         nizk_proof: NizkProof {
             nizk_backend_id: NizkProof::EXPECTED_BACKEND_ID,
-            proof_bytes: vec![0u8; 64],
+            proof_bytes: vec![0u8; VALID_SYNTHETIC_PROOF_LEN],
         },
         fold_randomness: vec![0u8; 8],
     };
@@ -138,13 +146,15 @@ fn test_fold_then_verify_succeeds() {
             session_id: SESSION.to_string(),
             params,
             ciphertext_bytes: vec![tag; 8],
+            decrypt_share_bytes: vec![0u8; 32],
+            pvss_commitment: [0u8; 32],
             multi_track_metadata: None,
         },
     };
     let wit = FoldWitness {
         nizk_proof: NizkProof {
             nizk_backend_id: NizkProof::EXPECTED_BACKEND_ID,
-            proof_bytes: vec![0u8; 32],
+            proof_bytes: vec![0u8; VALID_SYNTHETIC_PROOF_LEN],
         },
         fold_randomness: vec![0u8; 32],
     };

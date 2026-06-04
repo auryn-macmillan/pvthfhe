@@ -101,6 +101,23 @@ Only the Noir `aggregator_final` circuit is verified on-chain (via HonkVerifier.
 | Nova IVC fold soundness | — | ✓ (bound but NOT verified on-chain) |
 | C7 decryption aggregation | ✓ (Hash binding only) | — |
 
+## Trusted Components
+
+The following components are trusted without cryptographic proof of correctness:
+
+| Component | Trust Assumption | Impact |
+| --- | --- | --- |
+| `fhe-math` NTT | NTT implementation is assumed correct. No independent proof of NTT correctness exists. | NTT bugs could produce valid-looking sigma proofs for malformed ciphertexts. The Schwarz-Zippel evaluation path sidesteps NTT in-circuit, but native proof generation/verification still depends on NTT for RNS polynomial arithmetic. |
+| `fhe-math` RNS arithmetic | RNS limb arithmetic (modular reduction, limb decomposition) is assumed correct. | Arithmetic errors could affect commitment computation and equation checks, producing false proofs or false verifications. |
+
+## BFV Sigma Caveats
+
+BFV sigma proofs (`bfv_sigma.rs`) have the following documented limitations:
+
+- **Computational ZK only**: BFV sigma proofs achieve computational zero-knowledge through noise drowning (witness-to-mask ratio ≥ 4.0), NOT statistical ZK.
+- **No rejection sampling**: The Lyubashevsky rejection-sampling loop is not implemented. The response distribution is dominated by the masking term (B_Y = 2^30), providing computational ZK under the RLWE assumption.
+- **No in-circuit verifier**: There is no Noir/R1CS verifier for BFV sigma proofs. BFV sigma proofs are outer-circuit only and cannot be used inside Nova step circuits. For BFV ciphertext verification inside circuits, use the Schwarz-Zippel evaluation approach instead (`sigma.rs::compute_sigma_sz_data`).
+
 ## Post-Quantum Proving Stack
 
 Post-quantum proving stack: LaZer (sigma) → Greyhound (commitments) → LatticeFold+ (folding) → UltraHonk (final proof).

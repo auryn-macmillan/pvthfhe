@@ -692,6 +692,18 @@ fn mul_fhe_ct_bp<CS: ConstraintSystem<NovaScalar>>(
 /// For the demo, Relinearize = (ct[0], ct[1], ct[2]) → (ct[0], ct[1]).
 /// Input: 36 coefficients (3 polys × L limbs × N coeffs).
 /// Output: 24 coefficients (2 polys × L limbs × N coeffs).
+///
+/// # G4 Gap — truncation-only, no relin key
+///
+/// This stub enforces `out[i] == in[i]` for i=0..23 (ct[0], ct[1]).
+/// It does NOT verify ct[2] nor use a relinearization key.  Real relin
+/// requires `ct_out = ct[0] + ct[1] · rlk` with a backend-supplied rlk.
+/// The rlk is not yet exposed by `pvthfhe-fhe`.
+///
+/// Gated behind `#[cfg(feature = "real-relin")]`.  Without the feature,
+/// the Relinearize branch returns `SynthesisError`.
+/// See `.sisyphus/plans/proof-gap-remediation.md` §G4.
+#[cfg(feature = "real-relin")]
 fn relin_fhe_ct_bp<CS: ConstraintSystem<NovaScalar>>(
     cs: &mut CS,
     ct_in_coeffs: &[u64],
@@ -1448,14 +1460,14 @@ impl
                         step,
                     )?;
                 }
+                #[cfg(feature = "real-relin")]
                 FheOp::Relinearize { .. } => {
-                    // Relinearize = drop ct[2]; identity on first 24 coeffs.
+                    // Real relinearization: ct_out = ct_in[0] + ct_in[1] · rlk.
                     // ct0_coeffs may be 36 (pre-relin) and ct_out_coeffs is 24.
                     let in_len = witness.ct0_coeffs.len();
                     if in_len == BFV_MUL_CT_COEFFS_LEN {
                         relin_fhe_ct_bp(cs, &witness.ct0_coeffs, &witness.ct_out_coeffs, step)?;
                     } else if in_len == BFV_CT_COEFFS_LEN {
-                        // Already relinearized: enforce identity.
                         for i in 0..BFV_CT_COEFFS_LEN {
                             let in_var = AllocatedNum::alloc(
                                 cs.namespace(|| format!("relin_id_s{step}_in{i}")),
@@ -1473,6 +1485,10 @@ impl
                             );
                         }
                     }
+                }
+                #[cfg(not(feature = "real-relin"))]
+                FheOp::Relinearize { .. } => {
+                    return Err(SynthesisError::AssignmentMissing);
                 }
             }
 
@@ -1524,8 +1540,10 @@ impl
 //   Mul:  ✅ In-circuit — negacyclic convolution via `mul_fhe_ct_bp`;
 //          ~(3N^2+2N)·L R1CS constraints. Output is 3 polys; state stores
 //          first 2 polys (implicit Relinearize).
-//   Relinearize: ✅ In-circuit — drops ct[2] via `relin_fhe_ct_bp`;
-//          identity constraints on ct[0], ct[1] (24 coefficients).
+//   Relinearize: ⚠️ Gated behind `real-relin` feature — stub is truncation-only.
+//          Real relinearization requires a relin key from the FHE backend,
+//          which is not yet exposed. Without `real-relin`, returns SynthesisError.
+//          See .sisyphus/plans/proof-gap-remediation.md §G4.
 
 #[cfg(test)]
 mod tests {
@@ -1927,6 +1945,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "real-relin")]
     #[test]
     fn in_circuit_fhe_relin_gadget() {
         let n = BFV_N;
@@ -1950,6 +1969,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "real-relin")]
     #[test]
     fn in_circuit_fhe_relin_rejects_bad_output() {
         let n = BFV_N;
@@ -2267,6 +2287,70 @@ mod tests {
         assert!(
             test_cs.is_satisfied(),
             "previous output coefficients must be accepted from split z[0]/z[1] state"
+        );
+    }
+
+    // ── G4.2a: RED test — relinearization must REJECT without real-relin ──
+    //
+    // Without the `real-relin` feature, the Relinearize path must return
+    // SynthesisError because the current stub is truncation-only — it drops
+    // ct[2] without any relin key, unsound for a real FHE system.
+    // See .sisyphus/plans/proof-gap-remediation.md §G4.
+    //
+    // This test is RED before the feature gate (relin silently succeeds as
+    // truncation), GREEN after (relin returns SynthesisError).
+    #[test]
+    fn fhe_compute_relin_rejects_without_real_relin() {
+        use super::super::ark_to_nova_scalar;
+
+        let two_poly = BFV_CT_COEFFS_LEN;
+
+        let ct_out: Vec<u64> = (0..two_poly).map(|i| (i as u64 + 1) * 7).collect();
+        let ct_hash = [0xDDu8; 32];
+        let leaves: Vec<Fr> = vec![Fr::from_be_bytes_mod_order(&ct_hash), Fr::zero()];
+        let (tree, merkle_root) = build_merkle_tree(&leaves, 8);
+
+        let witness = FheComputeWitness {
+            operation: FheOp::Relinearize { ct_hash },
+            proof0: prove_merkle_path(&tree, 0, 8),
+            proof1: None,
+            output_hash: Fr::zero(),
+            ct0_coeffs: ct_out.clone(),
+            ct1_coeffs: vec![],
+            ct_out_coeffs: ct_out.clone(),
+        };
+
+        set_fhe_compute_data(vec![witness]);
+
+        let mut test_cs =
+            nova_snark::frontend::util_cs::test_cs::TestConstraintSystem::<NovaScalar>::new();
+        let z_vals = [
+            native_poseidon_commit_coeffs_half(&ct_out[..12]),
+            native_poseidon_commit_coeffs_half(&ct_out[12..]),
+            merkle_root,
+            Fr::zero(),
+        ];
+        let z: Vec<AllocatedNum<NovaScalar>> = z_vals
+            .iter()
+            .enumerate()
+            .map(|(i, &value)| {
+                AllocatedNum::alloc(test_cs.namespace(|| format!("z{i}")), || {
+                    Ok(ark_to_nova_scalar(value))
+                })
+            })
+            .collect::<Result<_, _>>()
+            .unwrap();
+
+        let circuit = FheComputeStepCircuit::<Fr>::default();
+        let result = <FheComputeStepCircuit<Fr> as nova_snark::traits::circuit::StepCircuit<
+            NovaScalar,
+        >>::synthesize(&circuit, &mut test_cs, &z);
+
+        clear_fhe_compute_data();
+
+        assert!(
+            result.is_err(),
+            "Relinearize must REJECT without real-relin feature: result was Ok"
         );
     }
 

@@ -9,7 +9,8 @@ use pvthfhe_aggregator::keygen::simulator::{KeygenResult, KeygenSimulator};
 use pvthfhe_bench::e2e_timings::E2eTimings;
 use pvthfhe_cli::compressor_glue::{compressor_backend_id, log_compressor_mode, Compressor};
 use pvthfhe_cli::full_pipeline::{
-    build_c7_prover_toml, run_full_pipeline, PipelineConfig, PipelineObserver, PipelineReport,
+    build_c7_prover_toml, build_c7_share_commitment_bundle, run_full_pipeline, PipelineConfig,
+    PipelineObserver, PipelineReport,
 };
 use pvthfhe_cli::pvss_support::{run_lattice_pvss, PVSS_BACKEND_ID};
 use pvthfhe_fhe::{fhers::FhersBackend, real_nizk::CYCLO_BACKEND_ID, FheBackend};
@@ -454,6 +455,8 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
         .zip(report.lagrange_coeffs.iter())
         .map(|(&sev, &lc)| sev * lc)
         .fold(Fr::zero(), |a, x| a + x);
+    let (share_polys, share_commitments, merkle_paths, leaf_indices, share_commitment_root) =
+        build_c7_share_commitment_bundle(&share_coeffs_fr);
 
     let prover_toml_data = build_c7_prover_toml(
         ciphertext_hash,
@@ -473,6 +476,11 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
         &share_evals,
         &report.lagrange_coeffs,
         pt_eval,
+        share_commitment_root,
+        &share_commitments,
+        &merkle_paths,
+        &leaf_indices,
+        &share_polys,
     );
     if let Err(e) = std::fs::write(&prover_toml_path, &prover_toml_data) {
         warn!(phase = "noir_aggregator_final", error = %e, "Noir aggregator_final: failed to write Prover.toml");
@@ -509,8 +517,13 @@ fn run_c7_nova_optional(_n: usize, _seed: u64) -> (f64, bool) {
         let epoch_hash: [u8; 32] = Sha256::digest(&seed_bytes).into();
 
         let start = Instant::now();
-        let compressor = NovaCompressor::<C7DecryptAggregationCircuit<Fr>>::new(epoch_hash, n, [0u8; 32], pvthfhe_compressor::nova::SBIND_C7_DECRYPT)
-            .expect("C7 nova compressor construction failed");
+        let compressor = NovaCompressor::<C7DecryptAggregationCircuit<Fr>>::new(
+            epoch_hash,
+            n,
+            [0u8; 32],
+            pvthfhe_compressor::nova::SBIND_C7_DECRYPT,
+        )
+        .expect("C7 nova compressor construction failed");
         let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
         let coeff_commitment = hash_all_coeffs(&vec![Fr::from(0u64); 8192]);
         let derived_r = hash_all_coeffs(&[coeff_commitment, Fr::from(0u64)]);
@@ -557,8 +570,13 @@ fn run_c7_merkle_optional(_n: usize, _seed: u64) -> (f64, bool) {
         let epoch_hash: [u8; 32] = Sha256::digest(&seed_bytes).into();
 
         let start = Instant::now();
-        let compressor = NovaCompressor::<C7MerkleStepCircuit<Fr>>::new(epoch_hash, n, [0u8; 32], pvthfhe_compressor::nova::SBIND_C7_DECRYPT)
-            .expect("C7 merkle nova compressor construction failed");
+        let compressor = NovaCompressor::<C7MerkleStepCircuit<Fr>>::new(
+            epoch_hash,
+            n,
+            [0u8; 32],
+            pvthfhe_compressor::nova::SBIND_C7_DECRYPT,
+        )
+        .expect("C7 merkle nova compressor construction failed");
         let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
 
         let steps: Vec<C7MerkleExternalInputs<Fr>> = (0..n)

@@ -42,6 +42,8 @@ fn make_stmt(tag: u8, fold_index: u64) -> FoldStatement {
             session_id: SESSION.to_string(),
             params: base_params(),
             ciphertext_bytes: vec![tag; 8],
+            decrypt_share_bytes: vec![0u8; 32],
+            pvss_commitment: [0u8; 32],
             multi_track_metadata: None,
         },
     }

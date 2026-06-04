@@ -37,6 +37,8 @@ fn make_statement(
             session_id: session_id.to_string(),
             params,
             ciphertext_bytes: vec![tag; 8],
+            decrypt_share_bytes: vec![0u8; 32],
+            pvss_commitment: [0u8; 32],
             multi_track_metadata: None,
         },
     }

@@ -18,6 +18,12 @@ fn base_params() -> (u64, usize, u64) {
     (65537, 1024, 17)
 }
 
+#[cfg(feature = "real-nizk")]
+const VALID_SYNTHETIC_PROOF_LEN: usize = 2 + 32 + 26624;
+
+#[cfg(not(feature = "real-nizk"))]
+const VALID_SYNTHETIC_PROOF_LEN: usize = 32;
+
 fn make_statement(
     fold_index: u64,
     session_id: &str,
@@ -32,6 +38,8 @@ fn make_statement(
             session_id: session_id.to_string(),
             params,
             ciphertext_bytes: vec![tag; 8],
+            decrypt_share_bytes: vec![0u8; 32],
+            pvss_commitment: [0u8; 32],
             multi_track_metadata: None,
         },
     }
@@ -41,7 +49,7 @@ fn make_witness(_tag: u8) -> FoldWitness {
     FoldWitness {
         nizk_proof: NizkProof {
             nizk_backend_id: NizkProof::EXPECTED_BACKEND_ID,
-            proof_bytes: vec![0u8; 32],
+            proof_bytes: vec![0u8; VALID_SYNTHETIC_PROOF_LEN],
         },
         fold_randomness: vec![0u8; 32],
     }

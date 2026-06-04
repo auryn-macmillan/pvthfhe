@@ -21,35 +21,35 @@ phase3-gate:
 # Default demo with optimized lattice features (LatticeFold+ + LaZer).
 demo-e2e n="10" t="4" seed="1":
     @echo "*** PVTHFHE end-to-end demo (research prototype) ***"
-    @echo "* Supported range: 1 ≤ t ≤ n ≤ 255 (Shamir over GF(256)) *"
+    @echo "* Supported range: 1 <= t <= n <= 255 (Shamir over GF(256)) *"
     @echo "* Backends: LaZer sigma proofs + LatticeFold+ folding (post-quantum) *"
     @echo "* On-chain Solidity verify is NOT run by this demo (use bench-comparison) *"
     @echo "* DO NOT DEPLOY — research prototype only                                 *"
     mkdir -p .sisyphus/evidence
     export PVTHFHE_RUN_C7_SONOBE=1
     PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 RUSTFLAGS="-Awarnings" cargo run --release -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng,pipeline-extra-checks,enable-lazer,enable-latticefold" -- \
-        demo --n {{n}} --threshold {{t}} --seed {{seed}} \
+        demo --n $(echo "{{n}}" | sed 's/^n=//') --threshold $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//') \
         2>&1 | tee .sisyphus/evidence/demo-e2e.log
 
 # Track A: Sonobe Nova/hash-then-fold (set PVTHFHE_TRACK=A).
 demo-e2e-track-a n="10" t="4" seed="1":
-    PVTHFHE_TRACK=A just demo-e2e {{n}} {{t}} {{seed}}
+    PVTHFHE_TRACK=A just demo-e2e $(echo "{{n}}" | sed 's/^n=//') $(echo "{{t}}" | sed 's/^t=//') $(echo "{{seed}}" | sed 's/^seed=//')
 
 # Per-node simulation — measures wall time for ONE party at given n and t
 per-node n="10" t="4" seed="1":
-    cargo run -p pvthfhe-cli --release --bin per-node --features "nova-compressor,enable-lazer,enable-latticefold" -- --n {{n}} --threshold {{t}} --seed {{seed}}
+    cargo run -p pvthfhe-cli --release --bin per-node --features "nova-compressor,enable-lazer,enable-latticefold" -- --n $(echo "{{n}}" | sed 's/^n=//') --threshold $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//')
 
 # Per-node baseline (no lattice features)
 per-node-baseline n="10" t="4" seed="1":
-    cargo run -p pvthfhe-cli --release --bin per-node --features "nova-compressor" -- --n {{n}} --threshold {{t}} --seed {{seed}}
+    cargo run -p pvthfhe-cli --release --bin per-node --features "nova-compressor" -- --n $(echo "{{n}}" | sed 's/^n=//') --threshold $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//')
 
 # Per-aggregator simulation — measures wall time for the aggregator node
 aggregator n="10" t="4" seed="1":
-    cargo run -p pvthfhe-cli --release --bin per-aggregator --features "nova-compressor,enable-lazer,enable-latticefold" -- --n {{n}} --threshold {{t}} --seed {{seed}}
+    cargo run -p pvthfhe-cli --release --bin per-aggregator --features "nova-compressor,enable-lazer,enable-latticefold" -- --n $(echo "{{n}}" | sed 's/^n=//') --threshold $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//')
 
 # Per-aggregator baseline (no lattice features)
 aggregator-baseline n="10" t="4" seed="1":
-    cargo run -p pvthfhe-cli --release --bin per-aggregator --features "nova-compressor" -- --n {{n}} --threshold {{t}} --seed {{seed}}
+    cargo run -p pvthfhe-cli --release --bin per-aggregator --features "nova-compressor" -- --n $(echo "{{n}}" | sed 's/^n=//') --threshold $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//')
 
 bench-p4:
     mkdir -p .sisyphus/evidence/benchmarks/p4
@@ -64,14 +64,14 @@ bench-scaling:
 
 bench-comparison n="3" t="1" seed="1":
     mkdir -p bench/results
-    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features nova-compressor,demo-seeded-rng,pipeline-extra-checks -- --n {{n}} --t {{t}} --seed {{seed}}
-    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features nova-compressor,demo-seeded-rng,pipeline-extra-checks -- --n {{n}} --t {{t}} --seed {{seed}}
-    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features nova-compressor,demo-seeded-rng,pipeline-extra-checks -- --n {{n}} --t {{t}} --seed {{seed}}
-    cargo run -p pvthfhe-bench --bin bench_comparison -- --n {{n}} --t {{t}} --seed {{seed}}
+    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features nova-compressor,demo-seeded-rng,pipeline-extra-checks -- --n $(echo "{{n}}" | sed 's/^n=//') --t $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//')
+    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features nova-compressor,demo-seeded-rng,pipeline-extra-checks -- --n $(echo "{{n}}" | sed 's/^n=//') --t $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//')
+    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features nova-compressor,demo-seeded-rng,pipeline-extra-checks -- --n $(echo "{{n}}" | sed 's/^n=//') --t $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//')
+    cargo run -p pvthfhe-bench --bin bench_comparison -- --n $(echo "{{n}}" | sed 's/^n=//') --t $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//')
     cargo run -p pvthfhe-bench --bin render_comparison -- --comparison-json bench/results/comparison.json --output-dir bench/results
 
 bench-comparison-dryrun n t seed:
-    cargo run -p pvthfhe-bench --bin bench_comparison -- --n {{n}} --t {{t}} --seed {{seed}} --dry-run
+    cargo run -p pvthfhe-bench --bin bench_comparison -- --n $(echo "{{n}}" | sed 's/^n=//') --t $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//') --dry-run
 
 wire-gate:
     cargo test -p pvthfhe-cli
@@ -115,7 +115,7 @@ noir-onchain-gate:
     just verify-onchain
 
 bench-fhe-baseline n_max="64":
-    FHE_BENCH_N_MAX={{n_max}} cargo run --release -p pvthfhe-bench --bin fhe_baseline
+    FHE_BENCH_N_MAX=$(echo "{{n_max}}" | sed 's/^n_max=//') cargo run --release -p pvthfhe-bench --bin fhe_baseline
 
 verify-onchain:
     mkdir -p .sisyphus/evidence
@@ -149,8 +149,8 @@ greco:
     cargo run --release -p pvthfhe-cli --features "nova-compressor,enable-lazer" -- snapshot prove
 
 compute n_ops="3":
-    @echo "=== Verifiable FHE Computation (summing {{n_ops}} ciphertexts) ==="
-    cargo run --release -p pvthfhe-cli --features "nova-compressor,enable-lazer" -- compute prove --n {{n_ops}}
+    @echo "=== Verifiable FHE Computation (summing $(echo "{{n_ops}}" | sed 's/^n_ops=//') ciphertexts) ==="
+    cargo run --release -p pvthfhe-cli --features "nova-compressor,enable-lazer" -- compute prove --n $(echo "{{n_ops}}" | sed 's/^n_ops=//')
 
 bench-folding:
     @echo "not implemented"

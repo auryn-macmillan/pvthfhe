@@ -2165,8 +2165,9 @@ where
         acc: &[u8],
         steps: &[ExternalInputs3<ark_bn254::Fr>],
     ) -> Result<CompressedProof, CompressorError> {
+        // ThreadLocalClearGuard cleans up on drop; do NOT clear sigma data here —
+        // the caller must populate SIGMA_DATA before calling prove_steps.
         clear_cyclo_ring_data();
-        clear_sigma_data();
 
         let _guard = ThreadLocalClearGuard;
 
@@ -2688,7 +2689,7 @@ impl<
         // circuits/nova_state_commitment/src/main.nr for the Poseidon shortcut
         // that this would replace. Unblocked by Nova audit completion.
         clear_cyclo_ring_data();
-        clear_sigma_data();
+        // Do NOT clear sigma data — caller must populate SIGMA_DATA before calling prove.
 
         let _guard = ThreadLocalClearGuard;
 
@@ -2803,9 +2804,9 @@ impl<
 #[cfg(feature = "legacy-nova")]
 impl ProofCompressor for NovaCompressor<CycloFoldStepCircuit<Fr>> {
     fn prove(&self, acc: &[u8], public_inputs: &[u8]) -> Result<CompressedProof, CompressorError> {
-        // F6.3: clear stale thread-local witness data from prior prove calls
+        // F6.3: clear stale thread-local witness data from prior prove calls.
+        // Do NOT clear sigma data — caller populates SIGMA_DATA before calling prove.
         clear_cyclo_ring_data();
-        clear_sigma_data();
         clear_sigma_response_data();
 
         let _guard = ThreadLocalClearGuard;

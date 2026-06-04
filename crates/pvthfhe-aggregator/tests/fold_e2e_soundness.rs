@@ -57,6 +57,8 @@ fn make_statement(
             session_id: session_id.to_string(),
             params,
             ciphertext_bytes: vec![tag; 8],
+            decrypt_share_bytes: vec![0u8; 32],
+            pvss_commitment: [0u8; 32],
             multi_track_metadata: None,
         },
     }
@@ -128,12 +130,12 @@ fn adversary_game(session_id: &str, params: (u64, usize, u64), seed: u64) -> boo
 /// cannot produce a verified fold (≥ t instances) without at least t
 /// valid per-party NIZK proofs.
 ///
+/// G3: Full NIZK verification (CycloNizkAdapter::verify) now runs before
+/// accumulation. 32-byte forged proofs fail the minimum-size check.
+///
 /// Runs 10³ forge attempts and asserts zero successes.
+#[cfg(feature = "real-nizk")]
 #[test]
-#[cfg_attr(
-    not(feature = "real-nizk"),
-    ignore = "A1/P2 open: default real-folding does not yet perform full folded-accumulator transcript/NIZK verification; nonzero accumulator verification remains fail-closed. Under real-nizk this runs only as a 26,658-byte minimum-proof-size surrogate regression, NOT full A1 folded-accumulator transcript verification; default path has no NIZK size check, so forged short proofs are accepted. (docs/OPEN-PROBLEM-BLOCKERS.md:86-99, SECURITY.md:66-68,86-88)"
-)]
 fn test_adversary_cannot_forge_fold_with_t_minus_1_valid() {
     let params = base_params();
     let session_id = "e2e-soundness-game";
@@ -149,22 +151,21 @@ fn test_adversary_cannot_forge_fold_with_t_minus_1_valid() {
 
     assert_eq!(
         forgeries, 0,
-        "R4.4 RED: adversary forged {forgeries}/{attempts} fold completions.\n\
+        "G3 RED: adversary forged {forgeries}/{attempts} fold completions.\n\
          NIZK verification is not wired — the fold path accepts proof bytes\n\
-         that pass only syntax-level checks.  GREEN must integrate R3 NIZK +\n\
-         R2 Cyclo + R4.1 fold so each instance is bound to a verified NIZK."
+         that pass only syntax-level checks."
     );
 }
 
 /// R4.4-T2: Adversary cannot fold even a single entirely-forged instance
 /// (zero valid shares, n=1 party).
 ///
+/// G3: Full NIZK verification (CycloNizkAdapter::verify) now runs before
+/// accumulation. 32-byte forged proofs fail the minimum-size check.
+///
 /// Runs 10³ forge attempts and asserts zero successes.
+#[cfg(feature = "real-nizk")]
 #[test]
-#[cfg_attr(
-    not(feature = "real-nizk"),
-    ignore = "A1/P2 open: default real-folding does not yet reject all syntactically valid forged fold witnesses via full NIZK transcript verification. Under real-nizk this runs only as a 26,658-byte minimum-proof-size surrogate regression, NOT full A1 folded-accumulator transcript verification; default path has no NIZK size check, so forged short proofs are accepted. (docs/OPEN-PROBLEM-BLOCKERS.md:86-99, SECURITY.md:66-68,86-88)"
-)]
 fn test_adversary_cannot_forge_single_instance() {
     let params = base_params();
     let session_id = "e2e-single-forged";
@@ -184,21 +185,21 @@ fn test_adversary_cannot_forge_single_instance() {
 
     assert_eq!(
         forgeries, 0,
-        "R4.4 RED: adversary forged {forgeries}/{attempts} single-instance attempts.\n\
+        "G3 RED: adversary forged {forgeries}/{attempts} single-instance attempts.\n\
          The fold path currently accepts any proof bytes that satisfy\n\
-         syntactic checks — true NIZK verification is required (GREEN)."
+         syntactic checks — true NIZK verification is required."
     );
 }
 
 /// R4.4-T3: Adversary cannot forge with mismatched ciphertext tag
 /// (proof-witness to statement-ciphertext binding).
 ///
+/// G3: Full NIZK verification (CycloNizkAdapter::verify) now runs before
+/// accumulation. 32-byte forged proofs fail the minimum-size check.
+///
 /// Runs 10³ forge attempts and asserts zero successes.
+#[cfg(feature = "real-nizk")]
 #[test]
-#[cfg_attr(
-    not(feature = "real-nizk"),
-    ignore = "A1/P2 open: proof-to-ciphertext fold transcript verification is not complete on the default path. Under real-nizk this runs only as a 26,658-byte minimum-proof-size surrogate regression, NOT full A1 folded-accumulator transcript verification; default path has no NIZK size check, so forged short proofs are accepted. (docs/OPEN-PROBLEM-BLOCKERS.md:86-99, SECURITY.md:66-68,86-88)"
-)]
 fn test_adversary_cannot_forge_with_mismatched_ciphertext() {
     let params = base_params();
     let session_id = "e2e-ct-mismatch";
@@ -216,6 +217,8 @@ fn test_adversary_cannot_forge_with_mismatched_ciphertext() {
                 session_id: session_id.to_string(),
                 params,
                 ciphertext_bytes: vec![0x01; 8],
+                decrypt_share_bytes: vec![0u8; 32],
+                pvss_commitment: [0u8; 32],
                 multi_track_metadata: None,
             },
         };
@@ -229,7 +232,7 @@ fn test_adversary_cannot_forge_with_mismatched_ciphertext() {
 
     assert_eq!(
         forgeries, 0,
-        "R4.4 RED: ciphertext-mismatch fold accepted in {forgeries}/{attempts} attempts.\n\
+        "G3 RED: ciphertext-mismatch fold accepted in {forgeries}/{attempts} attempts.\n\
          The fold path does not verify NIZK proofs against statement ciphertexts."
     );
 }

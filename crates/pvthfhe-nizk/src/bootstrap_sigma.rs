@@ -107,12 +107,21 @@ fn sample_bounded_scalar(rng: &mut dyn RngCore, bound: i64) -> i64 {
     }
 }
 
-fn derive_challenge(t: u64, c: u64, d: u64, session_id: &[u8], party_id: u32, round: usize) -> i64 {
+fn derive_challenge(
+    t: u64,
+    c: u64,
+    d: u64,
+    bsk_hash: &[u8; 32],
+    session_id: &[u8],
+    party_id: u32,
+    round: usize,
+) -> i64 {
     let mut h = Sha256::new();
     h.update(b"pvthfhe/bootstrap-sigma-ch/v1");
     h.update(session_id);
     h.update(party_id.to_le_bytes());
     h.update((round as u64).to_le_bytes());
+    h.update(bsk_hash);
     h.update(t.to_le_bytes());
     h.update(c.to_le_bytes());
     h.update(d.to_le_bytes());
@@ -153,7 +162,7 @@ pub fn prove(
         let y_s = sample_bounded_scalar(rng, B_Y);
         let y_e = sample_bounded_scalar(rng, B_Y);
         let t = scalar_add_mod(scalar_mul_mod(c, y_s, q), y_e, q);
-        let ch = derive_challenge(t, c, d, session_id, party_id, round_index);
+        let ch = derive_challenge(t, c, d, &stmt.bsk_hash, session_id, party_id, round_index);
         let z_s = y_s + ch * s;
         let z_e = y_e + ch * e;
 
@@ -168,6 +177,10 @@ pub fn prove(
 }
 
 /// Verify a single-round bootstrap sigma proof.
+///
+/// This sigma proves that ct_out comes from the same LWE secret key as ct_in
+/// under the claimed bootstrapping key hash. It does NOT prove the full blind
+/// rotation was correct (CMUX chain verification is deferred to P2).
 ///
 /// `round_index` must match the value used during [`prove`] to ensure
 /// round-serial-number binding in multi-round protocols.
@@ -187,7 +200,15 @@ pub fn verify(
             "challenge must be -1, 0, or 1",
         ));
     }
-    let expected_ch = derive_challenge(proof.t, c, d, session_id, party_id, round_index);
+    let expected_ch = derive_challenge(
+        proof.t,
+        c,
+        d,
+        &stmt.bsk_hash,
+        session_id,
+        party_id,
+        round_index,
+    );
     if proof.ch != expected_ch {
         return Err(NizkError::VerificationFailed("challenge mismatch"));
     }
@@ -420,6 +441,56 @@ mod tests {
         let proof = BootstrapSigmaMultiProof { rounds: vec![] };
         let result = verify_multi(b"session", 1, &stmt, &proof, &[0u8; 32]);
         assert!(result.is_err(), "empty multi-round proof must be rejected");
+    }
+
+    /// G5.2a: RED→GREEN — prove with one bsk_hash, verify with a different one → REJECT.
+    ///
+    /// Uses multi-round verification (8 rounds) for reliability, since single-round
+    /// challenges only map to {-1,0,1} giving ~33% accidental collision per round.
+    #[test]
+    fn test_wrong_bsk_hash_rejected() {
+        let a_in = 42u64;
+        let a_out = 17u64;
+        let s = 1i64;
+        let e_in = 3i64;
+        let e_out = 1i64;
+        let m = 0i64;
+        let ct_in = make_lwe_ct(a_in, s, e_in, m);
+        let ct_out = make_lwe_ct(a_out, s, e_out, m);
+
+        let bsk_hash_honest = [1u8; 32];
+        let bsk_hash_adversary = [99u8; 32];
+
+        let stmt_honest = BootstrapStatement {
+            ct_in_bytes: ct_in.clone(),
+            ct_out_bytes: ct_out.clone(),
+            bsk_hash: bsk_hash_honest,
+        };
+
+        let stmt_adversary = BootstrapStatement {
+            ct_in_bytes: ct_in,
+            ct_out_bytes: ct_out,
+            bsk_hash: bsk_hash_adversary,
+        };
+
+        let wit = BootstrapWitness {
+            secret_key: vec![s],
+            bsk_noise: vec![e_in - e_out],
+        };
+
+        let mut rng = StdRng::seed_from_u64(42);
+        let multi_proof =
+            prove_multi(b"test", 1, &stmt_honest, &wit, &mut rng, &[0u8; 32], 8).unwrap();
+        assert_eq!(multi_proof.rounds.len(), 8);
+
+        let result = verify_multi(b"test", 1, &stmt_adversary, &multi_proof, &[0u8; 32]);
+        assert!(
+            result.is_err(),
+            "verification must reject when bsk_hash differs from the one used during prove"
+        );
+
+        verify_multi(b"test", 1, &stmt_honest, &multi_proof, &[0u8; 32])
+            .expect("honest bsk_hash must still verify");
     }
 
     #[test]

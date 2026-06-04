@@ -87,6 +87,11 @@ pub fn create_backend(params_toml: &str) -> anyhow::Result<Box<dyn FheBackend>> 
 /// `circuits/aggregator_final/src/main.nr:15`.
 const NOIR_MAX_PARTICIPANTS: usize = 128;
 
+/// Matches Noir circuit's DEPTH (binary Merkle tree depth).
+const DEPTH_BINARY: usize = 8;
+/// Matches Noir circuit's N (polynomial coefficient count).
+const N_COEFFS: usize = 8;
+
 /// Pipeline track selector.
 ///
 /// Track A: Nova Nova hash-then-fold (current behavior, unchanged).
@@ -1771,48 +1776,61 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 participant_id: stmt.participant_id,
                 epoch: stmt.epoch,
             };
-            let (c_rns, d_rns, sigma_proof) =
+            let (c_rns, d_rns, sigma_multi) =
                 pvthfhe_nizk::adapter::extract_sigma_statement_and_proof(
                     &nizk_stmt,
                     proof.as_bytes(),
                 )
                 .map_err(|e| anyhow::anyhow!("extract sigma proof party {}: {e}", party_id))?;
-            let (z_s_ntt, z_e_ntt, t_ntt, d_i_ntt, c_ntt, z_s_power, z_e_power, ch) =
-                pvthfhe_nizk::sigma::compute_sigma_ntt_data(&c_rns, &d_rns, &sigma_proof).map_err(
-                    |e| anyhow::anyhow!("compute sigma NTT data party {}: {e}", party_id),
-                )?;
-            let (sz_gamma, sz_c_eval, sz_zs_eval, sz_ze_eval, sz_t_eval, sz_di_eval, sz_r1_eval) =
-                compute_sigma_sz_data(
+
+            // G1 Option B: extract all 90 sigma rounds from the multi-proof.
+            // Each round becomes a separate SIGMA_DATA entry for per-step verification.
+            for sigma_proof in &sigma_multi.rounds {
+                let (z_s_ntt, z_e_ntt, t_ntt, d_i_ntt, c_ntt, z_s_power, z_e_power, ch) =
+                    pvthfhe_nizk::sigma::compute_sigma_ntt_data(&c_rns, &d_rns, sigma_proof)
+                        .map_err(|e| {
+                            anyhow::anyhow!("compute sigma NTT data party {}: {e}", party_id)
+                        })?;
+                let (
+                    sz_gamma,
+                    sz_c_eval,
+                    sz_zs_eval,
+                    sz_ze_eval,
+                    sz_t_eval,
+                    sz_di_eval,
+                    sz_r1_eval,
+                ) = compute_sigma_sz_data(
                     &c_rns,
                     &d_rns,
-                    &sigma_proof,
+                    sigma_proof,
                     stmt.session_id.as_bytes(),
                     *party_id,
                 );
-            let transcript_commitment = pvthfhe_nizk::sigma::derive_transcript_commitment(
-                &sigma_proof.t_rns,
-                &c_rns,
-                &d_rns,
-            );
-            sigma_witnesses.push(CompressorSigmaWitness {
-                z_s_ntt,
-                z_e_ntt,
-                t_ntt,
-                d_i_ntt,
-                c_ntt,
-                ch,
-                transcript_commitment,
-                z_s_power,
-                z_e_power,
-                sz_gamma,
-                sz_c_eval,
-                sz_zs_eval,
-                sz_ze_eval,
-                sz_t_eval,
-                sz_di_eval,
-                sz_r1_eval,
-                sz_r2_eval: vec![0u64; 9], // 3 gamma points × 3 limbs
-            });
+                let transcript_commitment = pvthfhe_nizk::sigma::derive_transcript_commitment(
+                    &sigma_proof.t_rns,
+                    &c_rns,
+                    &d_rns,
+                );
+                sigma_witnesses.push(CompressorSigmaWitness {
+                    z_s_ntt,
+                    z_e_ntt,
+                    t_ntt,
+                    d_i_ntt,
+                    c_ntt,
+                    ch,
+                    transcript_commitment,
+                    z_s_power,
+                    z_e_power,
+                    sz_gamma,
+                    sz_c_eval,
+                    sz_zs_eval,
+                    sz_ze_eval,
+                    sz_t_eval,
+                    sz_di_eval,
+                    sz_r1_eval,
+                    sz_r2_eval: vec![0u64; 9],
+                });
+            }
         }
 
         // G2-ng: populate thread-local ring/sigma data before compressor preprocessing.
@@ -2220,15 +2238,10 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         );
     }
 
-    // P2.1: Build fold verification data for FoldVerifierStepCircuit.
-    let fold_steps: usize = {
-        let accumulators = fold_report.accumulators();
-        if accumulators.is_empty() {
-            1
-        } else {
-            (accumulators.len() / 2).max(1)
-        }
-    };
+    // G1 Option B: 90 Nova fold steps for sub-exponential sigma soundness (~142 bits).
+    // Each step verifies 1 sigma round (SIGMA_REPETITIONS = 1 in-circuit).
+    // The native sigma prover now generates 90-round proofs via prove_multi.
+    let fold_steps: usize = 90;
 
     let mut compressor = Compressor::new(epoch_hash, fold_steps)?;
     observer.phase_end("compressor_new", elapsed_ms(compressor_new_started));
@@ -2263,15 +2276,17 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 participant_id: stmt.participant_id,
                 epoch: stmt.epoch,
             };
-            let (_, _, sigma_proof) =
+            let (_, _, sigma_multi) =
                 extract_sigma_statement_and_proof(&nizk_stmt, proof.as_bytes())
                     .map_err(|e| anyhow::anyhow!("extract sigma proof for JL projection: {e}"))?;
-            let p_s = compute_raw_jl_sum(&sigma_proof.z_s, seed, JL_PROJECTION_DIM);
-            let p_e = compute_raw_jl_sum(&sigma_proof.z_e, seed, JL_PROJECTION_DIM);
-            let jl_entries = compute_jl_entries(seed, JL_PROJECTION_DIM, sigma_proof.z_s.len());
+            // Use first round for JL projection (any round works since they share the same witness)
+            let first_round = &sigma_multi.rounds[0];
+            let p_s = compute_raw_jl_sum(&first_round.z_s, seed, JL_PROJECTION_DIM);
+            let p_e = compute_raw_jl_sum(&first_round.z_e, seed, JL_PROJECTION_DIM);
+            let jl_entries = compute_jl_entries(seed, JL_PROJECTION_DIM, first_round.z_s.len());
             responses.push((
-                sigma_proof.z_s.clone(),
-                sigma_proof.z_e.clone(),
+                first_round.z_s.clone(),
+                first_round.z_e.clone(),
                 p_s,
                 p_e,
                 jl_entries,
@@ -2457,6 +2472,44 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
     let n_shares_field = Fr::from(share_coeffs.len() as u64);
 
+    // G2: Build share commitment Merkle tree
+    // share_polys: pad share_coeffs_fr to 128 entries, each as [Fr; N_COEFFS]
+    let mut share_polys = vec![[Fr::zero(); N_COEFFS]; NOIR_MAX_PARTICIPANTS];
+    let mut share_commitments = vec![Fr::zero(); NOIR_MAX_PARTICIPANTS];
+    let domain_vec_merkle = Fr::from(1u64); // DOMAIN_VECTOR_MERKLE
+    for i in 0..share_coeffs_fr.len() {
+        for k in 0..N_COEFFS {
+            share_polys[i][k] = share_coeffs_fr[i].get(k).copied().unwrap_or(Fr::zero());
+        }
+        let mut inputs = Vec::with_capacity(N_COEFFS + 1);
+        inputs.push(domain_vec_merkle);
+        for k in 0..N_COEFFS {
+            inputs.push(share_polys[i][k]);
+        }
+        share_commitments[i] = poseidon_sponge_native_noir(&inputs);
+    }
+    // Zero-padded entries: compute commitment for zero polynomial
+    let zero_poly_commitment = {
+        let mut inputs = Vec::with_capacity(N_COEFFS + 1);
+        inputs.push(domain_vec_merkle);
+        for _ in 0..N_COEFFS {
+            inputs.push(Fr::zero());
+        }
+        poseidon_sponge_native_noir(&inputs)
+    };
+    for i in share_coeffs_fr.len()..NOIR_MAX_PARTICIPANTS {
+        share_commitments[i] = zero_poly_commitment;
+    }
+
+    let (merkle_tree_levels, share_commitment_root) = build_binary_merkle_tree(&share_commitments);
+    let merkle_paths = prove_binary_merkle_paths(&merkle_tree_levels);
+    let leaf_indices: Vec<Fr> = (0..NOIR_MAX_PARTICIPANTS)
+        .map(|i| Fr::from(i as u64))
+        .collect();
+
+    let (share_polys, share_commitments, merkle_paths, leaf_indices, share_commitment_root) =
+        build_c7_share_commitment_bundle(&share_coeffs_fr);
+
     let prover_toml = build_c7_prover_toml(
         ciphertext_hash,
         aggregate_pk_hash,
@@ -2475,6 +2528,11 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         &c7_share_evals,
         &lagrange_coeffs_fr,
         c7_pt_eval,
+        share_commitment_root,
+        &share_commitments,
+        &merkle_paths,
+        &leaf_indices,
+        &share_polys,
     );
     let mut noir_passed = true;
 
@@ -3646,6 +3704,104 @@ fn field_hex_be(value: Fr) -> String {
     hex::encode(bytes)
 }
 
+/// Build a binary Merkle tree (arity=2) using Poseidon hash_pair over `leaves`.
+/// Returns (tree_levels, root) where tree_levels[0] = leaves and tree_levels[last] = [root].
+fn build_binary_merkle_tree(leaves: &[Fr]) -> (Vec<Vec<Fr>>, Fr) {
+    assert_eq!(
+        leaves.len(),
+        NOIR_MAX_PARTICIPANTS,
+        "binary Merkle tree expects 128 leaves"
+    );
+    let mut levels: Vec<Vec<Fr>> = vec![leaves.to_vec()];
+    while levels.last().unwrap().len() > 1 {
+        let current = levels.last().unwrap();
+        let mut next = Vec::with_capacity((current.len() + 1) / 2);
+        for pair in current.chunks(2) {
+            let left = pair[0];
+            let right = if pair.len() > 1 { pair[1] } else { Fr::zero() };
+            next.push(poseidon_sponge_native_noir(&[left, right]));
+        }
+        levels.push(next);
+    }
+    let root = levels.last().unwrap()[0];
+    (levels, root)
+}
+
+/// Generate binary Merkle proofs (sibling paths) for all leaves.
+/// Returns Vec of [Fr; DEPTH_BINARY] sibling arrays, one per leaf.
+fn prove_binary_merkle_paths(tree: &[Vec<Fr>]) -> Vec<[Fr; DEPTH_BINARY]> {
+    let n_leaves = tree[0].len();
+    let mut paths = vec![[Fr::zero(); DEPTH_BINARY]; n_leaves];
+
+    for leaf_idx in 0..n_leaves {
+        let mut idx = leaf_idx;
+        for level in 0..(tree.len() - 1).min(DEPTH_BINARY) {
+            let level_nodes = &tree[level];
+            let sibling_idx = if idx % 2 == 0 { idx + 1 } else { idx - 1 };
+            paths[leaf_idx][level] = if sibling_idx < level_nodes.len() {
+                level_nodes[sibling_idx]
+            } else {
+                Fr::zero()
+            };
+            idx /= 2;
+        }
+    }
+    paths
+}
+
+/// Build the C7 share-commitment witness bundle from per-share coefficient vectors.
+pub fn build_c7_share_commitment_bundle(
+    share_coeffs_fr: &[Vec<Fr>],
+) -> (
+    Vec<[Fr; N_COEFFS]>,
+    Vec<Fr>,
+    Vec<[Fr; DEPTH_BINARY]>,
+    Vec<Fr>,
+    Fr,
+) {
+    let mut share_polys = vec![[Fr::zero(); N_COEFFS]; NOIR_MAX_PARTICIPANTS];
+    let mut share_commitments = vec![Fr::zero(); NOIR_MAX_PARTICIPANTS];
+    let domain_vec_merkle = Fr::from(1u64);
+
+    for i in 0..share_coeffs_fr.len() {
+        for k in 0..N_COEFFS {
+            share_polys[i][k] = share_coeffs_fr[i].get(k).copied().unwrap_or(Fr::zero());
+        }
+        let mut inputs = Vec::with_capacity(N_COEFFS + 1);
+        inputs.push(domain_vec_merkle);
+        for k in 0..N_COEFFS {
+            inputs.push(share_polys[i][k]);
+        }
+        share_commitments[i] = poseidon_sponge_native_noir(&inputs);
+    }
+
+    let zero_poly_commitment = {
+        let mut inputs = Vec::with_capacity(N_COEFFS + 1);
+        inputs.push(domain_vec_merkle);
+        for _ in 0..N_COEFFS {
+            inputs.push(Fr::zero());
+        }
+        poseidon_sponge_native_noir(&inputs)
+    };
+    for i in share_coeffs_fr.len()..NOIR_MAX_PARTICIPANTS {
+        share_commitments[i] = zero_poly_commitment;
+    }
+
+    let (merkle_tree_levels, share_commitment_root) = build_binary_merkle_tree(&share_commitments);
+    let merkle_paths = prove_binary_merkle_paths(&merkle_tree_levels);
+    let leaf_indices: Vec<Fr> = (0..NOIR_MAX_PARTICIPANTS)
+        .map(|i| Fr::from(i as u64))
+        .collect();
+
+    (
+        share_polys,
+        share_commitments,
+        merkle_paths,
+        leaf_indices,
+        share_commitment_root,
+    )
+}
+
 pub fn build_c7_prover_toml(
     ciphertext_hash: Fr,
     aggregate_pk_hash: Fr,
@@ -3664,6 +3820,11 @@ pub fn build_c7_prover_toml(
     share_evals: &[Fr],
     lagrange_coeffs_fr: &[Fr],
     pt_eval: Fr,
+    share_commitment_root: Fr,
+    share_commitments: &[Fr],
+    merkle_paths: &[[Fr; DEPTH_BINARY]],
+    leaf_indices: &[Fr],
+    share_polys: &[[Fr; N_COEFFS]],
 ) -> String {
     use std::fmt::Write;
     let mut s = String::new();
@@ -3757,6 +3918,68 @@ pub fn build_c7_prover_toml(
     writeln!(s, "]").unwrap();
 
     writeln!(s, "pt_eval = \"0x{}\"", field_hex_be(pt_eval)).unwrap();
+
+    // G2: share commitment Merkle tree
+    writeln!(
+        s,
+        "share_commitment_root = \"0x{}\"",
+        field_hex_be(share_commitment_root)
+    )
+    .unwrap();
+
+    write!(s, "share_commitments = [").unwrap();
+    for i in 0..MAX {
+        let val = share_commitments.get(i).copied().unwrap_or(Fr::zero());
+        if i > 0 {
+            write!(s, ", ").unwrap();
+        }
+        write!(s, "\"0x{}\"", field_hex_be(val)).unwrap();
+    }
+    writeln!(s, "]").unwrap();
+
+    write!(s, "merkle_paths = [").unwrap();
+    for i in 0..MAX {
+        if i > 0 {
+            write!(s, ", ").unwrap();
+        }
+        write!(s, "[").unwrap();
+        for j in 0..DEPTH_BINARY {
+            let val = merkle_paths.get(i).map(|p| p[j]).unwrap_or(Fr::zero());
+            if j > 0 {
+                write!(s, ", ").unwrap();
+            }
+            write!(s, "\"0x{}\"", field_hex_be(val)).unwrap();
+        }
+        write!(s, "]").unwrap();
+    }
+    writeln!(s, "]").unwrap();
+
+    write!(s, "leaf_indices = [").unwrap();
+    for i in 0..MAX {
+        let val = leaf_indices.get(i).copied().unwrap_or(Fr::zero());
+        if i > 0 {
+            write!(s, ", ").unwrap();
+        }
+        write!(s, "\"0x{}\"", field_hex_be(val)).unwrap();
+    }
+    writeln!(s, "]").unwrap();
+
+    write!(s, "share_polys = [").unwrap();
+    for i in 0..MAX {
+        if i > 0 {
+            write!(s, ", ").unwrap();
+        }
+        write!(s, "[").unwrap();
+        for j in 0..N_COEFFS {
+            let val = share_polys.get(i).map(|p| p[j]).unwrap_or(Fr::zero());
+            if j > 0 {
+                write!(s, ", ").unwrap();
+            }
+            write!(s, "\"0x{}\"", field_hex_be(val)).unwrap();
+        }
+        write!(s, "]").unwrap();
+    }
+    writeln!(s, "]").unwrap();
 
     s
 }
@@ -3927,6 +4150,8 @@ mod tests {
             v
         };
         let pt_eval = Fr::from(0u64);
+        let (share_polys, share_commitments, merkle_paths, leaf_indices, share_commitment_root) =
+            build_c7_share_commitment_bundle(&[]);
         let prover_toml = build_c7_prover_toml(
             ciphertext_hash,
             aggregate_pk_hash,
@@ -3945,6 +4170,11 @@ mod tests {
             &share_evals,
             &lagrange_coeffs_fr,
             pt_eval,
+            share_commitment_root,
+            &share_commitments,
+            &merkle_paths,
+            &leaf_indices,
+            &share_polys,
         );
         assert!(
             prover_toml.contains("decrypt_nizk_hash ="),

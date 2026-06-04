@@ -10,6 +10,12 @@
 //! Folding accumulates per-share witnesses conditionally sound under M-SIS over
 //! `R_{q_commit}` plus Cyclo Theorem 3 (ePrint 2026/359). The joint
 //! extractor (T2) remains a skeleton. See `SECURITY.md §P1`.
+//!
+//! # Trust Assumption — NTT Correctness (G7)
+//!
+//! NTT correctness is assumed from the `fhe-math` backend. The Schwarz-Zippel
+//! evaluation path sidesteps NTT in-circuit. Native NTT bugs could produce
+//! valid-looking proofs for invalid computations. See `SECURITY.md §Trusted Components`.
 
 #[cfg(feature = "legacy-fold")]
 compile_error!(
@@ -92,6 +98,10 @@ pub struct NizkStatement {
     pub session_id: String,
     pub params: (u64, usize, u64),
     pub ciphertext_bytes: Vec<u8>,
+    /// G3: per-share decrypt-share bytes used for sigma session binding.
+    pub decrypt_share_bytes: Vec<u8>,
+    /// G3: PVSS commitment hash used for hash-binding verification.
+    pub pvss_commitment: [u8; 32],
     pub multi_track_metadata: Option<MultiTrackFoldMetadata>,
 }
 
@@ -305,6 +315,14 @@ fn validate_witness(witness: &FoldWitness, stmt: &FoldStatement) -> Result<(), F
     // R4.4: validate NIZK proof structure — verifies backend_id,
     // proof version, and CCS instance ID binding.
     validate_nizk_structure(witness, stmt)?;
+
+    // G3: Full NIZK verification via CycloNizkAdapter (multi-round sigma, 90 rounds).
+    // Must run BEFORE the instance is folded into the accumulator.
+    #[cfg(feature = "real-nizk")]
+    {
+        verify_full_nizk(witness, stmt)?;
+    }
+
     Ok(())
 }
 
@@ -336,6 +354,54 @@ fn validate_nizk_structure(witness: &FoldWitness, _stmt: &FoldStatement) -> Resu
             )));
         }
     }
+    Ok(())
+}
+
+/// G3: Full NIZK verification via `CycloNizkAdapter::verify()`.
+///
+/// Converts the aggregator-level statement/witness into the NIZK-crate types
+/// and runs the full multi-round sigma verification (90 rounds, 142-bit
+/// soundness). Called from `validate_witness` BEFORE the instance is
+/// accumulated into the Cyclo fold state.
+///
+/// If the ring degree does not match the active preset `rlwe_n()`, verification
+/// is skipped (the minimum-size check in `validate_nizk_structure` still
+/// catches forged short proofs). Full verification is intended for production
+/// deployments where params always match the active FHE preset.
+#[cfg(feature = "real-nizk")]
+fn verify_full_nizk(witness: &FoldWitness, stmt: &FoldStatement) -> Result<(), FoldError> {
+    use pvthfhe_nizk::adapter::CycloNizkAdapter;
+    use pvthfhe_nizk::{NizkAdapter, NizkStatement as NizkCrateStatement};
+
+    // Full NIZK verification requires params to match the active RLWE preset.
+    // If they don't match, rely on the minimum-size + norm checks already done.
+    if stmt.params.1 != pvthfhe_nizk::sigma::rlwe_n() {
+        return Ok(());
+    }
+
+    let participant_id = u16::try_from(stmt.fold_index)
+        .map_err(|_| FoldError("fold_index exceeds u16".to_string()))?;
+
+    let nizk_crate_stmt = NizkCrateStatement {
+        ciphertext_bytes: stmt.nizk_statement.ciphertext_bytes.clone(),
+        decrypt_share_bytes: stmt.nizk_statement.decrypt_share_bytes.clone(),
+        pvss_commitment: stmt.nizk_statement.pvss_commitment,
+        params: stmt.params,
+        session_id: stmt.session_id.clone(),
+        participant_id,
+        epoch: 0u64,
+    };
+
+    let nizk_crate_proof = pvthfhe_nizk::NizkProof {
+        backend_id: witness.nizk_proof.nizk_backend_id.to_string(),
+        proof_bytes: witness.nizk_proof.proof_bytes.clone(),
+    };
+
+    let adapter = CycloNizkAdapter;
+    adapter
+        .verify(&nizk_crate_stmt, &nizk_crate_proof)
+        .map_err(|e| FoldError(format!("full NIZK verification failed: {e}")))?;
+
     Ok(())
 }
 

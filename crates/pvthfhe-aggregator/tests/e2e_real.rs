@@ -205,6 +205,8 @@ fn test_e2e_real_pipeline_p4_p1_p2_p3() {
                 session_id: "e2e-real-session-v1".to_string(),
                 params,
                 ciphertext_bytes: vec![tag; 8],
+                decrypt_share_bytes: vec![0u8; 32],
+                pvss_commitment: [0u8; 32],
                 multi_track_metadata: None,
             },
         };

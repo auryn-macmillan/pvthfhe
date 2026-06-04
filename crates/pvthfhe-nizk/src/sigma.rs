@@ -626,52 +626,9 @@ const SCALAR_CHALLENGE_DOMAIN: &[u8] = b"pvthfhe/sigma-scalar-challenge/v2";
 // switching to binary polynomial challenges in {0,1}^N with NTT-optimized gadgets.
 // Tracked as OPEN PROBLEM P1 in SECURITY.md.
 
-/// Derive a scalar ternary challenge ch ∈ {-1, 0, 1} using Fiat-Shamir with
-/// Poseidon over BN254 (with SHA-256 field compression).
-///
-/// 1. SHA-256 compresses each large serialized field to a 32-byte digest
-/// 2. Poseidon combines the digests + session/participant/round binding into a single Fr
-/// 3. Fr is reduced to ternary {-1, 0, 1}
-fn derive_challenge_scalar(
-    session_id: &[u8],
-    participant_id: u32,
-    t_rns: &[u64],
-    c_rns: &[u64],
-    d_rns: &[u64],
-    d_commitment: &[u8; 32],
-    round_index: usize,
-) -> i64 {
-    // Serialize large fields to bytes
-    let t_bytes: Vec<u8> = t_rns.iter().flat_map(|x| x.to_le_bytes()).collect();
-    let c_bytes: Vec<u8> = c_rns.iter().flat_map(|x| x.to_le_bytes()).collect();
-    let d_bytes: Vec<u8> = d_rns.iter().flat_map(|x| x.to_le_bytes()).collect();
-
-    // 1. Build domain prefix: DOMAIN || session_id || participant_id || round_index
-    let mut prefix = Sha256::new();
-    prefix.update(SCALAR_CHALLENGE_DOMAIN);
-    prefix.update(session_id);
-    prefix.update(participant_id.to_le_bytes());
-    prefix.update((round_index as u64).to_le_bytes());
-
-    // 2. Compress each field with SHA-256, labeling and binding to the prefix
-    let t_digest = labeled_sha256(&prefix, b"t_rns", &t_bytes);
-    let c_digest = labeled_sha256(&prefix, b"c_rns", &c_bytes);
-    let d_digest = labeled_sha256(&prefix, b"d_rns", &d_bytes);
-    let dcomm_digest = labeled_sha256(&prefix, b"d_commitment", d_commitment);
-
-    // 3. Combine digests with Poseidon
-    // Each 32-byte digest → 2 Fr elements (lo 16 bytes, hi 16 bytes)
-    let mut fr_inputs: Vec<Fr> = Vec::with_capacity(8);
-    for digest in &[t_digest, c_digest, d_digest, dcomm_digest] {
-        fr_inputs.push(bytes16_to_fr(&digest[..16]));
-        fr_inputs.push(bytes16_to_fr(&digest[16..]));
-    }
-
-    let ch_fr = poseidon_hash(&fr_inputs);
-
-    // 4. Reduce Fr to ternary {-1, 0, 1}
-    fr_to_ternary(&ch_fr)
-}
+// P2-1 audit remediation: the T2 FS-outside-circuit path replaced the legacy
+// derive_challenge_scalar with derive_challenge_from_commitment which directly
+// produces i64 from the commitment hash without intermediate Poseidon reduction.
 
 /// T2: Derive a Keccak256 transcript commitment from the sigma transcript data.
 ///

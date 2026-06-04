@@ -184,12 +184,10 @@ impl FheBackend for MockBackendInner {
         threshold: usize,
         session_id: &[u8],
     ) -> Result<Vec<u8>, FheError> {
-        if !session_id.is_empty() {
-            if !self.setup_threshold_called.load(Ordering::SeqCst) {
-                return Err(FheError::Backend {
-                    reason: "setup_threshold not called for this backend".into(),
-                });
-            }
+        if !session_id.is_empty() && !self.setup_threshold_called.load(Ordering::SeqCst) {
+            return Err(FheError::Backend {
+                reason: "setup_threshold not called for this backend".into(),
+            });
         }
 
         let mut seen = std::collections::BTreeSet::new();

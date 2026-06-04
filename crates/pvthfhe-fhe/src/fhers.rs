@@ -1391,12 +1391,10 @@ impl FheBackend for FhersBackend {
             });
         }
 
-        if !session_id.is_empty() {
-            if !self.setup_threshold_called.load(Ordering::SeqCst) {
-                return Err(FheError::Backend {
-                    reason: "setup_threshold not called for this backend".into(),
-                });
-            }
+        if !session_id.is_empty() && !self.setup_threshold_called.load(Ordering::SeqCst) {
+            return Err(FheError::Backend {
+                reason: "setup_threshold not called for this backend".into(),
+            });
         }
 
         for share in shares {
@@ -1666,12 +1664,10 @@ impl FhersBackend {
             });
         }
 
-        if !session_id.is_empty() {
-            if !self.setup_threshold_called.load(Ordering::SeqCst) {
-                return Err(FheError::Backend {
-                    reason: "setup_threshold not called for this backend".into(),
-                });
-            }
+        if !session_id.is_empty() && !self.setup_threshold_called.load(Ordering::SeqCst) {
+            return Err(FheError::Backend {
+                reason: "setup_threshold not called for this backend".into(),
+            });
         }
 
         for share in shares {
@@ -1819,12 +1815,10 @@ impl FhersBackend {
             });
         }
 
-        if !session_id.is_empty() {
-            if !self.setup_threshold_called.load(Ordering::SeqCst) {
-                return Err(FheError::Backend {
-                    reason: "setup_threshold not called for this backend".into(),
-                });
-            }
+        if !session_id.is_empty() && !self.setup_threshold_called.load(Ordering::SeqCst) {
+            return Err(FheError::Backend {
+                reason: "setup_threshold not called for this backend".into(),
+            });
         }
 
         for share in shares {

@@ -55,7 +55,7 @@ use subtle::ConstantTimeEq;
 const PROOF_VERSION: u16 = 0x0002;
 
 /// Maximum allowed proof byte length (prevents heap-exhaustion from crafted proof).
-const MAX_PROOF_BYTES: usize = 1_048_576; // 1 MiB
+const MAX_PROOF_BYTES: usize = 4_194_304; // 4 MiB — G1 Option B: 90-round sigma (1.6 MB) + 26 KB header + N=4096 safety margin
 
 /// Maximum ciphertext/share byte length.
 const MAX_INPUT_BYTES: usize = 1_048_576; // 1 MiB

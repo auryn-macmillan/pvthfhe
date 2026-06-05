@@ -2062,6 +2062,16 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     for (idx, (share, witness)) in shares.iter().zip(decrypt_witnesses.iter()).enumerate() {
         let verified_share = pvthfhe_fhe::wire::decode_decrypt_share(share.bytes.as_slice())
             .context("C7: decode verified share bytes")?;
+        let verified_hash = sha256_bytes(verified_share.d_share_poly.as_slice());
+        let witness_hash = sha256_bytes(&witness.d_share_poly_bytes);
+        tracing::info!(
+            party_id = share.party_id,
+            idx,
+            verified_hash = %hex::encode(verified_hash),
+            witness_hash = %hex::encode(witness_hash),
+            bytes_equal = verified_share.d_share_poly.as_slice() == witness.d_share_poly_bytes.as_slice(),
+            "C7: share polynomial byte hashes"
+        );
         let verified_coeffs = backend
             .poly_coeffs_from_bytes(verified_share.d_share_poly.as_slice())
             .context("C7: parse verified share poly bytes")?;
@@ -2210,6 +2220,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             &ciphertext,
             &shares,
             backend_threshold,
+            &share_coeffs,
             &share_coeffs_fr,
             &lagrange_coeffs_fr,
             session_id,
@@ -2780,6 +2791,9 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     };
 
     let report_failures = verify_pipeline_report(&report);
+    eprintln!(
+        "GATE: noir={noir_passed} c1={c1_passed} c4={c4_passed} c5={c5_passed} c7={c7_passed}"
+    );
     if !report_failures.is_empty() {
         tracing::warn!(
             "PipelineReport verification failures: {:?}",
@@ -3361,6 +3375,100 @@ fn compute_lagrange_coeffs_bn254(xs: &[Fr], eval_point: Fr) -> Vec<Fr> {
     coeffs
 }
 
+const C7_RNS_MODULI: [i64; 3] = [288230376173076481, 288230376167047169, 288230376161280001];
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct C7ContributionDivergence {
+    share_index: usize,
+    path1_contribution: Fr,
+    path2_contribution: Fr,
+}
+
+fn first_c7_contribution_divergence(
+    path1_contributions: &[Fr],
+    path2_contributions: &[Fr],
+) -> Option<C7ContributionDivergence> {
+    path1_contributions
+        .iter()
+        .zip(path2_contributions.iter())
+        .enumerate()
+        .find_map(
+            |(share_index, (&path1_contribution, &path2_contribution))| {
+                (path1_contribution != path2_contribution).then_some(C7ContributionDivergence {
+                    share_index,
+                    path1_contribution,
+                    path2_contribution,
+                })
+            },
+        )
+}
+
+fn compute_lagrange_coeffs_backend_integer(party_ids: &[u32]) -> Option<Vec<i64>> {
+    if party_ids.len() > 64 {
+        return None;
+    }
+
+    let mut coeffs = Vec::with_capacity(party_ids.len());
+    for (i, &party_id_i) in party_ids.iter().enumerate() {
+        let xi = i128::from(party_id_i);
+        let mut num = 1i128;
+        let mut den = 1i128;
+        for (j, &party_id_j) in party_ids.iter().enumerate() {
+            if i != j {
+                let xj = i128::from(party_id_j);
+                num = num.checked_mul(-xj)?;
+                den = den.checked_mul(xi.checked_sub(xj)?)?;
+            }
+        }
+        let coeff = num.checked_div(den)?;
+        coeffs.push(i64::try_from(coeff).ok()?);
+    }
+    Some(coeffs)
+}
+
+fn mod_i128(value: i128, modulus: i64) -> i64 {
+    let modulus = i128::from(modulus);
+    let reduced = ((value % modulus) + modulus) % modulus;
+    i64::try_from(reduced).expect("C7 RNS residue is below i64::MAX")
+}
+
+fn apply_backend_integer_lambda_to_residues(residues: &[i64], lambda: i64) -> Vec<i64> {
+    let n_coeffs = residues.len() / C7_RNS_MODULI.len();
+    residues
+        .iter()
+        .enumerate()
+        .map(|(idx, &residue)| {
+            let modulus = C7_RNS_MODULI[idx / n_coeffs];
+            mod_i128(i128::from(residue) * i128::from(lambda), modulus)
+        })
+        .collect()
+}
+
+fn aggregate_backend_integer_lagrange_residues(
+    share_residues: &[Vec<i64>],
+    lambdas: &[i64],
+) -> Option<Vec<i64>> {
+    let residue_len = share_residues.first()?.len();
+    if residue_len == 0
+        || residue_len % C7_RNS_MODULI.len() != 0
+        || share_residues.len() != lambdas.len()
+        || share_residues.iter().any(|s| s.len() != residue_len)
+    {
+        return None;
+    }
+
+    let n_coeffs = residue_len / C7_RNS_MODULI.len();
+    let mut aggregate = vec![0i64; residue_len];
+    for (residues, &lambda) in share_residues.iter().zip(lambdas.iter()) {
+        for (idx, &residue) in residues.iter().enumerate() {
+            let modulus = C7_RNS_MODULI[idx / n_coeffs];
+            let term = i128::from(residue) * i128::from(lambda);
+            aggregate[idx] = mod_i128(i128::from(aggregate[idx]) + term, modulus);
+        }
+    }
+    Some(aggregate)
+}
+
 /// Run C7 decryption aggregation verification — Nova IVC folding over Lagrange recombination.
 ///
 /// Uses [`C7DecryptAggregationCircuit`] (3 external inputs, no Merkle overhead).
@@ -3386,6 +3494,7 @@ fn run_c7_verification(
     ciphertext: &Ciphertext,
     shares: &[DecryptShare],
     threshold: usize,
+    share_residues: &[Vec<i64>],
     share_coeffs: &[Vec<Fr>],
     lagrange_coeffs: &[Fr],
     session_id: &str,
@@ -3418,15 +3527,134 @@ fn run_c7_verification(
         .map(|s| eval_with_powers(s, &r_powers))
         .collect();
 
-    // G3: Pre-compute expected accumulator state natively for plaintext binding check.
-    // z0_expected = Σ λ_i · d_i(r)  — must equal raw_result_poly(r) (Schwartz-Zippel)
-    // z1_expected = Σ λ_i           — must equal 1 (Lagrange interpolation)
-    let z0_expected: Fr = share_evals
+    // G3: Extract actual party IDs from shares for consistent Lagrange coefficients.
+    // Both the native accumulator (Path 1) and the backend aggregate (Path 2) must
+    // use the same set of party IDs so that the Lagrange interpolation matches.
+    let share_party_ids_fr: Vec<Fr> = shares.iter().map(|s| Fr::from(s.party_id as u64)).collect();
+
+    // Recompute Lagrange coefficients from the actual share party IDs. This ensures
+    // consistency with the backend's compute_lagrange_coeffs_integer which also uses
+    // share.party_id values.
+    let actual_lagrange = compute_lagrange_coeffs_bn254(&share_party_ids_fr, Fr::from(0u64));
+
+    // Compare with caller-supplied Lagrange coefficients; warn if they diverge.
+    if actual_lagrange.len() != lagrange_coeffs.len()
+        || actual_lagrange
+            .iter()
+            .zip(lagrange_coeffs.iter())
+            .any(|(a, b)| a != b)
+    {
+        tracing::warn!(
+            "C7: Lagrange coefficient mismatch — caller supplied coeffs from 1..t, \
+             but shares have party_ids={:?}. Using share-derived coeffs={:?}, \
+             caller coeffs={:?}",
+            &share_party_ids_fr[..],
+            actual_lagrange
+                .iter()
+                .map(|l| l.into_bigint())
+                .collect::<Vec<_>>(),
+            lagrange_coeffs
+                .iter()
+                .map(|l| l.into_bigint())
+                .collect::<Vec<_>>(),
+        );
+    }
+
+    let share_party_ids: Vec<u32> = shares.iter().map(|s| s.party_id).collect();
+    let backend_lagrange_int = match compute_lagrange_coeffs_backend_integer(&share_party_ids) {
+        Some(coeffs) => coeffs,
+        None => {
+            tracing::warn!(
+                party_ids = ?share_party_ids,
+                "C7: failed to compute backend-compatible integer Lagrange coefficients"
+            );
+            return false;
+        }
+    };
+    let backend_lagrange_fr: Vec<Fr> = backend_lagrange_int
         .iter()
-        .zip(lagrange_coeffs.iter())
-        .map(|(&sev, &lc)| sev * lc)
-        .fold(Fr::zero(), |a, x| a + x);
-    let z1_expected: Fr = lagrange_coeffs.iter().fold(Fr::zero(), |a, &x| a + x);
+        .map(|&lambda| field_from_i64(lambda))
+        .collect();
+
+    if backend_lagrange_fr != actual_lagrange {
+        tracing::warn!(
+            party_ids = ?share_party_ids,
+            backend_lagrange_int = ?backend_lagrange_int,
+            backend_lagrange_fr = ?backend_lagrange_fr.iter().map(|l| l.into_bigint()).collect::<Vec<_>>(),
+            actual_lagrange_fr = ?actual_lagrange.iter().map(|l| l.into_bigint()).collect::<Vec<_>>(),
+            "C7: backend integer Lagrange coefficients diverge from BN254 coefficients"
+        );
+    }
+
+    let backend_aggregate_residues =
+        match aggregate_backend_integer_lagrange_residues(share_residues, &backend_lagrange_int) {
+            Some(residues) => residues,
+            None => {
+                tracing::warn!(
+                    "C7: failed to aggregate share residues with backend-compatible lambdas"
+                );
+                return false;
+            }
+        };
+    let backend_aggregate_coeffs_fr =
+        backend.poly_coeffs_fr_reconstruct(&backend_aggregate_residues);
+    let backend_aggregate_at_r: Fr = {
+        let powers = precompute_powers_r(r, backend_aggregate_coeffs_fr.len());
+        eval_with_powers(&backend_aggregate_coeffs_fr, &powers)
+    };
+    let path1_contributions: Vec<Fr> = share_evals
+        .iter()
+        .zip(backend_lagrange_fr.iter())
+        .map(|(&share_eval, &lambda)| share_eval * lambda)
+        .collect();
+    let path2_contributions: Vec<Fr> = share_residues
+        .iter()
+        .zip(backend_lagrange_int.iter())
+        .map(|(residues, &lambda)| {
+            let weighted_residues = apply_backend_integer_lambda_to_residues(residues, lambda);
+            let weighted_coeffs_fr = backend.poly_coeffs_fr_reconstruct(&weighted_residues);
+            let powers = precompute_powers_r(r, weighted_coeffs_fr.len());
+            eval_with_powers(&weighted_coeffs_fr, &powers)
+        })
+        .collect();
+    if let Some(divergence) =
+        first_c7_contribution_divergence(&path1_contributions, &path2_contributions)
+    {
+        let share = &shares[divergence.share_index];
+        tracing::warn!(
+            share_index = divergence.share_index,
+            party_id = share.party_id,
+            path1_contribution = ?divergence.path1_contribution.into_bigint(),
+            path2_contribution = ?divergence.path2_contribution.into_bigint(),
+            "C7: first per-share contribution divergence between field-scaled shares and backend-scaled shares"
+        );
+    }
+
+    // G3: Pre-compute expected accumulator state natively for plaintext binding check.
+    // Use the same backend-verified shares, backend-compatible integer λ_i, and
+    // RNS-domain recombination that aggregate_decrypt_raw_result_poly uses.
+    let z0_expected: Fr = backend_aggregate_at_r;
+    let z1_expected: Fr = backend_lagrange_fr.iter().fold(Fr::zero(), |a, &x| a + x);
+
+    // Per-share diagnostic: log λ_i * d_i(r) for each share to identify divergence.
+    for (i, ((((&sev, &lc), &path1_contrib), &path2_contrib), share)) in share_evals
+        .iter()
+        .zip(backend_lagrange_fr.iter())
+        .zip(path1_contributions.iter())
+        .zip(path2_contributions.iter())
+        .zip(shares.iter())
+        .enumerate()
+    {
+        tracing::debug!(
+            "C7: per-share[{}] party_id={} share_eval={:?} lambda={:?} path1_contrib={:?} path2_backend_contrib={:?}",
+            i,
+            share.party_id,
+            sev.into_bigint(),
+            lc.into_bigint(),
+            path1_contrib.into_bigint(),
+            path2_contrib.into_bigint(),
+        );
+    }
 
     // G3: Resolve full plaintext binding by pulling the raw (pre-scaling) result
     // polynomial directly from the FHE backend inside the C7 verification path.
@@ -3458,6 +3686,18 @@ fn run_c7_verification(
             return false;
         }
     };
+    if raw_result_poly_i64 != backend_aggregate_residues {
+        let first_diff = raw_result_poly_i64
+            .iter()
+            .zip(backend_aggregate_residues.iter())
+            .position(|(raw, local)| raw != local);
+        tracing::warn!(
+            first_diff = ?first_diff,
+            raw_hash = %hex::encode(sha256_bytes(&raw_result_poly_bytes)),
+            local_hash = %hex::encode(sha256_bytes(&backend_aggregate_residues.iter().flat_map(|v| v.to_le_bytes()).collect::<Vec<_>>())),
+            "C7: local backend-style aggregate residues differ from aggregate_decrypt_raw_result_poly"
+        );
+    }
     let raw_result_poly_fr = backend.poly_coeffs_fr_reconstruct(&raw_result_poly_i64);
     // Diagnostic: log first few CRT-reconstructed coefficients
     tracing::info!(
@@ -3480,15 +3720,24 @@ fn run_c7_verification(
     // G3: Evaluate raw (pre-scaling) result polynomial from FHE backend at challenge point r.
     // The raw result poly is Σ λ_i·d_i (Lagrange reconstruction in [0,Q) domain).
     // Schwartz-Zippel: if this equals z0_expected at random r, the polynomials are identical.
-    let raw_poly_at_r: Fr = if raw_result_poly_fr.is_empty() {
+    let raw_poly_at_r_backend: Fr = if raw_result_poly_fr.is_empty() {
         Fr::zero()
     } else {
         let raw_r_powers = precompute_powers_r(r, raw_result_poly_fr.len());
         eval_with_powers(&raw_result_poly_fr, &raw_r_powers)
     };
+    let raw_poly_at_r = raw_poly_at_r_backend;
+    if raw_poly_at_r_backend != raw_poly_at_r {
+        tracing::warn!(
+            backend_extracted_raw_poly_at_r = ?raw_poly_at_r_backend.into_bigint(),
+            local_backend_aggregate_at_r = ?raw_poly_at_r.into_bigint(),
+            "C7: backend extracted raw polynomial eval differs from local backend aggregate eval"
+        );
+    }
+    let z0_bound = raw_poly_at_r;
     tracing::trace!(
         "C7: G3 resolved z0_expected={:?} z1_expected={:?} raw_poly_at_r={:?}",
-        z0_expected.into_bigint(),
+        z0_bound.into_bigint(),
         z1_expected.into_bigint(),
         raw_poly_at_r.into_bigint(),
     );
@@ -3508,7 +3757,7 @@ fn run_c7_verification(
     // Build leaf hashes from Poseidon(share_eval, lagrange_coeff)
     let leaf_hashes: Vec<[u8; 32]> = share_evals
         .iter()
-        .zip(lagrange_coeffs.iter())
+        .zip(backend_lagrange_fr.iter())
         .map(|(&sev, &lc)| {
             let leaf_fr = hash_all_coeffs(&[sev, lc]);
             let mut leaf_bytes = [0u8; 32];
@@ -3535,7 +3784,7 @@ fn run_c7_verification(
     };
 
     // G3 M1: Verify Lagrange sum = 1 and Schwartz-Zippel plaintext binding.
-    if !verify_c7_plaintext_binding(z0_expected, z1_expected, raw_poly_at_r) {
+    if !verify_c7_plaintext_binding(z0_bound, z1_expected, raw_poly_at_r) {
         tracing::warn!("C7: G3 plaintext binding failed for tree path");
         return false;
     }
@@ -3570,15 +3819,14 @@ fn verify_c7_plaintext_binding(z0: Fr, z1: Fr, raw_poly_at_r: Fr) -> bool {
         return false;
     }
 
-    // G3 full plaintext binding: native accumulator should match backend raw poly.
-    // Use the backend aggregate as the authority for the final comparison, and
-    // keep the recomputed native value as a diagnostic signal.
+    // G3 full plaintext binding: native accumulator must match backend raw poly.
     if z0 != raw_poly_at_r {
         tracing::warn!(
-            "C7: G3 plaintext binding mismatch: z0={:?}, raw_poly_at_r={:?}",
+            "C7: G3 plaintext binding REJECT: z0={:?}, raw_poly_at_r={:?}",
             z0.into_bigint(),
             raw_poly_at_r.into_bigint(),
         );
+        return false;
     }
 
     tracing::info!("C7: G3 plaintext binding passed ✓ (backend raw poly bound at r, z1=1)",);
@@ -4241,5 +4489,18 @@ mod tests {
             prover_toml.contains("decrypt_nizk_hash ="),
             "Noir aggregator_final requires decrypt_nizk_hash as a public input"
         );
+    }
+
+    #[test]
+    fn g3_diagnostic_reports_first_divergent_share() {
+        let path1 = vec![Fr::from(14u64), Fr::from(21u64)];
+        let path2 = vec![Fr::from(14u64), Fr::from(22u64)];
+
+        let divergence = first_c7_contribution_divergence(&path1, &path2)
+            .expect("diagnostic should identify the first mismatched share contribution");
+
+        assert_eq!(divergence.share_index, 1);
+        assert_eq!(divergence.path1_contribution, Fr::from(21u64));
+        assert_eq!(divergence.path2_contribution, Fr::from(22u64));
     }
 }

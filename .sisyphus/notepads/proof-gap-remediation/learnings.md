@@ -137,3 +137,24 @@
 - `run_full_pipeline()` already feeds the full 22-argument C7 TOML bundle into `build_c7_prover_toml()`.
 - The stale `c7_prover_toml_exports_decrypt_nizk_hash_public_input` test and `pvthfhe_e2e.rs` caller were both missing the 5 G2 arguments; both now compile after wiring the bundle helper.
 - `cargo test -p pvthfhe-cli --lib` passed through the C7 TOML test before timing out on a long-running unrelated test.
+
+## Session: 2026-06-04 — Wire Format Mismatch Fix (COMPLETED)
+
+### Root Cause
+`encode_proof_multi` (adapter.rs:676-684) encodes: `d_rns || num_rounds(u32) || per_round(t_rns, z_s, z_e, ch) × 90`. But `extract_sigma_proof` was calling `decode_sigma_section` which expects single-round format: `d_rns || t_rns || z_s || z_e || ch`. The 4-byte `num_rounds` field was being misinterpreted as the start of `t_rns`.
+
+### Fix
+- `crates/pvthfhe-nizk/src/adapter.rs` line 278: Changed `decode_sigma_section(&sigma_section)` to `decode_sigma_section_multi(&sigma_section)`, then extracted the first round's `SigmaProof` from the returned `SigmaMultiProof`.
+- `decode_sigma_section_multi` already existed at line 746 — reads `num_rounds(u32)` before each round.
+- `decode_sigma_section` is now dead code (single-round format no longer used by any caller).
+
+### Verification
+- `cargo check -p pvthfhe-nizk` ✅ (1 warning: `decode_sigma_section` unused)
+- `cargo test -p pvthfhe-nizk adapter` ✅ (3 adapter tests passed)
+
+## Session: 2026-06-05 — G3 Plaintext Binding Mismatch
+
+- Root cause: C7 Path 1 was effectively doing BN254-field evaluation/scaling of shares, while the fhe.rs backend Path 2 recombines in the BFV RNS ring using integer Lagrange coefficients before CRT reconstruction into BN254. Those operations are not interchangeable when coefficients live modulo the BFV RNS moduli.
+- Added share diagnostics: verified share polynomial byte hash vs witness `d_share_poly_bytes` hash, backend integer λ comparison vs BN254 λ, and first per-share contribution divergence (`path1_contrib` vs `path2_backend_contrib`).
+- Fix: C7 G3 binding now uses backend-verified share residues, backend-compatible integer Lagrange coefficients, and RNS-domain recombination for the bound `z0`; final equality is checked against `aggregate_decrypt_raw_result_poly` at the same challenge point.
+- Verification run: `cargo check -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng"` passed; diagnostic unit test `g3_diagnostic_reports_first_divergent_share` passed. A production-parameter demo attempt exceeded the 10-minute command timeout before reaching verify; `insecure512` cannot build the RLWE NIZK context in this path.

@@ -178,18 +178,9 @@ impl LatticePvssBfvAdapter {
         let proof = DecryptNizkProof::from_bytes(share.proof.0.clone())?;
         let opened = proof.decode()?;
         if opened.statement.party_index != share.index {
-            eprintln!(
-                "DIAG: party_index mismatch: opened={} != share.index={}",
-                opened.statement.party_index, share.index
-            );
             return Err(PvssError::InvalidShare);
         }
         if opened.statement.decrypted_share_bytes != share.share_bytes.expose() {
-            eprintln!(
-                "DIAG: share_bytes mismatch: opened.len={} != share.len={}",
-                opened.statement.decrypted_share_bytes.len(),
-                share.share_bytes.expose().len()
-            );
             return Err(PvssError::InvalidShare);
         }
         if opened.statement.party_index != share.index
@@ -198,14 +189,8 @@ impl LatticePvssBfvAdapter {
             return Err(PvssError::InvalidShare);
         }
 
-        eprintln!(
-            "PVSS verify_decrypted_share: statement={:?}",
-            opened.statement
-        );
-        DecryptNizkVerifier::verify(&opened.statement, &proof).map_err(|e| {
-            eprintln!("PVSS verify_decrypted_share: raw error={e:?}");
-            PvssError::ShareVerification(format!("decrypt NIZK: {e}"))
-        })
+        DecryptNizkVerifier::verify(&opened.statement, &proof)
+            .map_err(|e| PvssError::ShareVerification(format!("decrypt NIZK: {e}")))
     }
 }
 
@@ -352,11 +337,6 @@ impl PvssAdapter for LatticePvssBfvAdapter {
         ctx: &PvssContext,
     ) -> Result<Vec<u8>, PvssError> {
         validate_context(ctx)?;
-        eprintln!(
-            "PVSS recover: share count={}, t={}",
-            decrypted_shares.len(),
-            ctx.t
-        );
         if decrypted_shares.len() < ctx.t {
             return Err(PvssError::RecoveryFailed);
         }
@@ -369,11 +349,6 @@ impl PvssAdapter for LatticePvssBfvAdapter {
         }
         let share_len = selected[0].share_bytes.expose().len();
         if share_len < LENGTH_PREFIX_LEN + FR_SERIALIZED_LEN {
-            eprintln!(
-                "PVSS recover: share_bytes length={}, min={}",
-                share_len,
-                LENGTH_PREFIX_LEN + FR_SERIALIZED_LEN
-            );
             return Err(PvssError::InvalidShare);
         }
         // Shares must all have identical length.
@@ -381,31 +356,22 @@ impl PvssAdapter for LatticePvssBfvAdapter {
             .iter()
             .any(|share| share.share_bytes.expose().len() != share_len)
         {
-            eprintln!("PVSS recover: mismatched share lengths");
             return Err(PvssError::InvalidShare);
         }
         // Share indices must be in-bounds.
-        if let Some(share) = selected.iter().find(|share| share.index >= ctx.n) {
-            eprintln!("PVSS recover: share index {} >= n={}", share.index, ctx.n);
+        if selected.iter().any(|share| share.index >= ctx.n) {
             return Err(PvssError::InvalidShare);
         }
 
         // Verify NIZK proofs.
         for share in selected {
-            if let Err(e) = self.verify_decrypted_share(share) {
-                eprintln!(
-                    "PVSS recover: verify_decrypted_share {} FAILED: {e:?}",
-                    share.index
-                );
-                return Err(e);
-            }
+            self.verify_decrypted_share(share)?;
         }
 
         // Check for duplicate indices.
         let mut seen = vec![false; ctx.n];
         for share in selected {
             if seen[share.index] {
-                eprintln!("PVSS recover: duplicate index {}", share.index);
                 return Err(PvssError::InvalidShare);
             }
             seen[share.index] = true;
@@ -413,13 +379,7 @@ impl PvssAdapter for LatticePvssBfvAdapter {
 
         // Parse each share's payload into its component Fr values.
         // Payload format: [ original_len: u32 BE ][ fr_0: 32 bytes ][ fr_1: 32 bytes ]...
-        let (original_len, share_frs_by_party) = match deserialize_share_payloads(selected) {
-            Ok(v) => v,
-            Err(e) => {
-                eprintln!("PVSS recover: deserialize_payloads FAILED");
-                return Err(e);
-            }
-        };
+        let (original_len, share_frs_by_party) = deserialize_share_payloads(selected)?;
         let num_chunks = share_frs_by_party[0].len();
         if num_chunks == 0 {
             return Err(PvssError::InvalidShare);

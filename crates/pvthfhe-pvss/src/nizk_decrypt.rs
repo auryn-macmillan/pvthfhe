@@ -210,11 +210,7 @@ impl DecryptNizkVerifier {
 
         CycloNizkAdapter
             .verify(&inner_stmt, &inner_proof)
-            .map_err(|e| {
-                eprintln!("PVSS inner verify error: {e:?}");
-                eprintln!("PVSS inner proof_bytes len: {}", proof.proof_bytes.len());
-                PvssError::ShareVerification(format!("sigma verify: {e}"))
-            })
+            .map_err(|e| PvssError::ShareVerification(format!("sigma verify: {e}")))
     }
 }
 

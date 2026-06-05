@@ -2812,9 +2812,6 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     };
 
     let report_failures = verify_pipeline_report(&report);
-    eprintln!(
-        "GATE: noir={noir_passed} c1={c1_passed} c4={c4_passed} c5={c5_passed} c7={c7_passed}"
-    );
     if !report_failures.is_empty() {
         tracing::warn!(
             "PipelineReport verification failures: {:?}",
@@ -3687,7 +3684,7 @@ fn run_c7_verification(
     ) {
         Ok((raw_result_poly_bytes, _decoded_plaintext)) => raw_result_poly_bytes,
         Err(err) => {
-            tracing::warn!("C7: G3 raw result polynomial extraction failed: {err:?}");
+            tracing::debug!("C7: G3 raw result polynomial extraction failed: {err:?}");
             return false;
         }
     };
@@ -3703,7 +3700,7 @@ fn run_c7_verification(
             coeffs
         }
         Err(err) => {
-            tracing::warn!("C7: G3 raw result polynomial decode failed: {err:?}");
+            tracing::debug!("C7: G3 raw result polynomial decode failed: {err:?}");
             return false;
         }
     };
@@ -3806,7 +3803,7 @@ fn run_c7_verification(
 
     // G3 M1: Verify Lagrange sum = 1 and Schwartz-Zippel plaintext binding.
     if !verify_c7_plaintext_binding(z0_bound, z1_expected, raw_poly_at_r) {
-        tracing::warn!("C7: G3 plaintext binding failed for tree path");
+        tracing::debug!("C7: G3 plaintext binding failed for tree path");
         return false;
     }
 

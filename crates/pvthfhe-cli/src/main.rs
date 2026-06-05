@@ -149,6 +149,9 @@ enum Commands {
         /// Enable bootstrapping in TFHE demo (freshly re-encrypts ciphertext with reduced noise).
         #[arg(long, default_value_t = false)]
         bootstrap: bool,
+        /// Print detailed debugging output including fold hashes and per-party arrays.
+        #[arg(long, default_value_t = false)]
+        verbose: bool,
     },
     /// Create or verify a BFV encryption snapshot proof.
     Snapshot {
@@ -350,6 +353,7 @@ fn main() -> anyhow::Result<()> {
             params,
             backend,
             bootstrap,
+            verbose,
         } => {
             let t = threshold.unwrap_or(n / 2 + 1);
             match backend.to_lowercase().as_str() {
@@ -365,7 +369,7 @@ fn main() -> anyhow::Result<()> {
                     };
                     pvthfhe_types::set_active_preset(preset);
                     info!(%params, "active parameter preset set");
-                    run_demo(n, t, seed)?;
+                    run_demo(n, t, seed, verbose)?;
                 }
                 "poulpy-ckks" => {
                     run_ckks_demo(n, t, seed)?;
@@ -1042,7 +1046,7 @@ fn build_bfv_witness(_pk_rns: &[u64], _ct_rns: &[u64], _plaintext: &[u8]) -> Vec
 
 /// Run the full demo pipeline with `n` parties and deterministic `seed`.
 #[cfg(all(feature = "with-fhe", feature = "nova-compressor"))]
-fn run_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
+fn run_demo(n: usize, threshold: usize, seed: u64, verbose: bool) -> anyhow::Result<()> {
     if n == 0 {
         anyhow::bail!("invalid n: n=0; must satisfy n >= 1");
     }
@@ -1132,21 +1136,23 @@ fn run_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
     println!("per_node_partial_decrypt_ms={per_node_partial_decrypt:.1}");
     println!("aggregator_total_ms={aggregator_ms:.1}");
     println!("distributed_estimate_ms={distributed_total:.1}");
-    let fold_hashes_str: Vec<String> = report
-        .recipient_fold_hashes
-        .iter()
-        .map(|h| h.to_string())
-        .collect();
-    println!("recipient_fold_hashes=[{}]", fold_hashes_str.join(", "));
-    let parity_hashes_str: Vec<String> = report
-        .recipient_parity_proof_hashes
-        .iter()
-        .map(|h| h.to_string())
-        .collect();
-    println!(
-        "recipient_parity_proof_hashes=[{}]",
-        parity_hashes_str.join(", ")
-    );
+    if verbose {
+        let fold_hashes_str: Vec<String> = report
+            .recipient_fold_hashes
+            .iter()
+            .map(|h| h.to_string())
+            .collect();
+        println!("recipient_fold_hashes=[{}]", fold_hashes_str.join(", "));
+        let parity_hashes_str: Vec<String> = report
+            .recipient_parity_proof_hashes
+            .iter()
+            .map(|h| h.to_string())
+            .collect();
+        println!(
+            "recipient_parity_proof_hashes=[{}]",
+            parity_hashes_str.join(", ")
+        );
+    }
     if report.all_verifications_passed {
         println!("verify: ACCEPT");
         info!("demo complete: ACCEPT");
@@ -1160,7 +1166,7 @@ fn run_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
 }
 
 #[cfg(not(all(feature = "with-fhe", feature = "nova-compressor")))]
-fn run_demo(_n: usize, _threshold: usize, _seed: u64) -> anyhow::Result<()> {
+fn run_demo(_n: usize, _threshold: usize, _seed: u64, _verbose: bool) -> anyhow::Result<()> {
     anyhow::bail!("demo requires the `with-fhe` and `nova-compressor` features")
 }
 

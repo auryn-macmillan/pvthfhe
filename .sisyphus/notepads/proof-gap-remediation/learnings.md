@@ -158,3 +158,22 @@
 - Added share diagnostics: verified share polynomial byte hash vs witness `d_share_poly_bytes` hash, backend integer λ comparison vs BN254 λ, and first per-share contribution divergence (`path1_contrib` vs `path2_backend_contrib`).
 - Fix: C7 G3 binding now uses backend-verified share residues, backend-compatible integer Lagrange coefficients, and RNS-domain recombination for the bound `z0`; final equality is checked against `aggregate_decrypt_raw_result_poly` at the same challenge point.
 - Verification run: `cargo check -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng"` passed; diagnostic unit test `g3_diagnostic_reports_first_divergent_share` passed. A production-parameter demo attempt exceeded the 10-minute command timeout before reaching verify; `insecure512` cannot build the RLWE NIZK context in this path.
+
+## Session: 2026-06-05 — G4 PK Binding: C7Prover.toml Missing Fields
+
+### Root Cause
+`nargo execute --package aggregator_final --prover-name C7Prover` failed with "Expected argument aggregate_pk_leaf" because `build_c7_prover_toml` was missing G4 witness fields required by the Noir circuit at `main.nr:197-225`.
+
+### Changes
+1. Added 3 params to `build_c7_prover_toml` signature: `dkg_root`, `aggregate_pk_leaf`, `merkle_path`
+2. Added 3 TOML entries: `dkg_root`, `aggregate_pk_leaf`, `merkle_path`
+3. In `run_full_pipeline`: compute `aggregate_pk_leaf` via Poseidon over pk bytes; derive `aggregate_pk_hash = poseidon_sponge_native_noir(&[aggregate_pk_leaf])` (changed from SHA256 to match Noir circuit assert); `dkg_root` via SHA256 over dkg_root_vec; `merkle_path = [Fr::zero(); 8]`
+4. Updated `pvthfhe_e2e.rs` call site and test caller
+
+### Verification
+- `cargo check -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng"` ✅
+- `nargo compile --package aggregator_final` ✅
+- `cargo test -p pvthfhe-cli -- c7_prover_toml` ✅
+## 2026-06-05
+- C7 witness generation now derives `share_evals` and `pt_eval` from the same `share_polys` vector at TOML generation time, matching Noir's `eval_poly` ordering.
+- This avoids reusing earlier `eval_with_powers` outputs that could diverge from the circuit even when the committed polynomials are correct.

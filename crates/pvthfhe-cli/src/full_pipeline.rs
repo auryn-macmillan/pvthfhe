@@ -88,7 +88,7 @@ pub fn create_backend(params_toml: &str) -> anyhow::Result<Box<dyn FheBackend>> 
 const NOIR_MAX_PARTICIPANTS: usize = 128;
 
 /// Matches Noir circuit's DEPTH (binary Merkle tree depth).
-const DEPTH_BINARY: usize = 8;
+const DEPTH_BINARY: usize = 7; // 128 leaves = 7 Merkle path hops
 /// Matches Noir circuit's N (polynomial coefficient count).
 const N_COEFFS: usize = 8;
 
@@ -2244,11 +2244,14 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         use ark_bn254::Fr;
         use ark_ff::Zero;
         use pvthfhe_compressor::poly_eval::{eval_with_powers, precompute_powers_r};
-        let coeffs_per_poly = share_coeffs_fr.first().map(|c| c.len()).unwrap_or(0);
-        let r_powers = precompute_powers_r(c7_r, coeffs_per_poly);
         let share_evals: Vec<Fr> = share_coeffs_fr
             .iter()
-            .map(|s| eval_with_powers(s, &r_powers))
+            .map(|s| {
+                let mut poly = [Fr::zero(); N_COEFFS];
+                let take = s.len().min(N_COEFFS);
+                poly[..take].copy_from_slice(&s[..take]);
+                eval_c7_share_poly_noir(&poly, c7_r)
+            })
             .collect();
         let z0: Fr = share_evals
             .iter()
@@ -2472,7 +2475,15 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
     // Compute all fields for the simplified C7 Noir circuit (aggregator_final)
     let ciphertext_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(session_id.as_bytes()));
-    let aggregate_pk_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(&aggregate_pk.bytes));
+    let aggregate_pk_leaf = {
+        let pk_fr: Vec<Fr> = aggregate_pk
+            .bytes
+            .chunks(31)
+            .map(Fr::from_le_bytes_mod_order)
+            .collect();
+        poseidon_sponge_native_noir(&pk_fr)
+    };
+    let aggregate_pk_hash = poseidon_sponge_native_noir(&[aggregate_pk_leaf]);
     // C6: Bind decrypt_nizk_hash to sigma fold hash.
     // Without this, an adversary could submit any non-zero NIZK hash and pass the != 0 check.
     // Poseidon(decrypt_nizk_hash_raw, combined_share_hash) ensures the prover
@@ -2558,11 +2569,16 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let (share_polys, share_commitments, merkle_paths, leaf_indices, share_commitment_root) =
         build_c7_share_commitment_bundle(&share_coeffs_fr);
 
+    let dkg_root = Fr::from_be_bytes_mod_order(&Sha256::digest(&dkg_root_vec));
+    let merkle_path: [Fr; DEPTH_BINARY] = [Fr::zero(); DEPTH_BINARY];
+    let leaf_index = Fr::zero();
+
     let prover_toml = build_c7_prover_toml(
         ciphertext_hash,
         aggregate_pk_hash,
         decrypt_nizk_hash_field,
         dkg_transcript_hash,
+        dkg_root,
         epoch,
         participant_set_hash,
         n_participants,
@@ -2581,6 +2597,9 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         &merkle_paths,
         &leaf_indices,
         &share_polys,
+        aggregate_pk_leaf,
+        merkle_path,
+        leaf_index,
     );
     let mut noir_passed = true;
 
@@ -4111,11 +4130,20 @@ pub fn build_c7_share_commitment_bundle(
     )
 }
 
+fn eval_c7_share_poly_noir(poly: &[Fr; N_COEFFS], challenge_r: Fr) -> Fr {
+    let mut result = Fr::zero();
+    for i in 0..N_COEFFS {
+        result = result * challenge_r + poly[N_COEFFS - 1 - i];
+    }
+    result
+}
+
 pub fn build_c7_prover_toml(
     ciphertext_hash: Fr,
     aggregate_pk_hash: Fr,
     decrypt_nizk_hash: Fr,
     dkg_transcript_hash: Fr,
+    dkg_root: Fr,
     epoch: Fr,
     participant_set_hash: Fr,
     n_participants: Fr,
@@ -4126,14 +4154,17 @@ pub fn build_c7_prover_toml(
     nova_share_chain_hash: Fr,
     challenge_r: Fr,
     n_shares: Fr,
-    share_evals: &[Fr],
+    _share_evals: &[Fr],
     lagrange_coeffs_fr: &[Fr],
-    pt_eval: Fr,
+    _pt_eval: Fr,
     share_commitment_root: Fr,
     share_commitments: &[Fr],
     merkle_paths: &[[Fr; DEPTH_BINARY]],
     leaf_indices: &[Fr],
     share_polys: &[[Fr; N_COEFFS]],
+    aggregate_pk_leaf: Fr,
+    merkle_path: [Fr; DEPTH_BINARY],
+    leaf_index: Fr,
 ) -> String {
     use std::fmt::Write;
     let mut s = String::new();
@@ -4203,6 +4234,16 @@ pub fn build_c7_prover_toml(
         field_hex_be(nova_share_chain_hash)
     )
     .unwrap();
+
+    let share_evals: Vec<Fr> = share_polys
+        .iter()
+        .map(|poly| eval_c7_share_poly_noir(poly, challenge_r))
+        .collect();
+    let pt_eval: Fr = share_evals
+        .iter()
+        .zip(lagrange_coeffs_fr.iter())
+        .map(|(&sev, &lc)| sev * lc)
+        .fold(Fr::zero(), |a, x| a + x);
 
     // C7 witness arrays (padded to 128 entries)
     const MAX: usize = 128;
@@ -4289,6 +4330,24 @@ pub fn build_c7_prover_toml(
         write!(s, "]").unwrap();
     }
     writeln!(s, "]").unwrap();
+
+    // G4: PK binding via Merkle proof
+    writeln!(s, "dkg_root = \"0x{}\"", field_hex_be(dkg_root)).unwrap();
+    writeln!(
+        s,
+        "aggregate_pk_leaf = \"0x{}\"",
+        field_hex_be(aggregate_pk_leaf)
+    )
+    .unwrap();
+    write!(s, "merkle_path = [").unwrap();
+    for j in 0..DEPTH_BINARY {
+        if j > 0 {
+            write!(s, ", ").unwrap();
+        }
+        write!(s, "\"0x{}\"", field_hex_be(merkle_path[j])).unwrap();
+    }
+    writeln!(s, "]").unwrap();
+    writeln!(s, "leaf_index = \"0x{}\"", field_hex_be(leaf_index)).unwrap();
 
     s
 }
@@ -4461,11 +4520,15 @@ mod tests {
         let pt_eval = Fr::from(0u64);
         let (share_polys, share_commitments, merkle_paths, leaf_indices, share_commitment_root) =
             build_c7_share_commitment_bundle(&[]);
+        let dkg_root = Fr::from(77u64);
+        let aggregate_pk_leaf = Fr::from(78u64);
+        let merkle_path: [Fr; DEPTH_BINARY] = [Fr::zero(); DEPTH_BINARY];
         let prover_toml = build_c7_prover_toml(
             ciphertext_hash,
             aggregate_pk_hash,
             decrypt_nizk_hash,
             dkg_transcript_hash,
+            dkg_root,
             epoch,
             participant_set_hash,
             n_participants,
@@ -4484,6 +4547,9 @@ mod tests {
             &merkle_paths,
             &leaf_indices,
             &share_polys,
+            aggregate_pk_leaf,
+            merkle_path,
+            leaf_index,
         );
         assert!(
             prover_toml.contains("decrypt_nizk_hash ="),

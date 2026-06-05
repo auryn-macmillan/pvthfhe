@@ -388,8 +388,21 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
     // Compute all fields for the simplified C7 Noir circuit
     let ciphertext_hash =
         Fr::from_be_bytes_mod_order(&Sha256::digest(report.session_id.as_bytes()));
-    let aggregate_pk_hash =
-        Fr::from_be_bytes_mod_order(&Sha256::digest(&report.aggregate_pk_bytes));
+    let aggregate_pk_leaf = {
+        use pvthfhe_cli::full_pipeline::poseidon_sponge_native_noir;
+        let pk_fr: Vec<Fr> = report
+            .aggregate_pk_bytes
+            .chunks(31)
+            .map(Fr::from_le_bytes_mod_order)
+            .collect();
+        poseidon_sponge_native_noir(&pk_fr)
+    };
+    let aggregate_pk_hash = {
+        use pvthfhe_cli::full_pipeline::poseidon_sponge_native_noir;
+        poseidon_sponge_native_noir(&[aggregate_pk_leaf])
+    };
+    let merkle_path: [ark_bn254::Fr; 7] = [ark_bn254::Fr::from(0u64); 7];
+    let leaf_index = ark_bn254::Fr::from(0u64);
     let decrypt_nizk_hash_field = Fr::from_be_bytes_mod_order(&report.decrypt_nizk_hash);
     let dkg_transcript_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(
         format!("dkg-transcript-{}", report.session_id).as_bytes(),
@@ -458,11 +471,17 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
     let (share_polys, share_commitments, merkle_paths, leaf_indices, share_commitment_root) =
         build_c7_share_commitment_bundle(&share_coeffs_fr);
 
+    let dkg_root = Fr::from_be_bytes_mod_order(&Sha256::digest(
+        format!("dkg-root-{}", report.session_id).as_bytes(),
+    ));
+    let merkle_path: [Fr; 7] = [Fr::zero(); 7];
+
     let prover_toml_data = build_c7_prover_toml(
         ciphertext_hash,
         aggregate_pk_hash,
         decrypt_nizk_hash_field,
         dkg_transcript_hash,
+        dkg_root,
         epoch,
         participant_set_hash,
         n_participants,
@@ -481,6 +500,9 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
         &merkle_paths,
         &leaf_indices,
         &share_polys,
+        aggregate_pk_leaf,
+        merkle_path,
+        leaf_index,
     );
     if let Err(e) = std::fs::write(&prover_toml_path, &prover_toml_data) {
         warn!(phase = "noir_aggregator_final", error = %e, "Noir aggregator_final: failed to write Prover.toml");

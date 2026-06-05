@@ -40,7 +40,7 @@ use protocol_constants;
 
 global N: u32 = 8;
 global MAX_SHARES: u32 = 128;
-global DEPTH: u32 = 8;
+global DEPTH: u32 = 7; // 128 leaves = 7 Merkle path hops
 
 fn vector_hash<let M: u32>(values: [Field; M], domain_tag: Field) -> Field {
     let mut preimage = [0; M + 1];

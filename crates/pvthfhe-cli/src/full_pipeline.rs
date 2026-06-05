@@ -4121,6 +4121,24 @@ pub fn build_c7_share_commitment_bundle(
         .map(|i| Fr::from(i as u64))
         .collect();
 
+    // Verify Merkle proof for first share to catch root mismatch early.
+    for i in 0..share_coeffs_fr.len().min(2) {
+        let mut cur = share_commitments[i];
+        let mut idx = i;
+        for lvl in 0..DEPTH_BINARY {
+            if idx % 2 == 0 {
+                cur = poseidon_sponge_native_noir(&[cur, merkle_paths[i][lvl]]);
+            } else {
+                cur = poseidon_sponge_native_noir(&[merkle_paths[i][lvl], cur]);
+            }
+            idx /= 2;
+        }
+        assert_eq!(
+            cur, share_commitment_root,
+            "Merkle proof must reach share_commitment_root in Rust"
+        );
+    }
+
     (
         share_polys,
         share_commitments,

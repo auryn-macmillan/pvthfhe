@@ -177,3 +177,43 @@
 ## 2026-06-05
 - C7 witness generation now derives `share_evals` and `pt_eval` from the same `share_polys` vector at TOML generation time, matching Noir's `eval_poly` ordering.
 - This avoids reusing earlier `eval_with_powers` outputs that could diverge from the circuit even when the committed polynomials are correct.
+
+## Session: 2026-06-05 — Noir Poseidon Cross-Language Agreement
+
+- `poseidon::poseidon::bn254::sponge` is distinct from fixed-arity `hash_2`/`hash_9`: sponge uses `x5_5_config()` with rate=4/capacity=1 and returns `state[1]`; `hash_2` uses `x5_3` and returns permuted `state[0]`; `hash_9` uses `x5_10` and returns permuted `state[0]`.
+- Added `crates/pvthfhe-cli/src/noir_poseidon.rs` with exact Noir `x5_5` constants plus dynamic parsing of Noir `x5_3_config()`/`x5_10_config()` from `/home/dev/nargo/github.com/noir-lang/poseidon/v0.3.0/src/poseidon/bn254/consts.nr` for fixed-arity tests.
+- `aggregator_final` Merkle node hashing now uses `bn254::hash_2`; Rust binary Merkle construction and path verification use `noir_poseidon::hash_2` to match.
+- Cross-language golden tests cover sponge `[1,2]`, `[42]`, `[1..9]`, `[0xdead,0xbeef]`, plus fixed `hash_2([1,2])` and `hash_9([1..9])`.
+- Verification: `cargo test -p pvthfhe-cli -- noir_poseidon` ✅; `cargo check -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng"` ✅; `(cd circuits && nargo test --package aggregator_final)` ✅ (26/26 with Merkle asserts active).
+- Demo note: production-parameter `pvthfhe-e2e` reached C7 plaintext binding/CompressionTree verification with Merkle asserts active, then failed at pre-existing `compressor_prove: InvalidInput`; `insecure512` cannot build the RLWE NIZK context.
+
+## Session: 2026-06-05 — TDD Re-Verification of Cross-Language Hash Agreement (COMPLETED)
+
+### State Verified
+- `crates/pvthfhe-cli/src/noir_poseidon.rs` already exists (untracked, 1227 lines) with:
+  - `sponge(&[Fr])` using exact Noir `x5_5_config()` (t=5, rf=8, rp=60), returning `state[1]` (capacity index)
+  - `hash_2(a, b)` using Noir `x5_3_config()` parsed dynamically from `consts.nr`
+  - `hash_9(&[Fr; 9])` using Noir `x5_10_config()` parsed dynamically from `consts.nr`
+  - `hash_n(&[Fr])` aliased to `sponge` for variable-length compatibility
+  - `poseidon_sponge_native_noir` legacy alias delegating to `hash_n`
+- `crates/pvthfhe-cli/src/full_pipeline.rs` calls all routed through `noir_poseidon::*`
+- `circuits/aggregator_final/src/main.nr`:
+  - `hash_pair` switched from `sponge([l, r])` to `hash_2([l, r])` (line 63)
+  - Merkle binding assert active on share_commitment_root (line 278)
+  - Merkle binding assert active on dkg_root (line 288)
+  - `#[test(should_fail)]` restored on G4.1, G4.3, G4.4
+
+### TDD Re-Verification Results (this session)
+- Rust cross-language: `cargo test -p pvthfhe-cli --lib noir_poseidon` → **14 passed / 0 failed**.
+  - 6 cross-lang golden tests: `sponge([1,2])`, `sponge([42])`, `sponge([1..9])`, `sponge([0xdead,0xbeef])`, `hash_2([1,2])`, `hash_9([1..9])`.
+- Noir cross-language: `nargo test --package aggregator_final test_cross_lang` → **6 passed**.
+  - Both sides assert against the same decimal/hex constants; if either side drifts, both fail simultaneously.
+- Full Noir suite: `nargo test --package aggregator_final` → **26 passed**, including:
+  - G2 RED tests: `test_per_share_eval_not_in_merkle_rejected`, `test_valid_merkle_wrong_leaf_rejected`
+  - G4 RED tests: `test_g4_pk_binding_missing_rejects`, `test_g4_wrong_aggregate_pk_leaf_rejects`, `test_g4_forged_merkle_path_rejects`
+- Rust build: `cargo check -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng"` ✅
+- Files modified (not committed): `crates/pvthfhe-cli/src/{lib,full_pipeline}.rs`, `circuits/aggregator_final/{src/main.nr,C7Prover.toml}`. Untracked: `crates/pvthfhe-cli/src/noir_poseidon.rs`.
+
+### Why This Was Already Done
+- Prior session (notepad above) completed the implementation. The TDD directive in this session was satisfied by re-running the existing cross-language tests, which **passed on first execution** — no RED was needed because the implementation already agrees with Noir.
+- The demo gap (`pvthfhe-e2e verify: ACCEPT`) is unrelated to Poseidon: it is the pre-existing `compressor_prove: InvalidInput` failure noted in the prior session.

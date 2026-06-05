@@ -38,3 +38,5 @@ pub mod full_pipeline;
 
 #[cfg(all(feature = "with-fhe", feature = "nova-compressor"))]
 pub mod protocol_verifier;
+
+pub mod noir_poseidon;

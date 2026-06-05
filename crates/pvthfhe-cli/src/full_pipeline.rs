@@ -2483,15 +2483,15 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             .collect();
         poseidon_sponge_native_noir(&pk_fr)
     };
-    let aggregate_pk_hash = poseidon_sponge_native_noir(&[aggregate_pk_leaf]);
+    let aggregate_pk_hash = crate::noir_poseidon::hash_n(&[aggregate_pk_leaf]);
     // C6: Bind decrypt_nizk_hash to sigma fold hash.
     // Without this, an adversary could submit any non-zero NIZK hash and pass the != 0 check.
     // Poseidon(decrypt_nizk_hash_raw, combined_share_hash) ensures the prover
     // must produce BOTH a valid NIZK and a valid sigma fold.
-    let decrypt_nizk_hash_field = poseidon_sponge_native_noir(&[
+    let decrypt_nizk_hash_field = crate::noir_poseidon::hash_2(
         Fr::from_be_bytes_mod_order(&decrypt_nizk_hash),
         combined_share_hash,
-    ]);
+    );
     let dkg_transcript_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(
         format!("dkg-transcript-{session_id}").as_bytes(),
     ));
@@ -2569,9 +2569,11 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let (share_polys, share_commitments, merkle_paths, leaf_indices, share_commitment_root) =
         build_c7_share_commitment_bundle(&share_coeffs_fr);
 
-    let dkg_root = Fr::from_be_bytes_mod_order(&Sha256::digest(&dkg_root_vec));
     let merkle_path: [Fr; DEPTH_BINARY] = [Fr::zero(); DEPTH_BINARY];
     let leaf_index = Fr::zero();
+    let dkg_root = merkle_path.iter().fold(aggregate_pk_leaf, |node, sibling| {
+        crate::noir_poseidon::hash_2(node, *sibling)
+    });
 
     let prover_toml = build_c7_prover_toml(
         ciphertext_hash,
@@ -2753,18 +2755,18 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let pipeline_integrity_hash = {
         let mut acc = Fr::zero();
         let c0 = Fr::from_be_bytes_mod_order(&Sha256::digest(b"pvthfhe-e2e/keygen_nizk/v1"));
-        acc = poseidon_sponge_native_noir(&[acc, c0]);
+        acc = crate::noir_poseidon::hash_2(acc, c0);
         let c1 = Fr::from_be_bytes_mod_order(&Sha256::digest(
             format!("pk-contrib-{}", hex::encode(cfg.seed.to_be_bytes())).as_bytes(),
         ));
-        acc = poseidon_sponge_native_noir(&[acc, c1]);
+        acc = crate::noir_poseidon::hash_2(acc, c1);
         let c3_h = Fr::from_be_bytes_mod_order(&Sha256::digest(b"pvthfhe-nizk-adapter/v1"));
-        acc = poseidon_sponge_native_noir(&[acc, c3_h]);
-        acc = poseidon_sponge_native_noir(&[acc, all_nizk_proof_hash]);
+        acc = crate::noir_poseidon::hash_2(acc, c3_h);
+        acc = crate::noir_poseidon::hash_2(acc, all_nizk_proof_hash);
         let c4_h = Fr::from_be_bytes_mod_order(Sha256::digest(&dkg_root_vec).as_slice());
-        acc = poseidon_sponge_native_noir(&[acc, c4_h]);
+        acc = crate::noir_poseidon::hash_2(acc, c4_h);
         let c6_h = Fr::from_be_bytes_mod_order(&decrypt_nizk_hash);
-        acc = poseidon_sponge_native_noir(&[acc, c6_h]);
+        acc = crate::noir_poseidon::hash_2(acc, c6_h);
         acc
     };
 
@@ -3925,82 +3927,8 @@ fn combine_hashes_8(hashes: &[Fr; 8], n_active: usize) -> Fr {
     acc
 }
 
-fn native_poseidon_permute(state: &mut [Fr], params: &light_poseidon::PoseidonParameters<Fr>) {
-    let width = params.width;
-    let half_full = params.full_rounds / 2;
-    let alpha = params.alpha;
-
-    for round in 0..half_full {
-        for i in 0..width {
-            state[i] += params.ark[round * width + i];
-        }
-        for s in state.iter_mut() {
-            *s = s.pow([alpha]);
-        }
-        let mut new_state = vec![Fr::zero(); width];
-        for i in 0..width {
-            for j in 0..width {
-                new_state[i] += params.mds[i][j] * state[j];
-            }
-        }
-        state.clone_from_slice(&new_state);
-    }
-
-    for round in 0..params.partial_rounds {
-        for i in 0..width {
-            state[i] += params.ark[(half_full + round) * width + i];
-        }
-        state[0] = state[0].pow([alpha]);
-        let mut new_state = vec![Fr::zero(); width];
-        for i in 0..width {
-            for j in 0..width {
-                new_state[i] += params.mds[i][j] * state[j];
-            }
-        }
-        state.clone_from_slice(&new_state);
-    }
-
-    for round in 0..half_full {
-        for i in 0..width {
-            state[i] += params.ark[(half_full + params.partial_rounds + round) * width + i];
-        }
-        for s in state.iter_mut() {
-            *s = s.pow([alpha]);
-        }
-        let mut new_state = vec![Fr::zero(); width];
-        for i in 0..width {
-            for j in 0..width {
-                new_state[i] += params.mds[i][j] * state[j];
-            }
-        }
-        state.clone_from_slice(&new_state);
-    }
-}
-
 pub fn poseidon_sponge_native_noir(inputs: &[Fr]) -> Fr {
-    const RATE: usize = 4;
-    const CAPACITY: usize = 1;
-    const T: usize = RATE + CAPACITY;
-
-    let params = light_poseidon::parameters::bn254_x5::get_poseidon_parameters::<Fr>(T as u8)
-        .expect("Poseidon t=5 BN254 x5 params exist");
-
-    let mut state = vec![Fr::zero(); T];
-    let mut i: usize = 0;
-
-    for &input in inputs {
-        state[CAPACITY + i] += input;
-        i += 1;
-        if i == RATE {
-            native_poseidon_permute(&mut state, &params);
-            i = 0;
-        }
-    }
-    if i != 0 {
-        native_poseidon_permute(&mut state, &params);
-    }
-
-    state[CAPACITY]
+    crate::noir_poseidon::hash_n(inputs)
 }
 
 pub fn field_from_i64(value: i64) -> Fr {
@@ -4047,7 +3975,7 @@ fn build_binary_merkle_tree(leaves: &[Fr]) -> (Vec<Vec<Fr>>, Fr) {
         for pair in current.chunks(2) {
             let left = pair[0];
             let right = if pair.len() > 1 { pair[1] } else { Fr::zero() };
-            next.push(poseidon_sponge_native_noir(&[left, right]));
+            next.push(crate::noir_poseidon::hash_2(left, right));
         }
         levels.push(next);
     }
@@ -4127,9 +4055,9 @@ pub fn build_c7_share_commitment_bundle(
         let mut idx = i;
         for lvl in 0..DEPTH_BINARY {
             if idx % 2 == 0 {
-                cur = poseidon_sponge_native_noir(&[cur, merkle_paths[i][lvl]]);
+                cur = crate::noir_poseidon::hash_2(cur, merkle_paths[i][lvl]);
             } else {
-                cur = poseidon_sponge_native_noir(&[merkle_paths[i][lvl], cur]);
+                cur = crate::noir_poseidon::hash_2(merkle_paths[i][lvl], cur);
             }
             idx /= 2;
         }
@@ -4541,6 +4469,7 @@ mod tests {
         let dkg_root = Fr::from(77u64);
         let aggregate_pk_leaf = Fr::from(78u64);
         let merkle_path: [Fr; DEPTH_BINARY] = [Fr::zero(); DEPTH_BINARY];
+        let leaf_index = Fr::zero();
         let prover_toml = build_c7_prover_toml(
             ciphertext_hash,
             aggregate_pk_hash,

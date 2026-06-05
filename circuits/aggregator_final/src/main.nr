@@ -60,7 +60,7 @@ fn fold_sum<let M: u32>(values: [Field; M]) -> Field {
 }
 
 fn hash_pair(left: Field, right: Field) -> Field {
-    poseidon::poseidon::bn254::sponge([left, right])
+    poseidon::poseidon::bn254::hash_2([left, right])
 }
 
 fn compute_merkle_root(leaf: Field, path: [Field; DEPTH], leaf_index: Field) -> Field {
@@ -273,13 +273,9 @@ fn main(
         let computed_eval = eval_poly(share_polys[i], challenge_r);
         assert(computed_eval == share_evals[i], "share eval does not match polynomial evaluation");
 
-        // G2 Merkle binding deferred: Rust light-poseidon 0.4 vs Noir poseidon v0.3.0
-        // use different round constants, breaking cross-language Merkle root agreement.
-        // The Lagrange recombination constraint (lines 260-274) provides the core C7
-        // correctness guarantee. Full Merkle binding will be restored when both sides
-        // agree on a single Poseidon parameter set.
-        let _computed_root = compute_merkle_root(share_commitments[i], merkle_paths[i], leaf_indices[i]);
-        // TODO: assert(computed_root == share_commitment_root) when Poseidon params align
+        // G2 Merkle binding: cross-language Poseidon agreement verified (noir_poseidon.rs).
+        let computed_root = compute_merkle_root(share_commitments[i], merkle_paths[i], leaf_indices[i]);
+        assert(computed_root == share_commitment_root, f"root mismatch: computed={computed_root} expected={share_commitment_root}");
     }
 
     // ---- New G4: PK binding -- aggregate_pk_hash derives from aggregate_pk_leaf ----
@@ -287,9 +283,9 @@ fn main(
     assert(aggregate_pk_hash == computed_pk_hash, "aggregate_pk_hash does not match aggregate_pk_leaf");
 
     // ---- New G4: Merkle-path verification for DKG transcript binding ----
-    // Deferred: same light-poseidon vs noir-poseidon parameter mismatch
-    let _computed_dkg_root = compute_merkle_root(aggregate_pk_leaf, merkle_path, leaf_index);
-    // TODO: assert(_computed_dkg_root == dkg_root) when Poseidon params align
+    // Cross-language Poseidon agreement verified (noir_poseidon.rs).
+    let computed_dkg_root = compute_merkle_root(aggregate_pk_leaf, merkle_path, leaf_index);
+    assert(computed_dkg_root == dkg_root, "Merkle path does not reach dkg_root");
 
     nova_final_plaintext
 }
@@ -460,8 +456,8 @@ fn test_g4_honest_pk_binding_accepts() {
     assert(result[0] == 0);
 }
 
-/// G4.3: ACCEPTS -- Merkle binding deferred (Poseidon param mismatch).
-// #[test(should_fail)] -- removed: Merkle assert deferred pending Poseidon alignment
+/// G4.3: REJECTS wrong aggregate_pk_leaf (Merkle binding active).
+#[test(should_fail)]
 fn test_g4_wrong_aggregate_pk_leaf_rejects() {
     let (dkg_root, pk_hash, merkle_path, leaf_index, _aggregate_pk_leaf) = g4_neutral_fixture();
     let (g2_root, g2_commitments, g2_merkle_paths, g2_leaf_indices, g2_share_polys) = g2_neutral_fixture();
@@ -486,8 +482,8 @@ fn test_g4_wrong_aggregate_pk_leaf_rejects() {
     );
 }
 
-/// G4.4: ACCEPTS (deferred) -- Merkle binding deferred pending Poseidon alignment
-// #[test(should_fail)]
+/// G4.4: REJECTS forged Merkle path (Merkle binding active).
+#[test(should_fail)]
 fn test_g4_forged_merkle_path_rejects() {
     let (dkg_root, pk_hash, merkle_path, leaf_index, aggregate_pk_leaf) = g4_neutral_fixture();
     let (g2_root, g2_commitments, g2_merkle_paths, g2_leaf_indices, g2_share_polys) = g2_neutral_fixture();
@@ -517,8 +513,8 @@ fn test_g4_forged_merkle_path_rejects() {
 // G4 PK binding tests
 // ============================================================
 
-/// G4.1: ACCEPTS (deferred) -- Merkle binding deferred pending Poseidon alignment
-// #[test(should_fail)]
+/// G4.1: REJECTS when PK binding Merkle path is wrong.
+#[test(should_fail)]
 fn test_g4_pk_binding_missing_rejects() {
     let aggregate_pk_leaf = 12345;
     let aggregate_pk_hash = poseidon::poseidon::bn254::sponge([aggregate_pk_leaf]);
@@ -955,4 +951,57 @@ fn test_valid_merkle_wrong_leaf_rejected() {
         submitted_commitments, g2_merkle_paths, g2_leaf_indices, share_polys,
         leaf, path, idx,
     );
+}
+
+// ============================================================
+// Cross-language hash agreement tests: Rust to Noir verification
+// ============================================================
+
+/// CROSS-LANG-1: sponge([1, 2]) hash agreement.
+/// Verified against Rust noir_poseidon::sponge using exact Noir round constants.
+#[test]
+fn test_cross_lang_sponge_1_2() {
+    let expected = 20746023242391168517531882753680267284708126183451431774419525065636109626423;
+    let h = poseidon::poseidon::bn254::sponge([1, 2]);
+    assert(h == expected, "sponge([1,2]) mismatch between Noir and Rust");
+}
+
+/// CROSS-LANG-2: sponge([42]) hash agreement.
+#[test]
+fn test_cross_lang_sponge_42() {
+    let expected = 9024878453150563963829964126603389673225423807227498909260108548572921827410;
+    let h = poseidon::poseidon::bn254::sponge([42]);
+    assert(h == expected, "sponge([42]) mismatch between Noir and Rust");
+}
+
+/// CROSS-LANG-3: sponge([1..9]) hash agreement.
+#[test]
+fn test_cross_lang_sponge_1_to_9() {
+    let expected = 3402111777366377077762529803335651546215060635698385595629854299130918549031;
+    let h = poseidon::poseidon::bn254::sponge([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    assert(h == expected, "sponge([1..9]) mismatch between Noir and Rust");
+}
+
+/// CROSS-LANG-4: sponge(0xdead, 0xbeef).
+#[test]
+fn test_cross_lang_sponge_dead_beef() {
+    let expected = 13535859357675350641675205925438265455811858809394746982203526440456909422598;
+    let h = poseidon::poseidon::bn254::sponge([0xdead, 0xbeef]);
+    assert(h == expected, "sponge([0xdead,0xbeef]) mismatch between Noir and Rust");
+}
+
+/// CROSS-LANG-5: hash_2([1, 2]) agreement.
+#[test]
+fn test_cross_lang_hash_2_1_2() {
+    let expected = 7853200120776062878684798364095072458815029376092732009249414926327459813530;
+    let h = poseidon::poseidon::bn254::hash_2([1, 2]);
+    assert(h == expected, "hash_2([1,2]) mismatch between Noir and Rust");
+}
+
+/// CROSS-LANG-6: hash_9([1..9]) agreement.
+#[test]
+fn test_cross_lang_hash_9_1_to_9() {
+    let expected = 13589767895268936107593642967621470491511464502761040466226072462545218539640;
+    let h = poseidon::poseidon::bn254::hash_9([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    assert(h == expected, "hash_9([1..9]) mismatch between Noir and Rust");
 }

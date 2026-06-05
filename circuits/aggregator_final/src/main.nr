@@ -65,9 +65,9 @@ fn hash_pair(left: Field, right: Field) -> Field {
 
 fn compute_merkle_root(leaf: Field, path: [Field; DEPTH], leaf_index: Field) -> Field {
     let mut current = leaf;
-    let mut idx = leaf_index;
+    let mut idx = leaf_index as u32;
     for i in 0..DEPTH {
-        if (idx as u32) & 1 == 0 {
+        if idx & 1 == 0 {
             current = hash_pair(current, path[i]);
         } else {
             current = hash_pair(path[i], current);

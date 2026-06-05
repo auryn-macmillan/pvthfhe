@@ -4049,8 +4049,8 @@ pub fn build_c7_share_commitment_bundle(
         .map(|i| Fr::from(i as u64))
         .collect();
 
-    // Verify Merkle proof for first share to catch root mismatch early.
-    for i in 0..share_coeffs_fr.len().min(2) {
+    // Verify Merkle proof for ALL leaves to catch ANY root mismatch.
+    for i in 0..NOIR_MAX_PARTICIPANTS {
         let mut cur = share_commitments[i];
         let mut idx = i;
         for lvl in 0..DEPTH_BINARY {
@@ -4063,7 +4063,7 @@ pub fn build_c7_share_commitment_bundle(
         }
         assert_eq!(
             cur, share_commitment_root,
-            "Merkle proof must reach share_commitment_root in Rust"
+            "Merkle proof for leaf {i} does not reach root"
         );
     }
 

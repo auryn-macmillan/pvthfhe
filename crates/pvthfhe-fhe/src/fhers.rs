@@ -1867,12 +1867,29 @@ impl FhersBackend {
                             reason: err.to_string(),
                         }
                     })?;
+                // Diagnostic: log first few power-basis coefficients of wire-decoded share poly
+                {
+                    let mut diag_poly = poly.clone();
+                    diag_poly.change_representation(Representation::PowerBasis);
+                    let cv = diag_poly.coefficients();
+                    let first_row: Vec<u64> = cv.row(0).iter().take(5).copied().collect();
+                    tracing::info!(
+                        "C7: aggregate_raw wire-decoded share-pid={} first_mod0[0..5]={:?}",
+                        share.party_id,
+                        first_row
+                    );
+                }
                 Ok((share.party_id as usize, poly))
             })
             .collect::<Result<Vec<_>, FheError>>()?;
         let (party_ids, share_polys): (Vec<_>, Vec<_>) = effective_shares.into_iter().unzip();
 
         let lagrange_coeffs = Self::compute_lagrange_coeffs_integer(&party_ids)?;
+        tracing::info!(
+            "C7: aggregate_raw party_ids={:?} lagrange_coeffs_int={:?}",
+            party_ids,
+            lagrange_coeffs
+        );
 
         let raw_result_poly = {
             let first_poly = &share_polys[0];
@@ -1897,6 +1914,25 @@ impl FhersBackend {
         };
 
         let raw_result_poly_bytes = raw_result_poly.to_bytes();
+        // Immediate roundtrip verification: deserialize and compare
+        {
+            let rt_poly =
+                Poly::from_bytes(&raw_result_poly_bytes, ctx).map_err(|err| FheError::Backend {
+                    reason: err.to_string(),
+                })?;
+            let mut rt = rt_poly.clone();
+            rt.change_representation(Representation::PowerBasis);
+            let mut orig = raw_result_poly.clone();
+            orig.change_representation(Representation::PowerBasis);
+            let rt_row0: Vec<u64> = rt.coefficients().row(0).iter().take(5).copied().collect();
+            let orig_row0: Vec<u64> = orig.coefficients().row(0).iter().take(5).copied().collect();
+            tracing::info!(
+                "C7: aggregate_raw roundtrip test rt_row0[0..5]={:?} orig_row0[0..5]={:?} match={}",
+                rt_row0,
+                orig_row0,
+                rt_row0 == orig_row0
+            );
+        }
 
         let share_manager = ShareManager::new(
             n,

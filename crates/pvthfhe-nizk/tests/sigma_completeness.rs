@@ -3,8 +3,8 @@
 //! Deterministic via `ChaCha20Rng::seed_from_u64(0x4e_34)`.
 
 use pvthfhe_nizk::sigma::{
-    compute_d_rns, prove, rlwe_n, verify, SigmaStatement, SigmaWitness, RLWE_Q0, RLWE_Q1, RLWE_Q2,
-    SIGMA_B_E,
+    compute_d_rns, prove_multi, rlwe_n, verify_multi, SigmaStatement, SigmaWitness, RLWE_Q0,
+    RLWE_Q1, RLWE_Q2, SIGMA_B_E,
 };
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
@@ -60,6 +60,7 @@ fn sample_error(rng: &mut ChaCha20Rng) -> Result<Vec<i64>, String> {
 
 #[test]
 fn honest_instances_all_accept() -> Result<(), String> {
+    const ROUNDS: usize = 2;
     let mut rng = ChaCha20Rng::seed_from_u64(0x4e_34);
 
     for trial in 0..1000usize {
@@ -75,9 +76,17 @@ fn honest_instances_all_accept() -> Result<(), String> {
         };
         let wit = SigmaWitness { s_i, e_i };
 
-        let proof = prove(b"test-session-n4", 0, &stmt, &wit, &mut rng, &[1u8; 32])
-            .map_err(|err| format!("trial {trial}: prove: {err}"))?;
-        verify(b"test-session-n4", 0, &stmt, &proof, &[1u8; 32])
+        let proof = prove_multi(
+            b"test-session-n4",
+            0,
+            &stmt,
+            &wit,
+            &mut rng,
+            &[1u8; 32],
+            ROUNDS,
+        )
+        .map_err(|err| format!("trial {trial}: prove_multi: {err}"))?;
+        verify_multi(b"test-session-n4", 0, &stmt, &proof, &[1u8; 32])
             .map_err(|err| format!("trial {trial}: honest verify rejected: {err}"))?;
     }
     Ok(())
@@ -85,6 +94,7 @@ fn honest_instances_all_accept() -> Result<(), String> {
 
 #[test]
 fn cheating_instances_all_reject() -> Result<(), String> {
+    const ROUNDS: usize = 6; // (1/3)^6 ≈ 0.14% soundness per cheating instance
     let mut rng = ChaCha20Rng::seed_from_u64(0x4e_34_ff_00);
 
     for trial in 0..34usize {
@@ -98,10 +108,18 @@ fn cheating_instances_all_reject() -> Result<(), String> {
             s_i[0] += 2;
             let stmt = SigmaStatement { c_rns, d_rns };
             let wit = SigmaWitness { s_i, e_i };
-            let proof = prove(b"test-session-n4", 0, &stmt, &wit, &mut rng, &[1u8; 32])
-                .map_err(|err| format!("flip-key prove trial {trial}: {err}"))?;
+            let proof = prove_multi(
+                b"test-session-n4",
+                0,
+                &stmt,
+                &wit,
+                &mut rng,
+                &[1u8; 32],
+                ROUNDS,
+            )
+            .map_err(|err| format!("flip-key prove trial {trial}: {err}"))?;
             assert!(
-                verify(b"test-session-n4", 0, &stmt, &proof, &[1u8; 32]).is_err(),
+                verify_multi(b"test-session-n4", 0, &stmt, &proof, &[1u8; 32]).is_err(),
                 "flip-key trial {trial}: should have been rejected"
             );
         }
@@ -116,10 +134,18 @@ fn cheating_instances_all_reject() -> Result<(), String> {
             e_i[0] = SIGMA_B_E + 17;
             let stmt = SigmaStatement { c_rns, d_rns };
             let wit = SigmaWitness { s_i, e_i };
-            let proof = prove(b"test-session-n4", 0, &stmt, &wit, &mut rng, &[1u8; 32])
-                .map_err(|err| format!("change-err prove trial {trial}: {err}"))?;
+            let proof = prove_multi(
+                b"test-session-n4",
+                0,
+                &stmt,
+                &wit,
+                &mut rng,
+                &[1u8; 32],
+                ROUNDS,
+            )
+            .map_err(|err| format!("change-err prove trial {trial}: {err}"))?;
             assert!(
-                verify(b"test-session-n4", 0, &stmt, &proof, &[1u8; 32]).is_err(),
+                verify_multi(b"test-session-n4", 0, &stmt, &proof, &[1u8; 32]).is_err(),
                 "change-err trial {trial}: should have been rejected"
             );
         }
@@ -143,17 +169,18 @@ fn cheating_instances_all_reject() -> Result<(), String> {
                 d_rns: d_tampered,
             };
             let wit = SigmaWitness { s_i, e_i };
-            let proof = prove(
+            let proof = prove_multi(
                 b"test-session-n4",
                 0,
                 &stmt_honest,
                 &wit,
                 &mut rng,
                 &[1u8; 32],
+                ROUNDS,
             )
             .map_err(|err| format!("tamper-stmt prove trial {trial}: {err}"))?;
             assert!(
-                verify(b"test-session-n4", 0, &stmt_tampered, &proof, &[1u8; 32]).is_err(),
+                verify_multi(b"test-session-n4", 0, &stmt_tampered, &proof, &[1u8; 32]).is_err(),
                 "tamper-stmt trial {trial}: should have been rejected"
             );
         }

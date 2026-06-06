@@ -128,6 +128,9 @@ pub enum NizkError {
     /// The proof does not satisfy the verification equation.
     #[error("NIZK verification failed: {0}")]
     VerificationFailed(&'static str),
+    /// Proof generation failed due to exhaustion of retries (e.g., rejection sampling).
+    #[error("proof generation failed: {0}")]
+    ProofGenerationFailed(&'static str),
 }
 
 /// Object-safe adapter trait for per-share P1 NIZK backends.

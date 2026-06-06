@@ -56,6 +56,28 @@ pub enum Tag {
     NovaFheCompute,
     /// `pvthfhe/nova/bootstrap-step/v1` — Nova TFHE bootstrap step circuit (T6 Bootstrap Proofs).
     NovaBootstrapStep,
+    /// `pvthfhe-sk-binding/v1` — sigma protocol secret-key binding hash domain.
+    SigmaSkBinding,
+    /// `pvthfhe/sigma-scalar-challenge/v2` — sigma protocol scalar-challenge Fiat-Shamir domain.
+    SigmaScalarChallenge,
+    /// `pvthfhe-sz-gamma-v3` — sigma protocol sz-gamma derivation domain.
+    SigmaSzGamma,
+    /// `pvthfhe/cyclo-ajtai-d2/v1/` — Fiat-Shamir transcript domain separator prefix.
+    FiatShamirDomainPrefix,
+    /// `pvthfhe-bfv-sigma-challenge-v1` — BFV sigma protocol challenge derivation domain.
+    BfvSigmaChallenge,
+    /// `pvthfhe/bootstrap-sigma-ch/v1` — bootstrap sigma protocol challenge derivation domain.
+    BootstrapSigmaChallenge,
+    /// `pvthfhe-bootstrap-result/v1` — bootstrap result hash binding domain.
+    BootstrapResult,
+    /// `pvthfhe/schnorr-challenge/v2` — Schnorr signature Fiat-Shamir challenge domain.
+    SchnorrChallenge,
+    /// `pvthfhe-greyhound-pcs-v1` — Greyhound PCS matrix generation domain.
+    GreyhoundPcs,
+    /// `pvthfhe-greyhound-challenge-v1` — Greyhound PCS challenge derivation domain.
+    GreyhoundChallenge,
+    /// `pvthfhe-ajtai-crs/v1` — Ajtai commitment CRS seed derivation domain.
+    AjtaiCrs,
 }
 
 impl Tag {
@@ -89,11 +111,22 @@ impl Tag {
             Tag::NovaRingVerifier => b"pvthfhe/nova/ring-verifier/v1",
             Tag::NovaFheCompute => b"pvthfhe/nova/fhe-compute/v1",
             Tag::NovaBootstrapStep => b"pvthfhe/nova/bootstrap-step/v1",
+            Tag::SigmaSkBinding => b"pvthfhe-sk-binding/v1",
+            Tag::SigmaScalarChallenge => b"pvthfhe/sigma-scalar-challenge/v2",
+            Tag::SigmaSzGamma => b"pvthfhe-sz-gamma-v3",
+            Tag::FiatShamirDomainPrefix => b"pvthfhe/cyclo-ajtai-d2/v1/",
+            Tag::BfvSigmaChallenge => b"pvthfhe-bfv-sigma-challenge-v1",
+            Tag::BootstrapSigmaChallenge => b"pvthfhe/bootstrap-sigma-ch/v1",
+            Tag::BootstrapResult => b"pvthfhe-bootstrap-result/v1",
+            Tag::SchnorrChallenge => b"pvthfhe/schnorr-challenge/v2",
+            Tag::GreyhoundPcs => b"pvthfhe-greyhound-pcs-v1",
+            Tag::GreyhoundChallenge => b"pvthfhe-greyhound-challenge-v1",
+            Tag::AjtaiCrs => b"pvthfhe-ajtai-crs/v1",
         }
     }
 
     pub const fn all_literals() -> &'static [&'static [u8]] {
-        const ALL: [&[u8]; 24] = [
+        const ALL: [&[u8]; 35] = [
             Tag::Finalize.as_bytes(),
             Tag::KeygenSimulatorSession.as_bytes(),
             Tag::ProofTag.as_bytes(),
@@ -118,6 +151,17 @@ impl Tag {
             Tag::NovaRingVerifier.as_bytes(),
             Tag::NovaFheCompute.as_bytes(),
             Tag::NovaBootstrapStep.as_bytes(),
+            Tag::SigmaSkBinding.as_bytes(),
+            Tag::SigmaScalarChallenge.as_bytes(),
+            Tag::SigmaSzGamma.as_bytes(),
+            Tag::FiatShamirDomainPrefix.as_bytes(),
+            Tag::BfvSigmaChallenge.as_bytes(),
+            Tag::BootstrapSigmaChallenge.as_bytes(),
+            Tag::BootstrapResult.as_bytes(),
+            Tag::SchnorrChallenge.as_bytes(),
+            Tag::GreyhoundPcs.as_bytes(),
+            Tag::GreyhoundChallenge.as_bytes(),
+            Tag::AjtaiCrs.as_bytes(),
         ];
         &ALL
     }

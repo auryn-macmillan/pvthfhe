@@ -117,7 +117,7 @@ fn derive_challenge(
     round: usize,
 ) -> i64 {
     let mut h = Sha256::new();
-    h.update(b"pvthfhe/bootstrap-sigma-ch/v1");
+    h.update(pvthfhe_domain_tags::Tag::BootstrapSigmaChallenge.as_bytes());
     h.update(session_id);
     h.update(party_id.to_le_bytes());
     h.update((round as u64).to_le_bytes());
@@ -275,7 +275,7 @@ pub fn compute_bootstrap_result_hash(
     party_id: u32,
 ) -> [u8; 32] {
     let mut hasher = Sha256::new();
-    hasher.update(b"pvthfhe-bootstrap-result/v1");
+    hasher.update(pvthfhe_domain_tags::Tag::BootstrapResult.as_bytes());
     hasher.update(session_id);
     hasher.update(party_id.to_le_bytes());
     hasher.update(stmt.bsk_hash);

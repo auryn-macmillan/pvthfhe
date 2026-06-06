@@ -38,6 +38,10 @@
 use poseidon;
 use protocol_constants;
 
+// PROTOTYPE: N=8 coefficient dimension. Production RLWE uses N=8192.
+// The circuit proves correctness on 8-coefficient data truncated from the
+// full N=8192 polynomials via native Rust projection. This truncation is
+// NOT provably correctness-preserving. See G-N8 in OPEN-PROBLEM-BLOCKERS.md.
 global N: u32 = 8;
 global MAX_SHARES: u32 = 128;
 global DEPTH: u32 = 7; // 128 leaves = 7 Merkle path hops
@@ -202,8 +206,7 @@ fn main(
     plaintext_commitment: pub Field,
     ivc_snark_proof_hash: pub Field,
 
-    // -- New C7 public inputs (3) --
-    challenge_r: pub Field,
+    // -- New C7 public inputs (2) --
     n_shares: pub Field,
     share_commitment_root: pub Field,
 
@@ -261,21 +264,42 @@ fn main(
     }
     assert(recombined_eval == pt_eval, "Lagrange recombination does not match plaintext evaluation");
 
+    // ---- F3: In-circuit challenge_r derivation (session-bound) ----
+    // challenge_r is derived from session-binding inputs to prevent
+    // a malicious prover from choosing a favorable Schwartz-Zippel point.
+    let challenge_r = poseidon::poseidon::bn254::sponge([
+        ciphertext_hash,
+        dkg_root,
+        epoch,
+        participant_set_hash,
+        share_commitment_root,
+        n_shares,
+        protocol_constants::DOMAIN_SZ_CHALLENGE,
+    ]);
+
     // ---- New G2: Per-share Merkle-bound commitment verification ----
-    // For each share i (0..MAX_SHARES), verify:
+    // For each active share i (0..n_shares), verify:
     //   1. share_commitment_i = Poseidon(share_poly_i)
     //   2. eval_poly(share_poly_i, challenge_r) = share_evals[i]
     //   3. Merkle proof(share_commitment_i) reaches share_commitment_root
+    // For padding positions (n_shares..MAX_SHARES), verify all-zero.
+    let zero_poly = [0; N];
     for i in 0..MAX_SHARES {
-        let computed_commitment = vector_hash(share_polys[i], protocol_constants::DOMAIN_VECTOR_MERKLE);
-        assert(computed_commitment == share_commitments[i], "share commitment mismatch");
+        if (n_shares as u32) > i {
+            let computed_commitment = vector_hash(share_polys[i], protocol_constants::DOMAIN_VECTOR_MERKLE);
+            assert(computed_commitment == share_commitments[i], "share commitment mismatch");
 
-        let computed_eval = eval_poly(share_polys[i], challenge_r);
-        assert(computed_eval == share_evals[i], "share eval does not match polynomial evaluation");
+            let computed_eval = eval_poly(share_polys[i], challenge_r);
+            assert(computed_eval == share_evals[i], "share eval does not match polynomial evaluation");
 
-        // G2 Merkle binding: cross-language Poseidon agreement verified (noir_poseidon.rs).
-        let computed_root = compute_merkle_root(share_commitments[i], merkle_paths[i], leaf_indices[i]);
-        assert(computed_root == share_commitment_root, f"root mismatch: computed={computed_root} expected={share_commitment_root}");
+            // G2 Merkle binding: cross-language Poseidon agreement verified (noir_poseidon.rs).
+            let computed_root = compute_merkle_root(share_commitments[i], merkle_paths[i], leaf_indices[i]);
+            assert(computed_root == share_commitment_root, f"root mismatch: computed={computed_root} expected={share_commitment_root}");
+        } else {
+            assert(share_evals[i] == 0, "padding share_evals must be zero");
+            assert(lagrange_coeffs[i] == 0, "padding lagrange_coeffs must be zero");
+            assert(share_polys[i] == zero_poly, "padding share_polys must be zero");
+        }
     }
 
     // ---- New G4: PK binding -- aggregate_pk_hash derives from aggregate_pk_leaf ----
@@ -348,7 +372,6 @@ fn test_simplified_honest() {
     let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
     let ciphertext_hash = 99;
 
-    let challenge_r = 0;
     let n_shares = 1;
     let share_evals = [0; MAX_SHARES];
     let mut lagrange_coeffs = [0; MAX_SHARES];
@@ -367,7 +390,6 @@ fn test_simplified_honest() {
         2,
         plaintext_commitment,
         777,
-        challenge_r,
         n_shares,
         g2_root,
         plaintext,
@@ -392,7 +414,6 @@ fn test_plaintext_mismatch() {
     let (g2_root, g2_commitments, g2_merkle_paths, g2_leaf_indices, g2_share_polys) = g2_neutral_fixture();
     let plaintext = [1, 0, 0, 0, 0, 0, 0, 0];
     let wrong_commitment = 0;
-    let challenge_r = 0;
     let n_shares = 1;
     let share_evals = [0; MAX_SHARES];
     let mut lagrange_coeffs = [0; MAX_SHARES];
@@ -400,7 +421,7 @@ fn test_plaintext_mismatch() {
     let pt_eval = 0;
     let _ = main(
         99, pk_hash, 500, 999, dkg_root, 1, 300, 3, 2, wrong_commitment, 777,
-        challenge_r, n_shares, g2_root,
+        n_shares, g2_root,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         g2_commitments, g2_merkle_paths, g2_leaf_indices, g2_share_polys,
@@ -414,7 +435,6 @@ fn test_ivc_hash_zero() {
     let (g2_root, g2_commitments, g2_merkle_paths, g2_leaf_indices, g2_share_polys) = g2_neutral_fixture();
     let plaintext = [0; N];
     let pt_hash = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
-    let challenge_r = 0;
     let n_shares = 1;
     let share_evals = [0; MAX_SHARES];
     let mut lagrange_coeffs = [0; MAX_SHARES];
@@ -422,7 +442,7 @@ fn test_ivc_hash_zero() {
     let pt_eval = 0;
     let _ = main(
         pt_hash + 1, pk_hash, 500, 999, dkg_root, 1, 300, 3, 2, pt_hash, 0,
-        challenge_r, n_shares, g2_root,
+        n_shares, g2_root,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         g2_commitments, g2_merkle_paths, g2_leaf_indices, g2_share_polys,
@@ -438,7 +458,6 @@ fn test_g4_honest_pk_binding_accepts() {
 
     let plaintext = [0, 0, 0, 0, 0, 0, 0, 0];
     let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
-    let challenge_r = 0;
     let n_shares = 1;
     let share_evals = [0; MAX_SHARES];
     let mut lagrange_coeffs = [0; MAX_SHARES];
@@ -447,7 +466,7 @@ fn test_g4_honest_pk_binding_accepts() {
 
     let result = main(
         99, pk_hash, 500, 999, dkg_root, 1, 300, 3, 2, plaintext_commitment, 777,
-        challenge_r, n_shares, g2_root,
+        n_shares, g2_root,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         g2_commitments, g2_merkle_paths, g2_leaf_indices, g2_share_polys,
@@ -465,7 +484,6 @@ fn test_g4_wrong_aggregate_pk_leaf_rejects() {
 
     let plaintext = [0, 0, 0, 0, 0, 0, 0, 0];
     let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
-    let challenge_r = 0;
     let n_shares = 1;
     let share_evals = [0; MAX_SHARES];
     let mut lagrange_coeffs = [0; MAX_SHARES];
@@ -474,7 +492,7 @@ fn test_g4_wrong_aggregate_pk_leaf_rejects() {
 
     let _ = main(
         99, pk_hash, 500, 999, dkg_root, 1, 300, 3, 2, plaintext_commitment, 777,
-        challenge_r, n_shares, g2_root,
+        n_shares, g2_root,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         g2_commitments, g2_merkle_paths, g2_leaf_indices, g2_share_polys,
@@ -492,7 +510,6 @@ fn test_g4_forged_merkle_path_rejects() {
 
     let plaintext = [0, 0, 0, 0, 0, 0, 0, 0];
     let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
-    let challenge_r = 0;
     let n_shares = 1;
     let share_evals = [0; MAX_SHARES];
     let mut lagrange_coeffs = [0; MAX_SHARES];
@@ -501,7 +518,7 @@ fn test_g4_forged_merkle_path_rejects() {
 
     let _ = main(
         99, pk_hash, 500, 999, dkg_root, 1, 300, 3, 2, plaintext_commitment, 777,
-        challenge_r, n_shares, g2_root,
+        n_shares, g2_root,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         g2_commitments, g2_merkle_paths, g2_leaf_indices, g2_share_polys,
@@ -527,7 +544,6 @@ fn test_g4_pk_binding_missing_rejects() {
 
     let plaintext = [0, 0, 0, 0, 0, 0, 0, 0];
     let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
-    let challenge_r = 0;
     let n_shares = 1;
     let share_evals = [0; MAX_SHARES];
     let mut lagrange_coeffs = [0; MAX_SHARES];
@@ -536,7 +552,7 @@ fn test_g4_pk_binding_missing_rejects() {
 
     let _ = main(
         99, aggregate_pk_hash, 500, 999, wrong_dkg_root, 1, 300, 3, 2, plaintext_commitment, 777,
-        challenge_r, n_shares, g2_root,
+        n_shares, g2_root,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         g2_commitments, g2_merkle_paths, g2_leaf_indices, g2_share_polys,
@@ -597,7 +613,6 @@ fn test_c7_honest_lagrange_recombination() {
     let plaintext = [0, 0, 0, 0, 0, 0, 0, 0];
     let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
 
-    let challenge_r = 0;
     let n_shares = 2;
 
     let share_evals = [0; MAX_SHARES];
@@ -610,7 +625,7 @@ fn test_c7_honest_lagrange_recombination() {
 
     let result = main(
         99, pk_hash, 500, 999, dkg_root, 1, 300, 3, 2, plaintext_commitment, 777,
-        challenge_r, n_shares, g2_root,
+        n_shares, g2_root,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         g2_commitments, g2_merkle_paths, g2_leaf_indices, g2_share_polys,
@@ -626,7 +641,6 @@ fn test_c7_wrong_lagrange_sum() {
     let (g2_root, g2_commitments, g2_merkle_paths, g2_leaf_indices, g2_share_polys) = g2_neutral_fixture();
     let plaintext = [0, 0, 0, 0, 0, 0, 0, 0];
     let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
-    let challenge_r = 0;
     let n_shares = 2;
 
     let mut share_evals = [0; MAX_SHARES];
@@ -641,7 +655,7 @@ fn test_c7_wrong_lagrange_sum() {
 
     let _ = main(
         99, pk_hash, 500, 999, dkg_root, 1, 300, 3, 2, plaintext_commitment, 777,
-        challenge_r, n_shares, g2_root,
+        n_shares, g2_root,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         g2_commitments, g2_merkle_paths, g2_leaf_indices, g2_share_polys,
@@ -656,7 +670,6 @@ fn test_c7_wrong_recombination() {
     let (g2_root, g2_commitments, g2_merkle_paths, g2_leaf_indices, g2_share_polys) = g2_neutral_fixture();
     let plaintext = [0, 0, 0, 0, 0, 0, 0, 0];
     let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
-    let challenge_r = 0;
     let n_shares = 2;
 
     let mut share_evals = [0; MAX_SHARES];
@@ -671,7 +684,7 @@ fn test_c7_wrong_recombination() {
 
     let _ = main(
         99, pk_hash, 500, 999, dkg_root, 1, 300, 3, 2, plaintext_commitment, 777,
-        challenge_r, n_shares, g2_root,
+        n_shares, g2_root,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         g2_commitments, g2_merkle_paths, g2_leaf_indices, g2_share_polys,
@@ -686,7 +699,6 @@ fn test_c7_wrong_share_eval() {
     let (g2_root, g2_commitments, g2_merkle_paths, g2_leaf_indices, g2_share_polys) = g2_neutral_fixture();
     let plaintext = [0, 0, 0, 0, 0, 0, 0, 0];
     let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
-    let challenge_r = 0;
     let n_shares = 2;
 
     let mut share_evals = [0; MAX_SHARES];
@@ -701,7 +713,7 @@ fn test_c7_wrong_share_eval() {
 
     let _ = main(
         99, pk_hash, 500, 999, dkg_root, 1, 300, 3, 2, plaintext_commitment, 777,
-        challenge_r, n_shares, g2_root,
+        n_shares, g2_root,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         g2_commitments, g2_merkle_paths, g2_leaf_indices, g2_share_polys,
@@ -716,7 +728,6 @@ fn test_c7_manipulated_lagrange_coeffs() {
     let (g2_root, g2_commitments, g2_merkle_paths, g2_leaf_indices, g2_share_polys) = g2_neutral_fixture();
     let plaintext = [0, 0, 0, 0, 0, 0, 0, 0];
     let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
-    let challenge_r = 0;
     let n_shares = 2;
 
     let mut share_evals = [0; MAX_SHARES];
@@ -731,7 +742,7 @@ fn test_c7_manipulated_lagrange_coeffs() {
 
     let _ = main(
         99, pk_hash, 500, 999, dkg_root, 1, 300, 3, 2, plaintext_commitment, 777,
-        challenge_r, n_shares, g2_root,
+        n_shares, g2_root,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         g2_commitments, g2_merkle_paths, g2_leaf_indices, g2_share_polys,
@@ -746,7 +757,6 @@ fn test_c7_zero_padded_shares() {
     let (g2_root, g2_commitments, g2_merkle_paths, g2_leaf_indices, g2_share_polys) = g2_neutral_fixture();
     let plaintext = [0, 0, 0, 0, 0, 0, 0, 0];
     let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
-    let challenge_r = 0;
     let n_shares = 2;
 
     let share_evals = [0; MAX_SHARES];
@@ -759,7 +769,7 @@ fn test_c7_zero_padded_shares() {
 
     let result = main(
         99, pk_hash, 500, 999, dkg_root, 1, 300, 3, 2, plaintext_commitment, 777,
-        challenge_r, n_shares, g2_root,
+        n_shares, g2_root,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         g2_commitments, g2_merkle_paths, g2_leaf_indices, g2_share_polys,
@@ -775,7 +785,6 @@ fn test_c7_plaintext_commitment_consistent() {
     let (g2_root, g2_commitments, g2_merkle_paths, g2_leaf_indices, g2_share_polys) = g2_neutral_fixture();
     let plaintext = [0, 0, 0, 0, 0, 0, 0, 0];
     let wrong_commitment = 0;
-    let challenge_r = 0;
     let n_shares = 1;
 
     let share_evals = [0; MAX_SHARES];
@@ -785,7 +794,7 @@ fn test_c7_plaintext_commitment_consistent() {
 
     let _ = main(
         99, pk_hash, 500, 999, dkg_root, 1, 300, 3, 2, wrong_commitment, 777,
-        challenge_r, n_shares, g2_root,
+        n_shares, g2_root,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         g2_commitments, g2_merkle_paths, g2_leaf_indices, g2_share_polys,
@@ -800,7 +809,6 @@ fn test_c7_n_shares_zero() {
     let (g2_root, g2_commitments, g2_merkle_paths, g2_leaf_indices, g2_share_polys) = g2_neutral_fixture();
     let plaintext = [0, 0, 0, 0, 0, 0, 0, 0];
     let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
-    let challenge_r = 0;
     let n_shares = 0;
 
     let share_evals = [0; MAX_SHARES];
@@ -810,7 +818,168 @@ fn test_c7_n_shares_zero() {
 
     let _ = main(
         99, pk_hash, 500, 999, dkg_root, 1, 300, 3, 2, plaintext_commitment, 777,
-        challenge_r, n_shares, g2_root,
+        n_shares, g2_root,
+        plaintext, 888,
+        share_evals, lagrange_coeffs, pt_eval,
+        g2_commitments, g2_merkle_paths, g2_leaf_indices, g2_share_polys,
+        leaf, path, idx,
+    );
+}
+
+// ============================================================
+// Helper: Merkle tree construction for tests with non-zero leaves
+// ============================================================
+
+/// Build a binary Merkle tree over MAX_SHARES leaves, returning (root, paths).
+/// Each path[i][d] is the sibling node at depth d (level d from leaves upward).
+/// The sibling for leaf i at depth d is the node at index (i >> d) ^ 1 in the
+/// level-d node array.
+fn build_merkle_tree_and_paths(leaves: [Field; MAX_SHARES]) -> (Field, [[Field; DEPTH]; MAX_SHARES]) {
+    let mut paths: [[Field; DEPTH]; MAX_SHARES] = [[0; DEPTH]; MAX_SHARES];
+    let mut level_nodes = leaves;
+    for d in 0..DEPTH {
+        let level_size = 1 << (DEPTH - d); // 128, 64, 32, 16, 8, 4, 2
+        for leaf_idx in 0..MAX_SHARES {
+            let node_idx = leaf_idx >> d;
+            let sibling_node_idx = node_idx ^ 1;
+            paths[leaf_idx][d] = level_nodes[sibling_node_idx];
+        }
+        let mut next_level = [0; MAX_SHARES];
+        let next_count = level_size / 2;
+        for i in 0..next_count {
+            next_level[i] = hash_pair(level_nodes[2 * i], level_nodes[2 * i + 1]);
+        }
+        level_nodes = next_level;
+    }
+    let root = level_nodes[0];
+    (root, paths)
+}
+
+// ============================================================
+// F3: RED test -- challenge provisioning test
+// ============================================================
+
+/// F3-RED: challenge_r not session-bound -- accepts a chosen challenge_r.
+///
+/// Before fix: the prover supplies challenge_r=0 as a public input and
+/// constructs matching share_evals. The circuit ACCEPTS.
+///
+/// After fix: challenge_r is derived in-circuit from session-binding data
+/// (Poseidon(ciphertext_hash, dkg_root, epoch, participant_set_hash,
+///          share_commitment_root, n_shares, DOMAIN_SZ_CHALLENGE)).
+/// The derived challenge_r will NOT be 0, so eval_poly(share_polys[i], r_derived)
+/// won't match the chosen share_evals -> REJECT.
+#[test(should_fail)]
+fn test_sz_challenge_not_bound_rejected() {
+    let (dkg_root, pk_hash, path, idx, leaf) = g4_neutral_fixture();
+
+    // Build non-zero share polynomials for 2 active shares.
+    // Use polynomials with non-zero higher-degree terms so that
+    // eval_poly depends on the evaluation point r.
+    // [42, 7, 0, 0, 0, 0, 0, 0] evaluates to 42 at r=0,
+    // but eval_poly at r != 0 gives 42 + 7*r.
+    // [84, 13, 0, 0, 0, 0, 0, 0] evaluates to 84 at r=0.
+    let mut share_polys = [[0; N]; MAX_SHARES];
+    share_polys[0] = [42, 7, 0, 0, 0, 0, 0, 0];
+    share_polys[1] = [84, 13, 0, 0, 0, 0, 0, 0];
+
+    // Compute Poseidon commitments for each share polynomial.
+    let mut share_commitments = [0; MAX_SHARES];
+    let zero_poly = [0; N];
+    let zero_commitment = vector_hash(zero_poly, protocol_constants::DOMAIN_VECTOR_MERKLE);
+    share_commitments[0] = vector_hash(share_polys[0], protocol_constants::DOMAIN_VECTOR_MERKLE);
+    share_commitments[1] = vector_hash(share_polys[1], protocol_constants::DOMAIN_VECTOR_MERKLE);
+    for i in 2..MAX_SHARES {
+        share_commitments[i] = zero_commitment;
+    }
+
+    // Build Merkle tree over all 128 commitments.
+    let (g2_root, g2_merkle_paths) = build_merkle_tree_and_paths(share_commitments);
+    let g2_leaf_indices: [Field; MAX_SHARES] = {
+        let mut indices = [0; MAX_SHARES];
+        for i in 0..MAX_SHARES {
+            indices[i] = i as Field;
+        }
+        indices
+    };
+
+    // Prover computes share_evals at r=0 (their chosen challenge point).
+    // At r=0, eval_poly(coeffs, 0) = coeffs[0] (the constant term).
+    let n_shares = 2;
+    let mut share_evals = [0; MAX_SHARES];
+    share_evals[0] = 42; // eval_poly([42,7,0,...], 0) = 42
+    share_evals[1] = 84; // eval_poly([84,13,0,...], 0) = 84
+
+    let mut lagrange_coeffs = [0; MAX_SHARES];
+    lagrange_coeffs[0] = 2;
+    lagrange_coeffs[1] = -1;
+    let pt_eval = 0; // 2*42 + (-1)*84 = 0
+
+    let plaintext = [0, 0, 0, 0, 0, 0, 0, 0];
+    let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
+
+    // Before fix: challenge_r=0 is a public input. The circuit ACCEPTS
+    // because all G2 checks pass with the chosen r=0.
+    // RED: should_fail test reports FAILURE because circuit ACCEPTS.
+    let _ = main(
+        99, pk_hash, 500, 999, dkg_root, 1, 300, 3, 2, plaintext_commitment, 777,
+        n_shares, g2_root,
+        plaintext, 888,
+        share_evals, lagrange_coeffs, pt_eval,
+        share_commitments, g2_merkle_paths, g2_leaf_indices, share_polys,
+        leaf, path, idx,
+    );
+}
+
+// ============================================================
+// F5: RED test -- padding violation test
+// ============================================================
+
+/// F5-RED: n_shares does not bound G2 Merkle loop -- padding violation accepted.
+///
+/// Provides non-zero data at position 3 with n_shares=2.
+///
+/// Before fix: the G2 loop iterates ALL MAX_SHARES (128) entries regardless
+/// of n_shares. Position 3's data is verified through the normal G2 checks
+/// (which pass because all is set up consistently), so the circuit ACCEPTS.
+///
+/// After fix: the G2 loop is bounded by n_shares (positions 0..1 only),
+/// and positions 2..MAX_SHARES-1 are verified as zero-padding.
+/// lagrange_coeffs[3] = 99 (non-zero) triggers the padding check -> REJECT.
+#[test(should_fail)]
+fn test_g2_padding_violation_rejected() {
+    let (dkg_root, pk_hash, path, idx, leaf) = g4_neutral_fixture();
+    let (g2_root, g2_commitments, g2_merkle_paths, g2_leaf_indices, g2_share_polys) = g2_neutral_fixture();
+
+    // n_shares = 2, but put non-zero data at position 3
+    let n_shares = 2;
+    let share_evals = [0; MAX_SHARES];
+    let mut lagrange_coeffs = [0; MAX_SHARES];
+    lagrange_coeffs[0] = 2;
+    lagrange_coeffs[1] = -1;
+
+    // Inject non-zero lagrange_coeff at position 3.
+    // Compensate by adjusting lagrange_coeffs[0] to keep sum = 1:
+    //   original sum: 2 + (-1) + 0 + ... = 1
+    //   new: lagrange_coeffs[0] = 2 - 99 = -97, lagrange_coeffs[3] = 99
+    //   sum: -97 + (-1) + 0 + 99 + 0... = 1
+    lagrange_coeffs[0] = 2 - 99;
+    lagrange_coeffs[3] = 99;
+
+    // share_evals all zero, share_polys all zero (from neutral fixture).
+    // G2 check for position 3 evaluates zero_poly at challenge_r, gives 0 == share_evals[3]=0.
+    // Merkle check: zero_commitment at position 3 has a valid path to g2_root.
+    // Lagrange sum: -97 + (-1) + 99 = 1.
+    // Recombination: lagrange_coeffs[3] * share_evals[3] = 99 * 0 = 0, no effect.
+    // All checks pass -> circuit ACCEPTS. RED.
+
+    let pt_eval = 0;
+    let plaintext = [0, 0, 0, 0, 0, 0, 0, 0];
+    let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
+
+    let _ = main(
+        99, pk_hash, 500, 999, dkg_root, 1, 300, 3, 2, plaintext_commitment, 777,
+        n_shares, g2_root,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         g2_commitments, g2_merkle_paths, g2_leaf_indices, g2_share_polys,
@@ -854,7 +1023,6 @@ fn test_per_share_eval_not_in_merkle_rejected() {
     let (wrong_root, _g2_commitments, g2_merkle_paths, g2_leaf_indices, _) = g2_neutral_fixture();
 
     // share_evals from the polynomials evaluated at r=0: eval_poly([42,0,...], 0) = 42
-    let challenge_r = 0;
     let n_shares = 2;
     let mut share_evals = [0; MAX_SHARES];
     share_evals[0] = 42;
@@ -873,7 +1041,7 @@ fn test_per_share_eval_not_in_merkle_rejected() {
     // share_commitment_root computed from our actual commitments.
     let _ = main(
         99, pk_hash, 500, 999, dkg_root, 1, 300, 3, 2, plaintext_commitment, 777,
-        challenge_r, n_shares, wrong_root,
+        n_shares, wrong_root,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         share_commitments, g2_merkle_paths, g2_leaf_indices, share_polys,
@@ -929,7 +1097,6 @@ fn test_valid_merkle_wrong_leaf_rejected() {
     // Keep the Merkle paths from the zero tree (which are valid for the zero commitment)
     // Keep share_polys with actual polynomial data (non-zero for share 0)
 
-    let challenge_r = 0;
     let n_shares = 2;
     let mut share_evals = [0; MAX_SHARES];
     share_evals[0] = 42;
@@ -945,7 +1112,7 @@ fn test_valid_merkle_wrong_leaf_rejected() {
 
     let _ = main(
         99, pk_hash, 500, 999, dkg_root, 1, 300, 3, 2, plaintext_commitment, 777,
-        challenge_r, n_shares, g2_root,
+        n_shares, g2_root,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         submitted_commitments, g2_merkle_paths, g2_leaf_indices, share_polys,
@@ -1005,3 +1172,4 @@ fn test_cross_lang_hash_9_1_to_9() {
     let h = poseidon::poseidon::bn254::hash_9([1, 2, 3, 4, 5, 6, 7, 8, 9]);
     assert(h == expected, "hash_9([1..9]) mismatch between Noir and Rust");
 }
+

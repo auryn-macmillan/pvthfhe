@@ -297,10 +297,12 @@ fn prove_round(
     }
     let ctx = rlwe_context()?;
 
-    let max_retries = 100;
-    #[allow(clippy::type_complexity)]
-    let mut last_result: Option<(Vec<u64>, Vec<i64>, Vec<i64>, i64)> = None;
-    for _attempt in 0..max_retries {
+    #[cfg(test)]
+    const MAX_REJECTION_RETRIES: usize = 5;
+    #[cfg(not(test))]
+    const MAX_REJECTION_RETRIES: usize = 100_000;
+
+    for _attempt in 0..MAX_REJECTION_RETRIES {
         let y_s = sample_bounded(rng, n, B_Y)?;
         let y_e = sample_bounded(rng, n, B_Y)?;
 
@@ -329,7 +331,6 @@ fn prove_round(
             .map(|(&a, &b)| a + scalar_mul_i64(ch, b))
             .collect();
 
-        let _zs_norm_sq: f64 = z_s.iter().map(|&x| (x as f64) * (x as f64)).sum();
         // Lyubashevsky 2009, Lemma 4: reject with probability
         // 1 - exp((-2*ch*<y,s> - ||ch*s||²) / (2 * M * σ²))
         // For scalar challenge ch ∈ {-1,0,1}:
@@ -357,21 +358,10 @@ fn prove_round(
                 ch,
             });
         }
-
-        last_result = Some((t_rns, z_s, z_e, ch));
     }
-    tracing::warn!(
-        "sigma rejection exceeded max_retries ({}), verifier will check norms",
-        max_retries
-    );
-    let (t_rns, z_s, z_e, ch) =
-        last_result.unwrap_or_else(|| unreachable!("rejection loop always populates last_result"));
-    Ok(SigmaProof {
-        t_rns,
-        z_s,
-        z_e,
-        ch,
-    })
+    Err(NizkError::ProofGenerationFailed(
+        "sigma rejection sampling exhausted all retries",
+    ))
 }
 
 /// Produce k independent sigma proofs via parallel repetition.
@@ -511,6 +501,11 @@ pub fn verify_multi(
     proof: &SigmaMultiProof,
     d_commitment: &[u8; 32],
 ) -> Result<(), NizkError> {
+    if proof.rounds.is_empty() {
+        return Err(NizkError::VerificationFailed(
+            "sigma multi-proof must have at least one round",
+        ));
+    }
     for (i, round_proof) in proof.rounds.iter().enumerate() {
         verify_scalar_round(
             session_id,
@@ -528,11 +523,11 @@ pub fn verify_multi(
 /// registered secret key share via the deterministic share polynomial `d_rns`.
 ///
 /// `sk_binding = Sha256(d_rns || participant_id || session_id)`, domain-separated
-/// with `"pvthfhe-sk-binding/v1"`.  The verifier can reconstruct this hash from
+/// with `pvthfhe-sk-binding/v1`.  The verifier can reconstruct this hash from
 /// the proof-embedded `d_rns` and check it against the DKG registry.
 pub fn compute_sk_binding(d_rns: &[u64], participant_id: u32, session_id: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
-    hasher.update(b"pvthfhe-sk-binding/v1");
+    hasher.update(pvthfhe_domain_tags::Tag::SigmaSkBinding.as_bytes());
     for limb in d_rns {
         hasher.update(limb.to_le_bytes());
     }
@@ -628,7 +623,7 @@ pub fn poly_mul_rq_to_int(
 // ── Scalar challenge derivation (Poseidon-based) ─────────────────────────
 
 /// Domain separator for scalar-challenge sigma protocol (v2).
-const SCALAR_CHALLENGE_DOMAIN: &[u8] = b"pvthfhe/sigma-scalar-challenge/v2";
+const SCALAR_CHALLENGE_DOMAIN: &[u8] = pvthfhe_domain_tags::Tag::SigmaScalarChallenge.as_bytes();
 
 // P1 OPEN PROBLEM: Ternary scalar challenge (ch ∈ {-1,0,1}) provides ~1.58 bits
 // of soundness per execution. With one round, the soundness error is 2/3 —
@@ -698,7 +693,13 @@ pub fn derive_challenge_from_commitment(
     let hi = bytes16_to_fr(&digest[16..]);
     let ch_fr = poseidon_hash(&[lo, hi]);
 
-    fr_to_ternary(&ch_fr)
+    let bytes = fr_to_bytes(&ch_fr);
+    for &byte in &bytes {
+        if let Some(ch) = uniform_ternary(byte) {
+            return ch;
+        }
+    }
+    0 // fallback: all 32 bytes ≥ 252 (probability < 2^-120)
 }
 
 /// SHA-256 hashes a labeled field, binding it to a shared prefix (which includes
@@ -727,26 +728,29 @@ fn poseidon_hash(inputs: &[Fr]) -> Fr {
         .unwrap_or_else(|_| panic!("Poseidon hash failed for {} inputs", inputs.len()))
 }
 
-/// Reduce an Fr field element to a ternary value {-1, 0, 1}.
+/// Rejection-sampled uniform ternary from a single byte.
 ///
-/// Uses the canonical bigint representation:
-/// - 0 → 0
-/// - Value in upper half of field → -1
-/// - Otherwise → 1
-fn fr_to_ternary(fr: &Fr) -> i64 {
-    if fr.is_zero() {
-        return 0;
+/// Bytes 0..=251 are split into three equal buckets of 84 each:
+/// 0..84 → -1, 84..168 → 0, 168..252 → 1.
+/// Bytes ≥ 252 are rejected (returns None); the caller must retry.
+pub fn uniform_ternary(byte: u8) -> Option<i64> {
+    if byte >= 252 {
+        return None;
     }
+    Some(match byte / 84 {
+        0 => -1,
+        1 => 0,
+        _ => 1,
+    })
+}
 
-    let bigint = fr.into_bigint();
-    let mut half_modulus = Fr::MODULUS;
-    half_modulus.div2();
-
-    if bigint > half_modulus {
-        -1
-    } else {
-        1
-    }
+/// Convert an Fr element to its little-endian byte representation.
+fn fr_to_bytes(fr: &Fr) -> [u8; 32] {
+    let mut bytes = [0u8; 32];
+    let le = fr.into_bigint().to_bytes_le();
+    let len = le.len().min(32);
+    bytes[..len].copy_from_slice(&le[..len]);
+    bytes
 }
 
 // ── Element-wise scalar operations ──────────────────────────────────────
@@ -942,7 +946,7 @@ fn compute_one_gamma(
     prev_gammas: &[u64],
 ) -> u64 {
     let mut h = Sha256::new();
-    h.update(b"pvthfhe-sz-gamma-v3");
+    h.update(pvthfhe_domain_tags::Tag::SigmaSzGamma.as_bytes());
     h.update(label);
     h.update(session_id);
     h.update(party_id.to_le_bytes());
@@ -1126,14 +1130,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn fr_to_ternary_smoke() {
-        // Zero maps to 0
-        assert_eq!(fr_to_ternary(&Fr::from(0u64)), 0);
-        // One maps to 1
-        assert_eq!(fr_to_ternary(&Fr::from(1u64)), 1);
-        // Negative one (r-1) maps to -1
-        let neg_one = -Fr::from(1u64);
-        assert_eq!(fr_to_ternary(&neg_one), -1);
+    fn uniform_ternary_smoke() {
+        assert_eq!(uniform_ternary(0).unwrap(), -1);
+        assert_eq!(uniform_ternary(83).unwrap(), -1);
+        assert_eq!(uniform_ternary(84).unwrap(), 0);
+        assert_eq!(uniform_ternary(167).unwrap(), 0);
+        assert_eq!(uniform_ternary(168).unwrap(), 1);
+        assert_eq!(uniform_ternary(251).unwrap(), 1);
+        assert!(uniform_ternary(252).is_none());
+        assert!(uniform_ternary(255).is_none());
     }
 
     #[test]
@@ -1206,6 +1211,92 @@ mod tests {
         assert_ne!(
             ch_a, ch_b,
             "P2-1: challenge must differ when d_commitment changes"
+        );
+    }
+
+    /// F1 RED: verify_multi must reject an empty rounds list.
+    /// A SigmaMultiProof with zero rounds passes vacuously without this guard.
+    #[test]
+    fn test_verify_multi_rejects_empty_rounds() {
+        let empty_proof = SigmaMultiProof { rounds: vec![] };
+        let stmt = SigmaStatement {
+            c_rns: vec![0u64; rlwe_n() * num_rns_limbs()],
+            d_rns: vec![0u64; rlwe_n() * num_rns_limbs()],
+        };
+        let result = verify_multi(b"test", 0, &stmt, &empty_proof, &[0u8; 32]);
+        assert!(
+            result.is_err(),
+            "F1: verify_multi must reject SigmaMultiProof with zero rounds"
+        );
+    }
+
+    /// F4 RED: rejection sampling exhaustion must return an error, not a fallback proof.
+    /// Uses a deterministic counting RNG that forces rejection on every attempt
+    /// to verify the prover exhausts retries and returns Err.
+    #[test]
+    fn test_rejection_sampling_exhausts_retries_returns_error() {
+        use std::cell::Cell;
+
+        let n = rlwe_n();
+        let sample_quota: usize = 2 * n;
+
+        // CountingRng: during the `sample_quota` sampling phase, fills with
+        // B_Y (16384) LE bytes so sample_bounded returns y = B_Y - B_Y = 0.
+        // With y=0, ys_dot=0 and accept_prob ≤ 1.0 for all challenges,
+        // so the rejection check (filling with u64::MAX) always rejects.
+        struct CountingRng<'a> {
+            remaining_samples: &'a Cell<usize>,
+            reset_quota: usize,
+        }
+        impl RngCore for CountingRng<'_> {
+            fn next_u32(&mut self) -> u32 {
+                0
+            }
+            fn next_u64(&mut self) -> u64 {
+                0
+            }
+            fn fill_bytes(&mut self, dest: &mut [u8]) {
+                if dest.len() == 8 {
+                    let n = self.remaining_samples.get();
+                    if n > 0 {
+                        self.remaining_samples.set(n - 1);
+                        // Return B_Y = 16384 LE so sample_bounded gives y = 0.
+                        dest.copy_from_slice(&16384u64.to_le_bytes());
+                    } else {
+                        // Rejection check: fill with u64::MAX to force rejection.
+                        dest.fill(0xFF);
+                        self.remaining_samples.set(self.reset_quota);
+                    }
+                } else {
+                    dest.fill(0);
+                }
+            }
+            fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
+                self.fill_bytes(dest);
+                Ok(())
+            }
+        }
+
+        let rns_len = n * num_rns_limbs();
+        let stmt = SigmaStatement {
+            c_rns: vec![1u64; rns_len],
+            d_rns: vec![1u64; rns_len],
+        };
+        let wit = SigmaWitness {
+            s_i: vec![1i64; n],
+            e_i: vec![1i64; n],
+        };
+
+        let remaining = Cell::new(sample_quota);
+        let mut rng = CountingRng {
+            remaining_samples: &remaining,
+            reset_quota: sample_quota,
+        };
+
+        let result = prove_round(b"test-f4", 0, &stmt, &wit, &mut rng, &[0u8; 32], 0);
+        assert!(
+            result.is_err(),
+            "F4: rejection sampling exhaustion must return Err, not a fallback proof. Got: {result:?}"
         );
     }
 }

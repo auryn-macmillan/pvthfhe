@@ -1682,7 +1682,9 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 .chain_update(session_id.as_bytes())
                 .chain_update(cfg.seed.to_le_bytes())
                 .finalize();
-            match h[0] % 3 {
+            // Rejection-sample for uniform ternary: discard byte >= 252
+            let byte = if h[0] < 252 { h[0] } else { h[1] };
+            match byte / 84 {
                 0 => -Fr::from(1u64),
                 1 => Fr::from(0u64),
                 _ => Fr::from(1u64),
@@ -2589,11 +2591,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         compressed_proof_hash,
         &nova_final_plaintext,
         combined_share_hash,
-        c7_r,
         n_shares_field,
-        &c7_share_evals,
         &lagrange_coeffs_fr,
-        c7_pt_eval,
         share_commitment_root,
         &share_commitments,
         &merkle_paths,
@@ -4095,11 +4094,8 @@ pub fn build_c7_prover_toml(
     ivc_snark_proof_hash: Fr,
     nova_final_plaintext: &[Fr],
     nova_share_chain_hash: Fr,
-    challenge_r: Fr,
     n_shares: Fr,
-    _share_evals: &[Fr],
     lagrange_coeffs_fr: &[Fr],
-    _pt_eval: Fr,
     share_commitment_root: Fr,
     share_commitments: &[Fr],
     merkle_paths: &[[Fr; DEPTH_BINARY]],
@@ -4109,6 +4105,18 @@ pub fn build_c7_prover_toml(
     merkle_path: [Fr; DEPTH_BINARY],
     leaf_index: Fr,
 ) -> String {
+    // Derive challenge_r in-circuit from session-binding inputs (F3 fix).
+    // Must match the Noir derivation: Poseidon(ciphertext_hash, dkg_root, epoch,
+    // participant_set_hash, share_commitment_root, n_shares, DOMAIN_SZ_CHALLENGE=8).
+    let challenge_r = poseidon_sponge_native_noir(&[
+        ciphertext_hash,
+        dkg_root,
+        epoch,
+        participant_set_hash,
+        share_commitment_root,
+        n_shares,
+        Fr::from(8u64), // protocol_constants::DOMAIN_SZ_CHALLENGE
+    ]);
     use std::fmt::Write;
     let mut s = String::new();
     writeln!(
@@ -4158,7 +4166,6 @@ pub fn build_c7_prover_toml(
     .unwrap();
 
     // C7 public inputs
-    writeln!(s, "challenge_r = \"0x{}\"", field_hex_be(challenge_r)).unwrap();
     writeln!(s, "n_shares = \"0x{}\"", field_hex_be(n_shares)).unwrap();
 
     writeln!(
@@ -4452,15 +4459,12 @@ mod tests {
         let ivc_snark_proof_hash = Fr::from(7u64);
         let nova_final_plaintext = [Fr::from(42u64); 8];
         let nova_share_chain_hash = Fr::from(8u64);
-        let challenge_r = Fr::from(0u64);
         let n_shares_field = Fr::from(1u64);
-        let share_evals = vec![Fr::from(0u64); 128];
         let lagrange_coeffs_fr = {
             let mut v = vec![Fr::from(0u64); 128];
             v[0] = Fr::from(1u64);
             v
         };
-        let pt_eval = Fr::from(0u64);
         let (share_polys, share_commitments, merkle_paths, leaf_indices, share_commitment_root) =
             build_c7_share_commitment_bundle(&[]);
         let dkg_root = Fr::from(77u64);
@@ -4481,11 +4485,8 @@ mod tests {
             ivc_snark_proof_hash,
             &nova_final_plaintext,
             nova_share_chain_hash,
-            challenge_r,
             n_shares_field,
-            &share_evals,
             &lagrange_coeffs_fr,
-            pt_eval,
             share_commitment_root,
             &share_commitments,
             &merkle_paths,

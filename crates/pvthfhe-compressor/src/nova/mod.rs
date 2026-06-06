@@ -2086,11 +2086,18 @@ fn compute_greyhound_accumulator_hash(
     let eval_pt = greyhound_point_from_hash(b"nova-accumulator", public_inputs_hash);
     let (commitment, witness) = greyhound_pcs::GreyhoundPCS::commit(params, &poly)
         .map_err(|_| CompressorError::Backend("Greyhound PCS commit failed"))?;
-    let opening = greyhound_pcs::GreyhoundPCS::open(params, &poly, &eval_pt, &witness)
+    let opening = greyhound_pcs::GreyhoundPCS::open(params, &poly, &eval_pt, &witness, "", 0)
         .map_err(|_| CompressorError::Backend("Greyhound PCS open failed"))?;
-    let valid =
-        greyhound_pcs::GreyhoundPCS::verify(params, &commitment, &eval_pt, &opening.y, &opening)
-            .map_err(|_| CompressorError::Backend("Greyhound PCS verify failed"))?;
+    let valid = greyhound_pcs::GreyhoundPCS::verify(
+        params,
+        &commitment,
+        &eval_pt,
+        &opening.y,
+        &opening,
+        "",
+        0,
+    )
+    .map_err(|_| CompressorError::Backend("Greyhound PCS verify failed"))?;
     if !valid {
         return Err(CompressorError::InvalidProof);
     }

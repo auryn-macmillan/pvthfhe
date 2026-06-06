@@ -74,7 +74,7 @@ fn affine_to_bytes(p: &G1Affine, is_x: bool) -> [u8; 32] {
 fn hash_to_challenge(r: &G1Affine, pk: &G1Affine, message: Fr) -> Fr {
     use sha2::{Digest, Sha256};
     let mut h = Sha256::new();
-    h.update(b"pvthfhe/schnorr-challenge/v2");
+    h.update(pvthfhe_domain_tags::Tag::SchnorrChallenge.as_bytes());
     h.update(affine_to_bytes(r, true));
     h.update(affine_to_bytes(r, false));
     h.update(affine_to_bytes(pk, true));

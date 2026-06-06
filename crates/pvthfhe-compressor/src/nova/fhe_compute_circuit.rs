@@ -1069,12 +1069,6 @@ fn poseidon_hash8_bp<CS: ConstraintSystem<NovaScalar>>(
     step_idx: usize,
     hash_idx: usize,
 ) -> Result<AllocatedNum<NovaScalar>, SynthesisError> {
-    assert_eq!(
-        inputs.len(),
-        8,
-        "poseidon_hash8_bp requires exactly 8 inputs"
-    );
-
     let (mds, ark) = identity_poseidon_params();
     let base = format!("poseidon_h8_s{step_idx}_h{hash_idx}");
 
@@ -1087,19 +1081,29 @@ fn poseidon_hash8_bp<CS: ConstraintSystem<NovaScalar>>(
         })
         .collect::<Result<_, _>>()?;
 
-    // Absorb first 4 elements into rate portion (indices 1..5)
-    for i in 0..POSEIDON_RATE {
-        state[POSEIDON_CAPACITY + i] = state[POSEIDON_CAPACITY + i]
-            .add(cs.namespace(|| format!("{base}_abs1_{i}")), &inputs[i])?;
+    // Sponge absorption: absorb inputs in rate-sized chunks, permuting after each.
+    let mut offset = 0;
+    let mut permute_batch = 0;
+    while offset < inputs.len() {
+        let remaining = inputs.len() - offset;
+        let chunk = remaining.min(POSEIDON_RATE);
+        for i in 0..chunk {
+            state[POSEIDON_CAPACITY + i] = state[POSEIDON_CAPACITY + i].add(
+                cs.namespace(|| format!("{base}_abs_{permute_batch}_{i}")),
+                &inputs[offset + i],
+            )?;
+        }
+        offset += chunk;
+        permute_bp(
+            cs,
+            &mut state,
+            &mds,
+            &ark,
+            step_idx,
+            hash_idx * 4 + permute_batch,
+        )?;
+        permute_batch += 1;
     }
-    permute_bp(cs, &mut state, &mds, &ark, step_idx, hash_idx * 2)?;
-
-    // Absorb next 4 elements
-    for i in 0..POSEIDON_RATE {
-        state[POSEIDON_CAPACITY + i] = state[POSEIDON_CAPACITY + i]
-            .add(cs.namespace(|| format!("{base}_abs2_{i}")), &inputs[4 + i])?;
-    }
-    permute_bp(cs, &mut state, &mds, &ark, step_idx, hash_idx * 2 + 1)?;
 
     // Squeeze: return first rate element
     Ok(state[POSEIDON_CAPACITY].clone())
@@ -1209,8 +1213,21 @@ fn verify_merkle_proof_bp<CS: ConstraintSystem<NovaScalar>>(
             |lc| lc + CS::one(),
         );
 
+        // Domain separation: leaf level (0) vs internal (1).
+        let domain_val = if level == 0 {
+            NovaScalar::from(0u64)
+        } else {
+            NovaScalar::from(1u64)
+        };
+        let domain_var =
+            AllocatedNum::alloc(cs.namespace(|| format!("{base}_l{level}_domain")), || {
+                Ok(domain_val)
+            })?;
+        let mut domain_inputs = vec![domain_var];
+        domain_inputs.extend_from_slice(&hash_inputs);
+
         // Hash this level using in-circuit Poseidon
-        current = poseidon_hash8_bp(cs, &hash_inputs, step * 16 + proof_idx * 8 + level, level)?;
+        current = poseidon_hash8_bp(cs, &domain_inputs, step * 16 + proof_idx * 8 + level, level)?;
 
         idx /= arity;
     }

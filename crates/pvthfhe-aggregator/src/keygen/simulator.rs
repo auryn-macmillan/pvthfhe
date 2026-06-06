@@ -764,10 +764,14 @@ fn derive_witness_poly(bytes: &[u8]) -> Vec<i64> {
     let seed: [u8; 32] = hasher.finalize().into();
     let mut rng = ChaCha8Rng::from_seed(seed); // allow-seeded-rng: deterministic simulator
     let n = pvthfhe_nizk::sigma::rlwe_n();
+    let range = 3u64;
+    let max_multiple = (u64::MAX / range) * range;
     let mut poly = Vec::with_capacity(n);
-    for _ in 0..n {
+    while poly.len() < n {
         let v = rng.next_u64();
-        poly.push((v % 3) as i64 - 1);
+        if v < max_multiple {
+            poly.push((v % range) as i64 - 1);
+        }
     }
     poly
 }

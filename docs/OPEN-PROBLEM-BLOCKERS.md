@@ -91,4 +91,21 @@ This document records the cryptographic guarantees that are deliberately WITHHEL
 5.  **Verification commands**:
     *   `cargo test -p pvthfhe-cyclo accumulator_codec` — 10/10 pass
     *   `cargo test -p pvthfhe-nizk --test accumulator_fail_closed` — 5/5 pass
-    *   `cargo test -p pvthfhe-nizk --test accumulator_transcript_adversarial` — 6/6 pass
+     *   `cargo test -p pvthfhe-nizk --test accumulator_transcript_adversarial` — 6/6 pass
+
+---
+
+### G-N8 — N=8 Circuit Prototype vs Production N=8192
+
+1.  **Stable ID**: `G-N8` (Circuit coefficient dimension mismatch)
+2.  **Status**: `OPEN — prototype limitation`
+3.  **Severity**: CRITICAL
+4.  **Security claim withheld**: The Noir circuits correctly prove the threshold decryption relation for N=8 polynomials, but production RLWE uses N=8192. The mapping from N=8192 to N=8 occurs in native Rust (`aggregate_decrypt_raw_result_poly`) and is **not provably correctness-preserving**.
+5.  **Affected circuits**:
+    *   `circuits/aggregator_final/src/main.nr` — `global N: u32 = 8` (primary verifier anchor)
+    *   `circuits/decrypt_share/src/main.nr` — `global N: u32 = 8` (per-share R3 verification)
+    *   `circuits/nova_state_commitment/src/main.nr` — `nova_final_plaintext: [Field; 8]` (IVC binding)
+6.  **Impact**: A malicious aggregator (untrusted by design) can choose N=8 projections that satisfy circuit constraints but correspond to an incorrect N=8192 plaintext. Since the circuit is the on-chain verifier's trust anchor, anything the circuit accepts is treated as valid.
+7.  **Resolution**: Scale circuits to N=8192 (requires Noir `generic_const_exprs` or specialization) OR provide a formal reduction from N=8192 correctness to N=8 verification.
+8.  **Target**: T42 (pre-audit milestone)
+9.  **Found in**: MPC deep audit 2026-06-05 (Finding 2 — CRITICAL).

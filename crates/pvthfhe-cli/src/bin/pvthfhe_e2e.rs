@@ -447,27 +447,14 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
 
     let n_shares_field = Fr::from(report.share_coeffs.len() as u64);
 
-    // Compute C7 witness values (share evals and pt_eval) for Noir circuit.
-    // Uses a deterministic challenge_r=0 for the e2e test path (the actual
-    // Fiat-Shamir derivation is in full_pipeline::run_full_pipeline).
-    use pvthfhe_compressor::poly_eval::{eval_with_powers, precompute_powers_r};
-    let challenge_r = Fr::from(0u64);
-    let coeffs_per_poly = report.share_coeffs.first().map(|c| c.len()).unwrap_or(0);
-    let r_powers = precompute_powers_r(challenge_r, coeffs_per_poly);
+    // Convert share coefficients to field elements for commitment bundle.
+    // share_evals and pt_eval are now computed internally by build_c7_prover_toml
+    // using the same in-circuit challenge_r derivation (F3 fix).
     let share_coeffs_fr: Vec<Vec<Fr>> = report
         .share_coeffs
         .iter()
         .map(|coeffs| coeffs.iter().map(|&c| Fr::from(c as i128)).collect())
         .collect();
-    let share_evals: Vec<Fr> = share_coeffs_fr
-        .iter()
-        .map(|s| eval_with_powers(s, &r_powers))
-        .collect();
-    let pt_eval: Fr = share_evals
-        .iter()
-        .zip(report.lagrange_coeffs.iter())
-        .map(|(&sev, &lc)| sev * lc)
-        .fold(Fr::zero(), |a, x| a + x);
     let (share_polys, share_commitments, merkle_paths, leaf_indices, share_commitment_root) =
         build_c7_share_commitment_bundle(&share_coeffs_fr);
 
@@ -490,11 +477,8 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
         report.compressed_proof_hash,
         &nova_final_plaintext,
         report.combined_share_hash,
-        challenge_r,
         n_shares_field,
-        &share_evals,
         &report.lagrange_coeffs,
-        pt_eval,
         share_commitment_root,
         &share_commitments,
         &merkle_paths,

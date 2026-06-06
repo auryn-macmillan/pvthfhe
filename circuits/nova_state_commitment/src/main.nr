@@ -1,3 +1,8 @@
+// !! PROTOTYPE: This circuit operates on N=8 prototype data. Production
+// RLWE uses N=8192. The `nova_final_plaintext` array of [Field; 8]
+// represents a truncated N=8 projection of the full plaintext. See G-N8
+// in OPEN-PROBLEM-BLOCKERS.md.
+//
 // Phase 4: In-circuit IVC proof binding for on-chain verification.
 //
 // STATUS: P4 Option B (UltraHonk wrapper) implemented.

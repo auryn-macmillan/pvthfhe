@@ -204,6 +204,12 @@ impl NizkAdapter for CycloNizkAdapter {
 
         let (d_rns, sigma_multi) = decode_sigma_section_multi(&sigma_section)?;
 
+        if sigma_multi.rounds.is_empty() {
+            return Err(NizkError::VerificationFailed(
+                "sigma multi-proof must have at least one round",
+            ));
+        }
+
         let c_rns = expand_c_rns(&ccs_id)?;
         let sigma_stmt = SigmaStatement { c_rns, d_rns };
 
@@ -454,14 +460,15 @@ fn verify_accumulator_transcript(
 
 /// Derive the CCS instance identifier from the statement.
 ///
-/// ccs_instance_id = SHA256(session_id || participant_id u16 BE
+/// ccs_instance_id = SHA256(epoch u64 BE || session_id || participant_id u16 BE
 ///                          || q u64 BE || degree u64 BE || error_bound u64 BE
 ///                          || b"cyclo-ajtai-d2/v1")
 ///
-/// Including all statement parameters ensures the instance ID is unique per
-/// (session, participant, parameter-set) tuple and prevents cross-parameter replay.
+/// Including all statement parameters plus epoch ensures the instance ID is unique per
+/// (epoch, session, participant, parameter-set) tuple and prevents cross-epoch replay.
 fn compute_ccs_instance_id(stmt: &NizkStatement) -> Result<[u8; 32], NizkError> {
     let mut h = Sha256::new();
+    h.update(stmt.epoch.to_be_bytes());
     h.update(stmt.session_id.as_bytes());
     h.update(stmt.participant_id.to_be_bytes());
     h.update(stmt.params.0.to_be_bytes());
@@ -507,8 +514,9 @@ fn pad_or_truncate_to_rlwe_n(v: &[i64]) -> Vec<i64> {
 /// Verify the algebraic structure of a deserialized Ajtai commitment.
 ///
 /// Checks that:
-/// 1. The commitment contains exactly AJTAI_RANK (13) ring elements
-/// 2. Each element's coefficients are within the valid centred range (-Q_COMMIT/2, Q_COMMIT/2]
+/// 1. The commitment is not all-zeros (M7: rejects s_i = 0 trivial witness)
+/// 2. The commitment contains exactly AJTAI_RANK (13) ring elements
+/// 3. Each element's coefficients are within the valid centred range (-Q_COMMIT/2, Q_COMMIT/2]
 ///
 /// This is a structural validation, not a full opening check (the verifier does not
 /// hold the witness s).  Combined with the sigma proof, this ensures the commitment
@@ -517,6 +525,15 @@ fn verify_ajtai_commitment(bytes: &[u8]) -> Result<(), NizkError> {
     if bytes.len() != 26_624 {
         return Err(NizkError::InvalidProof(
             "ajtai commitment: wrong byte length",
+        ));
+    }
+
+    // M7: reject all-zeros commitment (indicates s_i = 0 trivial witness).
+    // When s_i = 0, the Ajtai commitment A*s_i = 0, enabling a cheating prover
+    // to set e_i = d_i and trivially satisfy d_i = c*0 + d_i = d_i.
+    if bytes.iter().all(|&b| b == 0) {
+        return Err(NizkError::VerificationFailed(
+            "ajtai commitment: zero witness rejected (s_i = 0)",
         ));
     }
 
@@ -612,7 +629,7 @@ fn serialize_ajtai_commitment(ajtai: &AjtaiCommitment) -> Vec<u8> {
 fn derive_epoch_crs_seed(epoch: u64, session_id: &[u8]) -> [u8; 32] {
     let mut h = Sha256::new();
     h.update(epoch.to_be_bytes());
-    h.update(b"pvthfhe-ajtai-crs/v1");
+    h.update(pvthfhe_domain_tags::Tag::AjtaiCrs.as_bytes());
     h.update(session_id);
     h.finalize().into()
 }
@@ -886,5 +903,108 @@ impl<'a> Cursor<'a> {
         } else {
             Err(NizkError::InvalidProof("trailing proof bytes"))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sigma::rlwe_n;
+    use crate::NizkAdapter;
+
+    /// Construct a minimal valid Ajtai commitment byte vector.
+    /// Returns 26624 bytes: 13 ring elements, each 256 i64 LE coefficients.
+    /// The first coefficient is set to 1; all others are 0.
+    fn minimal_valid_ajtai_commitment() -> Vec<u8> {
+        let mut bytes = vec![0u8; 26_624];
+        // Set first coefficient to 1 (i64 LE = [1, 0, 0, 0, 0, 0, 0, 0])
+        bytes[0] = 1;
+        bytes
+    }
+
+    /// Construct minimal proof bytes with `num_rounds` sigma rounds.
+    /// d_rns is empty (0 u64s), sigma section has num_rounds with no per-round data.
+    fn minimal_proof_bytes(stmt: &NizkStatement, num_rounds: u32) -> Vec<u8> {
+        let ccs_id = compute_ccs_instance_id(stmt).expect("ccs_id");
+        let ajtai = minimal_valid_ajtai_commitment();
+        let sid = stmt.session_id.as_bytes();
+
+        let mut out = Vec::new();
+        out.extend_from_slice(&PROOF_VERSION.to_be_bytes());
+        out.extend_from_slice(&ccs_id);
+        out.extend_from_slice(&ajtai);
+
+        let sid_len = u32::try_from(sid.len()).unwrap();
+        out.extend_from_slice(&sid_len.to_be_bytes());
+        out.extend_from_slice(sid);
+        out.extend_from_slice(&stmt.participant_id.to_be_bytes());
+        out.extend_from_slice(&stmt.pvss_commitment);
+
+        // Sigma section: d_rns (count=0) + num_rounds
+        let mut sigma_section = Vec::new();
+        sigma_section.extend_from_slice(&0u32.to_be_bytes()); // d_rns count = 0
+        sigma_section.extend_from_slice(&num_rounds.to_be_bytes());
+        let sigma_len = u32::try_from(sigma_section.len()).unwrap();
+        out.extend_from_slice(&sigma_len.to_be_bytes());
+        out.extend_from_slice(&sigma_section);
+
+        // Empty accumulator
+        out.extend_from_slice(&0u32.to_be_bytes());
+        out
+    }
+
+    /// F1 RED: verify must reject NIZK proofs with zero sigma rounds.
+    /// A zero-round sigma proof passes vacuously without the empty-rounds guard.
+    #[test]
+    fn test_verify_rejects_zero_round_nizk() {
+        let stmt = NizkStatement {
+            ciphertext_bytes: vec![0u8; 32],
+            decrypt_share_bytes: vec![0u8; 32],
+            pvss_commitment: [0xAAu8; 32],
+            params: (65_537, rlwe_n(), 16),
+            session_id: "test-f1".to_owned(),
+            participant_id: 1,
+            epoch: 0,
+        };
+
+        let proof_bytes = minimal_proof_bytes(&stmt, 0);
+        let proof = NizkProof {
+            backend_id: crate::BACKEND_ID.to_owned(),
+            proof_bytes,
+        };
+
+        let adapter = CycloNizkAdapter;
+        let result = adapter.verify(&stmt, &proof);
+        assert!(
+            result.is_err(),
+            "F1: CycloNizkAdapter::verify must reject proof with zero sigma rounds. Got: {result:?}"
+        );
+    }
+
+    /// F6 RED: ccs_instance_id must differ when epoch changes.
+    /// Without epoch binding, proofs from different epochs hash to the same ccs_id.
+    #[test]
+    fn test_ccs_instance_id_differs_by_epoch() {
+        let stmt_a = NizkStatement {
+            ciphertext_bytes: vec![0u8; 32],
+            decrypt_share_bytes: vec![0u8; 32],
+            pvss_commitment: [0u8; 32],
+            params: (65_537, rlwe_n(), 16),
+            session_id: "test-f6".to_owned(),
+            participant_id: 1,
+            epoch: 0,
+        };
+        let stmt_b = NizkStatement {
+            epoch: 1,
+            ..stmt_a.clone()
+        };
+
+        let id_a = compute_ccs_instance_id(&stmt_a).expect("id_a");
+        let id_b = compute_ccs_instance_id(&stmt_b).expect("id_b");
+
+        assert_ne!(
+            id_a, id_b,
+            "F6: ccs_instance_id must differ when epoch changes. Got same id for epoch 0 and 1"
+        );
     }
 }

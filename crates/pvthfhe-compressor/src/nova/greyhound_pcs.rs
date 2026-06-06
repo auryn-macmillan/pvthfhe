@@ -316,7 +316,7 @@ fn add_bigints(a: &ark_ff::BigInt<4>, b: &ark_ff::BigInt<4>) -> ark_ff::BigInt<4
 
 fn rng_from_seed(seed: &[u8; 32], domain: &[u8]) -> ChaCha20Rng {
     let mut hasher = Keccak256::new();
-    hasher.update(b"pvthfhe-greyhound-pcs-v1");
+    hasher.update(pvthfhe_domain_tags::Tag::GreyhoundPcs.as_bytes());
     hasher.update(seed);
     hasher.update(domain);
     let derived: [u8; 32] = hasher.finalize().into();
@@ -524,6 +524,8 @@ impl GreyhoundPCS {
         poly: &[Fr],
         eval_pt: &Fr,
         witness: &GreyhoundWitness,
+        session_id: &str,
+        prover_id: u64,
     ) -> Result<GreyhoundOpeningProof, GreyhoundError> {
         let n_poly = params.m * params.r;
         if poly.len() > n_poly {
@@ -573,7 +575,9 @@ impl GreyhoundPCS {
         // c = H(pp || commitment || x || y || v)
         let t_hat_flat: Vec<Fr> = witness.t_hat.iter().flatten().cloned().collect();
         let u = matrix_vector_mul(&params.b_matrix, &t_hat_flat);
-        let challenge = derive_challenge(params, &u, &v, eval_pt, &y);
+        // M5 (FIXED): Session and prover identity are now bound into the
+        // challenge hash via the parameters threaded from the callers.
+        let challenge = derive_challenge(params, &u, &v, eval_pt, &y, session_id, prover_id);
         let c: Vec<Fr> = challenge.iter().take(params.r).cloned().collect();
 
         // Compute z = [s_1|...|s_r] · c = sum_i c_i · s_i
@@ -628,6 +632,8 @@ impl GreyhoundPCS {
         eval_pt: &Fr,
         value: &Fr,
         proof: &GreyhoundOpeningProof,
+        session_id: &str,
+        prover_id: u64,
     ) -> Result<bool, GreyhoundError> {
         if commitment.u.len() != params.n
             || proof.v.len() != params.n
@@ -644,7 +650,17 @@ impl GreyhoundPCS {
             return Ok(false);
         }
 
-        let expected_challenge = derive_challenge(params, &commitment.u, &proof.v, eval_pt, value);
+        // M5 (FIXED): Session and prover identity are bound into the
+        // challenge hash via the parameters threaded from the callers.
+        let expected_challenge = derive_challenge(
+            params,
+            &commitment.u,
+            &proof.v,
+            eval_pt,
+            value,
+            session_id,
+            prover_id,
+        );
         if expected_challenge != proof.c {
             return Ok(false);
         }
@@ -770,9 +786,11 @@ impl GreyhoundPCS {
         params: &GreyhoundParams,
         poly: &[Fr],
         eval_pt: &Fr,
+        session_id: &str,
+        prover_id: u64,
     ) -> Result<(GreyhoundCommitment, GreyhoundOpeningProof), GreyhoundError> {
         let (commitment, witness) = Self::commit(params, poly)?;
-        let proof = Self::open(params, poly, eval_pt, &witness)?;
+        let proof = Self::open(params, poly, eval_pt, &witness, session_id, prover_id)?;
         Ok((commitment, proof))
     }
 }
@@ -913,15 +931,22 @@ fn recompose_t_hat_block(params: &GreyhoundParams, t_hat_i: &[Fr]) -> Vec<Fr> {
 /// Derive Fiat-Shamir challenge from protocol transcript.
 /// Produces short challenge values in {-1, 0, 1} to avoid overflow
 /// in the linear combination z = Σ c_i · s_i.
-fn derive_challenge(
+///
+/// M5: Binds `session_id` and `prover_id` into the challenge hash to prevent
+/// cross-session and cross-prover challenge replay attacks.
+pub fn derive_challenge(
     params: &GreyhoundParams,
     commitment_u: &[Fr],
     v: &[Fr],
     x: &Fr,
     y: &Fr,
+    session_id: &str,
+    prover_id: u64,
 ) -> Vec<Fr> {
     let mut hasher = Keccak256::new();
-    hasher.update(b"pvthfhe-greyhound-challenge-v1");
+    hasher.update(pvthfhe_domain_tags::Tag::GreyhoundChallenge.as_bytes());
+    hasher.update(session_id.as_bytes());
+    hasher.update(&prover_id.to_be_bytes());
     hasher.update(&(params.n as u64).to_be_bytes());
     hasher.update(&(params.m as u64).to_be_bytes());
     hasher.update(&(params.r as u64).to_be_bytes());
@@ -958,20 +983,39 @@ fn derive_challenge(
     hasher.update(&fr_to_bytes(x));
     hasher.update(&fr_to_bytes(y));
 
-    // Derive ternary challenges: use hash bytes to pick from {-1, 0, 1}
+    // Derive ternary challenges: rejection-sampled uniform {-1, 0, 1}
     let digest: [u8; 32] = hasher.finalize().into();
     let mut rng = ChaCha20Rng::from_seed(digest);
     let mut challenge = Vec::with_capacity(params.r);
     for _ in 0..params.r {
-        let byte = rng.next_u32() as u8;
-        let val = match byte % 3 {
-            0 => Fr::zero(),
-            1 => Fr::one(),
-            _ => -Fr::one(),
+        let val = loop {
+            let byte = (rng.next_u32() as u8);
+            if let Some(ch) = uniform_ternary(byte) {
+                break match ch {
+                    -1 => -Fr::one(),
+                    0 => Fr::zero(),
+                    _ => Fr::one(),
+                };
+            }
         };
         challenge.push(val);
     }
     challenge
+}
+
+/// Rejection-sampled uniform ternary from a single byte.
+///
+/// Bytes 0..=251 are split into three equal buckets of 84 each.
+/// Bytes ≥ 252 are rejected (returns None); the caller must retry.
+pub(crate) fn uniform_ternary(byte: u8) -> Option<i64> {
+    if byte >= 252 {
+        return None;
+    }
+    Some(match byte / 84 {
+        0 => -1,
+        1 => 0,
+        _ => 1,
+    })
 }
 
 /// Convert Fr to bytes for hashing.
@@ -1030,19 +1074,20 @@ mod tests {
 
         // Open at a random point
         let eval_pt = Fr::rand(&mut rng);
-        let proof = GreyhoundPCS::open(&params, &poly, &eval_pt, &witness).unwrap();
+        let proof = GreyhoundPCS::open(&params, &poly, &eval_pt, &witness, "", 0).unwrap();
 
         // Verify
         let expected_y = evaluate_polynomial(&poly, &eval_pt);
         assert_eq!(proof.y, expected_y, "claimed y should match evaluation");
 
-        let valid = GreyhoundPCS::verify(&params, &commitment, &eval_pt, &expected_y, &proof)
-            .expect("verify should not error");
+        let valid =
+            GreyhoundPCS::verify(&params, &commitment, &eval_pt, &expected_y, &proof, "", 0)
+                .expect("verify should not error");
         assert!(valid, "verification should pass for valid proof");
 
         // Verify with wrong value should fail
         let wrong_y = expected_y + Fr::one();
-        let invalid = GreyhoundPCS::verify(&params, &commitment, &eval_pt, &wrong_y, &proof)
+        let invalid = GreyhoundPCS::verify(&params, &commitment, &eval_pt, &wrong_y, &proof, "", 0)
             .expect("verify should not error");
         assert!(!invalid, "verification should fail for wrong value");
     }
@@ -1059,11 +1104,13 @@ mod tests {
         let poly: Vec<Fr> = (0..n_poly).map(|_| Fr::rand(&mut rng)).collect();
         let eval_pt = Fr::rand(&mut rng);
 
-        let (commitment, proof) = GreyhoundPCS::commit_and_prove(&params, &poly, &eval_pt).unwrap();
+        let (commitment, proof) =
+            GreyhoundPCS::commit_and_prove(&params, &poly, &eval_pt, "", 0).unwrap();
 
         let expected_y = evaluate_polynomial(&poly, &eval_pt);
-        let valid = GreyhoundPCS::verify(&params, &commitment, &eval_pt, &expected_y, &proof)
-            .expect("verify should not error");
+        let valid =
+            GreyhoundPCS::verify(&params, &commitment, &eval_pt, &expected_y, &proof, "", 0)
+                .expect("verify should not error");
         assert!(valid, "commit-and-prove should produce valid proof");
     }
 
@@ -1080,17 +1127,33 @@ mod tests {
         let eval_pt = Fr::rand(&mut rng);
 
         let (commitment1, witness1) = GreyhoundPCS::commit(&params1, &poly).unwrap();
-        let proof1 = GreyhoundPCS::open(&params1, &poly, &eval_pt, &witness1).unwrap();
+        let proof1 = GreyhoundPCS::open(&params1, &poly, &eval_pt, &witness1, "", 0).unwrap();
 
         // Verification with params1 should pass
         let expected_y = evaluate_polynomial(&poly, &eval_pt);
-        let valid = GreyhoundPCS::verify(&params1, &commitment1, &eval_pt, &expected_y, &proof1)
-            .expect("verify should not error");
+        let valid = GreyhoundPCS::verify(
+            &params1,
+            &commitment1,
+            &eval_pt,
+            &expected_y,
+            &proof1,
+            "",
+            0,
+        )
+        .expect("verify should not error");
         assert!(valid);
 
         // Verification with params2 should fail (different matrices)
-        let invalid = GreyhoundPCS::verify(&params2, &commitment1, &eval_pt, &expected_y, &proof1)
-            .expect("verify should not error");
+        let invalid = GreyhoundPCS::verify(
+            &params2,
+            &commitment1,
+            &eval_pt,
+            &expected_y,
+            &proof1,
+            "",
+            0,
+        )
+        .expect("verify should not error");
         assert!(!invalid, "verification should fail with different params");
     }
 
@@ -1103,14 +1166,21 @@ mod tests {
         let poly: Vec<Fr> = (0..n_poly).map(|_| Fr::rand(&mut rng)).collect();
         let eval_pt = Fr::rand(&mut rng);
         let (commitment, witness) = GreyhoundPCS::commit(&params, &poly).unwrap();
-        let proof = GreyhoundPCS::open(&params, &poly, &eval_pt, &witness).unwrap();
+        let proof = GreyhoundPCS::open(&params, &poly, &eval_pt, &witness, "", 0).unwrap();
         let expected_y = evaluate_polynomial(&poly, &eval_pt);
 
         let mut tampered_commitment = commitment.clone();
         tampered_commitment.u[0] += Fr::one();
-        let invalid =
-            GreyhoundPCS::verify(&params, &tampered_commitment, &eval_pt, &expected_y, &proof)
-                .expect("verify should not error");
+        let invalid = GreyhoundPCS::verify(
+            &params,
+            &tampered_commitment,
+            &eval_pt,
+            &expected_y,
+            &proof,
+            "",
+            0,
+        )
+        .expect("verify should not error");
         assert!(!invalid, "transcript challenge must bind the commitment");
     }
 
@@ -1123,11 +1193,12 @@ mod tests {
         let poly: Vec<Fr> = (0..n_poly).map(|_| Fr::rand(&mut rng)).collect();
         let eval_pt = Fr::rand(&mut rng);
         let (commitment, witness) = GreyhoundPCS::commit(&params, &poly).unwrap();
-        let mut proof = GreyhoundPCS::open(&params, &poly, &eval_pt, &witness).unwrap();
+        let mut proof = GreyhoundPCS::open(&params, &poly, &eval_pt, &witness, "", 0).unwrap();
         proof.c.pop();
         let expected_y = evaluate_polynomial(&poly, &eval_pt);
-        let invalid = GreyhoundPCS::verify(&params, &commitment, &eval_pt, &expected_y, &proof)
-            .expect("verify should not error");
+        let invalid =
+            GreyhoundPCS::verify(&params, &commitment, &eval_pt, &expected_y, &proof, "", 0)
+                .expect("verify should not error");
         assert!(!invalid, "malformed proof lengths must be rejected");
     }
 
@@ -1160,11 +1231,13 @@ mod tests {
         let poly: Vec<Fr> = (0..n_poly).map(|_| Fr::rand(&mut rng)).collect();
 
         let eval_pt = Fr::rand(&mut rng);
-        let (commitment, proof) = GreyhoundPCS::commit_and_prove(&params, &poly, &eval_pt).unwrap();
+        let (commitment, proof) =
+            GreyhoundPCS::commit_and_prove(&params, &poly, &eval_pt, "", 0).unwrap();
 
         let expected_y = evaluate_polynomial(&poly, &eval_pt);
-        let valid = GreyhoundPCS::verify(&params, &commitment, &eval_pt, &expected_y, &proof)
-            .expect("verify should not error");
+        let valid =
+            GreyhoundPCS::verify(&params, &commitment, &eval_pt, &expected_y, &proof, "", 0)
+                .expect("verify should not error");
         assert!(valid, "medium params roundtrip should pass");
     }
 }
@@ -1186,7 +1259,7 @@ mod debug_tests {
         let eval_pt = Fr::rand(&mut rng);
 
         let (commitment, witness) = GreyhoundPCS::commit(&params, &poly).unwrap();
-        let proof = GreyhoundPCS::open(&params, &poly, &eval_pt, &witness).unwrap();
+        let proof = GreyhoundPCS::open(&params, &poly, &eval_pt, &witness, "", 0).unwrap();
 
         let expected_y = evaluate_polynomial(&poly, &eval_pt);
         println!("y matches: {}", proof.y == expected_y);

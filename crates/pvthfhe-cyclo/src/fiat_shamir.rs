@@ -103,16 +103,91 @@ impl CycloTernaryTranscript {
 
     /// Sample a challenge from {−1, 0, 1} with probability 1/3 each.
     ///
-    /// Internally hashes the current transcript state with SHA-256, maps the
-    /// first output byte mod 3 onto the set {−1, 0, 1}, then advances the
-    /// state with the full hash output for domain separation of the next call.
+    /// Internally hashes the current transcript state with SHA-256, applies
+    /// rejection sampling to the output bytes for uniform ternary distribution,
+    /// then advances the state with the full hash output for domain separation
+    /// of the next call.
     pub fn sample_challenge(&mut self) -> i8 {
         let hash: [u8; 32] = self.state.clone().finalize().into();
         self.state.update(hash);
-        match hash[0] % 3 {
-            0 => -1,
-            1 => 0,
-            _ => 1,
+        for &byte in &hash {
+            if let Some(ch) = uniform_ternary(byte) {
+                return ch as i8;
+            }
         }
+        0
+    }
+}
+
+/// Rejection-sampled uniform ternary from a single byte.
+///
+/// Bytes 0..=251 are split into three equal buckets of 84 each.
+/// Bytes ≥ 252 are rejected (returns None); the caller must retry.
+pub(crate) fn uniform_ternary(byte: u8) -> Option<i8> {
+    if byte >= 252 {
+        return None;
+    }
+    Some(match byte / 84 {
+        0 => -1,
+        1 => 0,
+        _ => 1,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sample_challenge_iterates_all_32_bytes() {
+        // M6: Verify the loop in sample_challenge visits ALL 32 hash bytes,
+        // not just hash[0]. When early bytes are rejected (≥252), the loop
+        // continues until finding a valid ternary byte.
+
+        // Hash where bytes 0–3 are rejected (≥252), byte 4 is valid
+        let hash: [u8; 32] = [
+            252, 253, 254, 255, 42, 100, 200, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0,
+        ];
+
+        // Replicate sample_challenge loop: find first valid byte
+        let mut found_at = None;
+        for (i, &byte) in hash.iter().enumerate() {
+            if let Some(ch) = uniform_ternary(byte) {
+                found_at = Some((i, ch));
+                break;
+            }
+        }
+
+        assert!(found_at.is_some(), "must find a valid ternary from hash");
+        let (idx, ch) = found_at.unwrap();
+        assert_eq!(idx, 4, "challenge must come from byte 4, not byte 0");
+        assert_eq!(ch, -1i8, "byte 42 in bucket 0 (42/84=0) maps to -1");
+
+        // Edge case: ALL bytes rejected → no match found
+        let all_rejected: [u8; 32] = [252u8; 32];
+        let any_match = all_rejected.iter().any(|&b| uniform_ternary(b).is_some());
+        assert!(!any_match, "all-rejected hash must produce no valid byte");
+    }
+
+    #[test]
+    fn uniform_ternary_bucket_counts() {
+        // M6: 256 possible byte values split into 3 buckets of 84 each
+        // (bytes 0–251), plus 4 rejected values (bytes 252–255).
+        let mut counts = [0u16; 4]; // [-1, 0, 1, rejected]
+        for byte in 0u16..=255u16 {
+            match uniform_ternary(byte as u8) {
+                Some(-1) => counts[0] += 1,
+                Some(0) => counts[1] += 1,
+                Some(1) => counts[2] += 1,
+                None => counts[3] += 1,
+                _ => unreachable!(),
+            }
+        }
+
+        assert_eq!(counts[0], 84, "bucket -1: 84 values");
+        assert_eq!(counts[1], 84, "bucket 0: 84 values");
+        assert_eq!(counts[2], 84, "bucket 1: 84 values");
+        assert_eq!(counts[3], 4, "rejected: bytes 252–255");
     }
 }

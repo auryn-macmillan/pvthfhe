@@ -2438,6 +2438,7 @@ dependencies = [
  "num-bigint 0.4.6",
  "poulpy-hal",
  "pvthfhe-cyclo",
+ "pvthfhe-domain-tags",
  "pvthfhe-lazer",
  "pvthfhe-rng",
  "pvthfhe-types",

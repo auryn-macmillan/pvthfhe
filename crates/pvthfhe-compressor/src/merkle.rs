@@ -1,4 +1,5 @@
 use ark_bn254::Fr;
+use ark_ff::{One, Zero};
 
 use crate::nova::hash8_native;
 
@@ -15,8 +16,10 @@ pub struct MerkleProof {
     pub root: Fr,
 }
 
-fn hash8(values: &[Fr]) -> Fr {
-    hash8_native(values)
+fn hash8_with_domain(values: &[Fr], domain: Fr) -> Fr {
+    let mut inputs = vec![domain];
+    inputs.extend_from_slice(values);
+    hash8_native(&inputs)
 }
 
 /// Build an 8-ary Merkle tree over the given leaves.
@@ -29,13 +32,18 @@ pub fn build_merkle_tree(leaves: &[Fr], arity: usize) -> (Vec<Vec<Fr>>, Fr) {
     while levels.last().unwrap().len() > 1 {
         let current = levels.last().unwrap();
         let mut next = Vec::new();
+        let domain = if levels.len() == 1 {
+            Fr::zero()
+        } else {
+            Fr::one()
+        };
 
         for chunk in current.chunks(arity) {
             let mut inputs = vec![Fr::from(0u64); arity];
             for (i, val) in chunk.iter().enumerate() {
                 inputs[i] = *val;
             }
-            next.push(hash8(&inputs));
+            next.push(hash8_with_domain(&inputs, domain));
         }
         levels.push(next);
     }
@@ -87,7 +95,7 @@ pub fn verify_merkle_proof(proof: &MerkleProof, arity: usize) -> bool {
     let mut current = proof.leaf_value;
     let mut idx = proof.leaf_index;
 
-    for level_siblings in &proof.siblings {
+    for (level, level_siblings) in proof.siblings.iter().enumerate() {
         let position = idx % arity;
         let mut inputs = vec![Fr::from(0u64); arity];
 
@@ -100,7 +108,8 @@ pub fn verify_merkle_proof(proof: &MerkleProof, arity: usize) -> bool {
             }
         }
 
-        current = hash8(&inputs);
+        let domain = if level == 0 { Fr::zero() } else { Fr::one() };
+        current = hash8_with_domain(&inputs, domain);
         idx /= arity;
     }
 
@@ -114,7 +123,11 @@ mod tests {
     #[test]
     fn hash8_deterministic() {
         let inputs: Vec<Fr> = (0..8).map(|i| Fr::from(i as u64)).collect();
-        assert_eq!(hash8(&inputs), hash8(&inputs));
+        let domain = Fr::one();
+        assert_eq!(
+            hash8_with_domain(&inputs, domain),
+            hash8_with_domain(&inputs, domain)
+        );
     }
 
     #[test]
@@ -122,7 +135,8 @@ mod tests {
         let a: Vec<Fr> = (0..8).map(|i| Fr::from(i as u64)).collect();
         let mut b = a.clone();
         b[7] = Fr::from(99u64);
-        assert_ne!(hash8(&a), hash8(&b));
+        let domain = Fr::one();
+        assert_ne!(hash8_with_domain(&a, domain), hash8_with_domain(&b, domain));
     }
 
     #[test]

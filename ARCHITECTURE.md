@@ -50,7 +50,7 @@ Standardized secure parameters for 128-bit security: **N** = 8192, **L** = 3 RNS
 
 **Transparent IVC**: No Groth16 trusted ceremony required. IVC proof bytes are hashed with Keccak256 and embedded via `IvcBindingData` for the on-chain verifier. Note that the on-chain contract does **NOT** currently verify the Nova IVC proof; it only commits to the proof metadata. IVC mode is fail-closed.
 
-**C7 Merkle aggregation**: In-circuit Poseidon R1CS (`poseidon_gadget.rs`, ~900 constraints per hash8) via `C7MerkleStepCircuit` at depth-5 (N=8192). Note that the Noir `aggregator_final` circuit proves only the **hash binding**, not the correctness of the final decryption result.
+**C7 Merkle aggregation**: In-circuit Poseidon R1CS (`poseidon_gadget.rs`, ~900 constraints per hash8) via `C7MerkleStepCircuit` at depth-5 (N=8192). The Noir `aggregator_final` circuit proves full Schwartz-Zippel threshold-decryption correctness (Lagrange recombination) plus in-circuit Merkle PK binding, verifying that `sum(lambda_i * d_i(r)) = pt(r)`.
 
 ## Symphony: Proof-Compression Optimization Techniques
 

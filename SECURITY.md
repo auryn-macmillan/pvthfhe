@@ -15,9 +15,10 @@ This document outlines the security model, assumptions, and limitations of the P
 
 - **FHE backend**: Real threshold BFV via `gnosisguild/fhe.rs`.
 - **Nova IVC Proofs**: Maliciously-secure folding via nova-snark (Microsoft Nova v0.71). The IVC proof chain provides soundness guarantees through transparent verification — no Groth16 trusted ceremony required.
-- **NIZK proofs**: Ajtaï D2 sigma + BFV sigma with k-round parallel repetition. Greco quotient-witness verification strengthens soundness from modular to integer-lattice level.
+- **NIZK proofs**: Ajtaï D2 sigma + BFV sigma with k-round parallel repetition. Greco quotient-witness verification strengthens soundness from modular to integer-lattice level. M7 fix (2026-06-05): zero-witness rejection via Ajtai commitment all-zeros check.
 - **On-chain verifier**: UltraHonk verifier (Solidity) with IVC binding. While proof metadata (proof_hash, vk_hash, pp_hash, z0/zi commitments, verification hashes) is bound into the on-chain commitment, the contract does **NOT** cryptographically verify the IVC proof itself. IVC mode is currently fail-closed (disabled) until a real decider is implemented.
 - **No active surrogates on the default path** — all paths use real cryptographic proofs. The surrogate compressor is exclusively available behind `--features surrogate-compressor` (not in defaults).
+- **Latest audit**: MPC security audit 2026-06-05 (`.sisyphus/audit/MPC-AUDIT-2026-06-05.md`) — 19 findings, all P0+P1+P2 remediated. See [`.sisyphus/plans/mpc-audit-2026-06-05-remediation.md`](.sisyphus/plans/mpc-audit-2026-06-05-remediation.md).
 
 ## Threat Model
 
@@ -81,11 +82,11 @@ The `IvcBindingData` struct (11 fields: proof_hash, vk_hash, pp_hash, z0_commitm
 
 ### C7 (Final Aggregation Gap)
 
-**Status**: OPEN. The Noir `aggregator_final` circuit proves only a **hash binding** (via in-circuit Poseidon R1CS Merkle verification), **NOT** the correctness of the threshold-decryption result. It does not cryptographically enforce that the aggregated shares correctly derive the plaintext.
+**Status**: ✅ RESOLVED (2026-06-04). The Noir `aggregator_final` circuit now proves full Schwartz-Zippel threshold-decryption correctness (Lagrange recombination `sum(lambda_i * d_i(r)) = pt(r)`) plus in-circuit Poseidon Merkle PK binding. The old "hash binding only" limitation is removed — the circuit enforces the actual algebraic recombination. See [docs/paper-code-alignment.md](docs/paper-code-alignment.md#c7-threshold-decryption-correctness).
 
 ### A1 (Cyclo Accumulator Gap)
 
-**Status**: OPEN. Cyclo accumulator transcript verification is NOT implemented (see [A1](docs/OPEN-PROBLEM-BLOCKERS.md#a1--cyclo-accumulator-transcript-verification)). Nonzero accumulator bytes are rejected fail-closed; the accepted empty `acc_len=0` path is only a non-folded placeholder and is NOT fold verification.
+**Status**: ✅ RESOLVED (2026-06-04). Cyclo accumulator transcript verification is implemented via `accumulator_codec.rs` (618-line versioned wire format) and `verify_accumulator_transcript()` in the NIZK adapter. 21 tests cover codec validation, fail-closed checks, and adversarial scenarios. See [docs/paper-code-alignment.md](docs/paper-code-alignment.md#a1-cyclo-accumulator-transcript-verification).
 
 ## Trust Boundary: In-Circuit vs Native
 
@@ -99,7 +100,7 @@ Only the Noir `aggregator_final` circuit is verified on-chain (via HonkVerifier.
 | PVSS DKG NIZK | — | ✓ |
 | Cyclo NIZK (lattice fold) | — | ✓ |
 | Nova IVC fold soundness | — | ✓ (bound but NOT verified on-chain) |
-| C7 decryption aggregation | ✓ (Hash binding only) | — |
+| C7 decryption aggregation | ✓ (Full S-Z correctness) | — |
 
 ## Trusted Components
 

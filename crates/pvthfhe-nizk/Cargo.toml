@@ -12,6 +12,7 @@ enable-tfhe = ["enable-poulpy"]
 enable-lazer = ["dep:pvthfhe-lazer", "pvthfhe-lazer/enable-lazer"]
 
 [dependencies]
+pvthfhe-domain-tags = { path = "../pvthfhe-domain-tags" }
 pvthfhe-rng = { path = "../pvthfhe-rng" }
 pvthfhe-types = { path = "../pvthfhe-types" }
 pvthfhe-cyclo = { path = "../pvthfhe-cyclo" }

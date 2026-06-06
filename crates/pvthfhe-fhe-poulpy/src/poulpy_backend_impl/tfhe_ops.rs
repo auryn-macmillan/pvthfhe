@@ -245,16 +245,9 @@ pub(crate) fn bootstrap(inner: &PoulpyInner, ct_bytes: &[u8]) -> Result<Vec<u8>,
     )
     .map_err(into_fhe)?;
 
-    let seed_xa = {
-        let mut s = [0u8; 32];
-        s[0] = 0xAB;
-        s
-    };
-    let seed_xe = {
-        let mut s = [0u8; 32];
-        s[0] = 0xCD;
-        s
-    };
+    let mut rng = rand::rngs::OsRng;
+    let seed_xa = seed_from_rng(&mut rng);
+    let seed_xe = seed_from_rng(&mut rng);
     let mut source_xa = Source::new(seed_xa);
     let mut source_xe = Source::new(seed_xe);
 

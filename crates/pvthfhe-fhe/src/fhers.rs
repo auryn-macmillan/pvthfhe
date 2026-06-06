@@ -1369,6 +1369,21 @@ impl FheBackend for FhersBackend {
         Ok(ctx.q.iter().map(|m| m.modulus()).collect())
     }
 
+    /// Aggregate threshold decryption from validated shares.
+    ///
+    /// ⚠️ **Trust Model**: This method computes the plaintext via Lagrange
+    /// interpolation WITHOUT post-hoc verification. The result MUST be
+    /// re-verified through the C7 Noir circuit + IVC proof chain + on-chain
+    /// UltraHonk verification before being trusted in production.
+    ///
+    /// This method is provided for:
+    /// - Test scenarios (no adversary modeled)
+    /// - Simulator/pipeline benchmarks
+    /// - As input to the `aggregator_final` circuit which independently
+    ///   verifies correctness through Schwartz-Zippel identity checking
+    ///
+    /// In production, the full verification pipeline (NIZK → Circuit → IVC → Honk)
+    /// MUST be executed after this method returns.
     fn aggregate_decrypt(
         &self,
         ct: &Ciphertext,

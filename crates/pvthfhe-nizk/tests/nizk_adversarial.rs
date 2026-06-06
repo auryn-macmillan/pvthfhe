@@ -371,8 +371,11 @@ fn scenario_09_byte_truncated_proof() -> Result<(), NizkError> {
     }
 }
 
+/// M7: zero-witness (s_i = 0, e_i = 0) produces trivially-satisfiable proofs.
+/// The Ajtai commitment is all-zeros, which `verify_ajtai_commitment` rejects
+/// to prevent this bypass.
 #[test]
-fn scenario_10_zero_witness_completeness() -> Result<(), NizkError> {
+fn scenario_10_zero_witness_rejected() -> Result<(), NizkError> {
     let adapter = CycloNizkAdapter;
     let mut rng = ChaCha20Rng::seed_from_u64(0x4E38_000A);
     let s_i = vec![0i64; rlwe_n()];
@@ -395,5 +398,11 @@ fn scenario_10_zero_witness_completeness() -> Result<(), NizkError> {
         randomness: vec![],
     };
     let proof = adapter.prove(&stmt, &witness, &mut rng)?;
-    adapter.verify(&stmt, &proof)
+    match adapter.verify(&stmt, &proof) {
+        Err(NizkError::VerificationFailed(_)) => Ok(()),
+        Ok(()) => Err(NizkError::VerificationFailed(
+            "M7: zero-witness proof was accepted but should be rejected",
+        )),
+        Err(other) => Err(NizkError::VerificationFailed("M7: unexpected error type")),
+    }
 }

@@ -5,6 +5,10 @@
 
 #![allow(missing_docs, deprecated, clippy::expect_used, clippy::as_conversions)]
 
+#[cfg(not(feature = "hermine"))]
+compile_error!("bench_p4 requires hermine feature");
+
+#[cfg(feature = "hermine")]
 use pvthfhe_keygen::{hermine::HermineAdapter, KeygenAdapter, Participant};
 use serde::{Deserialize, Serialize};
 use std::{fs, path::Path, time::Instant};
@@ -27,6 +31,7 @@ struct P4BenchResult {
 }
 
 /// Single end-to-end run for one value of n; returns timings and proof size.
+#[cfg(feature = "hermine")]
 fn run_once(n: usize, threshold: usize) -> (f64, f64, f64, usize) {
     let adapter = HermineAdapter::new();
 
@@ -73,6 +78,7 @@ fn run_once(n: usize, threshold: usize) -> (f64, f64, f64, usize) {
     (keygen_ms, verify_ms, reconstruct_ms, share_bytes)
 }
 
+#[cfg(feature = "hermine")]
 fn bench_n(n: usize, iters: usize) -> P4BenchResult {
     let threshold = n / 2 + 1;
 
@@ -105,6 +111,7 @@ fn bench_n(n: usize, iters: usize) -> P4BenchResult {
     }
 }
 
+#[cfg(feature = "hermine")]
 fn main() {
     let out_dir = Path::new(".sisyphus/evidence/benchmarks/p4");
     fs::create_dir_all(out_dir).expect("create output dir");

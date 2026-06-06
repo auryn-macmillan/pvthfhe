@@ -497,4 +497,51 @@ mod tests {
             "NAND(1,1) must be 0"
         );
     }
+
+    #[cfg(feature = "enable-tfhe")]
+    #[test]
+    fn bootstrap_produces_different_outputs_with_fresh_seeds() {
+        use pvthfhe_fhe::FheBackend;
+        use rand_core::RngCore;
+
+        let backend =
+            PoulpyBackend::load_params(Scheme::Tfhe.default_params_toml()).expect("load_params");
+        let mut rng = rand::thread_rng();
+        let mut session_id = [0u8; 32];
+        rng.fill_bytes(&mut session_id);
+
+        let share = backend
+            .keygen_share_with_session(&session_id, 1, &mut rng)
+            .expect("keygen_share");
+        let pk = backend
+            .aggregate_keygen(&[share])
+            .expect("aggregate_keygen");
+
+        let ct = backend.encrypt(&pk, &[1u8], &mut rng).expect("encrypt 1");
+
+        let boot1 = backend.bootstrap(&ct).expect("bootstrap 1");
+        let boot2 = backend.bootstrap(&ct).expect("bootstrap 2");
+
+        assert_ne!(
+            boot1.bytes, boot2.bytes,
+            "bootstrap must use fresh randomness: two calls on same input must produce different ciphertext bytes"
+        );
+
+        let dec1 = backend
+            .partial_decrypt(&boot1, 1, &mut rng)
+            .expect("decrypt 1");
+        let dec2 = backend
+            .partial_decrypt(&boot2, 1, &mut rng)
+            .expect("decrypt 2");
+        assert_eq!(
+            dec1.bytes.as_slice().first().copied().unwrap_or(255),
+            1,
+            "bootstrap must preserve plaintext bit (1)"
+        );
+        assert_eq!(
+            dec2.bytes.as_slice().first().copied().unwrap_or(255),
+            1,
+            "bootstrap must preserve plaintext bit (1)"
+        );
+    }
 }

@@ -268,8 +268,11 @@ fn verify_merkle_path<F: PrimeField>(
             prod.enforce_equal(&zero)?;
         }
 
-        // 4.5 Hash the arity inputs and chain to next level.
-        current = hash8(cs.clone(), &inputs)?;
+        // 4.5 Hash the arity inputs with domain separation and chain to next level.
+        let domain = FpVar::constant(if level == 0 { F::ZERO } else { F::ONE });
+        let mut domain_inputs = vec![domain];
+        domain_inputs.extend_from_slice(&inputs);
+        current = hash8(cs.clone(), &domain_inputs)?;
     }
 
     current.enforce_equal(merkle_root)?;

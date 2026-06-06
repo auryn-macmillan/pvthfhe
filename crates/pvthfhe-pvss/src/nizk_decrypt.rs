@@ -456,10 +456,16 @@ fn derive_secret_share_poly(secret_key_bytes: &[u8]) -> Vec<i64> {
     secret_key_bytes
         .iter()
         .copied()
-        .map(|byte| match byte % 3 {
-            0 => -1,
-            1 => 0,
-            _ => 1,
+        .filter_map(|byte| {
+            // Rejection-sample for uniform ternary: discard byte >= 252
+            if byte >= 252 {
+                return None;
+            }
+            Some(match byte / 84 {
+                0 => -1,
+                1 => 0,
+                _ => 1,
+            })
         })
         .collect()
 }

@@ -185,6 +185,9 @@ impl WireFormat for DecryptShareV2 {
 }
 
 fn encode_fields(fields: &[&[u8]]) -> Result<Vec<u8>, WireError> {
+    if fields.is_empty() {
+        return Err(WireError::Other);
+    }
     let payload_len: usize = fields
         .iter()
         .map(|field| LENGTH_PREFIX_BYTES + field.len())
@@ -264,6 +267,12 @@ mod tests {
         let huge = vec![0u8; (u32::MAX as usize) + 1];
         let result = encode_fields(&[&huge]);
         assert_eq!(result, Err(WireError::LengthOverflow));
+    }
+
+    #[test]
+    fn encode_fields_empty_rejected() {
+        let result = encode_fields(&[]);
+        assert_eq!(result, Err(WireError::Other));
     }
 
     #[test]

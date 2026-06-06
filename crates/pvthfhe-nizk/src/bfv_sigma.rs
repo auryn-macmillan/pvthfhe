@@ -1,5 +1,33 @@
 //! Lattice-native sigma protocol for BFV encryption well-formedness.
 //!
+//! # Zero-Knowledge Model
+//!
+//! This sigma protocol provides **computational** zero-knowledge under the
+//! RLWE assumption, NOT statistical ZK. It does NOT implement Lyubashevsky
+//! rejection sampling. Instead, it uses noise drowning with mask width
+//! B_Y = 2^30, achieving witness-to-mask ratio ≥ 4.0.
+//!
+//! **ZK guarantee**: An RLWE adversary who can distinguish the masking
+//! distribution from the shifted distribution breaks the RLWE assumption.
+//! For a PPT adversary (current threat model), this is sufficient. For
+//! unconditional ZK, a rejection-sampling variant must be implemented.
+//!
+//! **Soundness**: (1/2)^N ≈ 2^(-8192) per sigma instance (binary challenge
+//! over N coefficients). Single-repetition soundness is sufficient due to
+//! the large challenge space.
+//!
+//! # NIZK Gap — Missing Noir In-Circuit Verifier (M8)
+//!
+//! BFV sigma proofs are **only verified natively** (Rust). There is no Noir/R1CS
+//! verifier, which means these proofs cannot be used inside Nova step circuits.
+//! The Schwarz-Zippel evaluation path (`compute_sigma_sz_data`) is the current
+//! workaround — it extracts polynomial evaluation data for an algebraic consistency
+//! check instead of verifying the full sigma proof in-circuit.
+//!
+//! **Resolution milestone**: If BFV sigma proofs are needed in-circuit for
+//! composability (e.g., recursive proof aggregation), implement an R1CS verifier
+//! in Noir. Tracked as open gap in SECURITY.md §P1-NIZK.
+//!
 //! # Relation
 //! Statement: (pk0, pk1, ct0, ct1) in R_Q^4, plus public delta values Δ[ℓ].
 //! Witness:   (u, e0, e1, m) with bounded coefficients.
@@ -455,7 +483,7 @@ fn derive_challenge(
     binding_data: &[u8],
 ) -> Vec<i64> {
     let mut hasher = Sha256::new();
-    hasher.update(b"pvthfhe-bfv-sigma-challenge-v1");
+    hasher.update(pvthfhe_domain_tags::Tag::BfvSigmaChallenge.as_bytes());
 
     let t0_bytes: Vec<u8> = t0_rns.iter().flat_map(|x| x.to_le_bytes()).collect();
     hasher.update(t0_bytes);

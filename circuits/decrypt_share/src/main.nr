@@ -6,6 +6,9 @@
 use poseidon;
 use protocol_constants;
 
+// !! PROTOTYPE: N=8 coefficient dimension. Production RLWE uses N=8192.
+// The circuit proves correctness on 8-coefficient data; full N=8192
+// verification is required for production. See G-N8 in OPEN-PROBLEM-BLOCKERS.md.
 global N: u32 = 8;
 global LOG_N: u32 = 3;
 global B_E: u32 = 16;

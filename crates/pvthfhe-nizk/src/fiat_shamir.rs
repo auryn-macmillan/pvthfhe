@@ -23,7 +23,11 @@
 use sha2::{Digest, Sha256};
 
 /// Domain separator prefix as specified in §3.6 of `design/spec-real-p2p3.md`.
-pub const DOMAIN_SEP_PREFIX: &str = "pvthfhe/cyclo-ajtai-d2/v1/";
+pub const DOMAIN_SEP_PREFIX: &str =
+    match core::str::from_utf8(pvthfhe_domain_tags::Tag::FiatShamirDomainPrefix.as_bytes()) {
+        Ok(s) => s,
+        Err(_) => panic!("Tag::FiatShamirDomainPrefix is not valid UTF-8"),
+    };
 
 /// Fiat-Shamir transcript built on SHA-256.
 ///
@@ -43,6 +47,10 @@ impl Transcript {
     /// "pvthfhe/cyclo-ajtai-d2/v1/" ‖ session_id ‖ "/" ‖ participant_id_decimal
     /// ```
     pub fn new(session_id: &[u8], participant_id: u32) -> Self {
+        // participant_id is u32 here but u16 in NizkStatement. The conversion
+        // via u32::from() is safe (u16 → u32 never loses precision), and the
+        // decimal formatting produces the same string either way. Standardizing
+        // on u16 throughout would eliminate this discrepancy; tracked as F9.
         let mut hasher = Sha256::new();
         let domain = format!(
             "{}{}/{}",

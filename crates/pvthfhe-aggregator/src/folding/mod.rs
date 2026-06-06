@@ -23,6 +23,10 @@ compile_error!(
 );
 
 use anyhow::Context;
+// L2: LegacyHashChainAdapter is wrapped by HashChainCycloAdapter. The inner
+// type is preserved for migration compatibility. Once all callers use the
+// Cyclo-native paths directly, this wrapper should be removed.
+#[allow(deprecated)]
 use pvthfhe_cyclo::adapter::LegacyHashChainAdapter;
 #[cfg(feature = "real-folding")]
 use pvthfhe_cyclo::fold as cyclo_fold;

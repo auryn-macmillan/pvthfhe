@@ -84,6 +84,9 @@ pub enum NizkError {
     /// The proof does not satisfy the verification equation.
     #[error("lattice NIZK verification failed: {0}")]
     VerificationFailed(&'static str),
+    /// Proof generation failed due to exhaustion of retries.
+    #[error("proof generation failed: {0}")]
+    ProofGenerationFailed(&'static str),
 }
 
 /// Frozen trait boundary for P1 lattice NIZK backends.
@@ -155,6 +158,7 @@ fn map_err(e: pvthfhe_nizk::NizkError) -> NizkError {
         pvthfhe_nizk::NizkError::InvalidInput(m) => NizkError::InvalidInput(m),
         pvthfhe_nizk::NizkError::InvalidProof(m) => NizkError::InvalidProof(m),
         pvthfhe_nizk::NizkError::VerificationFailed(m) => NizkError::VerificationFailed(m),
+        pvthfhe_nizk::NizkError::ProofGenerationFailed(m) => NizkError::ProofGenerationFailed(m),
     }
 }
 

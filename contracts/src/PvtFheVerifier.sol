@@ -652,6 +652,11 @@ contract PvtFheVerifier is IPvthfheVerifier {
         emit IvcProofConsumed(dkgRoot, epoch, ivcProofHash);
     }
 
+    /// L3: Uses raw ecrecover (assembly) instead of EIP-712 typed structured data.
+    /// EIP-712 would provide phishing resistance and signature clarity via domain
+    /// separator + typed message hashing. Tracked as migration milestone:
+    ///   - Phase 3 gate: upgrade attestation verification to EIP-712.
+    ///   - Requires Solidity typed data hashing (structHash + domainSeparator).
     function _verifyAttestationSignature(bytes32 hash, bytes calldata signature, address expectedSigner) internal pure {
         require(signature.length == 65, "InvalidAttestationSignature");
 

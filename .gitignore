@@ -1,7 +1,6 @@
 /target
-/circuits/target
+/circuits/**/target
 /contracts/out
 /contracts/cache
 *.log
 .env
-bench/results/aggregate_1024.json

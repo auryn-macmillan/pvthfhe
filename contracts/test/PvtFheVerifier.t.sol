@@ -359,7 +359,7 @@ contract PvtFheVerifierTest is BaseVerifierTest {
         bytes32 shareVerificationHash
     ) internal pure returns (VerificationStatementV1.Statement memory stmt) {
         stmt.protocolVersion = 1;
-        stmt.contextId = bytes32(0);
+        stmt.contextId = keccak256(abi.encode(SAMPLE_HASH, SAMPLE_EPOCH, "pvthfhe/v1"));
         stmt.dkgRoot = SAMPLE_HASH;
         stmt.epoch = SAMPLE_EPOCH;
         stmt.participantSetHash = participantSetHash;
@@ -520,5 +520,35 @@ contract PvtFheVerifierTest is BaseVerifierTest {
             SAMPLE_HASH, SAMPLE_EPOCH, SAMPLE_HASH, SAMPLE_HASH,
             ivcBinding, sampleProof
         );
+    }
+
+    // -------------------------------------------------------------------------
+    // M4: contextId derived from session context (no longer bytes32(0))
+    // -------------------------------------------------------------------------
+
+    function test_contextId_nonzero() public pure {
+        VerificationStatementV1.Statement memory stmt = _buildTestStatement(
+            SAMPLE_HASH, bytes32(uint256(0x0c)), bytes32(uint256(0x07))
+        );
+        assertTrue(stmt.contextId != bytes32(0), "contextId must not be zero");
+    }
+
+    function test_contextId_deterministic() public pure {
+        VerificationStatementV1.Statement memory stmt1 = _buildTestStatement(
+            SAMPLE_HASH, bytes32(uint256(0x0c)), bytes32(uint256(0x07))
+        );
+        VerificationStatementV1.Statement memory stmt2 = _buildTestStatement(
+            SAMPLE_HASH, bytes32(uint256(0x0c)), bytes32(uint256(0x07))
+        );
+        assertEq(stmt1.contextId, stmt2.contextId, "contextId must be deterministic");
+    }
+
+    function test_contextId_changes_with_dkgRoot() public pure {
+        bytes32 altDkgRoot = keccak256("alternative-dkg-root");
+        bytes32 baseCtxId = keccak256(abi.encode(SAMPLE_HASH, SAMPLE_EPOCH, "pvthfhe/v1"));
+        bytes32 altCtxId = keccak256(abi.encode(altDkgRoot, SAMPLE_EPOCH, "pvthfhe/v1"));
+        assertTrue(baseCtxId != bytes32(0), "base contextId must not be zero");
+        assertTrue(altCtxId != bytes32(0), "alt contextId must not be zero");
+        assertNotEq(baseCtxId, altCtxId, "different dkgRoot must produce different contextId");
     }
 }

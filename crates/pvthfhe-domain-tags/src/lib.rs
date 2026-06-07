@@ -78,6 +78,78 @@ pub enum Tag {
     GreyhoundChallenge,
     /// `pvthfhe-ajtai-crs/v1` — Ajtai commitment CRS seed derivation domain.
     AjtaiCrs,
+    /// `pvthfhe/sigma-session-binding/v1` — sigma protocol session binding domain separator.
+    SigmaSessionBinding,
+    /// `pvthfhe/cyclo-fold-challenge/v2` — Cyclo fold challenge derivation domain separator.
+    CycloFoldChallengeV2,
+    /// `pvthfhe/pvss-decrypt-binding/v1` — PVSS decryption binding domain separator.
+    PvssDecryptBindingV1,
+    /// `pvthfhe-schnorr-pop-v1` — Schnorr proof-of-possession domain separator.
+    SchnorrPop,
+    /// `pvthfhe/lazer-session-binding/v1` — LaZer proof session/participant binding domain.
+    LazerSessionBinding,
+    /// `pvthfhe-d2-hash-bridge/v1` — D2 hash-bridge commitment domain (H9 consolidation).
+    HashBridgeCommit,
+    /// `greyhound-A` — Greyhound PCS matrix A generation domain (H9 consolidation).
+    GreyhoundA,
+    /// `greyhound-B` — Greyhound PCS matrix B generation domain (H9 consolidation).
+    GreyhoundB,
+    /// `greyhound-D` — Greyhound PCS matrix D generation domain (H9 consolidation).
+    GreyhoundD,
+    /// `pvthfhe/` — protocol-level domain prefix for hash construction.
+    ProtocolPrefix,
+    /// `pvthfhe/ajtai-commit/v1` — Ajtai commitment domain separator.
+    AjtaiCommit,
+    /// `pvthfhe/bfv-encryption-snapshot/v1` — BFV encryption snapshot circuit domain.
+    BfvEncryptionSnapshot,
+    /// `pvthfhe/bfv-encryption/v1` — BFV encryption step circuit domain.
+    BfvEncryption,
+    /// `pvthfhe/ciphertext-v/v1` — ciphertext-v PVSS NIZK share domain.
+    CiphertextV,
+    /// `pvthfhe/cyclo-fold-arecibo/v1` — Cyclo fold Arecibo circuit domain.
+    CycloFoldArecibo,
+    /// `pvthfhe/dealer-parity/v2` — dealer parity step circuit domain.
+    DealerParity,
+    /// `pvthfhe/decrypt-nizk-proofs/v1` — decrypt NIZK proofs hash domain.
+    DecryptNizkProofs,
+    /// `pvthfhe/dkg-agg/v1` — DKG aggregation step circuit domain.
+    DkgAgg,
+    /// `pvthfhe/lagrange-fold/v1` — Lagrange fold step circuit domain.
+    LagrangeFold,
+    /// `pvthfhe/micronova/heterogeneous-step-circuit/v1` — Micronova heterogeneous step circuit.
+    MicronovaHeterogeneousStepCircuit,
+    /// `pvthfhe/micronova/internal-fold-verifier/v1` — Micronova internal fold verifier v1.
+    MicronovaInternalFoldVerifierV1,
+    /// `pvthfhe/micronova/internal-fold-verifier/v3` — Micronova internal fold verifier v3.
+    MicronovaInternalFoldVerifierV3,
+    /// `pvthfhe/micronova/lagrange-fold/v1` — Micronova Lagrange fold circuit domain.
+    MicronovaLagrangeFold,
+    /// `pvthfhe/micronova/leaf-ring-verifier/v1` — Micronova leaf ring verifier.
+    MicronovaLeafRingVerifier,
+    /// `pvthfhe/micronova/party` — Micronova per-party proof label.
+    MicronovaParty,
+    /// `pvthfhe/micronova/pk` — Micronova public key label.
+    MicronovaPk,
+    /// `pvthfhe/micronova/share` — Micronova share label.
+    MicronovaShare,
+    /// `pvthfhe/nova/ajtai-commitment/v1` — Nova Ajtai commitment step circuit domain.
+    NovaAjtaiCommitment,
+    /// `pvthfhe/participant-set/v1` — participant set hash domain.
+    ParticipantSet,
+    /// `pvthfhe/per_node/c7` — per-node C7 challenge domain.
+    PerNodeC7,
+    /// `pvthfhe/pk-aggregation/v1` — public-key aggregation step circuit domain.
+    PkAggregation,
+    /// `pvthfhe/pk-contribution/v1` — public-key contribution step circuit domain.
+    PkContribution,
+    /// `pvthfhe/pvss/share-verify-sigma/v1` — PVSS share-verify sigma proof domain.
+    PvssShareVerifySigma,
+    /// `pvthfhe/scheme-switch/v1` — scheme switch step circuit domain.
+    SchemeSwitch,
+    /// `pvthfhe/session-id/v1` — session ID hash domain.
+    SessionId,
+    /// `pvthfhe/transcript/v1` — transcript hash domain.
+    Transcript,
 }
 
 impl Tag {
@@ -122,11 +194,49 @@ impl Tag {
             Tag::GreyhoundPcs => b"pvthfhe-greyhound-pcs-v1",
             Tag::GreyhoundChallenge => b"pvthfhe-greyhound-challenge-v1",
             Tag::AjtaiCrs => b"pvthfhe-ajtai-crs/v1",
+            Tag::SigmaSessionBinding => b"pvthfhe/sigma-session-binding/v1",
+            Tag::CycloFoldChallengeV2 => b"pvthfhe/cyclo-fold-challenge/v2",
+            Tag::PvssDecryptBindingV1 => b"pvthfhe/pvss-decrypt-binding/v1",
+            Tag::SchnorrPop => b"pvthfhe-schnorr-pop-v1",
+            Tag::LazerSessionBinding => b"pvthfhe/lazer-session-binding/v1",
+            Tag::HashBridgeCommit => b"pvthfhe-d2-hash-bridge/v1",
+            Tag::GreyhoundA => b"greyhound-A",
+            Tag::GreyhoundB => b"greyhound-B",
+            Tag::GreyhoundD => b"greyhound-D",
+            Tag::ProtocolPrefix => b"pvthfhe/",
+            Tag::AjtaiCommit => b"pvthfhe/ajtai-commit/v1",
+            Tag::BfvEncryptionSnapshot => b"pvthfhe/bfv-encryption-snapshot/v1",
+            Tag::BfvEncryption => b"pvthfhe/bfv-encryption/v1",
+            Tag::CiphertextV => b"pvthfhe/ciphertext-v/v1",
+            Tag::CycloFoldArecibo => b"pvthfhe/cyclo-fold-arecibo/v1",
+            Tag::DealerParity => b"pvthfhe/dealer-parity/v2",
+            Tag::DecryptNizkProofs => b"pvthfhe/decrypt-nizk-proofs/v1",
+            Tag::DkgAgg => b"pvthfhe/dkg-agg/v1",
+            Tag::LagrangeFold => b"pvthfhe/lagrange-fold/v1",
+            Tag::MicronovaHeterogeneousStepCircuit => {
+                b"pvthfhe/micronova/heterogeneous-step-circuit/v1"
+            }
+            Tag::MicronovaInternalFoldVerifierV1 => b"pvthfhe/micronova/internal-fold-verifier/v1",
+            Tag::MicronovaInternalFoldVerifierV3 => b"pvthfhe/micronova/internal-fold-verifier/v3",
+            Tag::MicronovaLagrangeFold => b"pvthfhe/micronova/lagrange-fold/v1",
+            Tag::MicronovaLeafRingVerifier => b"pvthfhe/micronova/leaf-ring-verifier/v1",
+            Tag::MicronovaParty => b"pvthfhe/micronova/party",
+            Tag::MicronovaPk => b"pvthfhe/micronova/pk",
+            Tag::MicronovaShare => b"pvthfhe/micronova/share",
+            Tag::NovaAjtaiCommitment => b"pvthfhe/nova/ajtai-commitment/v1",
+            Tag::ParticipantSet => b"pvthfhe/participant-set/v1",
+            Tag::PerNodeC7 => b"pvthfhe/per_node/c7",
+            Tag::PkAggregation => b"pvthfhe/pk-aggregation/v1",
+            Tag::PkContribution => b"pvthfhe/pk-contribution/v1",
+            Tag::PvssShareVerifySigma => b"pvthfhe/pvss/share-verify-sigma/v1",
+            Tag::SchemeSwitch => b"pvthfhe/scheme-switch/v1",
+            Tag::SessionId => b"pvthfhe/session-id/v1",
+            Tag::Transcript => b"pvthfhe/transcript/v1",
         }
     }
 
     pub const fn all_literals() -> &'static [&'static [u8]] {
-        const ALL: [&[u8]; 35] = [
+        const ALL: [&[u8]; 71] = [
             Tag::Finalize.as_bytes(),
             Tag::KeygenSimulatorSession.as_bytes(),
             Tag::ProofTag.as_bytes(),
@@ -162,7 +272,71 @@ impl Tag {
             Tag::GreyhoundPcs.as_bytes(),
             Tag::GreyhoundChallenge.as_bytes(),
             Tag::AjtaiCrs.as_bytes(),
+            Tag::SigmaSessionBinding.as_bytes(),
+            Tag::CycloFoldChallengeV2.as_bytes(),
+            Tag::PvssDecryptBindingV1.as_bytes(),
+            Tag::SchnorrPop.as_bytes(),
+            Tag::LazerSessionBinding.as_bytes(),
+            Tag::HashBridgeCommit.as_bytes(),
+            Tag::GreyhoundA.as_bytes(),
+            Tag::GreyhoundB.as_bytes(),
+            Tag::GreyhoundD.as_bytes(),
+            Tag::ProtocolPrefix.as_bytes(),
+            Tag::AjtaiCommit.as_bytes(),
+            Tag::BfvEncryptionSnapshot.as_bytes(),
+            Tag::BfvEncryption.as_bytes(),
+            Tag::CiphertextV.as_bytes(),
+            Tag::CycloFoldArecibo.as_bytes(),
+            Tag::DealerParity.as_bytes(),
+            Tag::DecryptNizkProofs.as_bytes(),
+            Tag::DkgAgg.as_bytes(),
+            Tag::LagrangeFold.as_bytes(),
+            Tag::MicronovaHeterogeneousStepCircuit.as_bytes(),
+            Tag::MicronovaInternalFoldVerifierV1.as_bytes(),
+            Tag::MicronovaInternalFoldVerifierV3.as_bytes(),
+            Tag::MicronovaLagrangeFold.as_bytes(),
+            Tag::MicronovaLeafRingVerifier.as_bytes(),
+            Tag::MicronovaParty.as_bytes(),
+            Tag::MicronovaPk.as_bytes(),
+            Tag::MicronovaShare.as_bytes(),
+            Tag::NovaAjtaiCommitment.as_bytes(),
+            Tag::ParticipantSet.as_bytes(),
+            Tag::PerNodeC7.as_bytes(),
+            Tag::PkAggregation.as_bytes(),
+            Tag::PkContribution.as_bytes(),
+            Tag::PvssShareVerifySigma.as_bytes(),
+            Tag::SchemeSwitch.as_bytes(),
+            Tag::SessionId.as_bytes(),
+            Tag::Transcript.as_bytes(),
         ];
         &ALL
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn all_domain_tags_are_declared() {
+        let tags = Tag::all_literals();
+        assert!(!tags.is_empty(), "tag list must not be empty");
+
+        // Every tag must be non-empty.
+        for (i, tag) in tags.iter().enumerate() {
+            assert!(!tag.is_empty(), "tag at index {i} is empty");
+        }
+
+        // All tags must be pairwise distinct.
+        for i in 0..tags.len() {
+            for j in (i + 1)..tags.len() {
+                assert_ne!(
+                    tags[i],
+                    tags[j],
+                    "tags at indices {i} and {j} collide: {:?}",
+                    String::from_utf8_lossy(tags[i])
+                );
+            }
+        }
     }
 }

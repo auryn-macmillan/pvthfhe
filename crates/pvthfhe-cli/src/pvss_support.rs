@@ -123,6 +123,7 @@ pub fn run_lattice_pvss(
                         sk_agg_share,
                         esm_agg_share,
                         esm_noise_poly_bytes: committed_esm.clone(),
+                        committed_smudge_slot: None,
                     },
                     &ctx,
                     committed_esm,

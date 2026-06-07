@@ -17,6 +17,7 @@ pub mod lagrange_fold_circuit;
 pub mod latticefold_adapter;
 pub mod latticefold_circuit_family;
 pub mod monomial_range;
+pub mod noir_sponge;
 pub mod nova_gadgets;
 pub mod pk_aggregation_circuit;
 pub mod pk_contribution_circuit;
@@ -60,9 +61,12 @@ pub use dealer_parity_circuit::{
     clear_dealer_parity_data, set_dealer_parity_data, DealerParityStepCircuit,
 };
 pub use fhe_compute_circuit::{
-    clear_fhe_compute_data, fhe_compute_data_len, fhe_compute_data_snapshot,
-    reset_fhe_compute_step_counter, set_fhe_compute_data, FheComputeStepCircuit, FheComputeWitness,
-    FheOp, BFV_CT_COEFFS_LEN, BFV_L, BFV_MUL_CT_COEFFS_LEN, BFV_N, BFV_Q,
+    clear_fhe_chunk_data, clear_fhe_compute_data, fhe_chunk_data_len, fhe_compute_data_len,
+    fhe_compute_data_snapshot, fhe_compute_sz_data_len, reset_fhe_chunk_step_counter,
+    reset_fhe_compute_step_counter, set_fhe_chunk_data, set_fhe_compute_data,
+    set_fhe_compute_sz_data, FheComputeChunkWitness, FheComputeStepCircuit, FheComputeWitness,
+    FheComputeWitnessSz, FheOp, BFV_CT_COEFFS_LEN, BFV_L, BFV_MUL_CT_COEFFS_LEN, BFV_N, BFV_Q,
+    CHUNK_SIZE,
 };
 pub use fold_verifier_circuit::{
     clear_fold_verifier_data, set_fold_verifier_data, FoldVerifierStepCircuit,
@@ -1064,6 +1068,7 @@ pub fn reset_all_step_counters() {
     CYCLO_FOLD_STEP_COUNTER.with(|cell| *cell.borrow_mut() = 0);
     NOVA_BATCH_STEP_COUNT.with(|cell| *cell.borrow_mut() = 0);
     fhe_compute_circuit::FHE_COMPUTE_STEP_COUNTER.with(|cell| *cell.borrow_mut() = 0);
+    fhe_compute_circuit::FHE_CHUNK_STEP.with(|cell| *cell.borrow_mut() = 0);
     ajtai_commitment_circuit::AJTAI_STEP_COUNTER.with(|cell| *cell.borrow_mut() = 0);
     share_verification_circuit::SHARE_VERIFY_STEP_COUNTER.with(|cell| *cell.borrow_mut() = 0);
     scheme_switch::SCHEME_SWITCH_STEP_COUNTER.with(|cell| *cell.borrow_mut() = 0);
@@ -1906,6 +1911,16 @@ fn z0_from_acc_with_session(
     session_seed: NovaScalar,
 ) -> Vec<NovaScalar> {
     let mut z0 = vec![NovaScalar::zero(); state_len];
+    // For 8-wide state (chunked FHE compute), decode via decode_chunked_state.
+    if state_len >= 8 {
+        if let Ok((chain_hash, merkle_root, total_chunks)) = decode_chunked_state(acc) {
+            z0[0] = ark_to_nova_scalar(chain_hash);
+            z0[5] = ark_to_nova_scalar(merkle_root);
+            z0[7] = NovaScalar::from(total_chunks);
+            z0[0] += session_seed;
+            return z0;
+        }
+    }
     if let Ok((a, b, c)) = decode_triple(acc) {
         if state_len > 0 {
             z0[0] = ark_to_nova_scalar(a);
@@ -3914,6 +3929,33 @@ pub fn encode_hex(value: (Fr, Fr, Fr, Fr, Fr, Fr, Fr, Fr)) -> [u8; 256] {
     out[192..224].copy_from_slice(&g);
     out[224..256].copy_from_slice(&h);
     out
+}
+
+pub fn encode_chunked_state(
+    z0: ark_bn254::Fr,
+    merkle_root: ark_bn254::Fr,
+    total_chunks: u64,
+) -> [u8; 256] {
+    let mut buf = [0u8; 256];
+    buf[0..32].copy_from_slice(&encode_scalar(z0));
+    buf[160..192].copy_from_slice(&encode_scalar(merkle_root));
+    let tc_bytes = total_chunks.to_be_bytes();
+    buf[224..256][..8].copy_from_slice(&tc_bytes);
+    buf
+}
+
+pub fn decode_chunked_state(
+    bytes: &[u8],
+) -> Result<(ark_bn254::Fr, ark_bn254::Fr, u64), CompressorError> {
+    if bytes.len() < 256 {
+        return Err(CompressorError::InvalidInput);
+    }
+    let z0 = decode_scalar(&bytes[0..32])?;
+    let merkle_root = decode_scalar(&bytes[160..192])?;
+    let mut tc = [0u8; 8];
+    tc.copy_from_slice(&bytes[224..232]);
+    let total_chunks = u64::from_be_bytes(tc);
+    Ok((z0, merkle_root, total_chunks))
 }
 
 fn encode_quint(value: ExternalInputs5<Fr>) -> [u8; 160] {

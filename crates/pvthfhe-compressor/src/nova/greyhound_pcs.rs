@@ -426,11 +426,26 @@ impl GreyhoundPCS {
         let d_cols = ps.delta * ps.r; // δ·r
 
         // Generate A ∈ F_q^{n × (δ₀·m)}
-        let a_matrix = generate_matrix(ppseed, b"greyhound-A", ps.n, inner_cols);
+        let a_matrix = generate_matrix(
+            ppseed,
+            pvthfhe_domain_tags::Tag::GreyhoundA.as_bytes(),
+            ps.n,
+            inner_cols,
+        );
         // Generate B ∈ F_q^{n × (n·δ·r)}
-        let b_matrix = generate_matrix(ppseed, b"greyhound-B", ps.n, outer_rows);
+        let b_matrix = generate_matrix(
+            ppseed,
+            pvthfhe_domain_tags::Tag::GreyhoundB.as_bytes(),
+            ps.n,
+            outer_rows,
+        );
         // Generate D ∈ F_q^{n × (δ·r)}
-        let d_matrix = generate_matrix(ppseed, b"greyhound-D", ps.n, d_cols);
+        let d_matrix = generate_matrix(
+            ppseed,
+            pvthfhe_domain_tags::Tag::GreyhoundD.as_bytes(),
+            ps.n,
+            d_cols,
+        );
 
         GreyhoundParams {
             n: ps.n,

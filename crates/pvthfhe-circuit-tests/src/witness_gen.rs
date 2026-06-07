@@ -18,7 +18,7 @@
 use std::{fmt::Write as _, path::Path};
 
 use ark_bn254::Fr;
-use ark_ff::{Field, PrimeField};
+use ark_ff::{Field, PrimeField, Zero};
 use light_poseidon::{Poseidon, PoseidonHasher};
 
 /// Full RLWE ring degree used by the circuit.
@@ -131,6 +131,22 @@ pub struct NovaStateCommitmentWitness {
     pub share_verification_hash: String,
     /// S6: IVC verification result (1 = passed, 0 = failed).
     pub ivc_verify_result: String,
+    /// Bootstrap result hash binding.
+    pub bootstrap_result_hash: String,
+    /// P4-upgrade: Noir-compatible Poseidon hash of IVC proof bytes.
+    pub noir_ivc_proof_hash: String,
+    /// P4-upgrade: Noir-compatible Poseidon hash of z0 state.
+    pub noir_z0_commitment: String,
+    /// P4-upgrade: Noir-compatible Poseidon hash of zi state.
+    pub noir_zi_commitment: String,
+    /// S2: FHE Mul ops flag — 1 if at least one Mul was verified, 0 otherwise.
+    pub has_fhe_mul_ops: String,
+    /// P4-upgrade: Proof byte chunks as Field elements.
+    pub ivc_proof_fields: Vec<String>,
+    /// P4-upgrade: z0 state elements.
+    pub z0_state_fields: Vec<String>,
+    /// P4-upgrade: zi state elements.
+    pub zi_state_fields: Vec<String>,
 }
 
 impl DecryptShareWitness {
@@ -246,6 +262,49 @@ impl NovaStateCommitmentWitness {
             &mut output,
             "ivc_verify_result = \"{}\"",
             self.ivc_verify_result
+        );
+        let _ = writeln!(
+            &mut output,
+            "bootstrap_result_hash = \"{}\"",
+            self.bootstrap_result_hash
+        );
+        // P4-upgrade: Noir-compatible Poseidon hashes
+        let _ = writeln!(
+            &mut output,
+            "noir_ivc_proof_hash = \"{}\"",
+            self.noir_ivc_proof_hash
+        );
+        let _ = writeln!(
+            &mut output,
+            "noir_z0_commitment = \"{}\"",
+            self.noir_z0_commitment
+        );
+        let _ = writeln!(
+            &mut output,
+            "noir_zi_commitment = \"{}\"",
+            self.noir_zi_commitment
+        );
+        // S2: FHE Mul ops flag
+        let _ = writeln!(
+            &mut output,
+            "has_fhe_mul_ops = \"{}\"",
+            self.has_fhe_mul_ops
+        );
+        // P4-upgrade: Private witness arrays
+        let _ = writeln!(
+            &mut output,
+            "ivc_proof_fields = [{}]",
+            quoted_array(&self.ivc_proof_fields)
+        );
+        let _ = writeln!(
+            &mut output,
+            "z0_state_fields = [{}]",
+            quoted_array(&self.z0_state_fields)
+        );
+        let _ = writeln!(
+            &mut output,
+            "zi_state_fields = [{}]",
+            quoted_array(&self.zi_state_fields)
         );
         let _ = writeln!(
             &mut output,
@@ -452,6 +511,40 @@ pub fn generate_nova_state_commitment_witness() -> NovaStateCommitmentWitness {
         Fr::from(80u64),
     ];
 
+    // P4-upgrade: compute Noir-compatible Poseidon hashes from witness data.
+    // Uses pvthfhe_compressor::nova::noir_sponge::sponge which matches Noir's
+    // poseidon::poseidon::bn254::sponge exactly.
+    // PROOF_MAX_CHUNKS must match the Noir circuit global.
+    const PROOF_MAX: usize = 64;
+    let z0_state: [Fr; 8] = [
+        Fr::from(10u64),
+        Fr::from(20u64),
+        Fr::from(30u64),
+        Fr::from(40u64),
+        Fr::from(50u64),
+        Fr::from(60u64),
+        Fr::from(70u64),
+        Fr::from(80u64),
+    ];
+    let zi_state: [Fr; 8] = [
+        Fr::from(11u64),
+        Fr::from(22u64),
+        Fr::from(33u64),
+        Fr::from(44u64),
+        Fr::from(55u64),
+        Fr::from(66u64),
+        Fr::from(77u64),
+        Fr::from(88u64),
+    ];
+
+    let proof_chunks_raw: [Fr; PROOF_MAX] = {
+        let mut arr = [Fr::zero(); PROOF_MAX];
+        for i in 0..3 {
+            arr[i] = Fr::from((i + 1) as u64); // [1, 2, 3, 0, 0, ...]
+        }
+        arr
+    };
+
     NovaStateCommitmentWitness {
         commit_pk: field_to_decimal(Fr::from(1u64)),
         commit_ct_in: field_to_decimal(Fr::from(2u64)),
@@ -477,6 +570,23 @@ pub fn generate_nova_state_commitment_witness() -> NovaStateCommitmentWitness {
         ivc_steps: field_to_decimal(Fr::from(7u64)),
         share_verification_hash: field_to_decimal(Fr::from(999u64)),
         ivc_verify_result: field_to_decimal(Fr::from(1u64)),
+        bootstrap_result_hash: field_to_decimal(Fr::from(888u64)),
+        noir_ivc_proof_hash: field_to_decimal(pvthfhe_compressor::nova::noir_sponge::sponge(
+            &proof_chunks_raw,
+        )),
+        noir_z0_commitment: field_to_decimal(pvthfhe_compressor::nova::noir_sponge::sponge(
+            &z0_state,
+        )),
+        noir_zi_commitment: field_to_decimal(pvthfhe_compressor::nova::noir_sponge::sponge(
+            &zi_state,
+        )),
+        has_fhe_mul_ops: field_to_decimal(Fr::from(1u64)),
+        ivc_proof_fields: proof_chunks_raw
+            .iter()
+            .map(|&f| field_to_decimal(f))
+            .collect(),
+        z0_state_fields: z0_state.iter().map(|&f| field_to_decimal(f)).collect(),
+        zi_state_fields: zi_state.iter().map(|&f| field_to_decimal(f)).collect(),
     }
 }
 

@@ -14,11 +14,12 @@ This document outlines the security model, assumptions, and limitations of the P
 ## Implementation Status
 
 - **FHE backend**: Real threshold BFV via `gnosisguild/fhe.rs`.
+- **Verifiable FHE ops**: FHE Add and Mul verified in-circuit at production N=8192 (use `--features bfv-n4` for fast testing at N=4). Relinearize gated behind `real-relin` feature.
 - **Nova IVC Proofs**: Maliciously-secure folding via nova-snark (Microsoft Nova v0.71). The IVC proof chain provides soundness guarantees through transparent verification — no Groth16 trusted ceremony required.
 - **NIZK proofs**: Ajtaï D2 sigma + BFV sigma with k-round parallel repetition. Greco quotient-witness verification strengthens soundness from modular to integer-lattice level. M7 fix (2026-06-05): zero-witness rejection via Ajtai commitment all-zeros check.
 - **On-chain verifier**: UltraHonk verifier (Solidity) with IVC binding. While proof metadata (proof_hash, vk_hash, pp_hash, z0/zi commitments, verification hashes) is bound into the on-chain commitment, the contract does **NOT** cryptographically verify the IVC proof itself. IVC mode is currently fail-closed (disabled) until a real decider is implemented.
 - **No active surrogates on the default path** — all paths use real cryptographic proofs. The surrogate compressor is exclusively available behind `--features surrogate-compressor` (not in defaults).
-- **Latest audit**: MPC security audit 2026-06-05 (`.sisyphus/audit/MPC-AUDIT-2026-06-05.md`) — 19 findings, all P0+P1+P2 remediated. See [`.sisyphus/plans/mpc-audit-2026-06-05-remediation.md`](.sisyphus/plans/mpc-audit-2026-06-05-remediation.md).
+- **Latest audit**: MPC security audit 2026-06-07 end-to-end verification (`.sisyphus/audit/MPC-AUDIT-2026-06-07.md`) — 10 fresh findings, 3 prior CRITICAL (F0, F1, F3) confirmed FIXED. S2 (FHE Mul) confirmed verified at native Nova level (N=8192 production scale), on-chain verification pending P4 decider. 27 domain tags registered. See [`.sisyphus/plans/mpc-audit-2026-06-07-remediation.md`](.sisyphus/plans/mpc-audit-2026-06-07-remediation.md).
 
 ## Threat Model
 

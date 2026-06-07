@@ -25,6 +25,7 @@ pub mod slot_registry;
 use pvthfhe_types::{ProtocolBytes, ShareSecret};
 
 pub use encrypt::{CommittedSmudgeUse, LatticePvssBfvAdapter};
+pub use nizk_decrypt::CommittedSmudgeSlot;
 
 /// Frozen PVSS context shared across backend implementations.
 #[derive(Clone, PartialEq, Eq)]

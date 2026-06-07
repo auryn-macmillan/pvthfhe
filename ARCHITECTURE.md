@@ -91,7 +91,9 @@ LatticeFold+ provides lattice-native folding over RLWE without elliptic curve as
 
 ## Compute Provider: Verifiable FHE Operations
 
-`FheComputeStepCircuit` (`fhe_compute_circuit.rs`) proves that a sequence of FHE Add operations over Merkle-committed input ciphertexts produces a given output ciphertext. The circuit performs in-circuit FHE coefficient addition with Merkle inclusion proofs, chaining output coefficients through Nova state. Supports BFV parameters N=4 (demo) / N=8192 (production), L=3 RNS limbs.
+`FheComputeStepCircuit` (`fhe_compute_circuit.rs`) proves that a sequence of FHE **Add** and **Mul** operations over Merkle-committed input ciphertexts produces a given output ciphertext. The circuit performs in-circuit FHE coefficient addition/multiplication with Merkle inclusion proofs, chaining output coefficients through Nova state. Uses production BFV parameters N=8192, L=3 RNS limbs by default. Fast testing at N=4 is available via `--features bfv-n4`.
+
+**FHE Multiplication** is proven at the native Nova step circuit level via `mul_fhe_ct_bp` (bellperson BFV constraint system). At production scale (N=8192), both Add and Mul operations are fully verified in the Nova IVC chain. The on-chain verifier currently cannot re-verify the Nova IVC chain directly — IVC proof verification is deferred to P4 (on-chain decider). Fast testing at N=4 demo scale is available via `--features bfv-n4`.
 
 ## Benchmarking
 

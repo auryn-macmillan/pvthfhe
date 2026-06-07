@@ -219,6 +219,11 @@ t_rns = 24,580 bytes, z_s/z_e/ch each 4+1024×8 = 8,196 bytes;
 sigma section ≈ 89,128 bytes; plus 4-byte length prefix.  
 Total per-share proof (standard config): ≈ 116 KB.
 
+> **SPEC EXTENSION (N6)**: The `sigma_proof_bytes` field in the proof byte layout above
+> was added beyond the original spec §3.4 to embed the RLWE sigma proof and public share
+> `d_i` in RNS form. Both are required for stand-alone verifiability of per-share proofs.
+> Present in code (adapter.rs proof byte layout comment) as of commit 1f21c59.
+
 ### 3.5 Conditional-Soundness Disclosure Surfaces
 
 The following files/functions MUST carry a `# Security` or `⚠️` banner (source:

@@ -39,6 +39,8 @@ use pvthfhe_cyclo::{CycloAccumulator, CycloAdapter as _, CycloError, CYCLO_BACKE
 pub use pvthfhe_cyclo::{FoldTrackCommitment, FoldTrackKind, MultiTrackFoldMetadata};
 #[cfg(feature = "real-folding")]
 use pvthfhe_domain_tags::Tag;
+#[cfg(all(feature = "real-folding", feature = "real-nizk"))]
+use pvthfhe_nizk::adapter::extract_ccs_witness_from_proof;
 #[cfg(feature = "real-folding")]
 use pvthfhe_nizk::BACKEND_ID as NIZK_BACKEND_ID;
 use pvthfhe_types::witness_language::{
@@ -412,7 +414,7 @@ fn verify_full_nizk(witness: &FoldWitness, stmt: &FoldStatement) -> Result<(), F
 /// Convert a `(FoldStatement, FoldWitness)` pair into a `CcsPShareInstance`
 /// suitable for Cyclo folding.
 #[cfg(feature = "real-folding")]
-fn fold_stmt_witness_to_cyclo_instance(
+pub fn fold_stmt_witness_to_cyclo_instance(
     stmt: &FoldStatement,
     witness: &FoldWitness,
     _acc: &FoldAccumulator,
@@ -445,7 +447,14 @@ fn fold_stmt_witness_to_cyclo_instance(
             ProtocolBytes::from(padded)
         },
         public_io_bytes: ProtocolBytes::from(stmt.nizk_statement.ciphertext_bytes.clone()),
-        ccs_witness_bytes: CcsWitnessSecret::new(demo_zero_witness_bytes()),
+        ccs_witness_bytes: {
+            #[cfg(feature = "real-nizk")]
+            let witness_bytes = extract_ccs_witness_from_proof(&witness.nizk_proof.proof_bytes)
+                .unwrap_or_else(|_| demo_zero_witness_bytes());
+            #[cfg(not(feature = "real-nizk"))]
+            let witness_bytes = demo_zero_witness_bytes();
+            CcsWitnessSecret::new(witness_bytes)
+        },
         sha256_binding_bytes: ProtocolBytes::from(binding_bytes.to_vec()),
         ccs_matrix_bytes: ProtocolBytes::from(demo_one_by_one_matrix_bytes()),
     };
@@ -456,7 +465,7 @@ fn fold_stmt_witness_to_cyclo_instance(
 }
 
 #[cfg(feature = "real-folding")]
-fn demo_zero_witness_bytes() -> Vec<u8> {
+pub fn demo_zero_witness_bytes() -> Vec<u8> {
     let mut out = Vec::with_capacity(36);
     out.extend_from_slice(&1u32.to_be_bytes());
     out.extend_from_slice(&[0u8; 32]);

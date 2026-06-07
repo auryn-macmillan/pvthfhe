@@ -30,7 +30,7 @@ REQUIRED_THEOREM_HEADINGS = [
     '## T2: Knowledge Soundness',
     '## T3: Zero-Knowledge / HVZK \\(\\rightarrow\\) NIZK via Fiat-Shamir',
     '## T4: Simulation-Extractability Decision',
-    '## T5: Batch Soundness',
+    '## T5: Commitment Binding',
 ]
 REQUIRED_THEOREM_FIELDS = [
     '**Theorem ID**:',

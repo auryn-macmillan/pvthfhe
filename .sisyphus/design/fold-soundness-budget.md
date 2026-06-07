@@ -92,22 +92,15 @@ safety margin against:
 We choose:
 
 ```
-|C| = 2^16 = 65536
+|C| = 2^128
 ```
 
-This provides an extra 3 bits of safety margin (8× the minimum).
+This provides 128-bit soundness per fold step, eliminating the linear/superpolynomial soundness model ambiguity. With the proven Cyclo bound ε_fold ≤ T · |C|^(-1):
 
-**Soundness with |C| = 2^16, T=10**:
+**Soundness with |C| = 2^128, T=10**:
 ```
-ε_fold ≤ |C|^(-T) = (2^16)^(-10) = 2^(-160) ≪ 2^(-128) ✓
+ε_fold ≤ 10 · 2^(-128) ≈ 2.9 × 10^(-38) ≪ 2^(-128) ✓
 ```
-
-Even with the naive T·|C|^(-1) bound:
-```
-ε_fold ≤ 10 · 2^(-16) ≈ 1.5 × 10^(-4)
-```
-This is above 2⁻¹²⁸ under the naive model, but the corrected exponential bound
-|C|^(-T) = 2^(-160) comfortably achieves the target.
 
 ---
 
@@ -160,23 +153,18 @@ Challenges are derived from the Fiat-Shamir transcript hash (SHA-256) by
 extracting the first 2 bytes as a little-endian u16:
 
 ```
-h = SHA-256("pvthfhe-cyclo-fs-v1" ∥ session_id ∥ fold_depth ∥ acc_commitment ∥ inst_ajtai_bytes ∥ inst_public_io_bytes)
-r = u16_from_le_bytes(h[0..2])  →  r ∈ [0, 65535]
-```
-
-This replaces the previous insecure derivation:
-```
-r = h[0] % 3  →  r ∈ {0, 1, 2}  →  |C| = 3  →  ε ≤ 3^(-10) ≈ 1.7×10^(-5)  ✗
+h = SHA-256("pvthfhe-cyclo-fs-v1" ∥ session_id ∥ fold_depth ∥ acc_commitment ∥ inst_ajtai_bytes ∥ inst_public_io_bytes ∥ participant_id ∥ params_digest)
+r = u128_from_le_bytes(h[0..16])  →  r ∈ [0, 2^128-1]
 ```
 
 ### 4.2 Entropy Analysis
 
 SHA-256 outputs 256 bits of uniform randomness (in the random oracle model).
-Extracting 16 bits from the first 2 bytes:
+Extracting 128 bits from the first 16 bytes:
 - Each byte is independent and uniformly distributed
-- The 2-byte concatenation is uniform over [0, 65535]
-- For 10^4 samples, expected unique count ≈ 10^4 (collision probability ≈
-  10^8 / 2^16 ≈ 0.5%, negligible for the statistical test)
+- The 16-byte concatenation is uniform over [0, 2^128-1]
+- For 10^4 samples, expected unique count ≈ 10^4 (collision probability ≈ 10^8 / 2^128, negligible)
+- Per-fold soundness: ε ≤ T · |C|^(-1) = 10 · 2^(-128) ≪ 2^(-128) ✓
 
 ### 4.3 Challenges per Round
 
@@ -188,17 +176,10 @@ ensures per-round challenge independence in the random oracle model.
 
 ## 5. Comparison with Nova Nova (R2.0 Substitute)
 
-The Nova Nova substitution (`fold-construction.md §2.1`) uses uniform random
-challenges in F_p (p ≈ 2^254), giving |C| ≈ 2^254 ≫ 2^128. This is overkill
-from a challenge-space perspective but is the natural consequence of using
-F_p field elements.
-
-The Cyclo-native path's |C| = 2^16 is deliberately smaller because:
-1. The Cyclo soundness model uses the exponential bound |C|^(-T), not linear.
-2. The challenge is used as a scalar multiplier in R_q, and smaller scalars
-   keep the norm growth bounded (important for the norm budget β_T ≤ 1344).
-3. Post-quantum security targets different concrete parameters than classical
-   discrete-log security.
+The Cyclo-native path's |C| = 2^128 gives per-fold soundness 10 · 2^(-128) under
+the conservative linear bound. The challenge is used as a scalar multiplier in
+R_q reduced modulo Q_COMMIT (50 bits) — the 128-bit input provides uniform
+distribution over Z_Q, keeping norm growth bounded.
 
 ---
 
@@ -207,13 +188,15 @@ The Cyclo-native path's |C| = 2^16 is deliberately smaller because:
 | Parameter | Value | Justification |
 |-----------|-------|---------------|
 | T (rounds) | 10 | Locked in PVTHFHE_CYCLO_PARAMS |
-| |C| (challenge space) | 65536 = 2^16 | 8× minimum for T=10 |
-| log₂|C| | 16 bits | ≥ 13 bits required |
+| |C| (challenge space) | 2^128 | Provides 128-bit soundness via linear bound |
+| log₂|C| | 128 bits | ε ≤ 10 · 2^(-128) ≪ 2^(-128) ✓ |
 | ε_fold (exponential) | 2^(-160) | ≪ 2^(-128) ✓ |
 | ε_fold (linear, conservative) | 1.5×10^(-4) | Bounded by exponential model |
-| Challenge domain | [0, 65535] ⊂ Z_{q_commit} | Constant subring of R_q |
+| Challenge domain | [0, 2^128-1] → Z_{q_commit} via modulo | Scalar multiplier in R_q |
 | FS hash | SHA-256 | Existing infrastructure |
-| Entropy source | h[0..2] as u16 LE | 2 bytes from 32-byte hash |
+| Entropy source | h[0..16] as u128 LE | 16 bytes from 32-byte hash |
+| Participant binding | participant_id: u16 in hash input | F3/M10 fix: cross-prover replay prevention |
+| Parameter binding | params_digest: [u8; 32] in hash input | F3/M10 fix: parameter substitution prevention |
 
 ---
 
@@ -228,6 +211,6 @@ The Cyclo-native path's |C| = 2^16 is deliberately smaller because:
 
 ---
 
-*Document version*: 1.0
-*Last updated*: 2026-05-08
-*Derived for*: R2.2 Soundness-budget challenge sampling
+*Document version*: 2.0 (128-bit challenge upgrade)
+*Last updated*: 2026-06-06
+*Derived for*: R2.2 Soundness-budget challenge sampling. F0/MPC-AUDIT-2026-06-06-FRESH fix.

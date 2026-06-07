@@ -65,6 +65,7 @@ pvthfhe-fhe-poulpy = { path = "../pvthfhe-fhe-poulpy", optional = true }
 
 [features]
 default = ["with-fhe", "nova-compressor", "pipeline-extra-checks"]
+bfv-n4 = ["pvthfhe-compressor/bfv-n4"]
 production-profile = [
     "with-fhe",
     "nova-compressor",

@@ -32,6 +32,7 @@ fn sample_witness() -> DecryptNizkWitness {
         )),
         esm_agg_share: None,
         esm_noise_poly_bytes: None,
+        committed_smudge_slot: None,
     }
 }
 

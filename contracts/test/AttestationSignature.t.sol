@@ -44,18 +44,82 @@ contract AttestationSignatureTest is Test {
     }
 
     // -------------------------------------------------------------------------
+    // EIP-712 constants (must match PvtFheVerifier.sol)
+    // -------------------------------------------------------------------------
+
+    bytes32 internal constant ATTESTATION_TYPEHASH = keccak256(
+        "Attestation(bytes32 novaStateCommitment,bytes32 cycloAggregateCommitment,bytes32 sessionId,address signer)"
+    );
+
+    /// @notice Compute the EIP-712 domain separator (matches contract's immutable).
+    function computeDomainSeparator() internal view returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256(bytes("PVTHFHE")),
+                keccak256(bytes("1")),
+                block.chainid,
+                address(verifier)
+            )
+        );
+    }
+
+    /// @notice Compute EIP-712 digest: keccak256(\\x19\\x01 || domainSeparator || structHash)
+    function toTypedDataHash(bytes32 structHash) internal view returns (bytes32) {
+        return keccak256(abi.encodePacked("\x19\x01", computeDomainSeparator(), structHash));
+    }
+
+    /// @notice Build an EIP-712 typed digest for a wrong domain (wrong contract address).
+    function toTypedDataHashWrongDomain(bytes32 structHash) internal view returns (bytes32) {
+        // Use a different verifying contract address to simulate wrong domain
+        bytes32 wrongDomainSeparator = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256(bytes("PVTHFHE")),
+                keccak256(bytes("1")),
+                block.chainid,
+                address(0xDEAD) // WRONG: different verifyingContract
+            )
+        );
+        return keccak256(abi.encodePacked("\x19\x01", wrongDomainSeparator, structHash));
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 
-    /// @dev Computes the attestation hash that the contract SHOULD verify against.
-    ///      Matches: keccak256(abi.encode(novaStateCommitment, cycloAggregateCommitment, sessionId, signer))
-    function computeAttestationHash(
+    /// @dev Computes the EIP-712 struct hash from raw attestation fields.
+    function computeAttestationStructHash(
         bytes32 novaStateCommitment,
         bytes32 cycloAggregateCommitment,
         bytes32 sessionId,
         address signer
     ) internal pure returns (bytes32) {
-        return keccak256(abi.encode(novaStateCommitment, cycloAggregateCommitment, sessionId, signer));
+        return keccak256(
+            abi.encode(
+                ATTESTATION_TYPEHASH,
+                novaStateCommitment,
+                cycloAggregateCommitment,
+                sessionId,
+                signer
+            )
+        );
+    }
+
+    /// @dev Computes the attestation hash that the contract verifies (EIP-712 digest).
+    function computeAttestationHash(
+        bytes32 novaStateCommitment,
+        bytes32 cycloAggregateCommitment,
+        bytes32 sessionId,
+        address signer
+    ) internal view returns (bytes32) {
+        bytes32 structHash = computeAttestationStructHash(
+            novaStateCommitment,
+            cycloAggregateCommitment,
+            sessionId,
+            signer
+        );
+        return toTypedDataHash(structHash);
     }
 
     /// @dev Builds a complete attestation with a valid ECDSA signature.
@@ -226,6 +290,52 @@ contract AttestationSignatureTest is Test {
             signature: attestation.signature
         });
 
+        vm.expectRevert(bytes("InvalidAttestationSignature"));
+        verifier.verifyWithAttestation(sampleProof, publicInputs, badAttestation);
+    }
+
+    // -------------------------------------------------------------------------
+    // L3: EIP-712 domain separator — wrong domain must be rejected
+    // -------------------------------------------------------------------------
+
+    /// @notice L3: Signature over a wrong EIP-712 domain separator must be rejected.
+    ///         The signer uses the same structHash but a different verifyingContract,
+    ///         simulating a cross-contract replay attack.
+    function test_wrong_domain_separator_reverts() public {
+        bytes32 novaCommitment = bytes32(uint256(4));
+        bytes32 cycloCommitment = bytes32(uint256(5));
+        bytes32 sessionId = bytes32(uint256(6));
+
+        bytes32[] memory publicInputs = new bytes32[](6);
+        publicInputs[0] = keccak256(sampleProof);
+        publicInputs[1] = bytes32(uint256(1));
+        publicInputs[2] = bytes32(uint256(2));
+        publicInputs[3] = bytes32(uint256(3));
+        publicInputs[4] = novaCommitment;
+        publicInputs[5] = cycloCommitment;
+
+        // Compute the EIP-712 struct hash (same data as what the contract will reconstruct)
+        bytes32 structHash = computeAttestationStructHash(
+            novaCommitment,
+            cycloCommitment,
+            sessionId,
+            ATTESTOR_ADDR
+        );
+
+        // Sign over the WRONG domain separator (different verifyingContract = 0xDEAD)
+        bytes32 wrongDigest = toTypedDataHashWrongDomain(structHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ATTESTOR_SK, wrongDigest);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        AttestationBundle memory badAttestation = AttestationBundle({
+            novaStateCommitment: novaCommitment,
+            cycloAggregateCommitment: cycloCommitment,
+            sessionId: sessionId,
+            signer: ATTESTOR_ADDR,
+            signature: signature
+        });
+
+        // Signature was over wrong domain — must be rejected
         vm.expectRevert(bytes("InvalidAttestationSignature"));
         verifier.verifyWithAttestation(sampleProof, publicInputs, badAttestation);
     }

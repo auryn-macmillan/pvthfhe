@@ -1,5 +1,7 @@
+use crate::nova::noir_sponge;
 use crate::CompressorError;
 use ark_bn254::Fr;
+use ark_ff::{PrimeField, Zero};
 #[cfg(feature = "legacy-nova")]
 use ark_grumpkin::Projective as G2;
 #[cfg(feature = "legacy-nova")]
@@ -18,6 +20,10 @@ use sha3::{Digest, Keccak256};
 /// G1+G4: includes share_verification_hash to bind per-share BFV sigma results.
 /// P1.5: includes decrypt_nizk_hash, dkg_transcript_hash, nova_final_state_commitment.
 /// S6: includes ivc_verify_result to bind RecursiveSNARK verification outcome.
+///
+/// P4-upgrade: includes Noir-compatible Poseidon hashes of actual IVC proof bytes and
+/// state data. These allow the `nova_state_commitment` Noir circuit to reconstruct
+/// the Poseidon hash from private witness data rather than blindly trusting the prover.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IvcBindingData {
     pub ivc_proof_hash: [u8; 32],
@@ -32,10 +38,20 @@ pub struct IvcBindingData {
     pub nova_final_state_commitment: [u8; 32],
     /// S6: RecursiveSNARK verification result (1 = passed, 0 = failed).
     pub ivc_verify_result: u64,
+    /// S2: Flag indicating at least one FHE Mul operation was verified in the IVC chain.
+    /// Set to 1 when any FheOp::Mul is verified; 0 otherwise.
+    /// The on-chain circuit asserts this == 1 to prove Mul was performed.
+    pub has_fhe_mul_ops: u64,
+    /// P4-upgrade: Noir-compatible Poseidon hash of IVC proof bytes (31-byte chunks).
+    pub noir_proof_hash: Fr,
+    /// P4-upgrade: Noir-compatible Poseidon hash of z0 state (8 Fr elements).
+    pub noir_z0_commitment: Fr,
+    /// P4-upgrade: Noir-compatible Poseidon hash of zi state (8 Fr elements).
+    pub noir_zi_commitment: Fr,
 }
 
 impl IvcBindingData {
-    pub fn as_field_array(&self) -> Result<[Fr; 11], CompressorError> {
+    pub fn as_field_array(&self) -> Result<[Fr; 12], CompressorError> {
         use ark_ff::PrimeField;
         Ok([
             Fr::from_be_bytes_mod_order(&self.ivc_proof_hash),
@@ -49,8 +65,42 @@ impl IvcBindingData {
             Fr::from_be_bytes_mod_order(&self.dkg_transcript_hash),
             Fr::from_be_bytes_mod_order(&self.nova_final_state_commitment),
             Fr::from(self.ivc_verify_result),
+            Fr::from(self.has_fhe_mul_ops),
         ])
     }
+}
+
+/// Maximum number of 31-byte proof chunks (covers ~2 KB IVC proofs).
+/// Must match `PROOF_MAX_CHUNKS` in `circuits/nova_state_commitment/src/main.nr`.
+pub const PROOF_MAX_CHUNKS: usize = 64;
+
+/// Compute a Noir-compatible Poseidon hash of raw IVC proof bytes.
+///
+/// Chunks `ivc_bytes` into 31-byte segments (each fits in Fr ≈ 254 bits),
+/// converts each to Fr via `from_be_bytes_mod_order`, pads to exactly
+/// `PROOF_MAX_CHUNKS` elements with zeros, and hashes through Noir's
+/// `poseidon::poseidon::bn254::sponge`. Matching Noir circuit also computes
+/// sponge over a fixed `[Field; PROOF_MAX_CHUNKS]` array.
+pub fn compute_noir_proof_hash(ivc_bytes: &[u8]) -> Fr {
+    let mut elements = [Fr::zero(); PROOF_MAX_CHUNKS];
+    for (i, chunk) in ivc_bytes.chunks(31).enumerate() {
+        if i >= PROOF_MAX_CHUNKS {
+            break;
+        }
+        let mut padded = [0u8; 32];
+        let start = 32 - chunk.len();
+        padded[start..].copy_from_slice(chunk);
+        elements[i] = Fr::from_be_bytes_mod_order(&padded);
+    }
+    noir_sponge::sponge(&elements)
+}
+
+/// Compute a Noir-compatible Poseidon hash of 8 state elements.
+///
+/// Hashes the flat array of 8 Fr elements through the Noir Poseidon x5_5 sponge,
+/// matching `poseidon::poseidon::bn254::sponge` in Noir.
+pub fn compute_noir_state_hash(state_elements: &[Fr]) -> Fr {
+    noir_sponge::sponge(state_elements)
 }
 
 /// Result of wrapping an IVC proof with transparent decider (no Groth16 ceremony).
@@ -126,6 +176,13 @@ where
         1u64
     };
 
+    // P4-upgrade: compute Noir-compatible Poseidon hashes for in-circuit
+    // reconstruction from witness data. These allow the circuit to verify
+    // that the prover actually possesses the proof bytes and state data.
+    let noir_proof_hash = compute_noir_proof_hash(&ivc_bytes);
+    let noir_z0_commitment = compute_noir_state_hash(&z0);
+    let noir_zi_commitment = compute_noir_state_hash(&zi);
+
     Ok(SnarkWrappedProof {
         ivc_bytes,
         snark_proof_bytes: vec![],
@@ -142,6 +199,9 @@ where
             dkg_transcript_hash,
             nova_final_state_commitment: zi_commitment,
             ivc_verify_result: 1,
+            noir_proof_hash,
+            noir_z0_commitment,
+            noir_zi_commitment,
         },
     })
 }
@@ -171,7 +231,7 @@ pub fn serialize_wrapped_proof(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ark_ff::Zero;
+    use ark_ff::{PrimeField, Zero};
 
     #[test]
     fn snark_available_unconditionally() {
@@ -210,10 +270,14 @@ mod tests {
             dkg_transcript_hash: [8u8; 32],
             nova_final_state_commitment: [9u8; 32],
             ivc_verify_result: 1,
+            has_fhe_mul_ops: 1,
+            noir_proof_hash: ark_bn254::Fr::from(100u64),
+            noir_z0_commitment: ark_bn254::Fr::from(200u64),
+            noir_zi_commitment: ark_bn254::Fr::from(300u64),
         };
 
         let fields = binding.as_field_array().unwrap();
-        assert_eq!(fields.len(), 11);
+        assert_eq!(fields.len(), 12);
         assert!(!fields[0].is_zero());
         assert!(!fields[1].is_zero());
         assert!(!fields[2].is_zero());
@@ -225,5 +289,32 @@ mod tests {
         assert!(!fields[8].is_zero());
         assert!(!fields[9].is_zero());
         assert_eq!(fields[10], ark_bn254::Fr::from(1u64));
+        assert_eq!(fields[11], ark_bn254::Fr::from(1u64));
+    }
+
+    #[test]
+    fn compute_noir_proof_hash_deterministic() {
+        let data = b"test ivc proof bytes for deterministic hash";
+        let h1 = compute_noir_proof_hash(data);
+        let h2 = compute_noir_proof_hash(data);
+        assert_eq!(h1, h2);
+        assert!(!h1.is_zero());
+
+        let different = b"different ivc proof bytes";
+        let h3 = compute_noir_proof_hash(different);
+        assert_ne!(h1, h3);
+    }
+
+    #[test]
+    fn compute_noir_state_hash_deterministic() {
+        let state: Vec<ark_bn254::Fr> = (0..8).map(|i| ark_bn254::Fr::from(i as u64)).collect();
+        let h1 = compute_noir_state_hash(&state);
+        let h2 = compute_noir_state_hash(&state);
+        assert_eq!(h1, h2);
+        assert!(!h1.is_zero());
+
+        let different: Vec<ark_bn254::Fr> = (1..9).map(|i| ark_bn254::Fr::from(i as u64)).collect();
+        let h3 = compute_noir_state_hash(&different);
+        assert_ne!(h1, h3);
     }
 }

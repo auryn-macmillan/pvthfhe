@@ -7,8 +7,8 @@ use std::{
 
 use pvthfhe_circuit_tests::{bb, nargo};
 
-/// P4: public input count expanded from 6 to 12 to include IVC proof binding data.
-const EXPECTED_PUBLIC_INPUTS: usize = 12;
+/// P4-upgrade: public input count includes 18 public params + bb return wrapper.
+const EXPECTED_PUBLIC_INPUTS: usize = 30;
 
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")

@@ -1,16 +1,16 @@
-//! DKG correctness test: n=10, t=7 BFV threshold keygen + encrypt/decrypt.
+//! DKG correctness test: n=14, t=7 BFV threshold keygen + encrypt/decrypt.
 //!
-//! Runs the DKG ceremony with 10 parties and threshold 7. Verifies:
+//! Runs the DKG ceremony with 14 parties and threshold 7. Verifies:
 //!  - Public key is produced
-//!  - All 10 parties contribute keygen shares
+//!  - All 14 parties contribute keygen shares
 //!  - t=7 honest decryption shares reconstruct the plaintext
 //!  - Reconstruction is consistent across any size-≥t quorum
 
 use pvthfhe_keygen::dkg::{DkgCeremony, DkgParams};
 
 #[test]
-fn dkg_n10_t7_correctness_encrypt_decrypt() {
-    let params = DkgParams { n: 10, t: 7 };
+fn dkg_n14_t7_correctness_encrypt_decrypt() {
+    let params = DkgParams { n: 14, t: 7 };
     let mut dkg = DkgCeremony::new(params).expect("DKG new");
     dkg.run().expect("DKG run");
 
@@ -41,7 +41,7 @@ fn dkg_n10_t7_correctness_encrypt_decrypt() {
 
 #[test]
 fn dkg_consistency_across_different_quorums() {
-    let params = DkgParams { n: 10, t: 7 };
+    let params = DkgParams { n: 14, t: 7 };
     let mut dkg = DkgCeremony::new(params).expect("DKG new");
     dkg.run().expect("DKG run");
 
@@ -55,9 +55,9 @@ fn dkg_consistency_across_different_quorums() {
     }
     let recovered_a = dkg.aggregate_decrypt(&ct, &shares_a).expect("aggregate a");
 
-    // Quorum B: parties 4–10
+    // Quorum B: parties 4–14
     let mut shares_b = Vec::with_capacity(7);
-    for party_id in 4u32..=10 {
+    for party_id in 4u32..=14 {
         shares_b.push(dkg.partial_decrypt(&ct, party_id).expect("partial decrypt"));
     }
     let recovered_b = dkg.aggregate_decrypt(&ct, &shares_b).expect("aggregate b");

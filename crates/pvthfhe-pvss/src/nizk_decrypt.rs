@@ -18,6 +18,7 @@ const _: () = {
 use sha2::{Digest, Sha256};
 
 use crate::dkg_aggregation::{compute_esm_aggregate_commitment, compute_sk_aggregate_commitment};
+use crate::slot_registry::SmudgeSlotRegistry;
 use crate::PvssError;
 
 /// Locked domain separator for PVSS share-decryption proofs.
@@ -51,6 +52,44 @@ pub enum DecryptNizkMode {
         /// Public aggregate smudging share commitment `DKG.esm_agg_commits[j][slot]`.
         esm_agg_commit: [u8; DIGEST_LEN],
     },
+}
+
+/// Committed-smudge slot identity that binds (epoch, slot, ciphertext, round).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct CommittedSmudgeSlot {
+    pub epoch: u64,
+    pub slot_index: u16,
+    pub ciphertext_hash: [u8; DIGEST_LEN],
+    pub decryption_round: u64,
+}
+
+impl CommittedSmudgeSlot {
+    pub fn bind(&self) -> [u8; DIGEST_LEN] {
+        let mut hasher = Sha256::new();
+        hasher.update(b"pvthfhe-committed-smudge-slot-v1");
+        hasher.update(self.epoch.to_be_bytes());
+        hasher.update(self.slot_index.to_be_bytes());
+        hasher.update(&self.ciphertext_hash);
+        hasher.update(self.decryption_round.to_be_bytes());
+        hasher.finalize().into()
+    }
+
+    pub fn from_statement(stmt: &DecryptNizkStatement) -> Option<Self> {
+        match &stmt.mode {
+            DecryptNizkMode::CommittedSmudge {
+                slot_id,
+                decrypt_round,
+                ciphertext_hash,
+                ..
+            } => Some(Self {
+                epoch: stmt.epoch,
+                slot_index: *slot_id,
+                ciphertext_hash: *ciphertext_hash,
+                decryption_round: *decrypt_round,
+            }),
+            DecryptNizkMode::LegacyLocalSmudge => None,
+        }
+    }
 }
 
 /// Public statement for one share-decryption proof.
@@ -93,6 +132,8 @@ pub struct DecryptNizkWitness {
     pub esm_agg_share: Option<u64>,
     /// Explicit committed `e_sm` polynomial bytes used instead of fresh local noise.
     pub esm_noise_poly_bytes: Option<Vec<u8>>,
+    /// Committed-smudge slot identity for slot-binding and uniqueness checks.
+    pub committed_smudge_slot: Option<CommittedSmudgeSlot>,
 }
 
 /// Serialized proof envelope.
@@ -169,6 +210,19 @@ impl DecryptNizkProver {
         };
 
         DecryptNizkProof::from_opened(&opened)
+    }
+
+    /// Produce a share-decryption proof with committed-smudge slot freshness enforcement.
+    pub fn prove_with_registry(
+        stmt: &DecryptNizkStatement,
+        witness: &DecryptNizkWitness,
+        slot_registry: &mut SmudgeSlotRegistry,
+    ) -> Result<DecryptNizkProof, PvssError> {
+        if let DecryptNizkMode::CommittedSmudge { slot_id, .. } = &stmt.mode {
+            let party_id = u16::try_from(stmt.party_index).map_err(|_| PvssError::InvalidShare)?;
+            slot_registry.check_and_record(&stmt.session_id, party_id, *slot_id)?;
+        }
+        Self::prove(stmt, witness)
     }
 }
 
@@ -332,6 +386,13 @@ fn validate_witness(
                 .ok_or(PvssError::InvalidShare)?;
             if esm_noise_poly_bytes.is_empty() || esm_noise_poly_bytes.len() > MAX_FIELD_LEN {
                 return Err(PvssError::InvalidShare);
+            }
+            if let Some(ref slot) = witness.committed_smudge_slot {
+                let expected =
+                    CommittedSmudgeSlot::from_statement(stmt).ok_or(PvssError::InvalidShare)?;
+                if *slot != expected {
+                    return Err(PvssError::InvalidShare);
+                }
             }
             let recipient_id =
                 u16::try_from(stmt.party_index).map_err(|_| PvssError::InvalidShare)?;

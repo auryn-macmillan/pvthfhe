@@ -11,6 +11,7 @@ use ark_bn254::{Fr, G1Affine, G1Projective};
 use ark_ec::{AffineRepr, CurveGroup, PrimeGroup};
 use ark_ff::{BigInteger, PrimeField};
 use rand_core::RngCore;
+use sha2::{Digest, Sha256};
 
 /// Generate a signing keypair. Returns (secret_key, public_key).
 pub fn generate_signing_keypair(rng: &mut impl RngCore) -> (Fr, G1Affine) {
@@ -48,6 +49,39 @@ pub fn schnorr_verify(pk: G1Affine, sig_r: G1Affine, sig_s: Fr, message: Fr) -> 
     let left = G1Projective::generator() * sig_s;
     let right = sig_r.into_group() + pk.into_group() * challenge;
     left.into_affine() == right.into_affine()
+}
+
+/// Proof of Possession (PoP): signs a domain-separated challenge to prove
+/// knowledge of the secret key corresponding to `pk`. Used in DKG Round 1
+/// to prevent rogue-key attacks.
+pub fn schnorr_pop_prove(sk: Fr, pk: G1Affine, rng: &mut impl RngCore) -> SchnorrPopProof {
+    let challenge = pop_challenge(pk);
+    let (r, s) = schnorr_sign(sk, challenge, rng);
+    SchnorrPopProof { r, s }
+}
+
+/// Verify a Proof of Possession.
+pub fn schnorr_pop_verify(pk: G1Affine, pop: &SchnorrPopProof) -> bool {
+    let challenge = pop_challenge(pk);
+    schnorr_verify(pk, pop.r, pop.s, challenge)
+}
+
+fn pop_challenge(pk: G1Affine) -> Fr {
+    let pk_bytes = affine_to_bytes(&pk, true);
+    let sha = Sha256::new()
+        .chain_update(pvthfhe_domain_tags::Tag::SchnorrPop.as_bytes())
+        .chain_update(pk_bytes)
+        .finalize();
+    Fr::from_be_bytes_mod_order(&sha)
+}
+
+/// Schnorr Proof of Possession proof data.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SchnorrPopProof {
+    /// Signature nonce commitment (r·G).
+    pub r: G1Affine,
+    /// Signature scalar (s = r + e·sk).
+    pub s: Fr,
 }
 
 /// Serialize a G1 affine coordinate to bytes (NOT to Fr — avoids barrel reduction).

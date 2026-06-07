@@ -45,6 +45,7 @@ fn adversary_without_ski_cannot_produce_valid_proof() {
         sk_agg_share: None,
         esm_agg_share: None,
         esm_noise_poly_bytes: None,
+        committed_smudge_slot: None,
     };
 
     // The adversary (who does not know the real sk_agg_share) must not even
@@ -72,6 +73,7 @@ fn two_different_witnesses_both_verify() {
         sk_agg_share: Some(correct_sk),
         esm_agg_share: None,
         esm_noise_poly_bytes: None,
+        committed_smudge_slot: None,
     };
     let witness_b = DecryptNizkWitness {
         secret_key_bytes: Secret::new(vec![0xAA; 64]),
@@ -79,6 +81,7 @@ fn two_different_witnesses_both_verify() {
         sk_agg_share: Some(correct_sk ^ 0xFFFF_FFFF),
         esm_agg_share: None,
         esm_noise_poly_bytes: None,
+        committed_smudge_slot: None,
     };
 
     let proof_a = DecryptNizkProver::prove(&stmt, &witness_a).expect("prove with witness a");

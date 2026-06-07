@@ -3,12 +3,14 @@
 //! Wraps [`FhersBackend`](pvthfhe_fhe::fhers::FhersBackend) to orchestrate a
 //! Pedersen-style DKG across `n` parties with threshold `t`.
 
+use ark_bn254::G1Affine;
 use pvthfhe_fhe::{
     error::FheError,
     fhers::FhersBackend,
     types::{Ciphertext, DecryptShare, KeygenShare, PublicKey},
     FheBackend,
 };
+use pvthfhe_nizk::schnorr::{self, SchnorrPopProof};
 use pvthfhe_rng::OsRng;
 use rand_core::RngCore;
 use sha2::{Digest, Sha256};
@@ -22,6 +24,21 @@ pub struct DkgParams {
     pub n: usize,
     /// Threshold required for decryption.
     pub t: usize,
+}
+
+/// Identity record for one party in the DKG ceremony.
+///
+/// Contains the Schnorr public key used for rogue-key prevention and the
+/// associated proof-of-possession demonstrating that the party knows the
+/// corresponding secret key.
+#[derive(Clone, Debug)]
+pub struct PartyIdentity {
+    /// Party index (1-based).
+    pub party_id: u32,
+    /// Schnorr public key over BN254 G1.
+    pub public_key: G1Affine,
+    /// Schnorr proof-of-possession for this party's public key.
+    pub pop_proof: SchnorrPopProof,
 }
 
 /// Errors returned by DKG ceremony operations.
@@ -61,6 +78,7 @@ pub struct DkgCeremony {
     session_id: [u8; 32],
     keygen_shares: Vec<KeygenShare>,
     public_key: Option<PublicKey>,
+    party_identities: Vec<PartyIdentity>,
 }
 
 impl DkgCeremony {
@@ -87,6 +105,7 @@ impl DkgCeremony {
             session_id,
             keygen_shares: Vec::with_capacity(params.n),
             public_key: None,
+            party_identities: Vec::with_capacity(params.n),
         })
     }
 
@@ -94,6 +113,10 @@ impl DkgCeremony {
     ///
     /// Generates keygen shares for all `n` parties, sets up the threshold
     /// parameters, and aggregates the collective public key.
+    ///
+    /// Additionally generates Schnorr keypairs and proof-of-possession
+    /// (PoP) proofs for each party to prevent rogue-key attacks on the
+    /// aggregate public key.
     pub fn run(&mut self) -> Result<(), DkgError> {
         let mut rng = OsRng;
 
@@ -102,6 +125,14 @@ impl DkgCeremony {
                 self.backend
                     .keygen_share_with_session(&self.session_id, party_id, &mut rng)?;
             self.keygen_shares.push(share);
+
+            let (sk, pk) = schnorr::generate_signing_keypair(&mut rng);
+            let pop = schnorr::schnorr_pop_prove(sk, pk, &mut rng);
+            self.party_identities.push(PartyIdentity {
+                party_id,
+                public_key: pk,
+                pop_proof: pop,
+            });
         }
 
         let session_seed: [u8; 32] = Sha256::digest(self.session_id).into();
@@ -118,6 +149,30 @@ impl DkgCeremony {
     /// Errors with [`DkgError::NotInitialized`] if `run` has not been called.
     pub fn public_key(&self) -> Result<&PublicKey, DkgError> {
         self.public_key.as_ref().ok_or(DkgError::NotInitialized)
+    }
+
+    /// Returns the identity records for all parties that participated in the
+    /// DKG ceremony.
+    ///
+    /// Each identity contains the party's Schnorr public key and
+    /// proof-of-possession (PoP). Returns an empty vector if `run` has not
+    /// been called.
+    pub fn party_identities(&self) -> Vec<PartyIdentity> {
+        self.party_identities.clone()
+    }
+
+    /// Verifies all parties' Schnorr proof-of-possession (PoP) proofs.
+    ///
+    /// Returns `true` if every party's PoP validates against its public key
+    /// and the ceremony has been run. Returns `false` if no identities exist
+    /// or if any PoP verification fails.
+    pub fn verify_party_pops(&self) -> bool {
+        if self.party_identities.is_empty() {
+            return false;
+        }
+        self.party_identities
+            .iter()
+            .all(|id| schnorr::schnorr_pop_verify(id.public_key, &id.pop_proof))
     }
 
     /// Encrypts `plaintext` under the collective public key.

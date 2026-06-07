@@ -4,6 +4,27 @@
 // of decrypt share polynomials, using a Schwartz-Zippel polynomial identity
 // check at a random challenge point `r`.
 //
+// M8 — In-circuit BFV sigma verifier (DOCUMENTED LIMITATION):
+// The BFV decryption share sigma relations (NIZK proof that each share
+// was correctly decrypted from the ciphertext) are verified in native
+// Rust via `nizk_decrypt.rs` and the Cyclo NIZK adapter. These proofs
+// are NOT verified inside this Noir circuit because:
+//   1. The sigma relation involves ring operations over Z_q[X]/(X^N+1)
+//      that are expensive to implement in Noir (field arithmetic only,
+//      no native ring support)
+//   2. The Schwartz-Zippel evaluation reduces polynomial verification
+//      to a single field element check per share, which IS verified
+//      in-circuit (lines 278-282)
+//   3. The Merkle-bound share commitment verification (G2, lines 297-320)
+//      proves each share evaluation d_i(r) corresponds to a committed
+//      polynomial, closing the gap between native sigma verification
+//      and in-circuit evaluation
+//
+// Resolution path: Once Noir supports ring polynomial types, move
+// the BFV sigma verification in-circuit. Until then, the Merkle-bound
+// Poseidon commitment chain (share_commitment_i → share_commitment_root
+// → dkg_root) binds each share to its committed polynomial.
+//
 // Design: Schwartz-Zippel evaluation approach (T.1 from c7-correctness.md)
 // ---------------------------------------------------------------
 // Verifying sum(lambda_i * d_i[k]) = pt[k] for all 8,192 coefficients per
@@ -41,7 +62,24 @@ use protocol_constants;
 // PROTOTYPE: N=8 coefficient dimension. Production RLWE uses N=8192.
 // The circuit proves correctness on 8-coefficient data truncated from the
 // full N=8192 polynomials via native Rust projection. This truncation is
-// NOT provably correctness-preserving. See G-N8 in OPEN-PROBLEM-BLOCKERS.md.
+// NOT provably correctness-preserving.
+//
+// G-N8 PROOF GAP (MPC-AUDIT-2026-06-06): A malicious aggregator can produce
+// N=8 projections that pass all circuit constraints but correspond to
+// incorrect N=8192 plaintext. The reduction from N=8192 to N=8 is performed
+// in native Rust (aggregate_decrypt_raw_result_poly) without proof.
+//
+// MITIGATION: The native verifier in `crates/pvthfhe-cli/src/full_pipeline.rs`
+// performs a multi-point Schwartz-Zippel defense-in-depth check
+// (verify_multi_point_sz_projection) AFTER circuit verification succeeds.
+// This independently evaluates the full N=8192 polynomials at M=3
+// Fiat-Shamir-derived points and verifies the Lagrange recombination identity
+// over each RNS limb, providing ~2^-135 composite soundness independent of
+// the N=8 circuit.
+//
+// This is a defense-in-depth mitigation: a full N=8192 in-circuit check
+// remains an open problem tracked as G-N8.
+// See .sisyphus/plans/ for remediation status.
 global N: u32 = 8;
 global MAX_SHARES: u32 = 128;
 global DEPTH: u32 = 7; // 128 leaves = 7 Merkle path hops

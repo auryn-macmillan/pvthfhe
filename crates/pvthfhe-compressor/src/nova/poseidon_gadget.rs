@@ -18,10 +18,36 @@ use ark_relations::gr1cs::{ConstraintSystemRef, SynthesisError};
 #[cfg(feature = "legacy-nova")]
 use folding_schemes::transcript::poseidon::poseidon_canonical_config; // folding (legacy-nova)
 
+/// Poseidon sponge rate: the number of field elements absorbed/squeezed per permutation.
+///
+/// MUST match Noir x5_5 Poseidon rate for cross-prover hash consistency.
+/// Noir x5_5 uses rate=4 on a t=5 sponge (capacity=1).
+pub(crate) const RATE: usize = 4;
+
+/// Poseidon sponge capacity: non-absorbing/squeezing portion of the state.
+///
+/// MUST match Noir x5_5 Poseidon capacity for cross-prover hash consistency.
+/// Noir x5_5 uses capacity=1 on a t=5 sponge (rate=4).
+pub(crate) const CAPACITY: usize = 1;
+
 /// Extracted Poseidon parameters from the canonical config.
 ///
 /// We extract fields rather than referencing `PoseidonConfig` directly
 /// to avoid adding `ark-crypto-primitives` as a direct dependency.
+///
+/// # Noir x5_5 Poseidon compatibility
+///
+/// The Noir standard library's Poseidon x5_5 uses a width t=5 sponge with
+/// rate=4 and capacity=1. These constants MUST match:
+///
+/// ```noir
+/// // From noir_stdlib/src/hash/poseidon/bn254.nr:
+/// //   width = 5, rate = 4, capacity = 1
+/// //   full_rounds = 8, partial_rounds = 60
+/// ```
+///
+/// Our gadget mirrors this exactly for cross-prover hash consistency
+/// (Nova IVC ↔ UltraHonk verifier).
 pub struct PoseidonParams<F: PrimeField> {
     /// Maximally Distance Separating (MDS) Matrix (t × t).
     pub mds: Vec<Vec<F>>,
@@ -51,9 +77,9 @@ impl<F: PrimeField> PoseidonParams<F> {
             ark: config.ark,
             full_rounds: config.full_rounds,
             partial_rounds: config.partial_rounds,
-            rate: config.rate,
-            capacity: config.capacity,
-            t: config.rate + config.capacity,
+            rate: RATE,
+            capacity: CAPACITY,
+            t: RATE + CAPACITY,
         }
     }
 
@@ -62,7 +88,7 @@ impl<F: PrimeField> PoseidonParams<F> {
     /// matching the deterministic generation used by nova-snark's `generate_mds`.
     #[cfg(not(feature = "legacy-nova"))]
     pub fn canonical() -> Self {
-        let t = 5usize;
+        let t = RATE + CAPACITY;
         // Generate Cauchy MDS matrix: M[i][j] = 1 / (x_i + y_j)
         // x = [0, 1, 2, 3, 4], y = [5, 6, 7, 8, 9]
         // Matching nova-snark's `generate_mds` implementation.
@@ -88,8 +114,8 @@ impl<F: PrimeField> PoseidonParams<F> {
             ark,
             full_rounds: 8,
             partial_rounds: 60,
-            rate: 4,
-            capacity: 1,
+            rate: RATE,
+            capacity: CAPACITY,
             t,
         }
     }
@@ -521,5 +547,21 @@ mod tests {
             cs.is_satisfied().unwrap(),
             "constraint system must be satisfied"
         );
+    }
+
+    #[test]
+    fn poseidon_rate_capacity_matches_noir() {
+        // Noir x5_5 Poseidon: t=5 (rate=4, capacity=1)
+        // Verify our constants produce t = rate + capacity = 4 + 1 = 5
+        assert_eq!(RATE, 4, "RATE must be 4 (Noir x5_5)");
+        assert_eq!(CAPACITY, 1, "CAPACITY must be 1 (Noir x5_5)");
+        assert_eq!(RATE + CAPACITY, 5, "width t must be 5 (Noir x5_5)");
+
+        // Also verify the canonical params use these constants
+        let params = PoseidonParams::<Fr>::canonical();
+        assert_eq!(params.rate, RATE);
+        assert_eq!(params.capacity, CAPACITY);
+        assert_eq!(params.t, RATE + CAPACITY);
+        assert_eq!(params.t, 5, "Noir x5_5 width must be 5");
     }
 }

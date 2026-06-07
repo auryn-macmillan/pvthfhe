@@ -185,6 +185,16 @@ contract PvtFheVerifier is IPvthfheVerifier {
     address public immutable timelock;
     address public ivcDeciderVerifier;
     mapping(address => bool) public attestors;
+
+    /// @notice EIP-712 domain separator for attestation signature verification.
+    /// @dev Computed once at construction to avoid recomputation; matches EIP-712 spec.
+    bytes32 private immutable DOMAIN_SEPARATOR;
+
+    /// @notice EIP-712 type hash for Attestation struct.
+    /// @dev keccak256("Attestation(bytes32 novaStateCommitment,bytes32 cycloAggregateCommitment,bytes32 sessionId,address signer)")
+    bytes32 private constant ATTESTATION_TYPEHASH = keccak256(
+        "Attestation(bytes32 novaStateCommitment,bytes32 cycloAggregateCommitment,bytes32 sessionId,address signer)"
+    );
     mapping(bytes32 => DkgPublicAnchors) private _dkgPublicAnchors;
     mapping(bytes32 => bool) private _dkgPublicAnchorsStored;
 
@@ -198,6 +208,16 @@ contract PvtFheVerifier is IPvthfheVerifier {
         _honkVerifier = new HonkVerifier();
         registry = ISessionRegistry(registry_);
         timelock = timelock_;
+        // EIP-712 domain separator: committed at construction for phish-resistance
+        DOMAIN_SEPARATOR = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256(bytes("PVTHFHE")),
+                keccak256(bytes("1")),
+                block.chainid,
+                address(this)
+            )
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -411,15 +431,20 @@ contract PvtFheVerifier is IPvthfheVerifier {
             revert("CommitmentMismatch");
         }
 
-        bytes32 attestationHash = keccak256(
+        // EIP-712 typed structured data hashing (L3 fix)
+        bytes32 structHash = keccak256(
             abi.encode(
+                ATTESTATION_TYPEHASH,
                 attestation.novaStateCommitment,
                 attestation.cycloAggregateCommitment,
                 attestation.sessionId,
                 attestation.signer
             )
         );
-        _verifyAttestationSignature(attestationHash, attestation.signature, attestation.signer);
+        bytes32 digest = keccak256(
+            abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash)
+        );
+        _verifyAttestationSignature(digest, attestation.signature, attestation.signer);
 
         bool proofValid = _honkVerifier.verify(proof, publicInputs);
         if (!proofValid) {
@@ -572,13 +597,7 @@ contract PvtFheVerifier is IPvthfheVerifier {
         IvcBinding calldata ivcBinding
     ) private pure returns (VerificationStatementV1.Statement memory stmt) {
         stmt.protocolVersion = 1;
-        // P2-7: contextId is a placeholder (hardcoded to bytes32(0)) pending Phase 2 seam closure.
-        // When the Phase 2 IVC decider integration lands, contextId MUST be populated from the
-        // protocol execution context hash: contextId := Poseidon(dkgRoot, epoch, decider instance ID).
-        // Until then, cross-context binding is enforced via dkgRoot + epoch + ivcBinding fields
-        // (all included in the statement hash), which already provides unique session binding.
-        // Planned resolution milestone: Phase 2 gate (on-chain IVC decider verification).
-        stmt.contextId = bytes32(0);
+        stmt.contextId = keccak256(abi.encode(dkgRoot, epoch, "pvthfhe/v1"));
         stmt.dkgRoot = dkgRoot;
         stmt.epoch = epoch;
         stmt.participantSetHash = participantSetHash;

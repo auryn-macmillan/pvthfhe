@@ -20,7 +20,7 @@ Private-verifiable threshold Fully Homomorphic Encryption with O(n) per-party wo
 | On-chain | UltraHonk verifier (Solidity) + IVC binding | ⚠️ OPEN¹ |
 | Decrypt | Threshold BFV partial decrypt | ✅ |
 | Greco | Input validation proofs (`just greco`) | ✅ |
-| Compute | Verifiable FHE ops (`just compute`, Mul+Add in-circuit) | ✅ |
+| Compute | Verifiable FHE ops (`just compute`, Mul+Add in-circuit) | ✅ (Mul verified at N=8192 production scale; use --features bfv-n4 for fast testing) |
 
 ¹ IVC binding is NOT cryptographically verified on-chain; IVC mode is fail-closed.
 

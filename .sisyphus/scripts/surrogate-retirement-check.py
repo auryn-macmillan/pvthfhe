@@ -14,6 +14,14 @@ SURROGATE_PAT = re.compile(r'//\s*SURROGATE')
 
 EXTENSIONS = ('.rs', '.sol', '.nr')
 
+# Files that intentionally contain SURROGATE markers as part of their
+# surrogate-declaration role (not surrogates themselves — they declare
+# which other files ARE surrogates). Excluded from the scan.
+WHITELIST = {
+    'contracts/script/SurrogateCheck.s.sol',
+    'contracts/src/SurrogateNotice.sol',
+}
+
 
 def find_surrogate_hits(root='.'):
     hits = []
@@ -22,6 +30,9 @@ def find_surrogate_hits(root='.'):
         for fname in files:
             if any(fname.endswith(ext) for ext in EXTENSIONS):
                 fpath = os.path.join(dirpath, fname)
+                relpath = os.path.relpath(fpath, root)
+                if relpath in WHITELIST:
+                    continue
                 try:
                     with open(fpath, 'r', encoding='utf-8') as f:
                         for lineno, line in enumerate(f, 1):

@@ -343,7 +343,7 @@ contract IvcDeciderWiringTest is BaseVerifierTest {
         return VerificationStatementV1.computeStatementHashBytes32(
             VerificationStatementV1.Statement({
                 protocolVersion: 1,
-                contextId: bytes32(0),
+                contextId: keccak256(abi.encode(DKG_ROOT, SAMPLE_EPOCH, "pvthfhe/v1")),
                 dkgRoot: DKG_ROOT,
                 epoch: SAMPLE_EPOCH,
                 participantSetHash: PARTICIPANT_SET_HASH,

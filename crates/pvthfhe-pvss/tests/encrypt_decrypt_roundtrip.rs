@@ -99,6 +99,7 @@ fn encrypt_decrypt_roundtrip_recovers_secret() {
                         sk_agg_share: Some(sk_agg_share),
                         esm_agg_share: None,
                         esm_noise_poly_bytes: None,
+                        committed_smudge_slot: None,
                     },
                     &ctx,
                     None, // committed_esm_noise_bytes

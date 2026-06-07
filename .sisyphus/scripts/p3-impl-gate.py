@@ -43,24 +43,35 @@ def check_impl_green():
 
 
 def check_surrogate_retired():
+    """Check that all formerly-surrogate files are either retired (removed)
+    or promoted to real implementations (no SURROGATE marker, no feature flag).
+
+    PASS: file missing (retired) OR file exists without surrogate markers (real impl).
+    FAIL: file exists AND still has SURROGATE annotation or feature gate (not yet retired).
+    """
     details = []
     ok = True
+    retired = 0
+    promoted = 0
     for name, path in SURROGATES.items():
         if not os.path.exists(path):
-            details.append(f"[FAIL] surrogate file missing: {path}")
-            ok = False
+            retired += 1
+            details.append(f"[OK] {name}: retired (file removed)")
             continue
         content = open(path).read()
         has_feature_flag = bool(FEATURE_FLAG_PAT.search(content))
         has_surrogate_header = bool(SURROGATE_HEADER_PAT.search(content))
-        if has_feature_flag or has_surrogate_header:
-            marker = "feature-flagged" if has_feature_flag else "SURROGATE-annotated"
-            details.append(f"[OK] {name}: {path} — {marker}")
-        else:
-            details.append(f"[FAIL] {name}: {path} — no feature flag or SURROGATE annotation found")
+        if has_surrogate_header:
+            details.append(f"[FAIL] {name}: {path} — still has SURROGATE marker (not yet retired)")
             ok = False
-    if ok:
-        details.append(f"[OK] surrogate-retired: 4/4 surrogates present and annotated")
+        elif has_feature_flag:
+            details.append(f"[FAIL] {name}: {path} — still feature-gated (not yet promoted)")
+            ok = False
+        else:
+            promoted += 1
+            details.append(f"[OK] {name}: {path} — real implementation (no surrogate markers)")
+    total = len(SURROGATES)
+    details.append(f"[{'OK' if ok else 'FAIL'}] surrogate-retired: {retired} retired, {promoted} promoted, {total - retired - promoted} remaining surrogates out of {total}")
     return ok, details
 
 

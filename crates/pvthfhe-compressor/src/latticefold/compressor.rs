@@ -79,6 +79,10 @@ impl LatticeFoldCompressor {
         self.dkg_transcript_hash = hash;
     }
 
+    pub fn set_has_fhe_mul_ops(&mut self, _v: u64) {
+        // LatticeFold does not track FHE Mul ops separately
+    }
+
     /// §4.3 Algebraic range proof — proves |w| ≤ B without bit decomposition.
     pub fn verify_norm_bound(&self, witness_value: u64, bound: u64) -> bool {
         let challenge = {

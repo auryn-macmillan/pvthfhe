@@ -1,0 +1,15 @@
+{
+  "active_plan": "/home/dev/pvthfhe/.sisyphus/plans/proof-gap-remediation.md",
+  "started_at": "2026-06-04T20:30:49.391Z",
+  "session_ids": [
+    "ses_1728f1f1effeAnw190yy4Pi7gN",
+    "ses_16baabf00ffezIwNR18wL5suUg"
+  ],
+  "session_origins": {
+    "ses_1728f1f1effeAnw190yy4Pi7gN": "direct",
+    "ses_16baabf00ffezIwNR18wL5suUg": "appended"
+  },
+  "plan_name": "proof-gap-remediation",
+  "agent": "atlas",
+  "task_sessions": {}
+}

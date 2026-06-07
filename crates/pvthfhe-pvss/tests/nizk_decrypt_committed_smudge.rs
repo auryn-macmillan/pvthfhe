@@ -4,9 +4,10 @@ use pvthfhe_pvss::dkg_aggregation::{
 };
 use pvthfhe_pvss::encrypt::{CommittedSmudgeUse, LatticePvssBfvAdapter};
 use pvthfhe_pvss::nizk_decrypt::{
-    derive_party_binding, DecryptNizkMode, DecryptNizkProof, DecryptNizkProver,
-    DecryptNizkStatement, DecryptNizkVerifier, DecryptNizkWitness,
+    derive_party_binding, CommittedSmudgeSlot, DecryptNizkMode, DecryptNizkProof,
+    DecryptNizkProver, DecryptNizkStatement, DecryptNizkVerifier, DecryptNizkWitness,
 };
+use pvthfhe_pvss::slot_registry::SmudgeSlotRegistry;
 use pvthfhe_pvss::{PvssContext, PvssError};
 use pvthfhe_types::Secret;
 
@@ -73,6 +74,7 @@ fn committed_witness() -> DecryptNizkWitness {
         sk_agg_share: Some(0x11_u64),
         esm_agg_share: Some(committed_esm_agg_share()),
         esm_noise_poly_bytes: Some(esm_noise_bytes_for_test()),
+        committed_smudge_slot: None,
     }
 }
 
@@ -192,6 +194,7 @@ fn committed_smudge_rejects_local_smudge_proof() {
         sk_agg_share: Some(legacy.expected_sk_agg_share),
         esm_agg_share: None,
         esm_noise_poly_bytes: None,
+        committed_smudge_slot: None,
     };
     let proof = DecryptNizkProver::prove(&legacy, &legacy_witness)
         .expect("legacy local-smudge proof remains explicit non-equivalent mode");
@@ -213,6 +216,7 @@ fn committed_smudge_legacy_missing_sk_agg_share_fails_closed() {
         sk_agg_share: None,
         esm_agg_share: None,
         esm_noise_poly_bytes: None,
+        committed_smudge_slot: None,
     };
 
     let result = DecryptNizkProver::prove(&statement, &witness)
@@ -259,12 +263,6 @@ fn committed_smudge_binds_slot_round_and_aggregate_commitments() {
     assert_eq!(result, Err(PvssError::InvalidShare));
 }
 
-/// RED test (Batch B.2): prover must reject a witness whose esm_agg_share
-/// does not match derive_party_binding(esm_noise_poly_bytes).
-///
-/// Before the cross-check is enforced, this test should FAIL because the
-/// prover accepts the mismatched witness. After enforcement, the mismatch
-/// is detected and the prover returns InvalidShare.
 #[test]
 fn red_committed_smudge_esm_share_binding() {
     let statement = committed_statement();
@@ -281,5 +279,94 @@ fn red_committed_smudge_esm_share_binding() {
         result,
         Err(PvssError::InvalidShare),
         "mismatched esm_agg_share must produce InvalidShare"
+    );
+}
+
+// ── C6: committed-smudge slot binding and uniqueness ──────────────────
+
+#[test]
+fn committed_smudge_binds_to_ciphertext() {
+    let statement = committed_statement();
+    let witness = committed_witness();
+    let proof = DecryptNizkProver::prove(&statement, &witness).expect("committed proof");
+
+    DecryptNizkVerifier::verify(&statement, &proof).expect("honest proof verifies");
+
+    let mut wrong_ct = statement.clone();
+    wrong_ct.ciphertext_u = vec![0xFF, 0xEE, 0xDD, 0xCC];
+    wrong_ct.ciphertext_v = vec![0xBB; 32];
+    if let DecryptNizkMode::CommittedSmudge {
+        slot_id,
+        decrypt_round,
+        accepted_participant_ids,
+        sk_agg_commit,
+        esm_agg_commit,
+        ..
+    } = &statement.mode
+    {
+        wrong_ct.mode = DecryptNizkMode::CommittedSmudge {
+            slot_id: *slot_id,
+            decrypt_round: *decrypt_round,
+            ciphertext_hash: pvthfhe_pvss::nizk_decrypt::compute_decrypt_ciphertext_hash(
+                &wrong_ct.ciphertext_u,
+                &wrong_ct.ciphertext_v,
+            ),
+            accepted_participant_ids: accepted_participant_ids.clone(),
+            sk_agg_commit: *sk_agg_commit,
+            esm_agg_commit: *esm_agg_commit,
+        };
+    }
+
+    let result = DecryptNizkVerifier::verify(&wrong_ct, &proof);
+    assert_eq!(
+        result,
+        Err(PvssError::InvalidShare),
+        "changing ciphertext must change committed-smudge slot binding causing rejection"
+    );
+}
+
+#[test]
+fn committed_smudge_slot_uniqueness() {
+    let mut registry = SmudgeSlotRegistry::new();
+    let statement = committed_statement();
+    let mut witness = committed_witness();
+
+    let slot = CommittedSmudgeSlot::from_statement(&statement)
+        .expect("statement has CommittedSmudge mode");
+    witness.committed_smudge_slot = Some(slot);
+
+    let _proof1 = DecryptNizkProver::prove_with_registry(&statement, &witness, &mut registry)
+        .expect("first slot use succeeds");
+
+    let result = DecryptNizkProver::prove_with_registry(&statement, &witness, &mut registry);
+    assert!(
+        result.is_err(),
+        "reusing the same smudge slot must be rejected"
+    );
+}
+
+#[test]
+fn committed_smudge_slot_epoch_binding() {
+    let statement = committed_statement();
+    let mut witness = committed_witness();
+
+    let slot = CommittedSmudgeSlot {
+        epoch: statement.epoch + 1,
+        slot_index: SLOT_ID,
+        ciphertext_hash: match &statement.mode {
+            DecryptNizkMode::CommittedSmudge {
+                ciphertext_hash, ..
+            } => *ciphertext_hash,
+            DecryptNizkMode::LegacyLocalSmudge => unreachable!(),
+        },
+        decryption_round: DECRYPT_ROUND,
+    };
+    witness.committed_smudge_slot = Some(slot);
+
+    let result = DecryptNizkProver::prove(&statement, &witness);
+    assert_eq!(
+        result,
+        Err(PvssError::InvalidShare),
+        "epoch mismatch in committed-smudge slot must be rejected"
     );
 }

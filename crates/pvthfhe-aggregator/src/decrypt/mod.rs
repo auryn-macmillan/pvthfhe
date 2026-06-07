@@ -262,6 +262,7 @@ pub fn partial_decrypt(
                 sk_agg_share: Some(expected_sk_agg_share),
                 esm_agg_share: None,
                 esm_noise_poly_bytes: None,
+                committed_smudge_slot: None,
             };
 
             match DecryptNizkProver::prove(&stmt, &prover_witness) {

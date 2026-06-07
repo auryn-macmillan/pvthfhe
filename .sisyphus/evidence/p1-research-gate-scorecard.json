@@ -2,7 +2,7 @@
   "gate": "p1-research-gate",
   "subcheck": "scorecard",
   "status": "PASS",
-  "timestamp": "2026-05-03T11:36:43.464307+00:00",
+  "timestamp": "2026-06-06T19:51:49.341865+00:00",
   "details": [
     "subcheck: scorecard",
     "[OK] found heading: ## Weighted Criteria",

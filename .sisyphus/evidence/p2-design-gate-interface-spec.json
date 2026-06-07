@@ -2,7 +2,7 @@
   "gate": "p2-design-gate",
   "subcheck": "interface-spec",
   "status": "PASS",
-  "timestamp": "2026-05-03T11:36:43.720220+00:00",
+  "timestamp": "2026-06-06T19:51:49.370686+00:00",
   "details": [
     "subcheck: interface-spec",
     "[OK] found artifact: .sisyphus/design/p2/interface-spec.md",

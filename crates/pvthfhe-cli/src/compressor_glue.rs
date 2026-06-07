@@ -161,6 +161,18 @@ impl Compressor {
         inner.set_dkg_transcript_hash(hash);
     }
 
+    /// Set whether FHE Mul operations were performed (S2).
+    pub fn set_has_fhe_mul_ops(&mut self, v: u64) {
+        #[cfg(all(feature = "nova-compressor", feature = "enable-latticefold"))]
+        if let Self::LatticeFold { inner, .. } = self {
+            inner.set_has_fhe_mul_ops(v);
+        }
+        #[cfg(all(feature = "nova-compressor", not(feature = "enable-latticefold")))]
+        let Self::Nova { inner, .. } = self;
+        #[cfg(all(feature = "nova-compressor", not(feature = "enable-latticefold")))]
+        inner.set_has_fhe_mul_ops(v);
+    }
+
     /// Produce a compressed proof for the fold-all report.
     /// `c7_final_hash` binds the C7 decrypt-aggregation final state to
     /// the CycloFold proof (G.16 hash chain).

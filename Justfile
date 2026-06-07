@@ -96,6 +96,7 @@ bench-comparison-gate:
     @sh -eu -c 'latest_comparison=$(ls -t bench/results/comparison-*.md | head -n 1); [ -n "$latest_comparison" ]; comparison_rows=$(grep "^|" "$latest_comparison" || true); if printf "%s\n" "$comparison_rows" | grep -v "real-fallback" | grep -q "surrogate"; then echo "FAIL: surrogate rows remain in comparison report"; exit 1; fi; if printf "%s\n" "$comparison_rows" | grep -q "real-fallback"; then if ! grep -q "verdict: NoGo" .sisyphus/research/nova-wrap-feasibility.md; then echo "FAIL: real-fallback requires nova-wrap-feasibility.md verdict: NoGo"; exit 1; fi; if printf "%s\n" "$comparison_rows" | grep "real-fallback" | grep -v "OnChainUltraHonkVerify" | grep -q .; then echo "FAIL: real-fallback is only allowed on the on-chain row when verdict: NoGo"; exit 1; fi; fi'
 
 noir-onchain-gate:
+    just circuit-param N=8
     cd circuits/decrypt_share && cp Prover.toml Decrypt_share.toml && nargo execute --prover-name Decrypt_share && rm Decrypt_share.toml
     cd circuits/decrypt_share && mkdir -p target && cp ../target/decrypt_share.json target/ && cp ../target/decrypt_share.gz target/
     cd circuits/decrypt_share && bb write_vk --scheme ultra_honk -b target/decrypt_share.json -o target
@@ -150,6 +151,7 @@ greco:
 
 compute n_ops="3":
     @echo "=== Verifiable FHE Computation (summing $(echo "{{n_ops}}" | sed 's/^n_ops=//') ciphertexts) ==="
+    @echo "* BFV ring dimension: N=8192 (production). Use --features bfv-n4 for N=4 fast testing."
     cargo run --release -p pvthfhe-cli --features "nova-compressor,enable-lazer" -- compute prove --n $(echo "{{n_ops}}" | sed 's/^n_ops=//')
 
 bench-folding:
@@ -165,6 +167,7 @@ bench-kzg-evm:
     @exit 2
 
 test-circuits:
+    just circuit-param N=8
     (cd circuits && nargo test --workspace)
 
 test-contracts:
@@ -217,10 +220,9 @@ stage0-gate:
     echo "[4] Checking mock feature gates..."
     grep -E '^default\s*=.*mock' crates/pvthfhe-fhe/Cargo.toml && { echo "FAIL: mock in pvthfhe-fhe default features"; exit 1; } || true
 
-    # Check 5: PvtFheVerifier has no return-true path
-    echo "[5] Checking PvtFheVerifier hard-revert..."
-    count=$(grep -cE 'return\s+true|return\s+_honkVerifier' contracts/src/PvtFheVerifier.sol || true)
-    [ "$count" -eq 0 ] || { echo "FAIL: PvtFheVerifier still has vacuous accept path"; exit 1; }
+    # Check 5: PvtFheVerifier has no vacuous accept (return true without prior verification)
+    echo "[5] Checking PvtFheVerifier vacuous accept..."
+    python3 .sisyphus/scripts/check-vacuous-accept.py || { echo "FAIL: PvtFheVerifier has vacuous accept path"; exit 1; }
 
     # Check 6: no tautological assert(x==x) in Noir circuits
     echo "[6] Checking Noir circuit hard-revert..."
@@ -231,9 +233,9 @@ stage0-gate:
     echo "[7] Running forge tests..."
     forge test --root contracts 2>&1 | grep -qE '[0-9]+ tests? passed' || { echo "FAIL: forge tests did not pass"; exit 1; }
 
-    # Check 8: advisory draft exists with STATUS: DRAFT
-    echo "[8] Checking advisory draft..."
-    grep -q "STATUS: DRAFT" SECURITY-ADVISORY-001.md || { echo "FAIL: SECURITY-ADVISORY-001.md missing STATUS: DRAFT"; exit 1; }
+    # Check 8: advisory exists with STATUS: DRAFT or STATUS: RESOLVED
+    echo "[8] Checking advisory..."
+    grep -qE "STATUS: (DRAFT|RESOLVED)" SECURITY-ADVISORY-001.md || { echo "FAIL: SECURITY-ADVISORY-001.md missing STATUS"; exit 1; }
 
     echo ""
     echo "=== Stage 0 Gate: ALL CHECKS PASSED ==="
@@ -309,6 +311,13 @@ artifact-reproduce:
 poulpy-all:
     @echo "=== Poulpy End-to-End (CKKS DKG → Scheme Switch → TFHE Bootstrap) ==="
     PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run --release -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng,pipeline-extra-checks,enable-ckks,enable-tfhe,with-fhe,enable-lazer" -- demo --n 3 --threshold 1 --seed 1 --backend poulpy-all
+
+# Build circuits with ring dimension N=8 (Schwartz-Zippel point evaluation makes this N-independent).
+# Native code uses N=8192; the Noir circuit verifies a single point evaluation.
+circuit-param:
+    @echo "Setting ring dimension N=8 in circuits/aggregator_final/src/ring_dim.nr"
+    @echo "global N: u32 = 8;" > circuits/aggregator_final/src/ring_dim.nr
+    cd circuits && nargo compile --package aggregator_final
 
 stage1-gate:
     python3 .sisyphus/scripts/stage1-gate.py

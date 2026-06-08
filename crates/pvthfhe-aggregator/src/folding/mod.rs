@@ -467,7 +467,13 @@ pub fn fold_stmt_witness_to_cyclo_instance(
             let witness_bytes = extract_ccs_witness_from_proof(&witness.nizk_proof.proof_bytes)
                 .map_err(|e| anyhow::anyhow!("Failed to extract CCS witness from proof: {e:?}"))?;
             #[cfg(not(feature = "real-nizk"))]
-            let witness_bytes = vec![0u8; 36];
+            let witness_bytes = {
+                // Minimal valid CCS witness: 1 variable = Fr::ZERO
+                let mut out = Vec::with_capacity(36);
+                out.extend_from_slice(&1u32.to_be_bytes());
+                out.extend_from_slice(&[0u8; 32]);
+                out
+            };
             CcsWitnessSecret::new(witness_bytes)
         },
         sha256_binding_bytes: ProtocolBytes::from(binding_bytes.to_vec()),

@@ -513,7 +513,12 @@ fn r8_aggregate(ciphertext_hex: &str, shares_hex: &str, threshold: usize) -> any
 /// encryption proof via the sigma protocol (CyberNizkAdapter).
 fn r8_snapshot(action: SnapshotCommand) -> anyhow::Result<()> {
     match action {
-        SnapshotCommand::Prove { pk, ct, plaintext, session } => {
+        SnapshotCommand::Prove {
+            pk,
+            ct,
+            plaintext,
+            session,
+        } => {
             use pvthfhe_fhe::real_nizk::{LatticeNizk, RealNizkAdapter};
             let backend = FhersBackend::load_params(
                 "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n"
@@ -534,7 +539,9 @@ fn r8_snapshot(action: SnapshotCommand) -> anyhow::Result<()> {
                 sid
             } else {
                 let decoded = hex::decode(&session).context("invalid session hex")?;
-                decoded.try_into().map_err(|_| anyhow::anyhow!("session must be 32 bytes"))?
+                decoded
+                    .try_into()
+                    .map_err(|_| anyhow::anyhow!("session must be 32 bytes"))?
             };
 
             let pt_bytes = if plaintext == "auto" {
@@ -544,7 +551,9 @@ fn r8_snapshot(action: SnapshotCommand) -> anyhow::Result<()> {
             };
 
             let pk = PublicKey { bytes: pk_bytes };
-            let ct = backend.encrypt(&pk, &pt_bytes, &mut OsRng).context("encrypt")?;
+            let ct = backend
+                .encrypt(&pk, &pt_bytes, &mut OsRng)
+                .context("encrypt")?;
 
             let stmt = pvthfhe_fhe::real_nizk::NizkStatement {
                 ciphertext_bytes: ct.bytes.clone(),
@@ -564,11 +573,29 @@ fn r8_snapshot(action: SnapshotCommand) -> anyhow::Result<()> {
                 randomness: session_bytes.to_vec(),
             };
             let proof = RealNizkAdapter::prove(&stmt, &witness, &mut OsRng)?;
-            println!("greco_proof: {}", hex::encode(&proof.proof_bytes));
-            println!("ciphertext_hex: {}", hex::encode(&ct.bytes));
+            let proof_hex = hex::encode(&proof.proof_bytes);
+            let ct_hex = hex::encode(&ct.bytes);
+            println!(
+                "greco_proof: {}... ({} B)",
+                &proof_hex[..64.min(proof_hex.len())],
+                proof.proof_bytes.len()
+            );
+            println!(
+                "ciphertext_hex: {}... ({} B)",
+                &ct_hex[..64.min(ct_hex.len())],
+                ct.bytes.len()
+            );
+            println!(
+                "proof_hash: {}",
+                hex::encode(&Sha256::digest(&proof.proof_bytes))
+            );
             println!("ok");
         }
-        SnapshotCommand::Verify { proof: _, pk: _, ct: _ } => {
+        SnapshotCommand::Verify {
+            proof: _,
+            pk: _,
+            ct: _,
+        } => {
             anyhow::bail!("snapshot verify: on-chain verification not yet wired");
         }
     }
@@ -582,7 +609,11 @@ fn r8_snapshot(action: SnapshotCommand) -> anyhow::Result<()> {
 /// use the demo pipeline instead.
 fn r8_compute(action: ComputeCommand) -> anyhow::Result<()> {
     match action {
-        ComputeCommand::Prove { n, inputs: _, operations: _ } => {
+        ComputeCommand::Prove {
+            n,
+            inputs: _,
+            operations: _,
+        } => {
             use pvthfhe_fhe::real_nizk::{LatticeNizk, RealNizkAdapter};
             let backend = FhersBackend::load_params(
                 "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n"
@@ -630,23 +661,32 @@ fn r8_compute(action: ComputeCommand) -> anyhow::Result<()> {
             }
             println!("compute: complete");
             println!("  {} sigma NIZK proofs generated", n);
-            println!("  avg proof size: {} B", proof_sizes.iter().sum::<usize>() / n.max(1));
-            println!("  prove time: {:.1} ms (avg {:.1} ms/proof)", total_prove_ms, total_prove_ms / n as f64);
+            println!(
+                "  avg proof size: {} B",
+                proof_sizes.iter().sum::<usize>() / n.max(1)
+            );
+            println!(
+                "  prove time: {:.1} ms (avg {:.1} ms/proof)",
+                total_prove_ms,
+                total_prove_ms / n as f64
+            );
             println!("  total: {:.1} ms", t0.elapsed().as_secs_f64() * 1000.0);
         }
-        ComputeCommand::Verify { proof_file: _, root_hash: _, steps: _ } => {
+        ComputeCommand::Verify {
+            proof_file: _,
+            root_hash: _,
+            steps: _,
+        } => {
             anyhow::bail!("compute verify: on-chain verification not yet wired");
         }
     }
     Ok(())
 }
 
-
 /// Handle snapshot prove/verify commands.
 /// (Track A IVC removed — snapshot deferred to latticefold path)
 
 #[allow(dead_code)]
-
 
 /// Compute prove with `--n <count>`: auto-generate `count` ciphertexts,
 /// build a Merkle tree from their hashes, and sum them via chained in-circuit Adds.
@@ -682,7 +722,6 @@ fn _build_bfv_witness_impl(_pk_rns: &[u64], _ct_rns: &[u64], _plaintext: &[u8]) 
     // Track A IVC removed — function stubbed
     vec![]
 }
-
 
 /// Convert a byte slice to a Vec<u64> by interpreting each 8 bytes as one u64 (little-endian).
 

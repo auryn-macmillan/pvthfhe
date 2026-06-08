@@ -27,6 +27,7 @@ use pvthfhe_fhe::real_nizk::{LatticeNizk, NizkProof, NizkStatement, NizkWitness,
 use pvthfhe_fhe::FheBackend;
 use pvthfhe_pvss::{LatticePvssBfvAdapter, PvssAdapter, PvssContext};
 use pvthfhe_rng::OsRng;
+use pvthfhe_types::rlwe_n;
 use rand::rngs::StdRng;
 use rand_core::{RngCore, SeedableRng};
 use sha2::{Digest, Sha256};
@@ -273,7 +274,11 @@ fn main() -> anyhow::Result<()> {
         c_rns_override: None,
         d_rns_override: None,
     };
-    let _secret_key_poly_witness = (0..1024).map(|_| 0i64).collect::<Vec<i64>>();
+    let _secret_key_poly_witness = {
+        let mut v = (0..1024).map(|_| 0i64).collect::<Vec<i64>>();
+        v.resize(rlwe_n(), 0i64);
+        v
+    };
     let error_poly = derive_nizk_error(&sk_bytes, args.seed);
     let nizk_witness = NizkWitness {
         secret_share: u64::from_le_bytes(plaintext[..8].try_into().unwrap_or([0u8; 8])),
@@ -362,7 +367,7 @@ fn main() -> anyhow::Result<()> {
         let mut other_sk_poly = vec![0i64; other_sk_n];
         let take = other_sk_coeffs.len().min(other_sk_n);
         other_sk_poly[..take].copy_from_slice(&other_sk_coeffs[..take]);
-
+        other_sk_poly.resize(rlwe_n(), 0i64);
         let other_witness = NizkWitness {
             secret_share: u64::from_le_bytes(other_sk[..8].try_into().unwrap_or([0u8; 8])),
             secret_share_poly: other_sk_poly,

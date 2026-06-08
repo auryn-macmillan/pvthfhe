@@ -538,7 +538,7 @@ fn r8_snapshot(action: SnapshotCommand) -> anyhow::Result<()> {
             };
 
             let pt_bytes = if plaintext == "auto" {
-                vec![0xB1, 0x0C]
+                vec![0xB1, 0x0C, 0, 0, 0, 0, 0, 0]
             } else {
                 hex::decode(&plaintext).context("invalid plaintext hex")?
             };

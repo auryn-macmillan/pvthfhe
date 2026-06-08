@@ -57,7 +57,8 @@ use pvthfhe_fhe::fhers::FhersBackend;
 
     let mut proofs: Vec<(u16, NizkStatement, NizkProof)> = Vec::with_capacity(args.n);
     for party_id in 1..=args.n as u16 {
-        let pt = vec![(party_id as u8).wrapping_mul(17)];
+        let mut pt = vec![(party_id as u8).wrapping_mul(17)];
+        pt.resize(8, 0);
         let mut sid = [0u8; 32];
         pvthfhe_rng::OsRng.fill_bytes(&mut sid);
         let pk = PublicKey { bytes: pk.bytes.clone() };
@@ -76,7 +77,11 @@ use pvthfhe_fhe::fhers::FhersBackend;
         };
         let witness = NizkWitness {
             secret_share: u64::from_le_bytes(pt[..8].try_into().unwrap_or([0u8; 8])),
-            secret_share_poly: vec![0i64; 8192],
+            secret_share_poly: {
+                let mut v = vec![0i64; 8192];
+                v[0] = 1; // minimal non-zero witness
+                v
+            },
             error: vec![0i64; 8192],
             randomness: sid.to_vec(),
         };

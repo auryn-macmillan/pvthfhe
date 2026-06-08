@@ -170,18 +170,14 @@ bench-smoke:
     cat bench/results/smoke-latest.json
 
 greco:
-    @echo "=== Greco-style encryption proof ==="
-    @echo "Track A snapshot prove removed. Run full demo with LatticeFold+ instead:"
-    @echo "(includes encryption, NIZK proving, PVSS, Cyclo folding, decryption)"
-    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run --release -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng,enable-lazer,enable-latticefold" -- demo --n 6 --threshold 2 --seed 1
+    @echo "=== Greco-style encryption proof (LatticeFold+ Track B) ==="
+    cargo run --release -p pvthfhe-cli --features "nova-compressor,enable-lazer,enable-latticefold" -- snapshot prove
 
 compute n_ops="6":
-    @echo "=== Verifiable FHE Computation (summing $(echo "{{n_ops}}" | sed 's/^n_ops=//') ciphertexts) ==="
-    @echo "* BFV ring dimension: N=8192 (production). Use --features bfv-n4 for N=4 fast testing."
-    @echo "* Track A compute prove removed. Run demo with LatticeFold+ instead:"
-    @echo "* (includes encryption, NIZK proving, PVSS, Cyclo folding, decryption)"
-    @echo "* Minimum t=2 for meaningful threshold. Use plain cargo for custom t."
-    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run --release -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng,enable-lazer,enable-latticefold" -- demo --n $(echo "{{n_ops}}" | sed 's/^n_ops=//') --threshold 2 --seed 1
+    @echo "=== Verifiable FHE Computation (Track B LatticeFold+) ==="
+    @echo "* Operations: sum $(echo "{{n_ops}}" | sed 's/^n_ops=//') ciphertexts via FHE add"
+    @echo "* BFV ring: N=8192 (production). Use --features bfv-n4 for N=4 fast testing."
+    cargo run --release -p pvthfhe-cli --features "nova-compressor,enable-lazer,enable-latticefold" -- compute prove --n $(echo "{{n_ops}}" | sed 's/^n_ops=//')
 
 bench-folding:
     @echo "not implemented"

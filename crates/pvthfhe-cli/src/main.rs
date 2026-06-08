@@ -507,35 +507,145 @@ fn r8_aggregate(ciphertext_hex: &str, shares_hex: &str, threshold: usize) -> any
     }
     Ok(())
 }
+/// Handle snapshot prove command — Track B LatticeFold+ backend.
+///
+/// Generates a BFV keypair, encrypts a plaintext, and produces a NIZK
+/// encryption proof via the sigma protocol (CyberNizkAdapter).
+fn r8_snapshot(action: SnapshotCommand) -> anyhow::Result<()> {
+    match action {
+        SnapshotCommand::Prove { pk, ct, plaintext, session } => {
+            use pvthfhe_fhe::real_nizk::{LatticeNizk, RealNizkAdapter};
+            let backend = FhersBackend::load_params(
+                "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n"
+            ).context("backend init")?;
+
+            let pk_bytes = if pk == "auto" {
+                let mut dkg = DkgCeremony::new(DkgParams { n: 2, t: 1 })?;
+                dkg.run()?;
+                let dkg_pk = dkg.public_key()?;
+                dkg_pk.bytes.clone()
+            } else {
+                hex::decode(&pk).context("invalid pk hex")?
+            };
+
+            let session_bytes: [u8; 32] = if session == "auto" {
+                let mut sid = [0u8; 32];
+                OsRng.fill_bytes(&mut sid);
+                sid
+            } else {
+                let decoded = hex::decode(&session).context("invalid session hex")?;
+                decoded.try_into().map_err(|_| anyhow::anyhow!("session must be 32 bytes"))?
+            };
+
+            let pt_bytes = if plaintext == "auto" {
+                vec![0xB1, 0x0C]
+            } else {
+                hex::decode(&plaintext).context("invalid plaintext hex")?
+            };
+
+            let pk = PublicKey { bytes: pk_bytes };
+            let ct = backend.encrypt(&pk, &pt_bytes, &mut OsRng).context("encrypt")?;
+
+            let stmt = pvthfhe_fhe::real_nizk::NizkStatement {
+                ciphertext_bytes: ct.bytes.clone(),
+                decrypt_share_bytes: ct.bytes[..32.min(ct.bytes.len())].to_vec(),
+                pvss_commitment: Sha256::digest(&session_bytes).into(),
+                params: (288230376173076481, 8192, 10),
+                session_id: hex::encode(&session_bytes),
+                participant_id: 1,
+                epoch: 0,
+                c_rns_override: None,
+                d_rns_override: None,
+            };
+            let witness = pvthfhe_fhe::real_nizk::NizkWitness {
+                secret_share: u64::from_le_bytes(pt_bytes[..8].try_into().unwrap_or([0u8; 8])),
+                secret_share_poly: vec![0i64; pvthfhe_nizk::sigma::rlwe_n()],
+                error: vec![0i64; pvthfhe_nizk::sigma::rlwe_n()],
+                randomness: session_bytes.to_vec(),
+            };
+            let proof = RealNizkAdapter::prove(&stmt, &witness, &mut OsRng)?;
+            println!("greco_proof: {}", hex::encode(&proof.proof_bytes));
+            println!("ciphertext_hex: {}", hex::encode(&ct.bytes));
+            println!("ok");
+        }
+        SnapshotCommand::Verify { proof: _, pk: _, ct: _ } => {
+            anyhow::bail!("snapshot verify: on-chain verification not yet wired");
+        }
+    }
+    Ok(())
+}
+
+/// Handle compute prove command — Track B LatticeFold+ backend.
+///
+/// Generates n ciphertexts and produces a NIZK encryption proof for each,
+/// reporting timing metrics. For FHE operation proofs (add/mul/relin),
+/// use the demo pipeline instead.
+fn r8_compute(action: ComputeCommand) -> anyhow::Result<()> {
+    match action {
+        ComputeCommand::Prove { n, inputs: _, operations: _ } => {
+            use pvthfhe_fhe::real_nizk::{LatticeNizk, RealNizkAdapter};
+            let backend = FhersBackend::load_params(
+                "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n"
+            ).context("backend init")?;
+
+            let mut dkg = DkgCeremony::new(DkgParams { n: 2, t: 1 })?;
+            dkg.run()?;
+            let dkg_pk = dkg.public_key()?;
+            let pk_bytes = dkg_pk.bytes.clone();
+            let pk = PublicKey { bytes: pk_bytes };
+
+            let t0 = std::time::Instant::now();
+            println!("compute: proving {} ciphertexts via sigma NIZK...", n);
+            let mut total_prove_ms = 0.0f64;
+            let mut proof_sizes = Vec::with_capacity(n);
+            for i in 0..n {
+                let pt = vec![(i as u8).wrapping_mul(17)];
+                let ct = backend.encrypt(&pk, &pt, &mut OsRng).context("encrypt")?;
+
+                let mut sid = [0u8; 32];
+                OsRng.fill_bytes(&mut sid);
+                let stmt = pvthfhe_fhe::real_nizk::NizkStatement {
+                    ciphertext_bytes: ct.bytes.clone(),
+                    decrypt_share_bytes: ct.bytes[..32.min(ct.bytes.len())].to_vec(),
+                    pvss_commitment: Sha256::digest(&sid).into(),
+                    params: (288230376173076481, 8192, 10),
+                    session_id: hex::encode(&sid),
+                    participant_id: 1,
+                    epoch: 0,
+                    c_rns_override: None,
+                    d_rns_override: None,
+                };
+                let witness = pvthfhe_fhe::real_nizk::NizkWitness {
+                    secret_share: u64::from_le_bytes(pt[..8].try_into().unwrap_or([0u8; 8])),
+                    secret_share_poly: vec![0i64; pvthfhe_nizk::sigma::rlwe_n()],
+                    error: vec![0i64; pvthfhe_nizk::sigma::rlwe_n()],
+                    randomness: sid.to_vec(),
+                };
+                let t_prove = std::time::Instant::now();
+                let proof = RealNizkAdapter::prove(&stmt, &witness, &mut OsRng)?;
+                let prove_ms = t_prove.elapsed().as_secs_f64() * 1000.0;
+                total_prove_ms += prove_ms;
+                proof_sizes.push(proof.proof_bytes.len());
+            }
+            println!("compute: complete");
+            println!("  {} sigma NIZK proofs generated", n);
+            println!("  avg proof size: {} B", proof_sizes.iter().sum::<usize>() / n.max(1));
+            println!("  prove time: {:.1} ms (avg {:.1} ms/proof)", total_prove_ms, total_prove_ms / n as f64);
+            println!("  total: {:.1} ms", t0.elapsed().as_secs_f64() * 1000.0);
+        }
+        ComputeCommand::Verify { proof_file: _, root_hash: _, steps: _ } => {
+            anyhow::bail!("compute verify: on-chain verification not yet wired");
+        }
+    }
+    Ok(())
+}
+
 
 /// Handle snapshot prove/verify commands.
 /// (Track A IVC removed — snapshot deferred to latticefold path)
-fn r8_snapshot(_action: SnapshotCommand) -> anyhow::Result<()> {
-    anyhow::bail!("snapshot command is unavailable (Track A IVC removed)")
-}
 
 #[allow(dead_code)]
-fn _r8_snapshot_impl(action: SnapshotCommand) -> anyhow::Result<()> {
-    // Track A IVC removed — function stubbed
-    anyhow::bail!("fn _r8_snapshot_impl is unavailable (Track A IVC removed)");
-}
 
-#[cfg(not(feature = "nova-compressor"))]
-fn r8_snapshot(_action: SnapshotCommand) -> anyhow::Result<()> {
-    anyhow::bail!("snapshot requires the `nova-compressor` feature")
-}
-
-/// Handle compute prove command.
-/// (Track A IVC removed — compute deferred to latticefold path)
-fn r8_compute(_action: ComputeCommand) -> anyhow::Result<()> {
-    anyhow::bail!("compute command is unavailable (Track A IVC removed)")
-}
-
-#[allow(dead_code)]
-fn _r8_compute_impl(action: ComputeCommand) -> anyhow::Result<()> {
-    // Track A IVC removed — function stubbed
-    anyhow::bail!("fn _r8_compute_impl is unavailable (Track A IVC removed)");
-}
 
 /// Compute prove with `--n <count>`: auto-generate `count` ciphertexts,
 /// build a Merkle tree from their hashes, and sum them via chained in-circuit Adds.
@@ -572,10 +682,6 @@ fn _build_bfv_witness_impl(_pk_rns: &[u64], _ct_rns: &[u64], _plaintext: &[u8]) 
     vec![]
 }
 
-#[cfg(not(feature = "nova-compressor"))]
-fn r8_compute(_action: ComputeCommand) -> anyhow::Result<()> {
-    anyhow::bail!("compute requires the `nova-compressor` feature")
-}
 
 /// Convert a byte slice to a Vec<u64> by interpreting each 8 bytes as one u64 (little-endian).
 

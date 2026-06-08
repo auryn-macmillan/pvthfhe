@@ -268,18 +268,16 @@ impl PvssAdapter for LatticePvssBfvAdapter {
                 }
                 let mut recovered_frs = Vec::with_capacity(num_chunks);
                 for chunk_idx in 0..num_chunks {
-                    let points: Vec<(usize, Fr)> = shares.share_bytes[..needed]
-                        .iter()
-                        .enumerate()
-                        .map(|(i, payload)| {
-                            let offset = LENGTH_PREFIX_LEN + chunk_idx * FR_SERIALIZED_LEN;
-                            let arr: &[u8; FR_SERIALIZED_LEN] = payload
-                                [offset..offset + FR_SERIALIZED_LEN]
-                                .try_into()
-                                .expect("share payload chunk alignment");
-                            (i + 1, bytes32_to_fr(arr).expect("share Fr out of range"))
-                        })
-                        .collect();
+                    let mut points: Vec<(usize, Fr)> = Vec::with_capacity(needed);
+                    for (i, payload) in shares.share_bytes[..needed].iter().enumerate() {
+                        let offset = LENGTH_PREFIX_LEN + chunk_idx * FR_SERIALIZED_LEN;
+                        let arr: &[u8; FR_SERIALIZED_LEN] = payload
+                            [offset..offset + FR_SERIALIZED_LEN]
+                            .try_into()
+                            .map_err(|_| PvssError::InvalidShare)?;
+                        let fr = bytes32_to_fr(arr).ok_or(PvssError::InvalidShare)?;
+                        points.push((i + 1, fr));
+                    }
                     let recovered = crate::shamir::recover(&points, needed).map_err(|_| {
                         PvssError::ShareVerification(format!(
                             "norm witness recovery failed for chunk {chunk_idx}"

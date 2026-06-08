@@ -2,6 +2,9 @@ pub struct KeygenNizkProof {
     pub proof_bytes: Vec<u8>,
 }
 
+/// Maximum length for decoded keygen proof vectors (DoS protection).
+const MAX_KEYGEN_VEC_LEN: usize = 10_000;
+
 pub fn prove_keygen_nizk(
     pk0_bytes: &[u8],
     pk1_bytes: &[u8],
@@ -84,7 +87,11 @@ fn decode_keygen_proof(
     if data.len() < ch_offset + 8 {
         return Err(NizkError::InvalidInput("keygen proof truncated at ch"));
     }
-    let ch = i64::from_le_bytes(data[ch_offset..ch_offset + 8].try_into().unwrap());
+    let ch = i64::from_le_bytes(
+        data[ch_offset..ch_offset + 8]
+            .try_into()
+            .map_err(|_| NizkError::InvalidInput("keygen proof: ch truncated"))?,
+    );
 
     Ok(pvthfhe_nizk::sigma::SigmaProof {
         z_s,
@@ -128,12 +135,15 @@ fn decode_i64_vec(data: &[u8]) -> Vec<i64> {
     if data.len() < 4 {
         return vec![];
     }
-    let len = u32::from_le_bytes(data[..4].try_into().unwrap()) as usize;
+    let len = (u32::from_le_bytes(data[..4].try_into().unwrap_or([0u8; 4])) as usize)
+        .min(MAX_KEYGEN_VEC_LEN);
     let elem_bytes = len.min((data.len() - 4) / 8) * 8;
     let mut out = Vec::with_capacity(len);
     for i in 0..(elem_bytes / 8) {
-        let bytes = &data[4 + i * 8..4 + (i + 1) * 8];
-        out.push(i64::from_le_bytes(bytes.try_into().unwrap()));
+        let range = 4 + i * 8..4 + (i + 1) * 8;
+        if let Some(bytes) = data.get(range) {
+            out.push(i64::from_le_bytes(bytes.try_into().unwrap_or([0u8; 8])));
+        }
     }
     out.resize(len, 0);
     out
@@ -143,12 +153,15 @@ fn decode_u64_vec(data: &[u8]) -> Vec<u64> {
     if data.len() < 4 {
         return vec![];
     }
-    let len = u32::from_le_bytes(data[..4].try_into().unwrap()) as usize;
+    let len = (u32::from_le_bytes(data[..4].try_into().unwrap_or([0u8; 4])) as usize)
+        .min(MAX_KEYGEN_VEC_LEN);
     let elem_bytes = len.min((data.len() - 4) / 8) * 8;
     let mut out = Vec::with_capacity(len);
     for i in 0..(elem_bytes / 8) {
-        let bytes = &data[4 + i * 8..4 + (i + 1) * 8];
-        out.push(u64::from_le_bytes(bytes.try_into().unwrap()));
+        let range = 4 + i * 8..4 + (i + 1) * 8;
+        if let Some(bytes) = data.get(range) {
+            out.push(u64::from_le_bytes(bytes.try_into().unwrap_or([0u8; 8])));
+        }
     }
     out.resize(len, 0);
     out

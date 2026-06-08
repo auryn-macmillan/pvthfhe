@@ -65,7 +65,7 @@ bench-scaling:
     python3 bench/scripts/compare-predictions.py 2>&1 | tee .sisyphus/evidence/task-43-vsmodel.log
     python3 bench/scripts/fit-loglog.py
 
-bench-comparison n="3" t="1" seed="1":
+bench-comparison n="6" t="2" seed="1":
     mkdir -p bench/results
     PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features nova-compressor,demo-seeded-rng,pipeline-extra-checks -- --n $(echo "{{n}}" | sed 's/^n=//') --t $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//')
     PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features nova-compressor,demo-seeded-rng,pipeline-extra-checks -- --n $(echo "{{n}}" | sed 's/^n=//') --t $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//')
@@ -171,13 +171,14 @@ bench-smoke:
 
 greco:
     @echo "=== Greco-style encryption proof (Track B LatticeFold+ backend) ==="
-    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run --release -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng,enable-lazer,enable-latticefold" -- demo --n 3 --threshold 1 --seed 1
+    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run --release -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng,enable-lazer,enable-latticefold" -- demo --n 6 --threshold 2 --seed 1
 
 compute n_ops="3":
     @echo "=== Verifiable FHE Computation (summing $(echo "{{n_ops}}" | sed 's/^n_ops=//') ciphertexts) ==="
     @echo "* BFV ring dimension: N=8192 (production). Use --features bfv-n4 for N=4 fast testing."
     @echo "* Track A removed — running demo with LatticeFold+ instead of snapshot compute."
-    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run --release -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng,enable-lazer,enable-latticefold" -- demo --n $(echo "{{n_ops}}" | sed 's/^n_ops=//') --threshold 1 --seed 1
+    @echo "* Minimum t=2 for meaningful threshold. Use plain cargo for custom t."
+    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run --release -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng,enable-lazer,enable-latticefold" -- demo --n $(echo "{{n_ops}}" | sed 's/^n_ops=//') --threshold 2 --seed 1
 
 bench-folding:
     @echo "not implemented"
@@ -335,7 +336,7 @@ artifact-reproduce:
 
 poulpy-all:
     @echo "=== Poulpy End-to-End (CKKS DKG → Scheme Switch → TFHE Bootstrap) ==="
-    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run --release -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng,pipeline-extra-checks,enable-ckks,enable-tfhe,with-fhe,enable-lazer" -- demo --n 3 --threshold 1 --seed 1 --backend poulpy-all
+    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run --release -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng,pipeline-extra-checks,enable-ckks,enable-tfhe,with-fhe,enable-lazer" -- demo --n 6 --threshold 2 --seed 1 --backend poulpy-all
 
 # Build circuits with ring dimension N=8 (Schwartz-Zippel point evaluation makes this N-independent).
 # Native code uses N=8192; the Noir circuit verifies a single point evaluation.

@@ -1,8 +1,5 @@
 //! # ⚠️ INTENTIONALLY MINIMAL
 
-#[cfg(all(feature = "production-profile", feature = "legacy-nova"))]
-compile_error!("pvthfhe-offchain-verifier production-profile forbids legacy-nova");
-
 pub mod attestation;
 
 use std::collections::HashMap;

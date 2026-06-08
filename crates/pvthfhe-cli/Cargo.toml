@@ -23,12 +23,9 @@ required-features = ["with-fhe"]
 [[bin]]
 name = "per-aggregator"
 path = "src/bin/per_aggregator.rs"
-required-features = ["with-fhe", "nova-compressor"]
+required-features = ["with-fhe"]
 
-[[bin]]
-name = "nova-min"
-path = "src/bin/nova_min.rs"
-required-features = ["nova-compressor"]
+# nova-min binary removed (Track A)
 
 [lints]
 workspace = true
@@ -56,7 +53,7 @@ hex = "0.4"
 anyhow = "1"
 rayon = "1"
 serde_json = "1"
-ark-bn254 = "0.5"
+ark-bn254 = { version = "0.5", optional = true }
 ark-ec = "0.5"
 ark-ff = "0.5"
 light-poseidon = "0.4"
@@ -88,8 +85,8 @@ with-fhe = [
 mock = ["with-fhe", "pvthfhe-fhe/mock", "pvthfhe-aggregator/mock"]
 probe-no-fhe = []
 surrogate-compressor = []
-nova-compressor = ["dep:pvthfhe-compressor", "dep:pvthfhe-circuit-tests"]
-enable-greyhound = ["nova-compressor", "pvthfhe-compressor/enable-greyhound"]
+nova-compressor = ["dep:pvthfhe-compressor", "dep:ark-bn254", "enable-latticefold"]
+enable-greyhound = ["nova-compressor"]
 # Stage 0 tripwire bypass: enable seeded RNG in demo paths.
 # Must NOT be enabled in release/production builds.
 demo-seeded-rng = []

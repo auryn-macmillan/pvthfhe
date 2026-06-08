@@ -40,7 +40,7 @@ pub use pvthfhe_cyclo::{FoldTrackCommitment, FoldTrackKind, MultiTrackFoldMetada
 #[cfg(feature = "real-folding")]
 use pvthfhe_domain_tags::Tag;
 #[cfg(all(feature = "real-folding", feature = "real-nizk"))]
-use pvthfhe_nizk::adapter::extract_ccs_witness_from_proof;
+use pvthfhe_nizk::adapter::{extract_ajtai_commitment_from_proof, extract_ccs_witness_from_proof};
 #[cfg(feature = "real-folding")]
 use pvthfhe_nizk::BACKEND_ID as NIZK_BACKEND_ID;
 use pvthfhe_types::witness_language::{
@@ -435,53 +435,48 @@ pub fn fold_stmt_witness_to_cyclo_instance(
     let base = CcsPShareInstance {
         participant_id,
         ajtai_commitment_bytes: {
-            let mut h = Sha256::new();
-            h.update(b"pvthfhe/ajtai-commit/v1");
-            h.update(&witness.nizk_proof.proof_bytes);
-            h.update(&stmt.nizk_statement.ciphertext_bytes);
-            h.update(&binding_bytes);
-            let digest = h.finalize();
-            let mut padded = vec![0u8; AJTAI_COMMITMENT_BYTES];
-            let copy_len = digest.len().min(padded.len());
-            padded[..copy_len].copy_from_slice(&digest[..copy_len]);
-            ProtocolBytes::from(padded)
+            #[cfg(feature = "real-nizk")]
+            {
+                let bytes = extract_ajtai_commitment_from_proof(&witness.nizk_proof.proof_bytes)
+                    .map_err(|e| anyhow::anyhow!("Failed to extract Ajtai commitment: {e:?}"))?;
+                if bytes.len() != AJTAI_COMMITMENT_BYTES {
+                    anyhow::bail!(
+                        "Extracted Ajtai commitment has wrong length: {}",
+                        bytes.len()
+                    );
+                }
+                ProtocolBytes::from(bytes)
+            }
+            #[cfg(not(feature = "real-nizk"))]
+            {
+                let mut h = Sha256::new();
+                h.update(b"pvthfhe/ajtai-commit/v1");
+                h.update(&witness.nizk_proof.proof_bytes);
+                h.update(&stmt.nizk_statement.ciphertext_bytes);
+                h.update(&binding_bytes);
+                let digest = h.finalize();
+                let mut padded = vec![0u8; AJTAI_COMMITMENT_BYTES];
+                let copy_len = digest.len().min(padded.len());
+                padded[..copy_len].copy_from_slice(&digest[..copy_len]);
+                ProtocolBytes::from(padded)
+            }
         },
         public_io_bytes: ProtocolBytes::from(stmt.nizk_statement.ciphertext_bytes.clone()),
         ccs_witness_bytes: {
             #[cfg(feature = "real-nizk")]
             let witness_bytes = extract_ccs_witness_from_proof(&witness.nizk_proof.proof_bytes)
-                .unwrap_or_else(|_| demo_zero_witness_bytes());
+                .map_err(|e| anyhow::anyhow!("Failed to extract CCS witness from proof: {e:?}"))?;
             #[cfg(not(feature = "real-nizk"))]
-            let witness_bytes = demo_zero_witness_bytes();
+            let witness_bytes = vec![0u8; 36];
             CcsWitnessSecret::new(witness_bytes)
         },
         sha256_binding_bytes: ProtocolBytes::from(binding_bytes.to_vec()),
-        ccs_matrix_bytes: ProtocolBytes::from(demo_one_by_one_matrix_bytes()),
+        ccs_matrix_bytes: ProtocolBytes::from(vec![]),
     };
     Ok(MultiTrackPShareInstance {
         base,
         multi_track_metadata: stmt.nizk_statement.multi_track_metadata.clone(),
     })
-}
-
-#[cfg(feature = "real-folding")]
-pub fn demo_zero_witness_bytes() -> Vec<u8> {
-    let mut out = Vec::with_capacity(36);
-    out.extend_from_slice(&1u32.to_be_bytes());
-    out.extend_from_slice(&[0u8; 32]);
-    out
-}
-
-#[cfg(feature = "real-folding")]
-fn demo_one_by_one_matrix_bytes() -> Vec<u8> {
-    let mut out = Vec::with_capacity(40);
-    out.extend_from_slice(&1u32.to_be_bytes());
-    out.extend_from_slice(&1u32.to_be_bytes());
-    out.extend_from_slice(&1u64.to_le_bytes());
-    out.extend_from_slice(&0u64.to_le_bytes());
-    out.extend_from_slice(&0u64.to_le_bytes());
-    out.extend_from_slice(&0u64.to_le_bytes());
-    out
 }
 
 /// Verify that a Cyclo accumulator satisfies structural invariants.

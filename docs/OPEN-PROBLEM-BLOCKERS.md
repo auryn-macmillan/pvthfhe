@@ -12,12 +12,12 @@ This document records the cryptographic guarantees that are deliberately WITHHEL
 2.  **Status**: `MITIGATED (2026-06-07)` — On-chain hash-chain consistency + Noir witness-attested IVC proof binding
 3.  **Security claim**: The on-chain verifier now has TWO layers of defense:
     *   `contracts/src/IvcChainDecider.sol`: Hash-chain consistency verifier (VK/PP/z0/steps/zi binding, 13 tests, replay protection). Prevents VK substitution, parameter mismatch, and proof replay.
-    *   `circuits/nova_state_commitment/src/main.nr`: Noir circuit upgraded to reconstruct IVC proof hashes from witness data via cross-language Poseidon sponge (`noir_sponge.rs`, 16 sponge tests, 13 circuit tests). Prover must possess actual IVC proof bytes and state data.
-    *   **Remaining gap**: Full Nova folding verification (R1CS accumulation, Lagrange commitments, decider) requires BN254 pairing operations — unavailable in Noir 1.0.0-beta.22. The `ec` module was removed from Noir stdlib; `github.com/noir-lang/ec` only supports the embedded (BabyJubjub/Grumpkin) curve, not BN254.
-4.  **Affected code paths**: `contracts/src/IvcChainDecider.sol`, `contracts/test/IvcChainDecider.t.sol` (13 tests), `circuits/nova_state_commitment/`, `crates/pvthfhe-compressor/src/nova/noir_sponge.rs`, `snark_bridge.rs`
+    *   `circuits/nova_state_commitment/src/main.nr`: Noir circuit upgraded to reconstruct proof hashes from witness data via cross-language Poseidon sponge (`noir_sponge.rs`, 16 sponge tests, 13 circuit tests). Prover must possess actual proof bytes and state data.
+    *   **Remaining gap**: Full LatticeFold+ on-chain verification is not yet implemented. Track B Cyclo fold verification (check_satisfiability, verify_fold) works natively but the on-chain Solidity verifier does not cryptographically verify the LatticeFold+ proof. Track A (Nova BN254+Grumpkin) was removed per P4 deprecation.
+4.  **Affected code paths**: `contracts/src/IvcChainDecider.sol`, `contracts/test/IvcChainDecider.t.sol` (13 tests), `circuits/nova_state_commitment/`, `crates/pvthfhe-compressor/src/latticefold/`, `snark_bridge.rs`
 5.  **Current behavior**: `IvcChainDecider` provides structural integrity; `nova_state_commitment` Noir circuit proves witness possession. Fail-closed on unregistered VKs.
 6.  **Resolved items from original P4**: ✅ On-chain hash-chain verifier, ✅ Replay protection, ✅ Noir circuit proves witness data existence, ✅ Cross-language hash agreement (Rust↔Noir).
-7.  **Deferred**: Full Nova folding verification (BN254 pairings). Tracked for future Noir release with `std::ec::bn254`.
+7.  **Deferred**: Full LatticeFold+ on-chain verification. Tracked for future work.
 8.  **Verification commands**:
     *   `forge test --root contracts --match-contract IvcChainDeciderTest` — 13/13 pass
     *   `cargo test -p pvthfhe-compressor --lib -- noir_sponge` — 16/16 pass

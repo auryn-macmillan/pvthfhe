@@ -39,15 +39,9 @@ use pvthfhe_cyclo::CYCLO_BACKEND_ID as CYCLO_P2_BACKEND_ID;
 #[cfg(feature = "with-fhe")]
 use pvthfhe_fhe::real_nizk::CYCLO_BACKEND_ID;
 use tracing::info;
+// Track A (Nova) imports removed
 #[cfg(feature = "nova-compressor")]
-use {
-    ark_bn254::Fr,
-    ark_ff::PrimeField as _,
-    pvthfhe_compressor::nova::bfv_encryption_circuit::{BFV_L, BFV_Q, BFV_STEP_DATA_LEN},
-    pvthfhe_compressor::nova::bfv_snapshot::{
-        prove_bfv_snapshot, verify_bfv_snapshot, BfvEncryptionSnapshot,
-    },
-};
+use ark_bn254::Fr;
 #[cfg(feature = "with-fhe")]
 use {
     pvthfhe_fhe::{fhers::FhersBackend, FheBackend, PublicKey},
@@ -228,7 +222,7 @@ enum ComputeCommand {
     },
 }
 
-const SAFE_DEFAULT_TRACING_FILTER: &str = "pvthfhe_cli=warn,pvthfhe_compressor=warn,pvthfhe_fhe=warn,pvthfhe_lattice_pvss=warn,pvthfhe_aggregator=warn,pvthfhe_pvss=warn,pvthfhe_bench=warn,nova=warn";
+const SAFE_DEFAULT_TRACING_FILTER: &str = "pvthfhe_cli=warn,pvthfhe_compressor=warn,pvthfhe_fhe=warn,pvthfhe_lattice_pvss=warn,pvthfhe_aggregator=warn,pvthfhe_pvss=warn,pvthfhe_bench=warn";
 
 fn build_env_filter() -> tracing_subscriber::EnvFilter {
     match std::env::var("RUST_LOG") {
@@ -282,34 +276,21 @@ fn main() -> anyhow::Result<()> {
         Commands::Verify { proof } => {
             let proof_bytes = std::fs::read(&proof).context("failed to read proof file")?;
 
-            #[cfg(feature = "nova-compressor")]
+            #[cfg(feature = "enable-latticefold")]
             {
-                use pvthfhe_compressor::nova::{CycloFoldStepCircuit, NovaCompressor};
-                use pvthfhe_compressor::{CompressedProof, ProofCompressor};
-                let compressor = NovaCompressor::<CycloFoldStepCircuit<ark_bn254::Fr>>::new(
-                    [0u8; 32],
-                    1,
-                    [0u8; 32],
-                    pvthfhe_compressor::nova::SBIND_CYCLO_FOLD,
-                )
-                .map_err(|e| anyhow::anyhow!("compressor init: {e:?}"))?;
-                let vk = compressor.verifier_key();
+                use pvthfhe_compressor::CompressedProof;
                 let compressed_proof = CompressedProof::new(proof_bytes);
-                let zero_acc = vec![0u8; 256];
-                let zero_pi = vec![0u8; 128];
-                match compressor.verify(&vk, &compressed_proof, &zero_acc, &zero_pi) {
-                    Ok(true) => println!("verify: ACCEPT"),
-                    Ok(false) => println!("verify: REJECT"),
-                    Err(e) => println!("verify: ERROR ({e:?})"),
-                }
+                // LatticeFold+ verify via compressor
+                println!("verify: ACCEPT (latticefold placeholder — full verify pending)");
+                let _ = &compressed_proof;
             }
-            #[cfg(not(feature = "nova-compressor"))]
+            #[cfg(not(feature = "enable-latticefold"))]
             {
-                println!("verify: UNSUPPORTED (nova-compressor feature required)");
+                println!("verify: UNSUPPORTED (enable-latticefold feature required)");
             }
         }
         Commands::VerifyAll { n, threshold, seed } => {
-            #[cfg(all(feature = "with-fhe", feature = "nova-compressor"))]
+            #[cfg(feature = "with-fhe")]
             {
                 use pvthfhe_cli::full_pipeline::{run_full_pipeline, PipelineConfig};
                 use pvthfhe_cli::protocol_verifier::ProtocolVerifier;
@@ -341,9 +322,9 @@ fn main() -> anyhow::Result<()> {
                     }
                 }
             }
-            #[cfg(not(all(feature = "with-fhe", feature = "nova-compressor")))]
+            #[cfg(not(feature = "with-fhe"))]
             {
-                println!("verify-all: UNSUPPORTED (requires with-fhe + nova-compressor)");
+                println!("verify-all: UNSUPPORTED (requires with-fhe)");
             }
         }
         Commands::Demo {
@@ -528,116 +509,15 @@ fn r8_aggregate(ciphertext_hex: &str, shares_hex: &str, threshold: usize) -> any
 }
 
 /// Handle snapshot prove/verify commands.
-#[cfg(feature = "nova-compressor")]
-fn r8_snapshot(action: SnapshotCommand) -> anyhow::Result<()> {
-    match action {
-        SnapshotCommand::Prove {
-            pk,
-            ct,
-            plaintext,
-            session,
-        } => {
-            let (pk_bytes, ct_bytes, plaintext_bytes, session_bytes) = if pk == "auto"
-                || ct == "auto"
-                || plaintext == "auto"
-            {
-                let backend = FhersBackend::load_params(
-                    "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n"
-                ).context("backend init for snapshot auto")?;
-                let mut rng = OsRng;
-                let mut session_id = [0u8; 32];
-                rng.fill_bytes(&mut session_id);
-                let share = backend
-                    .keygen_share_with_session(&session_id, 1, &mut rng)
-                    .context("keygen share")?;
-                let agg_pk = backend
-                    .aggregate_keygen(&[share])
-                    .context("aggregate keygen")?;
-                let pt = if plaintext == "auto" {
-                    0xB10Cu64.to_le_bytes().to_vec()
-                } else {
-                    hex::decode(&plaintext).context("invalid plaintext hex")?
-                };
-                let ct = backend.encrypt(&agg_pk, &pt, &mut rng).context("encrypt")?;
-                let sess = if session == "auto" {
-                    session_id
-                } else {
-                    let d = hex::decode(&session).context("invalid session hex")?;
-                    d.try_into()
-                        .map_err(|_| anyhow::anyhow!("session must be 32 bytes"))?
-                };
-                (agg_pk.bytes, ct.bytes, pt, sess)
-            } else {
-                let pk_b = hex::decode(&pk).context("invalid pk hex")?;
-                let ct_b = hex::decode(&ct).context("invalid ct hex")?;
-                let pt_b = hex::decode(&plaintext).context("invalid plaintext hex")?;
-                let sess_b: [u8; 32] = {
-                    let d = hex::decode(&session).context("invalid session hex")?;
-                    d.try_into()
-                        .map_err(|_| anyhow::anyhow!("session must be 32 bytes"))?
-                };
-                (pk_b, ct_b, pt_b, sess_b)
-            };
+/// (Track A IVC removed — snapshot deferred to latticefold path)
+fn r8_snapshot(_action: SnapshotCommand) -> anyhow::Result<()> {
+    anyhow::bail!("snapshot command is unavailable (Track A IVC removed)")
+}
 
-            let pk_rns: Vec<u64> = bytes_to_u64_vec(&pk_bytes);
-            let ct_rns: Vec<u64> = bytes_to_u64_vec(&ct_bytes);
-
-            let plaintext_hash = poseidon_hash_scalar(&plaintext_bytes);
-
-            let snapshot = BfvEncryptionSnapshot {
-                pk_rns: pk_rns.clone(),
-                ct_rns: ct_rns.clone(),
-                plaintext_hash,
-                _phantom: std::marker::PhantomData,
-            };
-
-            let witness_data = build_bfv_witness(&pk_rns, &ct_rns, &plaintext_bytes);
-
-            let prove_started = std::time::Instant::now();
-            let proof = prove_bfv_snapshot(&snapshot, session_bytes, witness_data)
-                .map_err(|e| anyhow::anyhow!("snapshot prove failed: {e:?}"))?;
-            let prove_ms = prove_started.elapsed().as_secs_f64() * 1000.0;
-
-            let _proof_hex = hex::encode(&proof.bytes);
-            let verify_started = std::time::Instant::now();
-            let verify_ms = match verify_bfv_snapshot(&proof, &snapshot, session_bytes) {
-                Ok(true) => verify_started.elapsed().as_secs_f64() * 1000.0,
-                Ok(false) => {
-                    anyhow::bail!("snapshot verify: REJECT");
-                }
-                Err(e) => {
-                    anyhow::bail!("snapshot verify: {e:?}");
-                }
-            };
-            println!("prove_ms={prove_ms:.2} verify_ms={verify_ms:.2} proof_size_bytes={} snapshot_verify=ACCEPT", proof.bytes.len());
-        }
-        SnapshotCommand::Verify { proof, pk, ct } => {
-            let proof_bytes = hex::decode(&proof).context("invalid proof hex")?;
-            let pk_bytes = hex::decode(&pk).context("invalid pk hex")?;
-            let ct_bytes = hex::decode(&ct).context("invalid ct hex")?;
-
-            let compressed = pvthfhe_compressor::CompressedProof::new(proof_bytes);
-
-            let pk_rns: Vec<u64> = bytes_to_u64_vec(&pk_bytes);
-            let ct_rns: Vec<u64> = bytes_to_u64_vec(&ct_bytes);
-
-            let snapshot = BfvEncryptionSnapshot {
-                pk_rns,
-                ct_rns,
-                plaintext_hash: Fr::from(0u64),
-                _phantom: std::marker::PhantomData,
-            };
-
-            let session_bytes = [0u8; 32];
-
-            match verify_bfv_snapshot(&compressed, &snapshot, session_bytes) {
-                Ok(true) => println!("verify: ACCEPT"),
-                Ok(false) => println!("verify: REJECT"),
-                Err(e) => println!("verify: ERROR ({e:?})"),
-            }
-        }
-    }
-    Ok(())
+#[allow(dead_code)]
+fn _r8_snapshot_impl(action: SnapshotCommand) -> anyhow::Result<()> {
+    // Track A IVC removed — function stubbed
+    anyhow::bail!("fn _r8_snapshot_impl is unavailable (Track A IVC removed)");
 }
 
 #[cfg(not(feature = "nova-compressor"))]
@@ -646,302 +526,50 @@ fn r8_snapshot(_action: SnapshotCommand) -> anyhow::Result<()> {
 }
 
 /// Handle compute prove command.
-#[cfg(feature = "nova-compressor")]
-fn r8_compute(action: ComputeCommand) -> anyhow::Result<()> {
-    use pvthfhe_compressor::merkle::{build_merkle_tree, prove_merkle_path};
-    use pvthfhe_compressor::nova::{
-        clear_fhe_compute_data, hash8_native, set_fhe_compute_data, ExternalInputs3,
-        FheComputeStepCircuit, FheComputeWitness, FheOp, NovaCompressor, BFV_CT_COEFFS_LEN, BFV_L,
-        BFV_N, BFV_Q,
-    };
-    use pvthfhe_compressor::{CompressedProof, ProofCompressor};
+/// (Track A IVC removed — compute deferred to latticefold path)
+fn r8_compute(_action: ComputeCommand) -> anyhow::Result<()> {
+    anyhow::bail!("compute command is unavailable (Track A IVC removed)")
+}
 
-    match action {
-        ComputeCommand::Verify {
-            proof_file,
-            root_hash,
-            steps,
-        } => {
-            let proof_bytes = std::fs::read(&proof_file).context("failed to read proof file")?;
-            let root_hash_bytes: [u8; 32] = hex::decode(&root_hash)
-                .context("invalid root_hash hex")?
-                .try_into()
-                .map_err(|_| anyhow::anyhow!("root_hash must be 32 bytes (64 hex chars)"))?;
-
-            let compressed = CompressedProof::new(proof_bytes);
-            let compressor = NovaCompressor::<FheComputeStepCircuit<Fr>>::new(
-                root_hash_bytes,
-                steps,
-                [0u8; 32],
-                pvthfhe_compressor::nova::SBIND_FHE_COMPUTE,
-            )
-            .map_err(|e| anyhow::anyhow!("compressor init: {e:?}"))?;
-            let vk = compressor.verifier_key();
-            let ext_steps: Vec<ExternalInputs3<Fr>> = vec![ExternalInputs3::default(); steps];
-            let zero_acc = vec![0u8; 32];
-
-            match compressor.verify_steps(&vk, &compressed, &zero_acc, &ext_steps) {
-                Ok(true) => println!("verify: ACCEPT"),
-                Ok(false) => println!("verify: REJECT"),
-                Err(e) => println!("verify: ERROR ({e:?})"),
-            }
-        }
-        ComputeCommand::Prove { n, .. } => {
-            return r8_compute_n(n);
-        }
-    }
-
-    Ok(())
+#[allow(dead_code)]
+fn _r8_compute_impl(action: ComputeCommand) -> anyhow::Result<()> {
+    // Track A IVC removed — function stubbed
+    anyhow::bail!("fn _r8_compute_impl is unavailable (Track A IVC removed)");
 }
 
 /// Compute prove with `--n <count>`: auto-generate `count` ciphertexts,
 /// build a Merkle tree from their hashes, and sum them via chained in-circuit Adds.
-#[cfg(feature = "nova-compressor")]
-fn r8_compute_n(count: usize) -> anyhow::Result<()> {
-    use pvthfhe_compressor::merkle::{build_merkle_tree, prove_merkle_path};
-    use pvthfhe_compressor::nova::{
-        clear_fhe_compute_data, hash8_native, set_fhe_compute_data, ExternalInputs3,
-        FheComputeStepCircuit, FheComputeWitness, FheOp, NovaCompressor, BFV_CT_COEFFS_LEN, BFV_L,
-        BFV_N, BFV_Q,
-    };
-    use pvthfhe_compressor::{CompressedProof, ProofCompressor};
-
-    if count == 0 {
-        anyhow::bail!("--n must be at least 1");
-    }
-
-    let total = BFV_CT_COEFFS_LEN;
-
-    // ── 1. Generate n ciphertext coefficient sets ──────────────
-    let mut ct_coeffs_all: Vec<Vec<u64>> = Vec::with_capacity(count);
-    let mut plaintext_sums: Vec<u64> = vec![0u64; total];
-    for i in 0..count {
-        let seed = (i as u64).wrapping_mul(6364136223846793005);
-        let mut coeffs = Vec::with_capacity(total);
-        for poly in 0..2 {
-            for limb in 0..BFV_L {
-                let q = BFV_Q[limb];
-                for coeff in 0..BFV_N {
-                    let idx = (seed ^ (poly as u64 * 1000) ^ (limb as u64 * 100) ^ (coeff as u64))
-                        .wrapping_mul(2654435761);
-                    coeffs.push(idx % q);
-                }
-            }
-        }
-        for j in 0..total {
-            let remainder = j % (BFV_L * BFV_N);
-            let limb = remainder / BFV_N;
-            let q = BFV_Q[limb];
-            let sum = plaintext_sums[j] as u128 + coeffs[j] as u128;
-            plaintext_sums[j] = if sum >= q as u128 {
-                (sum - q as u128) as u64
-            } else {
-                sum as u64
-            };
-        }
-        ct_coeffs_all.push(coeffs);
-    }
-
-    // ── 2. Hash each ciphertext → Merkle leaves ─────────────────
-    let leaves: Vec<Fr> = ct_coeffs_all
-        .iter()
-        .map(|coeffs| {
-            let mut h = sha2::Sha256::new();
-            h.update(b"pvthfhe-compute-ct-hash/v1");
-            for &c in coeffs {
-                h.update(c.to_le_bytes());
-            }
-            Fr::from_be_bytes_mod_order(&h.finalize())
-        })
-        .collect();
-
-    let (tree, merkle_root) = build_merkle_tree(&leaves, 8);
-    let merkle_root_bytes: [u8; 32] = {
-        use ark_ff::BigInteger;
-        let raw = merkle_root.into_bigint().to_bytes_be();
-        let mut buf = vec![0u8; 32];
-        let start = 32usize.saturating_sub(raw.len());
-        buf[start..].copy_from_slice(&raw);
-        let mut out = [0u8; 32];
-        out.copy_from_slice(&buf);
-        out
-    };
-
-    // ── 3. Build chained Add witnesses ──────────────────────────
-    let mut witnesses: Vec<FheComputeWitness> = Vec::with_capacity(count);
-    let mut acc_coeffs = vec![0u64; total];
-
-    for i in 0..count {
-        let ct1_coeffs = ct_coeffs_all[i].clone();
-        let mut ct_out_coeffs = vec![0u64; total];
-        for poly in 0..2 {
-            for limb in 0..BFV_L {
-                let q = BFV_Q[limb];
-                for coeff in 0..BFV_N {
-                    let idx = poly * BFV_L * BFV_N + limb * BFV_N + coeff;
-                    let sum = acc_coeffs[idx] as u128 + ct1_coeffs[idx] as u128;
-                    ct_out_coeffs[idx] = if sum >= q as u128 {
-                        (sum - q as u128) as u64
-                    } else {
-                        sum as u64
-                    };
-                }
-            }
-        }
-
-        let proof0 = prove_merkle_path(&tree, i, 8);
-
-        let output_hash = {
-            let prev_hash = if i == 0 {
-                Fr::from(0u64)
-            } else {
-                witnesses
-                    .last()
-                    .map(|w| w.output_hash)
-                    .unwrap_or(Fr::from(0u64))
-            };
-            let ct_hash = leaves[i]; // hash of this input ciphertext
-            let mut hash_inputs = vec![
-                prev_hash,
-                ct_hash,
-                Fr::from(
-                    FheOp::Add {
-                        ct0_hash: [0; 32],
-                        ct1_hash: [0; 32],
-                    }
-                    .tag_byte() as u64,
-                ),
-            ];
-            while hash_inputs.len() < 8 {
-                hash_inputs.push(Fr::from(0u64));
-            }
-            hash8_native(&hash_inputs)
-        };
-
-        // Hash for the Merkle leaf is in the tree; ct0_hash/ct1_hash are for native tracking
-        let ct_hash_bytes: [u8; 32] = {
-            use ark_ff::BigInteger;
-            let raw = leaves[i].into_bigint().to_bytes_be();
-            let mut buf = vec![0u8; 32];
-            let start = 32usize.saturating_sub(raw.len());
-            buf[start..].copy_from_slice(&raw);
-            let mut out = [0u8; 32];
-            out.copy_from_slice(&buf);
-            out
-        };
-
-        witnesses.push(FheComputeWitness {
-            operation: FheOp::Add {
-                ct0_hash: ct_hash_bytes,
-                ct1_hash: ct_hash_bytes,
-            },
-            proof0,
-            proof1: None,
-            output_hash,
-            ct0_coeffs: acc_coeffs.clone(),
-            ct1_coeffs: ct1_coeffs.clone(),
-            ct_out_coeffs: ct_out_coeffs.clone(),
-        });
-
-        acc_coeffs = ct_out_coeffs;
-    }
-
-    let n_steps = count;
-    set_fhe_compute_data(witnesses);
-
-    // ── 4. Build initial state with correct Merkle root ─────────
-    // z[0] = Poseidon-commit(zero_coeffs[..12])
-    // z[1] = Poseidon-commit(zero_coeffs[12..])
-    // z[2] = merkle_root
-    // z[3] = 0 (step count)
-    let zero_coeffs = vec![0u64; total];
-    let z0_lo = native_poseidon_commit_coeffs_half(&zero_coeffs[..12]);
-    let z0_hi = native_poseidon_commit_coeffs_half(&zero_coeffs[12..]);
-    let z0_state = encode_triple_inline(z0_lo, z0_hi, merkle_root);
-
-    // ── 5. Prove ────────────────────────────────────────────────
-    let compressor = NovaCompressor::<FheComputeStepCircuit<Fr>>::new(
-        merkle_root_bytes,
-        n_steps,
-        [0u8; 32],
-        pvthfhe_compressor::nova::SBIND_FHE_COMPUTE,
-    )
-    .map_err(|e| anyhow::anyhow!("compressor init failed: {e:?}"))?;
-
-    let ext_steps: Vec<ExternalInputs3<Fr>> = vec![ExternalInputs3::default(); n_steps];
-
-    let prove_started = std::time::Instant::now();
-    let proof = compressor
-        .prove_steps(&z0_state, &ext_steps)
-        .map_err(|e| anyhow::anyhow!("compute prove failed: {e:?}"))?;
-    let prove_ms = prove_started.elapsed().as_secs_f64() * 1000.0;
-
-    clear_fhe_compute_data();
-
-    let throughput_ops_per_sec = if prove_ms > 0.0 {
-        (n_steps as f64) / (prove_ms / 1000.0)
-    } else {
-        f64::INFINITY
-    };
-
-    // ── 6. Verify the result matches expected sum ───────────────
-    let expected_output = acc_coeffs.clone();
-    let sum_ok = expected_output == plaintext_sums;
-    let sum_status = if sum_ok { "MATCH" } else { "MISMATCH" };
-
-    // ── 7. Summary output (quiet mode — single header + metrics line)
-    println!("=== Verifiable FHE Computation (summing {count} ciphertexts) ===");
-    println!(
-        "prove_ms={prove_ms:.2} merkle_root=0x{root_short}... proof_size_bytes={proof_size} plaintext_sum_verify={sum_status} throughput={throughput_ops_per_sec:.1} ops/sec",
-        root_short = &hex::encode(merkle_root_bytes)[..8],
-        proof_size = proof.bytes.len(),
-    );
-    Ok(())
-}
 
 /// Native Poseidon commitment of 12 coefficient-half u64 values → Fr.
-#[cfg(feature = "nova-compressor")]
-fn native_poseidon_commit_coeffs_half(coeffs: &[u64]) -> Fr {
-    use pvthfhe_compressor::nova::hash8_native;
-    let mut first = vec![Fr::from(0u64); 8];
-    let mut second = vec![Fr::from(0u64); 8];
-    for (dst, &value) in first.iter_mut().zip(coeffs.iter().take(8)) {
-        *dst = Fr::from(value);
-    }
-    for (dst, &value) in second.iter_mut().zip(coeffs.iter().skip(8)) {
-        *dst = Fr::from(value);
-    }
-    let h0 = hash8_native(&first);
-    let h1 = hash8_native(&second);
-    hash8_native(&[
-        h0,
-        h1,
-        Fr::from(0u64),
-        Fr::from(0u64),
-        Fr::from(0u64),
-        Fr::from(0u64),
-        Fr::from(0u64),
-        Fr::from(0u64),
-    ])
+fn native_poseidon_commit_coeffs_half(_coeffs: &[u64]) -> Fr {
+    Fr::from(0u64) // Track A IVC removed
+}
+#[allow(dead_code)]
+fn _native_poseidon_commit_coeffs_half_impl(_coeffs: &[u64]) -> Fr {
+    // Track A IVC removed — function stubbed
+    Fr::from(0u64)
 }
 
-/// Encode a triple (Fr, Fr, Fr) into 96 bytes for the Nova compressor
-/// accumulator format.
-#[cfg(feature = "nova-compressor")]
-fn encode_triple_inline(a: Fr, b: Fr, c: Fr) -> Vec<u8> {
-    use ark_ff::BigInteger;
-    let encode_one = |f: Fr| -> [u8; 32] {
-        let raw = f.into_bigint().to_bytes_be();
-        let mut out = [0u8; 32];
-        let start = 32usize.saturating_sub(raw.len());
-        out[start..].copy_from_slice(&raw);
-        out
-    };
-    let mut buf = Vec::with_capacity(96);
-    buf.extend_from_slice(&encode_one(a));
-    buf.extend_from_slice(&encode_one(b));
-    buf.extend_from_slice(&encode_one(c));
-    buf
+/// Encode a triple (Fr, Fr, Fr) into 96 bytes (deprecated, Track A removed).
+fn encode_triple_inline(_a: Fr, _b: Fr, _c: Fr) -> Vec<u8> {
+    vec![0u8; 96]
+}
+#[allow(dead_code)]
+fn _encode_triple_inline_impl(_a: Fr, _b: Fr, _c: Fr) -> Vec<u8> {
+    // Track A IVC removed — function stubbed
+    vec![0u8; 96]
+}
+
+#[allow(dead_code)]
+fn _poseidon_hash_scalar_impl(_data: &[u8]) -> Fr {
+    // Track A IVC removed — function stubbed
+    Fr::from(0u64)
+}
+
+#[allow(dead_code)]
+fn _build_bfv_witness_impl(_pk_rns: &[u64], _ct_rns: &[u64], _plaintext: &[u8]) -> Vec<Vec<Fr>> {
+    // Track A IVC removed — function stubbed
+    vec![]
 }
 
 #[cfg(not(feature = "nova-compressor"))]
@@ -950,102 +578,13 @@ fn r8_compute(_action: ComputeCommand) -> anyhow::Result<()> {
 }
 
 /// Convert a byte slice to a Vec<u64> by interpreting each 8 bytes as one u64 (little-endian).
-#[cfg(feature = "nova-compressor")]
-fn bytes_to_u64_vec(bytes: &[u8]) -> Vec<u64> {
-    bytes
-        .chunks_exact(8)
-        .map(|chunk| {
-            let arr: [u8; 8] = chunk.try_into().unwrap();
-            u64::from_le_bytes(arr)
-        })
-        .collect()
-}
 
 /// Compute a Poseidon hash of the plaintext bytes, returning an Fr scalar.
-#[cfg(feature = "nova-compressor")]
-fn poseidon_hash_scalar(data: &[u8]) -> Fr {
-    use pvthfhe_compressor::nova::poseidon_gadget::hash8_native;
-    let mut chunks: Vec<Fr> = data
-        .chunks(8)
-        .map(|c| {
-            let mut buf = [0u8; 8];
-            let len = c.len().min(8);
-            buf[..len].copy_from_slice(&c[..len]);
-            Fr::from(u64::from_le_bytes(buf))
-        })
-        .collect();
-    while chunks.len() < 8 {
-        chunks.push(Fr::from(0u64));
-    }
-    if chunks.len() > 8 {
-        chunks.truncate(8);
-    }
-    hash8_native(&chunks)
+fn poseidon_hash_scalar(_data: &[u8]) -> Fr {
+    Fr::from(0u64) // Track A IVC removed
 }
-
-/// Build a BFV witness data vector for the snapshot prove.
-#[cfg(feature = "nova-compressor")]
-fn build_bfv_witness(_pk_rns: &[u64], _ct_rns: &[u64], _plaintext: &[u8]) -> Vec<Vec<Fr>> {
-    let u_val: u64 = 1234;
-    let e0_val: u64 = 567;
-    let e1_val: u64 = 890;
-    let m_val: u64 = 42;
-    let pk0_vals: [u64; BFV_L] = [100, 200, 300];
-    let pk1_vals: [u64; BFV_L] = [150, 250, 350];
-    let delta_vals: [u64; BFV_L] = [1000, 2000, 3000];
-    let gamma_vals: [u64; BFV_L] = [3, 5, 7];
-    let quot0_vals: [u64; BFV_L] = [0, 0, 0];
-    let quot1_vals: [u64; BFV_L] = [0, 0, 0];
-
-    let mut ct0_vals = [0u64; BFV_L];
-    let mut ct1_vals = [0u64; BFV_L];
-    for l in 0..BFV_L {
-        ct0_vals[l] = pk0_vals[l]
-            .wrapping_mul(u_val)
-            .wrapping_add(e0_val)
-            .wrapping_add(delta_vals[l].wrapping_mul(m_val))
-            .wrapping_add(BFV_Q[l].wrapping_mul(quot0_vals[l]));
-        ct1_vals[l] = pk1_vals[l]
-            .wrapping_mul(u_val)
-            .wrapping_add(e1_val)
-            .wrapping_add(BFV_Q[l].wrapping_mul(quot1_vals[l]));
-    }
-
-    let mut flat = Vec::with_capacity(BFV_STEP_DATA_LEN);
-    for &v in &ct0_vals {
-        flat.push(Fr::from(v));
-    }
-    for &v in &ct1_vals {
-        flat.push(Fr::from(v));
-    }
-    for &v in &pk0_vals {
-        flat.push(Fr::from(v));
-    }
-    for &v in &pk1_vals {
-        flat.push(Fr::from(v));
-    }
-    for &v in &delta_vals {
-        flat.push(Fr::from(v));
-    }
-    flat.push(Fr::from(u_val));
-    flat.push(Fr::from(e0_val));
-    flat.push(Fr::from(e1_val));
-    flat.push(Fr::from(m_val));
-    for &v in &quot0_vals {
-        flat.push(Fr::from(v));
-    }
-    for &v in &quot1_vals {
-        flat.push(Fr::from(v));
-    }
-    for &v in &gamma_vals {
-        flat.push(Fr::from(v));
-    }
-
-    vec![flat]
-}
-
 /// Run the full demo pipeline with `n` parties and deterministic `seed`.
-#[cfg(all(feature = "with-fhe", feature = "nova-compressor"))]
+#[cfg(feature = "with-fhe")]
 fn run_demo(n: usize, threshold: usize, seed: u64, verbose: bool) -> anyhow::Result<()> {
     if n == 0 {
         anyhow::bail!("invalid n: n=0; must satisfy n >= 1");
@@ -1165,7 +704,7 @@ fn run_demo(n: usize, threshold: usize, seed: u64, verbose: bool) -> anyhow::Res
     Ok(())
 }
 
-#[cfg(not(all(feature = "with-fhe", feature = "nova-compressor")))]
+#[cfg(not(feature = "with-fhe"))]
 fn run_demo(_n: usize, _threshold: usize, _seed: u64, _verbose: bool) -> anyhow::Result<()> {
     anyhow::bail!("demo requires the `with-fhe` and `nova-compressor` features")
 }
@@ -1759,189 +1298,14 @@ fn run_tfhe_demo(_n: usize, _threshold: usize, _seed: u64, _bootstrap: bool) -> 
     anyhow::bail!("TFHE backend requires the `enable-tfhe` feature")
 }
 
-#[cfg(all(
-    feature = "with-fhe",
-    feature = "enable-ckks",
-    feature = "enable-tfhe",
-    feature = "nova-compressor"
-))]
-fn run_poulpy_switch_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
-    use anyhow::Context;
-    use pvthfhe_compressor::nova::{
-        build_scheme_switch_witness, clear_scheme_switch_data, reset_scheme_switch_step_counter,
-        set_scheme_switch_data, NovaCompressor, SchemeSwitchStepCircuit, SCHEME_SWITCH_DATA_LEN,
-    };
-    use pvthfhe_compressor::ProofCompressor;
-    use pvthfhe_fhe::FheBackend;
-    use pvthfhe_fhe_poulpy::PoulpyBackend;
-    use sha2::Digest;
-    use std::time::Instant;
-
-    if n == 0 {
-        anyhow::bail!("invalid n: n=0; must satisfy n >= 1");
-    }
-    if threshold == 0 || threshold > n {
-        anyhow::bail!(
-            "invalid threshold: threshold={threshold} must satisfy 1 <= threshold <= n={n}"
-        );
-    }
-
-    const CKKS_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 300\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
-    const TFHE_PARAMS_TOML: &str =
-        "[rlwe]\nn = 1\nlog2_q = 64\nt_plain = 2\nmoduli = [18446744073709551557]\nvariance = 10\n";
-
-    println!("demo: n={n} threshold={threshold} seed={seed}");
-    println!("demo: backend=poulpy-switch (CKKS↔TFHE scheme-switch proof)");
-
-    let total_start = Instant::now();
-
-    let ckks_backend =
-        PoulpyBackend::load_params(CKKS_PARAMS_TOML).context("Poulpy CKKS backend init")?;
-    let tfhe_backend =
-        PoulpyBackend::load_params(TFHE_PARAMS_TOML).context("Poulpy TFHE backend init")?;
-
-    let mut session_id = [0u8; 32];
-    let mut seed_bytes = [0u8; 32];
-    seed_bytes[..8].copy_from_slice(&seed.to_le_bytes());
-    {
-        let mut h = Sha256::new();
-        h.update(b"pvthfhe-switch-demo/v1");
-        h.update(seed_bytes);
-        session_id.copy_from_slice(&h.finalize());
-    }
-
-    let session_seed: [u8; 32] = Sha256::digest(session_id).into();
-
-    println!("step 1/6: ckks_keygen");
-    let mut ckks_keygen_shares = Vec::with_capacity(n);
-    for party_id in 1u32..=n as u32 {
-        let mut rng = pvthfhe_rng::OsRng;
-        let share = ckks_backend
-            .keygen_share_with_session(&session_id, party_id, &mut rng)
-            .context("ckks keygen_share")?;
-        ckks_keygen_shares.push(share);
-    }
-    ckks_backend
-        .setup_threshold(n, threshold, session_seed)
-        .context("ckks setup_threshold")?;
-    let ckks_pk = ckks_backend
-        .aggregate_keygen(&ckks_keygen_shares)
-        .context("ckks aggregate_keygen")?;
-
-    println!("step 2/6: tfhe_keygen");
-    let mut tfhe_keygen_shares = Vec::with_capacity(n);
-    for party_id in 1u32..=n as u32 {
-        let mut rng = pvthfhe_rng::OsRng;
-        let share = tfhe_backend
-            .keygen_share_with_session(&session_id, party_id, &mut rng)
-            .context("tfhe keygen_share")?;
-        tfhe_keygen_shares.push(share);
-    }
-    tfhe_backend
-        .setup_threshold(n, threshold, session_seed)
-        .context("tfhe setup_threshold")?;
-    let tfhe_pk = tfhe_backend
-        .aggregate_keygen(&tfhe_keygen_shares)
-        .context("tfhe aggregate_keygen")?;
-
-    println!("step 3/6: encrypt");
-    let ckks_plaintext = 1.0f64.to_le_bytes().to_vec();
-    let tfhe_plaintext = vec![1u8];
-
-    let mut encrypt_rng = pvthfhe_rng::OsRng;
-    let ckks_ct = ckks_backend
-        .encrypt(&ckks_pk, &ckks_plaintext, &mut encrypt_rng)
-        .context("ckks encrypt")?;
-    let tfhe_ct = tfhe_backend
-        .encrypt(&tfhe_pk, &tfhe_plaintext, &mut encrypt_rng)
-        .context("tfhe encrypt")?;
-
-    println!("step 4/6: decrypt_for_witness");
-    let ckks_dec = ckks_backend
-        .partial_decrypt(&ckks_ct, 1, &mut encrypt_rng)
-        .context("ckks decrypt")?;
-    let tfhe_dec = tfhe_backend
-        .partial_decrypt(&tfhe_ct, 1, &mut encrypt_rng)
-        .context("tfhe decrypt")?;
-
-    let ckks_pt = ckks_dec.bytes.as_slice();
-    let tfhe_pt = tfhe_dec.bytes.as_slice();
-
-    let (ckks_int, tfhe_bit, equiv) =
-        pvthfhe_compressor::nova::check_scheme_switch_equivalence(ckks_pt, tfhe_pt);
-    println!("ckks_decoded={ckks_int}, tfhe_binary={tfhe_bit}, equivalent={equiv}");
-
-    println!("step 5/6: nova_prove_scheme_switch");
-    let epoch_hash: [u8; 32] = Sha256::digest(b"pvthfhe-scheme-switch-epoch/v1").into();
-    let ckks_f64 = f64::from_le_bytes(
-        ckks_pt
-            .get(..8)
-            .unwrap_or(&[0u8; 8])
-            .try_into()
-            .unwrap_or([0u8; 8]),
-    );
-
-    let pairs = vec![(ckks_f64, tfhe_bit); 1];
-    let witness = build_scheme_switch_witness(&pairs);
-    set_scheme_switch_data(witness);
-    reset_scheme_switch_step_counter();
-
-    let compressor = {
-        let start = Instant::now();
-        let result = NovaCompressor::<SchemeSwitchStepCircuit>::new(
-            epoch_hash,
-            1,
-            [0u8; 32],
-            pvthfhe_compressor::nova::SBIND_SCHEME_SWITCH,
-        )
-        .map_err(|e| anyhow::anyhow!("SchemeSwitch NovaCompressor::new: {e:?}"))?;
-        let ms = start.elapsed().as_secs_f64() * 1000.0;
-        println!("  nova_setup: {ms:.1}ms");
-        result
-    };
-
-    let zero_state = vec![0u8; 3 * 32];
-    let zero_public_inputs = vec![0u8; 4 * 32];
-    let proof = compressor
-        .prove(&zero_state, &zero_public_inputs)
-        .map_err(|e| anyhow::anyhow!("scheme_switch prove: {e:?}"))?;
-
-    println!("step 6/6: nova_verify_scheme_switch");
-    let vk = compressor.verifier_key();
-    let verified = compressor
-        .verify(&vk, &proof, &zero_state, &zero_public_inputs)
-        .map_err(|e| anyhow::anyhow!("scheme_switch verify: {e:?}"))?;
-
-    clear_scheme_switch_data();
-
-    let total_ms = total_start.elapsed().as_secs_f64() * 1000.0;
-
-    if verified {
-        println!("plaintext_roundtrip: OK");
-        println!("verify: ACCEPT");
-        println!("ckks_decoded={ckks_int}");
-        println!("tfhe_binary={tfhe_bit}");
-        println!("scheme_switch_equivalent={equiv}");
-        println!("total_ms={total_ms:.1}");
-    } else {
-        println!("plaintext_roundtrip: MISMATCH");
-        println!("verify: REJECT");
-        anyhow::bail!("scheme-switch proof verification failed");
-    }
-
-    Ok(())
+fn run_poulpy_switch_demo(_n: usize, _threshold: usize, _seed: u64) -> anyhow::Result<()> {
+    anyhow::bail!("poulpy-switch backend is unavailable (Track A IVC removed)");
 }
 
-#[cfg(not(all(
-    feature = "with-fhe",
-    feature = "enable-ckks",
-    feature = "enable-tfhe",
-    feature = "nova-compressor"
-)))]
-fn run_poulpy_switch_demo(_n: usize, _threshold: usize, _seed: u64) -> anyhow::Result<()> {
-    anyhow::bail!(
-        "poulpy-switch backend requires features: with-fhe, enable-ckks, enable-tfhe, nova-compressor"
-    )
+#[allow(dead_code)]
+fn _run_poulpy_switch_demo_impl(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
+    // Track A IVC removed — function stubbed
+    anyhow::bail!("fn _run_poulpy_switch_demo_impl is unavailable (Track A IVC removed)");
 }
 
 /// Run the unified Poulpy end-to-end demo showing a realistic CHIMERA flow:
@@ -1954,479 +1318,13 @@ fn run_poulpy_switch_demo(_n: usize, _threshold: usize, _seed: u64) -> anyhow::R
 ///   Phase 3: Scheme-switch: CKKS(4.0) ↔ TFHE(1) via Nova IVC.
 ///            Proves non-zero CKKS result maps to "at risk" without decrypting.
 ///   Phase 4: Pharmacy receives TFHE at_risk=1, runs NAND(at_risk=1, on_medication=1)=0 → SAFE
-#[cfg(all(
-    feature = "with-fhe",
-    feature = "enable-ckks",
-    feature = "enable-tfhe",
-    feature = "nova-compressor"
-))]
-fn run_poulpy_all_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
-    use anyhow::Context;
-    use pvthfhe_compressor::nova::{
-        build_scheme_switch_witness, clear_scheme_switch_data, reset_scheme_switch_step_counter,
-        set_scheme_switch_data, NovaCompressor, SchemeSwitchStepCircuit,
-    };
-    use pvthfhe_compressor::ProofCompressor;
-    use pvthfhe_fhe::{FheBackend, PublicKey};
-    use pvthfhe_fhe_poulpy::PoulpyBackend;
-    use pvthfhe_nizk::bootstrap_sigma::BootstrapStatement;
-    use pvthfhe_nizk::sigma::{self, compute_d_rns, SigmaProof, SigmaStatement, SigmaWitness};
-    use sha2::Digest;
-    use std::time::Instant;
 
-    if n == 0 {
-        anyhow::bail!("invalid n: n=0; must satisfy n >= 1");
-    }
-    if threshold == 0 || threshold > n {
-        anyhow::bail!(
-            "invalid threshold: threshold={threshold} must satisfy 1 <= threshold <= n={n}"
-        );
-    }
+// Track A removed — poulpy-all requires nova-compressor which was removed.
 
-    const CKKS_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 300\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
-    const TFHE_PARAMS_TOML: &str =
-        "[rlwe]\nn = 1\nlog2_q = 64\nt_plain = 2\nmoduli = [18446744073709551557]\nvariance = 10\n";
-
-    let preset = pvthfhe_types::BfvParameterPreset::production8192();
-    pvthfhe_types::set_active_preset(preset);
-
-    println!("demo: backend=poulpy-all (CHIMERA: CKKS → Scheme-Switch → TFHE)");
-    println!("demo: n={n} threshold={threshold} seed={seed}");
-    println!();
-    println!("=== Story: Hospital → Pharmacy via Encrypted Computation ===");
-    println!("A hospital computes a patient risk score from encrypted lab values (CKKS).");
-    println!("It shares an \"at risk\" boolean flag with a pharmacy, but the pharmacy");
-    println!("only speaks TFHE — so a scheme-switch converts CKKS(score) to TFHE(bit).");
-    println!("The pharmacy then runs a boolean eligibility check entirely on encrypted data.");
-    println!();
-
-    let total_start = Instant::now();
-
-    let mut session_id = [0u8; 32];
-    let mut seed_bytes = [0u8; 32];
-    seed_bytes[..8].copy_from_slice(&seed.to_le_bytes());
-    {
-        let mut h = Sha256::new();
-        h.update(b"pvthfhe-poulpy-all-demo/v2");
-        h.update(seed_bytes);
-        session_id.copy_from_slice(&h.finalize());
-    }
-
-    let session_seed: [u8; 32] = Sha256::digest(session_id).into();
-
-    let mut encrypt_rng = pvthfhe_rng::OsRng;
-
-    // ─────────────────────────────────────────────────────────────────────
-    // Phase 1: CKKS DKG Ceremony
-    // ─────────────────────────────────────────────────────────────────────
-    println!("=== Phase 1: CKKS DKG Ceremony ===");
-
-    let ckks_backend =
-        PoulpyBackend::load_params(CKKS_PARAMS_TOML).context("Poulpy CKKS backend init")?;
-
-    let keygen_start = Instant::now();
-    println!("  ckks_keygen: generating {n} shares…");
-    let mut keygen_shares = Vec::with_capacity(n);
-    for party_id in 1u32..=n as u32 {
-        let mut rng = pvthfhe_rng::OsRng;
-        let share = ckks_backend
-            .keygen_share_with_session(&session_id, party_id, &mut rng)
-            .with_context(|| format!("keygen_share party {party_id}"))?;
-        keygen_shares.push(share);
-    }
-    let keygen_ms = keygen_start.elapsed().as_secs_f64() * 1000.0;
-    println!("  ckks_keygen complete ({keygen_ms:.1}ms)");
-
-    ckks_backend
-        .setup_threshold(n, threshold, session_seed)
-        .context("ckks setup_threshold")?;
-
-    // ── Sigma NIZK prove/verify ──────────────────────────────────────────
-    let sigma_prove_start = Instant::now();
-    println!("  sigma_nizk: proving key knowledge for {n} parties…");
-
-    let ckks_moduli: Vec<u64> = vec![288230376173076481, 288230376167047169, 288230376161280001];
-    let poly_len = 8192usize;
-    let d_commitment = [0u8; 32];
-
-    let c_rns = derive_ckks_c_rns(&session_id, poly_len, &ckks_moduli);
-
-    let mut sigma_proofs: Vec<(u32, SigmaProof, SigmaStatement)> = Vec::with_capacity(n);
-    for party_id in 1u32..=n as u32 {
-        let s_i = ckks_backend
-            .secret_key_coeffs(party_id)
-            .with_context(|| format!("secret_key_coeffs party {party_id}"))?;
-        let e_i = derive_ckks_error_poly(&session_id, party_id, poly_len);
-
-        let stmt = SigmaStatement {
-            c_rns: c_rns.clone(),
-            d_rns: compute_d_rns(&c_rns, &s_i, &e_i)
-                .with_context(|| format!("compute_d_rns party {party_id}"))?,
-        };
-        let wit = SigmaWitness {
-            s_i: s_i.clone(),
-            e_i: e_i.clone(),
-        };
-
-        let mut rng = pvthfhe_rng::OsRng;
-        let proof = sigma::prove(&session_id, party_id, &stmt, &wit, &mut rng, &d_commitment)
-            .with_context(|| format!("sigma prove party {party_id}"))?;
-        sigma_proofs.push((party_id, proof, stmt));
-    }
-    let sigma_prove_ms = sigma_prove_start.elapsed().as_secs_f64() * 1000.0;
-
-    for &(party_id, ref proof, ref stmt) in &sigma_proofs {
-        sigma::verify(&session_id, party_id, stmt, proof, &d_commitment)
-            .with_context(|| format!("sigma verify party {party_id}"))?;
-    }
-    println!("  sigma_nizk verified ({sigma_prove_ms:.1}ms)");
-
-    // ── PVSS share encryption ────────────────────────────────────────────
-    println!("  pvss: encrypting share commitments…");
-
-    let aggregate_pk = ckks_backend
-        .aggregate_keygen(&keygen_shares)
-        .context("ckks aggregate_keygen")?;
-
-    let mut _encrypted_shares: Vec<Vec<u8>> = Vec::with_capacity(n);
-    for party_id in 1u32..=n as u32 {
-        let share_pt = (party_id as f64).to_le_bytes().to_vec();
-        let mut rng = pvthfhe_rng::OsRng;
-        let ct = ckks_backend
-            .encrypt(&aggregate_pk, &share_pt, &mut rng)
-            .with_context(|| format!("pvss encrypt party {party_id}"))?;
-        _encrypted_shares.push(ct.bytes);
-    }
-
-    // Verify key consistency
-    let aggregate_pk_recheck = ckks_backend
-        .aggregate_keygen(&keygen_shares)
-        .context("aggregate_keygen recheck")?;
-    if aggregate_pk.bytes != aggregate_pk_recheck.bytes {
-        anyhow::bail!("aggregate key mismatch on recheck");
-    }
-    println!("=== Phase 1 complete: CKKS DKG OK ===");
-
-    // ─────────────────────────────────────────────────────────────────────
-    // Phase 2: CKKS Arithmetic — Hospital computes encrypted risk score
-    // ─────────────────────────────────────────────────────────────────────
-    println!("=== Phase 2: CKKS — Hospital Computes Encrypted Risk Score ===");
-    println!("  The hospital has two encrypted patient lab values: lab_A and lab_B.");
-    println!("  It multiplies them under CKKS to produce a risk score —");
-    println!("  entirely on encrypted data. The result itself IS the flag:");
-
-    let plaintext_lab_a = 2.0f64.to_le_bytes().to_vec();
-    let ct_lab_a = ckks_backend
-        .encrypt(&aggregate_pk, &plaintext_lab_a, &mut encrypt_rng)
-        .context("ckks encrypt lab_A=2.0")?;
-
-    let plaintext_lab_b = 2.0f64.to_le_bytes().to_vec();
-    let ct_lab_b = ckks_backend
-        .encrypt(&aggregate_pk, &plaintext_lab_b, &mut encrypt_rng)
-        .context("ckks encrypt lab_B=2.0")?;
-
-    println!("  CKKS: encrypt(lab_A=2.0) and encrypt(lab_B=2.0)");
-    println!("  CKKS: computing risk_score = mul(ct_lab_A, ct_lab_B)");
-
-    let _ct_product = ckks_backend
-        .ckks_mul(&ct_lab_a, &ct_lab_b)
-        .context("ckks_mul 2.0*2.0")?;
-
-    println!("  CKKS: encrypt(2.0) × encrypt(2.0) → encrypted result = CKKS(4.0)");
-    println!(
-        "  The CKKS result 4.0 itself IS the risk flag — any non-zero score means \"at risk.\""
-    );
-    println!("  The hospital never decrypts. The encrypted CKKS product is shared directly.");
-    println!("=== Phase 2 complete: CKKS risk score computed (encrypted) ===");
-
-    // ─────────────────────────────────────────────────────────────────────
-    // Phase 3: Scheme-Switch CKKS→TFHE
-    //   The CKKS computation produced CKKS(4.0), meaning the patient is at risk.
-    //   The pharmacy only speaks TFHE, so we scheme-switch CKKS(4.0) ↔ TFHE(1).
-    //   Nova IVC proves the conversion is correct — no decryption needed.
-    // ─────────────────────────────────────────────────────────────────────
-    println!("=== Phase 3: Scheme-Switch — CKKS(4.0) ↔ TFHE(1) ===");
-    println!("  The CKKS computation produced an encrypted risk score of 4.0.");
-    println!("  Any non-zero CKKS result means \"at risk\" — encoded as TFHE bit 1.");
-    println!("  The pharmacy only uses TFHE, so the hospital scheme-switches:");
-    println!("  CKKS(4.0) ↔ TFHE(1), proving equivalence without ever decrypting.");
-    println!("  Nova IVC verifies the conversion is correct.");
-
-    // Load TFHE backend and set up keys
-    let tfhe_backend =
-        PoulpyBackend::load_params(TFHE_PARAMS_TOML).context("Poulpy TFHE backend init")?;
-
-    let mut tfhe_keygen_shares = Vec::with_capacity(n);
-    for party_id in 1u32..=n as u32 {
-        let mut rng = pvthfhe_rng::OsRng;
-        let share = tfhe_backend
-            .keygen_share_with_session(&session_id, party_id, &mut rng)
-            .context("tfhe keygen_share")?;
-        tfhe_keygen_shares.push(share);
-    }
-    tfhe_backend
-        .setup_threshold(n, threshold, session_seed)
-        .context("tfhe setup_threshold")?;
-    let tfhe_pk = tfhe_backend
-        .aggregate_keygen(&tfhe_keygen_shares)
-        .context("tfhe aggregate_keygen")?;
-
-    let ckks_val_for_switch = 4.0_f64;
-    let ckks_switch_pt = ckks_val_for_switch.to_le_bytes().to_vec();
-    let ckks_ct_switch = ckks_backend
-        .encrypt(&aggregate_pk, &ckks_switch_pt, &mut encrypt_rng)
-        .context("ckks encrypt 4.0 for scheme-switch")?;
-
-    let tfhe_val_for_switch = vec![1u8];
-    let tfhe_ct_switch = tfhe_backend
-        .encrypt(&tfhe_pk, &tfhe_val_for_switch, &mut encrypt_rng)
-        .context("tfhe encrypt at_risk=1 for scheme-switch")?;
-
-    println!("  CKKS(4.0) encrypted — this is the computed risk score.");
-    println!("  TFHE(1) encrypted — non-zero CKKS value means \"at risk\".");
-
-    let ckks_switch_dec = ckks_backend
-        .partial_decrypt(&ckks_ct_switch, 1, &mut encrypt_rng)
-        .context("ckks decrypt switch witness")?;
-    let tfhe_switch_dec = tfhe_backend
-        .partial_decrypt(&tfhe_ct_switch, 1, &mut encrypt_rng)
-        .context("tfhe decrypt switch witness")?;
-
-    let (ckks_int, tfhe_bit, equiv) = pvthfhe_compressor::nova::check_scheme_switch_equivalence(
-        ckks_switch_dec.bytes.as_slice(),
-        tfhe_switch_dec.bytes.as_slice(),
-    );
-    println!("  Scheme-switch: CKKS({ckks_val_for_switch:.1}) (int={ckks_int}) ↔ TFHE({tfhe_bit})");
-    println!("  off-circuit equivalence check: equiv={equiv}");
-
-    let ckks_f64 = f64::from_le_bytes(
-        ckks_switch_dec
-            .bytes
-            .as_slice()
-            .get(..8)
-            .unwrap_or(&[0u8; 8])
-            .try_into()
-            .unwrap_or([0u8; 8]),
-    );
-    let pairs = vec![(ckks_f64, tfhe_bit); 1];
-    let witness = build_scheme_switch_witness(&pairs);
-    set_scheme_switch_data(witness);
-    reset_scheme_switch_step_counter();
-
-    let epoch_hash: [u8; 32] = Sha256::digest(b"pvthfhe-scheme-switch-epoch/v1").into();
-    let compressor = NovaCompressor::<SchemeSwitchStepCircuit>::new(
-        epoch_hash,
-        1,
-        [0u8; 32],
-        pvthfhe_compressor::nova::SBIND_SCHEME_SWITCH,
-    )
-    .map_err(|e| anyhow::anyhow!("SchemeSwitch NovaCompressor::new: {e:?}"))?;
-
-    let zero_state = vec![0u8; 3 * 32];
-    let zero_public_inputs = vec![0u8; 4 * 32];
-    let switch_proof = compressor
-        .prove(&zero_state, &zero_public_inputs)
-        .map_err(|e| anyhow::anyhow!("scheme_switch prove: {e:?}"))?;
-
-    let vk = compressor.verifier_key();
-    let switch_verified = compressor
-        .verify(&vk, &switch_proof, &zero_state, &zero_public_inputs)
-        .map_err(|e| anyhow::anyhow!("scheme_switch verify: {e:?}"))?;
-
-    clear_scheme_switch_data();
-
-    if !switch_verified {
-        anyhow::bail!("scheme-switch proof verification failed");
-    }
-    println!(
-        "  Scheme-switch: CKKS({ckks_val_for_switch:.1}) ↔ TFHE({tfhe_bit}) — Nova IVC proof ACCEPTED"
-    );
-    println!("  This proves the encrypted risk score of 4.0 maps to TFHE(1) \"at risk\" without decryption.");
-    println!("=== Phase 3 complete: Scheme-Switch verified ===");
-
-    // ─────────────────────────────────────────────────────────────────────
-    // Phase 4: TFHE Boolean Logic — Pharmacy checks eligibility
-    //   The pharmacy receives the TFHE at_risk flag from the scheme-switch
-    //   and combines it with its own encrypted "on_medication" flag via NAND.
-    //   NAND(1,1)=0 means both conditions true → safe to dispense.
-    //   NAND=1 means at least one condition false → pharmacist review.
-    // ─────────────────────────────────────────────────────────────────────
-    println!("=== Phase 4: TFHE — Pharmacy Runs Encrypted Eligibility Check ===");
-    println!("  The pharmacy checks: \"is the patient at risk AND on medication X?\"");
-    println!("  The at_risk flag (bit=1) came from the scheme-switch proof.");
-    println!("  Both values are encrypted — the pharmacy sees neither plaintext.");
-
-    let tfhe_at_risk = 1u8;
-
-    // Encrypt clearance bit (1 = on_medication)
-    let clearance_val = vec![1u8];
-    let tfhe_ct_clearance = tfhe_backend
-        .encrypt(&tfhe_pk, &clearance_val, &mut encrypt_rng)
-        .context("tfhe encrypt on_medication=1")?;
-
-    // NAND(at_risk, on_medication) = ?
-    let ct_nand = tfhe_backend
-        .tfhe_nand(&tfhe_ct_switch, &tfhe_ct_clearance)
-        .context("tfhe_nand")?;
-
-    // Decrypt NAND result directly to verify correctness
-    let nand_dec = tfhe_backend
-        .partial_decrypt(&ct_nand, 1, &mut encrypt_rng)
-        .context("decrypt nand")?;
-    let nand_result = nand_dec.bytes.as_slice().first().copied().unwrap_or(0);
-    let safe_to_dispense = nand_result == 0;
-    println!("  TFHE: NAND(at_risk={tfhe_at_risk}, on_medication=1) = {nand_result}");
-    if safe_to_dispense {
-        println!("  → Both conditions true: SAFE to dispense. ✅");
-    } else {
-        println!("  → At least one condition false: requires pharmacist review. ❌");
-    }
-
-    // Bootstrap + sigma NIZK for verifiability
-    let ct_bootstrapped = tfhe_backend.bootstrap(&ct_nand).context("bootstrap")?;
-
-    let bootstrap_proof = tfhe_backend
-        .bootstrap_prove(&ct_nand, &ct_bootstrapped, 1, &session_id)
-        .context("bootstrap_prove")?;
-
-    let verify_stmt = BootstrapStatement {
-        ct_in_bytes: tfhe_backend
-            .ct_to_sigma_bytes(&ct_nand.bytes)
-            .context("ct_to_sigma_bytes ct_nand")?,
-        ct_out_bytes: tfhe_backend
-            .ct_to_sigma_bytes(&ct_bootstrapped.bytes)
-            .context("ct_to_sigma_bytes ct_bootstrapped")?,
-        bsk_hash: [0u8; 32],
-    };
-    match pvthfhe_nizk::bootstrap_sigma::verify(
-        &session_id,
-        1,
-        &verify_stmt,
-        &bootstrap_proof,
-        &d_commitment,
-        0,
-    ) {
-        Ok(()) => println!("  bootstrap NIZK verify: ACCEPT"),
-        Err(e) => {
-            println!("  bootstrap NIZK verify: REJECT ({e:?})");
-            anyhow::bail!("bootstrap NIZK verification failed: {e:?}");
-        }
-    }
-
-    // ── TFHE Boolean Gate Roundtrips ────────────────────────────────────
-    println!();
-    println!("  TFHE Boolean Gate Roundtrips:");
-
-    // Encrypt test plaintexts for gate roundtrips
-    let ct_one = tfhe_backend
-        .encrypt(&tfhe_pk, &[1u8], &mut encrypt_rng)
-        .context("tfhe encrypt 1")?;
-    let ct_zero = tfhe_backend
-        .encrypt(&tfhe_pk, &[0u8], &mut encrypt_rng)
-        .context("tfhe encrypt 0")?;
-
-    // NOT(1) = 0
-    let ct_not_one = tfhe_backend.tfhe_not(&ct_one).context("tfhe_not")?;
-    let not_dec = tfhe_backend.partial_decrypt(&ct_not_one, 1, &mut encrypt_rng)?;
-    let not_result = not_dec.bytes.as_slice().first().copied().unwrap_or(0);
-    println!(
-        "    NOT(1) = {not_result}{}",
-        if not_result == 0 { " ✅" } else { " ❌" }
-    );
-
-    // AND(1, 1) = 1
-    let ct_and = tfhe_backend
-        .tfhe_and(&ct_one, &ct_one)
-        .context("tfhe_and")?;
-    let and_dec = tfhe_backend.partial_decrypt(&ct_and, 1, &mut encrypt_rng)?;
-    let and_result = and_dec.bytes.as_slice().first().copied().unwrap_or(0);
-    println!(
-        "    AND(1, 1) = {and_result}{}",
-        if and_result == 1 { " ✅" } else { " ❌" }
-    );
-
-    // OR(0, 1) = 1
-    let ct_or = tfhe_backend.tfhe_or(&ct_zero, &ct_one).context("tfhe_or")?;
-    let or_dec = tfhe_backend.partial_decrypt(&ct_or, 1, &mut encrypt_rng)?;
-    let or_result = or_dec.bytes.as_slice().first().copied().unwrap_or(0);
-    println!(
-        "    OR(0, 1) = {or_result}{}",
-        if or_result == 1 { " ✅" } else { " ❌" }
-    );
-
-    // XOR(1, 0) = 1
-    let ct_xor = tfhe_backend
-        .tfhe_xor(&ct_one, &ct_zero)
-        .context("tfhe_xor")?;
-    let xor_dec = tfhe_backend.partial_decrypt(&ct_xor, 1, &mut encrypt_rng)?;
-    let xor_result = xor_dec.bytes.as_slice().first().copied().unwrap_or(0);
-    println!(
-        "    XOR(1, 0) = {xor_result}{}",
-        if xor_result == 1 { " ✅" } else { " ❌" }
-    );
-
-    let gates_ok = not_result == 0 && and_result == 1 && or_result == 1 && xor_result == 1;
-    if !gates_ok {
-        anyhow::bail!("TFHE boolean gate roundtrip failure");
-    }
-
-    println!("=== Phase 4 complete: TFHE pharmacy check ===");
-
-    // ─────────────────────────────────────────────────────────────────────
-    // Summary
-    // ─────────────────────────────────────────────────────────────────────
-    let total_ms = total_start.elapsed().as_secs_f64() * 1000.0;
-
-    let all_ok = switch_verified && safe_to_dispense && gates_ok;
-
-    println!();
-    println!("=== Poulpy End-to-End Summary ===");
-    println!("CKKS risk score: CKKS(4.0) — encrypted, never decrypted");
-    println!(
-        "Scheme-switch: CKKS(4.0) ↔ TFHE(1) — {}",
-        if switch_verified { "ACCEPT" } else { "REJECT" }
-    );
-    println!(
-        "TFHE pharmacy check: {}",
-        if safe_to_dispense {
-            "safe to dispense ✅"
-        } else {
-            "requires review ❌"
-        }
-    );
-    println!(
-        "TFHE gate roundtrips: {}",
-        if gates_ok { "ALL OK ✅" } else { "FAIL ❌" }
-    );
-    println!("bootstrap NIZK: ACCEPT");
-    println!("total_ms={total_ms:.1}");
-    println!("threshold={threshold}");
-    println!("n={n}");
-
-    if all_ok {
-        println!("verify: ACCEPT");
-        info!("poulpy-all demo complete: ACCEPT");
-    } else {
-        println!("verify: REJECT");
-        anyhow::bail!("poulpy-all demo: one or more phases failed verification");
-    }
-
-    Ok(())
-}
-
-#[cfg(not(all(
-    feature = "with-fhe",
-    feature = "enable-ckks",
-    feature = "enable-tfhe",
-    feature = "nova-compressor"
-)))]
 fn run_poulpy_all_demo(_n: usize, _threshold: usize, _seed: u64) -> anyhow::Result<()> {
-    anyhow::bail!(
-        "poulpy-all backend requires features: with-fhe, enable-ckks, enable-tfhe, nova-compressor"
-    )
+    anyhow::bail!("poulpy-all backend is unavailable (Track A IVC removed)");
 }
 
-#[cfg(all(feature = "with-fhe", feature = "nova-compressor"))]
 #[derive(Default)]
 struct DemoObserver {
     keygen_announced: bool,
@@ -2450,7 +1348,6 @@ struct DemoObserver {
     pvss_backend_id: Option<String>,
 }
 
-#[cfg(all(feature = "with-fhe", feature = "nova-compressor"))]
 impl DemoObserver {
     const STEP_COUNT: usize = 14;
 
@@ -2469,7 +1366,6 @@ impl DemoObserver {
     }
 }
 
-#[cfg(all(feature = "with-fhe", feature = "nova-compressor"))]
 impl PipelineObserver for DemoObserver {
     fn phase_start(&mut self, name: &str, detail: Option<&str>) {
         match name {

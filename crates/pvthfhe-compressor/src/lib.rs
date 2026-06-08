@@ -1,4 +1,5 @@
 //! Frozen trait surface for the P2→P3 proof-compression boundary.
+//! Track A (Nova BN254+Grumpkin) removed — Track B (LatticeFold+/Cyclo) is the sole backend.
 
 #![allow(
     missing_docs,
@@ -15,9 +16,6 @@
     clippy::new_without_default
 )]
 
-#[cfg(all(feature = "production-profile", feature = "legacy-nova"))]
-compile_error!("pvthfhe-compressor production-profile forbids legacy-nova");
-
 /// Poseidon-based 8-ary Merkle tree for share coefficient commitment.
 pub mod merkle;
 
@@ -27,28 +25,17 @@ pub mod poly_eval;
 /// Witness generation pipeline for C7 decryption aggregation.
 pub mod witness;
 
-/// Nova-backed proof compressor (nova-snark).
-pub mod nova;
-
-/// MicroNova recursive compression (P3-M2).
-pub mod micronova;
-
 /// LatticeFold+ lattice-native folding (P3).
-#[cfg(feature = "enable-latticefold")]
 pub mod latticefold;
 
 /// Opaque compressed-proof bytes.
 ///
-/// The wire format encodes an IVC folding proof followed by an optional
-/// SNARK wrapping proof (Groth16/PLONK) of the final relaxed R1CS instance.
-/// When `snark_len == 0`, no SNARK wrapper is present and the on-chain
-/// verifier uses the P4 IVC proof binding
-/// (see `circuits/nova_state_commitment/src/main.nr`).
+/// The wire format encodes a Cyclo LatticeFold+ accumulator proof.
+/// Nova SNARK wrapping is deprecated (Track A removed, P4).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompressedProof {
     pub bytes: Vec<u8>,
     pub ivc_proof_hash: Option<[u8; 32]>,
-    pub ivc_binding: Option<crate::nova::snark_bridge::IvcBindingData>,
     pub share_verification_hash: Option<[u8; 32]>,
     /// Hash of all sigma witness data bound to this proof (H2).
     pub sigma_data_hash: Option<[u8; 32]>,
@@ -59,7 +46,6 @@ impl CompressedProof {
         CompressedProof {
             bytes,
             ivc_proof_hash: None,
-            ivc_binding: None,
             share_verification_hash: None,
             sigma_data_hash: None,
         }
@@ -79,10 +65,9 @@ impl CompressedProof {
     }
 }
 
-fn parse_snark_present(data: &[u8]) -> bool {
-    crate::nova::parse_proof(data)
-        .map(|p| p.snark_bytes.is_some())
-        .unwrap_or(false)
+/// Track A (Nova) removed — no SNARK proofs remain.
+fn parse_snark_present(_data: &[u8]) -> bool {
+    false
 }
 
 /// Shared verifier-key metadata for proof-compression backends.

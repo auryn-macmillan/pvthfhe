@@ -2,13 +2,64 @@
 //!
 //! Uses Poseidon sponge hashing for share coefficient commitments,
 //! computes polynomial evaluations, and verifies commitments
-//! off-circuit before Nova folding.
+//! off-circuit before folding.
 
 use ark_bn254::Fr;
 use ark_ff::{Field, Zero};
 
-use crate::nova::poseidon_gadget::PoseidonParams;
 use crate::poly_eval::eval_poly_bn254;
+
+// ── Poseidon parameters (Track A: Nova removed, local stub) ──────────────
+
+/// Canonical BN254 Poseidon config: rate = 4, capacity = 1, t = 5.
+/// Full rounds=8, partial rounds=56. Round constants are deterministic
+/// placeholders; replace with proper constants when Poseidon is re-added.
+pub struct PoseidonParams<F> {
+    pub t: usize,
+    pub rate: usize,
+    pub capacity: usize,
+    pub full_rounds: usize,
+    pub partial_rounds: usize,
+    pub ark: Vec<Vec<F>>,
+    pub mds: Vec<Vec<F>>,
+}
+
+impl PoseidonParams<Fr> {
+    /// Canonical BN254 Poseidon configuration.
+    ///
+    /// NOTE: Round constants and MDS matrix are zero-initialized placeholders.
+    /// Real Poseidon permutation requires proper constants from the canonical spec.
+    /// This stub preserves API compatibility; hash outputs are NOT compatible
+    /// with the original Nova-based Poseidon.
+    pub fn canonical() -> Self {
+        let t = 5;
+        let full_rounds = 8;
+        let partial_rounds = 56;
+        let total_rounds = full_rounds + partial_rounds;
+
+        let ark: Vec<Vec<Fr>> = (0..total_rounds)
+            .map(|_| (0..t).map(|_| Fr::from(0u64)).collect())
+            .collect();
+
+        let mds: Vec<Vec<Fr>> = (0..t)
+            .map(|i| {
+                (0..t)
+                    .map(|j| if i == j { Fr::from(1u64) } else { Fr::from(0u64) })
+                    .collect()
+            })
+            .collect();
+
+        Self {
+            t,
+            rate: 4,
+            capacity: 1,
+            full_rounds,
+            partial_rounds,
+            ark,
+            mds,
+        }
+    }
+}
 
 // ── Native Poseidon permutation (duplicated from poseidon_gadget.rs) ────
 // These match the private native helpers in poseidon_gadget.rs exactly.
@@ -220,7 +271,7 @@ impl C7WitnessSet {
     ///
     /// Returns `true` if every participant's `coeff_commitment` matches
     /// the Poseidon sponge hash of their `coeffs`.
-    /// Must be called before Nova folding to ensure input integrity.
+    /// Must be called before folding to ensure input integrity.
     pub fn verify_commitments(&self) -> bool {
         for witness in &self.participants {
             if hash_all_coeffs_with_domain(&witness.coeffs, DOMAIN_COEFF_COMMITMENT)
@@ -234,7 +285,7 @@ impl C7WitnessSet {
 
     /// Verify that the Lagrange coefficients sum to 1 (off-circuit sanity check).
     ///
-    /// The Nova circuit enforces this incrementally; this check catches
+    /// The folding circuit enforces this incrementally; this check catches
     /// input errors early.
     pub fn verify_lagrange_sum(&self) -> bool {
         let sum: Fr = self
@@ -307,11 +358,6 @@ impl AjtaiCommitmentWitnessSet {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::nova::poseidon_gadget::PoseidonSpongeVar;
-    use ark_r1cs_std::alloc::AllocVar;
-    use ark_r1cs_std::fields::fp::FpVar;
-    use ark_r1cs_std::GR1CSVar;
-    use ark_relations::gr1cs::ConstraintSystem;
 
     /// Number of share polynomial coefficients (must match c7_circuit.rs:27).
     const N_COEFFS: usize = 8192;
@@ -351,32 +397,7 @@ mod tests {
         assert_ne!(h1, h3, "different inputs must produce different hashes");
     }
 
-    #[test]
-    fn test_hash_all_coeffs_matches_circuit() {
-        // Use a modest size — sponge absorb/squeeze logic is identical at any size.
-        let n = 16;
-        let coeffs: Vec<Fr> = (0..n).map(|i| Fr::from(i as u64)).collect();
-
-        let native_result = hash_all_coeffs(&coeffs);
-
-        let cs = ConstraintSystem::<Fr>::new_ref();
-        let mut sponge = PoseidonSpongeVar::new();
-        let input_vars: Vec<FpVar<Fr>> = coeffs
-            .iter()
-            .map(|v| FpVar::new_witness(cs.clone(), || Ok(*v)).unwrap())
-            .collect();
-
-        sponge.absorb(&input_vars).unwrap();
-        let circuit_result = sponge.squeeze_one().unwrap();
-
-        assert_eq!(
-            circuit_result.value().unwrap(),
-            native_result,
-            "circuit PoseidonSpongeVar result must match native hash_all_coeffs"
-        );
-        assert!(
-            cs.is_satisfied().unwrap(),
-            "constraint system must be satisfied"
-        );
-    }
+    // NOTE: test_hash_all_coeffs_matches_circuit test removed —
+    // requires PoseidonSpongeVar from the nova module (Track A removed).
+    // Re-add when PoseidonVar is available from a non-Nova source.
 }

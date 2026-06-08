@@ -31,9 +31,10 @@ demo-e2e n="10" t="4" seed="1":
         demo --n $(echo "{{n}}" | sed 's/^n=//') --threshold $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//') \
         2>&1 | tee .sisyphus/evidence/demo-e2e.log
 
-# Track A: Sonobe Nova/hash-then-fold (set PVTHFHE_TRACK=A).
-demo-e2e-track-a n="10" t="4" seed="1":
-    PVTHFHE_TRACK=A just demo-e2e $(echo "{{n}}" | sed 's/^n=//') $(echo "{{t}}" | sed 's/^t=//') $(echo "{{seed}}" | sed 's/^seed=//')
+# Track A: Sonobe Nova/hash-then-fold — REMOVED (P4 deprecation).
+# Use LatticeFold+ (enable-latticefold) instead.
+# demo-e2e-track-a n="10" t="4" seed="1":
+#     PVTHFHE_TRACK=A just demo-e2e $(echo "{{n}}" | sed 's/^n=//') $(echo "{{t}}" | sed 's/^t=//') $(echo "{{seed}}" | sed 's/^seed=//')
 
 # Per-node simulation — measures wall time for ONE party at given n and t
 per-node n="10" t="4" seed="1":
@@ -82,8 +83,21 @@ wire-gate:
 
 compressor-gate:
     cargo test -p pvthfhe-compressor
-    cargo test -p pvthfhe-cli --test e2e_uses_nova --features nova-compressor
-    cargo test -p pvthfhe-compressor --test micronova_compression --features nova-compressor || echo "NOTE: micronova tests need nova-compressor feature"
+    @echo "compressor-gate: Track A removed, only LatticeFold+ tests remain"
+
+ajtai-onchain-gate:
+    @echo "=== Ajtai commitment circuit (P4 on-chain decider) ==="
+    cd circuits && nargo compile --package ajtai_commitment
+    cd circuits && nargo execute --package ajtai_commitment
+    cd circuits && bb write_vk --scheme ultra_honk -b target/ajtai_commitment.json -o target
+    cd circuits && bb prove --scheme ultra_honk -b target/ajtai_commitment.json -w target/ajtai_commitment.gz -o target
+    cd circuits && bb verify --scheme ultra_honk -k target/vk -p target/proof -i target/public_inputs
+    # Tampered proof must be rejected
+    cd circuits && cp target/proof /tmp/proof_tampered_ajtai
+    printf '\xde\xad\xbe\xef' | dd of=/tmp/proof_tampered_ajtai bs=1 seek=10 conv=notrunc 2>/dev/null
+    cd circuits && bb verify --scheme ultra_honk -k target/vk -p /tmp/proof_tampered_ajtai -i target/public_inputs \
+        && exit 1 || true
+    @echo "=== P4: UltraHonk proof accepted, tampered proof rejected — PASS ==="
 
 pvss-gate:
     cargo test --test policy_invariants
@@ -96,7 +110,7 @@ bench-comparison-gate:
     @sh -eu -c 'latest_comparison=$(ls -t bench/results/comparison-*.md | head -n 1); [ -n "$latest_comparison" ]; comparison_rows=$(grep "^|" "$latest_comparison" || true); if printf "%s\n" "$comparison_rows" | grep -v "real-fallback" | grep -q "surrogate"; then echo "FAIL: surrogate rows remain in comparison report"; exit 1; fi; if printf "%s\n" "$comparison_rows" | grep -q "real-fallback"; then if ! grep -q "verdict: NoGo" .sisyphus/research/nova-wrap-feasibility.md; then echo "FAIL: real-fallback requires nova-wrap-feasibility.md verdict: NoGo"; exit 1; fi; if printf "%s\n" "$comparison_rows" | grep "real-fallback" | grep -v "OnChainUltraHonkVerify" | grep -q .; then echo "FAIL: real-fallback is only allowed on the on-chain row when verdict: NoGo"; exit 1; fi; fi'
 
 noir-onchain-gate:
-    just circuit-param N=8
+    just circuit-param
     cd circuits/decrypt_share && cp Prover.toml Decrypt_share.toml && nargo execute --prover-name Decrypt_share && rm Decrypt_share.toml
     cd circuits/decrypt_share && mkdir -p target && cp ../target/decrypt_share.json target/ && cp ../target/decrypt_share.gz target/
     cd circuits/decrypt_share && bb write_vk --scheme ultra_honk -b target/decrypt_share.json -o target
@@ -112,6 +126,8 @@ noir-onchain-gate:
     cd circuits/nova_state_commitment && bb write_vk --scheme ultra_honk -b target/nova_state_commitment.json -o target
     cd circuits/nova_state_commitment && bb prove --scheme ultra_honk -b target/nova_state_commitment.json -w target/nova_state_commitment.gz -o target
     cd circuits/nova_state_commitment && bb verify --scheme ultra_honk -k target/vk -p target/proof -i target/public_inputs
+    # P4: Ajtai commitment (LatticeFold+ on-chain decider)
+    just ajtai-onchain-gate
     forge test --root contracts || true
     just verify-onchain
 
@@ -135,6 +151,12 @@ verify-onchain:
         -i circuits/nova_state_commitment/target/public_inputs \
         && exit 1 || true
     @echo "O5: honest proof accepted, tampered proof rejected — PASS"
+    # P4: Ajtai commitment UltraHonk verify
+    bb verify --scheme ultra_honk \
+        -k circuits/target/vk \
+        -p circuits/target/proof \
+        -i circuits/target/public_inputs
+    @echo "P4: Ajtai commitment proof accepted — PASS"
 
 bench-backend-compare:
     @echo "not implemented"

@@ -2,11 +2,52 @@ use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField, Zero};
 use sha3::{Digest, Keccak256};
 
-use crate::nova::{decode_quad, decode_triple, ExternalInputs3};
 use crate::{CompressedProof, CompressorError, VerifierKey};
 
 use super::fold::{double_commit, smart_commit};
 use super::range_proof::algebraic_range_check;
+
+/// External inputs triple (a, b, c) for LatticeFold folding.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExternalInputs3(pub Fr, pub Fr, pub Fr);
+
+fn encode_triple((a, b, c): (Fr, Fr, Fr)) -> Vec<u8> {
+    let mut out = Vec::with_capacity(96);
+    out.extend_from_slice(&a.into_bigint().to_bytes_be());
+    out.extend_from_slice(&b.into_bigint().to_bytes_be());
+    out.extend_from_slice(&c.into_bigint().to_bytes_be());
+    out
+}
+
+fn encode_quad((a, b, c, d): (Fr, Fr, Fr, Fr)) -> Vec<u8> {
+    let mut out = Vec::with_capacity(128);
+    out.extend_from_slice(&a.into_bigint().to_bytes_be());
+    out.extend_from_slice(&b.into_bigint().to_bytes_be());
+    out.extend_from_slice(&c.into_bigint().to_bytes_be());
+    out.extend_from_slice(&d.into_bigint().to_bytes_be());
+    out
+}
+
+fn decode_triple(bytes: &[u8]) -> Result<(Fr, Fr, Fr), CompressorError> {
+    if bytes.len() < 96 {
+        return Err(CompressorError::Backend("decode_triple: too short"));
+    }
+    let a = Fr::from_be_bytes_mod_order(&bytes[0..32]);
+    let b = Fr::from_be_bytes_mod_order(&bytes[32..64]);
+    let c = Fr::from_be_bytes_mod_order(&bytes[64..96]);
+    Ok((a, b, c))
+}
+
+fn decode_quad(bytes: &[u8]) -> Result<(Fr, Fr, Fr, Fr), CompressorError> {
+    if bytes.len() < 128 {
+        return Err(CompressorError::Backend("decode_quad: too short"));
+    }
+    let a = Fr::from_be_bytes_mod_order(&bytes[0..32]);
+    let b = Fr::from_be_bytes_mod_order(&bytes[32..64]);
+    let c = Fr::from_be_bytes_mod_order(&bytes[64..96]);
+    let d = Fr::from_be_bytes_mod_order(&bytes[96..128]);
+    Ok((a, b, c, d))
+}
 
 /// LatticeFold+ proof magic bytes.
 const LATTICEFOLD_PROOF_MAGIC: &[u8; 4] = b"LFPL";
@@ -106,7 +147,7 @@ impl LatticeFoldCompressor {
     }
 
     /// §5 Folding: fold n instances into one.
-    pub fn fold(&self, instances: &[ExternalInputs3<Fr>]) -> super::fold::FoldedInstance {
+    pub fn fold(&self, instances: &[ExternalInputs3]) -> super::fold::FoldedInstance {
         super::fold::fold_instances(instances, &self.srs_hash)
     }
 
@@ -311,8 +352,6 @@ mod tests {
 
     #[test]
     fn prove_verify_roundtrip_standalone() {
-        use crate::nova::encode_quad;
-        use crate::nova::encode_triple;
         let epoch = test_epoch();
         let compressor = LatticeFoldCompressor::new(epoch, 1, 131072).unwrap();
         let vk = compressor.verifier_key();
@@ -334,8 +373,6 @@ mod tests {
 
     #[test]
     fn verify_rejects_wrong_key() {
-        use crate::nova::encode_quad;
-        use crate::nova::encode_triple;
         let epoch = test_epoch();
         let compressor = LatticeFoldCompressor::new(epoch, 1, 100).unwrap();
         let wrong_vk = VerifierKey {
@@ -360,8 +397,6 @@ mod tests {
 
     #[test]
     fn prove_deterministic() {
-        use crate::nova::encode_quad;
-        use crate::nova::encode_triple;
         let epoch = test_epoch();
         let compressor = LatticeFoldCompressor::new(epoch, 1, 100).unwrap();
 

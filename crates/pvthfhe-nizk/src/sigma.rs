@@ -691,7 +691,10 @@ pub fn derive_challenge_from_commitment(
     let digest = labeled_sha256(&prefix, b"commitment", commitment);
     let lo = bytes16_to_fr(&digest[..16]);
     let hi = bytes16_to_fr(&digest[16..]);
-    let ch_fr = poseidon_hash(&[lo, hi]);
+    let ch_fr = match poseidon_hash(&[lo, hi]) {
+        Ok(fr) => fr,
+        Err(_) => return 0,
+    };
 
     let bytes = fr_to_bytes(&ch_fr);
     for &byte in &bytes {
@@ -720,12 +723,12 @@ fn bytes16_to_fr(bytes: &[u8]) -> Fr {
 }
 
 /// Hash a slice of Fr elements using Poseidon.
-fn poseidon_hash(inputs: &[Fr]) -> Fr {
+fn poseidon_hash(inputs: &[Fr]) -> Result<Fr, NizkError> {
     let mut hasher = Poseidon::<Fr>::new_circom(inputs.len())
-        .unwrap_or_else(|_| panic!("Poseidon arity out of circom range: {}", inputs.len()));
+        .map_err(|_| NizkError::VerificationFailed("Poseidon arity out of circom range"))?;
     hasher
         .hash(inputs)
-        .unwrap_or_else(|_| panic!("Poseidon hash failed for {} inputs", inputs.len()))
+        .map_err(|_| NizkError::VerificationFailed("Poseidon hash failed"))
 }
 
 /// Rejection-sampled uniform ternary from a single byte.

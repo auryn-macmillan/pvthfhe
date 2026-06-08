@@ -40,18 +40,20 @@ fn make_rng() -> ChaCha20Rng {
 fn compute_challenge(
     session_id: &str,
     fold_depth: u32,
+    params_digest: &[u8; 32],
     acc_commitment: &[u8],
     inst_ajtai_bytes: &[u8],
     inst_public_io_bytes: &[u8],
-) -> u16 {
-    let h = fiat_shamir::challenge_v1(
+) -> u64 {
+    let h = fiat_shamir::challenge_v2(
         session_id,
         fold_depth,
+        params_digest,
         acc_commitment,
         inst_ajtai_bytes,
         inst_public_io_bytes,
     );
-    u16::from_le_bytes([h[0], h[1]])
+    u64::from_le_bytes(h[..8].try_into().unwrap())
 }
 
 #[test]
@@ -59,7 +61,7 @@ fn challenge_entropy_minimum_13_bits() {
     const NUM_SAMPLES: usize = 10_000;
 
     let mut rng = make_rng();
-    let mut seen_challenges: HashSet<u16> = HashSet::new();
+    let mut seen_challenges: HashSet<u64> = HashSet::new();
 
     for i in 0..NUM_SAMPLES {
         let session_id = format!("challenge-entropy-{:05}", i);
@@ -68,9 +70,11 @@ fn challenge_entropy_minimum_13_bits() {
         let acc =
             init_accumulator(&instance, &session_id).expect("init_accumulator should succeed");
 
+        let params_digest = acc.params_digest;
         let challenge = compute_challenge(
             &acc.session_id,
             acc.fold_depth,
+            &params_digest,
             &acc.acc_commitment_bytes,
             instance.ajtai_commitment_bytes.as_ref(),
             instance.public_io_bytes.as_ref(),
@@ -88,7 +92,7 @@ fn challenge_entropy_minimum_13_bits() {
             old_depth + 1,
             &old_public_io,
             instance.public_io_bytes.as_ref(),
-            u64::from(challenge),
+            challenge,
         );
         assert_eq!(
             expected_io.as_slice(),

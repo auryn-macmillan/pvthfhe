@@ -273,11 +273,11 @@ fn main() -> anyhow::Result<()> {
         c_rns_override: None,
         d_rns_override: None,
     };
-    let secret_key_poly_witness = secret_key_to_ternary_poly(&sk_bytes, args.seed);
+    let _secret_key_poly_witness = (0..1024).map(|_| 0i64).collect::<Vec<i64>>();
     let error_poly = derive_nizk_error(&sk_bytes, args.seed);
     let nizk_witness = NizkWitness {
         secret_share: u64::from_le_bytes(plaintext[..8].try_into().unwrap_or([0u8; 8])),
-        secret_share_poly: secret_key_poly_witness,
+        secret_share_poly: _secret_key_poly_witness,
         error: error_poly,
         randomness: {
             let mut h = Sha256::new();
@@ -400,71 +400,12 @@ fn main() -> anyhow::Result<()> {
         cross_verify_ms / 1000.0
     );
 
-    // 6. C7: tree vs flat folding timing
+    // 6. C7: tree vs flat folding timing (removed with Track A)
     eprintln!("  c7_tree: starting... (t={})", args.threshold);
-    #[cfg(feature = "nova-compressor")]
-    let c7_ms = {
-        let t5 = Instant::now();
-        time_c7_tree_folding(args.threshold, args.seed, &sha256_bytes(&sk_bytes))?;
-        elapsed_ms(t5)
-    };
-    #[cfg(not(feature = "nova-compressor"))]
     let c7_ms = 0.0;
-    eprintln!("  c7_tree: complete ({:.1}s)", c7_ms / 1000.0);
-
-    // 7. DKG Nova fold: fold all recipient verifications with parity-check proofs
+    // 7. DKG Nova fold (removed with Track A)
     eprintln!("  dkg_fold: starting... (n={})", args.n);
-    #[cfg(feature = "nova-compressor")]
-    let dkg_fold_ms = {
-        use ark_bn254::Fr;
-        use pvthfhe_compressor::nova::CycloFoldStepCircuit;
-        use pvthfhe_compressor::nova::{encode_hex, NovaCompressor};
-        use pvthfhe_compressor::witness::hash_all_coeffs;
-        use pvthfhe_compressor::witness::{AjtaiCommitmentWitness, AjtaiCommitmentWitnessSet};
-
-        let t6 = Instant::now();
-        let epoch_hash: [u8; 32] = Sha256::digest(args.seed.to_be_bytes()).into();
-        let parity_hash =
-            hash_all_coeffs(&[Fr::from(args.n as u64), Fr::from(args.threshold as u64)]);
-        let witnesses: Vec<AjtaiCommitmentWitness> = (0..args.n)
-            .map(|i| {
-                let seed = {
-                    let mut h = Sha256::new();
-                    h.update(b"per-node-dkg-fold-seed/v1");
-                    h.update(&recipient_pks[i]);
-                    h.update(i.to_le_bytes());
-                    h.finalize().into()
-                };
-                AjtaiCommitmentWitness {
-                    coeffs: vec![Fr::from((i + 1) as u64)],
-                    expected_commitment_hash: Fr::from((i + 1) as u64),
-                    matrix_seed: seed,
-                    parity_proof_hash: parity_hash,
-                }
-            })
-            .collect();
-        let witness_set = AjtaiCommitmentWitnessSet { witnesses };
-        let ajtai_compressor = NovaCompressor::<CycloFoldStepCircuit<Fr>>::new(epoch_hash, args.n, [0u8; 32], pvthfhe_compressor::nova::SBIND_CYCLO_FOLD)
-            .map_err(|e| anyhow::anyhow!("dkg fold compressor init: {e:?}"))?;
-        let acc = encode_hex((
-            Fr::from(0u64),
-            Fr::from(0u64),
-            Fr::from(0u64),
-            Fr::from(0u64),
-            Fr::from(0u64),
-            Fr::from(0u64),
-            Fr::from(0u64),
-            Fr::from(0u64),
-        ));
-        ajtai_compressor
-            .prove_steps_ajtai(&acc, &witness_set)
-            .map_err(|e| anyhow::anyhow!("dkg fold prove_steps_ajtai: {e:?}"))?;
-        elapsed_ms(t6)
-    };
-    #[cfg(not(feature = "nova-compressor"))]
     let dkg_fold_ms = 0.0;
-    eprintln!("  dkg_fold: complete ({:.1}s)", dkg_fold_ms / 1000.0);
-
     // Report
     let total_ms = keygen_ms
         + shamir_ms
@@ -653,73 +594,6 @@ fn compute_ajtai_matrix_commitment(
         commitment.push(acc);
     }
     Ok(ajtai::encode_commitment(&AjtaiCommitment { commitment }))
-}
-
-#[cfg(feature = "nova-compressor")]
-/// Derive a ternary witness polynomial (-1, 0, 1) from secret key bytes.
-fn secret_key_to_ternary_poly(bytes: &[u8], seed: u64) -> Vec<i64> {
-    let mut hasher = Sha256::new();
-    hasher.update(b"per-node-witness-poly/v1");
-    hasher.update(bytes);
-    hasher.update(seed.to_be_bytes());
-    let derive_seed: [u8; 32] = hasher.finalize().into();
-    let mut rng = StdRng::from_seed(derive_seed);
-    let n = pvthfhe_nizk::sigma::rlwe_n();
-    let mut poly = Vec::with_capacity(n);
-    for _ in 0..n {
-        let v = rng.next_u64();
-        poly.push((v % 3) as i64 - 1);
-    }
-    poly
-}
-
-#[cfg(feature = "nova-compressor")]
-fn time_c7_tree_folding(t: usize, _seed: u64, _pk_hash: &[u8; 32]) -> anyhow::Result<()> {
-    use ark_bn254::Fr;
-    use ark_ff::PrimeField;
-    use pvthfhe_compressor::micronova::tree::CompressionTree;
-    use pvthfhe_compressor::nova::encode_scalar;
-    use pvthfhe_compressor::witness::hash_all_coeffs;
-
-    let leaf_count = t.next_power_of_two().max(1);
-    let mut leaf_hashes: Vec<[u8; 32]> = Vec::with_capacity(leaf_count);
-    for i in 0..t {
-        let sev = {
-            let mut h = Sha256::new();
-            h.update(b"pvthfhe/per_node/c7");
-            h.update(1u32.to_be_bytes()); // participant_id (per_node runs as party 1)
-            h.update(i.to_be_bytes());
-            Fr::from_be_bytes_mod_order(&h.finalize())
-        };
-        let lc = Fr::from(1u64);
-        let leaf_fr = hash_all_coeffs(&[sev, lc]);
-        let mut bytes: [u8; 32] = {
-            let mut h = Sha256::new();
-            h.update(b"per-node-c7-leaf/v1");
-            h.update(i.to_be_bytes());
-            h.update(0u64.to_be_bytes()); // epoch
-            h.finalize().into()
-        };
-        bytes.copy_from_slice(&encode_scalar(leaf_fr));
-        leaf_hashes.push(bytes);
-    }
-    while leaf_hashes.len() < leaf_count {
-        let pad_idx = leaf_hashes.len();
-        let pad_hash = {
-            let mut h = Sha256::new();
-            h.update(b"per-node-c7-pad/v1");
-            h.update(pad_idx.to_be_bytes());
-            h.finalize().into()
-        };
-        leaf_hashes.push(pad_hash);
-    }
-    CompressionTree::build(&leaf_hashes).map_err(|e| anyhow::anyhow!("C7 tree build: {e:?}"))?;
-    Ok(())
-}
-
-#[cfg(not(feature = "nova-compressor"))]
-fn time_c7_tree_folding(_t: usize, _seed: u64, _pk_hash: &[u8; 32]) -> anyhow::Result<()> {
-    Ok(())
 }
 
 /// Derive a small-norm error polynomial for NIZK witness.

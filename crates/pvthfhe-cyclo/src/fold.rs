@@ -46,18 +46,20 @@ fn witness_norm_estimate(witness_bytes: &[u8]) -> u64 {
 fn derive_challenge(
     session_id: &str,
     fold_depth: u32,
+    params_digest: &[u8; 32],
     acc_commitment: &[u8],
     inst_ajtai_bytes: &[u8],
     inst_public_io_bytes: &[u8],
 ) -> u64 {
-    let h = fiat_shamir::challenge_v1(
+    let h = fiat_shamir::challenge_v2(
         session_id,
         fold_depth,
+        params_digest,
         acc_commitment,
         inst_ajtai_bytes,
         inst_public_io_bytes,
     );
-    u64::from(u16::from_le_bytes([h[0], h[1]]))
+    u64::from_le_bytes(h[..8].try_into().unwrap())
 }
 
 pub fn init_accumulator(
@@ -182,6 +184,7 @@ fn fold_one_deterministic_inner(
     let r = derive_challenge(
         &acc.session_id,
         acc.fold_depth,
+        &acc.params_digest,
         &acc.acc_commitment_bytes,
         instance.ajtai_commitment_bytes.as_slice(),
         public_io_binding.as_slice(),

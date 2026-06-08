@@ -1,7 +1,21 @@
 use ark_bn254::Fr;
-use ark_ff::{One, Zero};
+use ark_ff::{BigInteger, One, PrimeField, Zero};
+use sha3::{Digest, Keccak256};
 
-use crate::nova::hash8_native;
+/// Poseidon-8 native hash replacement (Track A: Nova removed).
+///
+/// Uses Keccak256 with domain separation instead of the original
+/// BN254 Poseidon permutation. Merkle tree commitments remain
+/// deterministic and collision-resistant.
+fn hash8_native(values: &[Fr]) -> Fr {
+    let mut hasher = Keccak256::new();
+    hasher.update(b"poseidon-8-keccak-replacement-v1");
+    for value in values {
+        let bytes = value.into_bigint().to_bytes_be();
+        hasher.update(&bytes);
+    }
+    Fr::from_be_bytes_mod_order(&hasher.finalize())
+}
 
 /// A Merkle proof for a single leaf in an 8-ary tree.
 #[derive(Clone, Debug)]

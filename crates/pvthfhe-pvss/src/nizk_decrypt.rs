@@ -5,6 +5,7 @@ use pvthfhe_nizk::{
     adapter::CycloNizkAdapter, hash_bridge, NizkAdapter, NizkProof, NizkStatement, NizkWitness,
 };
 use pvthfhe_rng::OsRng;
+use pvthfhe_types::rlwe_n;
 use pvthfhe_types::witness_language::{BfvParameters as SchemaBfvParams, R3Relation};
 use pvthfhe_types::Secret;
 use pvthfhe_wire::{WireError, WireFormat};
@@ -514,11 +515,10 @@ pub fn derive_party_binding(party_pk: &[u8]) -> u64 {
 }
 
 fn derive_secret_share_poly(secret_key_bytes: &[u8]) -> Vec<i64> {
-    secret_key_bytes
+    let coeffs: Vec<i64> = secret_key_bytes
         .iter()
         .copied()
         .filter_map(|byte| {
-            // Rejection-sample for uniform ternary: discard byte >= 252
             if byte >= 252 {
                 return None;
             }
@@ -528,15 +528,23 @@ fn derive_secret_share_poly(secret_key_bytes: &[u8]) -> Vec<i64> {
                 _ => 1,
             })
         })
-        .collect()
+        .collect();
+    pad_to_rlwe_n(coeffs)
 }
 
 fn derive_error_vector(decryption_noise: &[u8]) -> Vec<i64> {
-    decryption_noise
+    let coeffs: Vec<i64> = decryption_noise
         .iter()
         .copied()
         .map(|byte| i64::from((byte % 5) as i8) - 2)
-        .collect()
+        .collect();
+    pad_to_rlwe_n(coeffs)
+}
+
+/// Pad a short coefficient vector to exactly N=8192 (RLWE ring degree).
+fn pad_to_rlwe_n(mut v: Vec<i64>) -> Vec<i64> {
+    v.resize(rlwe_n(), 0i64);
+    v
 }
 
 fn derive_randomness(secret_key_bytes: &[u8], decryption_noise: &[u8]) -> Vec<u8> {

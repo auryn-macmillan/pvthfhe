@@ -16,3 +16,12 @@ pub global DOMAIN_DKG_BINDING: Field = 5;
 pub global DOMAIN_AGGREGATOR_D_COMMIT: Field = 6;
 pub global DOMAIN_DKG_SHARE_COMMIT: Field = 7;
 pub global DOMAIN_SZ_CHALLENGE: Field = 8;
+pub global DOMAIN_AJTAI_COMMITMENT: Field = 9;
+
+// ── Ajtai commitment parameters (P4) ──────────────────────────────
+// Ring degree φ = 256 (Z[X]/(X^256+1)).
+pub global PHI: u32 = 256;
+// Number of commitment rows m = 13 (output ring elements).
+pub global M: u32 = 13;
+// Commitment modulus q_commit = 562_949_953_438_721 ≈ 2^49.
+pub global Q_COMMIT: Field = 562949953438721;

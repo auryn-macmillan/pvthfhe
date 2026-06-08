@@ -4,7 +4,7 @@
 
 ## What
 
-Private-verifiable threshold Fully Homomorphic Encryption with O(n) per-party work and O(polylog n) verifier cost. Maliciously-secure DKG, verifiable decryption, and on-chain verification via Nova IVC + UltraHonk.
+Private-verifiable threshold Fully Homomorphic Encryption with O(n) per-party work and O(polylog n) verifier cost. Maliciously-secure DKG, verifiable decryption, and on-chain verification via LatticeFold+ + UltraHonk.
 
 ## Status
 
@@ -15,7 +15,7 @@ Private-verifiable threshold Fully Homomorphic Encryption with O(n) per-party wo
 | LaZer NIZK | Auto-generated sigma proofs (LaBRADOR) via LaZer C lib | ✅ Default |
 | Greyhound PCS | Lattice polynomial commitments (53KB proofs) | ✅ Default |
 | LatticeFold+ | Lattice-native folding (no EC assumptions) | ✅ Default |
-| Folding | nova-snark (Microsoft) Nova IVC + Symphony T1–T4 | ✅ |
+| Folding | LatticeFold+ lattice-native folding (no EC assumptions) | ✅ |
 | Compression | Transparent IVC, no ceremony | ✅ |
 | On-chain | UltraHonk verifier (Solidity) + IVC binding | ⚠️ OPEN¹ |
 | Decrypt | Threshold BFV partial decrypt | ✅ |
@@ -51,7 +51,7 @@ plaintext_roundtrip: OK  verify: ACCEPT
 | `just per-node` | Single-party timing benchmark |
 | `just aggregator` | Aggregator-node timing benchmark |
 | `just greco` | Greco-style BFV encryption proof |
-| `just compute n=5` | Verifiable FHE: sum n ciphertexts via Nova IVC |
+| `just compute n=5` | Verifiable FHE: sum n ciphertexts via LatticeFold+ |
 | `just test-all` | Rust + Noir + Solidity test suite |
 
 ## Open Problems

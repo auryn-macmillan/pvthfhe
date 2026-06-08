@@ -33,10 +33,10 @@ pub mod demo_nizk;
 #[cfg(feature = "with-fhe")]
 pub mod compressor_glue;
 
-#[cfg(all(feature = "with-fhe", feature = "nova-compressor"))]
+#[cfg(feature = "with-fhe")]
 pub mod full_pipeline;
 
-#[cfg(all(feature = "with-fhe", feature = "nova-compressor"))]
+#[cfg(feature = "with-fhe")]
 pub mod protocol_verifier;
 
 pub mod noir_poseidon;

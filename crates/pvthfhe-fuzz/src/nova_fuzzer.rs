@@ -118,7 +118,6 @@ fn main() {
             let _ = proof.has_snark();
             let _ = proof.ivc_bytes();
             let _ = proof.share_verification_hash;
-            let _ = proof.ivc_binding;
             let _ = proof.ivc_proof_hash;
             let _ = proof.sigma_data_hash;
 

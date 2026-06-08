@@ -1,9 +1,9 @@
 \documentclass{llncs}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Lattice-native BFV sigma protocol (v4) with per-share NIZK verification
-% Sonobe Nova IVC with CycloFoldStepCircuit; committed-smudge decryption
-% G2 full in-circuit Poseidon commitment verification (639K constraints/step)
-% Real UltraHonk Solidity verifier generated and compiling (N=65536, 28 G1 points)
+% LatticeFold+ lattice-native folding (Track B, sole backend); Track A (Nova BN254+Grumpkin) REMOVED
+% committed-smudge decryption; G2 full in-circuit Poseidon commitment verification
+% Real UltraHonk Solidity verifier (N=65536, 28 G1 points)
 % Research prototype — do not use for The Interfold or any production deployment
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Paper strategy: UNIFIED (see .sisyphus/design/p2/paper-strategy-decision.md, C.D.5 APPROVE)
@@ -47,7 +47,7 @@ verification cost.
 The current prototype implements: a lattice-native BFV sigma protocol (\texttt{bfv\_sigma.rs},
 533 loc) proving BFV encryption correctness over RNS with binary challenges and masking bound
 $2^{30}$; committed-smudge decryption via \texttt{partial\_decrypt\_committed\_smudge}; a
-single canonical DKG path (Track A deprecated) with \texttt{FoldTrackKind::Sk} and \texttt{FoldTrackKind::ESm} share tracks;
+single canonical DKG path (Track A removed, per P4 deprecation) with \texttt{FoldTrackKind::Sk} and \texttt{FoldTrackKind::ESm} share tracks;
 proof format version~4 (\texttt{PROOF\_VERSION = 4}) with per-share NIZK verification;
 \texttt{verify\_shares} enabled in the demo path (no longer compiled out); D.2 batched
 share-encryption proof covering sk+esm tracks with independent commitments via
@@ -169,20 +169,21 @@ changes.
 \label{sec:p2}
 
 The P2 sub-protocol accumulates P1 proofs, reducing on-chain verification
-cost from $O(n)$ to $O(\text{polylog}\, n)$.  The PVTHFHE protocol splits
-into two parallel tracks at this layer:
+cost from $O(n)$ to $O(\text{polylog}\, n)$.  The PVTHFHE protocol uses a
+single folding backend at this layer:
 
 \begin{description}
 \item[Track A (Concrete, \S\ref{sec:p2-tracka}):]
-  Sonobe Nova IVC with CycloFoldStepCircuit accumulates SHA-256 hash-chain
-  state over three $\mathbb{F}_r$ scalars.  This track is fully implemented and benchmarked (DEPRECATED --- Track~B is the sole production path); theorems P2-A-T1 and P2-A-T3 are
-  PROVED, P2-A-T2 is PENDING-NOVA-PROOF, P2-A-T4 is CONDITIONAL, and
-  P2-A-T5 is PARTIAL (2/6).
+  Sonobe Nova IVC with CycloFoldStepCircuit (REMOVED per P4 deprecation, 2026-06-07).
+  Formerly the concrete path; all code, dependencies, and tests deleted.
+  See \texttt{.sisyphus/plans/p4-track-a-deprecation.md}.
 
 \item[Track B (Target, \S\ref{sec:p2-trackb}):]
   LatticeFold+ over RLWE accumulates lattice NIZK witnesses by algebraic
-  folding.  ASPIRATIONAL---blocked on Lemma~9 (Conjecture) and contingent
-  on the implementation plan \texttt{p2-latticefold-target.md}.
+  folding.  \textbf{Now the sole IMPLEMENTED backend} — Cyclo crate provides
+  fold\_one\_deterministic, verify\_fold, check\_satisfiability, Ajtai commitments,
+  and CCS encoding with Fiat-Shamir challenge derivation (challenge\_v2 with
+  params\_digest binding).  15 tests pass including forgery resistance.
 \end{description}
 
 A heterogeneous IVC prototype (MicroNova compressor with
@@ -194,17 +195,19 @@ Both tracks share the same P4 (PVSS key generation, \S\ref{sec:p4}) and
 P1 (lattice NIZK, \S\ref{sec:p1}) front-end.
 
 % ===================================================================
-\subsection{Track A: Sonobe Nova IVC (Concrete) \textbf{[DEPRECATED]}}
+\subsection{Track A: Sonobe Nova IVC (Concrete) \textbf{[REMOVED — P4 DEPRECATION, 2026-06-07]}}
 \label{sec:p2-tracka}
 
-The concrete P2 path uses the \texttt{cyclo\_fold\_nova} crate, which
-implements a Sonobe Nova IVC~\cite{nova2022} folding scheme with a custom
-\texttt{CycloFoldStepCircuit}.  The step circuit operates on three
-$\mathbb{F}_r$ scalars encoding the current SHA-256 accumulator hash,
-session identifier, and fold depth---a \emph{surrogate} for native RLWE
-witness folding.  The Cyclo CCS represents the RLWE decryption relation
-in coefficient form with infinity-norm witness bounding ($B_e = 17$,
-$|C| = 2^{16}$ challenge space).
+Track~A used Sonobe Nova IVC~\cite{nova2022} with a custom
+\texttt{CycloFoldStepCircuit} operating on three $\mathbb{F}_r$ scalars
+encoding SHA-256 accumulator state.  This track was fully implemented and
+benchmarked but has been removed from the codebase per the P4 Track~A
+deprecation plan (\texttt{.sisyphus/plans/p4-track-a-deprecation.md}).
+All Nova SNARK dependencies (nova-snark, ark-grumpkin, BN254/Grumpkin curve
+cycle, bellpepper-core, ark-r1cs-std) and associated code (\texttt{src/nova/},
+\texttt{src/micronova/}, $\sim$4,800 lines) have been deleted.  Track~B
+(LatticeFold+) is now the sole folding backend.  The theorems below are
+retained for provenance but carry historical status only.
 
 \paragraph{C7 In-Circuit Commitment Verification (G2 Full).}
 The C7 decryption aggregation circuit (\texttt{C7DecryptAggregationCircuit})
@@ -281,15 +284,20 @@ $12$--$55\,\mu\text{s}$ per fold (depth~1--10, $n = 128$--$1024$);
 full results in Figure~\ref{fig:p2-bench}.
 
 % ===================================================================
-\subsection{Track B: LatticeFold+ over RLWE (Target)}
+\subsection{Track B: LatticeFold+ over RLWE (Target) \textbf{[SOLE BACKEND]}}
 \label{sec:p2-trackb}
 
-The aspirational P2 path replaces the Sonobe surrogate with a
-\textbf{LatticeFold+} accumulation scheme that folds RLWE ciphertext
+The implemented P2 path uses \textbf{LatticeFold+} accumulation that folds RLWE ciphertext
 witnesses directly via algebraic relations, with a CCS encoding of the
-Cyclo decryption relation~\cite{cyclo2025,latticefold2024}.  This path is the
-cryptographic target of the PVTHFHE design and corresponds to the
-theorems originally scoped in the paper's P2 section.
+Cyclo decryption relation~\cite{cyclo2025,latticefold2024}.  This is the
+sole folding backend after Track~A removal (P4).  The Cyclo crate
+(\texttt{pvthfhe-cyclo}) provides: \texttt{fold\_one\_deterministic},
+\texttt{verify\_fold}, \texttt{check\_satisfiability} (real CCS relation
+$M \cdot z \odot z = 0$ over BN254 $\mathbb{F}_r$), Ajtai lattice
+commitments ($Q_{\text{commit}} = 2^{49}$, 13 ring elements $\times$ 256
+coeffs), and Fiat-Shamir challenge derivation (\texttt{challenge\_v2} with
+\texttt{params\_digest} binding).  All 15 Cyclo tests pass including forgery
+resistance.
 
 \begin{theorem}[P2-B-T1: LatticeFold+ Folding Completeness (Track B)]
 \label{thm:p2b-t1}

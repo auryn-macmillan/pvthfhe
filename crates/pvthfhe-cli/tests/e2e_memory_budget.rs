@@ -23,7 +23,7 @@
 //! is gated to Linux because `/usr/bin/time -v` and `ulimit -v` semantics are
 //! Linux-specific.
 
-#![cfg(all(target_os = "linux", feature = "nova-compressor"))]
+#![cfg(all(target_os = "linux", feature = "enable-latticefold"))]
 
 use std::process::Command;
 

@@ -22,6 +22,16 @@ use std::sync::Once;
 
 static LAZER_INIT_ONCE: Once = Once::new();
 
+fn lazer_session_binding(session_id: &[u8], participant_id: u32) -> [u8; 32] {
+    use sha2::{Digest, Sha256};
+    Sha256::new()
+        .chain_update(pvthfhe_domain_tags::Tag::LazerSessionBinding.as_bytes())
+        .chain_update(session_id)
+        .chain_update(participant_id.to_le_bytes())
+        .finalize()
+        .into()
+}
+
 /// Describes a witness variable from a TOML relation spec.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WitnessSpec {
@@ -272,13 +282,18 @@ impl LazerSigmaProver {
     /// Returns serialized proof bytes on success.
     pub fn prove(
         &mut self,
-        _session_id: &[u8],
-        _participant_id: u32,
+        session_id: &[u8],
+        participant_id: u32,
         _statement_data: &HashMap<String, Vec<u64>>,
         _witness_data: &HashMap<String, Vec<i64>>,
     ) -> Result<Vec<u8>, NizkError> {
         #[cfg(feature = "enable-lazer")]
         {
+            // Session/party binding is enforced at the adapter layer
+            // (adapter.rs cross-checks session_id and participant_id).
+            // This binding will be passed to the LaZer C library once
+            // witness injection is supported.
+            let _binding = lazer_session_binding(session_id, participant_id);
             let ret = unsafe { lazer::lin_prove(&mut self.state) };
             if ret != 0 {
                 return Err(NizkError::VerificationFailed("LaZer lin_prove failed"));
@@ -287,7 +302,7 @@ impl LazerSigmaProver {
         }
         #[cfg(not(feature = "enable-lazer"))]
         {
-            let _ = (_session_id, _participant_id, _statement_data, _witness_data);
+            let _ = (session_id, participant_id, _statement_data, _witness_data);
             Err(NizkError::InvalidInput(
                 "LaZer is not enabled. Rebuild with --features enable-lazer.",
             ))
@@ -316,13 +331,14 @@ impl LazerSigmaVerifier {
     /// Verify a sigma proof against a statement.
     pub fn verify(
         &mut self,
-        _session_id: &[u8],
-        _participant_id: u32,
+        session_id: &[u8],
+        participant_id: u32,
         _statement_data: &HashMap<String, Vec<u64>>,
         _proof_bytes: &[u8],
     ) -> Result<(), NizkError> {
         #[cfg(feature = "enable-lazer")]
         {
+            let _binding = lazer_session_binding(session_id, participant_id);
             let ret = unsafe { lazer::lin_verify(&mut self.state) };
             if ret != 0 {
                 return Err(NizkError::VerificationFailed("LaZer lin_verify failed"));
@@ -331,7 +347,7 @@ impl LazerSigmaVerifier {
         }
         #[cfg(not(feature = "enable-lazer"))]
         {
-            let _ = (_session_id, _participant_id, _statement_data, _proof_bytes);
+            let _ = (session_id, participant_id, _statement_data, _proof_bytes);
             Err(NizkError::InvalidInput(
                 "LaZer is not enabled. Rebuild with --features enable-lazer.",
             ))

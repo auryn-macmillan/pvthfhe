@@ -12,7 +12,7 @@ pub mod compressor;
 pub mod fold;
 pub mod range_proof;
 
-pub use compressor::LatticeFoldCompressor;
+pub use compressor::{ExternalInputs3, LatticeFoldCompressor};
 pub use fold::{
     double_commit, fold_instances, smart_commit, verify_double_commitment, verify_folded_instance,
 };

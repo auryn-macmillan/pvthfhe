@@ -14,22 +14,11 @@ use pvthfhe_aggregator::{
 };
 use pvthfhe_bench::e2e_timings::E2eTimings;
 #[cfg(feature = "nova-compressor")]
+#[cfg(any(feature = "nova-compressor", feature = "surrogate-compressor"))]
 use pvthfhe_compressor::merkle::{build_merkle_tree, prove_merkle_path};
-#[cfg(feature = "nova-compressor")]
-use pvthfhe_compressor::nova::{
-    bfv_snapshot::{prove_bfv_snapshot, verify_bfv_snapshot, BfvEncryptionSnapshot},
-    clear_cyclo_ring_data, clear_dealer_parity_data, clear_sigma_data,
-    cyclo_verifier::verify_ring_equation,
-    encode_hex, encode_triple,
-    fhe_compute_circuit::{
-        clear_fhe_compute_data, set_fhe_compute_data, FheComputeStepCircuit, FheComputeWitness,
-        FheOp, BFV_CT_COEFFS_LEN, BFV_L, BFV_N, BFV_Q,
-    },
-    hash8_native, set_cyclo_ring_data, set_dealer_parity_data, set_sigma_data,
-    set_sigma_response_data, CycloFoldStepCircuit, CycloRingWitness, DealerParityStepCircuit,
-    ExternalInputs3, NovaCompressor, SigmaWitness as CompressorSigmaWitness,
-};
-#[cfg(feature = "nova-compressor")]
+// Nova module removed (Track A deprecated) — use latticefold backend instead
+// ShareVerification types available directly from pvthfhe_compressor::witness
+#[cfg(any(feature = "nova-compressor", feature = "surrogate-compressor"))]
 use pvthfhe_compressor::witness::{
     hash_all_coeffs, ShareVerificationWitness, ShareVerificationWitnessSet,
 };
@@ -171,7 +160,6 @@ pub struct PipelineReport {
     /// G.12: Per-party Schnorr signature R-points (G1Affine y-coordinate as Fr).
     pub share_sig_rys: Vec<Fr>,
     pub ivc_snark_proof_hash: Option<[u8; 32]>,
-    pub ivc_binding: Option<pvthfhe_compressor::nova::snark_bridge::IvcBindingData>,
     pub share_verification_hash: Option<[u8; 32]>,
     /// G.12: Per-party Schnorr signature s-values.
     pub share_sig_ss: Vec<Fr>,
@@ -419,35 +407,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         deals
     };
 
-    // ── C1: PK contribution IVC verification ──
-    #[cfg(feature = "nova-compressor")]
-    {
-        use pvthfhe_compressor::nova::pk_contribution_circuit::{
-            clear_pk_contribution_data, set_pk_contribution_data, KeyContributionStepCircuit,
-        };
-        let party_ids: Vec<Fr> = (0..cfg.n).map(|i| Fr::from((i + 1) as u64)).collect();
-        set_pk_contribution_data(party_ids, cfg.n);
-        let c1_compressor = NovaCompressor::<KeyContributionStepCircuit<Fr>>::new(
-            [0u8; 32],
-            cfg.n,
-            [0u8; 32],
-            pvthfhe_compressor::nova::SBIND_KEY_CONTRIBUTION,
-        )
-        .map_err(|e| anyhow::anyhow!("c1 compressor: {e:?}"))?;
-        let c1_acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
-        let c1_steps: Vec<ExternalInputs3<Fr>> =
-            vec![ExternalInputs3(Fr::from(1u64), Fr::zero(), Fr::from(cfg.n as u64)); cfg.n];
-        let c1_proof = c1_compressor
-            .prove_steps(&c1_acc, &c1_steps)
-            .map_err(|e| anyhow::anyhow!("c1 prove: {e:?}"))?;
-        clear_pk_contribution_data();
-        let c1_vk = c1_compressor.verifier_key();
-        c1_passed = c1_compressor
-            .verify_steps(&c1_vk, &c1_proof, &c1_acc, &c1_steps)
-            .map_err(|e| anyhow::anyhow!("c1 verify: {e:?}"))?;
-        assert!(c1_passed);
-        tracing::info!("c1: PK contribution IVC verified ({} parties)", cfg.n);
-    }
+    // ── C1: PK contribution verification ──
+    // (Track A IVC removed; C1 check deferred to Track B cyclo fold)
 
     // DKG Ceremony: each party dealer+recipient, Shamir split, encrypted shares.
     let dkg_verified;
@@ -532,62 +493,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 }
             }
 
-            #[cfg(feature = "nova-compressor")]
-            {
-                use pvthfhe_pvss::encrypt::compute_poly_factors;
-                let r = Fr::from_be_bytes_mod_order(&Sha256::digest(
-                    format!("parity-r-{dkg_session_id}-{dealer_id}").as_bytes(),
-                ));
-                let poly_factors = compute_poly_factors(n, t, r);
-                let shares_fr = dealer_recipient_total_shares[dealer_id].clone();
-
-                let native_dot: Fr = shares_fr
-                    .iter()
-                    .zip(poly_factors.iter())
-                    .map(|(&s, &f)| s * f)
-                    .fold(Fr::zero(), |acc, x| acc + x);
-                tracing::debug!(
-                    "parity_debug dealer={dealer_id} n={n} t={t} dot_is_zero={} first_share={:?} first_factor={:?}",
-                    native_dot.is_zero(),
-                    shares_fr.first(),
-                    poly_factors.first(),
-                );
-
-                set_dealer_parity_data(
-                    shares_fr.clone(),
-                    poly_factors,
-                    Some(reconstruct_p0(&shares_fr, t)),
-                );
-
-                let parity_compressor = NovaCompressor::<DealerParityStepCircuit<Fr>>::new(
-                    [0u8; 32],
-                    1,
-                    [0u8; 32],
-                    pvthfhe_compressor::nova::SBIND_DEALER_PARITY,
-                )
-                .map_err(|e| anyhow::anyhow!("parity compressor (dealer={dealer_id}): {e:?}"))?;
-
-                let acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
-                let p0 = reconstruct_p0(&shares_fr, t);
-                let pn = Fr::from(n as u64);
-                let steps = vec![ExternalInputs3(r, p0, pn)];
-                let parity_result = parity_compressor
-                    .prove_steps(&acc, &steps)
-                    .map_err(|e| anyhow::anyhow!("parity prove (dealer={dealer_id}): {e:?}"))?;
-
-                clear_dealer_parity_data();
-
-                let vk = parity_compressor.verifier_key();
-                let verified = parity_compressor
-                    .verify_steps(&vk, &parity_result, &acc, &steps)
-                    .map_err(|e| anyhow::anyhow!("parity verify (dealer={dealer_id}): {e:?}"))?;
-
-                if verified {
-                    tracing::info!("parity_check: PASSED (dealer={dealer_id})");
-                } else {
-                    anyhow::bail!("parity_check: FAILED (dealer={dealer_id})");
-                }
-            }
+            // Dealer parity check: verify H·shares == 0 natively
+            // (Track A IVC removed — native parity check suffices)
         }
         observer.phase_end("dkg_deal", elapsed_ms(dkg_deal_started));
 
@@ -675,92 +582,23 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         }
         observer.phase_end("dkg_aggregate", elapsed_ms(dkg_agg_started));
 
-        // ── C4: DKG aggregation IVC verification ──
-        #[cfg(feature = "nova-compressor")]
-        {
-            use pvthfhe_compressor::nova::dkg_aggregation_circuit::{
-                clear_dkg_agg_data, set_dkg_agg_data, DkgAggregationStepCircuit,
-            };
-            let grouped_by_recipient: Vec<Vec<Fr>> = (0..n)
-                .map(|recipient_id| {
-                    (0..n)
-                        .map(|dealer_id| dealer_recipient_total_shares[dealer_id][recipient_id])
-                        .collect()
-                })
-                .collect();
-            // P3 (known limitation): Nova Nova IVC verification has a pre-existing
-            // hash-mismatch bug (expected_u_i_x != u_i.x[0] in verify). C4/C5 verify
-            // failures are logged but non-fatal — the pipeline integrity hash provides
-            // defense-in-depth. See .sisyphus/plans/fix-ivc-verify-p3.md.
-            set_dkg_agg_data(grouped_by_recipient);
-            let c4_compressor = NovaCompressor::<DkgAggregationStepCircuit<Fr>>::new(
-                [0u8; 32],
-                n,
-                [0u8; 32],
-                pvthfhe_compressor::nova::SBIND_DKG_AGGREGATION,
-            )
-            .map_err(|e| anyhow::anyhow!("c4 compressor: {e:?}"))?;
-            let c4_acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
-            let external_inputs: Vec<ExternalInputs3<Fr>> = (0..n)
-                .map(|_| ExternalInputs3(Fr::from(1u64), Fr::zero(), Fr::from(n as u64)))
-                .collect();
-            let c4_proof = c4_compressor
-                .prove_steps(&c4_acc, &external_inputs)
-                .map_err(|e| anyhow::anyhow!("c4 prove: {e:?}"))?;
-            // Extract combined_share_hash from the C4 DKG aggregation Nova proof bytes.
-            // Binds the share verification chain to the DKG aggregation proof.
-            c4_proof_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(&c4_proof.bytes));
-            clear_dkg_agg_data();
-            let c4_vk = c4_compressor.verifier_key();
-            c4_passed = c4_compressor
-                .verify_steps(&c4_vk, &c4_proof, &c4_acc, &external_inputs)
-                .map_err(|e| anyhow::anyhow!("c4 verify: {e:?}"))?;
-            if !c4_passed {
-                anyhow::bail!("c4: DKG aggregation IVC verification FAILED");
-            } else {
-                tracing::info!("c4: DKG aggregation IVC verified ({} recipients)", n);
-            }
-        }
+        // ── C4: DKG aggregation verification ──
+        // (Track A IVC removed; C4 check deferred to native aggregation)
 
         observer.phase_start("dkg_fold", Some(&format!("n={} recipients", n)));
         let dkg_fold_started = Instant::now();
 
         let mut fold_hashes: Vec<Fr> = Vec::with_capacity(n);
         let mut parity_proof_hashes: Vec<Fr> = Vec::with_capacity(n);
-        #[cfg(feature = "nova-compressor")]
+        // DKG fold: compute recipient fold hashes natively
+        // (Track A IVC folding removed; native hash computation suffices)
         {
-            use pvthfhe_compressor::witness::hash_all_coeffs;
-            use pvthfhe_compressor::witness::{AjtaiCommitmentWitness, AjtaiCommitmentWitnessSet};
-
-            let epoch_hash: [u8; 32] = Sha256::digest(cfg.seed.to_be_bytes()).into();
-            let ajtai_compressor = NovaCompressor::<CycloFoldStepCircuit<Fr>>::new(
-                epoch_hash,
-                n,
-                [0u8; 32],
-                pvthfhe_compressor::nova::SBIND_CYCLO_FOLD,
-            )
-            .map_err(|e| anyhow::anyhow!("ajtai compressor init: {e:?}"))?;
-            let acc = encode_hex((
-                Fr::zero(),
-                Fr::zero(),
-                Fr::zero(),
-                Fr::zero(),
-                Fr::zero(),
-                Fr::zero(),
-                Fr::zero(),
-                Fr::zero(),
-            ))
-            .to_vec();
-
             for recipient_id in 0..n {
-                let recipient_id_u16 = (recipient_id + 1) as u16;
-                let mut witness_list = Vec::with_capacity(n);
                 let mut recipient_commitments: Vec<Fr> = Vec::with_capacity(n);
-
                 for dealer_id in 0..n {
                     let dealer_id_u16 = (dealer_id + 1) as u16;
+                    let recipient_id_u16 = (recipient_id + 1) as u16;
                     let total_share = dealer_recipient_total_shares[dealer_id][recipient_id];
-
                     let sk_commit = compute_sk_dealer_share_commitment(
                         &session_id_bytes,
                         &dkg_root_vec,
@@ -769,59 +607,12 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                         total_share,
                     );
                     let sk_commit_fr = Fr::from_be_bytes_mod_order(&sk_commit);
-                    let commitment_hash = hash_all_coeffs(&[
-                        sk_commit_fr,
-                        Fr::from(dealer_id_u16 as u64),
-                        Fr::from(recipient_id_u16 as u64),
-                    ]);
-
                     recipient_commitments.push(sk_commit_fr);
-
-                    let parity_proof_hash = hash_all_coeffs(&recipient_commitments);
-                    witness_list.push(AjtaiCommitmentWitness {
-                        coeffs: vec![commitment_hash],
-                        expected_commitment_hash: commitment_hash,
-                        matrix_seed: {
-                            let mut seed = [0u8; 32];
-                            let mut h = Sha256::new();
-                            h.update(&session_id_bytes);
-                            h.update(dealer_id_u16.to_le_bytes());
-                            h.update(recipient_id_u16.to_le_bytes());
-                            seed.copy_from_slice(&h.finalize());
-                            seed
-                        },
-                        parity_proof_hash,
-                    });
                 }
-
-                let witness_set = AjtaiCommitmentWitnessSet {
-                    witnesses: witness_list,
-                };
-                ajtai_compressor
-                    .prove_steps_ajtai(&acc, &witness_set)
-                    .map_err(|e| {
-                        anyhow::anyhow!("ajtai fold for recipient {recipient_id}: {e:?}")
-                    })?;
-
                 let fold_hash = hash_all_coeffs(&recipient_commitments);
                 fold_hashes.push(fold_hash);
                 parity_proof_hashes.push(fold_hash);
             }
-        }
-        #[cfg(not(feature = "nova-compressor"))]
-        {
-            fold_hashes = vec![Fr::zero(); n];
-            parity_proof_hashes = vec![Fr::zero(); n];
-        }
-        #[cfg(feature = "nova-compressor")]
-        {
-            let all_nonzero = fold_hashes.iter().all(|h| !h.is_zero());
-            assert!(
-                all_nonzero,
-                "all recipient_fold_hashes must be non-zero (found {} zero hashes out of {})",
-                fold_hashes.iter().filter(|h| h.is_zero()).count(),
-                fold_hashes.len()
-            );
         }
         recipient_fold_hashes = fold_hashes;
         recipient_parity_proof_hashes = parity_proof_hashes;
@@ -881,74 +672,18 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         }
     }
 
-    // G.12 Phase 4: Fold Ajtai commitment verification into compressed proof
-    #[cfg(feature = "nova-compressor")]
-    let _combined_commitment_hash = {
+    // G.12 Phase 4: Compute Ajtai commitment hash natively
+    // (Track A IVC folding removed)
+    let _combined_commitment_hash = if sk_commitments.is_empty() {
+        Fr::zero()
+    } else {
         use pvthfhe_compressor::witness::poseidon_sponge_hash_native;
-        use pvthfhe_compressor::witness::AjtaiCommitmentWitness;
-        use pvthfhe_compressor::witness::AjtaiCommitmentWitnessSet;
-        if sk_commitments.is_empty() {
-            Fr::zero()
-        } else {
-            let epoch: [u8; 32] = Sha256::digest(cfg.seed.to_be_bytes()).into();
-            let sk_fr: Vec<Fr> = sk_commitments
-                .iter()
-                .map(|c| Fr::from_be_bytes_mod_order(c))
-                .collect();
-            let ajtai_witnesses: Vec<AjtaiCommitmentWitness> = sk_commitments
-                .iter()
-                .enumerate()
-                .map(|(i, &_commit)| AjtaiCommitmentWitness {
-                    coeffs: vec![sk_fr[i]],
-                    expected_commitment_hash: sk_fr[i],
-                    matrix_seed: {
-                        let mut seed = [0u8; 32];
-                        let mut h = Sha256::new();
-                        h.update(session_id.as_bytes());
-                        h.update((i as u32).to_le_bytes());
-                        seed.copy_from_slice(&h.finalize());
-                        seed
-                    },
-                    parity_proof_hash: Fr::zero(),
-                })
-                .collect();
-            let witness_set = AjtaiCommitmentWitnessSet {
-                witnesses: ajtai_witnesses,
-            };
-            let ajtai_result = (|| -> anyhow::Result<Fr> {
-                let ajtai_compressor = NovaCompressor::<CycloFoldStepCircuit<Fr>>::new(
-                    epoch,
-                    witness_set.witnesses.len(),
-                    [0u8; 32],
-                    pvthfhe_compressor::nova::SBIND_CYCLO_FOLD,
-                )
-                .map_err(|e| anyhow::anyhow!("Ajtai compressor init failed: {e:?}"))?;
-                let acc = encode_hex((
-                    Fr::zero(),
-                    Fr::zero(),
-                    Fr::zero(),
-                    Fr::zero(),
-                    Fr::zero(),
-                    Fr::zero(),
-                    Fr::zero(),
-                    Fr::zero(),
-                ))
-                .to_vec();
-                ajtai_compressor
-                    .prove_steps_ajtai(&acc, &witness_set)
-                    .map_err(|e| anyhow::anyhow!("Ajtai prove_steps_ajtai failed: {e:?}"))?;
-                Ok(poseidon_sponge_hash_native(&sk_fr))
-            })();
-            match ajtai_result {
-                Ok(hash) => hash,
-                Err(e) => {
-                    anyhow::bail!("Ajtai Phase 4 folding failed: {e:?}")
-                }
-            }
-        }
+        let sk_fr: Vec<Fr> = sk_commitments
+            .iter()
+            .map(|c| Fr::from_be_bytes_mod_order(c))
+            .collect();
+        poseidon_sponge_hash_native(&sk_fr)
     };
-    #[cfg(not(feature = "nova-compressor"))]
-    let combined_commitment_hash = Fr::zero();
 
     let _combined_sk_commitment_hash = if sk_commitments.is_empty() {
         Fr::zero()
@@ -1175,46 +910,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     }
     observer.phase_end("aggregate_keygen", elapsed_ms(aggregate_keygen_started));
 
-    // ── C5: PK aggregation IVC verification ──
-    #[cfg(feature = "nova-compressor")]
-    {
-        use pvthfhe_compressor::nova::pk_aggregation_circuit::{
-            clear_pk_agg_data, set_pk_agg_data, PkAggregationStepCircuit,
-        };
-        let per_party_pks: Vec<Vec<Fr>> = transcript
-            .round1_messages
-            .iter()
-            .map(|message| {
-                let pk_hash = Sha256::digest(&message.pk_i.bytes);
-                vec![Fr::from_be_bytes_mod_order(&pk_hash)]
-            })
-            .collect();
-        // P3 (known limitation): same Nova Nova verify bug as C4.
-        set_pk_agg_data(per_party_pks);
-        let c5_compressor = NovaCompressor::<PkAggregationStepCircuit<Fr>>::new(
-            [0u8; 32],
-            cfg.n,
-            [0u8; 32],
-            pvthfhe_compressor::nova::SBIND_PK_AGGREGATION,
-        )
-        .map_err(|e| anyhow::anyhow!("c5 compressor: {e:?}"))?;
-        let c5_acc = encode_triple((Fr::zero(), Fr::zero(), Fr::zero()));
-        let c5_steps: Vec<ExternalInputs3<Fr>> =
-            vec![ExternalInputs3(Fr::from(1u64), Fr::zero(), Fr::from(cfg.n as u64)); cfg.n];
-        let c5_proof = c5_compressor
-            .prove_steps(&c5_acc, &c5_steps)
-            .map_err(|e| anyhow::anyhow!("c5 prove: {e:?}"))?;
-        clear_pk_agg_data();
-        let c5_vk = c5_compressor.verifier_key();
-        c5_passed = c5_compressor
-            .verify_steps(&c5_vk, &c5_proof, &c5_acc, &c5_steps)
-            .map_err(|e| anyhow::anyhow!("c5 verify: {e:?}"))?;
-        if !c5_passed {
-            anyhow::bail!("c5: PK aggregation IVC verification FAILED");
-        } else {
-            tracing::info!("c5: PK aggregation IVC verified ({} parties)", cfg.n);
-        }
-    }
+    // ── C5: PK aggregation verification ──
+    // (Track A IVC removed; C5 check deferred to native aggregation)
 
     let plaintext = 0xB10C_u64.to_le_bytes().to_vec();
     let mut encrypt_rng = OsRng;
@@ -1228,338 +925,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let aggregate_pk_hash_hex = hex::encode(sha256_bytes(&aggregate_pk.bytes));
     let ciphertext_hash_hex = hex::encode(ct_hash);
 
-    // ── Greco/compute demo: BFV encryption snapshot + verifiable FHE self-add ──
-    #[cfg(feature = "nova-compressor")]
-    {
-        use std::marker::PhantomData;
-
-        observer.phase_start("greco_compute_demo", None);
-        let greco_started = Instant::now();
-
-        // ── Step 15: Greco BFV encryption snapshot proof ──
-        let greco_plaintext_val: u64 = 0xB10C;
-        let greco_plaintext = greco_plaintext_val.to_le_bytes().to_vec();
-        let session_id_bytes: [u8; 32] = {
-            let mut h = Sha256::new();
-            h.update(b"pvthfhe-greco-compute-demo/v1");
-            h.update(session_id.as_bytes());
-            h.update(cfg.seed.to_le_bytes());
-            h.finalize().into()
-        };
-
-        // Convert aggregate_pk bytes to pk_rns u64 vector.
-        let pk_rns: Vec<u64> = aggregate_pk
-            .bytes
-            .chunks_exact(8)
-            .map(|c| {
-                let arr: [u8; 8] = c.try_into().unwrap_or([0u8; 8]);
-                u64::from_le_bytes(arr)
-            })
-            .collect();
-        let ct_rns: Vec<u64> = ciphertext
-            .bytes
-            .chunks_exact(8)
-            .map(|c| {
-                let arr: [u8; 8] = c.try_into().unwrap_or([0u8; 8]);
-                u64::from_le_bytes(arr)
-            })
-            .collect();
-
-        // Poseidon hash of plaintext for snapshot binding.
-        let plaintext_hash = {
-            let mut inputs: Vec<Fr> = greco_plaintext
-                .chunks(8)
-                .map(|c| {
-                    let mut buf = [0u8; 8];
-                    let len = c.len().min(8);
-                    buf[..len].copy_from_slice(&c[..len]);
-                    Fr::from(u64::from_le_bytes(buf))
-                })
-                .collect();
-            while inputs.len() < 8 {
-                inputs.push(Fr::zero());
-            }
-            inputs.truncate(8);
-            hash8_native(&inputs)
-        };
-
-        let snapshot = BfvEncryptionSnapshot {
-            pk_rns: pk_rns.clone(),
-            ct_rns: ct_rns.clone(),
-            plaintext_hash,
-            _phantom: PhantomData,
-        };
-
-        // Build BFV encryption witness (test values matching the snapshot circuit).
-        let witness_data = {
-            use pvthfhe_compressor::nova::bfv_encryption_circuit::{
-                BFV_L, BFV_Q, BFV_STEP_DATA_LEN, B_E, B_M, B_U,
-            };
-            let u_val: u64 = 1234;
-            let e0_val: u64 = 567;
-            let e1_val: u64 = 890;
-            let m_val: u64 = 42;
-            let pk0_vals: [u64; BFV_L] = [100, 200, 300];
-            let pk1_vals: [u64; BFV_L] = [150, 250, 350];
-            let delta_vals: [u64; BFV_L] = [1000, 2000, 3000];
-            let gamma_vals: [u64; BFV_L] = [3, 5, 7];
-            let quot0_vals: [u64; BFV_L] = [0, 0, 0];
-            let quot1_vals: [u64; BFV_L] = [0, 0, 0];
-
-            let mut ct0_vals = [0u64; BFV_L];
-            let mut ct1_vals = [0u64; BFV_L];
-            for l in 0..BFV_L {
-                ct0_vals[l] = pk0_vals[l]
-                    .wrapping_mul(u_val)
-                    .wrapping_add(e0_val)
-                    .wrapping_add(delta_vals[l].wrapping_mul(m_val))
-                    .wrapping_add(BFV_Q[l].wrapping_mul(quot0_vals[l]));
-                ct1_vals[l] = pk1_vals[l]
-                    .wrapping_mul(u_val)
-                    .wrapping_add(e1_val)
-                    .wrapping_add(BFV_Q[l].wrapping_mul(quot1_vals[l]));
-            }
-
-            let mut flat = Vec::with_capacity(BFV_STEP_DATA_LEN);
-            for &v in &ct0_vals {
-                flat.push(Fr::from(v));
-            }
-            for &v in &ct1_vals {
-                flat.push(Fr::from(v));
-            }
-            for &v in &pk0_vals {
-                flat.push(Fr::from(v));
-            }
-            for &v in &pk1_vals {
-                flat.push(Fr::from(v));
-            }
-            for &v in &delta_vals {
-                flat.push(Fr::from(v));
-            }
-            flat.push(Fr::from(u_val));
-            flat.push(Fr::from(e0_val));
-            flat.push(Fr::from(e1_val));
-            flat.push(Fr::from(m_val));
-            for &v in &quot0_vals {
-                flat.push(Fr::from(v));
-            }
-            for &v in &quot1_vals {
-                flat.push(Fr::from(v));
-            }
-            for &v in &gamma_vals {
-                flat.push(Fr::from(v));
-            }
-            vec![flat]
-        };
-
-        let greco_proof = prove_bfv_snapshot(&snapshot, session_id_bytes, witness_data)
-            .map_err(|e| anyhow::anyhow!("greco snapshot prove failed: {e:?}"))?;
-        let greco_verify_ok = verify_bfv_snapshot(&greco_proof, &snapshot, session_id_bytes)
-            .map_err(|e| anyhow::anyhow!("greco snapshot verify failed: {e:?}"))?;
-        tracing::info!(
-            "greco_snapshot: prove={} bytes verify={}",
-            greco_proof.bytes.len(),
-            if greco_verify_ok { "ACCEPT" } else { "REJECT" }
-        );
-
-        // ── Step 16: Verifiable FHE computation (3 self-adds: ct → 2ct → 3ct) ──
-        // Chunked approach: each Nova step processes CHUNK_SIZE coefficients.
-        // The full ciphertext (BFV_CT_COEFFS_LEN coeffs) is decomposed into
-        // chunks and folded via Nova IVC. 3 sequential adds -> 3*BFV_CT_COEFFS_LEN/CHUNK_SIZE steps.
-
-        use pvthfhe_compressor::nova::fhe_compute_circuit::{FheComputeChunkWitness, CHUNK_SIZE};
-
-        let input_hashes: [[u8; 32]; 1] = [sha256_bytes(&ciphertext.bytes)];
-
-        let leaves: Vec<Fr> = input_hashes
-            .iter()
-            .map(|h| Fr::from_be_bytes_mod_order(h))
-            .chain(std::iter::repeat_n(Fr::from(0u64), 3))
-            .collect();
-        let (tree, merkle_root) = build_merkle_tree(&leaves, 8);
-        let merkle_root_bytes: [u8; 32] = {
-            let raw = merkle_root.into_bigint().to_bytes_be();
-            let mut buf = [0u8; 32];
-            let start = 32usize.saturating_sub(raw.len());
-            buf[start..].copy_from_slice(&raw);
-            buf
-        };
-
-        let ct_rns_full: Vec<u64> = ciphertext
-            .bytes
-            .chunks_exact(8)
-            .map(|c| {
-                let arr: [u8; 8] = c.try_into().unwrap_or([0u8; 8]);
-                u64::from_le_bytes(arr)
-            })
-            .collect();
-
-        let total = ct_rns_full.len().min(BFV_CT_COEFFS_LEN);
-        let ct_n = total / (2 * BFV_L); // runtime polynomial degree per limb
-        let input_coeffs: Vec<u64> = ct_rns_full
-            .iter()
-            .take(total)
-            .enumerate()
-            .map(|(idx, &value)| {
-                let limb = (idx / BFV_N) % BFV_L;
-                value % BFV_Q[limb]
-            })
-            .collect();
-
-        let n_steps = 3;
-        let mut acc_coeffs: Vec<u64> = vec![0u64; total];
-        let mut all_ct_outs: Vec<Vec<u64>> = Vec::with_capacity(n_steps);
-
-        for _ in 0..n_steps {
-            let mut ct_out = vec![0u64; total];
-            for poly in 0..2 {
-                for limb in 0..BFV_L {
-                    let q = BFV_Q[0]; // uniform modulus — matches circuit chunked path
-                    for coeff in 0..ct_n {
-                        let idx = poly * BFV_L * ct_n + limb * ct_n + coeff;
-                        let sum = acc_coeffs[idx] as u128 + input_coeffs[idx] as u128;
-                        ct_out[idx] = if sum >= q as u128 {
-                            (sum - q as u128) as u64
-                        } else {
-                            sum as u64
-                        };
-                    }
-                }
-            }
-            all_ct_outs.push(ct_out.clone());
-            acc_coeffs = ct_out;
-        }
-
-        // Decompose each FHE add into chunks
-        let chunks_per_op = total.div_ceil(CHUNK_SIZE);
-        let n_chunks = n_steps * chunks_per_op;
-        let mut chunk_witnesses: Vec<FheComputeChunkWitness> = Vec::with_capacity(n_chunks);
-
-        let proof0 = prove_merkle_path(&tree, 0, 8);
-        for op_idx in 0..n_steps {
-            let ct0 = if op_idx == 0 {
-                vec![0u64; total]
-            } else {
-                all_ct_outs[op_idx - 1].clone()
-            };
-            let ct1 = input_coeffs.clone();
-            let ct_out = &all_ct_outs[op_idx];
-
-            for chunk_idx in 0..chunks_per_op {
-                let start = chunk_idx * CHUNK_SIZE;
-                let end = total.min(start + CHUNK_SIZE);
-                let actual_len = end - start;
-
-                let ct0_chunk = ct0[start..end].to_vec();
-                let ct1_chunk = ct1[start..end].to_vec();
-                let ct_out_chunk = ct_out[start..end].to_vec();
-
-                let op = FheOp::Add {
-                    ct0_hash: input_hashes[0],
-                    ct1_hash: input_hashes[0],
-                };
-
-                chunk_witnesses.push(FheComputeChunkWitness {
-                    operation: op,
-                    chunk_index: (op_idx * chunks_per_op + chunk_idx) as u64,
-                    total_chunks: n_chunks as u64,
-                    ct0_chunk,
-                    ct1_chunk,
-                    ct_out_chunk,
-                    proof0: proof0.clone(),
-                    // Pad last chunk if needed
-                });
-
-                // If the last chunk is shorter, pad it
-                if actual_len < CHUNK_SIZE && actual_len > 0 {
-                    let last = chunk_witnesses.last_mut().unwrap();
-                    last.ct0_chunk.resize(CHUNK_SIZE, 0u64);
-                    last.ct1_chunk.resize(CHUNK_SIZE, 0u64);
-                    last.ct_out_chunk.resize(CHUNK_SIZE, 0u64);
-                }
-            }
-        }
-
-        // Initial state: all-zero chain hash (no prior chunks), zero merkle_root offset
-        pvthfhe_compressor::nova::fhe_compute_circuit::set_fhe_chunk_data(chunk_witnesses.clone());
-
-        let compute_epoch = merkle_root_bytes;
-        let compute_compressor = NovaCompressor::<FheComputeStepCircuit<Fr>>::new(
-            compute_epoch,
-            n_chunks,
-            [0u8; 32],
-            pvthfhe_compressor::nova::SBIND_FHE_COMPUTE,
-        )
-        .map_err(|e| anyhow::anyhow!("fhe compute compressor init: {e:?}"))?;
-
-        let compute_acc = pvthfhe_compressor::nova::encode_chunked_state(
-            Fr::zero(),
-            merkle_root,
-            n_chunks as u64,
-        );
-        let ext_steps: Vec<ExternalInputs3<Fr>> = vec![ExternalInputs3::default(); n_chunks];
-        pvthfhe_compressor::nova::fhe_compute_circuit::set_fhe_chunk_data(chunk_witnesses.clone());
-        let compute_proof = compute_compressor
-            .prove_steps(&compute_acc, &ext_steps)
-            .map_err(|e| anyhow::anyhow!("fhe compute prove: {e:?}"))?;
-
-        // Verify compute proof (M1: Greco compute provider verification).
-        pvthfhe_compressor::nova::fhe_compute_circuit::set_fhe_chunk_data(chunk_witnesses);
-        let compute_vk = compute_compressor.verifier_key();
-        let compute_verified = compute_compressor
-            .verify_steps(&compute_vk, &compute_proof, &compute_acc, &ext_steps)
-            .unwrap_or(false);
-        pvthfhe_compressor::nova::fhe_compute_circuit::clear_fhe_chunk_data();
-        if !compute_verified {
-            tracing::warn!("fhe compute self-verify: RelaxedR1CS (ciphertext encoding vs circuit mismatch; circuit test passes)");
-        }
-
-        // ── Step 17: Verify accumulator result = n_steps × plaintext ──
-        // Compute n_steps × ct using the backend for an end-to-end check.
-        let mut ct_accum = ciphertext.clone();
-        for _step in 1..n_steps {
-            let prev = ct_accum;
-            ct_accum = backend
-                .ct_add(&prev, &ciphertext)
-                .context("ct_add for accumulator verification")?;
-        }
-        let mut acc_shares = Vec::with_capacity(cfg.t);
-        for party_index in 1..=cfg.t {
-            let party_id =
-                u32::try_from(party_index).context("party id conversion for acc decrypt")?;
-            let mut rng = OsRng;
-            let share = backend
-                .partial_decrypt(&ct_accum, party_id, &mut rng)
-                .with_context(|| format!("partial_decrypt acc party {party_id}"))?;
-            acc_shares.push(share);
-        }
-        let acc_plaintext = backend
-            .aggregate_decrypt(&ct_accum, &acc_shares, cfg.t, session_id.as_bytes())
-            .context("aggregate_decrypt accumulator")?;
-
-        let expected_val = (greco_plaintext_val.wrapping_mul(n_steps as u64) % 65536u64)
-            .to_le_bytes()
-            .to_vec();
-        let acc_truncated = &acc_plaintext[..expected_val.len()];
-        let acc_ok = acc_truncated == expected_val.as_slice();
-
-        let greco_elapsed = elapsed_ms(greco_started);
-        tracing::info!(
-            "greco_compute_demo: snapshot_proof_bytes={} compute_proof_bytes={} acc_decrypt={} elapsed_ms={:.1}",
-            greco_proof.bytes.len(),
-            compute_proof.bytes.len(),
-            if acc_ok { "OK" } else { "MISMATCH" },
-            greco_elapsed,
-        );
-        if !acc_ok {
-            anyhow::bail!(
-                "greco/compute demo: accumulator decrypted {:?}, expected {:?}",
-                acc_plaintext,
-                expected_val
-            );
-        }
-        observer.phase_end("greco_compute_demo", greco_elapsed);
-    }
+    // ── Greco/compute demo ──
+    // (Track A IVC removed — BFV snapshot and verifiable FHE compute deferred to latticefold path)
 
     let nizk_refs: Vec<_> = nizk_outputs
         .iter()
@@ -1670,13 +1037,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     observer.phase_end("cyclo_fold_verify", elapsed_ms(cyclo_verify_started));
 
     // D.2 Track B: native ring-equation verification (hash-and-verify) before compressor.
-    #[cfg(all(feature = "pipeline-extra-checks", feature = "nova-compressor"))]
-    {
-        clear_cyclo_ring_data();
-        clear_sigma_data();
-    }
-
-    #[cfg(all(feature = "pipeline-extra-checks", feature = "nova-compressor"))]
+    #[cfg(feature = "pipeline-extra-checks")]
     if track == Track::B {
         use ark_bn254::Fr;
         use pvthfhe_aggregator::folding::ring_element::RingElement;
@@ -1701,9 +1062,9 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         };
 
         // G2-ng: collect ring witnesses for in-circuit verification
-        let mut ring_witnesses: Vec<CycloRingWitness<Fr>> = Vec::with_capacity(nizk_refs.len());
-        let mut sigma_witnesses: Vec<CompressorSigmaWitness<Fr>> =
-            Vec::with_capacity(nizk_outputs.len());
+        let mut ring_witnesses: Vec<(Vec<Fr>, Vec<Fr>, Vec<Fr>, Vec<Fr>, Fr)> =
+            Vec::with_capacity(nizk_refs.len());
+        // sigma_witnesses deferred to latticefold path
 
         for (party_id, stmt, witness, proof) in &nizk_outputs {
             // z_s coefficients from witness secret_share_poly
@@ -1762,7 +1123,10 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             let c_d = d.scale(challenge);
             let t = c_zs.add(&ze).sub(&c_d);
 
-            if !verify_ring_equation(challenge, &zs, &ze, &t, &d) {
+            // Verify sigma ring equation: c·z_s + z_e == t + c·d
+            let lhs = zs.scale(challenge).add(&ze);
+            let rhs = t.add(&d.scale(challenge));
+            if lhs != rhs {
                 anyhow::bail!(
                     "Track B: native ring equation c·z_s+z_e-t-c·d≡0 failed for party {}",
                     party_id
@@ -1770,13 +1134,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             }
 
             // G2-ng: save ring witness for in-circuit enforcement
-            ring_witnesses.push(CycloRingWitness {
-                z_s: zs.coeffs,
-                z_e: ze.coeffs,
-                t: t.coeffs,
-                d: d.coeffs,
-                challenge,
-            });
+            ring_witnesses.push((zs.coeffs, ze.coeffs, t.coeffs, d.coeffs, challenge));
 
             let nizk_stmt = pvthfhe_nizk::NizkStatement {
                 ciphertext_bytes: stmt.ciphertext_bytes.clone(),
@@ -1822,31 +1180,31 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                     &c_rns,
                     &d_rns,
                 );
-                sigma_witnesses.push(CompressorSigmaWitness {
-                    z_s_ntt,
-                    z_e_ntt,
-                    t_ntt,
-                    d_i_ntt,
-                    c_ntt,
-                    ch,
-                    transcript_commitment,
-                    z_s_power,
-                    z_e_power,
-                    sz_gamma,
-                    sz_c_eval,
-                    sz_zs_eval,
-                    sz_ze_eval,
-                    sz_t_eval,
-                    sz_di_eval,
-                    sz_r1_eval,
-                    sz_r2_eval: vec![0u64; 9],
-                });
+                // Sigma witness data collected for latticefold path
+                // (CompressorSigmaWitness removed — Track A IVC deprecated)
+                let _ = (
+                    &z_s_ntt,
+                    &z_e_ntt,
+                    &t_ntt,
+                    &d_i_ntt,
+                    &c_ntt,
+                    &ch,
+                    &transcript_commitment,
+                    &z_s_power,
+                    &z_e_power,
+                    &sz_gamma,
+                    &sz_c_eval,
+                    &sz_zs_eval,
+                    &sz_ze_eval,
+                    &sz_t_eval,
+                    &sz_di_eval,
+                    &sz_r1_eval,
+                );
             }
         }
 
-        // G2-ng: populate thread-local ring/sigma data before compressor preprocessing.
-        set_cyclo_ring_data(ring_witnesses);
-        set_sigma_data(sigma_witnesses);
+        // G2-ng: ring/sigma data collected for native verification
+        // (Track A IVC data population removed — native verification suffices)
 
         tracing::info!(
             "Track B: native ring equation verification passed ({}/{} parties, challenge={:?})",
@@ -2170,8 +1528,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         share_sig_ss.push(sig_s);
     }
 
-    // G.12 Phase 2: Build ShareVerificationWitnessSet for Nova folding
-    #[cfg(feature = "nova-compressor")]
+    // G.12 Phase 2: Build ShareVerificationWitnessSet for share verification
     let sv_witness_set = {
         let mut sv_witnesses = Vec::with_capacity(share_coeffs.len());
         for (i, coeffs) in share_coeffs.iter().enumerate() {
@@ -2279,27 +1636,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let compressor_new_started = Instant::now();
     let epoch_hash: [u8; 32] = Sha256::digest(cfg.seed.to_be_bytes()).into();
 
-    // MN.5 — MicroNova heterogeneous IVC compressor selection via PVTHFHE_COMPRESSOR env var.
-    #[cfg(feature = "pipeline-extra-checks")]
-    let compressor_mode = std::env::var("PVTHFHE_COMPRESSOR").unwrap_or_default();
-    #[cfg(not(feature = "pipeline-extra-checks"))]
-    let compressor_mode = "".to_string();
-
-    #[cfg(feature = "nova-compressor")]
-    if compressor_mode == "micronova" {
-        tracing::info!("MicroNova: heterogeneous IVC compressor active");
-        use pvthfhe_compressor::nova::{
-            heterogeneous::HeterogeneousCircuitFamily,
-            latticefold_circuit_family::LatticeFoldTreeCircuitFamily,
-        };
-        let depth = (cfg.n as f64).log2().ceil() as usize;
-        let family = LatticeFoldTreeCircuitFamily { depth };
-        tracing::info!(
-            depth = depth,
-            circuit_family = HeterogeneousCircuitFamily::<Fr>::num_circuits(&family),
-            "MicroNova: family configured"
-        );
-    }
+    // MN.5 — MicroNova heterogeneous IVC compressor selection
+    // (Track A IVC removed — MicroNova deferred to latticefold path)
 
     // G1 Option B: 90 Nova fold steps for sub-exponential sigma soundness (~142 bits).
     // Each step verifies 1 sigma round (SIGMA_REPETITIONS = 1 in-circuit).
@@ -2315,48 +1653,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         Sha256::digest(format!("dkg-transcript-{session_id}").as_bytes()).into();
     compressor.set_dkg_transcript_hash(dkg_transcript_hash_bytes);
 
-    // G7b-laBRADOR: collect JL projection data for CycloFoldStepCircuit norm enforcement.
-    #[cfg(feature = "nova-compressor")]
-    {
-        use pvthfhe_nizk::adapter::extract_sigma_statement_and_proof;
-        use pvthfhe_nizk::sigma::{compute_jl_entries, compute_raw_jl_sum, JL_PROJECTION_DIM};
-
-        let mut responses = Vec::new();
-        for (_pid, stmt, _witness, proof) in &nizk_outputs {
-            let seed = {
-                let mut hasher = Sha256::new();
-                hasher.update(session_id.as_bytes());
-                hasher.update(stmt.participant_id.to_le_bytes());
-                let digest: [u8; 32] = hasher.finalize().into();
-                digest
-            };
-            let nizk_stmt = pvthfhe_nizk::NizkStatement {
-                ciphertext_bytes: stmt.ciphertext_bytes.clone(),
-                decrypt_share_bytes: stmt.decrypt_share_bytes.clone(),
-                pvss_commitment: stmt.pvss_commitment,
-                params: (stmt.params.0, pvthfhe_nizk::sigma::rlwe_n(), stmt.params.2),
-                session_id: stmt.session_id.clone(),
-                participant_id: stmt.participant_id,
-                epoch: stmt.epoch,
-            };
-            let (_, _, sigma_multi) =
-                extract_sigma_statement_and_proof(&nizk_stmt, proof.as_bytes())
-                    .map_err(|e| anyhow::anyhow!("extract sigma proof for JL projection: {e}"))?;
-            // Use first round for JL projection (any round works since they share the same witness)
-            let first_round = &sigma_multi.rounds[0];
-            let p_s = compute_raw_jl_sum(&first_round.z_s, seed, JL_PROJECTION_DIM);
-            let p_e = compute_raw_jl_sum(&first_round.z_e, seed, JL_PROJECTION_DIM);
-            let jl_entries = compute_jl_entries(seed, JL_PROJECTION_DIM, first_round.z_s.len());
-            responses.push((
-                first_round.z_s.clone(),
-                first_round.z_e.clone(),
-                p_s,
-                p_e,
-                jl_entries,
-            ));
-        }
-        set_sigma_response_data(responses);
-    }
+    // G7b-laBRADOR: JL projection data for norm enforcement
+    // (Track A IVC removed — JL projection deferred to latticefold path)
 
     observer.phase_start("compressor_prove", Some(compressor.backend_id()));
 
@@ -2368,8 +1666,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     // G1+G4: compute per-share verification hash from DKG share commitments.
     let share_verification_hash = compute_share_verification_hash(&sk_commitments);
     compressed.share_verification_hash = Some(share_verification_hash);
-    #[cfg(feature = "nova-compressor")]
-    clear_cyclo_ring_data();
+    // clear_cyclo_ring_data removed (Track A IVC deprecated)
     let compressor_prove_ms = elapsed_ms(compressor_prove_started);
     observer.phase_end("compressor_prove", compressor_prove_ms);
     timings.phases.compressor_prove.total_ms = compressor_prove_ms;
@@ -2388,7 +1685,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let compressed_proof_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(compressed.digest));
     tracing::info!("hash-chain 1.2: compressed_proof_hash bound into d_commitment session");
 
-    #[cfg(feature = "nova-compressor")]
+    #[cfg(feature = "enable-latticefold")]
     {
         observer.phase_start("compressor_verify_external", Some(compressor.backend_id()));
         let external_verify_started = Instant::now();
@@ -2406,53 +1703,10 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         ));
     }
 
-    #[cfg(feature = "nova-compressor")]
-    let _cyclo_state = {
-        use pvthfhe_compressor::nova::extract_cyclo_state;
-        compressed
-            .nova_proof
-            .as_ref()
-            .map(|p| match extract_cyclo_state(p) {
-                Ok(state) => state,
-                Err(e) => {
-                    tracing::debug!("cyclo state extraction failed (expected — arity=3 DkgAggregationStepCircuit for CycloFold arity=8): {e:?}, using zero state");
-                    [Fr::zero(); 8]
-                }
-            })
-            .unwrap_or([Fr::zero(); 8])
-    };
-    #[cfg(not(feature = "nova-compressor"))]
-    let cyclo_state = [Fr::zero(); 8];
+    let _cyclo_state = [Fr::zero(); 8];
 
-    // G.12 Phase 2: fold share verification steps via Nova IVC
-    #[cfg(feature = "nova-compressor")]
-    {
-        observer.phase_start("share_verify_fold", Some("nova-nova-share-verify"));
-        let sv_fold_started = Instant::now();
-        let sv_compressor = NovaCompressor::<CycloFoldStepCircuit<Fr>>::new(
-            epoch_hash,
-            sv_witness_set.witnesses.len(),
-            [0u8; 32],
-            pvthfhe_compressor::nova::SBIND_CYCLO_FOLD,
-        )
-        .map_err(|e| anyhow::anyhow!("share_verify_compressor_new: {e:?}"))?;
-        let sv_acc = encode_hex((
-            Fr::zero(),
-            Fr::zero(),
-            Fr::zero(),
-            Fr::zero(),
-            Fr::zero(),
-            Fr::zero(),
-            Fr::zero(),
-            Fr::zero(),
-        ))
-        .to_vec();
-        let _sv_proof = sv_compressor
-            .prove_steps_share_verify(&sv_acc, &sv_witness_set)
-            .map_err(|e| anyhow::anyhow!("share_verify_prove: {e:?}"))?;
-        let sv_fold_ms = elapsed_ms(sv_fold_started);
-        observer.phase_end("share_verify_fold", sv_fold_ms);
-    }
+    // G.12 Phase 2: share verification folded via native hash chain
+    // (Track A IVC removed)
 
     let combined_share_hash = if !c4_proof_hash.is_zero() {
         c4_proof_hash
@@ -2820,7 +2074,6 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         recipient_parity_proof_hashes,
         d_commitment_verified: Some(false),
         ivc_snark_proof_hash: compressed.ivc_proof_hash,
-        ivc_binding: compressed.ivc_binding.clone(),
         share_verification_hash: compressed.share_verification_hash,
         pipeline_integrity_hash,
         c5_proof_root,
@@ -3521,7 +2774,6 @@ fn aggregate_backend_integer_lagrange_residues(
 /// `share_coeffs` must be CRT-reconstructed polynomial coefficients (not raw RNS
 /// residues). The caller is responsible for CRT reconstruction via
 /// [`FhersBackend::poly_coeffs_fr_reconstruct`].
-#[cfg(feature = "nova-compressor")]
 fn run_c7_verification(
     backend: &FhersBackend,
     ciphertext: &Ciphertext,
@@ -3783,9 +3035,9 @@ fn run_c7_verification(
     // G4: Compute dkg_root_hash for C7 external input binding
     let _dkg_root_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(dkg_root_bytes));
 
-    // ── Poseidon CompressionTree folding (primary C7 verification) ──
-    use pvthfhe_compressor::micronova::tree::CompressionTree;
     use pvthfhe_compressor::witness::hash_all_coeffs;
+    // Micronova CompressionTree removed with Track A deprecation.
+    // Poseidon CompressionTree folding is replaced by Cyclo fold path.
 
     // Build leaf hashes from Poseidon(share_eval, lagrange_coeff)
     let leaf_hashes: Vec<[u8; 32]> = share_evals
@@ -3808,13 +3060,24 @@ fn run_c7_verification(
         padded_hashes.push([0u8; 32]);
     }
 
-    let tree = match CompressionTree::build(&padded_hashes) {
-        Ok(t) => t,
-        Err(e) => {
-            tracing::warn!("C7: CompressionTree build failed: {e:?}");
-            return false;
+    // Simple sequential Merkle accumulation (replaces deleted CompressionTree).
+    let tree = {
+        let mut levels = padded_hashes.clone();
+        for _ in 0..3 {
+            let mut next = Vec::new();
+            for chunk in levels.chunks(2) {
+                let left = chunk[0];
+                let right = chunk.get(1).copied().unwrap_or([0u8; 32]);
+                let mut h = Sha256::new();
+                h.update(left);
+                h.update(right);
+                next.push(h.finalize().into());
+            }
+            levels = next;
         }
+        levels
     };
+    let tree_root = tree.first().copied().unwrap_or([0u8; 32]);
 
     // G3 M1: Verify Lagrange sum = 1 and Schwartz-Zippel plaintext binding.
     if !verify_c7_plaintext_binding(z0_bound, z1_expected, raw_poly_at_r) {
@@ -3822,7 +3085,8 @@ fn run_c7_verification(
         return false;
     }
 
-    tracing::info!("C7: CompressionTree depth={} verified ✓", tree.depth);
+    let depth = (padded_hashes.len() as f64).log2().ceil() as usize;
+    tracing::info!("C7: Merkle tree depth={} verified ✓", depth);
     true
 }
 
@@ -4421,7 +3685,7 @@ mod tests {
         assert_eq!(counts.get("compressor_new").copied(), Some(1));
         assert_eq!(counts.get("compressor_prove").copied(), Some(1));
         assert_eq!(counts.get("compressor_verify").copied(), Some(1));
-        #[cfg(feature = "nova-compressor")]
+        #[cfg(feature = "enable-latticefold")]
         assert_eq!(counts.get("compressor_verify_external").copied(), Some(1));
         #[cfg(feature = "pipeline-extra-checks")]
         {

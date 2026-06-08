@@ -92,8 +92,8 @@ impl NizkAdapter for CycloNizkAdapter {
 
         let c_rns = expand_c_rns(&ccs_id)?;
 
-        let s_i = pad_or_truncate_to_rlwe_n(&witness.secret_share_poly);
-        let e_i = pad_or_truncate_to_rlwe_n(&witness.error);
+        let s_i = witness.secret_share_poly.clone();
+        let e_i = witness.error.clone();
 
         let d_rns = sigma::compute_d_rns(&c_rns, &s_i, &e_i)?;
 
@@ -334,6 +334,61 @@ pub fn extract_sigma_statement_and_proof(
     Ok((c_rns, d_rns, sigma_multi))
 }
 
+/// Extract the Ajtai commitment bytes from a serialized proof.
+///
+/// The Ajtai commitment is at offset (2 + 32 = 34) after version + ccs_instance_id,
+/// and is exactly 26,624 bytes (13 ring elements × 256 coeffs × 8 bytes).
+pub fn extract_ajtai_commitment_from_proof(proof_bytes: &[u8]) -> Result<Vec<u8>, NizkError> {
+    const AJTAI_OFFSET: usize = 2 + 32; // version(u16 BE) + ccs_instance_id([u8; 32])
+    const AJTAI_LEN: usize = 26_624;
+    if proof_bytes.len() < AJTAI_OFFSET + AJTAI_LEN {
+        return Err(NizkError::InvalidProof(
+            "proof too short for Ajtai commitment",
+        ));
+    }
+    Ok(proof_bytes[AJTAI_OFFSET..AJTAI_OFFSET + AJTAI_LEN].to_vec())
+}
+
+/// Extract CCS witness bytes from a serialized proof.
+///
+/// Encodes the d_rns polynomial (embedded in the sigma proof section) as
+/// a CCS witness in Fr format, suitable for `ccs_encode::check_satisfiability`.
+/// Falls back to empty witness on parse failure (the satisfiability check at
+/// the fold layer independently validates the sigma proof via adapter::verify).
+pub fn extract_ccs_witness_from_proof(proof_bytes: &[u8]) -> Result<Vec<u8>, NizkError> {
+    let mut cur = Cursor::new(proof_bytes);
+
+    let version = cur.read_u16()?;
+    if version != PROOF_VERSION {
+        return Err(NizkError::InvalidProof("unsupported proof version"));
+    }
+
+    cur.skip(32)?; // ccs_instance_id
+    cur.skip(26_624)?; // ajtai_commitment
+    let _ = cur.read_len_prefixed_bytes()?; // session_id
+    let _ = cur.read_u16()?; // participant_id
+    cur.skip(32)?; // sha256_binding
+
+    let sigma_section_len = usize::try_from(cur.read_u32()?)
+        .map_err(|_| NizkError::InvalidProof("sigma_section_len overflow"))?;
+    let sigma_section = cur.read_exact(sigma_section_len)?.to_vec();
+
+    let (d_rns, _sigma_multi) = decode_sigma_section_multi(&sigma_section)?;
+
+    // Encode d_rns coefficients as Fr elements (1-based counter format
+    // expected by ccs_encode::parse_witness).
+    let num_vars = d_rns.len();
+    let mut out = Vec::with_capacity(4 + num_vars * 32);
+    out.extend_from_slice(&(num_vars as u32).to_be_bytes());
+    for &val in &d_rns {
+        // pad u64 to 32-byte Fr LE encoding
+        let mut fr_bytes = [0u8; 32];
+        fr_bytes[..8].copy_from_slice(&val.to_le_bytes());
+        out.extend_from_slice(&fr_bytes);
+    }
+    Ok(out)
+}
+
 fn validate_statement(stmt: &NizkStatement) -> Result<(), NizkError> {
     if stmt.params.0 == 0 {
         return Err(NizkError::InvalidInput("q must be non-zero"));
@@ -372,9 +427,15 @@ fn validate_statement(stmt: &NizkStatement) -> Result<(), NizkError> {
 }
 
 fn validate_witness(witness: &NizkWitness) -> Result<(), NizkError> {
-    if witness.secret_share_poly.is_empty() {
+    let n = rlwe_n();
+    if witness.secret_share_poly.len() != n {
         return Err(NizkError::InvalidInput(
-            "secret_share_poly must be non-empty",
+            "secret_share_poly must have exactly N coefficients",
+        ));
+    }
+    if witness.error.len() != n {
+        return Err(NizkError::InvalidInput(
+            "error must have exactly N coefficients",
         ));
     }
     Ok(())
@@ -504,13 +565,6 @@ fn expand_c_rns(seed: &[u8; 32]) -> Result<Vec<u64>, NizkError> {
     Ok(c_rns)
 }
 
-fn pad_or_truncate_to_rlwe_n(v: &[i64]) -> Vec<i64> {
-    let mut out = vec![0i64; rlwe_n()];
-    let take = v.len().min(rlwe_n());
-    out[..take].copy_from_slice(&v[..take]);
-    out
-}
-
 /// Verify the algebraic structure of a deserialized Ajtai commitment.
 ///
 /// Checks that:
@@ -609,9 +663,14 @@ fn ajtai_sigma_session_binding(
 ) -> Vec<u8> {
     use sha2::{Digest, Sha256};
     let mut h = Sha256::new();
+    h.update(pvthfhe_domain_tags::Tag::CycloAjtaiBinding.as_bytes());
+    h.update((session_id.len() as u32).to_be_bytes());
     h.update(session_id);
+    h.update((ajtai_bytes.len() as u32).to_be_bytes());
     h.update(ajtai_bytes);
+    h.update((ciphertext_bytes.len() as u32).to_be_bytes());
     h.update(ciphertext_bytes);
+    h.update((decrypt_share_bytes.len() as u32).to_be_bytes());
     h.update(decrypt_share_bytes);
     h.finalize().to_vec()
 }
@@ -651,20 +710,24 @@ fn compute_ajtai_commitment(
     AjtaiCommitment::commit(&matrix, &witness_rq)
 }
 
-fn encode_u64s_le(out: &mut Vec<u8>, vals: &[u64]) {
-    let len = u32::try_from(vals.len()).unwrap_or(u32::MAX);
+fn encode_u64s_le(out: &mut Vec<u8>, vals: &[u64]) -> Result<(), NizkError> {
+    let len = u32::try_from(vals.len())
+        .map_err(|_| NizkError::InvalidInput("encode_u64s_le: too many values"))?;
     out.extend_from_slice(&len.to_be_bytes());
     for &v in vals {
         out.extend_from_slice(&v.to_le_bytes());
     }
+    Ok(())
 }
 
-fn encode_i64s_le(out: &mut Vec<u8>, vals: &[i64]) {
-    let len = u32::try_from(vals.len()).unwrap_or(u32::MAX);
+fn encode_i64s_le(out: &mut Vec<u8>, vals: &[i64]) -> Result<(), NizkError> {
+    let len = u32::try_from(vals.len())
+        .map_err(|_| NizkError::InvalidInput("encode_i64s_le: too many values"))?;
     out.extend_from_slice(&len.to_be_bytes());
     for &v in vals {
         out.extend_from_slice(&v.to_le_bytes());
     }
+    Ok(())
 }
 
 fn encode_proof_multi(
@@ -695,15 +758,15 @@ fn encode_proof_multi(
     out.extend_from_slice(hash_commitment);
 
     let mut sigma_section = Vec::new();
-    encode_u64s_le(&mut sigma_section, d_rns);
+    encode_u64s_le(&mut sigma_section, d_rns)?;
     // Encode round count followed by per-round proofs
     let num_rounds = u32::try_from(sigma_multi.rounds.len())
         .map_err(|_| NizkError::InvalidInput("too many sigma rounds"))?;
     sigma_section.extend_from_slice(&num_rounds.to_be_bytes());
     for proof in &sigma_multi.rounds {
-        encode_u64s_le(&mut sigma_section, &proof.t_rns);
-        encode_i64s_le(&mut sigma_section, &proof.z_s);
-        encode_i64s_le(&mut sigma_section, &proof.z_e);
+        encode_u64s_le(&mut sigma_section, &proof.t_rns)?;
+        encode_i64s_le(&mut sigma_section, &proof.z_s)?;
+        encode_i64s_le(&mut sigma_section, &proof.z_e)?;
         encode_ch_ternary_32(&mut sigma_section, proof.ch)?;
     }
 

@@ -22,6 +22,28 @@ pub fn challenge_v1(
         .into()
 }
 
+/// F0 remediation: challenge_v2 binds `params_digest` into the fold challenge
+/// to prevent cross-parameter-set challenge replay.
+pub fn challenge_v2(
+    session_id: &str,
+    fold_depth: u32,
+    params_digest: &[u8; 32],
+    acc_commitment: &[u8],
+    inst_ajtai_bytes: &[u8],
+    inst_public_io_bytes: &[u8],
+) -> [u8; 32] {
+    Sha256::new()
+        .chain_update(b"pvthfhe-cyclo-fs-v2")
+        .chain_update(session_id.as_bytes())
+        .chain_update(fold_depth.to_le_bytes())
+        .chain_update(params_digest)
+        .chain_update(acc_commitment)
+        .chain_update(inst_ajtai_bytes)
+        .chain_update(inst_public_io_bytes)
+        .finalize()
+        .into()
+}
+
 pub fn commitment_v1(
     session_id: &str,
     depth: u32,

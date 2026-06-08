@@ -17,12 +17,12 @@ PVTHFHE targets private-verifiable threshold FHE with O(n) per-party work and O(
 ```
 [ Parties ] --(Partial Decrypt Shares + NIZK)--> [ Aggregator ]
                                                        |
-                                             (Off-chain Nova IVC Folding)
+                                              (LatticeFold+ Folding)
                                                        |
-                                             (On-chain IVC Binding)
+                                              (On-chain Binding)
                                                        |
                                                        v
-[ Solidity Verifier ] <------------------ [ Transparent IVC + UltraHonk ]
+[ Solidity Verifier ] <------------------ [ Transparent Proof + UltraHonk ]
 ```
 
 The pipeline uses three proving backends: **LatticeFold+** (lattice-native folding with Cyclo RLWE), **Noir UltraHonk** (final aggregation and wrapping), and **HonkVerifier.sol** (Solidity on-chain). All step circuits implement the folding circuit trait.
@@ -32,7 +32,7 @@ The pipeline uses three proving backends: **LatticeFold+** (lattice-native foldi
 | Layer | Responsibility | Component |
 | :--- | :--- | :--- |
 | **Lattice Layer** | RLWE arithmetic, BFV encryption/decryption | `pvthfhe-fhe`, `fhe.rs` |
-| **Proof Layer** | Share well-formedness, Cyclo RLWE folding, Nova IVC compression | `circuits/`, `pvthfhe-nizk`, `pvthfhe-compressor` |
+| **Proof Layer** | Share well-formedness, Cyclo RLWE folding, LatticeFold+ compression | `circuits/`, `pvthfhe-nizk`, `pvthfhe-compressor` |
 | **Coordination** | DKG, decryption rounds, blame assignment | `pvthfhe-core`, `pvthfhe-aggregator` |
 | **Verification** | Proof binding, gas-efficient on-chain check | `contracts/` (UltraHonkVerifier.sol) |
 
@@ -48,22 +48,22 @@ Standardized secure parameters for 128-bit security: **N** = 8192, **L** = 3 RNS
 | Noir + BB UltraHonk | Final Lagrange recombination + state commitment | Noir R1CS → UltraHonk |
 | HonkVerifier.sol | On-chain verification | Solidity |
 
-**Transparent IVC**: No Groth16 trusted ceremony required. IVC proof bytes are hashed with Keccak256 and embedded via `IvcBindingData` for the on-chain verifier. Note that the on-chain contract does **NOT** currently verify the Nova IVC proof; it only commits to the proof metadata. IVC mode is fail-closed.
+**Transparent folding**: No Groth16 trusted ceremony required. LatticeFold+ accumulator state is hashed with Keccak256 and embedded for the on-chain verifier. The on-chain contract does **NOT** currently verify the LatticeFold+ proof cryptographically; it only commits to the proof metadata. Full on-chain verification is fail-closed.
 
 **C7 Merkle aggregation**: In-circuit Poseidon R1CS (`poseidon_gadget.rs`, ~900 constraints per hash8) via `C7MerkleStepCircuit` at depth-5 (N=8192). The Noir `aggregator_final` circuit proves full Schwartz-Zippel threshold-decryption correctness (Lagrange recombination) plus in-circuit Merkle PK binding, verifying that `sum(lambda_i * d_i(r)) = pt(r)`.
 
 ## Symphony: Proof-Compression Optimization Techniques
 
-Four optimization techniques from the Symphony paper, all compiled unconditionally (S8):
+Four optimization techniques from the Symphony paper. These were originally implemented in the Nova compressor (Track A, now removed). Their latticefold equivalents are under development.
 
-| Technique | File | Description |
-| --- | --- | --- |
-| **T1: High-arity folding** | `high_arity_fold.rs` | Batches n iterative `prove_step` calls into a single fold via random linear combination β (Fiat-Shamir). `prove_steps_high_arity()` folds up to n=128 instances into one IVC step, achieving O(1) per-step cost. |
-| **T2: FS outside circuit** | `nova_gadgets.rs` | Moves Fiat-Shamir hashing outside the Nova step circuit. Witness data is committed with Keccak256 and bound to step inputs via identity circuits. |
-| **T3: Monomial embedding** | `monomial_range.rs` | Adaptive bit-count range checks via monomial embedding. Uses `ceil(log₂(bound))` bits, reducing per-coefficient constraint cost from ~93 to ~3·ceil(log₂(bound)). |
-| **T4: Random projection** | `nova_gadgets.rs` | JL projection J∈{0,±1}^{256×n} reduces sigma witness size ~n/256×. Verifies norms on projected 256-dim vectors instead of full 8192-dim vectors. |
+| Technique | Description |
+| --- | --- |
+| **T1: High-arity folding** | Batches n iterative fold steps into a single fold via random linear combination β (Fiat-Shamir). Achieves O(1) per-step cost. |
+| **T2: FS outside circuit** | Moves Fiat-Shamir hashing outside the step circuit. Witness data is committed with Keccak256 and bound to step inputs. |
+| **T3: Monomial embedding** | Adaptive bit-count range checks via monomial embedding. Reduces per-coefficient constraint cost. |
+| **T4: Random projection** | JL projection reduces sigma witness size ~n/256×. Verifies norms on projected vectors instead of full-dimension vectors. |
 
-T1+T2 are enabled by default. T3+T4 enable k=90-round repetition (~46M constraints) within practical budgets.
+T1+T2 were enabled by default in the Nova compressor. T3+T4 enabled k=90-round repetition within practical budgets.
 
 ## LaZer: Auto-Generated Sigma Proofs (P1)
 
@@ -93,7 +93,7 @@ LatticeFold+ provides lattice-native folding over RLWE without elliptic curve as
 
 `FheComputeStepCircuit` (`fhe_compute_circuit.rs`) proves that a sequence of FHE **Add** and **Mul** operations over Merkle-committed input ciphertexts produces a given output ciphertext. The circuit performs in-circuit FHE coefficient addition/multiplication with Merkle inclusion proofs, chaining output coefficients through Nova state. Uses production BFV parameters N=8192, L=3 RNS limbs by default. Fast testing at N=4 is available via `--features bfv-n4`.
 
-**FHE Multiplication** is proven at the native Nova step circuit level via `mul_fhe_ct_bp` (bellperson BFV constraint system). At production scale (N=8192), both Add and Mul operations are fully verified in the Nova IVC chain. The on-chain verifier currently cannot re-verify the Nova IVC chain directly — IVC proof verification is deferred to P4 (on-chain decider). Fast testing at N=4 demo scale is available via `--features bfv-n4`.
+**FHE Multiplication** is proven at the native step circuit level via BFV constraint system. At production scale (N=8192), both Add and Mul operations are fully verified in the LatticeFold+ chain. The on-chain verifier currently cannot re-verify the LatticeFold+ chain directly — proof verification is deferred to P4 (on-chain decider). Fast testing at N=4 demo scale is available via `--features bfv-n4`.
 
 ## Benchmarking
 

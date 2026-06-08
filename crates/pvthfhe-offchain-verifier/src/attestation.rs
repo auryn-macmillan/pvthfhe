@@ -5,8 +5,9 @@ use serde::{Deserialize, Serialize};
 /// Simplified EIP-712-style attestation payload emitted by local verification.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttestationBundle {
-    /// Deterministic binding for the Nova final state.
-    pub nova_final_state_commitment: String,
+    /// Deterministic binding for the accumulator final state.
+    /// Formerly `nova_final_state_commitment` (Track A removed).
+    pub accumulator_state_commitment: String,
     /// Deterministic binding for the Cyclo aggregate commitment.
     pub cyclo_aggregate_commitment: String,
     /// Session identifier represented as a hex string.

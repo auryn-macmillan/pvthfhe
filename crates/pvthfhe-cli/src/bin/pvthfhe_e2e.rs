@@ -54,7 +54,7 @@ struct Args {
     params: String,
 }
 
-const SAFE_DEFAULT_TRACING_FILTER: &str = "pvthfhe_cli=info,pvthfhe_compressor=info,pvthfhe_fhe=info,pvthfhe_lattice_pvss=info,pvthfhe_aggregator=info,pvthfhe_pvss=info,pvthfhe_bench=info,nova=info";
+const SAFE_DEFAULT_TRACING_FILTER: &str = "pvthfhe_cli=info,pvthfhe_compressor=info,pvthfhe_fhe=info,pvthfhe_lattice_pvss=info,pvthfhe_aggregator=info,pvthfhe_pvss=info,pvthfhe_bench=info,";
 
 fn build_env_filter() -> tracing_subscriber::EnvFilter {
     match std::env::var("RUST_LOG") {
@@ -349,7 +349,6 @@ fn parse_rss_mb(statm: &str) -> u64 {
         .unwrap_or(0)
 }
 
-#[cfg(feature = "nova-compressor")]
 fn run_noir_aggregator_final_optional(report: &PipelineReport) {
     if std::env::var("PVTHFHE_RUN_NOIR_CIRCUIT").unwrap_or_default() != "1" {
         return;
@@ -493,144 +492,21 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
         return;
     }
 
-    match pvthfhe_circuit_tests::nargo::execute("aggregator_final", &prover_toml_path).and_then(
-        |_artifacts| {
-            pvthfhe_circuit_tests::bb::write_vk_prove_verify("aggregator_final", "ultra_honk")
-        },
-    ) {
-        Ok(_) => info!(
-            phase = "noir_aggregator_final",
-            "Noir aggregator_final circuit proof succeeded"
-        ),
-        Err(err) => {
-            warn!(phase = "noir_aggregator_final", error = %err, "Noir aggregator_final circuit proof failed")
-        }
-    }
+    // Circuit-tests module requires pvthfhe-circuit-tests dep (removed from
+    // nova-compressor feature during Track A deprecation).
+    // Re-enable when circuit-tests is migrated to LatticeFold+.
+    warn!("Noir circuit tests unavailable (Track A removed)");
+    return;
 }
 
-#[cfg(not(feature = "nova-compressor"))]
-fn run_noir_aggregator_final_optional(_report: &PipelineReport) {}
+// run_noir_aggregator_final_optional always available
 
-#[cfg(feature = "nova-compressor")]
 fn run_c7_nova_optional(_n: usize, _seed: u64) -> (f64, bool) {
-    if std::env::var("PVTHFHE_RUN_C7_SONOBE").unwrap_or_default() != "1" {
-        return (0.0, false);
-    }
-
-    #[cfg(feature = "legacy-nova")]
-    {
-        let seed_bytes = seed.to_be_bytes();
-        let epoch_hash: [u8; 32] = Sha256::digest(&seed_bytes).into();
-
-        let start = Instant::now();
-        let compressor = NovaCompressor::<C7DecryptAggregationCircuit<Fr>>::new(
-            epoch_hash,
-            n,
-            [0u8; 32],
-            pvthfhe_compressor::nova::SBIND_C7_DECRYPT,
-        )
-        .expect("C7 nova compressor construction failed");
-        let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
-        let coeff_commitment = hash_all_coeffs(&vec![Fr::from(0u64); 8192]);
-        let derived_r = hash_all_coeffs(&[coeff_commitment, Fr::from(0u64)]);
-        let steps: Vec<ExternalInputs5<Fr>> = vec![
-            ExternalInputs5(
-                Fr::from(1u64),
-                Fr::from(1u64),
-                coeff_commitment,
-                Fr::from(0u64),
-                derived_r
-            );
-            n
-        ];
-        let proof = compressor
-            .prove_steps_c7(&acc, &steps)
-            .expect("C7 nova prove failed");
-        let vk = compressor.verifier_key();
-        let _ = compressor
-            .verify_steps_c7(&vk, &proof, &steps)
-            .expect("C7 nova verify failed");
-        let ms = start.elapsed().as_secs_f64() * 1_000.0;
-        return (ms, true);
-    }
-    #[cfg(not(feature = "legacy-nova"))]
-    {
-        (0.0, false)
-    }
+    (0.0, false) // Track A IVC removed
 }
 
-#[cfg(not(feature = "nova-compressor"))]
-fn run_c7_nova_optional(_n: usize, _seed: u64) -> (f64, bool) {
-    (0.0, false)
-}
-
-#[cfg(feature = "nova-compressor")]
 fn run_c7_merkle_optional(_n: usize, _seed: u64) -> (f64, bool) {
-    if std::env::var("PVTHFHE_RUN_C7_MERKLE").unwrap_or_default() != "1" {
-        return (0.0, false);
-    }
-
-    #[cfg(feature = "legacy-nova")]
-    {
-        let seed_bytes = seed.to_be_bytes();
-        let epoch_hash: [u8; 32] = Sha256::digest(&seed_bytes).into();
-
-        let start = Instant::now();
-        let compressor = NovaCompressor::<C7MerkleStepCircuit<Fr>>::new(
-            epoch_hash,
-            n,
-            [0u8; 32],
-            pvthfhe_compressor::nova::SBIND_C7_DECRYPT,
-        )
-        .expect("C7 merkle nova compressor construction failed");
-        let acc = encode_triple((Fr::from(0u64), Fr::from(0u64), Fr::from(0u64)));
-
-        let steps: Vec<C7MerkleExternalInputs<Fr>> = (0..n)
-            .map(|i| {
-                let leaf_value = Fr::from(1u64);
-                let siblings: Vec<Fr> = vec![Fr::from(1u64); 35];
-                // Compute depth-5 Poseidon merkle root (5 levels × 7 siblings)
-                let mut current = leaf_value;
-                for level in 0..5 {
-                    let start = level * 7;
-                    let level_siblings = &siblings[start..start + 7];
-                    let mut inputs = vec![current];
-                    inputs.extend_from_slice(level_siblings);
-                    current = hash8_native(&inputs);
-                }
-                C7MerkleExternalInputs {
-                    share_eval: Fr::from((42 + i as u64) * 100),
-                    lagrange_coeff: Fr::from(1u64),
-                    merkle_root: current,
-                    merkle_data: MerkleWitnessData {
-                        leaf_value,
-                        leaf_index: Fr::from(0u64),
-                        siblings,
-                    },
-                }
-            })
-            .collect();
-
-        let proof = compressor
-            .prove_steps_merkle(&acc, &steps)
-            .expect("C7 merkle nova prove failed");
-        let vk = compressor.verifier_key();
-        let valid = compressor
-            .verify_steps_merkle(&vk, &proof, &steps)
-            .expect("C7 merkle nova verify failed");
-        assert!(valid, "Merkle proof must verify");
-        let ms = start.elapsed().as_secs_f64() * 1_000.0;
-        return (ms, true);
-    }
-    #[cfg(not(feature = "legacy-nova"))]
-    {
-        (0.0, false)
-    }
-}
-
-#[cfg(not(feature = "nova-compressor"))]
-fn run_c7_merkle_optional(_n: usize, _seed: u64) -> (f64, bool) {
-    (0.0, false)
+    (0.0, false) // Track A IVC removed
 }
 
 #[cfg(test)]

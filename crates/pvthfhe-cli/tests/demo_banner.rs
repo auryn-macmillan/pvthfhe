@@ -14,7 +14,7 @@ fn demo_prints_banner_and_backend_ids() {
         .assert()
         .success()
         .stdout(contains("backend_id_p2: cyclo-rlwe-t10-lemma9-heuristic"))
-        .stdout(contains("backend_id_p3: nova-nova-bn254-grumpkin"))
+        .stdout(contains("backend_id_p3: latticefold-plus"))
         .stdout(contains(
             "note: on-chain Solidity verify is NOT run by demo (use bench-comparison)",
         ))

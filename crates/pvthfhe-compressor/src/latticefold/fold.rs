@@ -2,7 +2,7 @@ use ark_bn254::Fr;
 use ark_ff::{BigInteger, Field, PrimeField, Zero};
 use sha3::{Digest, Keccak256};
 
-use crate::nova::ExternalInputs3;
+use super::compressor::ExternalInputs3;
 
 #[derive(Clone, Debug)]
 pub struct DoubleCommitment {
@@ -96,7 +96,7 @@ pub fn verify_double_commitment(
 ///
 /// The resulting (w̃, x̃) satisfies the same relation as the original instances
 /// when the relation is linear (e.g., CCS-based folding).
-pub fn fold_instances(instances: &[ExternalInputs3<Fr>], epoch: &[u8; 32]) -> FoldedInstance {
+pub fn fold_instances(instances: &[ExternalInputs3], epoch: &[u8; 32]) -> FoldedInstance {
     // Derive β via Fiat-Shamir
     let beta = derive_beta(epoch, instances);
 
@@ -148,7 +148,7 @@ pub fn fold_instances(instances: &[ExternalInputs3<Fr>], epoch: &[u8; 32]) -> Fo
 /// Verify a folded instance against the original instances.
 pub fn verify_folded_instance(
     folded: &FoldedInstance,
-    instances: &[ExternalInputs3<Fr>],
+    instances: &[ExternalInputs3],
     epoch: &[u8; 32],
 ) -> bool {
     // Re-derive β for deterministic verification
@@ -215,7 +215,7 @@ pub fn sumcheck_transform(
 }
 
 /// Derive folding randomizer β from Fiat-Shamir.
-fn derive_beta(epoch: &[u8; 32], instances: &[ExternalInputs3<Fr>]) -> Fr {
+fn derive_beta(epoch: &[u8; 32], instances: &[ExternalInputs3]) -> Fr {
     let mut hasher = Keccak256::new();
     hasher.update(b"latticefold-fold-beta-v1");
     hasher.update(epoch);

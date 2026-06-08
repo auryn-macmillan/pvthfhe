@@ -28,10 +28,7 @@ const PRODUCTION_PROFILE_OWNERS: &[(&str, &str, &[&str])] = &[
     (
         "pvthfhe-compressor",
         "crates/pvthfhe-compressor/Cargo.toml",
-        &[
-            "transparent-decider",
-            "pvthfhe-aggregator/production-profile",
-        ],
+        &["pvthfhe-aggregator/production-profile"],
     ),
     (
         "pvthfhe-cli",

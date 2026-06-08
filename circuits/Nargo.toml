@@ -4,5 +4,6 @@ members = [
     "decrypt_share",
     "aggregator_final",
     "nova_state_commitment",
+    "ajtai_commitment",
     "bench/rlwe_relation",
 ]

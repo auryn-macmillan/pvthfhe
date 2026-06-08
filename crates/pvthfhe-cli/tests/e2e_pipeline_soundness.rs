@@ -8,7 +8,7 @@
 //! This tests the composition of R1 (DKG) + R3 (NIZK) + R4 (fold) + R5
 //! (compressor) + R6 (on-chain verifier) soundness guarantees.
 
-#[cfg(all(feature = "with-fhe", feature = "nova-compressor"))]
+#[cfg(feature = "with-fhe")]
 mod tests {
     use pvthfhe_cli::full_pipeline::{run_full_pipeline, PipelineConfig, PipelineObserver};
     use pvthfhe_fhe::{fhers::FhersBackend, FheBackend};

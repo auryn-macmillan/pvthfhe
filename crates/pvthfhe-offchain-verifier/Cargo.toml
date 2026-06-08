@@ -19,7 +19,7 @@ clap = { version = "4", features = ["derive"] }
 
 [features]
 production-profile = ["pvthfhe-compressor/production-profile"]
-legacy-nova = ["pvthfhe-compressor/legacy-nova"]
+enable-latticefold = ["pvthfhe-compressor/enable-latticefold"]
 
 [lints]
 workspace = true

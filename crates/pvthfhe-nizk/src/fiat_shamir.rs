@@ -101,6 +101,7 @@ impl Transcript {
         let mut counter: u64 = 0;
         while written < out.len() {
             let mut h = Sha256::new();
+            h.update(label);
             h.update(counter.to_be_bytes());
             h.update(state);
             let block: [u8; 32] = h.finalize().into();

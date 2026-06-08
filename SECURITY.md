@@ -3,7 +3,7 @@
 > ⚠️  **DO NOT DEPLOY — RESEARCH PROTOTYPE ONLY**
 >
 > This repository contains a **research implementation** of private-verifiable threshold FHE:
-> - **On-chain verifier uses nova-snark IVC with transparent decider + UltraHonk state commitment**
+> - **On-chain verifier uses LatticeFold+ folding with transparent accumulator + UltraHonk state commitment**
 > - **Noir circuits implement real aggregation and wrapping logic**
 > - **Do not use for The Interfold or any production deployment**
 >
@@ -15,11 +15,11 @@ This document outlines the security model, assumptions, and limitations of the P
 
 - **FHE backend**: Real threshold BFV via `gnosisguild/fhe.rs`.
 - **Verifiable FHE ops**: FHE Add and Mul verified in-circuit at production N=8192 (use `--features bfv-n4` for fast testing at N=4). Relinearize gated behind `real-relin` feature.
-- **Nova IVC Proofs**: Maliciously-secure folding via nova-snark (Microsoft Nova v0.71). The IVC proof chain provides soundness guarantees through transparent verification — no Groth16 trusted ceremony required.
+- **LatticeFold+ Folding**: Maliciously-secure lattice-native folding via Cyclo RLWE (Track B, sole backend). Track A (Nova SNARK BN254+Grumpkin) removed per P4 deprecation. The folding chain provides soundness guarantees through transparent lattice verification — no Groth16 trusted ceremony required, no elliptic curve assumptions.
 - **NIZK proofs**: Ajtaï D2 sigma + BFV sigma with k-round parallel repetition. Greco quotient-witness verification strengthens soundness from modular to integer-lattice level. M7 fix (2026-06-05): zero-witness rejection via Ajtai commitment all-zeros check.
-- **On-chain verifier**: UltraHonk verifier (Solidity) with IVC binding. While proof metadata (proof_hash, vk_hash, pp_hash, z0/zi commitments, verification hashes) is bound into the on-chain commitment, the contract does **NOT** cryptographically verify the IVC proof itself. IVC mode is currently fail-closed (disabled) until a real decider is implemented.
+- **On-chain verifier**: UltraHonk verifier (Solidity) with folding binding. While proof metadata is bound into the on-chain commitment, the contract does **NOT** cryptographically verify the LatticeFold+ proof itself. Verification is currently fail-closed (disabled) until a real decider is implemented.
 - **No active surrogates on the default path** — all paths use real cryptographic proofs. The surrogate compressor is exclusively available behind `--features surrogate-compressor` (not in defaults).
-- **Latest audit**: MPC security audit 2026-06-07 end-to-end verification (`.sisyphus/audit/MPC-AUDIT-2026-06-07.md`) — 10 fresh findings, 3 prior CRITICAL (F0, F1, F3) confirmed FIXED. S2 (FHE Mul) confirmed verified at native Nova level (N=8192 production scale), on-chain verification pending P4 decider. 27 domain tags registered. See [`.sisyphus/plans/mpc-audit-2026-06-07-remediation.md`](.sisyphus/plans/mpc-audit-2026-06-07-remediation.md).
+- **Latest audit**: MPC security audit 2026-06-07 v2 code-level verification (`.sisyphus/audit/MPC-AUDIT-2026-06-07-FRESH-v2.md`) — 8 prior findings confirmed as regressions (claimed fixed but not actually fixed in code), all resolved. 5 new findings identified and resolved. See [`.sisyphus/plans/mpc-audit-2026-06-07-v2-remediation.md`](.sisyphus/plans/mpc-audit-2026-06-07-v2-remediation.md).
 
 ## Threat Model
 
@@ -36,7 +36,7 @@ The PVTHFHE security model is evaluated across 6 axes:
 
 - **RLWE / Module-LWE**: Security of the underlying FHE scheme.
 - **SIS / knLWE**: Hardness of finding short vectors, used in NIZK proofs (Ajtaï D2 commitment).
-- **KZG Binding**: Security of the polynomial commitment scheme (BN254 + Grumpkin cycle).
+- **Ajtai Lattice Commitments**: Security of the Ajtai (SIS-based) commitment scheme over Z_q (q = Q_COMMIT ≈ 2^49). No elliptic curve assumptions. Replaces KZG commitments (BN254 + Grumpkin) from removed Track A.
 - **Random Oracle Model**: Fiat-Shamir transform for NIZK and folding challenge derivation.
 
 For full formal assumptions, see [.sisyphus/design/security-proofs.md](.sisyphus/design/security-proofs.md).
@@ -55,9 +55,9 @@ The ternary scalar challenge (`ch ∈ {−1,0,1}`) provides log₂(3) ≈ 1.58 b
 
 **Production target**: `SIGMA_REPETITIONS = 90` provides ~2^−53 soundness error per NIZK (≈2^−142 combined folding/SZ/NIZK budget). T4 JL random projection reduces norm-check dimensionality from 8192 to 256, keeping k=90 feasible at ~46M constraints. P1 is resolved; see `.sisyphus/plans/p1-sigma-repetition.md`.
 
-## On-Chain Verification: IVC Binding (UNVERIFIED)
+## On-Chain Verification: Folding Proof Binding (UNVERIFIED)
 
-The `IvcBindingData` struct (11 fields: proof_hash, vk_hash, pp_hash, z0_commitment, zi_commitment, ivc_steps, share_verification_hash, decrypt_nizk_hash, dkg_transcript_hash, nova_final_state_commitment, `ivc_verify_result`) provides IVC proof binding for the on-chain verifier. However, **on-chain verification of the Nova IVC proof is NOT implemented**. The `ivc_verify_result` field is a placeholder; the Solidity verifier does not yet contain the cryptographic logic to validate the RecursiveSNARK. To prevent insecure usage, IVC mode is currently fail-closed.
+The LatticeFold+ accumulator state is bound to the on-chain verifier via Keccak256 hashing. However, **on-chain cryptographic verification of the LatticeFold+ proof is NOT implemented**. The Solidity verifier does not yet contain the logic to validate the folding accumulator. To prevent insecure usage, verification is currently fail-closed.
 
 ## Known Limitations & Open Problems
 
@@ -69,9 +69,9 @@ The `IvcBindingData` struct (11 fields: proof_hash, vk_hash, pp_hash, z0_commitm
 
 **Status**: OPEN (documented). Cyclo LatticeFold+ over RLWE with Lemma 9 accepted as a documented protocol assumption. Soundness conditional on M-SIS hardness, Cyclo Theorem 3, and the Lemma 9 invertibility assumption. LatticeFold+ provides lattice-native folding in the current prototype.
 
-### P4 (MEDIUM): On-Chain IVC Decider
+### P4 (MEDIUM): On-Chain Folding Proof Decider
 
-**Status**: OPEN. The on-chain contract lacks a cryptographic decider for Nova IVC proofs. The system is currently fail-closed (disabled) for on-chain IVC verification.
+**Status**: OPEN. The on-chain contract lacks a cryptographic decider for LatticeFold+ proofs. The system is currently fail-closed (disabled) for on-chain folding verification.
 
 ### C5 (PK Aggregation Gap)
 
@@ -91,7 +91,7 @@ The `IvcBindingData` struct (11 fields: proof_hash, vk_hash, pp_hash, z0_commitm
 
 ## Trust Boundary: In-Circuit vs Native
 
-Only the Noir `aggregator_final` circuit is verified on-chain (via HonkVerifier.sol). All other protocol proofs run natively and are NOT verifiable by the on-chain verifier directly. The `ivc_verify_result` field bridges this gap by binding the Nova IVC verification outcome.
+Only the Noir `aggregator_final` circuit is verified on-chain (via HonkVerifier.sol). All other protocol proofs run natively and are NOT verifiable by the on-chain verifier directly. The folding accumulator state bridges this gap by binding the LatticeFold+ verification outcome.
 
 | Protocol Proof | In-Circuit | Native-Only |
 | --- | --- | --- |
@@ -100,7 +100,7 @@ Only the Noir `aggregator_final` circuit is verified on-chain (via HonkVerifier.
 | BFV encryption sigma | — | ✓ |
 | PVSS DKG NIZK | — | ✓ |
 | Cyclo NIZK (lattice fold) | — | ✓ |
-| Nova IVC fold soundness | — | ✓ (bound but NOT verified on-chain) |
+| LatticeFold+ fold soundness | — | ✓ (bound but NOT verified on-chain) |
 | C7 decryption aggregation | ✓ (Full S-Z correctness) | — |
 
 ## Trusted Components
@@ -118,7 +118,7 @@ BFV sigma proofs (`bfv_sigma.rs`) have the following documented limitations:
 
 - **Computational ZK only**: BFV sigma proofs achieve computational zero-knowledge through noise drowning (witness-to-mask ratio ≥ 4.0), NOT statistical ZK.
 - **No rejection sampling**: The Lyubashevsky rejection-sampling loop is not implemented. The response distribution is dominated by the masking term (B_Y = 2^30), providing computational ZK under the RLWE assumption.
-- **No in-circuit verifier**: There is no Noir/R1CS verifier for BFV sigma proofs. BFV sigma proofs are outer-circuit only and cannot be used inside Nova step circuits. For BFV ciphertext verification inside circuits, use the Schwarz-Zippel evaluation approach instead (`sigma.rs::compute_sigma_sz_data`).
+- **No in-circuit verifier**: There is no Noir/R1CS verifier for BFV sigma proofs. BFV sigma proofs are outer-circuit only and cannot be used inside LatticeFold+ step circuits. For BFV ciphertext verification inside circuits, use the Schwarz-Zippel evaluation approach instead (`sigma.rs::compute_sigma_sz_data`).
 
 ## Post-Quantum Proving Stack
 

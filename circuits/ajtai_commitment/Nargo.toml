@@ -1,0 +1,9 @@
+[package]
+name = "ajtai_commitment"
+type = "bin"
+authors = [""]
+compiler_version = ">=0.36.0"
+
+[dependencies]
+poseidon = { tag = "v0.3.0", git = "https://github.com/noir-lang/poseidon" }
+protocol_constants = { path = "../protocol_constants" }

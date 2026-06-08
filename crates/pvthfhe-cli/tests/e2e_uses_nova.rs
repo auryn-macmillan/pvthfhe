@@ -23,9 +23,9 @@ fn e2e_uses_nova_by_default() -> Result<(), Box<dyn std::error::Error>> {
     let combined = format!("{stdout}\n{stderr}");
 
     assert!(
-        combined.contains("compressor_backend_id=nova-nova-bn254-grumpkin")
-            || combined.contains("compressor_backend_id=\"nova-nova-bn254-grumpkin\""),
-        "expected nova compressor backend id in output, got:\n{combined}"
+        combined.contains("compressor_backend_id=latticefold-plus")
+            || combined.contains("compressor_backend_id=\"latticefold-plus\""),
+        "expected latticefold compressor backend id in output, got:\n{combined}"
     );
 
     Ok(())

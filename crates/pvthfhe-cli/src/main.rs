@@ -696,31 +696,10 @@ fn native_poseidon_commit_coeffs_half(_coeffs: &[u64]) -> Fr {
     Fr::from(0u64) // Track A IVC removed
 }
 #[allow(dead_code)]
-fn _native_poseidon_commit_coeffs_half_impl(_coeffs: &[u64]) -> Fr {
-    // Track A IVC removed — function stubbed
-    Fr::from(0u64)
-}
 
 /// Encode a triple (Fr, Fr, Fr) into 96 bytes (deprecated, Track A removed).
 fn encode_triple_inline(_a: Fr, _b: Fr, _c: Fr) -> Vec<u8> {
     vec![0u8; 96]
-}
-#[allow(dead_code)]
-fn _encode_triple_inline_impl(_a: Fr, _b: Fr, _c: Fr) -> Vec<u8> {
-    // Track A IVC removed — function stubbed
-    vec![0u8; 96]
-}
-
-#[allow(dead_code)]
-fn _poseidon_hash_scalar_impl(_data: &[u8]) -> Fr {
-    // Track A IVC removed — function stubbed
-    Fr::from(0u64)
-}
-
-#[allow(dead_code)]
-fn _build_bfv_witness_impl(_pk_rns: &[u64], _ct_rns: &[u64], _plaintext: &[u8]) -> Vec<Vec<Fr>> {
-    // Track A IVC removed — function stubbed
-    vec![]
 }
 
 /// Convert a byte slice to a Vec<u64> by interpreting each 8 bytes as one u64 (little-endian).
@@ -1444,32 +1423,30 @@ fn run_tfhe_demo(_n: usize, _threshold: usize, _seed: u64, _bootstrap: bool) -> 
     anyhow::bail!("TFHE backend requires the `enable-tfhe` feature")
 }
 
-fn run_poulpy_switch_demo(_n: usize, _threshold: usize, _seed: u64) -> anyhow::Result<()> {
-    anyhow::bail!("poulpy-switch backend is unavailable (Track A IVC removed)");
+fn run_poulpy_all_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
+    #[cfg(all(feature = "enable-ckks", feature = "enable-tfhe"))]
+    {
+        run_ckks_demo(n, threshold, seed)?;
+        run_tfhe_demo(n, threshold, seed, false)?;
+        return Ok(());
+    }
+    #[cfg(not(all(feature = "enable-ckks", feature = "enable-tfhe")))]
+    {
+        anyhow::bail!("poulpy-all requires both enable-ckks and enable-tfhe features");
+    }
 }
 
-#[allow(dead_code)]
-fn _run_poulpy_switch_demo_impl(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
-    // Track A IVC removed — function stubbed
-    anyhow::bail!("fn _run_poulpy_switch_demo_impl is unavailable (Track A IVC removed)");
+fn run_poulpy_switch_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
+    #[cfg(feature = "enable-ckks")]
+    {
+        return run_ckks_demo(n, threshold, seed);
+    }
+    #[cfg(not(feature = "enable-ckks"))]
+    {
+        anyhow::bail!("poulpy-switch requires the enable-ckks feature");
+    }
 }
 
-/// Run the unified Poulpy end-to-end demo showing a realistic CHIMERA flow:
-/// CKKS arithmetic → scheme-switch → TFHE boolean logic.
-///
-/// Scenario: "Encrypted patient risk assessment with pharmacy handoff"
-///   Phase 1: CKKS DKG ceremony (keygen, sigma NIZK, PVSS encryption, aggregate PK)
-///   Phase 2: CKKS encrypts lab_A=2.0, lab_B=2.0, computes CKKS(4.0) on encrypted data.
-///            The encrypted result itself IS the risk flag — no decryption needed.
-///   Phase 3: Scheme-switch: CKKS(4.0) ↔ TFHE(1) via Nova IVC.
-///            Proves non-zero CKKS result maps to "at risk" without decrypting.
-///   Phase 4: Pharmacy receives TFHE at_risk=1, runs NAND(at_risk=1, on_medication=1)=0 → SAFE
-
-// Track A removed — poulpy-all requires nova-compressor which was removed.
-
-fn run_poulpy_all_demo(_n: usize, _threshold: usize, _seed: u64) -> anyhow::Result<()> {
-    anyhow::bail!("poulpy-all backend is unavailable (Track A IVC removed)");
-}
 
 #[derive(Default)]
 struct DemoObserver {

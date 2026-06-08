@@ -599,7 +599,8 @@ fn r8_compute(action: ComputeCommand) -> anyhow::Result<()> {
             let mut total_prove_ms = 0.0f64;
             let mut proof_sizes = Vec::with_capacity(n);
             for i in 0..n {
-                let pt = vec![(i as u8).wrapping_mul(17)];
+                let mut pt = vec![(i as u8).wrapping_mul(17)];
+                pt.resize(8, 0);
                 let ct = backend.encrypt(&pk, &pt, &mut OsRng).context("encrypt")?;
 
                 let mut sid = [0u8; 32];

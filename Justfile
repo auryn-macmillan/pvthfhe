@@ -170,13 +170,16 @@ bench-smoke:
     cat bench/results/smoke-latest.json
 
 greco:
-    @echo "=== Greco-style encryption proof (Track B LatticeFold+ backend) ==="
+    @echo "=== Greco-style encryption proof ==="
+    @echo "Track A snapshot prove removed. Run full demo with LatticeFold+ instead:"
+    @echo "(includes encryption, NIZK proving, PVSS, Cyclo folding, decryption)"
     PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run --release -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng,enable-lazer,enable-latticefold" -- demo --n 6 --threshold 2 --seed 1
 
-compute n_ops="3":
+compute n_ops="6":
     @echo "=== Verifiable FHE Computation (summing $(echo "{{n_ops}}" | sed 's/^n_ops=//') ciphertexts) ==="
     @echo "* BFV ring dimension: N=8192 (production). Use --features bfv-n4 for N=4 fast testing."
-    @echo "* Track A removed — running demo with LatticeFold+ instead of snapshot compute."
+    @echo "* Track A compute prove removed. Run demo with LatticeFold+ instead:"
+    @echo "* (includes encryption, NIZK proving, PVSS, Cyclo folding, decryption)"
     @echo "* Minimum t=2 for meaningful threshold. Use plain cargo for custom t."
     PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run --release -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng,enable-lazer,enable-latticefold" -- demo --n $(echo "{{n_ops}}" | sed 's/^n_ops=//') --threshold 2 --seed 1
 
@@ -336,7 +339,11 @@ artifact-reproduce:
 
 poulpy-all:
     @echo "=== Poulpy End-to-End (CKKS DKG → Scheme Switch → TFHE Bootstrap) ==="
-    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run --release -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng,pipeline-extra-checks,enable-ckks,enable-tfhe,with-fhe,enable-lazer" -- demo --n 6 --threshold 2 --seed 1 --backend poulpy-all
+    @echo "Track A Nova IVC removed — scheme-switch (CKKS↔TFHE) proof unavailable."
+    @echo "Use individual backends instead:"
+    @echo "  poulpy-ckks:  cargo run ... demo --backend poulpy-ckks  --n 6 --threshold 2"
+    @echo "  poulpy-tfhe:  cargo run ... demo --backend poulpy-tfhe  --n 6 --threshold 2"
+    @echo "  fhe-rs (BFV): cargo run ... demo                         --n 6 --threshold 2"
 
 # Build circuits with ring dimension N=8 (Schwartz-Zippel point evaluation makes this N-independent).
 # Native code uses N=8192; the Noir circuit verifies a single point evaluation.

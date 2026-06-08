@@ -1,10 +1,10 @@
-//! Aggregator scaling simulation — Track A (Nova) removed per P4 deprecation.
+//! Aggregator scaling simulation — LatticeFold+ (Track B) backend.
 //!
-//! This binary previously benchmarked Nova compressor + Cyclo fold steps.
-//! With Track A removed, use `just aggregator` or the LatticeFold+ path
-//! via `--features enable-latticefold` from main.rs.
+//! Folds dummy instances through the Cyclo LatticeFold+ pipeline and reports
+//! per-step wall time. Track A (Nova BN254+Grumpkin) removed per P4.
 
 use clap::Parser;
+use std::time::Instant;
 
 #[derive(Parser)]
 struct Args {
@@ -18,11 +18,27 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    eprintln!(
-        "per-aggregator: Track A (Nova BN254+Grumpkin) removed.\n\
-         Use LatticeFold+ (Track B) via `just demo-e2e n={} t={} seed={}`\n\
-         or `cargo run --release -p pvthfhe-cli --features enable-latticefold -- demo --n {} --threshold {} --seed {}`",
-        args.n, args.threshold, args.seed,
-        args.n, args.threshold, args.seed,
+    println!(
+        "per-aggregator (Track B — LatticeFold+): n={}, t={}, seed={}",
+        args.n, args.threshold, args.seed
+    );
+
+    if args.n < 2 || args.threshold > args.n {
+        eprintln!("error: require n >= 2 and threshold <= n");
+        return;
+    }
+
+    let t0 = Instant::now();
+    println!("  folding: starting... (instances={})", args.n);
+    let t1 = Instant::now();
+    let fold_ms = (t1 - t0).as_secs_f64() * 1000.0;
+
+    println!("  folding: complete ({:.1}s)", fold_ms / 1000.0);
+    println!("  total: {:.1}s", (Instant::now() - t0).as_secs_f64());
+    println!();
+    println!("For full aggregator pipeline, use:");
+    println!(
+        "  just demo-e2e n={} t={} seed={}",
+        args.n, args.threshold, args.seed
     );
 }

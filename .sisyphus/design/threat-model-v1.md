@@ -1,9 +1,9 @@
 # PVTHFHE Threat Model v1
 
-> **Document version**: 1.2  
-> **Date**: 2026-05-11  
-> **Status**: DRAFT — reflects target Architecture B design intent; current prototype violates most properties (see audit).  
-> **Sources**: [AUDIT-2026-05-08.md](../audit/AUDIT-2026-05-08.md), [assumptions-ledger.md](assumptions-ledger.md), [security-proofs.md](security-proofs.md), [proof-boundary.md](proof-boundary.md), [fold-soundness-budget.md](fold-soundness-budget.md), [noise-budget.md](noise-budget.md), [SECURITY.md](../../SECURITY.md)
+> **Document version**: 1.3  
+> **Date**: 2026-06-08  
+> **Status**: DRAFT — reflects current Architecture B implementation; P4 and G-N8 resolved; C2 partially addressed with in-circuit verifier planned.  
+> **Sources**: [MPC-AUDIT-2026-06-08-v3.md](../audit/MPC-AUDIT-2026-06-08-v3.md), [assumptions-ledger.md](assumptions-ledger.md), [security-proofs.md](security-proofs.md), [proof-boundary.md](proof-boundary.md), [fold-soundness-budget.md](fold-soundness-budget.md), [noise-budget.md](noise-budget.md), [SECURITY.md](../../SECURITY.md)
 
 ---
 
@@ -139,9 +139,9 @@ See [`.sisyphus/design/assumptions-ledger.md`](assumptions-ledger.md) for the co
 | Parameter | Value | Source |
 |-----------|-------|--------|
 | Folding rounds (T) | 10 | PVTHFHE_CYCLO_PARAMS |
-| Challenge space |C|  | 2¹⁶ = 65536 | [fold-soundness-budget.md](fold-soundness-budget.md) |
-| Soundness ε_fold (exponential) | 2⁻¹⁶⁰ ≪ 2⁻¹²⁸ ✓ | |C|⁻ᵀ |
-| Soundness ε_fold (linear, conservative) | 1.5×10⁻⁴ | T·|C|⁻¹ |
+| Challenge space |C|  | 2¹²⁸ | u128 extraction from SHA-256 (FN1 fix, 2026-06-08) |
+| Soundness ε_fold (exponential) | 2⁻¹²⁸⁰ ≪ 2⁻¹²⁸ ✓ | |C|⁻ᵀ |
+| Soundness ε_fold (linear, conservative) | 2⁻¹²⁴ | T·|C|⁻¹ |
 | Norm growth β_T | 1344 | Spec-real-p2p3 §4.3 |
 | Extraction slack β̄ | 43,008 ≪ 2⁴⁹ | 2·β_T·(2γ)¹ |
 | Lemma 9 heuristic κ_nu | 2⁻⁹⁴ (≥2⁻⁸⁰) | Conditional (A-LATTICE-4) |
@@ -161,7 +161,7 @@ See [`.sisyphus/design/assumptions-ledger.md`](assumptions-ledger.md) for the co
 | Component | Target | Approach |
 |-----------|--------|----------|
 | P1 NIZK well-formedness | 2⁻¹²⁸ | M-SIS binding + FS (ROM) |
-| P2 Folding | 2⁻¹⁶⁰ | |C|⁻ᵀ with |C|=2¹⁶ |
+| P2 Folding | 2⁻¹²⁸⁰ | |C|⁻ᵀ with |C|=2¹²⁸ |
 | P3 IVC compression | 2⁻¹²⁸ | Nova IVC + KZG polynomial commitment |
 | **Joint composition** | **≤ 2⁻¹²⁸** | Max of per-component soundness errors |
 
@@ -226,7 +226,9 @@ From [proof-boundary.md](proof-boundary.md) (frozen Phase 2):
 
 11. **Aggregate key consistency (PB-08 enforcement)**: The DKG transcript's aggregate public key MUST equal the FHE backend's aggregate key used for encryption. After keygen, the aggregator recomputes `pk_agg = Σ pk_i` over the accepted participant set and asserts equality with the FHE backend's stored aggregate key. A mismatch aborts the pipeline before any decryption share is processed. This prevents an adversary from substituting a weaker or corrupted key while presenting a compatible DKG transcript. Enforced in `full_pipeline.rs` via the `aggregate_pk` consistency assertion (deep-audit remediation Batch A.3). Primary enforcement layer: B (Rust aggregator), per `proof-boundary.md` PB-08.
 
-12. **Encryption correctness is trusted (C2 gap)**: `backend.encrypt()` at pipeline step 3 produces a ciphertext, but there is no verifiable proof that the ciphertext faithfully encrypts the claimed plaintext under the aggregate public key. The encryption step is trusted; a malicious encryptor can produce a well-formed but semantically incorrect ciphertext. Mitigation: the semantic roundtrip check (step 9, `verify_plaintext_roundtrip`) detects plaintext mismatches at the aggregate level, but cannot identify which party or which step introduced the corruption. A fully verifiable encryption step would require a NIZK proving `ct = Enc(pk_agg, pt)` without revealing the plaintext, which is an open design problem. See `interfold-equivalence.md` §C2 and `SECURITY.md` §Known Limitations for tracking.
+12. **C2 encryption correctness (partially addressed)**: `backend.encrypt()` at pipeline step 3 produces a ciphertext. A BFV encryption sigma proof (`bfv_sigma.rs`) now proves `ct0 = pk0·u + e0 + Δ·m, ct1 = pk1·u + e1` and is verified natively in the share-encryption NIZK (V4). An in-circuit verifier (`verify_c2_bfv_encryption()`) exists in the `aggregator_final` Noir circuit but is not yet wired into `main()` — integration is mechanically planned (see `.sisyphus/plans/g-n8-c2-resolution.md`). The remaining gap: no on-chain verification of encryption well-formedness. Mitigation: the semantic roundtrip check detects plaintext mismatches at the aggregate level; a malicious encryptor who submits a well-formed but semantically incorrect ciphertext is detected by the roundtrip check at step 9 (`verify_plaintext_roundtrip`). The encryptor cannot claim a different plaintext than what was encrypted without being caught.
+
+13. **Error norm bound enforced in-circuit (cross-party correctness)**: The `decrypt_share` Noir circuit enforces both the ternary secret-key polynomial identity (S-Z) and the error polynomial norm bound `|e_i| ≤ 16` (per-coefficient `assert_max_bit_size`, Interfold pattern). This is NOT self-harm — unconstrained `e_i` causes the threshold decryption to fail for ALL honest parties, not just the violating prover. The only genuinely self-harm-only check in the system is individual key generation (equivalent to Interfold C0), which remains intentionally native-only.
 
 ---
 
@@ -268,6 +270,6 @@ From [proof-boundary.md](proof-boundary.md) (frozen Phase 2):
 
 ---
 
-*Document version*: 1.2  
-*Last updated*: 2026-05-12  
-*Next review*: After R2 (Cyclo rebuild) and R3 (NIZK rebuild)
+*Document version*: 1.3  
+*Last updated*: 2026-06-08  
+*Next review*: After C2 integration (wiring verify_c2_bfv_encryption into main())

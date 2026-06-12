@@ -278,8 +278,44 @@ extern "C" {
     pub fn lnp_quad_many_verify(state: *mut lnp_verifier_state_t) -> c_int;
 
     // ── Linear relation proofs ────────────────────────────────────────────
-    pub fn lin_prove(state: *mut lin_prover_state_t) -> c_int;
-    pub fn lin_verify(state: *mut lin_verifier_state_t) -> c_int;
+    pub fn lin_prover_init(
+        state: *mut lin_prover_state_t,
+        ppseed: *const u8,
+        params: *const lin_params_t,
+    );
+    pub fn lin_prover_set_statement_A(state: *mut lin_prover_state_t, A: *const polymat_t);
+    pub fn lin_prover_set_statement_t(state: *mut lin_prover_state_t, t: *const polyvec_t);
+    pub fn lin_prover_set_statement(
+        state: *mut lin_prover_state_t,
+        A: *const polymat_t,
+        t: *const polyvec_t,
+    );
+    pub fn lin_prover_set_witness(state: *mut lin_prover_state_t, w: *const polyvec_t);
+    pub fn lin_prover_prove(
+        state: *mut lin_prover_state_t,
+        proof: *mut u8,
+        len: *mut usize,
+        coins: *const u8,
+    ) -> c_int;
+    pub fn lin_prover_clear(state: *mut lin_prover_state_t);
+    pub fn lin_verifier_init(
+        state: *mut lin_verifier_state_t,
+        ppseed: *const u8,
+        params: *const lin_params_t,
+    );
+    pub fn lin_verifier_set_statement_A(state: *mut lin_verifier_state_t, A: *const polymat_t);
+    pub fn lin_verifier_set_statement_t(state: *mut lin_verifier_state_t, t: *const polyvec_t);
+    pub fn lin_verifier_set_statement(
+        state: *mut lin_verifier_state_t,
+        A: *const polymat_t,
+        t: *const polyvec_t,
+    );
+    pub fn lin_verifier_verify(
+        state: *mut lin_verifier_state_t,
+        proof: *const u8,
+        len: *const usize,
+    ) -> c_int;
+    pub fn lin_verifier_clear(state: *mut lin_verifier_state_t);
 
     // ── Blind signatures ──────────────────────────────────────────────────
     pub fn signer_init(state: *mut signer_state_t) -> c_int;

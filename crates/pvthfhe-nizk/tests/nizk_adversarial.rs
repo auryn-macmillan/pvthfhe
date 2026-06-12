@@ -37,9 +37,10 @@ fn sample_error(rng: &mut ChaCha20Rng) -> Result<Vec<i64>, NizkError> {
         loop {
             let v = rng.next_u64();
             if v < THRESHOLD {
-                *x = i64::try_from(v % RANGE)
-                    .map_err(|_| NizkError::InvalidInput("error sample overflow"))?
-                    - B_E;
+                *x = i64::try_from(v % RANGE).map_err(|_| NizkError::InvalidInput {
+                    reason: "error sample overflow",
+                    party_id: None,
+                })? - B_E;
                 break;
             }
         }
@@ -126,8 +127,8 @@ fn mismatched_pvss_commitment_produces_verification_failed() {
     };
 
     match adapter.verify(&stmt_b, &proof) {
-        Err(NizkError::VerificationFailed(_)) => {}
-        Err(NizkError::ConditionalSoundnessDisclosure(_)) => {
+        Err(NizkError::VerificationFailed { .. }) => {}
+        Err(NizkError::ConditionalSoundnessDisclosure { .. }) => {
             panic!("C4 bug still present: got ConditionalSoundnessDisclosure instead of VerificationFailed")
         }
         other => panic!("expected VerificationFailed, got {other:?}"),
@@ -213,10 +214,11 @@ fn scenario_01_tampered_ajtai_commitment() -> Result<(), NizkError> {
         proof.proof_bytes[t_rns_first_val] ^= 0xFF;
     }
     match adapter.verify(&stmt, &proof) {
-        Err(NizkError::VerificationFailed(_)) => Ok(()),
-        _ => Err(NizkError::VerificationFailed(
-            "scenario_01: expected VerificationFailed for tampered t_rns",
-        )),
+        Err(NizkError::VerificationFailed { .. }) => Ok(()),
+        _ => Err(NizkError::VerificationFailed {
+            reason: "scenario_01: expected VerificationFailed for tampered t_rns",
+            party_id: None,
+        }),
     }
 }
 
@@ -227,10 +229,11 @@ fn scenario_02_tampered_sigma_proof_bytes() -> Result<(), NizkError> {
     let flip_idx = sigma_section_offset("n8-session") + 14;
     proof.proof_bytes[flip_idx] ^= 0x01;
     match adapter.verify(&stmt, &proof) {
-        Err(NizkError::VerificationFailed(_)) => Ok(()),
-        _ => Err(NizkError::VerificationFailed(
-            "scenario_02: expected VerificationFailed",
-        )),
+        Err(NizkError::VerificationFailed { .. }) => Ok(()),
+        _ => Err(NizkError::VerificationFailed {
+            reason: "scenario_02: expected VerificationFailed",
+            party_id: None,
+        }),
     }
 }
 
@@ -241,10 +244,11 @@ fn scenario_03_tampered_sha256_binding() -> Result<(), NizkError> {
     let offset = sha256_binding_commitment_offset("n8-session");
     proof.proof_bytes[offset] ^= 0x01;
     match adapter.verify(&stmt, &proof) {
-        Err(NizkError::VerificationFailed(_)) => Ok(()),
-        _ => Err(NizkError::VerificationFailed(
-            "scenario_03: expected VerificationFailed for tampered sha256_binding",
-        )),
+        Err(NizkError::VerificationFailed { .. }) => Ok(()),
+        _ => Err(NizkError::VerificationFailed {
+            reason: "scenario_03: expected VerificationFailed for tampered sha256_binding",
+            party_id: None,
+        }),
     }
 }
 
@@ -255,10 +259,14 @@ fn scenario_04_tampered_version_byte() -> Result<(), NizkError> {
     proof.proof_bytes[0] = 0x00;
     proof.proof_bytes[1] = 0x01;
     match adapter.verify(&stmt, &proof) {
-        Err(NizkError::InvalidProof("unsupported proof version")) => Ok(()),
-        _ => Err(NizkError::VerificationFailed(
-            "scenario_04: expected InvalidProof(unsupported proof version)",
-        )),
+        Err(NizkError::InvalidProof {
+            reason: "unsupported proof version",
+            ..
+        }) => Ok(()),
+        _ => Err(NizkError::VerificationFailed {
+            reason: "scenario_04: expected InvalidProof(unsupported proof version)",
+            party_id: None,
+        }),
     }
 }
 
@@ -286,10 +294,11 @@ fn scenario_05_degree_mismatch() -> Result<(), NizkError> {
         randomness: vec![],
     };
     match adapter.prove(&stmt, &witness, &mut rng) {
-        Err(NizkError::InvalidInput(_)) => Ok(()),
-        _ => Err(NizkError::VerificationFailed(
-            "scenario_05: expected InvalidInput for degree mismatch",
-        )),
+        Err(NizkError::InvalidInput { .. }) => Ok(()),
+        _ => Err(NizkError::VerificationFailed {
+            reason: "scenario_05: expected InvalidInput for degree mismatch",
+            party_id: None,
+        }),
     }
 }
 
@@ -300,10 +309,11 @@ fn scenario_06_forged_sigma_response_ze_overflow() -> Result<(), NizkError> {
     let outer_ze0 = sigma_section_offset("n8-session") + sigma_z_e_data_offset();
     proof.proof_bytes[outer_ze0..outer_ze0 + 8].copy_from_slice(&(B_Z_E + 1).to_le_bytes());
     match adapter.verify(&stmt, &proof) {
-        Err(NizkError::VerificationFailed(_)) => Ok(()),
-        _ => Err(NizkError::VerificationFailed(
-            "scenario_06: expected VerificationFailed for z_e overflow",
-        )),
+        Err(NizkError::VerificationFailed { .. }) => Ok(()),
+        _ => Err(NizkError::VerificationFailed {
+            reason: "scenario_06: expected VerificationFailed for z_e overflow",
+            party_id: None,
+        }),
     }
 }
 
@@ -325,10 +335,11 @@ fn scenario_07_replay_attack() -> Result<(), NizkError> {
         epoch: 0,
     };
     match adapter.verify(&stmt_b, &proof_a) {
-        Err(NizkError::VerificationFailed(_)) => Ok(()),
-        _ => Err(NizkError::VerificationFailed(
-            "scenario_07: expected VerificationFailed for replay",
-        )),
+        Err(NizkError::VerificationFailed { .. }) => Ok(()),
+        _ => Err(NizkError::VerificationFailed {
+            reason: "scenario_07: expected VerificationFailed for replay",
+            party_id: None,
+        }),
     }
 }
 
@@ -350,10 +361,11 @@ fn scenario_08_participant_id_collision() -> Result<(), NizkError> {
         epoch: 0,
     };
     match adapter.verify(&stmt_p2, &proof_p1) {
-        Err(NizkError::VerificationFailed(_)) => Ok(()),
-        _ => Err(NizkError::VerificationFailed(
-            "scenario_08: expected VerificationFailed for pid collision",
-        )),
+        Err(NizkError::VerificationFailed { .. }) => Ok(()),
+        _ => Err(NizkError::VerificationFailed {
+            reason: "scenario_08: expected VerificationFailed for pid collision",
+            party_id: None,
+        }),
     }
 }
 
@@ -364,10 +376,11 @@ fn scenario_09_byte_truncated_proof() -> Result<(), NizkError> {
     let new_len = proof.proof_bytes.len().saturating_sub(10);
     proof.proof_bytes.truncate(new_len);
     match adapter.verify(&stmt, &proof) {
-        Err(NizkError::InvalidProof(_)) => Ok(()),
-        _ => Err(NizkError::VerificationFailed(
-            "scenario_09: expected InvalidProof for truncated proof",
-        )),
+        Err(NizkError::InvalidProof { .. }) => Ok(()),
+        _ => Err(NizkError::VerificationFailed {
+            reason: "scenario_09: expected InvalidProof for truncated proof",
+            party_id: None,
+        }),
     }
 }
 
@@ -399,10 +412,14 @@ fn scenario_10_zero_witness_rejected() -> Result<(), NizkError> {
     };
     let proof = adapter.prove(&stmt, &witness, &mut rng)?;
     match adapter.verify(&stmt, &proof) {
-        Err(NizkError::VerificationFailed(_)) => Ok(()),
-        Ok(()) => Err(NizkError::VerificationFailed(
-            "M7: zero-witness proof was accepted but should be rejected",
-        )),
-        Err(other) => Err(NizkError::VerificationFailed("M7: unexpected error type")),
+        Err(NizkError::VerificationFailed { .. }) => Ok(()),
+        Ok(()) => Err(NizkError::VerificationFailed {
+            reason: "M7: zero-witness proof was accepted but should be rejected",
+            party_id: None,
+        }),
+        Err(other) => Err(NizkError::VerificationFailed {
+            reason: "M7: unexpected error type",
+            party_id: None,
+        }),
     }
 }

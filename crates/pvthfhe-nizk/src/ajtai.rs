@@ -53,7 +53,10 @@ impl Rq {
     /// Uses the signed-integer constant `Q_I64` for `q = Q_COMMIT`.
     /// For other moduli the caller must use `i64::try_from(q)`.
     pub fn reduce(&mut self) -> Result<(), NizkError> {
-        let q = i64::try_from(self.q).map_err(|_| NizkError::InvalidInput("q does not fit i64"))?;
+        let q = i64::try_from(self.q).map_err(|_| NizkError::InvalidInput {
+            reason: "q does not fit i64",
+            party_id: None,
+        })?;
         for c in &mut self.coeffs {
             *c = c.rem_euclid(q);
             if *c > q / 2 {
@@ -96,8 +99,10 @@ impl Rq {
             if v > Q_I128 / 2 {
                 v -= Q_I128;
             }
-            coeffs[i] = i64::try_from(v)
-                .map_err(|_| NizkError::InvalidInput("mul coefficient out of i64 range"))?;
+            coeffs[i] = i64::try_from(v).map_err(|_| NizkError::InvalidInput {
+                reason: "mul coefficient out of i64 range",
+                party_id: None,
+            })?;
         }
         Ok(Self { coeffs, q: self.q })
     }
@@ -116,8 +121,10 @@ impl Rq {
         let mut coeffs = [0_i64; PHI];
         for c in &mut coeffs {
             let raw = rng.next_u64() % q;
-            *c = i64::try_from(raw)
-                .map_err(|_| NizkError::InvalidInput("uniform sample out of i64 range"))?;
+            *c = i64::try_from(raw).map_err(|_| NizkError::InvalidInput {
+                reason: "uniform sample out of i64 range",
+                party_id: None,
+            })?;
         }
         let mut el = Self { coeffs, q };
         el.reduce()?;
@@ -129,13 +136,21 @@ impl Rq {
         let range = 2_u64
             .checked_mul(bound)
             .and_then(|v| v.checked_add(1))
-            .ok_or(NizkError::InvalidInput("bound overflow in sample_bounded"))?;
-        let bound_i64 =
-            i64::try_from(bound).map_err(|_| NizkError::InvalidInput("bound does not fit i64"))?;
+            .ok_or(NizkError::InvalidInput {
+                reason: "bound overflow in sample_bounded",
+                party_id: None,
+            })?;
+        let bound_i64 = i64::try_from(bound).map_err(|_| NizkError::InvalidInput {
+            reason: "bound does not fit i64",
+            party_id: None,
+        })?;
         let mut coeffs = [0_i64; PHI];
         for c in &mut coeffs {
-            let raw = i64::try_from(rng.next_u64() % range)
-                .map_err(|_| NizkError::InvalidInput("bounded sample out of i64 range"))?;
+            let raw =
+                i64::try_from(rng.next_u64() % range).map_err(|_| NizkError::InvalidInput {
+                    reason: "bounded sample out of i64 range",
+                    party_id: None,
+                })?;
             *c = raw - bound_i64;
         }
         Ok(Self {
@@ -213,11 +228,17 @@ impl AjtaiCommitment {
     /// `witness.len() != matrix.m`.
     pub fn commit(matrix: &AjtaiMatrix, witness: &[Rq]) -> Result<Self, NizkError> {
         if witness.len() != matrix.m {
-            return Err(NizkError::InvalidInput("witness length mismatch"));
+            return Err(NizkError::InvalidInput {
+                reason: "witness length mismatch",
+                party_id: None,
+            });
         }
         for w in witness {
             if w.infinity_norm() > matrix.params.witness_bound {
-                return Err(NizkError::InvalidInput("witness exceeds norm bound"));
+                return Err(NizkError::InvalidInput {
+                    reason: "witness exceeds norm bound",
+                    party_id: None,
+                });
             }
         }
         let mut elems = Vec::with_capacity(matrix.params.rank);
@@ -241,13 +262,19 @@ impl AjtaiCommitment {
     ) -> Result<(), NizkError> {
         let recomputed = Self::commit(matrix, claimed_witness)?;
         if self.elems.len() != recomputed.elems.len() {
-            return Err(NizkError::VerificationFailed("ajtai opening mismatch"));
+            return Err(NizkError::VerificationFailed {
+                reason: "ajtai opening mismatch",
+                party_id: None,
+            });
         }
 
         let mut matches = Choice::from(1u8);
         for (a, b) in self.elems.iter().zip(recomputed.elems.iter()) {
             if a.coeffs.len() != b.coeffs.len() {
-                return Err(NizkError::VerificationFailed("ajtai opening mismatch"));
+                return Err(NizkError::VerificationFailed {
+                    reason: "ajtai opening mismatch",
+                    party_id: None,
+                });
             }
             for (a_coeff, b_coeff) in a.coeffs.iter().zip(b.coeffs.iter()) {
                 matches &= a_coeff.ct_eq(b_coeff);
@@ -257,7 +284,10 @@ impl AjtaiCommitment {
         if bool::from(matches) {
             Ok(())
         } else {
-            Err(NizkError::VerificationFailed("ajtai opening mismatch"))
+            Err(NizkError::VerificationFailed {
+                reason: "ajtai opening mismatch",
+                party_id: None,
+            })
         }
     }
 

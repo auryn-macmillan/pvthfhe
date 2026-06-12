@@ -245,25 +245,25 @@ impl ShareNizkBatchedVerifier {
         proof: &ShareNizkProof,
     ) -> Result<(), PvssError> {
         let expected_domain = std::str::from_utf8(Tag::PvssBatchedDkgShareEncryption.as_bytes())
-            .map_err(|_| PvssError::InvalidDomainSeparator)?;
+            .map_err(|_| PvssError::InvalidDomainSeparator { party_id: Some(batched.recipient_index as u16) })?;
         if proof.domain_separator != expected_domain {
-            return Err(PvssError::InvalidDomainSeparator);
+            return Err(PvssError::InvalidDomainSeparator { party_id: Some(batched.recipient_index as u16) });
         }
 
         let bytes = proof.proof_bytes.as_slice();
         if bytes.len() < 2 {
-            return Err(PvssError::BfvEncryptionProofFailed);
+            return Err(PvssError::BfvEncryptionProofFailed { party_id: Some(batched.recipient_index as u16) });
         }
 
         let num_tracks = u16::from_be_bytes([bytes[0], bytes[1]]);
         let mut offset: usize = 2;
 
         if num_tracks < 1 {
-            return Err(PvssError::BfvEncryptionProofFailed);
+            return Err(PvssError::BfvEncryptionProofFailed { party_id: Some(batched.recipient_index as u16) });
         }
         let expected_esm_tracks = num_tracks as usize - 1;
         if expected_esm_tracks != batched.esm_slots.len() {
-            return Err(PvssError::BfvEncryptionProofFailed);
+            return Err(PvssError::BfvEncryptionProofFailed { party_id: Some(batched.recipient_index as u16) });
         }
 
         // ── SK track verification ──
@@ -299,12 +299,12 @@ impl ShareNizkBatchedVerifier {
 
             // Cross-track binding: sk and e_sm commitments must differ
             if batched.sk.track_commitment == esm_slot.track_commitment {
-                return Err(PvssError::BfvEncryptionProofFailed);
+                return Err(PvssError::BfvEncryptionProofFailed { party_id: Some(batched.recipient_index as u16) });
             }
         }
 
         if offset != bytes.len() {
-            return Err(PvssError::BfvEncryptionProofFailed);
+            return Err(PvssError::BfvEncryptionProofFailed { party_id: Some(batched.recipient_index as u16) });
         }
 
         Ok(())
@@ -319,7 +319,7 @@ impl ShareNizkBatchedVerifier {
 fn read_batched_sub_proof(bytes: &[u8], offset: &mut usize) -> Result<ShareNizkProof, PvssError> {
     let remaining = bytes.len().saturating_sub(*offset);
     if remaining < 4 {
-        return Err(PvssError::BfvEncryptionProofFailed);
+        return Err(PvssError::BfvEncryptionProofFailed { party_id: None });
     }
     let proof_len = u32::from_be_bytes([
         bytes[*offset],
@@ -329,11 +329,12 @@ fn read_batched_sub_proof(bytes: &[u8], offset: &mut usize) -> Result<ShareNizkP
     ]) as usize;
     *offset += 4;
     if proof_len > MAX_FIELD_LEN || bytes.len().saturating_sub(*offset) < proof_len {
-        return Err(PvssError::BfvEncryptionProofFailed);
+        return Err(PvssError::BfvEncryptionProofFailed { party_id: None });
     }
     let sub_proof_bytes = bytes[*offset..*offset + proof_len].to_vec();
     *offset += proof_len;
-    ShareNizkProof::from_bytes(sub_proof_bytes).map_err(|_| PvssError::BfvEncryptionProofFailed)
+    ShareNizkProof::from_bytes(sub_proof_bytes)
+        .map_err(|_| PvssError::BfvEncryptionProofFailed { party_id: None })
 }
 
 impl ShareNizkProver {
@@ -474,7 +475,7 @@ impl ShareNizkProver {
         }
 
         let batched_domain = std::str::from_utf8(Tag::PvssBatchedDkgShareEncryption.as_bytes())
-            .map_err(|_| PvssError::InvalidShare)?;
+            .map_err(|_| PvssError::InvalidShare { party_id: Some(batched.recipient_index as u16) })?;
         Ok(ShareNizkProof {
             proof_bytes: ProtocolBytes(out),
             domain_separator: batched_domain.to_owned(),
@@ -499,17 +500,17 @@ impl ShareNizkVerifier {
         validate_statement(stmt)?;
         if proof.domain_separator != SHARE_NIZK_DOMAIN_SEPARATOR {
             eprintln!("[NIZK-VERIFY] FAIL: domain_separator mismatch on proof envelope");
-            return Err(PvssError::InvalidDomainSeparator);
+            return Err(PvssError::InvalidDomainSeparator { party_id: Some(stmt.recipient_index as u16) });
         }
 
         let opened = proof.decode()?;
         if opened.domain_separator != SHARE_NIZK_DOMAIN_SEPARATOR {
             eprintln!("[NIZK-VERIFY] FAIL: domain_separator mismatch on opened proof");
-            return Err(PvssError::InvalidDomainSeparator);
+            return Err(PvssError::InvalidDomainSeparator { party_id: Some(stmt.recipient_index as u16) });
         }
         if opened.statement != *stmt {
             eprintln!("[NIZK-VERIFY] FAIL: statement mismatch");
-            return Err(PvssError::StatementMismatch);
+            return Err(PvssError::StatementMismatch { party_id: Some(stmt.recipient_index as u16) });
         }
 
         let expected_challenge = derive_challenge(stmt, opened.commitment_bytes.as_slice());
@@ -517,13 +518,13 @@ impl ShareNizkVerifier {
             eprintln!("[NIZK-VERIFY] FAIL: challenge mismatch");
             eprintln!("  expected_challenge = {:02x?}", &expected_challenge[..]);
             eprintln!("  opened.challenge   = {:02x?}", &opened.challenge[..]);
-            return Err(PvssError::ChallengeVerificationFailed);
+            return Err(PvssError::ChallengeVerificationFailed { party_id: Some(stmt.recipient_index as u16) });
         }
 
         let expected_ciphertext_v = compute_ciphertext_v(stmt.ciphertext_u.as_slice());
         if expected_ciphertext_v.as_slice() != stmt.ciphertext_v.as_slice() {
             eprintln!("[NIZK-VERIFY] FAIL: ciphertext_v mismatch");
-            return Err(PvssError::CiphertextVMismatch);
+            return Err(PvssError::CiphertextVMismatch { party_id: Some(stmt.recipient_index as u16) });
         }
 
         // ── Commitment structure check ──
@@ -573,7 +574,10 @@ fn build_algebraic_proof(stmt: &ShareNizkStatement, witness: &ShareNizkWitness) 
     let d_rns = sigma::compute_d_rns(&c_rns, &s_i, &e_i)
         .unwrap_or_else(|_| vec![0u64; sigma::rlwe_n() * pvthfhe_types::rlwe_moduli().len()]);
 
-    let mut proof_rng = ChaCha20Rng::from_rng(&mut OsRng).expect("OsRng available"); // allow-seeded-rng: (removed — now uses OsRng)
+    let mut proof_rng = match ChaCha20Rng::from_rng(&mut OsRng) {
+        Ok(rng) => rng,
+        Err(_) => return vec![],
+    };
     let sigma_stmt = sigma::SigmaStatement {
         c_rns,
         d_rns: d_rns.clone(),
@@ -658,22 +662,22 @@ fn decode_algebraic_u64_vec(bytes: &[u8], offset: &mut usize) -> Result<Vec<u64>
     let len = u32::from_be_bytes(
         bytes
             .get(*offset..*offset + 4)
-            .ok_or(PvssError::InvalidShare)?
+            .ok_or(PvssError::InvalidShare { party_id: None })?
             .try_into()
-            .map_err(|_| PvssError::InvalidShare)?,
+            .map_err(|_| PvssError::InvalidShare { party_id: None })?,
     ) as usize;
     *offset += 4;
     if len > 1_000_000 {
-        return Err(PvssError::InvalidShare);
+        return Err(PvssError::InvalidShare { party_id: None });
     }
     let mut out = Vec::with_capacity(len);
     for _ in 0..len {
         let val = u64::from_le_bytes(
             bytes
                 .get(*offset..*offset + 8)
-                .ok_or(PvssError::InvalidShare)?
+                .ok_or(PvssError::InvalidShare { party_id: None })?
                 .try_into()
-                .map_err(|_| PvssError::InvalidShare)?,
+                .map_err(|_| PvssError::InvalidShare { party_id: None })?,
         );
         *offset += 8;
         out.push(val);
@@ -685,22 +689,22 @@ fn decode_algebraic_i64_vec(bytes: &[u8], offset: &mut usize) -> Result<Vec<i64>
     let len = u32::from_be_bytes(
         bytes
             .get(*offset..*offset + 4)
-            .ok_or(PvssError::InvalidShare)?
+            .ok_or(PvssError::InvalidShare { party_id: None })?
             .try_into()
-            .map_err(|_| PvssError::InvalidShare)?,
+            .map_err(|_| PvssError::InvalidShare { party_id: None })?,
     ) as usize;
     *offset += 4;
     if len > 1_000_000 {
-        return Err(PvssError::InvalidShare);
+        return Err(PvssError::InvalidShare { party_id: None });
     }
     let mut out = Vec::with_capacity(len);
     for _ in 0..len {
         let val = i64::from_le_bytes(
             bytes
                 .get(*offset..*offset + 8)
-                .ok_or(PvssError::InvalidShare)?
+                .ok_or(PvssError::InvalidShare { party_id: None })?
                 .try_into()
-                .map_err(|_| PvssError::InvalidShare)?,
+                .map_err(|_| PvssError::InvalidShare { party_id: None })?,
         );
         *offset += 8;
         out.push(val);
@@ -759,7 +763,7 @@ pub fn build_bfv_encryption_proof(
             if ciphertext.bytes.as_slice() != stmt.ciphertext_u.as_slice()
                 || w.ciphertext_bytes.as_slice() != stmt.ciphertext_u.as_slice()
             {
-                return Err(PvssError::BfvEncryptionProofFailed);
+                return Err(PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) });
             }
             w
         }
@@ -769,9 +773,9 @@ pub fn build_bfv_encryption_proof(
             let mut fallback_rng = ChaCha20Rng::from_seed(seed); // allow-seeded-rng: deterministic fallback re-encryption check
             let ciphertext = backend
                 .encrypt(&pk, share, &mut fallback_rng)
-                .map_err(|_| PvssError::InvalidShare)?;
+                .map_err(|_| PvssError::InvalidShare { party_id: Some(stmt.recipient_index as u16) })?;
             if ciphertext.bytes.as_slice() != stmt.ciphertext_u.as_slice() {
-                return Err(PvssError::BfvEncryptionProofFailed);
+                return Err(PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) });
             }
             return Ok(ProtocolBytes(vec![]));
         }
@@ -788,21 +792,24 @@ fn encode_bfv_encryption_proof_from_witness(
 ) -> Result<ProtocolBytes, PvssError> {
     // --- Build BFV sigma statement ---
     let pk_decoded = wire::decode_public_key(stmt.recipient_pk.as_slice())
-        .map_err(|_| PvssError::InvalidShare)?;
+        .map_err(|_| PvssError::InvalidShare { party_id: Some(stmt.recipient_index as u16) })?;
     if enc_witness.recipient_pk0_bytes.as_slice() != pk_decoded.p0.as_slice()
         || enc_witness.recipient_pk1_bytes.as_slice() != pk_decoded.p1.as_slice()
     {
-        return Err(PvssError::BfvEncryptionProofFailed);
+        return Err(PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) });
     }
 
-    let pk0_rns = poly_bytes_to_rns(&pk_decoded.p0).map_err(|_| PvssError::InvalidShare)?;
-    let pk1_rns = poly_bytes_to_rns(&pk_decoded.p1).map_err(|_| PvssError::InvalidShare)?;
-    let ct0_rns =
-        poly_bytes_to_rns(&enc_witness.ct0_poly_bytes).map_err(|_| PvssError::InvalidShare)?;
-    let ct1_rns =
-        poly_bytes_to_rns(&enc_witness.ct1_poly_bytes).map_err(|_| PvssError::InvalidShare)?;
+    let pk0_rns = poly_bytes_to_rns(&pk_decoded.p0)
+        .map_err(|_| PvssError::InvalidShare { party_id: Some(stmt.recipient_index as u16) })?;
+    let pk1_rns = poly_bytes_to_rns(&pk_decoded.p1)
+        .map_err(|_| PvssError::InvalidShare { party_id: Some(stmt.recipient_index as u16) })?;
+    let ct0_rns = poly_bytes_to_rns(&enc_witness.ct0_poly_bytes)
+        .map_err(|_| PvssError::InvalidShare { party_id: Some(stmt.recipient_index as u16) })?;
+    let ct1_rns = poly_bytes_to_rns(&enc_witness.ct1_poly_bytes)
+        .map_err(|_| PvssError::InvalidShare { party_id: Some(stmt.recipient_index as u16) })?;
     let t_plain: u64 = 65536;
-    let delta_limbs = bfv_delta_rns(t_plain).map_err(|_| PvssError::InvalidShare)?;
+    let delta_limbs =
+        bfv_delta_rns(t_plain).map_err(|_| PvssError::InvalidShare { party_id: Some(stmt.recipient_index as u16) })?;
 
     let bfv_stmt = BfvSigmaStatement {
         pk0_rns: pk0_rns.clone(),
@@ -822,7 +829,8 @@ fn encode_bfv_encryption_proof_from_witness(
     let bfv_wit = BfvSigmaWitness { u, e0, e1, m };
 
     // --- Produce sigma proof ---
-    let mut proof_rng = ChaCha20Rng::from_rng(&mut OsRng).expect("OsRng available"); // allow-seeded-rng: (removed — now uses OsRng)
+    let mut proof_rng = ChaCha20Rng::from_rng(&mut OsRng)
+        .map_err(|_| PvssError::InvalidShare { party_id: Some(stmt.recipient_index as u16) })?;
     let d_commitment = compute_share_d_commitment(stmt);
     let binding_data = bfv_sigma_binding_data(stmt, &d_commitment);
     let proof = bfv_sigma::prove(
@@ -833,7 +841,7 @@ fn encode_bfv_encryption_proof_from_witness(
         &binding_data,
         &mut proof_rng,
     )
-    .map_err(|_| PvssError::InvalidShare)?;
+    .map_err(|_| PvssError::InvalidShare { party_id: Some(stmt.recipient_index as u16) })?;
 
     let encoded_proof = encode_bfv_sigma_proof(&proof);
 
@@ -882,21 +890,21 @@ pub fn verify_bfv_encryption_proof(
 ) -> Result<(), PvssError> {
     if bfv_encryption_proof.is_empty() {
         eprintln!("[NIZK-VERIFY] FAIL: bfv_encryption_proof is empty");
-        return Err(PvssError::BfvEncryptionProofFailed);
+        return Err(PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) });
     }
 
     let mut offset = 0;
 
     // Read t_plain (u64 LE)
     if bfv_encryption_proof.len() < 8 {
-        return Err(PvssError::BfvEncryptionProofFailed);
+        return Err(PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) });
     }
     let t_plain = u64::from_le_bytes(bfv_encryption_proof[offset..offset + 8].try_into().unwrap());
     offset += 8;
 
     // Read delta_limbs (3 u64)
     if bfv_encryption_proof.len() < offset + 24 {
-        return Err(PvssError::BfvEncryptionProofFailed);
+        return Err(PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) });
     }
     let delta_limbs: Vec<u64> = (0..3)
         .map(|i| {
@@ -915,20 +923,20 @@ pub fn verify_bfv_encryption_proof(
     let ct1_rns = read_bfv_u64_vec(bfv_encryption_proof, &mut offset)?;
 
     let expected_pk = wire::decode_public_key(stmt.recipient_pk.as_slice())
-        .map_err(|_| PvssError::BfvEncryptionProofFailed)?;
-    let expected_pk0_rns =
-        poly_bytes_to_rns(&expected_pk.p0).map_err(|_| PvssError::BfvEncryptionProofFailed)?;
-    let expected_pk1_rns =
-        poly_bytes_to_rns(&expected_pk.p1).map_err(|_| PvssError::BfvEncryptionProofFailed)?;
+        .map_err(|_| PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) })?;
+    let expected_pk0_rns = poly_bytes_to_rns(&expected_pk.p0)
+        .map_err(|_| PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) })?;
+    let expected_pk1_rns = poly_bytes_to_rns(&expected_pk.p1)
+        .map_err(|_| PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) })?;
     let (expected_ct0_bytes, expected_ct1_bytes) = backend
         .decode_ct_polys(&Ciphertext {
             bytes: stmt.ciphertext_u.as_slice().to_vec(),
         })
-        .map_err(|_| PvssError::BfvEncryptionProofFailed)?;
-    let expected_ct0_rns =
-        poly_bytes_to_rns(&expected_ct0_bytes).map_err(|_| PvssError::BfvEncryptionProofFailed)?;
-    let expected_ct1_rns =
-        poly_bytes_to_rns(&expected_ct1_bytes).map_err(|_| PvssError::BfvEncryptionProofFailed)?;
+        .map_err(|_| PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) })?;
+    let expected_ct0_rns = poly_bytes_to_rns(&expected_ct0_bytes)
+        .map_err(|_| PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) })?;
+    let expected_ct1_rns = poly_bytes_to_rns(&expected_ct1_bytes)
+        .map_err(|_| PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) })?;
 
     if pk0_rns != expected_pk0_rns
         || pk1_rns != expected_pk1_rns
@@ -936,7 +944,7 @@ pub fn verify_bfv_encryption_proof(
         || ct1_rns != expected_ct1_rns
     {
         eprintln!("[NIZK-VERIFY] FAIL: BFV proof statement does not match public statement");
-        return Err(PvssError::BfvEncryptionProofFailed);
+        return Err(PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) });
     }
 
     let bfv_stmt = BfvSigmaStatement {
@@ -950,7 +958,7 @@ pub fn verify_bfv_encryption_proof(
 
     // Decode BfvSigmaProof
     let bfv_proof = decode_bfv_sigma_proof(&bfv_encryption_proof[offset..])
-        .map_err(|_| PvssError::BfvEncryptionProofFailed)?;
+        .map_err(|_| PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) })?;
 
     let d_commitment = compute_share_d_commitment(stmt);
     let binding_data = bfv_sigma_binding_data(stmt, &d_commitment);
@@ -963,7 +971,7 @@ pub fn verify_bfv_encryption_proof(
     )
     .map_err(|_| {
         eprintln!("[NIZK-VERIFY] FAIL: bfv_sigma::verify failed");
-        PvssError::BfvEncryptionProofFailed
+        PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) }
     })
 }
 
@@ -988,13 +996,14 @@ fn bfv_sigma_binding_data(stmt: &ShareNizkStatement, d_commitment: &[u8; 32]) ->
 fn encode_fhers_plaintext_slots(plaintext: &[u8]) -> Result<Vec<i64>, PvssError> {
     let max = sigma::rlwe_n().saturating_sub(1) * 2;
     if plaintext.len() > max {
-        return Err(PvssError::InvalidShare);
+        return Err(PvssError::InvalidShare { party_id: None });
     }
 
     let t_plain: i64 = 65536;
     let t_half: u64 = 32768;
     let mut out = vec![0i64; sigma::rlwe_n()];
-    out[0] = i64::try_from(plaintext.len()).map_err(|_| PvssError::InvalidShare)?;
+    out[0] =
+        i64::try_from(plaintext.len()).map_err(|_| PvssError::InvalidShare { party_id: None })?;
     for (slot_index, chunk) in plaintext.chunks(2).enumerate() {
         let lo = u16::from(chunk[0]);
         let hi = chunk.get(1).copied().map(u16::from).unwrap_or(0) << 8;
@@ -1012,15 +1021,15 @@ fn encode_fhers_plaintext_slots(plaintext: &[u8]) -> Result<Vec<i64>, PvssError>
 
 fn read_bfv_u64_vec(bytes: &[u8], offset: &mut usize) -> Result<Vec<u64>, PvssError> {
     if bytes.len() < *offset + 4 {
-        return Err(PvssError::BfvEncryptionProofFailed);
+        return Err(PvssError::BfvEncryptionProofFailed { party_id: None });
     }
     let len = u32::from_be_bytes(bytes[*offset..*offset + 4].try_into().unwrap()) as usize;
     *offset += 4;
     if len > 1_000_000 {
-        return Err(PvssError::BfvEncryptionProofFailed);
+        return Err(PvssError::BfvEncryptionProofFailed { party_id: None });
     }
     if bytes.len() < *offset + len * 8 {
-        return Err(PvssError::BfvEncryptionProofFailed);
+        return Err(PvssError::BfvEncryptionProofFailed { party_id: None });
     }
     let mut out = Vec::with_capacity(len);
     for _ in 0..len {
@@ -1043,7 +1052,7 @@ fn get_rlwe_context() -> Result<&'static Arc<Context>, PvssError> {
             .map_err(|e| format!("{e:?}"))
     })
     .as_ref()
-    .map_err(|_| PvssError::LatticeBindingVerificationFailed)
+    .map_err(|_| PvssError::LatticeBindingVerificationFailed { party_id: None })
 }
 
 /// Convert poly_bytes (serialized fhe-math `Poly`) to i64 coefficient vector.
@@ -1055,17 +1064,19 @@ fn poly_bytes_to_i64(poly_bytes: &[u8]) -> Result<Vec<i64>, PvssError> {
 
     let ctx = get_rlwe_context()?;
 
-    let mut poly = Poly::from_bytes(poly_bytes, ctx).map_err(|_| PvssError::InvalidShare)?;
+    let mut poly = Poly::from_bytes(poly_bytes, ctx)
+        .map_err(|_| PvssError::InvalidShare { party_id: None })?;
     poly.change_representation(Representation::PowerBasis);
 
-    let q0 = i64::try_from(ctx.q[0].modulus()).map_err(|_| PvssError::InvalidShare)?;
+    let q0 = i64::try_from(ctx.q[0].modulus())
+        .map_err(|_| PvssError::InvalidShare { party_id: None })?;
     let half_q0 = q0 / 2;
 
     let rns: Vec<u64> = Vec::<u64>::from(&poly);
     let n = sigma::rlwe_n();
     let mut out = Vec::with_capacity(n);
     for &c in rns.iter().take(n) {
-        let c = i64::try_from(c).map_err(|_| PvssError::InvalidShare)?;
+        let c = i64::try_from(c).map_err(|_| PvssError::InvalidShare { party_id: None })?;
         out.push(if c > half_q0 { c - q0 } else { c });
     }
     Ok(out)
@@ -1081,7 +1092,7 @@ pub fn verify_non_leaking_relation_boundary(
     // Verify BFV encryption sigma proof (v4+; v3 and earlier fail version check).
     if opened.bfv_encryption_proof.is_empty() {
         eprintln!("[NIZK-VERIFY] FAIL: v{PROOF_VERSION} proof lacks BFV encryption proof");
-        return Err(PvssError::LatticeBindingVerificationFailed);
+        return Err(PvssError::LatticeBindingVerificationFailed { party_id: Some(stmt.recipient_index as u16) });
     }
     verify_bfv_encryption_proof(backend, stmt, opened.bfv_encryption_proof.as_slice())
 }
@@ -1102,7 +1113,7 @@ fn verify_commitment_ct_validity(opened: &ShareNizkOpenedProof) -> Result<(), Pv
             "[NIZK-VERIFY] FAIL: commitment_structure_invalid (empty or too large: len={})",
             opened.commitment_bytes.len()
         );
-        return Err(PvssError::InvalidCommitmentStructure);
+        return Err(PvssError::InvalidCommitmentStructure { party_id: Some(opened.statement.recipient_index as u16) });
     }
     Ok(())
 }
@@ -1113,7 +1124,7 @@ fn verify_algebraic_relation(
 ) -> Result<(), PvssError> {
     if opened.algebraic_proof.is_empty() {
         eprintln!("[NIZK-VERIFY] FAIL: algebraic_proof is empty");
-        return Err(PvssError::LatticeBindingVerificationFailed);
+        return Err(PvssError::LatticeBindingVerificationFailed { party_id: Some(_stmt.recipient_index as u16) });
     }
     let (d_rns, sigma_proof) = decode_algebraic_proof(opened.algebraic_proof.as_slice())?;
 
@@ -1134,7 +1145,7 @@ fn verify_algebraic_relation(
     )
     .map_err(|_| {
         eprintln!("[NIZK-VERIFY] FAIL: algebraic scalar sigma verification failed");
-        PvssError::LatticeBindingVerificationFailed
+        PvssError::LatticeBindingVerificationFailed { party_id: Some(_stmt.recipient_index as u16) }
     })?;
 
     Ok(())
@@ -1147,7 +1158,7 @@ fn verify_relation_binding(
     let recomputed = compute_relation_binding(stmt, opened.algebraic_proof.as_slice());
     if recomputed != opened.relation_binding {
         eprintln!("[NIZK-VERIFY] FAIL: relation_binding mismatch");
-        return Err(PvssError::LatticeBindingVerificationFailed);
+        return Err(PvssError::LatticeBindingVerificationFailed { party_id: Some(stmt.recipient_index as u16) });
     }
     Ok(())
 }
@@ -1159,7 +1170,7 @@ fn verify_commitment_binding_tag(
     let recomputed = compute_commitment_binding(stmt, &opened.relation_binding);
     if recomputed != opened.commitment_binding {
         eprintln!("[NIZK-VERIFY] FAIL: commitment_binding mismatch");
-        return Err(PvssError::LatticeBindingVerificationFailed);
+        return Err(PvssError::LatticeBindingVerificationFailed { party_id: Some(stmt.recipient_index as u16) });
     }
     Ok(())
 }
@@ -1173,7 +1184,7 @@ fn verify_lattice_binding(
         eprintln!("[NIZK-VERIFY] FAIL: lattice_binding failed");
         eprintln!("  recomputed  = {:02x?}", &recomputed[..]);
         eprintln!("  stored      = {:02x?}", &opened.lattice_binding[..]);
-        return Err(PvssError::LatticeBindingVerificationFailed);
+        return Err(PvssError::LatticeBindingVerificationFailed { party_id: Some(stmt.recipient_index as u16) });
     }
     Ok(())
 }
@@ -1190,7 +1201,7 @@ fn verify_d2_hash_binding(
     hasher.update((stmt.recipient_index as u64).to_le_bytes());
     let expected: [u8; 32] = hasher.finalize().into();
     if expected != opened.d2_binding {
-        return Err(PvssError::D2HashBindingFailed);
+        return Err(PvssError::D2HashBindingFailed { party_id: Some(stmt.recipient_index as u16) });
     }
     Ok(())
 }
@@ -1310,12 +1321,12 @@ fn compute_ajtai_d2_binding_inner(
 
     let params = AjtaiParams::default();
     let matrix = AjtaiMatrix::from_seed(matrix_seed, &params, 1) // allow-seeded-rng: deterministic Ajtai CRS for PVSS proof
-        .map_err(|_| PvssError::D2HashBindingFailed)?;
+        .map_err(|_| PvssError::D2HashBindingFailed { party_id: Some(recipient_index as u16) })?;
 
     let witness = encode_share_as_ajtai_witness(share_bytes)?;
 
-    let commitment =
-        AjtaiCommitment::commit(&matrix, &[witness]).map_err(|_| PvssError::D2HashBindingFailed)?;
+    let commitment = AjtaiCommitment::commit(&matrix, &[witness])
+        .map_err(|_| PvssError::D2HashBindingFailed { party_id: Some(recipient_index as u16) })?;
 
     Ok(commitment.to_d2_digest())
 }
@@ -1326,12 +1337,13 @@ fn encode_share_as_ajtai_witness(share_bytes: &[u8]) -> Result<Rq, PvssError> {
     for i in 0..byte_count {
         let val = i64::from(share_bytes[i]);
         if val > i64::try_from(WITNESS_BOUND).unwrap_or(i64::MAX) {
-            return Err(PvssError::D2HashBindingFailed);
+            return Err(PvssError::D2HashBindingFailed { party_id: None });
         }
         coeffs[i] = val;
     }
     let mut rq = Rq::new(coeffs, Q_COMMIT);
-    rq.reduce().map_err(|_| PvssError::D2HashBindingFailed)?;
+    rq.reduce()
+        .map_err(|_| PvssError::D2HashBindingFailed { party_id: None })?;
     Ok(rq)
 }
 
@@ -1340,7 +1352,7 @@ fn encode_share_as_ajtai_witness(share_bytes: &[u8]) -> Result<Rq, PvssError> {
 impl ShareNizkProof {
     pub fn from_opened(opened: &ShareNizkOpenedProof) -> Result<Self, PvssError> {
         if opened.domain_separator != SHARE_NIZK_DOMAIN_SEPARATOR {
-            return Err(PvssError::InvalidShare);
+            return Err(PvssError::InvalidShare { party_id: Some(opened.statement.recipient_index as u16) });
         }
         validate_statement(&opened.statement)?;
 
@@ -1373,9 +1385,8 @@ pub fn compute_share_commitment(
     session_id: &[u8],
     recipient_index: usize,
     share_bytes: &[u8],
-) -> [u8; DIGEST_LEN] {
+) -> Result<[u8; DIGEST_LEN], PvssError> {
     compute_ajtai_d2_binding(session_id, recipient_index, share_bytes)
-        .expect("share_commitment computation must not fail for valid inputs")
 }
 
 /// Compute the share commitment with per-track domain separation (D.2).
@@ -1389,9 +1400,8 @@ pub fn compute_share_commitment_tracked(
     recipient_index: usize,
     share_bytes: &[u8],
     track_domain_tag: &[u8],
-) -> [u8; DIGEST_LEN] {
+) -> Result<[u8; DIGEST_LEN], PvssError> {
     compute_ajtai_d2_binding_tracked(session_id, recipient_index, share_bytes, track_domain_tag)
-        .expect("share_commitment computation must not fail for valid inputs")
 }
 
 /// Compute the hash-bound secondary ciphertext component from `ciphertext_u`.
@@ -1444,7 +1454,7 @@ fn create_commitment_ct(
 
     let ciphertext = backend
         .encrypt(&pk, plaintext, &mut rng)
-        .map_err(|_| PvssError::InvalidShare)?;
+        .map_err(|_| PvssError::InvalidShare { party_id: Some(stmt.recipient_index as u16) })?;
 
     Ok(ciphertext.bytes)
 }
@@ -1457,10 +1467,10 @@ fn validate_statement(stmt: &ShareNizkStatement) -> Result<(), PvssError> {
         || stmt.share_commitment.len() != DIGEST_LEN
         || stmt.bfv_params_digest.len() != DIGEST_LEN
     {
-        return Err(PvssError::InvalidShare);
+        return Err(PvssError::InvalidShare { party_id: Some(stmt.recipient_index as u16) });
     }
     if stmt.recipient_pk.len() > MAX_FIELD_LEN || stmt.ciphertext_u.len() > MAX_FIELD_LEN {
-        return Err(PvssError::InvalidShare);
+        return Err(PvssError::InvalidShare { party_id: Some(stmt.recipient_index as u16) });
     }
     Ok(())
 }
@@ -1471,7 +1481,7 @@ fn validate_witness(witness: &ShareNizkWitness) -> Result<(), PvssError> {
         || witness.encryption_randomness.expose().is_empty()
         || witness.encryption_randomness.expose().len() > MAX_FIELD_LEN
     {
-        return Err(PvssError::InvalidShare);
+        return Err(PvssError::InvalidShare { party_id: None });
     }
     Ok(())
 }
@@ -1533,18 +1543,18 @@ fn encode_opened_proof_body(opened: &ShareNizkOpenedProof) -> Result<Vec<u8>, Pv
 }
 
 fn decode_opened_proof(bytes: &[u8]) -> Result<ShareNizkOpenedProof, PvssError> {
-    ShareNizkOpenedProof::decode(bytes).map_err(|_| PvssError::InvalidShare)
+    ShareNizkOpenedProof::decode(bytes).map_err(|_| PvssError::InvalidShare { party_id: None })
 }
 
 fn decode_opened_proof_body(bytes: &[u8]) -> Result<ShareNizkOpenedProof, PvssError> {
     let mut cursor = Cursor::new(bytes);
     let version = cursor.read_u16()?;
     if version != PROOF_VERSION {
-        return Err(PvssError::InvalidShare);
+        return Err(PvssError::InvalidShare { party_id: None });
     }
 
-    let domain_separator =
-        String::from_utf8(cursor.read_vec()?).map_err(|_| PvssError::InvalidShare)?;
+    let domain_separator = String::from_utf8(cursor.read_vec()?)
+        .map_err(|_| PvssError::InvalidShare { party_id: None })?;
     let session_id = cursor.read_vec()?;
     let dealer_index = cursor.read_usize()?;
     let recipient_index = cursor.read_usize()?;
@@ -1597,7 +1607,7 @@ impl WireFormat for ShareNizkOpenedProof {
     const TAG: Tag = Tag::WirePvssShareOpenedProof;
 
     fn encode_body(&self) -> Vec<u8> {
-        encode_opened_proof_body(self).expect("validated share NIZK opened proof must encode")
+        encode_opened_proof_body(self).unwrap_or_default()
     }
 
     fn decode_body(bytes: &[u8]) -> Result<Self, WireError> {
@@ -1606,14 +1616,14 @@ impl WireFormat for ShareNizkOpenedProof {
 }
 
 fn encode_bytes(out: &mut Vec<u8>, bytes: &[u8]) -> Result<(), PvssError> {
-    let len = u32::try_from(bytes.len()).map_err(|_| PvssError::InvalidShare)?;
+    let len = u32::try_from(bytes.len()).map_err(|_| PvssError::InvalidShare { party_id: None })?;
     out.extend_from_slice(&len.to_be_bytes());
     out.extend_from_slice(bytes);
     Ok(())
 }
 
 fn encode_usize(out: &mut Vec<u8>, value: usize) -> Result<(), PvssError> {
-    let value = u64::try_from(value).map_err(|_| PvssError::InvalidShare)?;
+    let value = u64::try_from(value).map_err(|_| PvssError::InvalidShare { party_id: None })?;
     out.extend_from_slice(&value.to_be_bytes());
     Ok(())
 }
@@ -1632,11 +1642,11 @@ impl<'a> Cursor<'a> {
         let end = self
             .offset
             .checked_add(len)
-            .ok_or(PvssError::InvalidShare)?;
+            .ok_or(PvssError::InvalidShare { party_id: None })?;
         let slice = self
             .bytes
             .get(self.offset..end)
-            .ok_or(PvssError::InvalidShare)?;
+            .ok_or(PvssError::InvalidShare { party_id: None })?;
         self.offset = end;
         Ok(slice)
     }
@@ -1644,7 +1654,7 @@ impl<'a> Cursor<'a> {
     fn read_array<const N: usize>(&mut self) -> Result<[u8; N], PvssError> {
         self.read_exact(N)?
             .try_into()
-            .map_err(|_| PvssError::InvalidShare)
+            .map_err(|_| PvssError::InvalidShare { party_id: None })
     }
 
     fn read_u16(&mut self) -> Result<u16, PvssError> {
@@ -1657,13 +1667,14 @@ impl<'a> Cursor<'a> {
 
     fn read_usize(&mut self) -> Result<usize, PvssError> {
         let raw = u64::from_be_bytes(self.read_array()?);
-        usize::try_from(raw).map_err(|_| PvssError::InvalidShare)
+        usize::try_from(raw).map_err(|_| PvssError::InvalidShare { party_id: None })
     }
 
     fn read_vec(&mut self) -> Result<Vec<u8>, PvssError> {
-        let len = usize::try_from(self.read_u32()?).map_err(|_| PvssError::InvalidShare)?;
+        let len = usize::try_from(self.read_u32()?)
+            .map_err(|_| PvssError::InvalidShare { party_id: None })?;
         if len > MAX_FIELD_LEN {
-            return Err(PvssError::InvalidShare);
+            return Err(PvssError::InvalidShare { party_id: None });
         }
         Ok(self.read_exact(len)?.to_vec())
     }
@@ -1672,7 +1683,7 @@ impl<'a> Cursor<'a> {
         if self.offset == self.bytes.len() {
             Ok(())
         } else {
-            Err(PvssError::InvalidShare)
+            Err(PvssError::InvalidShare { party_id: None })
         }
     }
 }

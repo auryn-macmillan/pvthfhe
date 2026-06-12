@@ -42,6 +42,7 @@ abstract contract P3RealVerifierBase is Test {
         bytes32 plaintextHash,
         bytes32 aggregatePkHash,
         bytes32 dkgRoot,
+        bytes32(uint256(1)), // sessionId (GAP-1)
         uint64 epoch,
         bytes32 participantSetHash,
         bytes32 dCommitment

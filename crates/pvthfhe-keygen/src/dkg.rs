@@ -14,6 +14,7 @@ use pvthfhe_nizk::schnorr::{self, SchnorrPopProof};
 use pvthfhe_rng::OsRng;
 use rand_core::RngCore;
 use sha2::{Digest, Sha256};
+use std::time::Duration;
 
 const CANONICAL_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
 
@@ -24,6 +25,9 @@ pub struct DkgParams {
     pub n: usize,
     /// Threshold required for decryption.
     pub t: usize,
+    /// Optional per-round timeout. When set, the coordinator may time out
+    /// unresponsive parties and advance the round without them.
+    pub round_timeout: Option<Duration>,
 }
 
 /// Identity record for one party in the DKG ceremony.
@@ -45,25 +49,50 @@ pub struct PartyIdentity {
 #[derive(Debug)]
 pub enum DkgError {
     /// Underlying FHE backend error.
-    Fhe(String),
+    Fhe {
+        /// Human-readable error message.
+        message: String,
+        /// Optional party attribution for blame tracking.
+        party_id: Option<u32>,
+    },
     /// Ceremony has not been run yet.
     NotInitialized,
     /// Invalid parameters supplied.
     InvalidParams(String),
+    /// Round timeout triggered.
+    RoundTimeout {
+        /// Round number that timed out.
+        round: u8,
+        /// Parties that failed to respond before the timeout.
+        missing_parties: Vec<u32>,
+    },
 }
 
 impl From<FheError> for DkgError {
     fn from(e: FheError) -> Self {
-        DkgError::Fhe(e.to_string())
+        DkgError::Fhe {
+            message: e.to_string(),
+            party_id: None,
+        }
     }
 }
 
 impl core::fmt::Display for DkgError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            DkgError::Fhe(msg) => write!(f, "FHE error: {msg}"),
+            DkgError::Fhe { message, party_id } => match party_id {
+                Some(id) => write!(f, "FHE error (party {id}): {message}"),
+                None => write!(f, "FHE error: {message}"),
+            },
             DkgError::NotInitialized => f.write_str("DKG ceremony not yet run"),
             DkgError::InvalidParams(msg) => write!(f, "invalid DKG params: {msg}"),
+            DkgError::RoundTimeout {
+                round,
+                missing_parties,
+            } => write!(
+                f,
+                "round {round} timeout: missing parties {missing_parties:?}"
+            ),
         }
     }
 }

@@ -447,20 +447,89 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
     let n_shares_field = Fr::from(report.share_coeffs.len() as u64);
 
     // Convert share coefficients to field elements for commitment bundle.
-    // share_evals and pt_eval are now computed internally by build_c7_prover_toml
-    // using the same in-circuit challenge_r derivation (F3 fix).
     let share_coeffs_fr: Vec<Vec<Fr>> = report
         .share_coeffs
         .iter()
         .map(|coeffs| coeffs.iter().map(|&c| Fr::from(c as i128)).collect())
         .collect();
-    let (share_polys, share_commitments, merkle_paths, leaf_indices, share_commitment_root) =
-        build_c7_share_commitment_bundle(&share_coeffs_fr);
+    let (share_polys, _, _, _, _old_root) = build_c7_share_commitment_bundle(&share_coeffs_fr);
+
+    let session_id_field =
+        Fr::from_be_bytes_mod_order(&Sha256::digest(report.session_id.as_bytes()));
 
     let dkg_root = Fr::from_be_bytes_mod_order(&Sha256::digest(
         format!("dkg-root-{}", report.session_id).as_bytes(),
     ));
-    let merkle_path: [Fr; 7] = [Fr::zero(); 7];
+
+    // Build RLC witness data.
+    let zero_poly_commitment = {
+        use pvthfhe_cli::full_pipeline::poseidon_sponge_native_noir;
+        let mut inputs = Vec::with_capacity(9);
+        inputs.push(Fr::from(1u64));
+        for _ in 0..8 {
+            inputs.push(Fr::zero());
+        }
+        poseidon_sponge_native_noir(&inputs)
+    };
+
+    let derive_challenge_r = |root: Fr| -> Fr {
+        use pvthfhe_cli::full_pipeline::poseidon_sponge_native_noir;
+        poseidon_sponge_native_noir(&[
+            ciphertext_hash,
+            dkg_root,
+            session_id_field,
+            epoch,
+            participant_set_hash,
+            root,
+            n_shares_field,
+            Fr::from(8u64),
+        ])
+    };
+    use pvthfhe_cli::full_pipeline::compute_combined_poly;
+    use pvthfhe_cli::full_pipeline::eval_c7_share_poly_noir;
+    let share_evals_init: Vec<Fr> = share_polys
+        .iter()
+        .map(|poly| eval_c7_share_poly_noir(poly, derive_challenge_r(_old_root)))
+        .collect();
+    let combined_poly_init = compute_combined_poly(&share_polys, &share_evals_init);
+    let combined_commitment_init = {
+        use pvthfhe_cli::full_pipeline::poseidon_sponge_native_noir;
+        let mut inputs = Vec::with_capacity(9);
+        inputs.push(Fr::from(1u64));
+        for k in 0..8 {
+            inputs.push(combined_poly_init[k]);
+        }
+        poseidon_sponge_native_noir(&inputs)
+    };
+    let mut leaves_init = vec![zero_poly_commitment; 128];
+    leaves_init[0] = combined_commitment_init;
+    let (_, rlc_root) = pvthfhe_cli::full_pipeline::build_binary_merkle_tree(&leaves_init);
+
+    let challenge_r = derive_challenge_r(rlc_root);
+    let share_evals: Vec<Fr> = share_polys
+        .iter()
+        .map(|poly| eval_c7_share_poly_noir(poly, challenge_r))
+        .collect();
+    let combined_poly = compute_combined_poly(&share_polys, &share_evals);
+
+    let combined_commitment = {
+        use pvthfhe_cli::full_pipeline::poseidon_sponge_native_noir;
+        let mut inputs = Vec::with_capacity(9);
+        inputs.push(Fr::from(1u64));
+        for k in 0..8 {
+            inputs.push(combined_poly[k]);
+        }
+        poseidon_sponge_native_noir(&inputs)
+    };
+    let mut leaves = vec![zero_poly_commitment; 128];
+    leaves[0] = combined_commitment;
+    let (merkle_tree_levels, share_commitment_root) =
+        pvthfhe_cli::full_pipeline::build_binary_merkle_tree(&leaves);
+    let paths = pvthfhe_cli::full_pipeline::prove_binary_merkle_paths(&merkle_tree_levels);
+    let combined_merkle_path = paths[0];
+    let combined_leaf_index = Fr::zero();
+
+    let g4_merkle_path: [Fr; 7] = [Fr::zero(); 7];
 
     let prover_toml_data = build_c7_prover_toml(
         ciphertext_hash,
@@ -468,6 +537,7 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
         decrypt_nizk_hash_field,
         dkg_transcript_hash,
         dkg_root,
+        session_id_field,
         epoch,
         participant_set_hash,
         n_participants,
@@ -479,12 +549,12 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
         n_shares_field,
         &report.lagrange_coeffs,
         share_commitment_root,
-        &share_commitments,
-        &merkle_paths,
-        &leaf_indices,
-        &share_polys,
+        &share_evals,
+        &combined_poly,
+        &combined_merkle_path,
+        combined_leaf_index,
         aggregate_pk_leaf,
-        merkle_path,
+        g4_merkle_path,
         leaf_index,
     );
     if let Err(e) = std::fs::write(&prover_toml_path, &prover_toml_data) {

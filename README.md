@@ -53,6 +53,11 @@ plaintext_roundtrip: OK  verify: ACCEPT
 | `just greco` | Greco-style BFV encryption proof |
 | `just compute n=5` | Verifiable FHE: sum n ciphertexts via LatticeFold+ |
 | `just test-all` | Rust + Noir + Solidity test suite |
+| `just non-equiv-test` | NonEquiv protocol tests (ePrint 2026/1159 §4.1) |
+| `just avid-test` | Provable AVID tests (ePrint 2026/1159 §4.3) |
+| `just escrow-test` | Key escrow tests (ePrint 2026/1159 §6) |
+| `just leader-elect-test` | Leader election tests (ePrint 2026/1159 §7) |
+| `just dkg-paper-gate` | Full DKG paper integration gate |
 
 ## Open Problems
 
@@ -78,6 +83,8 @@ plaintext_roundtrip: OK  verify: ACCEPT
 - [`.sisyphus/plans/`](.sisyphus/plans/) — remediation plans (all resolved)
 - [docs/comparison-paper.md](docs/comparison-paper.md) — Nova IVC vs zkVM
 - [bench/results/crisp-comparison.md](bench/results/crisp-comparison.md) — CRISP benchmarks
+- [docs/papers/2026-1159.md](docs/papers/2026-1159.md) — Abraham, Bacho, Stern — Quadratic Asynchronous DKG from Plain Setup
+- [`.sisyphus/plans/dkg-paper-integration.md`](.sisyphus/plans/dkg-paper-integration.md) — DKG paper integration plan
 
 ## License
 

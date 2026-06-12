@@ -50,7 +50,7 @@ fn derive_challenge(
     acc_commitment: &[u8],
     inst_ajtai_bytes: &[u8],
     inst_public_io_bytes: &[u8],
-) -> u64 {
+) -> u128 {
     let h = fiat_shamir::challenge_v2(
         session_id,
         fold_depth,
@@ -59,7 +59,7 @@ fn derive_challenge(
         inst_ajtai_bytes,
         inst_public_io_bytes,
     );
-    u64::from_le_bytes(h[..8].try_into().unwrap())
+    u128::from_le_bytes(h[..16].try_into().unwrap())
 }
 
 pub fn init_accumulator(

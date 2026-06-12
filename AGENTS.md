@@ -20,6 +20,15 @@ PVTHFHE targets private-verifiable threshold FHE: O(n) per-party work with O(pol
 - `just phase1-gate`
 - `just phase2-gate`
 - `just phase3-gate`
+- `just dkg-paper-gate`
+
+## DKG Paper Reference
+
+- Abraham, Bacho, Stern — *Quadratic Asynchronous DKG from Plain Setup* (ePrint 2026/1159)
+- Local copy: `docs/papers/2026-1159.md`
+- Integration plan: `.sisyphus/plans/dkg-paper-integration.md`
+- New crates: `pvthfhe-non-equiv` (NonEquiv protocol)
+- New modules: `pvthfhe-pvss/src/avid.rs`, `pvthfhe-pvss/src/key_escrow.rs`, `pvthfhe-aggregator/src/leader_election.rs`
 
 ## TDD policy
 

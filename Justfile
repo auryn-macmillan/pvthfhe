@@ -54,7 +54,7 @@ aggregator-baseline n="10" t="4" seed="1":
 
 bench-p4:
     @echo "=== P4 on-chain decider benchmark ==="
-    @echo "Track A removed. P4 now uses Ajtai commitment UltraHonk circuit (see just ajtai-onchain-gate)."
+    @echo "P4 now uses Ajtai commitment UltraHonk circuit (see just ajtai-onchain-gate)."
     @echo "bench_p4 binary disabled — requires hermine feature."
     @echo "To benchmark P4: just ajtai-onchain-gate"
 
@@ -85,7 +85,7 @@ wire-gate:
 
 compressor-gate:
     cargo test -p pvthfhe-compressor
-    @echo "compressor-gate: Track A removed, only LatticeFold+ tests remain"
+    @echo "compressor-gate: LatticeFold+ tests only"
 
 ajtai-onchain-gate:
     @echo "=== Ajtai commitment circuit (P4 on-chain decider) ==="
@@ -192,7 +192,7 @@ bench-kzg-evm:
     @exit 2
 
 test-circuits:
-    just circuit-param N=8
+    just circuit-param
     (cd circuits && nargo test --workspace)
 
 test-contracts:
@@ -333,20 +333,88 @@ artifact-reproduce:
     just p3-bench
     just e2e-real
 
-poulpy-all:
-    @echo "=== Poulpy End-to-End (CKKS DKG → Scheme Switch → TFHE Bootstrap) ==="
-    @echo "Track A Nova IVC removed — scheme-switch (CKKS↔TFHE) proof unavailable."
-    @echo "Use individual backends instead:"
-    @echo "  poulpy-ckks:  cargo run ... demo --backend poulpy-ckks  --n 6 --threshold 2"
-    @echo "  poulpy-tfhe:  cargo run ... demo --backend poulpy-tfhe  --n 6 --threshold 2"
-    @echo "  fhe-rs (BFV): cargo run ... demo                         --n 6 --threshold 2"
+poulpy-all: poulpy-switch
+    @echo ""
+    @echo " ═══════════════════════════════════════════════════════════════════════"
+    @echo "  Poulpy Scheme-Switch: CKKS → TFHE (Single Coherent Pipeline)"
+    @echo " ═══════════════════════════════════════════════════════════════════════"
+    @echo ""
+    @echo "  Runs a single binary executing the full dual-scheme pipeline:"
+    @echo "    1. CKKS DKG + encrypt(42.0) + ckks_add + ckks_mul"
+    @echo "    2. Switch: CKKS result → binary encoding"
+    @echo "    3. TFHE DKG + encrypt each bit → decrypt all bits"
+    @echo "    4. Verify: Σ bit·2ⁱ = CKKS result (3528)"
+    @echo ""
+
+poulpy-switch:
+    @echo ""
+    @echo " ═══════════════════════════════════════════════════════════════════════"
+    @echo "  Poulpy Scheme-Switch: CKKS → TFHE (Coherent Pipeline)"
+    @echo " ═══════════════════════════════════════════════════════════════════════"
+    @echo ""
+    @echo "  plaintext = 42.0"
+    @echo "  Session: shared across both backends (same seed → shared sid)"
+    @echo ""
+    @echo "  Phase 1 — CKKS Encrypted Arithmetic:"
+    @echo "    DKG → encrypt(42.0) → add(42+42=84) → mul(84×42=3528) → decrypt"
+    @echo "  Switch:  CKKS f64 result → binary bits (0b...) for TFHE"
+    @echo "  Phase 3 — TFHE Boolean Circuit (encrypted ops):"
+    @echo "    DKG → encrypt 12 bits → (b0∧b1)∨(b3∧b8) → decrypt"
+    @echo "    all gates on encrypted data, no intermediate decrypt"
+    @echo ""
+    @echo "  Scheme-switch proof (LatticeFold+ CKKS↔TFHE decoder circuit):"
+    @echo "  the scheme_switch module provides commitment-binding; the full"
+    @echo "  RLWE/LWE decoder circuit is deferred (P5)."
+    @echo ""
+    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run -p pvthfhe-cli --features "with-fhe,enable-ckks,enable-tfhe,nova-compressor,demo-seeded-rng" -- demo --backend poulpy-switch --n 6 --threshold 2
 
 # Build circuits with ring dimension N=8 (Schwartz-Zippel point evaluation makes this N-independent).
 # Native code uses N=8192; the Noir circuit verifies a single point evaluation.
 circuit-param:
-    @echo "Setting ring dimension N=8 in circuits/aggregator_final/src/ring_dim.nr"
-    @echo "global N: u32 = 8;" > circuits/aggregator_final/src/ring_dim.nr
+    @echo "Setting ring dimension N=8192 in circuits/aggregator_final/src/ring_dim.nr"
+    @echo "global N: u32 = 8192;" > circuits/aggregator_final/src/ring_dim.nr
     cd circuits && nargo compile --package aggregator_final
+    cd circuits && nargo compile --package decrypt_share
 
 stage1-gate:
     python3 .sisyphus/scripts/stage1-gate.py
+
+# NonEquiv protocol tests (ePrint 2026/1159 §4.1)
+non-equiv-test:
+    cargo test -p pvthfhe-non-equiv
+    cargo test -p pvthfhe-aggregator --test adversarial non_equiv --features mock
+
+# Provable AVID dispersal + retrieval tests (ePrint 2026/1159 §4.3)
+avid-test:
+    cargo test -p pvthfhe-pvss --lib avid
+
+# Committee-based PVSS demo (ePrint 2026/1159 §4.2)
+committee-demo n="10" t="4" seed="1":
+    cargo test -p pvthfhe-pvss --lib avid
+    @echo "Committee sampling tests passed. Use --features committee-pvss for full committee mode."
+
+# Key escrow / distributed authorization tests (ePrint 2026/1159 §6)
+escrow-test:
+    cargo test -p pvthfhe-pvss --lib key_escrow
+
+# Weak leader election tests (ePrint 2026/1159 §7)
+leader-elect-test:
+    cargo test -p pvthfhe-aggregator --lib leader_election
+
+# DKG paper integration gate — runs all new tests + validates references
+dkg-paper-gate:
+    @echo "=== DKG Paper (2026/1159) Integration Gate ==="
+    @echo "[1/6] NonEquiv protocol..."
+    cargo test -p pvthfhe-non-equiv
+    @echo "[2/6] Provable AVID..."
+    cargo test -p pvthfhe-pvss --lib avid
+    @echo "[3/6] Key escrow..."
+    cargo test -p pvthfhe-pvss --lib key_escrow
+    @echo "[4/6] Leader election..."
+    cargo test -p pvthfhe-aggregator --lib leader_election
+    @echo "[5/6] NonEquiv adversarial integration..."
+    cargo test -p pvthfhe-aggregator --test adversarial non_equiv --features mock
+    @echo "[6/6] Paper reference..."
+    test -f docs/papers/2026-1159.md || (echo "FAIL: paper not found at docs/papers/2026-1159.md" && exit 1)
+    grep -q "Quadratic Asynchronous DKG" docs/papers/2026-1159.md || (echo "FAIL: paper content invalid" && exit 1)
+    @echo "=== DKG Paper Gate: ALL CHECKS PASSED ==="

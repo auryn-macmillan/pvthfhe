@@ -119,7 +119,8 @@ contract SessionRegistry is AccessControl {
     ///         R6.9: consumption is scoped to the session's current runId,
     ///         so abort+restart does NOT block the new run from reusing epochs.
     ///         Requires VERIFIER_ROLE (typically granted to PvtFheVerifier).
-    function markEpochConsumed(bytes32 dkgRoot, uint64 epoch) external onlyRole(VERIFIER_ROLE) {
+    function markEpochConsumed(bytes32 dkgRoot, bytes32 sessionId, uint64 epoch) external onlyRole(VERIFIER_ROLE) {
+        
         Session storage s = sessions[dkgRoot];
         if (!s.registered) revert SessionNotFound(dkgRoot);
         if (s.aborted) revert SessionAbortedError(dkgRoot);
@@ -135,6 +136,7 @@ contract SessionRegistry is AccessControl {
     ///         Requires VERIFIER_ROLE so freshness is a public acceptance check.
     function recordSmudgeSlotUse(
         bytes32 dkgRoot,
+        bytes32 sessionId,
         uint32 partyId,
         uint32 slot,
         bytes32 ciphertextHash,
@@ -163,7 +165,8 @@ contract SessionRegistry is AccessControl {
 
     /// @notice Check whether an epoch is consumed for the session's current runId.
     ///         Reverts if session is not found or aborted.
-    function isEpochConsumed(bytes32 dkgRoot, uint64 epoch) external view returns (bool) {
+    function isEpochConsumed(bytes32 dkgRoot, bytes32 sessionId, uint64 epoch) external view returns (bool) {
+        
         Session storage s = sessions[dkgRoot];
         if (!s.registered) revert SessionNotFound(dkgRoot);
         if (s.aborted) revert SessionAbortedError(dkgRoot);

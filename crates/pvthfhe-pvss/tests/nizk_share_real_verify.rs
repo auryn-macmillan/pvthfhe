@@ -42,7 +42,7 @@ fn verifier_rejects_tampered_d2_binding() {
     let share = b"share-AAAA-aaaa-AAAA-aaaa-AAAA-aaaa-AA".to_vec();
 
     // Statement carries share_commitment derived from the same share
-    let share_commitment = compute_share_commitment(&session_id, 0, &share);
+    let share_commitment = compute_share_commitment(&session_id, 0, &share).expect("share_commitment");
 
     let randomness = [0xCCu8; 32];
     let mut enc_rng = ChaCha8Rng::from_seed(randomness);
@@ -106,7 +106,7 @@ fn verifier_fails_closed_for_valid_d2_binding_without_bfv_relation() {
 
     let share = b"share-CCCC-cccc-CCCC-cccc-CCCC-cccc-CC".to_vec();
 
-    let share_commitment = compute_share_commitment(&session_id, 0, &share);
+    let share_commitment = compute_share_commitment(&session_id, 0, &share).expect("share_commitment");
 
     let randomness = [0xDDu8; 32];
     let mut enc_rng = ChaCha8Rng::from_seed(randomness);

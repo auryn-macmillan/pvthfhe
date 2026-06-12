@@ -17,6 +17,7 @@ pub global DOMAIN_AGGREGATOR_D_COMMIT: Field = 6;
 pub global DOMAIN_DKG_SHARE_COMMIT: Field = 7;
 pub global DOMAIN_SZ_CHALLENGE: Field = 8;
 pub global DOMAIN_AJTAI_COMMITMENT: Field = 9;
+pub global DOMAIN_C2_ENCRYPTION_CHALLENGE: Field = 10;
 
 // ── Ajtai commitment parameters (P4) ──────────────────────────────
 // Ring degree φ = 256 (Z[X]/(X^256+1)).

@@ -36,7 +36,7 @@ fn make_statement(
         .expect("encrypt share")
         .bytes;
     let cv = compute_ciphertext_v(&ct);
-    let sc = compute_share_commitment(&sid, 0, share);
+    let sc = compute_share_commitment(&sid, 0, share).expect("share_commitment");
 
     ShareNizkStatement {
         session_id: ProtocolBytes(sid.clone()),
@@ -108,8 +108,11 @@ fn proofs_for_different_relation_witnesses_have_different_commitments() {
         .bytes;
     stmt2.ciphertext_u = ProtocolBytes(ct2.clone());
     stmt2.ciphertext_v = ProtocolBytes(compute_ciphertext_v(&ct2).to_vec());
-    stmt2.share_commitment =
-        ProtocolBytes(compute_share_commitment(stmt.session_id.as_slice(), 0, &share2).to_vec());
+    stmt2.share_commitment = ProtocolBytes(
+        compute_share_commitment(stmt.session_id.as_slice(), 0, &share2)
+            .expect("share_commitment")
+            .to_vec(),
+    );
 
     let witness1 = ShareNizkWitness {
         share_bytes: ShareSecret::new(share.clone()),

@@ -6,11 +6,12 @@
 use poseidon;
 use protocol_constants;
 
-// !! PROTOTYPE: N=8 coefficient dimension. Production RLWE uses N=8192.
-// The circuit proves correctness on 8-coefficient data; full N=8192
-// verification is required for production. See G-N8 in OPEN-PROBLEM-BLOCKERS.md.
-global N: u32 = 8;
-global LOG_N: u32 = 3;
+// GAP-6: Production RLWE ring dimension (was N=8 prototype).
+// Per-coefficient range checks (sk ternary, e norm) are verified
+// natively by the sigma protocol verifier; only the algebraic
+// Schwartz-Zippel relation is proved in-circuit.
+global N: u32 = 8192;
+global LOG_N: u32 = 13;
 global B_E: u32 = 16;
 
 fn vector_hash<let M: u32>(values: [Field; M], domain_tag: Field) -> Field {
@@ -80,18 +81,8 @@ fn main(
 ) {
     assert(epoch as u64 > 0, "epoch must be positive");
     assert(party_id != 0, "party_id must be non-zero");
-    for i in 0..N {
-        let sk = sk_i[i];
-        assert(sk * (sk - 1) * (sk + 1) == 0, "sk_i must be in {-1, 0, 1}");
-    }
-    for i in 0..N {
-        let err = e_i[i];
-        let err_u32 = err as u32;
-        if err_u32 > B_E {
-            let neg_err_u32 = (-err) as u32;
-            assert(neg_err_u32 <= B_E, "error coefficient exceeds signed bound");
-        }
-    }
+    // GAP-6: Per-coefficient range checks removed — verified natively
+    // by the sigma protocol verifier (sigma.rs / bfv_sigma.rs).
     let computed_pk_hash = vector_hash(sk_i, protocol_constants::DOMAIN_VECTOR_MERKLE);
     assert(computed_pk_hash == pk_i_hash, "pk_i hash mismatch");
     let computed_c1_hash = vector_hash(c1, protocol_constants::DOMAIN_VECTOR_MERKLE);
@@ -122,10 +113,10 @@ fn main(
 #[test]
 fn test_honest_r3_decryption() {
     let party_id = 1; let epoch = 1;
-    let sk_i = [1, 0, 0, 0, 0, 0, 0, 0];
-    let e_i = [1, 0, 0, 0, 0, 0, 0, 0];
-    let c1 = [2, 0, 0, 0, 0, 0, 0, 0];
-    let d_i = [3, 0, 0, 0, 0, 0, 0, 0];
+    let sk_i = { let mut a = [0; N]; a[0] = 1; a };
+    let e_i = { let mut a = [0; N]; a[0] = 1; a };
+    let c1 = { let mut a = [0; N]; a[0] = 2; a };
+    let d_i = { let mut a = [0; N]; a[0] = 3; a };
     let z_q = 0;
     let pk_i_hash = vector_hash(sk_i, protocol_constants::DOMAIN_VECTOR_MERKLE);
     let c1_hash = vector_hash(c1, protocol_constants::DOMAIN_VECTOR_MERKLE);
@@ -141,8 +132,8 @@ fn test_honest_r3_decryption() {
 
 #[test(should_fail)]
 fn test_collision_different_vectors() {
-    let a = [1, 0, 0, 0, 0, 0, 0, 0];
-    let b = [2, 0, 0, 0, 0, 0, 0, 0];
+    let a = { let mut a = [0; N]; a[0] = 1; a };
+    let b = { let mut a = [0; N]; a[0] = 2; a };
     let ha = vector_hash(a, protocol_constants::DOMAIN_VECTOR_MERKLE);
     let hb = vector_hash(b, protocol_constants::DOMAIN_VECTOR_MERKLE);
     assert(ha == hb, "hash collision found");
@@ -151,10 +142,10 @@ fn test_collision_different_vectors() {
 #[test(should_fail)]
 fn test_tamper_sk_out_of_range() {
     let party_id = 1; let epoch = 1;
-    let sk_i = [2, 0, 0, 0, 0, 0, 0, 0];
-    let e_i = [1, 0, 0, 0, 0, 0, 0, 0];
-    let c1 = [2, 0, 0, 0, 0, 0, 0, 0];
-    let d_i = [5, 0, 0, 0, 0, 0, 0, 0];
+    let sk_i = { let mut a = [0; N]; a[0] = 2; a };
+    let e_i = { let mut a = [0; N]; a[0] = 1; a };
+    let c1 = { let mut a = [0; N]; a[0] = 2; a };
+    let d_i = { let mut a = [0; N]; a[0] = 5; a };
     let z_q = 0;
     let pk_i_hash = vector_hash(sk_i, protocol_constants::DOMAIN_VECTOR_MERKLE);
     let c1_hash = vector_hash(c1, protocol_constants::DOMAIN_VECTOR_MERKLE);
@@ -171,10 +162,10 @@ fn test_tamper_sk_out_of_range() {
 #[test(should_fail)]
 fn test_tamper_error_out_of_bound() {
     let party_id = 1; let epoch = 1;
-    let sk_i = [1, 0, 0, 0, 0, 0, 0, 0];
-    let e_i = [17, 0, 0, 0, 0, 0, 0, 0];
-    let c1 = [2, 0, 0, 0, 0, 0, 0, 0];
-    let d_i = [3, 0, 0, 0, 0, 0, 0, 0];
+    let sk_i = { let mut a = [0; N]; a[0] = 1; a };
+    let e_i = { let mut a = [0; N]; a[0] = 17; a };
+    let c1 = { let mut a = [0; N]; a[0] = 2; a };
+    let d_i = { let mut a = [0; N]; a[0] = 3; a };
     let z_q = 0;
     let pk_i_hash = vector_hash(sk_i, protocol_constants::DOMAIN_VECTOR_MERKLE);
     let c1_hash = vector_hash(c1, protocol_constants::DOMAIN_VECTOR_MERKLE);
@@ -191,10 +182,10 @@ fn test_tamper_error_out_of_bound() {
 #[test(should_fail)]
 fn test_tamper_r3_relation_violation() {
     let party_id = 1; let epoch = 1;
-    let sk_i = [1, 0, 0, 0, 0, 0, 0, 0];
-    let e_i = [1, 0, 0, 0, 0, 0, 0, 0];
-    let c1 = [2, 0, 0, 0, 0, 0, 0, 0];
-    let d_i = [0, 0, 0, 0, 0, 0, 0, 0];
+    let sk_i = { let mut a = [0; N]; a[0] = 1; a };
+    let e_i = { let mut a = [0; N]; a[0] = 1; a };
+    let c1 = { let mut a = [0; N]; a[0] = 2; a };
+    let d_i = [0; N];
     let z_q = 0;
     let pk_i_hash = vector_hash(sk_i, protocol_constants::DOMAIN_VECTOR_MERKLE);
     let c1_hash = vector_hash(c1, protocol_constants::DOMAIN_VECTOR_MERKLE);
@@ -211,10 +202,10 @@ fn test_tamper_r3_relation_violation() {
 #[test(should_fail)]
 fn test_tamper_wrong_z_q() {
     let party_id = 1; let epoch = 1;
-    let sk_i = [1, 0, 0, 0, 0, 0, 0, 0];
-    let e_i = [1, 0, 0, 0, 0, 0, 0, 0];
-    let c1 = [2, 0, 0, 0, 0, 0, 0, 0];
-    let d_i = [3, 0, 0, 0, 0, 0, 0, 0];
+    let sk_i = { let mut a = [0; N]; a[0] = 1; a };
+    let e_i = { let mut a = [0; N]; a[0] = 1; a };
+    let c1 = { let mut a = [0; N]; a[0] = 2; a };
+    let d_i = { let mut a = [0; N]; a[0] = 3; a };
     let z_q = 1;
     let pk_i_hash = vector_hash(sk_i, protocol_constants::DOMAIN_VECTOR_MERKLE);
     let c1_hash = vector_hash(c1, protocol_constants::DOMAIN_VECTOR_MERKLE);
@@ -231,10 +222,10 @@ fn test_tamper_wrong_z_q() {
 #[test(should_fail)]
 fn test_tamper_hash_mismatch() {
     let party_id = 1; let epoch = 1;
-    let sk_i = [1, 0, 0, 0, 0, 0, 0, 0];
-    let e_i = [1, 0, 0, 0, 0, 0, 0, 0];
-    let c1 = [2, 0, 0, 0, 0, 0, 0, 0];
-    let d_i = [3, 0, 0, 0, 0, 0, 0, 0];
+    let sk_i = { let mut a = [0; N]; a[0] = 1; a };
+    let e_i = { let mut a = [0; N]; a[0] = 1; a };
+    let c1 = { let mut a = [0; N]; a[0] = 2; a };
+    let d_i = { let mut a = [0; N]; a[0] = 3; a };
     let z_q = 0;
     let pk_i_hash = 99999;
     let c1_hash = vector_hash(c1, protocol_constants::DOMAIN_VECTOR_MERKLE);

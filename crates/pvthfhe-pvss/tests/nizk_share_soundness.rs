@@ -67,7 +67,7 @@ fn verifier_rejects_ciphertext_share_commitment_mismatch() {
         .expect("encrypt share A")
         .bytes;
     let ciphertext_v = compute_ciphertext_v(&ciphertext_u);
-    let share_commitment = compute_share_commitment(&session_id, 0, &share_b);
+    let share_commitment = compute_share_commitment(&session_id, 0, &share_b).expect("share_commitment");
     let stmt = ShareNizkStatement {
         session_id: ProtocolBytes(session_id.to_vec()),
         dealer_index: 0,
@@ -115,7 +115,7 @@ fn make_consistent_but_invalid_proof(
         h.finalize()
     };
 
-    let share_commitment = compute_share_commitment(&sid, 0, &fake_share);
+    let share_commitment = compute_share_commitment(&sid, 0, &fake_share).expect("share_commitment");
 
     let stmt = ShareNizkStatement {
         session_id: ProtocolBytes(sid.clone()),
@@ -161,7 +161,7 @@ fn verifier_accepts_internally_consistent_but_invalid_proof() {
         .expect("encrypt share")
         .bytes;
     let ciphertext_v = compute_ciphertext_v(&ciphertext_u);
-    let share_commitment = compute_share_commitment(&sid, 0, &share);
+    let share_commitment = compute_share_commitment(&sid, 0, &share).expect("share_commitment");
     let stmt = ShareNizkStatement {
         session_id: ProtocolBytes(sid.clone()),
         dealer_index: 0,
@@ -215,7 +215,7 @@ fn adversary_can_forge_proof_for_arbitrary_ciphertext() {
         h.update(&arbitrary_ct);
         h.finalize()
     };
-    let sc = compute_share_commitment(&sid, 0, &arbitrary_share);
+    let sc = compute_share_commitment(&sid, 0, &arbitrary_share).expect("share_commitment");
 
     let stmt = ShareNizkStatement {
         session_id: ProtocolBytes(sid.clone()),
@@ -269,7 +269,7 @@ fn forgery_count_over_many_attempts() {
             h.update(&ct);
             h.finalize()
         };
-        let sc = compute_share_commitment(&sid, 0, &share);
+        let sc = compute_share_commitment(&sid, 0, &share).expect("share_commitment");
 
         let stmt = ShareNizkStatement {
             session_id: ProtocolBytes(sid.clone()),
@@ -316,7 +316,7 @@ fn verifier_rejects_direct_opened_proof_with_arbitrary_ciphertext() {
     let committed_share = vec![7u8; 48];
     let mut arbitrary_ciphertext = vec![0u8; 192];
     rng.fill_bytes(&mut arbitrary_ciphertext);
-    let share_commitment = compute_share_commitment(&session_id, 0, &committed_share);
+    let share_commitment = compute_share_commitment(&session_id, 0, &committed_share).expect("share_commitment");
 
     let stmt = ShareNizkStatement {
         session_id: ProtocolBytes(session_id.clone()),
@@ -388,7 +388,7 @@ fn verifier_rejects_direct_opened_proof_encrypting_one_share_but_committing_anot
         )
         .expect("encrypt share A")
         .bytes;
-    let share_commitment = compute_share_commitment(&session_id, 0, &committed_share);
+    let share_commitment = compute_share_commitment(&session_id, 0, &committed_share).expect("share_commitment");
 
     let stmt = ShareNizkStatement {
         session_id: ProtocolBytes(session_id.to_vec()),
@@ -744,7 +744,7 @@ fn verifier_rejects_proof_with_tampered_z_s() {
     let session_id = vec![0xD1u8; 32];
     let committed_share = vec![0x13u8; 48];
 
-    let share_commitment = compute_share_commitment(&session_id, 0, &committed_share);
+    let share_commitment = compute_share_commitment(&session_id, 0, &committed_share).expect("share_commitment");
     let stmt = ShareNizkStatement {
         session_id: ProtocolBytes(session_id.clone()),
         dealer_index: 0,
@@ -784,7 +784,7 @@ fn verifier_rejects_proof_with_tampered_d_rns() {
     let session_id = vec![0xD2u8; 32];
     let committed_share = vec![0x42u8; 48];
 
-    let share_commitment = compute_share_commitment(&session_id, 0, &committed_share);
+    let share_commitment = compute_share_commitment(&session_id, 0, &committed_share).expect("share_commitment");
     let stmt = ShareNizkStatement {
         session_id: ProtocolBytes(session_id.clone()),
         dealer_index: 0,

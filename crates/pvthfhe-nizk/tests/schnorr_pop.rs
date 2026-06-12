@@ -60,6 +60,6 @@ fn test_pop_rejects_infinity_point() {
     let (sk, pk) = generate_signing_keypair(&mut rng);
     let mut proof = schnorr_pop_prove(sk, pk, &mut rng);
     // Set r_point to the identity (point at infinity)
-    proof.r_point = ark_bn254::G1Affine::identity();
+    proof.r = ark_bn254::G1Affine::identity();
     assert!(!schnorr_pop_verify(pk, &proof));
 }

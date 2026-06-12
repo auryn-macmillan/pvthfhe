@@ -45,7 +45,8 @@ fn track_statement(
         ShareNizkTrackType::ESm => Tag::PvssBatchedDkgShareEncryptionESmTrack.as_bytes(),
     };
     let share_commitment =
-        compute_share_commitment_tracked(session_id, 0, &payload, track_domain_tag);
+        compute_share_commitment_tracked(session_id, 0, &payload, track_domain_tag)
+            .expect("share_commitment");
     let ciphertext_v = compute_ciphertext_v(&ciphertext_u);
     (
         ShareNizkTrackStatement {
@@ -489,7 +490,7 @@ fn sk_only_batched_proof_accepted() {
         Ok(()) => {
             // Real backend path: success.
         }
-        Err(PvssError::LatticeBindingVerificationFailed) => {
+        Err(PvssError::LatticeBindingVerificationFailed { party_id: None }) => {
             // Mock backend path: fails closed due to empty BFV proof.
             // This is the expected individual-verifier error, not a
             // batched-format error.

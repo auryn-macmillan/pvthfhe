@@ -12,9 +12,10 @@ pub(crate) fn vecznx_col_limb_coeffs<D: DataRef>(
     limb: usize,
 ) -> Result<Vec<i64>, NizkError> {
     if col >= v.cols() || limb >= v.size() {
-        return Err(NizkError::InvalidInput(
-            "VecZnx column or limb index out of range",
-        ));
+        return Err(NizkError::InvalidInput {
+            reason: "VecZnx column or limb index out of range",
+            party_id: None,
+        });
     }
     Ok(v.at(col, limb).to_vec())
 }
@@ -78,25 +79,29 @@ pub fn compute_sigma_sz_data_poulpy(
     let l = num_limbs;
 
     if q_moduli.len() != l {
-        return Err(NizkError::InvalidInput(
-            "q_moduli length must equal num_limbs",
-        ));
+        return Err(NizkError::InvalidInput {
+            reason: "q_moduli length must equal num_limbs",
+            party_id: None,
+        });
     }
     let expected_rns_len = n * l;
     if c_rns.len() != expected_rns_len || d_rns.len() != expected_rns_len {
-        return Err(NizkError::InvalidInput(
-            "c_rns/d_rns length must equal polynomial_len * num_limbs",
-        ));
+        return Err(NizkError::InvalidInput {
+            reason: "c_rns/d_rns length must equal polynomial_len * num_limbs",
+            party_id: None,
+        });
     }
     if proof.t_rns.len() != expected_rns_len {
-        return Err(NizkError::InvalidInput(
-            "proof t_rns length must equal polynomial_len * num_limbs",
-        ));
+        return Err(NizkError::InvalidInput {
+            reason: "proof t_rns length must equal polynomial_len * num_limbs",
+            party_id: None,
+        });
     }
     if proof.z_s.len() != n || proof.z_e.len() != n {
-        return Err(NizkError::InvalidInput(
-            "z_s and z_e must have length N (coefficient-domain)",
-        ));
+        return Err(NizkError::InvalidInput {
+            reason: "z_s and z_e must have length N (coefficient-domain)",
+            party_id: None,
+        });
     }
 
     let gammas = sigma::compute_sz_gamma(proof, session_id, party_id, c_rns, d_rns);

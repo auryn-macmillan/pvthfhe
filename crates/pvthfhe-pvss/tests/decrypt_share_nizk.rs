@@ -78,5 +78,5 @@ fn forged_decryption_rejected() {
     forged.decrypted_share_bytes[0] ^= 0xFF;
 
     let result = DecryptNizkVerifier::verify(&forged, &proof);
-    assert_eq!(result, Err(PvssError::InvalidShare));
+    assert_eq!(result, Err(PvssError::InvalidShare { party_id: None }));
 }

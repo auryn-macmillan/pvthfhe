@@ -6,9 +6,13 @@
 #[cfg(all(feature = "production-profile", feature = "production-stub-allowed"))]
 compile_error!("pvthfhe-pvss production-profile forbids production-stub-allowed");
 
+/// Provable AVID: Asynchronous Verifiable Information Dispersal (ePrint 2026/1159 §4.3).
+pub mod avid;
 pub mod dkg_aggregation;
 /// BFV-backed PVSS encryption adapter.
 pub mod encrypt;
+/// Key Escrow protocol for distributed key authorization (ePrint 2026/1159 §6).
+pub mod key_escrow;
 /// Share-decryption NIZK helpers and proof types.
 pub mod nizk_decrypt;
 /// Key-generation NIZK for BFV keypair correctness (C0).
@@ -94,27 +98,27 @@ pub struct DecryptedShare {
 #[derive(Clone, PartialEq, Eq)]
 pub enum PvssError {
     /// Share material failed validation.
-    InvalidShare,
+    InvalidShare { party_id: Option<u16> },
     /// Threshold recovery failed.
-    RecoveryFailed,
+    RecoveryFailed { party_id: Option<u16> },
     /// Backend-specific failure surfaced as a string payload.
     BackendError(String),
     /// Domain separator in proof envelope does not match expected value.
-    InvalidDomainSeparator,
+    InvalidDomainSeparator { party_id: Option<u16> },
     /// Statement in opened proof does not match verify statement.
-    StatementMismatch,
+    StatementMismatch { party_id: Option<u16> },
     /// Fiat-Shamir challenge verification failed.
-    ChallengeVerificationFailed,
+    ChallengeVerificationFailed { party_id: Option<u16> },
     /// Reconstructed ciphertext_v does not match statement.
-    CiphertextVMismatch,
+    CiphertextVMismatch { party_id: Option<u16> },
     /// Commitment structure is invalid (empty, too large, or cannot be recovered).
-    InvalidCommitmentStructure,
+    InvalidCommitmentStructure { party_id: Option<u16> },
     /// Lattice binding tag verification failed.
-    LatticeBindingVerificationFailed,
+    LatticeBindingVerificationFailed { party_id: Option<u16> },
     /// D2 hash binding verification failed (Ajtaï share-commitment check).
-    D2HashBindingFailed,
+    D2HashBindingFailed { party_id: Option<u16> },
     /// BFV encryption relation proof verification failed.
-    BfvEncryptionProofFailed,
+    BfvEncryptionProofFailed { party_id: Option<u16> },
     /// Committed smudging slot was reused in the same decryption session.
     SmudgeSlotReused {
         /// Party that attempted to reuse a slot.
@@ -159,19 +163,35 @@ impl core::fmt::Debug for DecryptedShare {
 impl core::fmt::Debug for PvssError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::InvalidShare => f.write_str("InvalidShare"),
-            Self::RecoveryFailed => f.write_str("RecoveryFailed"),
-            Self::BackendError(_) => f.write_str("BackendError(<redacted>)"),
-            Self::InvalidDomainSeparator => f.write_str("InvalidDomainSeparator"),
-            Self::StatementMismatch => f.write_str("StatementMismatch"),
-            Self::ChallengeVerificationFailed => f.write_str("ChallengeVerificationFailed"),
-            Self::CiphertextVMismatch => f.write_str("CiphertextVMismatch"),
-            Self::InvalidCommitmentStructure => f.write_str("InvalidCommitmentStructure"),
-            Self::LatticeBindingVerificationFailed => {
-                f.write_str("LatticeBindingVerificationFailed")
+            Self::InvalidShare { party_id } => write_debug_with_party(f, "InvalidShare", *party_id),
+            Self::RecoveryFailed { party_id } => {
+                write_debug_with_party(f, "RecoveryFailed", *party_id)
             }
-            Self::D2HashBindingFailed => f.write_str("D2HashBindingFailed"),
-            Self::BfvEncryptionProofFailed => f.write_str("BfvEncryptionProofFailed"),
+            Self::BackendError(_) => f.write_str("BackendError(<redacted>)"),
+            Self::InvalidDomainSeparator { party_id } => {
+                write_debug_with_party(f, "InvalidDomainSeparator", *party_id)
+            }
+            Self::StatementMismatch { party_id } => {
+                write_debug_with_party(f, "StatementMismatch", *party_id)
+            }
+            Self::ChallengeVerificationFailed { party_id } => {
+                write_debug_with_party(f, "ChallengeVerificationFailed", *party_id)
+            }
+            Self::CiphertextVMismatch { party_id } => {
+                write_debug_with_party(f, "CiphertextVMismatch", *party_id)
+            }
+            Self::InvalidCommitmentStructure { party_id } => {
+                write_debug_with_party(f, "InvalidCommitmentStructure", *party_id)
+            }
+            Self::LatticeBindingVerificationFailed { party_id } => {
+                write_debug_with_party(f, "LatticeBindingVerificationFailed", *party_id)
+            }
+            Self::D2HashBindingFailed { party_id } => {
+                write_debug_with_party(f, "D2HashBindingFailed", *party_id)
+            }
+            Self::BfvEncryptionProofFailed { party_id } => {
+                write_debug_with_party(f, "BfvEncryptionProofFailed", *party_id)
+            }
             Self::SmudgeSlotReused { .. } => f.write_str("SmudgeSlotReused(<redacted>)"),
             Self::ShareVerification(s) => write!(f, "ShareVerification({s})"),
         }
@@ -181,23 +201,39 @@ impl core::fmt::Debug for PvssError {
 impl core::fmt::Display for PvssError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::InvalidShare => f.write_str("invalid PVSS share"),
-            Self::RecoveryFailed => f.write_str("PVSS recovery failed"),
+            Self::InvalidShare { party_id } => write_with_party(f, "invalid PVSS share", *party_id),
+            Self::RecoveryFailed { party_id } => {
+                write_with_party(f, "PVSS recovery failed", *party_id)
+            }
             Self::BackendError(s) => write!(f, "PVSS backend error: {s}"),
-            Self::InvalidDomainSeparator => f.write_str("PVSS proof domain separator mismatch"),
-            Self::StatementMismatch => f.write_str("PVSS proof statement mismatch"),
-            Self::ChallengeVerificationFailed => {
-                f.write_str("PVSS Fiat-Shamir challenge verification failed")
+            Self::InvalidDomainSeparator { party_id } => {
+                write_with_party(f, "PVSS proof domain separator mismatch", *party_id)
             }
-            Self::CiphertextVMismatch => f.write_str("PVSS ciphertext_v reconstruction mismatch"),
-            Self::InvalidCommitmentStructure => f.write_str("PVSS commitment structure invalid"),
-            Self::LatticeBindingVerificationFailed => {
-                f.write_str("PVSS lattice binding verification failed")
+            Self::StatementMismatch { party_id } => {
+                write_with_party(f, "PVSS proof statement mismatch", *party_id)
             }
-            Self::D2HashBindingFailed => f.write_str("PVSS D2 hash binding verification failed"),
-            Self::BfvEncryptionProofFailed => {
-                f.write_str("PVSS BFV encryption proof verification failed")
+            Self::ChallengeVerificationFailed { party_id } => write_with_party(
+                f,
+                "PVSS Fiat-Shamir challenge verification failed",
+                *party_id,
+            ),
+            Self::CiphertextVMismatch { party_id } => {
+                write_with_party(f, "PVSS ciphertext_v reconstruction mismatch", *party_id)
             }
+            Self::InvalidCommitmentStructure { party_id } => {
+                write_with_party(f, "PVSS commitment structure invalid", *party_id)
+            }
+            Self::LatticeBindingVerificationFailed { party_id } => {
+                write_with_party(f, "PVSS lattice binding verification failed", *party_id)
+            }
+            Self::D2HashBindingFailed { party_id } => {
+                write_with_party(f, "PVSS D2 hash binding verification failed", *party_id)
+            }
+            Self::BfvEncryptionProofFailed { party_id } => write_with_party(
+                f,
+                "PVSS BFV encryption proof verification failed",
+                *party_id,
+            ),
             Self::SmudgeSlotReused { party_id, slot_id } => {
                 write!(
                     f,
@@ -206,6 +242,30 @@ impl core::fmt::Display for PvssError {
             }
             Self::ShareVerification(s) => write!(f, "PVSS share verification failed: {s}"),
         }
+    }
+}
+
+/// Write a Display message with optional party attribution.
+fn write_with_party(
+    f: &mut core::fmt::Formatter<'_>,
+    msg: &str,
+    party_id: Option<u16>,
+) -> core::fmt::Result {
+    match party_id {
+        Some(id) => write!(f, "{msg} (party {id})"),
+        None => f.write_str(msg),
+    }
+}
+
+/// Write a Debug variant name with optional party attribution.
+fn write_debug_with_party(
+    f: &mut core::fmt::Formatter<'_>,
+    variant: &str,
+    party_id: Option<u16>,
+) -> core::fmt::Result {
+    match party_id {
+        Some(id) => write!(f, "{variant}(party={id})"),
+        None => f.write_str(variant),
     }
 }
 

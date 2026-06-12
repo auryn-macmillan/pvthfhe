@@ -120,15 +120,19 @@ fn bfv_rlwe_context() -> Result<&'static Arc<Context>, NizkError> {
             .map_err(|e| format!("{e:?}"))
     })
     .as_ref()
-    .map_err(|_| NizkError::InvalidInput("failed to build RLWE context"))
+    .map_err(|_| NizkError::InvalidInput {
+        reason: "failed to build RLWE context",
+        party_id: None,
+    })
 }
 
 /// Compute the BFV delta values: Δ[ℓ] = ⌊q_ℓ / t⌋.
 pub fn bfv_delta_rns(t_plain: u64) -> Result<Vec<u64>, NizkError> {
     if t_plain == 0 {
-        return Err(NizkError::InvalidInput(
-            "plaintext modulus must be positive",
-        ));
+        return Err(NizkError::InvalidInput {
+            reason: "plaintext modulus must be positive",
+            party_id: None,
+        });
     }
     let ctx = bfv_rlwe_context()?;
     Ok(ctx.q.iter().map(|m| m.modulus() / t_plain).collect())
@@ -203,8 +207,10 @@ pub fn encode_raw_plaintext(plaintext: &[u8]) -> Vec<i64> {
 /// power-basis before extracting coefficients.
 pub fn poly_bytes_to_rns(poly_bytes: &[u8]) -> Result<Vec<u64>, NizkError> {
     let ctx = bfv_rlwe_context()?;
-    let mut poly = Poly::from_bytes(poly_bytes, ctx)
-        .map_err(|_| NizkError::InvalidInput("failed to deserialise Poly from bytes"))?;
+    let mut poly = Poly::from_bytes(poly_bytes, ctx).map_err(|_| NizkError::InvalidInput {
+        reason: "failed to deserialise Poly from bytes",
+        party_id: None,
+    })?;
     poly.change_representation(Representation::PowerBasis);
     Ok(Vec::<u64>::from(&poly))
 }
@@ -235,8 +241,10 @@ pub fn scale_plaintext_to_rns(m_int: &[i64], delta: &[u64]) -> Result<Vec<u64>, 
             } else {
                 scaled
             };
-            out[limb * n + j] = u64::try_from(r)
-                .map_err(|_| NizkError::InvalidInput("scaled plaintext result out of u64 range"))?;
+            out[limb * n + j] = u64::try_from(r).map_err(|_| NizkError::InvalidInput {
+                reason: "scaled plaintext result out of u64 range",
+                party_id: None,
+            })?;
         }
     }
     Ok(out)
@@ -277,19 +285,26 @@ pub fn prove(
         || stmt.ct0_rns.len() != (rlwe_n() * num_rns_limbs())
         || stmt.ct1_rns.len() != (rlwe_n() * num_rns_limbs())
     {
-        return Err(NizkError::InvalidInput("statement RNS lengths must be 3*N"));
+        return Err(NizkError::InvalidInput {
+            reason: "statement RNS lengths must be 3*N",
+            party_id: None,
+        });
     }
     if wit.u.len() != rlwe_n()
         || wit.e0.len() != rlwe_n()
         || wit.e1.len() != rlwe_n()
         || wit.m.len() != rlwe_n()
     {
-        return Err(NizkError::InvalidInput(
-            "witness polynomials must have length N",
-        ));
+        return Err(NizkError::InvalidInput {
+            reason: "witness polynomials must have length N",
+            party_id: None,
+        });
     }
     if stmt.delta_limbs.len() != 3 {
-        return Err(NizkError::InvalidInput("delta_limbs must have length 3"));
+        return Err(NizkError::InvalidInput {
+            reason: "delta_limbs must have length 3",
+            party_id: None,
+        });
     }
 
     let ctx = bfv_rlwe_context()?;
@@ -369,14 +384,18 @@ pub fn verify(
         || stmt.ct0_rns.len() != (rlwe_n() * num_rns_limbs())
         || stmt.ct1_rns.len() != (rlwe_n() * num_rns_limbs())
     {
-        return Err(NizkError::InvalidInput("statement RNS lengths must be 3*N"));
+        return Err(NizkError::InvalidInput {
+            reason: "statement RNS lengths must be 3*N",
+            party_id: None,
+        });
     }
     if proof.t0_rns.len() != (rlwe_n() * num_rns_limbs())
         || proof.t1_rns.len() != (rlwe_n() * num_rns_limbs())
     {
-        return Err(NizkError::InvalidInput(
-            "proof t0/t1_rns length must be 3*N",
-        ));
+        return Err(NizkError::InvalidInput {
+            reason: "proof t0/t1_rns length must be 3*N",
+            party_id: None,
+        });
     }
     if proof.u_resp.len() != rlwe_n()
         || proof.e0_resp.len() != rlwe_n()
@@ -384,9 +403,10 @@ pub fn verify(
         || proof.m_resp.len() != rlwe_n()
         || proof.ch.len() != rlwe_n()
     {
-        return Err(NizkError::InvalidInput(
-            "proof polynomial lengths must be N",
-        ));
+        return Err(NizkError::InvalidInput {
+            reason: "proof polynomial lengths must be N",
+            party_id: None,
+        });
     }
 
     let ctx = bfv_rlwe_context()?;
@@ -410,24 +430,39 @@ pub fn verify(
             .as_slice()
             .ct_eq(proof_ch_bytes.as_slice()),
     ) {
-        return Err(NizkError::VerificationFailed("challenge mismatch"));
+        return Err(NizkError::VerificationFailed {
+            reason: "challenge mismatch",
+            party_id: None,
+        });
     }
 
     let max_u = proof.u_resp.iter().map(|x| x.abs()).max().unwrap_or(0);
     if max_u > b_z_u() {
-        return Err(NizkError::VerificationFailed("z_u norm bound exceeded"));
+        return Err(NizkError::VerificationFailed {
+            reason: "z_u norm bound exceeded",
+            party_id: None,
+        });
     }
     let max_e0 = proof.e0_resp.iter().map(|x| x.abs()).max().unwrap_or(0);
     if max_e0 > b_z_e() {
-        return Err(NizkError::VerificationFailed("z_e0 norm bound exceeded"));
+        return Err(NizkError::VerificationFailed {
+            reason: "z_e0 norm bound exceeded",
+            party_id: None,
+        });
     }
     let max_e1 = proof.e1_resp.iter().map(|x| x.abs()).max().unwrap_or(0);
     if max_e1 > b_z_e() {
-        return Err(NizkError::VerificationFailed("z_e1 norm bound exceeded"));
+        return Err(NizkError::VerificationFailed {
+            reason: "z_e1 norm bound exceeded",
+            party_id: None,
+        });
     }
     let max_m = proof.m_resp.iter().map(|x| x.abs()).max().unwrap_or(0);
     if max_m > b_z_m() {
-        return Err(NizkError::VerificationFailed("z_m norm bound exceeded"));
+        return Err(NizkError::VerificationFailed {
+            reason: "z_m norm bound exceeded",
+            party_id: None,
+        });
     }
 
     let u_resp_rns = int_poly_to_rns(&proof.u_resp, ctx)?;
@@ -447,9 +482,10 @@ pub fn verify(
     let rhs0_rns = rns_add(&proof.t0_rns, &ch_ct0_rns, ctx)?;
 
     if lhs0_rns != rhs0_rns {
-        return Err(NizkError::VerificationFailed(
-            "BFV ct0 equation: pk0*u_resp + e0_resp + Δ*m_resp != t0 + ch*ct0",
-        ));
+        return Err(NizkError::VerificationFailed {
+            reason: "BFV ct0 equation: pk0*u_resp + e0_resp + Δ*m_resp != t0 + ch*ct0",
+            party_id: None,
+        });
     }
 
     let pk1_u_resp_rns = poly_mul_rq(&stmt.pk1_rns, &u_resp_rns, ctx)?;
@@ -458,9 +494,10 @@ pub fn verify(
     let rhs1_rns = rns_add(&proof.t1_rns, &ch_ct1_rns, ctx)?;
 
     if lhs1_rns != rhs1_rns {
-        return Err(NizkError::VerificationFailed(
-            "BFV ct1 equation: pk1*u_resp + e1_resp != t1 + ch*ct1",
-        ));
+        return Err(NizkError::VerificationFailed {
+            reason: "BFV ct1 equation: pk1*u_resp + e1_resp != t1 + ch*ct1",
+            party_id: None,
+        });
     }
 
     Ok(())
@@ -575,40 +612,61 @@ pub fn decode_bfv_sigma_proof(bytes: &[u8]) -> Result<BfvSigmaProof, NizkError> 
     let mut offset = 0;
 
     fn read_u32_le(bytes: &[u8], offset: &mut usize) -> Result<u32, NizkError> {
-        let end = offset
-            .checked_add(4)
-            .ok_or(NizkError::InvalidInput("eof"))?;
+        let end = offset.checked_add(4).ok_or(NizkError::InvalidInput {
+            reason: "eof",
+            party_id: None,
+        })?;
         let arr: [u8; 4] = bytes
             .get(*offset..end)
-            .ok_or(NizkError::InvalidInput("eof"))?
+            .ok_or(NizkError::InvalidInput {
+                reason: "eof",
+                party_id: None,
+            })?
             .try_into()
-            .map_err(|_| NizkError::InvalidInput("eof"))?;
+            .map_err(|_| NizkError::InvalidInput {
+                reason: "eof",
+                party_id: None,
+            })?;
         *offset = end;
         Ok(u32::from_be_bytes(arr))
     }
 
     fn read_u64_le(bytes: &[u8], offset: &mut usize) -> Result<u64, NizkError> {
-        let end = offset
-            .checked_add(8)
-            .ok_or(NizkError::InvalidInput("eof"))?;
+        let end = offset.checked_add(8).ok_or(NizkError::InvalidInput {
+            reason: "eof",
+            party_id: None,
+        })?;
         let arr: [u8; 8] = bytes
             .get(*offset..end)
-            .ok_or(NizkError::InvalidInput("eof"))?
+            .ok_or(NizkError::InvalidInput {
+                reason: "eof",
+                party_id: None,
+            })?
             .try_into()
-            .map_err(|_| NizkError::InvalidInput("eof"))?;
+            .map_err(|_| NizkError::InvalidInput {
+                reason: "eof",
+                party_id: None,
+            })?;
         *offset = end;
         Ok(u64::from_le_bytes(arr))
     }
 
     fn read_i64_le(bytes: &[u8], offset: &mut usize) -> Result<i64, NizkError> {
-        let end = offset
-            .checked_add(8)
-            .ok_or(NizkError::InvalidInput("eof"))?;
+        let end = offset.checked_add(8).ok_or(NizkError::InvalidInput {
+            reason: "eof",
+            party_id: None,
+        })?;
         let arr: [u8; 8] = bytes
             .get(*offset..end)
-            .ok_or(NizkError::InvalidInput("eof"))?
+            .ok_or(NizkError::InvalidInput {
+                reason: "eof",
+                party_id: None,
+            })?
             .try_into()
-            .map_err(|_| NizkError::InvalidInput("eof"))?;
+            .map_err(|_| NizkError::InvalidInput {
+                reason: "eof",
+                party_id: None,
+            })?;
         *offset = end;
         Ok(i64::from_le_bytes(arr))
     }
@@ -617,7 +675,10 @@ pub fn decode_bfv_sigma_proof(bytes: &[u8]) -> Result<BfvSigmaProof, NizkError> 
     fn read_u64_vec(bytes: &[u8], offset: &mut usize) -> Result<Vec<u64>, NizkError> {
         let len = read_u32_le(bytes, offset)? as usize;
         if len > 1_000_000 {
-            return Err(NizkError::InvalidInput("vec too large"));
+            return Err(NizkError::InvalidInput {
+                reason: "vec too large",
+                party_id: None,
+            });
         }
         (0..len).map(|_| read_u64_le(bytes, offset)).collect()
     }
@@ -626,7 +687,10 @@ pub fn decode_bfv_sigma_proof(bytes: &[u8]) -> Result<BfvSigmaProof, NizkError> 
     fn read_i64_vec(bytes: &[u8], offset: &mut usize) -> Result<Vec<i64>, NizkError> {
         let len = read_u32_le(bytes, offset)? as usize;
         if len > 1_000_000 {
-            return Err(NizkError::InvalidInput("vec too large"));
+            return Err(NizkError::InvalidInput {
+                reason: "vec too large",
+                party_id: None,
+            });
         }
         (0..len).map(|_| read_i64_le(bytes, offset)).collect()
     }
@@ -640,7 +704,10 @@ pub fn decode_bfv_sigma_proof(bytes: &[u8]) -> Result<BfvSigmaProof, NizkError> 
     let ch = read_i64_vec(bytes, &mut offset)?;
 
     if offset != bytes.len() {
-        return Err(NizkError::InvalidInput("trailing bytes in proof"));
+        return Err(NizkError::InvalidInput {
+            reason: "trailing bytes in proof",
+            party_id: None,
+        });
     }
 
     Ok(BfvSigmaProof {

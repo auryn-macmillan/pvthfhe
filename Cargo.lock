@@ -1760,6 +1760,7 @@ dependencies = [
  "pvthfhe-fhe",
  "pvthfhe-keygen-spec",
  "pvthfhe-nizk",
+ "pvthfhe-non-equiv",
  "pvthfhe-pvss",
  "pvthfhe-types",
  "rand 0.8.6",
@@ -2060,6 +2061,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "pvthfhe-non-equiv"
+version = "0.1.0"
+dependencies = [
+ "ark-bn254",
+ "ark-ec",
+ "ark-ff",
+ "pvthfhe-nizk",
+ "pvthfhe-types",
+ "rand_chacha 0.3.1",
+ "rand_core 0.6.4",
+ "serde",
+ "sha2",
+]
+
+[[package]]
 name = "pvthfhe-offchain-verifier"
 version = "0.1.0"
 dependencies = [
@@ -2094,6 +2110,7 @@ dependencies = [
  "rand_core 0.6.4",
  "serde_json",
  "sha2",
+ "sha3",
  "subtle",
  "syn",
  "tracing",

@@ -100,7 +100,7 @@ mod real_folding_gaps {
         let result = fold(&acc, &w, &bad_stmt);
         assert!(result.is_err(), "fold must reject mismatched params");
         assert!(
-            result.unwrap_err().0.contains("param mismatch"),
+            result.unwrap_err().message.contains("param mismatch"),
             "error must mention param mismatch"
         );
     }

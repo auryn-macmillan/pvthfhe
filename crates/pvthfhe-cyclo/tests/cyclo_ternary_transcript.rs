@@ -22,7 +22,7 @@ fn ternary_challenges_are_in_valid_range() {
 #[test]
 fn domain_separator_differs_from_nova_v1() {
     let mut t2 = CycloTernaryTranscript::new("test-session", 0);
-    t2.absorb(b"fold-data");
+    t2.absorb(b"fold", b"fold-data");
 
     let ternary = t2.sample_challenge();
 
@@ -54,7 +54,7 @@ fn ternary_distribution_is_roughly_uniform() {
     let mut counts = [0u64; 3]; // counts for -1, 0, 1
 
     for i in 0u32..3000 {
-        transcript.absorb(&i.to_le_bytes());
+        transcript.absorb(b"counter", &i.to_le_bytes());
         let c = transcript.sample_challenge();
         match c {
             -1 => counts[0] += 1,
@@ -88,18 +88,18 @@ fn ternary_distribution_is_roughly_uniform() {
 #[test]
 fn different_absorbed_data_produces_different_challenges() {
     let mut t1 = CycloTernaryTranscript::new("det-test", 0);
-    t1.absorb(b"aaa");
+    t1.absorb(b"input", b"aaa");
 
     let mut t2 = CycloTernaryTranscript::new("det-test", 0);
-    t2.absorb(b"bbb");
+    t2.absorb(b"input", b"bbb");
 
     // With high probability, different absorbed data produces different
     // challenges. We check across multiple samples.
     let mut different = false;
     let mut t1b = CycloTernaryTranscript::new("det-test", 0);
-    t1b.absorb(b"aaa");
+    t1b.absorb(b"input", b"aaa");
     let mut t2b = CycloTernaryTranscript::new("det-test", 0);
-    t2b.absorb(b"bbb");
+    t2b.absorb(b"input", b"bbb");
 
     for _ in 0..100 {
         if t1b.sample_challenge() != t2b.sample_challenge() {
@@ -110,5 +110,41 @@ fn different_absorbed_data_produces_different_challenges() {
     assert!(
         different,
         "different absorbed data must produce different challenges"
+    );
+}
+
+#[test]
+fn absorb_label_binding_prevents_chunking_ambiguity() {
+    // Without label+length prefix, absorb(b"AB") + absorb(b"CD")
+    // produces the same state as absorb(b"ABCD"). This test MUST fail
+    // before the fix and pass after.
+    let mut t1 = CycloTernaryTranscript::new("det-test", 0);
+    t1.absorb(b"label-a", b"ABCD");
+
+    let mut t2 = CycloTernaryTranscript::new("det-test", 0);
+    t2.absorb(b"label-a", b"AB");
+    t2.absorb(b"label-b", b"CD");
+
+    // After fix: different labels → different state → different challenges
+    let c1 = t1.sample_challenge();
+    let c2 = t2.sample_challenge();
+    assert_ne!(
+        c1, c2,
+        "chunking with different labels must produce different challenges"
+    );
+}
+
+#[test]
+fn absorb_with_same_label_produces_deterministic_output() {
+    let mut t1 = CycloTernaryTranscript::new("det-test", 0);
+    t1.absorb(b"label-a", b"ABCD");
+
+    let mut t2 = CycloTernaryTranscript::new("det-test", 0);
+    t2.absorb(b"label-a", b"ABCD");
+
+    assert_eq!(
+        t1.sample_challenge(),
+        t2.sample_challenge(),
+        "same absorb sequence must be deterministic"
     );
 }

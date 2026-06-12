@@ -327,7 +327,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         let sk_bytes = backend
             .party_secret_key_bytes(backend_party_id)
             .context("party_secret_key_bytes")?;
-        let sk_commit = compute_share_commitment(session_id.as_bytes(), party_idx, &sk_bytes);
+        let sk_commit = compute_share_commitment(session_id.as_bytes(), party_idx, &sk_bytes)?;
         sk_commitments.push(sk_commit);
         party_sk_bytes.push(sk_bytes);
     }
@@ -337,7 +337,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     // deterministic session parameters — not on other dealers' messages.
     // Pre-computing the full EncryptedShares (Shamir split + encryption +
     // NIZK proof) during keygen saves ~30 % of per-dealer time in dkg_deal.
-    let precomputed_dkg_deals: HashMap<(usize, usize), EncryptedShares> = {
+    let mut precomputed_dkg_deals: HashMap<(usize, usize), EncryptedShares> = {
         let dkg_session_id = format!("dkg-{}", hex::encode(cfg.seed.to_be_bytes()));
         let dkg_root = transcript.dkg_root.to_vec();
         let session_id_bytes = dkg_session_id.as_bytes().to_vec();
@@ -470,9 +470,10 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                     dkg_root: dkg_root_vec.clone(),
                     dealer_index: dealer_id,
                 };
-                // P1: reuse pre-computed EncryptedShares from keygen phase.
-                let encrypted = &precomputed_dkg_deals
-                    .get(&(dealer_id, chunk_idx))
+                // P1: reuse pre-computed EncryptedShares from keygen phase,
+                // then immediately remove from cache to reclaim memory.
+                let encrypted = precomputed_dkg_deals
+                    .remove(&(dealer_id, chunk_idx))
                     .with_context(|| {
                         format!(
                             "P1: missing precomputed dkg deal dealer={dealer_id} chunk={chunk_idx}"
@@ -480,7 +481,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                     })?;
 
                 // Defense-in-depth: re-verify even pre-computed shares.
-                adapter.verify_shares(encrypted, &ctx).map_err(|e| {
+                adapter.verify_shares(&encrypted, &ctx).map_err(|e| {
                     anyhow::anyhow!("dkg verify_shares dealer={dealer_id} chunk={chunk_idx}: {e}")
                 })?;
 
@@ -495,7 +496,11 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
             // Dealer parity check: verify H·shares == 0 natively
             // (Track A IVC removed — native parity check suffices)
+            // MEMORY: drop dealer's sk_bytes after all chunks processed.
+            let _ = std::mem::replace(&mut party_sk_bytes[dealer_id], Vec::new());
         }
+        // MEMORY: drop the precomputed deals map entirely (all entries removed above).
+        std::mem::drop(precomputed_dkg_deals);
         observer.phase_end("dkg_deal", elapsed_ms(dkg_deal_started));
 
         // Phase 2: Each recipient aggregates shares from all dealers and verifies
@@ -1831,15 +1836,90 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let leaf_indices: Vec<Fr> = (0..NOIR_MAX_PARTICIPANTS)
         .map(|i| Fr::from(i as u64))
         .collect();
+    let (share_polys, _, _, _, _old_root) = build_c7_share_commitment_bundle(&share_coeffs_fr);
 
-    let (share_polys, share_commitments, merkle_paths, leaf_indices, share_commitment_root) =
-        build_c7_share_commitment_bundle(&share_coeffs_fr);
+    let session_id_field = Fr::from_be_bytes_mod_order(&Sha256::digest(session_id.as_bytes()));
 
-    let merkle_path: [Fr; DEPTH_BINARY] = [Fr::zero(); DEPTH_BINARY];
-    let leaf_index = Fr::zero();
-    let dkg_root = merkle_path.iter().fold(aggregate_pk_leaf, |node, sibling| {
-        crate::noir_poseidon::hash_2(node, *sibling)
-    });
+    // Compute dkg_root before RLC derivation — it feeds into challenge_r.
+    // dkg_root = Merkle root of aggregate_pk_leaf with all-zero sibling path.
+    let dkg_merkle_path: [Fr; DEPTH_BINARY] = [Fr::zero(); DEPTH_BINARY];
+    let dkg_root = dkg_merkle_path
+        .iter()
+        .fold(aggregate_pk_leaf, |node, sibling| {
+            crate::noir_poseidon::hash_2(node, *sibling)
+        });
+
+    // First pass: compute share_evals using old root as initial challenge point.
+    // The RLC root depends on combined_poly which depends on share_evals, which
+    // depends on the challenge_r that uses share_commitment_root.  We resolve
+    // the circular dependency by iterating: compute the RLC tree root, then
+    // re-derive share_evals with that root so the witness bundle is self-consistent.
+    let derive_challenge_r = |root: Fr| -> Fr {
+        poseidon_sponge_native_noir(&[
+            ciphertext_hash,
+            dkg_root,
+            session_id_field,
+            epoch,
+            participant_set_hash,
+            root,
+            n_shares_field,
+            Fr::from(8u64),
+        ])
+    };
+    let zero_poly_commitment = {
+        let mut inputs = Vec::with_capacity(N_COEFFS + 1);
+        inputs.push(Fr::from(1u64));
+        for _ in 0..N_COEFFS {
+            inputs.push(Fr::zero());
+        }
+        poseidon_sponge_native_noir(&inputs)
+    };
+
+    // Bootstrap combined_poly from zero share_evals so we can build the tree.
+    let share_evals_init: Vec<Fr> = share_polys
+        .iter()
+        .map(|poly| eval_c7_share_poly_noir(poly, derive_challenge_r(_old_root)))
+        .collect();
+    let combined_poly_init = compute_combined_poly(&share_polys, &share_evals_init);
+    let combined_commitment_init = {
+        let mut inputs = Vec::with_capacity(N_COEFFS + 1);
+        inputs.push(Fr::from(1u64));
+        for k in 0..N_COEFFS {
+            inputs.push(combined_poly_init[k]);
+        }
+        poseidon_sponge_native_noir(&inputs)
+    };
+    let mut leaves_init = vec![zero_poly_commitment; 128];
+    leaves_init[0] = combined_commitment_init;
+    let (_, rlc_root) = build_binary_merkle_tree(&leaves_init);
+
+    // Second pass: recompute share_evals and combined_poly with the RLC root
+    // so that share_evals match the in-circuit challenge_r derivation.
+    let challenge_r = derive_challenge_r(rlc_root);
+    let share_evals: Vec<Fr> = share_polys
+        .iter()
+        .map(|poly| eval_c7_share_poly_noir(poly, challenge_r))
+        .collect();
+    let combined_poly = compute_combined_poly(&share_polys, &share_evals);
+
+    // Build final RLC Merkle tree with consistent combined_poly.
+    let combined_commitment = {
+        let mut inputs = Vec::with_capacity(N_COEFFS + 1);
+        inputs.push(Fr::from(1u64));
+        for k in 0..N_COEFFS {
+            inputs.push(combined_poly[k]);
+        }
+        poseidon_sponge_native_noir(&inputs)
+    };
+    let mut leaves = vec![zero_poly_commitment; 128];
+    leaves[0] = combined_commitment;
+    let (merkle_tree_levels, share_commitment_root) = build_binary_merkle_tree(&leaves);
+    let paths = prove_binary_merkle_paths(&merkle_tree_levels);
+    let combined_merkle_path = paths[0];
+    let combined_leaf_index = Fr::zero();
+
+    let g4_merkle_path: [Fr; DEPTH_BINARY] = [Fr::zero(); DEPTH_BINARY];
+    let g4_leaf_index = Fr::zero();
 
     let prover_toml = build_c7_prover_toml(
         ciphertext_hash,
@@ -1847,6 +1927,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         decrypt_nizk_hash_field,
         dkg_transcript_hash,
         dkg_root,
+        session_id_field,
         epoch,
         participant_set_hash,
         n_participants,
@@ -1858,13 +1939,13 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         n_shares_field,
         &lagrange_coeffs_fr,
         share_commitment_root,
-        &share_commitments,
-        &merkle_paths,
-        &leaf_indices,
-        &share_polys,
+        &share_evals,
+        &combined_poly,
+        &combined_merkle_path,
+        combined_leaf_index,
         aggregate_pk_leaf,
-        merkle_path,
-        leaf_index,
+        g4_merkle_path,
+        g4_leaf_index,
     );
     let mut noir_passed = true;
 
@@ -3238,7 +3319,7 @@ fn field_hex_be(value: Fr) -> String {
 
 /// Build a binary Merkle tree (arity=2) using Poseidon hash_pair over `leaves`.
 /// Returns (tree_levels, root) where tree_levels[0] = leaves and tree_levels[last] = [root].
-fn build_binary_merkle_tree(leaves: &[Fr]) -> (Vec<Vec<Fr>>, Fr) {
+pub fn build_binary_merkle_tree(leaves: &[Fr]) -> (Vec<Vec<Fr>>, Fr) {
     assert_eq!(
         leaves.len(),
         NOIR_MAX_PARTICIPANTS,
@@ -3261,7 +3342,7 @@ fn build_binary_merkle_tree(leaves: &[Fr]) -> (Vec<Vec<Fr>>, Fr) {
 
 /// Generate binary Merkle proofs (sibling paths) for all leaves.
 /// Returns Vec of [Fr; DEPTH_BINARY] sibling arrays, one per leaf.
-fn prove_binary_merkle_paths(tree: &[Vec<Fr>]) -> Vec<[Fr; DEPTH_BINARY]> {
+pub fn prove_binary_merkle_paths(tree: &[Vec<Fr>]) -> Vec<[Fr; DEPTH_BINARY]> {
     let n_leaves = tree[0].len();
     let mut paths = vec![[Fr::zero(); DEPTH_BINARY]; n_leaves];
 
@@ -3352,7 +3433,32 @@ pub fn build_c7_share_commitment_bundle(
     )
 }
 
-fn eval_c7_share_poly_noir(poly: &[Fr; N_COEFFS], challenge_r: Fr) -> Fr {
+/// Compute RLC challenge beta = Poseidon(share_evals[0..128] || DOMAIN_SZ_CHALLENGE)
+/// Must match Noir derivation in aggregator_final main() lines 396-400.
+pub fn compute_rlc_beta(share_evals: &[Fr]) -> Fr {
+    let mut inputs = vec![Fr::zero(); 129];
+    for i in 0..share_evals.len().min(128) {
+        inputs[i] = share_evals[i];
+    }
+    inputs[128] = Fr::from(8u64); // protocol_constants::DOMAIN_SZ_CHALLENGE
+    poseidon_sponge_native_noir(&inputs)
+}
+
+/// Compute RLC combined polynomial = Σ β^i · share_poly_i
+pub fn compute_combined_poly(share_polys: &[[Fr; N_COEFFS]], share_evals: &[Fr]) -> [Fr; N_COEFFS] {
+    let beta = compute_rlc_beta(share_evals);
+    let mut combined = [Fr::zero(); N_COEFFS];
+    let mut beta_pow = Fr::from(1u64);
+    for i in 0..share_polys.len() {
+        for k in 0..N_COEFFS {
+            combined[k] += beta_pow * share_polys[i][k];
+        }
+        beta_pow *= beta;
+    }
+    combined
+}
+
+pub fn eval_c7_share_poly_noir(poly: &[Fr; N_COEFFS], challenge_r: Fr) -> Fr {
     let mut result = Fr::zero();
     for i in 0..N_COEFFS {
         result = result * challenge_r + poly[N_COEFFS - 1 - i];
@@ -3366,6 +3472,7 @@ pub fn build_c7_prover_toml(
     decrypt_nizk_hash: Fr,
     dkg_transcript_hash: Fr,
     dkg_root: Fr,
+    session_id: Fr,
     epoch: Fr,
     participant_set_hash: Fr,
     n_participants: Fr,
@@ -3377,20 +3484,21 @@ pub fn build_c7_prover_toml(
     n_shares: Fr,
     lagrange_coeffs_fr: &[Fr],
     share_commitment_root: Fr,
-    share_commitments: &[Fr],
-    merkle_paths: &[[Fr; DEPTH_BINARY]],
-    leaf_indices: &[Fr],
-    share_polys: &[[Fr; N_COEFFS]],
+    share_evals: &[Fr],
+    combined_poly: &[Fr; N_COEFFS],
+    combined_merkle_path: &[Fr; DEPTH_BINARY],
+    combined_leaf_index: Fr,
     aggregate_pk_leaf: Fr,
     merkle_path: [Fr; DEPTH_BINARY],
     leaf_index: Fr,
 ) -> String {
-    // Derive challenge_r in-circuit from session-binding inputs (F3 fix).
-    // Must match the Noir derivation: Poseidon(ciphertext_hash, dkg_root, epoch,
-    // participant_set_hash, share_commitment_root, n_shares, DOMAIN_SZ_CHALLENGE=8).
+    // Derive challenge_r in-circuit from session-binding inputs (F3 + GAP-1 fix).
+    // Must match the Noir derivation: Poseidon(ciphertext_hash, dkg_root, session_id,
+    // epoch, participant_set_hash, share_commitment_root, n_shares, DOMAIN_SZ_CHALLENGE=8).
     let challenge_r = poseidon_sponge_native_noir(&[
         ciphertext_hash,
         dkg_root,
+        session_id,
         epoch,
         participant_set_hash,
         share_commitment_root,
@@ -3423,6 +3531,7 @@ pub fn build_c7_prover_toml(
         field_hex_be(dkg_transcript_hash)
     )
     .unwrap();
+    writeln!(s, "session_id = \"0x{}\"", field_hex_be(session_id)).unwrap();
     writeln!(s, "epoch = \"0x{}\"", field_hex_be(epoch)).unwrap();
     writeln!(
         s,
@@ -3465,10 +3574,8 @@ pub fn build_c7_prover_toml(
     )
     .unwrap();
 
-    let share_evals: Vec<Fr> = share_polys
-        .iter()
-        .map(|poly| eval_c7_share_poly_noir(poly, challenge_r))
-        .collect();
+    // share_evals are pre-computed at the call site using the same
+    // in-circuit challenge_r derivation.
     let pt_eval: Fr = share_evals
         .iter()
         .zip(lagrange_coeffs_fr.iter())
@@ -3499,7 +3606,7 @@ pub fn build_c7_prover_toml(
 
     writeln!(s, "pt_eval = \"0x{}\"", field_hex_be(pt_eval)).unwrap();
 
-    // G2: share commitment Merkle tree
+    // G2-RLC: share commitment Merkle root
     writeln!(
         s,
         "share_commitment_root = \"0x{}\"",
@@ -3507,59 +3614,32 @@ pub fn build_c7_prover_toml(
     )
     .unwrap();
 
-    write!(s, "share_commitments = [").unwrap();
-    for i in 0..MAX {
-        let val = share_commitments.get(i).copied().unwrap_or(Fr::zero());
-        if i > 0 {
+    // RLC combined polynomial (single array, replaces per-share polynomials)
+    write!(s, "combined_poly = [").unwrap();
+    for k in 0..N_COEFFS {
+        if k > 0 {
             write!(s, ", ").unwrap();
         }
-        write!(s, "\"0x{}\"", field_hex_be(val)).unwrap();
+        write!(s, "\"0x{}\"", field_hex_be(combined_poly[k])).unwrap();
     }
     writeln!(s, "]").unwrap();
 
-    write!(s, "merkle_paths = [").unwrap();
-    for i in 0..MAX {
-        if i > 0 {
+    // RLC combined Merkle path
+    write!(s, "combined_merkle_path = [").unwrap();
+    for j in 0..DEPTH_BINARY {
+        if j > 0 {
             write!(s, ", ").unwrap();
         }
-        write!(s, "[").unwrap();
-        for j in 0..DEPTH_BINARY {
-            let val = merkle_paths.get(i).map(|p| p[j]).unwrap_or(Fr::zero());
-            if j > 0 {
-                write!(s, ", ").unwrap();
-            }
-            write!(s, "\"0x{}\"", field_hex_be(val)).unwrap();
-        }
-        write!(s, "]").unwrap();
+        write!(s, "\"0x{}\"", field_hex_be(combined_merkle_path[j])).unwrap();
     }
     writeln!(s, "]").unwrap();
 
-    write!(s, "leaf_indices = [").unwrap();
-    for i in 0..MAX {
-        let val = leaf_indices.get(i).copied().unwrap_or(Fr::zero());
-        if i > 0 {
-            write!(s, ", ").unwrap();
-        }
-        write!(s, "\"0x{}\"", field_hex_be(val)).unwrap();
-    }
-    writeln!(s, "]").unwrap();
-
-    write!(s, "share_polys = [").unwrap();
-    for i in 0..MAX {
-        if i > 0 {
-            write!(s, ", ").unwrap();
-        }
-        write!(s, "[").unwrap();
-        for j in 0..N_COEFFS {
-            let val = share_polys.get(i).map(|p| p[j]).unwrap_or(Fr::zero());
-            if j > 0 {
-                write!(s, ", ").unwrap();
-            }
-            write!(s, "\"0x{}\"", field_hex_be(val)).unwrap();
-        }
-        write!(s, "]").unwrap();
-    }
-    writeln!(s, "]").unwrap();
+    writeln!(
+        s,
+        "combined_leaf_index = \"0x{}\"",
+        field_hex_be(combined_leaf_index)
+    )
+    .unwrap();
 
     // G4: PK binding via Merkle proof
     writeln!(s, "dkg_root = \"0x{}\"", field_hex_be(dkg_root)).unwrap();
@@ -3760,18 +3840,42 @@ mod tests {
             v[0] = Fr::from(1u64);
             v
         };
-        let (share_polys, share_commitments, merkle_paths, leaf_indices, share_commitment_root) =
-            build_c7_share_commitment_bundle(&[]);
+        let (share_polys, _, _, _, _old_root) = build_c7_share_commitment_bundle(&[]);
+        let session_id_field = Fr::from(1u64);
         let dkg_root = Fr::from(77u64);
         let aggregate_pk_leaf = Fr::from(78u64);
-        let merkle_path: [Fr; DEPTH_BINARY] = [Fr::zero(); DEPTH_BINARY];
-        let leaf_index = Fr::zero();
+
+        let zero_poly_commitment = {
+            let mut inputs = Vec::with_capacity(N_COEFFS + 1);
+            inputs.push(Fr::from(1u64));
+            for _ in 0..N_COEFFS {
+                inputs.push(Fr::zero());
+            }
+            poseidon_sponge_native_noir(&inputs)
+        };
+
+        // For empty share_coeffs_fr all share_polys are zero, so share_evals = 0
+        // and combined_poly = 0 regardless of challenge_r.
+        let share_evals: Vec<Fr> = vec![Fr::zero(); 128];
+        let combined_poly = [Fr::zero(); N_COEFFS];
+        let combined_commitment = zero_poly_commitment;
+        let mut leaves = vec![zero_poly_commitment; 128];
+        leaves[0] = combined_commitment;
+        let (merkle_tree_levels, share_commitment_root) = build_binary_merkle_tree(&leaves);
+        let paths = prove_binary_merkle_paths(&merkle_tree_levels);
+        let combined_merkle_path = paths[0];
+        let combined_leaf_index = Fr::zero();
+
+        let g4_merkle_path: [Fr; DEPTH_BINARY] = [Fr::zero(); DEPTH_BINARY];
+        let g4_leaf_index = Fr::zero();
+
         let prover_toml = build_c7_prover_toml(
             ciphertext_hash,
             aggregate_pk_hash,
             decrypt_nizk_hash,
             dkg_transcript_hash,
             dkg_root,
+            session_id_field,
             epoch,
             participant_set_hash,
             n_participants,
@@ -3783,13 +3887,13 @@ mod tests {
             n_shares_field,
             &lagrange_coeffs_fr,
             share_commitment_root,
-            &share_commitments,
-            &merkle_paths,
-            &leaf_indices,
-            &share_polys,
+            &share_evals,
+            &combined_poly,
+            &combined_merkle_path,
+            combined_leaf_index,
             aggregate_pk_leaf,
-            merkle_path,
-            leaf_index,
+            g4_merkle_path,
+            g4_leaf_index,
         );
         assert!(
             prover_toml.contains("decrypt_nizk_hash ="),

@@ -63,7 +63,7 @@ fn greco_rlwe_context() -> Result<&'static Arc<Context>, NizkError> {
             .map_err(|e| format!("{e:?}"))
     })
     .as_ref()
-    .map_err(|_| NizkError::InvalidInput("failed to build RLWE context for Greco"))
+    .map_err(|_| NizkError::InvalidInput { reason: "failed to build RLWE context for Greco", party_id: None })
 }
 
 // ── CRT constants (precomputed Garner inverses for production 3-limb moduli) ──
@@ -87,9 +87,7 @@ fn ensure_production_crt_moduli(ctx: &Context) -> Result<(), NizkError> {
         || ctx.q[1].modulus() as i128 != Q1
         || ctx.q[2].modulus() as i128 != Q2
     {
-        return Err(NizkError::InvalidInput(
-            "Greco NTT quotient reconstruction requires production 3-limb BFV moduli",
-        ));
+        return Err(NizkError::InvalidInput { reason: "Greco NTT quotient reconstruction requires production 3-limb BFV moduli", party_id: None });
     }
     Ok(())
 }
@@ -222,17 +220,13 @@ pub fn verify_greco_bounds(
         || ct0_rns.len() != n * num_limbs
         || ct1_rns.len() != n * num_limbs
     {
-        return Err(NizkError::InvalidInput(
-            "RNS statement lengths must match rlwe_n() * num_rns_limbs()",
-        ));
+        return Err(NizkError::InvalidInput { reason: "RNS statement lengths must match rlwe_n() * num_rns_limbs()", party_id: None });
     }
     if delta_limbs.len() != num_limbs {
-        return Err(NizkError::InvalidInput(
-            "delta_limbs must have num_rns_limbs() entries",
-        ));
+        return Err(NizkError::InvalidInput { reason: "delta_limbs must have num_rns_limbs() entries", party_id: None });
     }
     if proof.t0_rns.len() != n * num_limbs || proof.t1_rns.len() != n * num_limbs {
-        return Err(NizkError::InvalidInput("proof t0/t1_rns length mismatch"));
+        return Err(NizkError::InvalidInput { reason: "proof t0/t1_rns length mismatch", party_id: None });
     }
 
     let ctx = greco_rlwe_context()?;
@@ -286,15 +280,11 @@ pub fn verify_greco_bounds(
                     - ch_ct0[i];
 
             if numerator % q_limb != 0 {
-                return Err(NizkError::VerificationFailed(
-                    "Greco: ct0 quotient not integral at limb {limb}, index {i}",
-                ));
+                return Err(NizkError::VerificationFailed { reason: "Greco: ct0 quotient not integral at limb {limb}, index {i}", party_id: None });
             }
             let q = numerator / q_limb;
             if q.unsigned_abs() > GRECO_BOUND_Q as u128 {
-                return Err(NizkError::VerificationFailed(
-                    "Greco: ct0 quotient bound exceeded",
-                ));
+                return Err(NizkError::VerificationFailed { reason: "Greco: ct0 quotient bound exceeded", party_id: None });
             }
         }
 
@@ -303,15 +293,11 @@ pub fn verify_greco_bounds(
                 pk1_zu[i] + i128::from(proof.e1_resp[i]) - i128::from(t1_int[i]) - ch_ct1[i];
 
             if numerator % q_limb != 0 {
-                return Err(NizkError::VerificationFailed(
-                    "Greco: ct1 quotient not integral at limb {limb}, index {i}",
-                ));
+                return Err(NizkError::VerificationFailed { reason: "Greco: ct1 quotient not integral at limb {limb}, index {i}", party_id: None });
             }
             let q = numerator / q_limb;
             if q.unsigned_abs() > GRECO_BOUND_Q as u128 {
-                return Err(NizkError::VerificationFailed(
-                    "Greco: ct1 quotient bound exceeded",
-                ));
+                return Err(NizkError::VerificationFailed { reason: "Greco: ct1 quotient bound exceeded", party_id: None });
             }
         }
     }

@@ -22,6 +22,7 @@ use pvthfhe_cyclo::CYCLO_BACKEND_ID;
 pub mod decrypt;
 pub mod folding;
 pub mod keygen;
+pub mod leader_election;
 
 pub struct Aggregator {
     pub folding_backend_id: &'static str,

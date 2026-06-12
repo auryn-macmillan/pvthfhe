@@ -64,7 +64,7 @@ pub fn build_demo_nizk_inputs(
         session_id.as_bytes(),
         (participant_id as usize).saturating_sub(1),
         secret_key_bytes,
-    );
+    )?;
 
     Ok((
         NizkStatement {

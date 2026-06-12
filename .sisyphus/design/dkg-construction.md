@@ -639,3 +639,69 @@ polynomials and NTT/RNS modules.
 `docknetwork/crypto` commit `1929e47ad4d004c3bb99a14d0ce6223deb03c9e9`,
 `bytemare/secret-sharing`, `project-dkg/dkg`, `0xstepit/dkg-from-scratch`, and
 `uishi/LHSS`.
+
+16. Abraham, Bacho, Stern — *Quadratic Asynchronous DKG from Plain Setup*
+(ePrint 2026/1159). Introduces Key Escrow, Provable Rank, Weak Leader Election,
+Non-Equivocation, Aggregatable PVSS, and Provable AVID primitives for ADKG.
+
+---
+
+## Candidate 4 — Paper 2026/1159 Building Blocks Augmenting Pedersen-DKG
+
+### Protocol sketch
+
+Rather than replacing the existing Pedersen-over-BFV DKG, this approach
+augments it with five building blocks from the referenced paper:
+
+- **Non-Equivocation** (§4.1): Bind each dealer to a single Round 1 message
+  via Schnorr quorum signatures. Closes the equivocation blame gap in
+  `spec-keygen.md`.
+
+- **Provable AVID** (§4.3): Replace broadcast of all n encrypted shares with
+  Merkle-root information dispersal. Each party retrieves only their assigned
+  share with a Merkle inclusion proof.
+
+- **Committee-Based Sharing** (§4.2 ref): Reduce DKG communication from
+  O(n²) to O(λn) via committee selection. Dealers send to λ parties instead
+  of all n.
+
+- **Key Escrow** (§6): Generate ephemeral key pairs during DKG for decryption
+  authorization. Secret key hidden until f+1 parties authorize reconstruction.
+
+- **Weak Leader Election** (§7): Distributed aggregator selection with
+  retroactive verifiability. Replaces single designated aggregator.
+
+### Paper citation
+
+ePrint 2026/1159, Abraham, Bacho, Stern — *Quadratic Asynchronous DKG from Plain Setup*.
+
+Implemented as `crates/pvthfhe-non-equiv/`, `crates/pvthfhe-pvss/src/avid.rs`,
+`crates/pvthfhe-pvss/src/key_escrow.rs`, `crates/pvthfhe-aggregator/src/leader_election.rs`.
+
+### Round complexity
+
+No additional rounds for AVID and committee sharing (modify existing Round 1).
+One additional round (Round 1.5) for NonEquiv signatures.
+Leader election runs after DKG before decryption.
+
+### Per-party computation cost
+
+NonEquiv: O(n) Schnorr sign + verify operations.
+AVID: O(n) Merkle tree build + O(log n) proof verification per party.
+Committee: O(λ) share encryptions per dealer instead of O(n).
+
+### Ceremony assumptions
+
+Schnorr signatures (BN254, existing), SHA-256 hashing, Merkle tree
+commitments. No new cryptographic assumptions beyond what pvthfhe
+already assumes in `assumptions-ledger.md`.
+
+### Public-verifiability story
+
+NonEquiv proofs and Merkle roots are publicly verifiable.
+Leader election ranks are deterministically reproducible.
+Key escrow commitments bind epoch and session.
+
+### Integration plan
+
+See `.sisyphus/plans/dkg-paper-integration.md` for full implementation plan.

@@ -35,6 +35,7 @@ members = [
     "crates/pvthfhe-fuzz",
     "crates/pvthfhe-tests",
     "crates/pvthfhe-lazer",
+    "crates/pvthfhe-non-equiv",
 ]
 
 [workspace.lints.rust]

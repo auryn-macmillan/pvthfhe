@@ -10,6 +10,7 @@ use sha2::{Digest, Sha256};
 
 mod equivocation;
 mod malformed_nizk;
+mod non_equiv;
 mod replay;
 mod rogue_key;
 mod tampered_ciphertext;

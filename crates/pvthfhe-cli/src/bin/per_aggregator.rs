@@ -6,9 +6,9 @@
 //!  3. NIZK verify (cross-verify all proofs)
 //!  4. Cyclo fold session binding (LatticeFold+ accumulation hash)
 
+use anyhow::Context;
 use clap::Parser;
 use std::time::Instant;
-use anyhow::Context;
 
 #[derive(Parser)]
 struct Args {
@@ -35,19 +35,26 @@ fn main() -> anyhow::Result<()> {
     // ── DKG keygen ──
     let t0 = Instant::now();
     println!("  keygen: starting... (n={}, t={})", args.n, args.threshold);
-    let mut dkg = pvthfhe_keygen::dkg::DkgCeremony::new(
-        pvthfhe_keygen::dkg::DkgParams { n: args.n, t: args.threshold },
-    )?;
+    let mut dkg = pvthfhe_keygen::dkg::DkgCeremony::new(pvthfhe_keygen::dkg::DkgParams {
+        n: args.n,
+        t: args.threshold,
+        round_timeout: None,
+    })?;
     dkg.run()?;
     let pk = dkg.public_key()?;
-    println!("  keygen: ok ({:.1} ms)", t0.elapsed().as_secs_f64() * 1000.0);
+    println!(
+        "  keygen: ok ({:.1} ms)",
+        t0.elapsed().as_secs_f64() * 1000.0
+    );
 
     // ── NIZK prove (one sigma proof per party) ──
     let t1 = Instant::now();
     println!("  nizk_prove: generating {} proofs...", args.n);
-    use pvthfhe_fhe::real_nizk::{LatticeNizk, NizkProof, NizkStatement, NizkWitness, RealNizkAdapter};
-use pvthfhe_fhe::{FheBackend, PublicKey};
-use pvthfhe_fhe::fhers::FhersBackend;
+    use pvthfhe_fhe::fhers::FhersBackend;
+    use pvthfhe_fhe::real_nizk::{
+        LatticeNizk, NizkProof, NizkStatement, NizkWitness, RealNizkAdapter,
+    };
+    use pvthfhe_fhe::{FheBackend, PublicKey};
     use rand_core::RngCore;
     use sha2::{Digest, Sha256};
 
@@ -61,7 +68,9 @@ use pvthfhe_fhe::fhers::FhersBackend;
         pt.resize(8, 0);
         let mut sid = [0u8; 32];
         pvthfhe_rng::OsRng.fill_bytes(&mut sid);
-        let pk = PublicKey { bytes: pk.bytes.clone() };
+        let pk = PublicKey {
+            bytes: pk.bytes.clone(),
+        };
         let ct = backend.encrypt(&pk, &pt, &mut pvthfhe_rng::OsRng)?;
 
         let stmt = NizkStatement {
@@ -117,9 +126,15 @@ use pvthfhe_fhe::fhers::FhersBackend;
     println!("  ── Summary ──");
     println!("  parties:       {:>8}", args.n);
     println!("  threshold:     {:>8}", args.threshold);
-    println!("  keygen:        {:>8.1} ms", (t1 - t0).as_secs_f64() * 1000.0);
+    println!(
+        "  keygen:        {:>8.1} ms",
+        (t1 - t0).as_secs_f64() * 1000.0
+    );
     println!("  nizk_prove:    {:>8.1} ms  ({} proofs)", prove_ms, args.n);
-    println!("  nizk_verify:   {:>8.1} ms  ({} proofs)", verify_ms, args.n);
+    println!(
+        "  nizk_verify:   {:>8.1} ms  ({} proofs)",
+        verify_ms, args.n
+    );
     println!("  cyclo_fold:    {:>8.1} ms", fold_ms);
     println!("  ───────────────");
     println!("  total:         {:>8.1} ms", total_ms);

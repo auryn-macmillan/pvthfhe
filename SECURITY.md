@@ -19,7 +19,8 @@ This document outlines the security model, assumptions, and limitations of the P
 - **NIZK proofs**: Ajtaï D2 sigma + BFV sigma with k-round parallel repetition. Greco quotient-witness verification strengthens soundness from modular to integer-lattice level. M7 fix (2026-06-05): zero-witness rejection via Ajtai commitment all-zeros check.
 - **On-chain verifier**: UltraHonk verifier (Solidity) with folding binding. While proof metadata is bound into the on-chain commitment, the contract does **NOT** cryptographically verify the LatticeFold+ proof itself. Verification is currently fail-closed (disabled) until a real decider is implemented.
 - **No active surrogates on the default path** — all paths use real cryptographic proofs. The surrogate compressor is exclusively available behind `--features surrogate-compressor` (not in defaults).
-- **Latest audit**: MPC security audit 2026-06-07 v2 code-level verification (`.sisyphus/audit/MPC-AUDIT-2026-06-07-FRESH-v2.md`) — 8 prior findings confirmed as regressions (claimed fixed but not actually fixed in code), all resolved. 5 new findings identified and resolved. See [`.sisyphus/plans/mpc-audit-2026-06-07-v2-remediation.md`](.sisyphus/plans/mpc-audit-2026-06-07-v2-remediation.md).
+- **Latest audit**: MPC security audit 2026-06-08 v3 code-level verification (`.sisyphus/audit/MPC-AUDIT-2026-06-08-v3.md`) — 6 of 8 prior regressions confirmed FIXED in code. 2 partial fixes (fold challenge at 64-bit → 128-bit planned; LaZer binding injection planned). 3 new LOW/MEDIUM findings identified. See [`.sisyphus/plans/mpc-audit-2026-06-08-v3-remediation.md`](.sisyphus/plans/mpc-audit-2026-06-08-v3-remediation.md).
+- **Previous**: MPC security audit 2026-06-07 v2 (`.sisyphus/audit/MPC-AUDIT-2026-06-07-FRESH-v2.md`) — 8 prior findings confirmed as regressions, all resolved. 5 new findings identified and resolved.
 
 ## Threat Model
 
@@ -38,6 +39,20 @@ The PVTHFHE security model is evaluated across 6 axes:
 - **SIS / knLWE**: Hardness of finding short vectors, used in NIZK proofs (Ajtaï D2 commitment).
 - **Ajtai Lattice Commitments**: Security of the Ajtai (SIS-based) commitment scheme over Z_q (q = Q_COMMIT ≈ 2^49). No elliptic curve assumptions. Replaces KZG commitments (BN254 + Grumpkin) from removed Track A.
 - **Random Oracle Model**: Fiat-Shamir transform for NIZK and folding challenge derivation.
+- **Schnorr Signatures (BN254)**: Existential unforgeability of Schnorr over BN254 G1, used for NonEquiv quorum signatures and rogue-key prevention (PoP).
+- **SHA-256 Collision Resistance**: Hash-based commitments for NonEquiv message binding, AVID Merkle leaves, committee VRF, and leader election ranks. See [.sisyphus/design/spec-non-equiv.md](.sisyphus/design/spec-non-equiv.md).
+
+## DKG Paper Integration (ePrint 2026/1159)
+
+The DKG protocol integrates five building blocks from Abraham-Bacho-Stern 2026/1159:
+- **Non-Equivocation** (§4.1): Quorum-intersection-based equivocation detection via Schnorr signatures.
+- **Provable AVID** (§4.3): Merkle-tree-based information dispersal for efficient share distribution.
+- **Committee-Based Sharing** (§4.2 ref): VRF-driven committee selection to reduce communication complexity.
+- **Key Escrow** (§6): Ephemeral key generation for distributed decryption authorization.
+- **Weak Leader Election** (§7): Deterministic aggregator selection with retroactive verifiability.
+
+All techniques are adapted to pvthfhe's synchronous network model and lattice-first cryptographic stack.
+See [`.sisyphus/plans/dkg-paper-integration.md`](.sisyphus/plans/dkg-paper-integration.md) for the full integration plan.
 
 For full formal assumptions, see [.sisyphus/design/security-proofs.md](.sisyphus/design/security-proofs.md).
 
@@ -139,6 +154,28 @@ All FHE plaintext-slot logging is gated behind `trace-decrypt` feature, **disabl
 ## Smudging
 
 Conservative smudging parameter: σ_smudge = 2⁴⁰ · σ_err, providing >100 bits of statistical security against noise-based leakage (validated for N=8192). Two modes: `legacy_local_smudge` (local fresh Gaussian, non-committed) and `committed_smudge_pvss` (DKG-committed e_sm polynomial, the target committed mode with on-chain freshness enforcement via SessionRegistry).
+
+## Accepted Research Limitations (MPC-AUDIT-2026-06-12)
+
+### F12: Cross-Instance Abort Propagation
+
+**Status**: ACCEPTED LIMITATION (research prototype)
+
+The PVTHFHE protocol is designed for single-process sequential execution (simulator mode). In a real multi-party deployment where each party runs independently, there is no mechanism for one party's abort to trigger cleanup on other parties' instances. Each party detects protocol failure independently through timeout or invalid-message rejection.
+
+**Production path**: A real deployment would use a consensus-broadcast channel (e.g., Ethereum event logs) for abort signaling. This is out of scope for the research prototype.
+
+### F13: Wire Coefficient Domain Validation
+
+**Status**: ACCEPTED LIMITATION (research prototype)
+
+FHE wire types (`KeygenShareV1`, `PublicKeyV1`, `DecryptShareV2`) validate length bounds but do not validate that polynomial coefficient bytes represent valid field elements. Invalid coefficients are caught during cryptographic operations. Full coefficient-domain validation deferred to production hardening.
+
+### F1 PoP: Schnorr PoP Session Independence
+
+**Status**: DESIGN DECISION
+
+Schnorr Proof-of-Possession is intentionally session-independent because keys are long-term (reused across DKG sessions). PoP demonstrates knowledge of `sk` for a given `pk` — cross-session replay of the same PoP does not grant new capabilities. If keys become session-scoped in future, PoP must bind session_id.
 
 ## Responsible Disclosure
 

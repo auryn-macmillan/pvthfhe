@@ -80,6 +80,8 @@ pub struct FhersBackend {
     owned_party_id: std::sync::Mutex<Option<u32>>,
     /// Set to true by setup_threshold, checked in aggregate_decrypt for session binding.
     setup_threshold_called: Arc<AtomicBool>,
+    /// Set to true by setup_threshold; reset to false by abort_session.
+    dkg_initialized: Arc<AtomicBool>,
 }
 
 impl Clone for FhersBackend {
@@ -97,6 +99,7 @@ impl Clone for FhersBackend {
                 std::sync::Mutex::new(val)
             },
             setup_threshold_called: self.setup_threshold_called.clone(),
+            dkg_initialized: self.dkg_initialized.clone(),
         }
     }
 }
@@ -243,6 +246,24 @@ impl FhersBackend {
         party_states
             .remove(&party_id)
             .ok_or(FheError::UnknownParty { party_id })
+    }
+
+    /// Abort the current session: zeroize all secret state and reset to pre-DKG state.
+    ///
+    /// Call this when a protocol round fails or a party is blamed. Unlike `Drop`,
+    /// which runs whenever the struct leaves scope, this is an explicit API that
+    /// can be called at the precise point of protocol abort.
+    pub fn abort_session(&mut self) {
+        let mut party_states = match self.party_states.lock() {
+            Ok(guard) => guard,
+            Err(_) => return,
+        };
+        for state in party_states.values_mut() {
+            state.zeroize();
+        }
+        party_states.clear();
+        drop(party_states);
+        self.dkg_initialized.store(false, Ordering::SeqCst);
     }
 
     fn crp_for_session(&self, session_id: &[u8; 32]) -> Result<CommonRandomPoly, FheError> {
@@ -746,6 +767,7 @@ impl FheBackend for FhersBackend {
             #[cfg(debug_assertions)]
             owned_party_id: std::sync::Mutex::new(None),
             setup_threshold_called: Arc::new(AtomicBool::new(false)),
+            dkg_initialized: Arc::new(AtomicBool::new(false)),
         })
     }
 
@@ -843,6 +865,7 @@ impl FheBackend for FhersBackend {
         })? = Some(t);
 
         self.setup_threshold_called.store(true, Ordering::SeqCst);
+        self.dkg_initialized.store(true, Ordering::SeqCst);
 
         Ok(())
     }
@@ -2160,5 +2183,24 @@ variance = 10
         );
 
         let _ = raw_poly;
+    }
+
+    #[test]
+    fn abort_session_zeroizes_and_resets() {
+        let mut backend = FhersBackend::load_params(TEST_PARAMS_TOML).expect("load params");
+
+        // Set dkg_initialized flag directly (avoid env var pollution from setup_threshold)
+        backend.dkg_initialized.store(true, Ordering::SeqCst);
+
+        // Abort: should zeroize state and reset
+        backend.abort_session();
+        assert!(
+            !backend.dkg_initialized.load(Ordering::SeqCst),
+            "dkg_initialized must be false after abort"
+        );
+        assert!(
+            backend.party_states.lock().unwrap().is_empty(),
+            "party_states must be empty after abort"
+        );
     }
 }

@@ -12,6 +12,7 @@ pvthfhe-fhe = { path = "../pvthfhe-fhe" }
 pvthfhe-cyclo = { path = "../pvthfhe-cyclo" }
 pvthfhe-domain-tags = { path = "../pvthfhe-domain-tags" }
 pvthfhe-nizk = { path = "../pvthfhe-nizk" }
+pvthfhe-non-equiv = { path = "../pvthfhe-non-equiv" }
 pvthfhe-pvss = { path = "../pvthfhe-pvss" }
 pvthfhe-keygen-spec = { path = "../pvthfhe-keygen-spec" }
 pvthfhe-types = { path = "../pvthfhe-types" }

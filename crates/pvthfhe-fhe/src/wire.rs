@@ -3,6 +3,16 @@
 //! These encodings back the opaque `bytes` fields exposed by the crate's public
 //! wrapper types. They are versioned so later tasks can evolve the payload
 //! layout without changing those wrapper structs.
+//!
+//! ## Research Limitation (F13 — MPC-AUDIT-2026-06-12)
+//!
+//! Wire type deserialization (`KeygenShareV1`, `PublicKeyV1`, `DecryptShareV2`)
+//! validates length bounds but does NOT validate that polynomial coefficient
+//! bytes represent valid field elements (i.e., bytes < modulus for each RNS
+//! limb). Invalid coefficients are caught later during cryptographic operations
+//! (BFV decryption will fail or produce garbage).
+//!
+//! Full coefficient-domain validation is deferred to production hardening.
 
 use crate::FheError;
 use pvthfhe_domain_tags::Tag;

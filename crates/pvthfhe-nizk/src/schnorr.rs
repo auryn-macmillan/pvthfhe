@@ -66,6 +66,11 @@ pub fn schnorr_pop_verify(pk: G1Affine, pop: &SchnorrPopProof) -> bool {
     schnorr_verify(pk, pop.r, pop.s, challenge)
 }
 
+/// DESIGN: PoP is intentionally session-independent.
+/// Keys are long-term (reused across DKG sessions). Session binding is not
+/// required for PoP since the proof demonstrates knowledge of sk for a given
+/// pk — replaying the same PoP in a different session does not grant new
+/// capabilities. If keys become session-scoped, add `session_id` here.
 fn pop_challenge(pk: G1Affine) -> Fr {
     let pk_bytes = affine_to_bytes(&pk, true);
     let sha = Sha256::new()
@@ -119,6 +124,60 @@ fn hash_to_challenge(r: &G1Affine, pk: &G1Affine, message: Fr) -> Fr {
     Fr::from_be_bytes_mod_order(&h.finalize())
 }
 
+/// Fiat-Shamir challenge with session binding.
+/// SHA256(domain, session_id, R.x, R.y, PK.x, PK.y, msg).
+fn hash_to_challenge_with_session(
+    r: &G1Affine,
+    pk: &G1Affine,
+    message: Fr,
+    session_id: &[u8],
+) -> Fr {
+    let mut h = Sha256::new();
+    h.update(pvthfhe_domain_tags::Tag::SchnorrChallenge.as_bytes());
+    h.update(session_id);
+    h.update(affine_to_bytes(r, true));
+    h.update(affine_to_bytes(r, false));
+    h.update(affine_to_bytes(pk, true));
+    h.update(affine_to_bytes(pk, false));
+    let msg_bytes = message.into_bigint().to_bytes_le();
+    h.update(&msg_bytes);
+    Fr::from_be_bytes_mod_order(&h.finalize())
+}
+
+/// Sign with session binding (for NonEquiv protocol).
+pub fn schnorr_sign_with_session(
+    sk: Fr,
+    message: Fr,
+    session_id: &[u8],
+    rng: &mut impl RngCore,
+) -> (G1Affine, Fr) {
+    let mut buf = [0u8; 64];
+    rng.fill_bytes(&mut buf);
+    let r = Fr::from_le_bytes_mod_order(&buf);
+    let r_point = (G1Projective::generator() * r).into_affine();
+    let pk_point = (G1Projective::generator() * sk).into_affine();
+    let challenge = hash_to_challenge_with_session(&r_point, &pk_point, message, session_id);
+    let s = r + challenge * sk;
+    (r_point, s)
+}
+
+/// Verify with session binding (for NonEquiv protocol).
+pub fn schnorr_verify_with_session(
+    pk: G1Affine,
+    sig_r: G1Affine,
+    sig_s: Fr,
+    message: Fr,
+    session_id: &[u8],
+) -> bool {
+    if !pk.is_on_curve() || !sig_r.is_on_curve() {
+        return false;
+    }
+    let challenge = hash_to_challenge_with_session(&sig_r, &pk, message, session_id);
+    let left = G1Projective::generator() * sig_s;
+    let right = sig_r.into_group() + pk.into_group() * challenge;
+    left.into_affine() == right.into_affine()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -151,5 +210,26 @@ mod tests {
         let msg = Fr::from(42u64);
         let (r, s) = schnorr_sign(sk1, msg, &mut rng);
         assert!(!schnorr_verify(pk2, r, s, msg));
+    }
+
+    #[test]
+    fn schnorr_challenge_binds_session() {
+        let mut rng = rand_chacha::ChaCha20Rng::seed_from_u64(1);
+        let (sk, pk) = generate_signing_keypair(&mut rng);
+        let msg = Fr::from(42u64);
+        let (r_a, s_a) = schnorr_sign_with_session(sk, msg, b"session-A", &mut rng);
+        let (r_b, s_b) = schnorr_sign_with_session(sk, msg, b"session-B", &mut rng);
+        assert!(
+            r_a != r_b || s_a != s_b,
+            "signatures across sessions must diverge (different challenge)"
+        );
+        assert!(schnorr_verify_with_session(pk, r_a, s_a, msg, b"session-A"));
+        assert!(!schnorr_verify_with_session(
+            pk,
+            r_a,
+            s_a,
+            msg,
+            b"session-B"
+        ));
     }
 }

@@ -147,27 +147,42 @@ impl NizkAdapter for CycloNizkAdapter {
     fn verify(&self, stmt: &NizkStatement, proof: &NizkProof) -> Result<(), NizkError> {
         validate_statement(stmt)?;
         if proof.backend_id != BACKEND_ID {
-            return Err(NizkError::VerificationFailed("unexpected proof backend"));
+            return Err(NizkError::VerificationFailed {
+                reason: "unexpected proof backend",
+                party_id: None,
+            });
         }
         if proof.proof_bytes.len() > MAX_PROOF_BYTES {
-            return Err(NizkError::InvalidInput("proof too large"));
+            return Err(NizkError::InvalidInput {
+                reason: "proof too large",
+                party_id: None,
+            });
         }
 
         let mut cur = Cursor::new(&proof.proof_bytes);
 
         let version = cur.read_u16()?;
         if version != PROOF_VERSION {
-            return Err(NizkError::InvalidProof("unsupported proof version"));
+            return Err(NizkError::InvalidProof {
+                reason: "unsupported proof version",
+                party_id: Some(stmt.participant_id),
+            });
         }
 
-        let ccs_id: [u8; 32] = cur
-            .read_exact(32)?
-            .try_into()
-            .map_err(|_| NizkError::InvalidProof("bad ccs_instance_id"))?;
+        let ccs_id: [u8; 32] =
+            cur.read_exact(32)?
+                .try_into()
+                .map_err(|_| NizkError::InvalidProof {
+                    reason: "bad ccs_instance_id",
+                    party_id: Some(stmt.participant_id),
+                })?;
 
         let expected_ccs_id = compute_ccs_instance_id(stmt)?;
         if ccs_id != expected_ccs_id {
-            return Err(NizkError::VerificationFailed("ccs_instance_id mismatch"));
+            return Err(NizkError::VerificationFailed {
+                reason: "ccs_instance_id mismatch",
+                party_id: Some(stmt.participant_id),
+            });
         }
 
         let ajtai_commitment_bytes = cur.read_exact(26_624)?.to_vec();
@@ -177,24 +192,38 @@ impl NizkAdapter for CycloNizkAdapter {
 
         let session_id_encoded = cur.read_len_prefixed_bytes()?;
         let encoded_pid = cur.read_u16()?;
-        let encoded_commitment: [u8; 32] = cur
-            .read_exact(32)?
-            .try_into()
-            .map_err(|_| NizkError::InvalidProof("bad sha256_binding commitment"))?;
+        let encoded_commitment: [u8; 32] =
+            cur.read_exact(32)?
+                .try_into()
+                .map_err(|_| NizkError::InvalidProof {
+                    reason: "bad sha256_binding commitment",
+                    party_id: Some(stmt.participant_id),
+                })?;
 
         if session_id_encoded != stmt.session_id.as_bytes() {
-            return Err(NizkError::VerificationFailed("session_id mismatch"));
+            return Err(NizkError::VerificationFailed {
+                reason: "session_id mismatch",
+                party_id: Some(stmt.participant_id),
+            });
         }
         if encoded_pid != stmt.participant_id {
-            return Err(NizkError::VerificationFailed("participant_id mismatch"));
+            return Err(NizkError::VerificationFailed {
+                reason: "participant_id mismatch",
+                party_id: Some(stmt.participant_id),
+            });
         }
 
-        let sigma_section_len = usize::try_from(cur.read_u32()?)
-            .map_err(|_| NizkError::InvalidProof("sigma_section_len overflow"))?;
+        let sigma_section_len =
+            usize::try_from(cur.read_u32()?).map_err(|_| NizkError::InvalidProof {
+                reason: "sigma_section_len overflow",
+                party_id: Some(stmt.participant_id),
+            })?;
         let sigma_section = cur.read_exact(sigma_section_len)?.to_vec();
 
-        let acc_len = usize::try_from(cur.read_u32()?)
-            .map_err(|_| NizkError::InvalidProof("acc_len overflow"))?;
+        let acc_len = usize::try_from(cur.read_u32()?).map_err(|_| NizkError::InvalidProof {
+            reason: "acc_len overflow",
+            party_id: Some(stmt.participant_id),
+        })?;
         if acc_len > 0 {
             let acc_bytes = cur.read_exact(acc_len)?.to_vec();
             verify_accumulator_transcript(stmt, &acc_bytes, &ajtai_commitment_bytes)?;
@@ -205,9 +234,10 @@ impl NizkAdapter for CycloNizkAdapter {
         let (d_rns, sigma_multi) = decode_sigma_section_multi(&sigma_section)?;
 
         if sigma_multi.rounds.is_empty() {
-            return Err(NizkError::VerificationFailed(
-                "sigma multi-proof must have at least one round",
-            ));
+            return Err(NizkError::VerificationFailed {
+                reason: "sigma multi-proof must have at least one round",
+                party_id: Some(stmt.participant_id),
+            });
         }
 
         let c_rns = expand_c_rns(&ccs_id)?;
@@ -229,9 +259,10 @@ impl NizkAdapter for CycloNizkAdapter {
         )?;
 
         if !bool::from(encoded_commitment.ct_eq(&stmt.pvss_commitment)) {
-            return Err(NizkError::VerificationFailed(
-                "pvss_commitment hash binding mismatch",
-            ));
+            return Err(NizkError::VerificationFailed {
+                reason: "pvss_commitment hash binding mismatch",
+                party_id: Some(stmt.participant_id),
+            });
         }
 
         Ok(())
@@ -239,14 +270,16 @@ impl NizkAdapter for CycloNizkAdapter {
 
     fn batch_verify(&self, stmts: &[NizkStatement], proofs: &[NizkProof]) -> Result<(), NizkError> {
         if stmts.len() != proofs.len() {
-            return Err(NizkError::InvalidInput(
-                "statement/proof batch length mismatch",
-            ));
+            return Err(NizkError::InvalidInput {
+                reason: "statement/proof batch length mismatch",
+                party_id: None,
+            });
         }
         if stmts.len() > MAX_BATCH_STMTS {
-            return Err(NizkError::InvalidInput(
-                "batch_verify participant count exceeds maximum",
-            ));
+            return Err(NizkError::InvalidInput {
+                reason: "batch_verify participant count exceeds maximum",
+                party_id: None,
+            });
         }
         for (s, p) in stmts.iter().zip(proofs.iter()) {
             self.verify(s, p)?;
@@ -264,7 +297,10 @@ pub fn extract_sigma_proof(proof_bytes: &[u8]) -> Result<(Vec<u64>, sigma::Sigma
 
     let version = cur.read_u16()?;
     if version != PROOF_VERSION {
-        return Err(NizkError::InvalidProof("unsupported proof version"));
+        return Err(NizkError::InvalidProof {
+            reason: "unsupported proof version",
+            party_id: None,
+        });
     }
 
     cur.skip(32)?; // ccs_instance_id
@@ -272,13 +308,19 @@ pub fn extract_sigma_proof(proof_bytes: &[u8]) -> Result<(Vec<u64>, sigma::Sigma
 
     let _sid = cur.read_len_prefixed_bytes()?;
     let _pid = cur.read_u16()?;
-    let _commitment: [u8; 32] = cur
-        .read_exact(32)?
-        .try_into()
-        .map_err(|_| NizkError::InvalidProof("bad sha256_binding commitment"))?;
+    let _commitment: [u8; 32] =
+        cur.read_exact(32)?
+            .try_into()
+            .map_err(|_| NizkError::InvalidProof {
+                reason: "bad sha256_binding commitment",
+                party_id: None,
+            })?;
 
-    let sigma_section_len = usize::try_from(cur.read_u32()?)
-        .map_err(|_| NizkError::InvalidProof("sigma_section_len overflow"))?;
+    let sigma_section_len =
+        usize::try_from(cur.read_u32()?).map_err(|_| NizkError::InvalidProof {
+            reason: "sigma_section_len overflow",
+            party_id: None,
+        })?;
     let sigma_section = cur.read_exact(sigma_section_len)?.to_vec();
 
     let (d_rns, multi_proof) = decode_sigma_section_multi(&sigma_section)?;
@@ -286,7 +328,10 @@ pub fn extract_sigma_proof(proof_bytes: &[u8]) -> Result<(Vec<u64>, sigma::Sigma
         .rounds
         .into_iter()
         .next()
-        .ok_or(NizkError::InvalidProof("sigma multi-proof has zero rounds"))?;
+        .ok_or(NizkError::InvalidProof {
+            reason: "sigma multi-proof has zero rounds",
+            party_id: None,
+        })?;
     Ok((d_rns, first_round))
 }
 
@@ -305,28 +350,43 @@ pub fn extract_sigma_statement_and_proof(
 
     let version = cur.read_u16()?;
     if version != PROOF_VERSION {
-        return Err(NizkError::InvalidProof("unsupported proof version"));
+        return Err(NizkError::InvalidProof {
+            reason: "unsupported proof version",
+            party_id: Some(stmt.participant_id),
+        });
     }
 
     let ccs_id: [u8; 32] = cur
         .read_exact(32)?
         .try_into()
-        .map_err(|_| NizkError::InvalidProof("bad ccs_instance_id"))?;
+        .map_err(|_| NizkError::InvalidProof {
+            reason: "bad ccs_instance_id",
+            party_id: Some(stmt.participant_id),
+        })?;
     let expected_ccs_id = compute_ccs_instance_id(stmt)?;
     if ccs_id != expected_ccs_id {
-        return Err(NizkError::VerificationFailed("ccs_instance_id mismatch"));
+        return Err(NizkError::VerificationFailed {
+            reason: "ccs_instance_id mismatch",
+            party_id: Some(stmt.participant_id),
+        });
     }
 
     cur.skip(26_624)?; // ajtai_commitment
     let _sid = cur.read_len_prefixed_bytes()?;
     let _pid = cur.read_u16()?;
-    let _commitment: [u8; 32] = cur
-        .read_exact(32)?
-        .try_into()
-        .map_err(|_| NizkError::InvalidProof("bad sha256_binding commitment"))?;
+    let _commitment: [u8; 32] =
+        cur.read_exact(32)?
+            .try_into()
+            .map_err(|_| NizkError::InvalidProof {
+                reason: "bad sha256_binding commitment",
+                party_id: Some(stmt.participant_id),
+            })?;
 
-    let sigma_section_len = usize::try_from(cur.read_u32()?)
-        .map_err(|_| NizkError::InvalidProof("sigma_section_len overflow"))?;
+    let sigma_section_len =
+        usize::try_from(cur.read_u32()?).map_err(|_| NizkError::InvalidProof {
+            reason: "sigma_section_len overflow",
+            party_id: Some(stmt.participant_id),
+        })?;
     let sigma_section = cur.read_exact(sigma_section_len)?.to_vec();
     let (d_rns, sigma_multi) = decode_sigma_section_multi(&sigma_section)?;
     let c_rns = expand_c_rns(&ccs_id)?;
@@ -342,9 +402,10 @@ pub fn extract_ajtai_commitment_from_proof(proof_bytes: &[u8]) -> Result<Vec<u8>
     const AJTAI_OFFSET: usize = 2 + 32; // version(u16 BE) + ccs_instance_id([u8; 32])
     const AJTAI_LEN: usize = 26_624;
     if proof_bytes.len() < AJTAI_OFFSET + AJTAI_LEN {
-        return Err(NizkError::InvalidProof(
-            "proof too short for Ajtai commitment",
-        ));
+        return Err(NizkError::InvalidProof {
+            reason: "proof too short for Ajtai commitment",
+            party_id: None,
+        });
     }
     Ok(proof_bytes[AJTAI_OFFSET..AJTAI_OFFSET + AJTAI_LEN].to_vec())
 }
@@ -360,7 +421,10 @@ pub fn extract_ccs_witness_from_proof(proof_bytes: &[u8]) -> Result<Vec<u8>, Niz
 
     let version = cur.read_u16()?;
     if version != PROOF_VERSION {
-        return Err(NizkError::InvalidProof("unsupported proof version"));
+        return Err(NizkError::InvalidProof {
+            reason: "unsupported proof version",
+            party_id: None,
+        });
     }
 
     cur.skip(32)?; // ccs_instance_id
@@ -369,8 +433,11 @@ pub fn extract_ccs_witness_from_proof(proof_bytes: &[u8]) -> Result<Vec<u8>, Niz
     let _ = cur.read_u16()?; // participant_id
     cur.skip(32)?; // sha256_binding
 
-    let sigma_section_len = usize::try_from(cur.read_u32()?)
-        .map_err(|_| NizkError::InvalidProof("sigma_section_len overflow"))?;
+    let sigma_section_len =
+        usize::try_from(cur.read_u32()?).map_err(|_| NizkError::InvalidProof {
+            reason: "sigma_section_len overflow",
+            party_id: None,
+        })?;
     let sigma_section = cur.read_exact(sigma_section_len)?.to_vec();
 
     let (d_rns, _sigma_multi) = decode_sigma_section_multi(&sigma_section)?;
@@ -391,37 +458,58 @@ pub fn extract_ccs_witness_from_proof(proof_bytes: &[u8]) -> Result<Vec<u8>, Niz
 
 fn validate_statement(stmt: &NizkStatement) -> Result<(), NizkError> {
     if stmt.params.0 == 0 {
-        return Err(NizkError::InvalidInput("q must be non-zero"));
+        return Err(NizkError::InvalidInput {
+            reason: "q must be non-zero",
+            party_id: Some(stmt.participant_id),
+        });
     }
     if stmt.params.1 == 0 {
-        return Err(NizkError::InvalidInput("ring degree must be non-zero"));
+        return Err(NizkError::InvalidInput {
+            reason: "ring degree must be non-zero",
+            party_id: Some(stmt.participant_id),
+        });
     }
     if stmt.params.1 != rlwe_n() {
-        return Err(NizkError::InvalidInput(
-            "ring degree must match active preset N",
-        ));
+        return Err(NizkError::InvalidInput {
+            reason: "ring degree must match active preset N",
+            party_id: Some(stmt.participant_id),
+        });
     }
     if stmt.session_id.is_empty() {
-        return Err(NizkError::InvalidInput("session_id must be non-empty"));
+        return Err(NizkError::InvalidInput {
+            reason: "session_id must be non-empty",
+            party_id: Some(stmt.participant_id),
+        });
     }
     if stmt.session_id.len() > MAX_SESSION_ID_LEN {
-        return Err(NizkError::InvalidInput("session_id too long"));
+        return Err(NizkError::InvalidInput {
+            reason: "session_id too long",
+            party_id: Some(stmt.participant_id),
+        });
     }
     if stmt.ciphertext_bytes.is_empty() {
-        return Err(NizkError::InvalidInput(
-            "ciphertext bytes must be non-empty",
-        ));
+        return Err(NizkError::InvalidInput {
+            reason: "ciphertext bytes must be non-empty",
+            party_id: Some(stmt.participant_id),
+        });
     }
     if stmt.ciphertext_bytes.len() > MAX_INPUT_BYTES {
-        return Err(NizkError::InvalidInput("ciphertext bytes too large"));
+        return Err(NizkError::InvalidInput {
+            reason: "ciphertext bytes too large",
+            party_id: Some(stmt.participant_id),
+        });
     }
     if stmt.decrypt_share_bytes.is_empty() {
-        return Err(NizkError::InvalidInput(
-            "decrypt-share bytes must be non-empty",
-        ));
+        return Err(NizkError::InvalidInput {
+            reason: "decrypt-share bytes must be non-empty",
+            party_id: Some(stmt.participant_id),
+        });
     }
     if stmt.decrypt_share_bytes.len() > MAX_INPUT_BYTES {
-        return Err(NizkError::InvalidInput("decrypt-share bytes too large"));
+        return Err(NizkError::InvalidInput {
+            reason: "decrypt-share bytes too large",
+            party_id: Some(stmt.participant_id),
+        });
     }
     Ok(())
 }
@@ -429,14 +517,16 @@ fn validate_statement(stmt: &NizkStatement) -> Result<(), NizkError> {
 fn validate_witness(witness: &NizkWitness) -> Result<(), NizkError> {
     let n = rlwe_n();
     if witness.secret_share_poly.len() != n {
-        return Err(NizkError::InvalidInput(
-            "secret_share_poly must have exactly N coefficients",
-        ));
+        return Err(NizkError::InvalidInput {
+            reason: "secret_share_poly must have exactly N coefficients",
+            party_id: None,
+        });
     }
     if witness.error.len() != n {
-        return Err(NizkError::InvalidInput(
-            "error must have exactly N coefficients",
-        ));
+        return Err(NizkError::InvalidInput {
+            reason: "error must have exactly N coefficients",
+            party_id: None,
+        });
     }
     Ok(())
 }
@@ -446,60 +536,72 @@ fn verify_accumulator_transcript(
     acc_bytes: &[u8],
     _ajtai_commitment_bytes: &[u8],
 ) -> Result<(), NizkError> {
-    let (acc, instance_refs) = accumulator_codec::decode_accumulator(acc_bytes)
-        .map_err(|_e| NizkError::VerificationFailed("accumulator transcript decode failed"))?;
+    let (acc, instance_refs) = accumulator_codec::decode_accumulator(acc_bytes).map_err(|_e| {
+        NizkError::VerificationFailed {
+            reason: "accumulator transcript decode failed",
+            party_id: Some(stmt.participant_id),
+        }
+    })?;
 
     if acc.session_id != stmt.session_id {
-        return Err(NizkError::VerificationFailed(
-            "accumulator transcript: session_id mismatch",
-        ));
+        return Err(NizkError::VerificationFailed {
+            reason: "accumulator transcript: session_id mismatch",
+            party_id: Some(stmt.participant_id),
+        });
     }
 
     let expected_digest = accumulator_codec::params_digest();
     if acc.params_digest != expected_digest {
-        return Err(NizkError::VerificationFailed(
-            "accumulator transcript: params_digest mismatch",
-        ));
+        return Err(NizkError::VerificationFailed {
+            reason: "accumulator transcript: params_digest mismatch",
+            party_id: Some(stmt.participant_id),
+        });
     }
 
     if acc.norm_bound_current > PVTHFHE_CYCLO_PARAMS.beta_at_t {
-        return Err(NizkError::VerificationFailed(
-            "accumulator transcript: norm_bound_current exceeds beta_at_t",
-        ));
+        return Err(NizkError::VerificationFailed {
+            reason: "accumulator transcript: norm_bound_current exceeds beta_at_t",
+            party_id: Some(stmt.participant_id),
+        });
     }
 
     if acc.fold_depth > PVTHFHE_CYCLO_PARAMS.sequential_t {
-        return Err(NizkError::VerificationFailed(
-            "accumulator transcript: fold_depth exceeds sequential_t",
-        ));
+        return Err(NizkError::VerificationFailed {
+            reason: "accumulator transcript: fold_depth exceeds sequential_t",
+            party_id: Some(stmt.participant_id),
+        });
     }
 
     if acc.acc_commitment_bytes.len() != AJTAI_COMMITMENT_BYTES {
-        return Err(NizkError::VerificationFailed(
-            "accumulator transcript: commitment length mismatch",
-        ));
+        return Err(NizkError::VerificationFailed {
+            reason: "accumulator transcript: commitment length mismatch",
+            party_id: Some(stmt.participant_id),
+        });
     }
 
     if acc.acc_public_io_bytes.len() != 32 {
-        return Err(NizkError::VerificationFailed(
-            "accumulator transcript: public_io length mismatch",
-        ));
+        return Err(NizkError::VerificationFailed {
+            reason: "accumulator transcript: public_io length mismatch",
+            party_id: Some(stmt.participant_id),
+        });
     }
 
     let instance_count = instance_refs.len();
     if acc.fold_depth as usize != instance_count {
-        return Err(NizkError::VerificationFailed(
-            "accumulator transcript: fold_depth != instance_count",
-        ));
+        return Err(NizkError::VerificationFailed {
+            reason: "accumulator transcript: fold_depth != instance_count",
+            party_id: Some(stmt.participant_id),
+        });
     }
 
     let found_current_participant = instance_refs
         .iter()
         .any(|ir| ir.participant_id == stmt.participant_id);
     if !found_current_participant {
-        return Err(NizkError::VerificationFailed(
-            "accumulator transcript: current participant_id not found in instance list",
-        ));
+        return Err(NizkError::VerificationFailed {
+            reason: "accumulator transcript: current participant_id not found in instance list",
+            party_id: Some(stmt.participant_id),
+        });
     }
 
     for ir in &instance_refs {
@@ -509,9 +611,7 @@ fn verify_accumulator_transcript(
                 .finalize()
                 .into();
             if ir.ajtai_commitment_hash != expected_ajtai_hash {
-                return Err(NizkError::VerificationFailed(
-                    "accumulator transcript: ajtai_commitment_hash mismatch for current participant",
-                ));
+                return Err(NizkError::VerificationFailed { reason: "accumulator transcript: ajtai_commitment_hash mismatch for current participant", party_id: Some(stmt.participant_id) });
             }
         }
     }
@@ -533,8 +633,10 @@ fn compute_ccs_instance_id(stmt: &NizkStatement) -> Result<[u8; 32], NizkError> 
     h.update(stmt.session_id.as_bytes());
     h.update(stmt.participant_id.to_be_bytes());
     h.update(stmt.params.0.to_be_bytes());
-    let degree_u64 = u64::try_from(stmt.params.1)
-        .map_err(|_| NizkError::InvalidInput("degree overflows u64"))?;
+    let degree_u64 = u64::try_from(stmt.params.1).map_err(|_| NizkError::InvalidInput {
+        reason: "degree overflows u64",
+        party_id: Some(stmt.participant_id),
+    })?;
     h.update(degree_u64.to_be_bytes());
     h.update(stmt.params.2.to_be_bytes());
     h.update(b"cyclo-ajtai-d2/v1");
@@ -577,18 +679,20 @@ fn expand_c_rns(seed: &[u8; 32]) -> Result<Vec<u64>, NizkError> {
 /// is well-formed and bound to the sigma transcript.
 fn verify_ajtai_commitment(bytes: &[u8]) -> Result<(), NizkError> {
     if bytes.len() != 26_624 {
-        return Err(NizkError::InvalidProof(
-            "ajtai commitment: wrong byte length",
-        ));
+        return Err(NizkError::InvalidProof {
+            reason: "ajtai commitment: wrong byte length",
+            party_id: None,
+        });
     }
 
     // M7: reject all-zeros commitment (indicates s_i = 0 trivial witness).
     // When s_i = 0, the Ajtai commitment A*s_i = 0, enabling a cheating prover
     // to set e_i = d_i and trivially satisfy d_i = c*0 + d_i = d_i.
     if bytes.iter().all(|&b| b == 0) {
-        return Err(NizkError::VerificationFailed(
-            "ajtai commitment: zero witness rejected (s_i = 0)",
-        ));
+        return Err(NizkError::VerificationFailed {
+            reason: "ajtai commitment: zero witness rejected (s_i = 0)",
+            party_id: None,
+        });
     }
 
     let expected_elems = AJTAI_RANK; // a = 13
@@ -599,14 +703,16 @@ fn verify_ajtai_commitment(bytes: &[u8]) -> Result<(), NizkError> {
 
     for (elem_idx, chunk) in bytes.chunks(bytes_per_elem).enumerate() {
         if elem_idx >= expected_elems {
-            return Err(NizkError::InvalidProof(
-                "ajtai commitment: too many ring elements",
-            ));
+            return Err(NizkError::InvalidProof {
+                reason: "ajtai commitment: too many ring elements",
+                party_id: None,
+            });
         }
         if chunk.len() != bytes_per_elem {
-            return Err(NizkError::InvalidProof(
-                "ajtai commitment: truncated ring element",
-            ));
+            return Err(NizkError::InvalidProof {
+                reason: "ajtai commitment: truncated ring element",
+                party_id: None,
+            });
         }
         for coeff_idx in (0..coeffs_per_elem).map(|j| j * 8) {
             let mut buf = [0u8; 8];
@@ -614,9 +720,10 @@ fn verify_ajtai_commitment(bytes: &[u8]) -> Result<(), NizkError> {
             let coeff = i64::from_le_bytes(buf);
             // Coefficients must be in centred range (-Q_COMMIT/2, Q_COMMIT/2]
             if coeff <= -half_q || coeff > half_q {
-                return Err(NizkError::InvalidProof(
-                    "ajtai commitment: coefficient out of range",
-                ));
+                return Err(NizkError::InvalidProof {
+                    reason: "ajtai commitment: coefficient out of range",
+                    party_id: None,
+                });
             }
         }
     }
@@ -628,9 +735,10 @@ fn verify_ajtai_commitment(bytes: &[u8]) -> Result<(), NizkError> {
 #[allow(dead_code)]
 fn deserialize_ajtai_commitment(bytes: &[u8]) -> Result<AjtaiCommitment, NizkError> {
     if bytes.len() != 26_624 {
-        return Err(NizkError::InvalidProof(
-            "ajtai commitment: wrong byte length",
-        ));
+        return Err(NizkError::InvalidProof {
+            reason: "ajtai commitment: wrong byte length",
+            party_id: None,
+        });
     }
 
     let mut elems = Vec::with_capacity(AJTAI_RANK);
@@ -639,9 +747,10 @@ fn deserialize_ajtai_commitment(bytes: &[u8]) -> Result<AjtaiCommitment, NizkErr
 
     for chunk in bytes.chunks(bytes_per_elem) {
         if chunk.len() != bytes_per_elem {
-            return Err(NizkError::InvalidProof(
-                "ajtai commitment: truncated ring element",
-            ));
+            return Err(NizkError::InvalidProof {
+                reason: "ajtai commitment: truncated ring element",
+                party_id: None,
+            });
         }
         let mut coeffs = [0i64; PHI];
         for (j, c) in coeffs.iter_mut().enumerate() {
@@ -711,8 +820,10 @@ fn compute_ajtai_commitment(
 }
 
 fn encode_u64s_le(out: &mut Vec<u8>, vals: &[u64]) -> Result<(), NizkError> {
-    let len = u32::try_from(vals.len())
-        .map_err(|_| NizkError::InvalidInput("encode_u64s_le: too many values"))?;
+    let len = u32::try_from(vals.len()).map_err(|_| NizkError::InvalidInput {
+        reason: "encode_u64s_le: too many values",
+        party_id: None,
+    })?;
     out.extend_from_slice(&len.to_be_bytes());
     for &v in vals {
         out.extend_from_slice(&v.to_le_bytes());
@@ -721,8 +832,10 @@ fn encode_u64s_le(out: &mut Vec<u8>, vals: &[u64]) -> Result<(), NizkError> {
 }
 
 fn encode_i64s_le(out: &mut Vec<u8>, vals: &[i64]) -> Result<(), NizkError> {
-    let len = u32::try_from(vals.len())
-        .map_err(|_| NizkError::InvalidInput("encode_i64s_le: too many values"))?;
+    let len = u32::try_from(vals.len()).map_err(|_| NizkError::InvalidInput {
+        reason: "encode_i64s_le: too many values",
+        party_id: None,
+    })?;
     out.extend_from_slice(&len.to_be_bytes());
     for &v in vals {
         out.extend_from_slice(&v.to_le_bytes());
@@ -750,8 +863,10 @@ fn encode_proof_multi(
     }
 
     let sid_bytes = stmt.session_id.as_bytes();
-    let sid_len = u32::try_from(sid_bytes.len())
-        .map_err(|_| NizkError::InvalidInput("session_id too long"))?;
+    let sid_len = u32::try_from(sid_bytes.len()).map_err(|_| NizkError::InvalidInput {
+        reason: "session_id too long",
+        party_id: Some(stmt.participant_id),
+    })?;
     out.extend_from_slice(&sid_len.to_be_bytes());
     out.extend_from_slice(sid_bytes);
     out.extend_from_slice(&stmt.participant_id.to_be_bytes());
@@ -760,8 +875,11 @@ fn encode_proof_multi(
     let mut sigma_section = Vec::new();
     encode_u64s_le(&mut sigma_section, d_rns)?;
     // Encode round count followed by per-round proofs
-    let num_rounds = u32::try_from(sigma_multi.rounds.len())
-        .map_err(|_| NizkError::InvalidInput("too many sigma rounds"))?;
+    let num_rounds =
+        u32::try_from(sigma_multi.rounds.len()).map_err(|_| NizkError::InvalidInput {
+            reason: "too many sigma rounds",
+            party_id: Some(stmt.participant_id),
+        })?;
     sigma_section.extend_from_slice(&num_rounds.to_be_bytes());
     for proof in &sigma_multi.rounds {
         encode_u64s_le(&mut sigma_section, &proof.t_rns)?;
@@ -770,8 +888,10 @@ fn encode_proof_multi(
         encode_ch_ternary_32(&mut sigma_section, proof.ch)?;
     }
 
-    let sigma_len = u32::try_from(sigma_section.len())
-        .map_err(|_| NizkError::InvalidInput("sigma section too large"))?;
+    let sigma_len = u32::try_from(sigma_section.len()).map_err(|_| NizkError::InvalidInput {
+        reason: "sigma section too large",
+        party_id: Some(stmt.participant_id),
+    })?;
     out.extend_from_slice(&sigma_len.to_be_bytes());
     out.extend_from_slice(&sigma_section);
 
@@ -793,18 +913,25 @@ pub fn append_accumulator_to_proof(
     instances: &[pvthfhe_cyclo::CcsPShareInstance],
 ) -> Result<(), NizkError> {
     if proof_bytes.len() < 4 {
-        return Err(NizkError::InvalidInput(
-            "proof too short for accumulator placeholder",
-        ));
+        return Err(NizkError::InvalidInput {
+            reason: "proof too short for accumulator placeholder",
+            party_id: None,
+        });
     }
     let old_len = proof_bytes.len();
     proof_bytes.truncate(old_len - 4);
 
-    let acc_transcript = accumulator_codec::encode_accumulator(acc, instances)
-        .map_err(|_| NizkError::InvalidInput("accumulator transcript encode failed"))?;
+    let acc_transcript = accumulator_codec::encode_accumulator(acc, instances).map_err(|_| {
+        NizkError::InvalidInput {
+            reason: "accumulator transcript encode failed",
+            party_id: None,
+        }
+    })?;
 
-    let acc_len = u32::try_from(acc_transcript.len())
-        .map_err(|_| NizkError::InvalidInput("accumulator transcript too large"))?;
+    let acc_len = u32::try_from(acc_transcript.len()).map_err(|_| NizkError::InvalidInput {
+        reason: "accumulator transcript too large",
+        party_id: None,
+    })?;
     proof_bytes.extend_from_slice(&acc_len.to_be_bytes());
     proof_bytes.extend_from_slice(&acc_transcript);
     Ok(())
@@ -834,8 +961,10 @@ fn decode_sigma_section_multi(
 ) -> Result<(Vec<u64>, sigma::SigmaMultiProof), NizkError> {
     let mut cur = Cursor::new(bytes);
     let d_rns = cur.read_u64s()?;
-    let num_rounds = usize::try_from(cur.read_u32()?)
-        .map_err(|_| NizkError::InvalidProof("sigma round count overflow"))?;
+    let num_rounds = usize::try_from(cur.read_u32()?).map_err(|_| NizkError::InvalidProof {
+        reason: "sigma round count overflow",
+        party_id: None,
+    })?;
     let mut rounds = Vec::with_capacity(num_rounds);
     for _ in 0..num_rounds {
         let t_rns = cur.read_u64s()?;
@@ -857,7 +986,12 @@ fn encode_ch_ternary_32(out: &mut Vec<u8>, ch: i64) -> Result<(), NizkError> {
     let fill = match ch {
         -1 => 0xff,
         0 | 1 => 0x00,
-        _ => return Err(NizkError::InvalidInput("challenge must be -1, 0, or 1")),
+        _ => {
+            return Err(NizkError::InvalidInput {
+                reason: "challenge must be -1, 0, or 1",
+                party_id: None,
+            })
+        }
     };
     let mut encoded = [fill; 32];
     encoded[..8].copy_from_slice(&ch.to_le_bytes());
@@ -879,11 +1013,17 @@ impl<'a> Cursor<'a> {
         let end = self
             .offset
             .checked_add(len)
-            .ok_or(NizkError::InvalidProof("proof length overflow"))?;
+            .ok_or(NizkError::InvalidProof {
+                reason: "proof length overflow",
+                party_id: None,
+            })?;
         let slice = self
             .bytes
             .get(self.offset..end)
-            .ok_or(NizkError::InvalidProof("truncated proof bytes"))?;
+            .ok_or(NizkError::InvalidProof {
+                reason: "truncated proof bytes",
+                party_id: None,
+            })?;
         self.offset = end;
         Ok(slice)
     }
@@ -897,7 +1037,10 @@ impl<'a> Cursor<'a> {
         let b: [u8; 2] = self
             .read_exact(2)?
             .try_into()
-            .map_err(|_| NizkError::InvalidProof("bad u16"))?;
+            .map_err(|_| NizkError::InvalidProof {
+                reason: "bad u16",
+                party_id: None,
+            })?;
         Ok(u16::from_be_bytes(b))
     }
 
@@ -905,39 +1048,54 @@ impl<'a> Cursor<'a> {
         let b: [u8; 4] = self
             .read_exact(4)?
             .try_into()
-            .map_err(|_| NizkError::InvalidProof("bad u32"))?;
+            .map_err(|_| NizkError::InvalidProof {
+                reason: "bad u32",
+                party_id: None,
+            })?;
         Ok(u32::from_be_bytes(b))
     }
 
     fn read_len_prefixed_bytes(&mut self) -> Result<Vec<u8>, NizkError> {
-        let len = usize::try_from(self.read_u32()?)
-            .map_err(|_| NizkError::InvalidProof("length overflows usize"))?;
+        let len = usize::try_from(self.read_u32()?).map_err(|_| NizkError::InvalidProof {
+            reason: "length overflows usize",
+            party_id: None,
+        })?;
         Ok(self.read_exact(len)?.to_vec())
     }
 
     fn read_u64s(&mut self) -> Result<Vec<u64>, NizkError> {
-        let count = usize::try_from(self.read_u32()?)
-            .map_err(|_| NizkError::InvalidProof("u64s count overflows usize"))?;
+        let count = usize::try_from(self.read_u32()?).map_err(|_| NizkError::InvalidProof {
+            reason: "u64s count overflows usize",
+            party_id: None,
+        })?;
         let mut out = Vec::with_capacity(count);
         for _ in 0..count {
-            let b: [u8; 8] = self
-                .read_exact(8)?
-                .try_into()
-                .map_err(|_| NizkError::InvalidProof("bad u64"))?;
+            let b: [u8; 8] =
+                self.read_exact(8)?
+                    .try_into()
+                    .map_err(|_| NizkError::InvalidProof {
+                        reason: "bad u64",
+                        party_id: None,
+                    })?;
             out.push(u64::from_le_bytes(b));
         }
         Ok(out)
     }
 
     fn read_i64s(&mut self) -> Result<Vec<i64>, NizkError> {
-        let count = usize::try_from(self.read_u32()?)
-            .map_err(|_| NizkError::InvalidProof("i64s count overflows usize"))?;
+        let count = usize::try_from(self.read_u32()?).map_err(|_| NizkError::InvalidProof {
+            reason: "i64s count overflows usize",
+            party_id: None,
+        })?;
         let mut out = Vec::with_capacity(count);
         for _ in 0..count {
-            let b: [u8; 8] = self
-                .read_exact(8)?
-                .try_into()
-                .map_err(|_| NizkError::InvalidProof("bad i64"))?;
+            let b: [u8; 8] =
+                self.read_exact(8)?
+                    .try_into()
+                    .map_err(|_| NizkError::InvalidProof {
+                        reason: "bad i64",
+                        party_id: None,
+                    })?;
             out.push(i64::from_le_bytes(b));
         }
         Ok(out)
@@ -945,17 +1103,26 @@ impl<'a> Cursor<'a> {
 
     fn read_ch_ternary_32(&mut self) -> Result<i64, NizkError> {
         let bytes = self.read_exact(32)?;
-        let low: [u8; 8] = bytes[..8]
-            .try_into()
-            .map_err(|_| NizkError::InvalidProof("bad challenge scalar"))?;
+        let low: [u8; 8] = bytes[..8].try_into().map_err(|_| NizkError::InvalidProof {
+            reason: "bad challenge scalar",
+            party_id: None,
+        })?;
         let ch = i64::from_le_bytes(low);
         let expected_fill = match ch {
             -1 => 0xff,
             0 | 1 => 0x00,
-            _ => return Err(NizkError::InvalidProof("challenge must be -1, 0, or 1")),
+            _ => {
+                return Err(NizkError::InvalidProof {
+                    reason: "challenge must be -1, 0, or 1",
+                    party_id: None,
+                })
+            }
         };
         if bytes[8..].iter().any(|&b| b != expected_fill) {
-            return Err(NizkError::InvalidProof("non-canonical challenge scalar"));
+            return Err(NizkError::InvalidProof {
+                reason: "non-canonical challenge scalar",
+                party_id: None,
+            });
         }
         Ok(ch)
     }
@@ -964,7 +1131,10 @@ impl<'a> Cursor<'a> {
         if self.offset == self.bytes.len() {
             Ok(())
         } else {
-            Err(NizkError::InvalidProof("trailing proof bytes"))
+            Err(NizkError::InvalidProof {
+                reason: "trailing proof bytes",
+                party_id: None,
+            })
         }
     }
 }

@@ -188,7 +188,10 @@ fn rlwe_context() -> Result<&'static Arc<Context>, NizkError> {
             .map_err(|e| format!("{e:?}"))
     })
     .as_ref()
-    .map_err(|_| NizkError::InvalidInput("failed to build RLWE context"))
+    .map_err(|_| NizkError::InvalidInput {
+        reason: "failed to build RLWE context",
+        party_id: None,
+    })
 }
 
 /// Public statement for the RLWE sigma protocol.
@@ -244,10 +247,16 @@ pub fn compute_d_rns(c_rns: &[u64], s_i: &[i64], e_i: &[i64]) -> Result<Vec<u64>
     let n = rlwe_n();
     let rns_len = n * num_rns_limbs();
     if c_rns.len() != rns_len {
-        return Err(NizkError::InvalidInput("c_rns length must be L*N"));
+        return Err(NizkError::InvalidInput {
+            reason: "c_rns length must be L*N",
+            party_id: None,
+        });
     }
     if s_i.len() != n || e_i.len() != n {
-        return Err(NizkError::InvalidInput("s_i and e_i must have length N"));
+        return Err(NizkError::InvalidInput {
+            reason: "s_i and e_i must have length N",
+            party_id: None,
+        });
     }
     let ctx = rlwe_context()?;
     let s_rns = int_poly_to_rns(s_i, ctx)?;
@@ -288,12 +297,16 @@ fn prove_round(
     let n = rlwe_n();
     let rns_len = n * num_rns_limbs();
     if stmt.c_rns.len() != rns_len || stmt.d_rns.len() != rns_len {
-        return Err(NizkError::InvalidInput("statement RNS lengths must be L*N"));
+        return Err(NizkError::InvalidInput {
+            reason: "statement RNS lengths must be L*N",
+            party_id: None,
+        });
     }
     if wit.s_i.len() != n || wit.e_i.len() != n {
-        return Err(NizkError::InvalidInput(
-            "witness polynomials must have length N",
-        ));
+        return Err(NizkError::InvalidInput {
+            reason: "witness polynomials must have length N",
+            party_id: None,
+        });
     }
     let ctx = rlwe_context()?;
 
@@ -318,7 +331,7 @@ fn prove_round(
             participant_id,
             round_index,
             d_commitment,
-        );
+        )?;
 
         let z_s: Vec<i64> = y_s
             .iter()
@@ -359,9 +372,10 @@ fn prove_round(
             });
         }
     }
-    Err(NizkError::ProofGenerationFailed(
-        "sigma rejection sampling exhausted all retries",
-    ))
+    Err(NizkError::ProofGenerationFailed {
+        reason: "sigma rejection sampling exhausted all retries",
+        party_id: None,
+    })
 }
 
 /// Produce k independent sigma proofs via parallel repetition.
@@ -431,18 +445,28 @@ fn verify_scalar_round(
     let n = rlwe_n();
     let rns_len = n * num_rns_limbs();
     if stmt.c_rns.len() != rns_len || stmt.d_rns.len() != rns_len {
-        return Err(NizkError::InvalidInput("statement RNS lengths must be L*N"));
+        return Err(NizkError::InvalidInput {
+            reason: "statement RNS lengths must be L*N",
+            party_id: None,
+        });
     }
     if proof.t_rns.len() != rns_len {
-        return Err(NizkError::InvalidInput("proof t_rns length must be L*N"));
+        return Err(NizkError::InvalidInput {
+            reason: "proof t_rns length must be L*N",
+            party_id: None,
+        });
     }
     if proof.z_s.len() != n || proof.z_e.len() != n {
-        return Err(NizkError::InvalidInput(
-            "proof polynomial lengths must be N",
-        ));
+        return Err(NizkError::InvalidInput {
+            reason: "proof polynomial lengths must be N",
+            party_id: None,
+        });
     }
     if proof.ch != -1 && proof.ch != 0 && proof.ch != 1 {
-        return Err(NizkError::InvalidInput("challenge must be -1, 0, or 1"));
+        return Err(NizkError::InvalidInput {
+            reason: "challenge must be -1, 0, or 1",
+            party_id: None,
+        });
     }
 
     let ctx = rlwe_context()?;
@@ -455,20 +479,29 @@ fn verify_scalar_round(
         participant_id,
         round_index,
         d_commitment,
-    );
+    )?;
     // Constant-time comparison for challenge
     let ch_match = (proof.ch ^ expected_ch) == 0;
     if !ch_match {
-        return Err(NizkError::VerificationFailed("challenge mismatch"));
+        return Err(NizkError::VerificationFailed {
+            reason: "challenge mismatch",
+            party_id: None,
+        });
     }
 
     let max_ze = proof.z_e.iter().map(|x| x.abs()).max().unwrap_or(0);
     if max_ze > B_Z_E {
-        return Err(NizkError::VerificationFailed("z_e norm bound exceeded"));
+        return Err(NizkError::VerificationFailed {
+            reason: "z_e norm bound exceeded",
+            party_id: None,
+        });
     }
     let max_zs = proof.z_s.iter().map(|x| x.abs()).max().unwrap_or(0);
     if max_zs > B_Z_S {
-        return Err(NizkError::VerificationFailed("z_s norm bound exceeded"));
+        return Err(NizkError::VerificationFailed {
+            reason: "z_s norm bound exceeded",
+            party_id: None,
+        });
     }
 
     let z_s_rns = int_poly_to_rns(&proof.z_s, ctx)?;
@@ -480,9 +513,10 @@ fn verify_scalar_round(
     let rhs_rns = rns_add_scalar_mul(&proof.t_rns, proof.ch, &stmt.d_rns, ctx)?;
 
     if lhs_rns != rhs_rns {
-        return Err(NizkError::VerificationFailed(
-            "algebraic equation c*z_s + z_e != t + ch*d_i",
-        ));
+        return Err(NizkError::VerificationFailed {
+            reason: "algebraic equation c*z_s + z_e != t + ch*d_i",
+            party_id: None,
+        });
     }
 
     Ok(())
@@ -502,9 +536,10 @@ pub fn verify_multi(
     d_commitment: &[u8; 32],
 ) -> Result<(), NizkError> {
     if proof.rounds.is_empty() {
-        return Err(NizkError::VerificationFailed(
-            "sigma multi-proof must have at least one round",
-        ));
+        return Err(NizkError::VerificationFailed {
+            reason: "sigma multi-proof must have at least one round",
+            party_id: None,
+        });
     }
     for (i, round_proof) in proof.rounds.iter().enumerate() {
         verify_scalar_round(
@@ -542,12 +577,16 @@ pub fn int_poly_to_rns(coeffs: &[i64], ctx: &Arc<Context>) -> Result<Vec<u64>, N
     let l = ctx.q.len();
     let mut out = vec![0u64; n * l];
     for (limb, modulus) in ctx.q.iter().enumerate() {
-        let qi = i64::try_from(modulus.modulus())
-            .map_err(|_| NizkError::InvalidInput("modulus too large for i64"))?;
+        let qi = i64::try_from(modulus.modulus()).map_err(|_| NizkError::InvalidInput {
+            reason: "modulus too large for i64",
+            party_id: None,
+        })?;
         for (j, &c) in coeffs.iter().enumerate() {
             let r = c.rem_euclid(qi);
-            out[limb * n + j] = u64::try_from(r)
-                .map_err(|_| NizkError::InvalidInput("rem_euclid result out of u64 range"))?;
+            out[limb * n + j] = u64::try_from(r).map_err(|_| NizkError::InvalidInput {
+                reason: "rem_euclid result out of u64 range",
+                party_id: None,
+            })?;
         }
     }
     Ok(out)
@@ -571,9 +610,15 @@ pub fn poly_mul_rq(
     ctx: &Arc<Context>,
 ) -> Result<Vec<u64>, NizkError> {
     let mut pa = Poly::try_convert_from(a_rns.to_vec(), ctx, false, Representation::PowerBasis)
-        .map_err(|_| NizkError::InvalidInput("Poly convert failed for a"))?;
+        .map_err(|_| NizkError::InvalidInput {
+            reason: "Poly convert failed for a",
+            party_id: None,
+        })?;
     let mut pb = Poly::try_convert_from(b_rns.to_vec(), ctx, false, Representation::PowerBasis)
-        .map_err(|_| NizkError::InvalidInput("Poly convert failed for b"))?;
+        .map_err(|_| NizkError::InvalidInput {
+            reason: "Poly convert failed for b",
+            party_id: None,
+        })?;
     pa.change_representation(Representation::Ntt);
     pb.change_representation(Representation::Ntt);
     let mut product = &pa * &pb;
@@ -586,7 +631,10 @@ pub fn rns_add(a: &[u64], b: &[u64], ctx: &Arc<Context>) -> Result<Vec<u64>, Niz
     let n = rlwe_n();
     let expected = n * ctx.q.len();
     if a.len() != expected || b.len() != expected {
-        return Err(NizkError::InvalidInput("rns_add: length mismatch"));
+        return Err(NizkError::InvalidInput {
+            reason: "rns_add: length mismatch",
+            party_id: None,
+        });
     }
     let mut out = vec![0u64; a.len()];
     for (limb, modulus) in ctx.q.iter().enumerate() {
@@ -609,12 +657,16 @@ pub fn poly_mul_rq_to_int(
     let a_rns = int_poly_to_rns(a_int, ctx)?;
     let b_rns = int_poly_to_rns(b_int, ctx)?;
     let prod_rns = poly_mul_rq(&a_rns, &b_rns, ctx)?;
-    let q0 = i64::try_from(ctx.q[0].modulus())
-        .map_err(|_| NizkError::InvalidInput("q0 too large for i64"))?;
+    let q0 = i64::try_from(ctx.q[0].modulus()).map_err(|_| NizkError::InvalidInput {
+        reason: "q0 too large for i64",
+        party_id: None,
+    })?;
     let mut result = vec![0i64; n];
     for j in 0..n {
-        let c = i64::try_from(prod_rns[j])
-            .map_err(|_| NizkError::InvalidInput("prod coeff out of i64 range"))?;
+        let c = i64::try_from(prod_rns[j]).map_err(|_| NizkError::InvalidInput {
+            reason: "prod coeff out of i64 range",
+            party_id: None,
+        })?;
         result[j] = if c > q0 / 2 { c - q0 } else { c };
     }
     Ok(result)
@@ -677,7 +729,7 @@ pub fn derive_challenge_from_commitment(
     participant_id: u32,
     round_index: usize,
     d_commitment: &[u8; 32],
-) -> i64 {
+) -> Result<i64, NizkError> {
     let mut prefix = Sha256::new();
     prefix.update(SCALAR_CHALLENGE_DOMAIN);
     prefix.update(b"t2-commit-ch");
@@ -691,18 +743,15 @@ pub fn derive_challenge_from_commitment(
     let digest = labeled_sha256(&prefix, b"commitment", commitment);
     let lo = bytes16_to_fr(&digest[..16]);
     let hi = bytes16_to_fr(&digest[16..]);
-    let ch_fr = match poseidon_hash(&[lo, hi]) {
-        Ok(fr) => fr,
-        Err(_) => return 0,
-    };
+    let ch_fr = poseidon_hash(&[lo, hi])?;
 
     let bytes = fr_to_bytes(&ch_fr);
     for &byte in &bytes {
         if let Some(ch) = uniform_ternary(byte) {
-            return ch;
+            return Ok(ch);
         }
     }
-    0 // fallback: all 32 bytes ≥ 252 (probability < 2^-120)
+    Ok(0) // fallback: all 32 bytes ≥ 252 (probability < 2^-120)
 }
 
 /// SHA-256 hashes a labeled field, binding it to a shared prefix (which includes
@@ -724,11 +773,17 @@ fn bytes16_to_fr(bytes: &[u8]) -> Fr {
 
 /// Hash a slice of Fr elements using Poseidon.
 fn poseidon_hash(inputs: &[Fr]) -> Result<Fr, NizkError> {
-    let mut hasher = Poseidon::<Fr>::new_circom(inputs.len())
-        .map_err(|_| NizkError::VerificationFailed("Poseidon arity out of circom range"))?;
+    let mut hasher =
+        Poseidon::<Fr>::new_circom(inputs.len()).map_err(|_| NizkError::VerificationFailed {
+            reason: "Poseidon arity out of circom range",
+            party_id: None,
+        })?;
     hasher
         .hash(inputs)
-        .map_err(|_| NizkError::VerificationFailed("Poseidon hash failed"))
+        .map_err(|_| NizkError::VerificationFailed {
+            reason: "Poseidon hash failed",
+            party_id: None,
+        })
 }
 
 /// Rejection-sampled uniform ternary from a single byte.
@@ -780,9 +835,10 @@ fn rns_add_scalar_mul(
     let n = rlwe_n();
     let expected = n * ctx.q.len();
     if a.len() != expected || b.len() != expected {
-        return Err(NizkError::InvalidInput(
-            "rns_add_scalar_mul: length mismatch",
-        ));
+        return Err(NizkError::InvalidInput {
+            reason: "rns_add_scalar_mul: length mismatch",
+            party_id: None,
+        });
     }
     let mut out = vec![0u64; a.len()];
     match ch {
@@ -808,15 +864,22 @@ fn rns_add_scalar_mul(
                 }
             }
         }
-        _ => return Err(NizkError::InvalidInput("ch must be -1, 0, or 1")),
+        _ => {
+            return Err(NizkError::InvalidInput {
+                reason: "ch must be -1, 0, or 1",
+                party_id: None,
+            })
+        }
     }
     Ok(out)
 }
 
 /// Sample `n` coefficients uniformly from [-bound, bound] using rejection sampling.
 pub fn sample_bounded(rng: &mut dyn RngCore, n: usize, bound: i64) -> Result<Vec<i64>, NizkError> {
-    let range = u64::try_from(2 * bound + 1)
-        .map_err(|_| NizkError::InvalidInput("bound too large for u64"))?;
+    let range = u64::try_from(2 * bound + 1).map_err(|_| NizkError::InvalidInput {
+        reason: "bound too large for u64",
+        party_id: None,
+    })?;
     let max_multiple = (u64::MAX / range) * range;
     let mut out = Vec::with_capacity(n);
     while out.len() < n {
@@ -824,8 +887,10 @@ pub fn sample_bounded(rng: &mut dyn RngCore, n: usize, bound: i64) -> Result<Vec
         rng.fill_bytes(&mut bytes);
         let r = u64::from_le_bytes(bytes);
         if r < max_multiple {
-            let v = i64::try_from(r % range)
-                .map_err(|_| NizkError::InvalidInput("sample out of i64 range"))?;
+            let v = i64::try_from(r % range).map_err(|_| NizkError::InvalidInput {
+                reason: "sample out of i64 range",
+                party_id: None,
+            })?;
             out.push(v - bound);
         }
     }
@@ -872,7 +937,10 @@ pub fn compute_sigma_ntt_data(
         let mut full_rns = vec![0u64; n * l];
         full_rns[limb * n..(limb + 1) * n].copy_from_slice(slice);
         let mut poly = Poly::try_convert_from(full_rns, ctx, false, Representation::PowerBasis)
-            .map_err(|_| NizkError::InvalidInput("poly convert failed"))?;
+            .map_err(|_| NizkError::InvalidInput {
+                reason: "poly convert failed",
+                party_id: None,
+            })?;
         poly.change_representation(Representation::Ntt);
         let ntt_full: Vec<u64> = Vec::from(&poly);
         Ok(ntt_full
@@ -910,7 +978,12 @@ pub fn compute_sigma_ntt_data(
         -1 => -Fr::one(),
         0 => Fr::zero(),
         1 => Fr::one(),
-        _ => return Err(NizkError::InvalidInput("challenge must be -1, 0, or 1")),
+        _ => {
+            return Err(NizkError::InvalidInput {
+                reason: "challenge must be -1, 0, or 1",
+                party_id: None,
+            })
+        }
     };
 
     Ok((
@@ -1202,14 +1275,16 @@ mod tests {
             participant_id,
             round_index,
             &d_commit_a,
-        );
+        )
+        .expect("challenge derivation should succeed in test");
         let ch_b = derive_challenge_from_commitment(
             &transcript_commitment,
             session_id,
             participant_id,
             round_index,
             &d_commit_b,
-        );
+        )
+        .expect("challenge derivation should succeed in test");
 
         assert_ne!(
             ch_a, ch_b,

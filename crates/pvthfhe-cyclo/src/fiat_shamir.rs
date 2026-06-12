@@ -65,7 +65,7 @@ pub fn public_io_v1(
     depth: u32,
     acc_io: &[u8],
     inst_io: &[u8],
-    r_value: u64,
+    r_value: u128,
 ) -> [u8; 32] {
     Sha256::new()
         .chain_update(b"pvthfhe-cyclo-fold-io-v1")
@@ -118,8 +118,17 @@ impl CycloTernaryTranscript {
         Self { state }
     }
 
-    /// Absorb arbitrary bytes into the transcript state.
-    pub fn absorb(&mut self, data: &[u8]) {
+    /// Absorb labeled data into the transcript with length-prefixed encoding.
+    ///
+    /// Wire format: `u64_be(label.len()) ‖ label ‖ u64_be(data.len()) ‖ data`.
+    /// Length prefixes prevent chunking ambiguity: `absorb("A", "BC")` followed
+    /// by `absorb("D", "EF")` produces a different state than `absorb("AD", "BCEF")`.
+    pub fn absorb(&mut self, label: &[u8], data: &[u8]) {
+        self.state
+            .update(u64::try_from(label.len()).unwrap_or(u64::MAX).to_be_bytes());
+        self.state.update(label);
+        self.state
+            .update(u64::try_from(data.len()).unwrap_or(u64::MAX).to_be_bytes());
         self.state.update(data);
     }
 

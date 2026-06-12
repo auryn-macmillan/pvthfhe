@@ -42,11 +42,11 @@ interface ISessionRegistry {
         external
         view
         returns (uint32 n, uint32 t, bytes32 rosterHash, bool registered, bool aborted, uint64 runId);
-    function isEpochConsumed(bytes32 dkgRoot, uint64 epoch) external view returns (bool);
+    function isEpochConsumed(bytes32 dkgRoot, bytes32 sessionId, uint64 epoch) external view returns (bool);
     function getRunId(bytes32 dkgRoot) external view returns (uint64);
-    function markEpochConsumed(bytes32 dkgRoot, uint64 epoch) external;
+    function markEpochConsumed(bytes32 dkgRoot, bytes32 sessionId, uint64 epoch) external;
     function recordSmudgeSlotUse(
-        bytes32 dkgRoot,
+        bytes32 dkgRoot, bytes32 sessionId,
         uint32 partyId,
         uint32 slot,
         bytes32 ciphertextHash,
@@ -73,7 +73,7 @@ interface IPvthfheVerifier {
         bytes32 ciphertextHash,
         bytes32 plaintextHash,
         bytes32 aggregatePkHash,
-        bytes32 dkgRoot,
+        bytes32 dkgRoot, bytes32 sessionId,
         uint64 epoch,
         bytes32 participantSetHash,
         bytes32 dCommitment,
@@ -84,7 +84,7 @@ interface IPvthfheVerifier {
         bytes32 ciphertextHash,
         bytes32 plaintextHash,
         bytes32 aggregatePkHash,
-        bytes32 dkgRoot,
+        bytes32 dkgRoot, bytes32 sessionId,
         uint64 epoch,
         bytes32 participantSetHash,
         bytes32 dCommitment,
@@ -104,7 +104,7 @@ interface IPvthfheVerifier {
         bytes32 ciphertextHash,
         bytes32 plaintextHash,
         bytes32 aggregatePkHash,
-        bytes32 dkgRoot,
+        bytes32 dkgRoot, bytes32 sessionId,
         uint64 epoch,
         bytes32 participantSetHash,
         bytes32 dCommitment,
@@ -115,7 +115,7 @@ interface IPvthfheVerifier {
         bytes32 ciphertextHash,
         bytes32 plaintextHash,
         bytes32 aggregatePkHash,
-        bytes32 dkgRoot,
+        bytes32 dkgRoot, bytes32 sessionId,
         uint64 epoch,
         bytes32 participantSetHash,
         bytes32 dCommitment,
@@ -127,7 +127,7 @@ interface IPvthfheVerifier {
         bytes32 ciphertextHash,
         bytes32 plaintextHash,
         bytes32 aggregatePkHash,
-        bytes32 dkgRoot,
+        bytes32 dkgRoot, bytes32 sessionId,
         uint64 epoch,
         bytes32 participantSetHash,
         bytes32 dCommitment,
@@ -222,27 +222,33 @@ contract PvtFheVerifier is IPvthfheVerifier {
 
     // -------------------------------------------------------------------------
     // IPvthfheVerifier implementation
+    //
+    // GAP-5 NOTE (MPC-AUDIT-2026-06-12): verify() and verifyAndConsume() do NOT
+    // validate IVC binding fields and do NOT call the IVC decider.  Callers
+    // requiring full Nova IVC chain verification must use verifyWithIvc() or
+    // verifyAndConsumeWithIvc().
     // -------------------------------------------------------------------------
 
     function verify(
         bytes32 ciphertextHash,
         bytes32 plaintextHash,
         bytes32 aggregatePkHash,
-        bytes32 dkgRoot,
+        bytes32 dkgRoot, bytes32 sessionId,
         uint64 epoch,
         bytes32 participantSetHash,
         bytes32 dCommitment,
         bytes calldata proof
     ) external view override returns (bool) {
-        _requireSessionValid(dkgRoot, epoch);
-        bytes32[] memory publicInputs = new bytes32[](7);
+        _requireSessionValid(dkgRoot, sessionId, epoch);
+        bytes32[] memory publicInputs = new bytes32[](8);
         publicInputs[0] = ciphertextHash;
         publicInputs[1] = plaintextHash;
         publicInputs[2] = aggregatePkHash;
         publicInputs[3] = dkgRoot;
-        publicInputs[4] = bytes32(uint256(epoch));
-        publicInputs[5] = participantSetHash;
-        publicInputs[6] = dCommitment;
+        publicInputs[4] = sessionId;
+        publicInputs[5] = bytes32(uint256(epoch));
+        publicInputs[6] = participantSetHash;
+        publicInputs[7] = dCommitment;
         return _honkVerifier.verify(proof, publicInputs);
     }
 
@@ -254,7 +260,7 @@ contract PvtFheVerifier is IPvthfheVerifier {
         bytes32 ciphertextHash,
         bytes32 plaintextHash,
         bytes32 aggregatePkHash,
-        bytes32 dkgRoot,
+        bytes32 dkgRoot, bytes32 sessionId,
         uint64 epoch,
         bytes32 participantSetHash,
         bytes32 dCommitment,
@@ -263,12 +269,25 @@ contract PvtFheVerifier is IPvthfheVerifier {
     ) public view override returns (bool) {
         require(ivcDeciderVerifier != address(0), "PVTHFHE: IVC decider not configured");
         require(proof.length != 0, "PVTHFHE: empty IVC proof");
-        _requireSessionValid(dkgRoot, epoch);
+        _requireSessionValid(dkgRoot, sessionId, epoch);
         _requireIvcBindingValid(ivcBinding);
         require(ivcBinding.shareVerificationHash != bytes32(0), "PVTHFHE: shareVerificationHash zero");
 
+        bytes32[] memory publicInputs = new bytes32[](8);
+        publicInputs[0] = ciphertextHash;
+        publicInputs[1] = plaintextHash;
+        publicInputs[2] = aggregatePkHash;
+        publicInputs[3] = dkgRoot;
+        publicInputs[4] = sessionId;
+        publicInputs[5] = bytes32(uint256(epoch));
+        publicInputs[6] = participantSetHash;
+        publicInputs[7] = dCommitment;
+        if (!_honkVerifier.verify(proof, publicInputs)) {
+            return false;
+        }
+
         bytes32 statementHash = _computeIvcStatementHash(
-            ciphertextHash, plaintextHash, aggregatePkHash, dkgRoot, epoch, participantSetHash, dCommitment, ivcBinding
+            ciphertextHash, plaintextHash, aggregatePkHash, dkgRoot, sessionId, epoch, participantSetHash, dCommitment, ivcBinding
         );
         return _verifyIvcDeciderStatic(proof, statementHash, ivcBinding);
     }
@@ -277,27 +296,28 @@ contract PvtFheVerifier is IPvthfheVerifier {
         bytes32 ciphertextHash,
         bytes32 plaintextHash,
         bytes32 aggregatePkHash,
-        bytes32 dkgRoot,
+        bytes32 dkgRoot, bytes32 sessionId,
         uint64 epoch,
         bytes32 participantSetHash,
         bytes32 dCommitment,
         bytes calldata proof
     ) external override returns (bool) {
-        _requireSessionValid(dkgRoot, epoch);
-        bytes32[] memory publicInputs = new bytes32[](7);
+        _requireSessionValid(dkgRoot, sessionId, epoch);
+        bytes32[] memory publicInputs = new bytes32[](8);
         publicInputs[0] = ciphertextHash;
         publicInputs[1] = plaintextHash;
         publicInputs[2] = aggregatePkHash;
         publicInputs[3] = dkgRoot;
-        publicInputs[4] = bytes32(uint256(epoch));
-        publicInputs[5] = participantSetHash;
-        publicInputs[6] = dCommitment;
+        publicInputs[4] = sessionId;
+        publicInputs[5] = bytes32(uint256(epoch));
+        publicInputs[6] = participantSetHash;
+        publicInputs[7] = dCommitment;
 
         bool proofValid = _honkVerifier.verify(proof, publicInputs);
         if (!proofValid) {
             return false;
         }
-        registry.markEpochConsumed(dkgRoot, epoch);
+        registry.markEpochConsumed(dkgRoot, sessionId, epoch);
         return true;
     }
 
@@ -307,7 +327,7 @@ contract PvtFheVerifier is IPvthfheVerifier {
         bytes32 ciphertextHash,
         bytes32 plaintextHash,
         bytes32 aggregatePkHash,
-        bytes32 dkgRoot,
+        bytes32 dkgRoot, bytes32 sessionId,
         uint64 epoch,
         bytes32 participantSetHash,
         bytes32 dCommitment,
@@ -316,23 +336,36 @@ contract PvtFheVerifier is IPvthfheVerifier {
     ) external override returns (bool) {
         require(ivcDeciderVerifier != address(0), "PVTHFHE: IVC decider not configured");
         require(proof.length != 0, "PVTHFHE: empty IVC proof");
-        _requireSessionValid(dkgRoot, epoch);
+        _requireSessionValid(dkgRoot, sessionId, epoch);
         _requireIvcBindingValid(ivcBinding);
         require(ivcBinding.shareVerificationHash != bytes32(0), "PVTHFHE: shareVerificationHash zero");
-        if (!_ivcProofConsumedValid(dkgRoot, epoch, ivcBinding.ivcProofHash)) {
+        if (!_ivcProofConsumedValid(dkgRoot, sessionId, epoch, ivcBinding.ivcProofHash)) {
             revert("PVTHFHE: IVC proof replay");
         }
 
+        bytes32[] memory publicInputs = new bytes32[](8);
+        publicInputs[0] = ciphertextHash;
+        publicInputs[1] = plaintextHash;
+        publicInputs[2] = aggregatePkHash;
+        publicInputs[3] = dkgRoot;
+        publicInputs[4] = sessionId;
+        publicInputs[5] = bytes32(uint256(epoch));
+        publicInputs[6] = participantSetHash;
+        publicInputs[7] = dCommitment;
+        if (!_honkVerifier.verify(proof, publicInputs)) {
+            return false;
+        }
+
         bytes32 statementHash = _computeIvcStatementHash(
-            ciphertextHash, plaintextHash, aggregatePkHash, dkgRoot, epoch, participantSetHash, dCommitment, ivcBinding
+            ciphertextHash, plaintextHash, aggregatePkHash, dkgRoot, sessionId, epoch, participantSetHash, dCommitment, ivcBinding
         );
         bool proofValid = _verifyIvcDecider(proof, statementHash, ivcBinding);
         if (!proofValid) {
             return false;
         }
 
-        _consumeIvcProof(dkgRoot, epoch, ivcBinding.ivcProofHash);
-        registry.markEpochConsumed(dkgRoot, epoch);
+        _consumeIvcProof(dkgRoot, sessionId, epoch, ivcBinding.ivcProofHash);
+        registry.markEpochConsumed(dkgRoot, sessionId, epoch);
         return true;
     }
 
@@ -340,14 +373,14 @@ contract PvtFheVerifier is IPvthfheVerifier {
         bytes32 ciphertextHash,
         bytes32 plaintextHash,
         bytes32 aggregatePkHash,
-        bytes32 dkgRoot,
+        bytes32 dkgRoot, bytes32 sessionId,
         uint64 epoch,
         bytes32 participantSetHash,
         bytes32 dCommitment,
         bytes calldata proof,
         DecryptionPublicAnchors memory decryptAnchors
     ) external returns (bool) {
-        _requireSessionValid(dkgRoot, epoch);
+        _requireSessionValid(dkgRoot, sessionId, epoch);
         if (
             decryptAnchors.dkgRoot != dkgRoot || decryptAnchors.ciphertextHash != ciphertextHash
                 || decryptAnchors.plaintextHash != plaintextHash
@@ -355,14 +388,15 @@ contract PvtFheVerifier is IPvthfheVerifier {
             revert AnchorMismatch();
         }
 
-        bytes32[] memory publicInputs = new bytes32[](7);
+        bytes32[] memory publicInputs = new bytes32[](8);
         publicInputs[0] = ciphertextHash;
         publicInputs[1] = plaintextHash;
         publicInputs[2] = aggregatePkHash;
         publicInputs[3] = dkgRoot;
-        publicInputs[4] = bytes32(uint256(epoch));
-        publicInputs[5] = participantSetHash;
-        publicInputs[6] = dCommitment;
+        publicInputs[4] = sessionId;
+        publicInputs[5] = bytes32(uint256(epoch));
+        publicInputs[6] = participantSetHash;
+        publicInputs[7] = dCommitment;
 
         bool proofValid = _honkVerifier.verify(proof, publicInputs);
         if (!proofValid) {
@@ -370,7 +404,7 @@ contract PvtFheVerifier is IPvthfheVerifier {
         }
 
         verifyStoredPublicAnchors(decryptAnchors);
-        registry.markEpochConsumed(dkgRoot, epoch);
+        registry.markEpochConsumed(dkgRoot, sessionId, epoch);
         return true;
     }
 
@@ -378,7 +412,7 @@ contract PvtFheVerifier is IPvthfheVerifier {
         bytes32 ciphertextHash,
         bytes32 plaintextHash,
         bytes32 aggregatePkHash,
-        bytes32 dkgRoot,
+        bytes32 dkgRoot, bytes32 sessionId,
         uint64 epoch,
         bytes32 participantSetHash,
         bytes32 dCommitment,
@@ -390,16 +424,17 @@ contract PvtFheVerifier is IPvthfheVerifier {
         if (partyIds.length == 0 || partyIds.length != slots.length) {
             revert("PVTHFHE: malformed smudge slots");
         }
-        _requireSessionValid(dkgRoot, epoch);
+        _requireSessionValid(dkgRoot, sessionId, epoch);
 
-        bytes32[] memory publicInputs = new bytes32[](7);
+        bytes32[] memory publicInputs = new bytes32[](8);
         publicInputs[0] = ciphertextHash;
         publicInputs[1] = plaintextHash;
         publicInputs[2] = aggregatePkHash;
         publicInputs[3] = dkgRoot;
-        publicInputs[4] = bytes32(uint256(epoch));
-        publicInputs[5] = participantSetHash;
-        publicInputs[6] = dCommitment;
+        publicInputs[4] = sessionId;
+        publicInputs[5] = bytes32(uint256(epoch));
+        publicInputs[6] = participantSetHash;
+        publicInputs[7] = dCommitment;
 
         bool proofValid = _honkVerifier.verify(proof, publicInputs);
         if (!proofValid) {
@@ -407,9 +442,9 @@ contract PvtFheVerifier is IPvthfheVerifier {
         }
 
         for (uint256 i = 0; i < partyIds.length; i++) {
-            registry.recordSmudgeSlotUse(dkgRoot, partyIds[i], slots[i], ciphertextHash, decryptRound);
+            registry.recordSmudgeSlotUse(dkgRoot, sessionId, partyIds[i], slots[i], ciphertextHash, decryptRound);
         }
-        registry.markEpochConsumed(dkgRoot, epoch);
+        registry.markEpochConsumed(dkgRoot, sessionId, epoch);
         return true;
     }
 
@@ -467,7 +502,7 @@ contract PvtFheVerifier is IPvthfheVerifier {
     }
 
     /// P4: Check if an IVC proof has been consumed for a given dkgRoot+epoch.
-    function isIvcProofConsumed(bytes32 dkgRoot, uint64 epoch, bytes32 ivcProofHash) external view returns (bool) {
+    function isIvcProofConsumed(bytes32 dkgRoot, bytes32 sessionId, uint64 epoch, bytes32 ivcProofHash) external view returns (bool) {
         return _ivcProofConsumed[dkgRoot][epoch] == ivcProofHash;
     }
 
@@ -536,12 +571,12 @@ contract PvtFheVerifier is IPvthfheVerifier {
     // Internal helpers
     // -------------------------------------------------------------------------
 
-    function _requireSessionValid(bytes32 dkgRoot, uint64 epoch) internal view {
+    function _requireSessionValid(bytes32 dkgRoot, bytes32 sessionId, uint64 epoch) internal view {
         (,,, bool registered, bool aborted,) = registry.sessions(dkgRoot);
         if (!registered || aborted) {
             revert("PVTHFHE: unknown dkg root");
         }
-        if (registry.isEpochConsumed(dkgRoot, epoch)) {
+        if (registry.isEpochConsumed(dkgRoot, sessionId, epoch)) {
             revert("PVTHFHE: epoch replay");
         }
     }
@@ -563,7 +598,7 @@ contract PvtFheVerifier is IPvthfheVerifier {
     }
 
     /// P4: Check if IVC proof has not been consumed. Returns true if it's available.
-    function _ivcProofConsumedValid(bytes32 dkgRoot, uint64 epoch, bytes32 ivcProofHash) internal view returns (bool) {
+    function _ivcProofConsumedValid(bytes32 dkgRoot, bytes32 sessionId, uint64 epoch, bytes32 ivcProofHash) internal view returns (bool) {
         return _ivcProofConsumed[dkgRoot][epoch] == bytes32(0)
             || _ivcProofConsumed[dkgRoot][epoch] == ivcProofHash;
     }
@@ -572,7 +607,7 @@ contract PvtFheVerifier is IPvthfheVerifier {
         bytes32 ciphertextHash,
         bytes32 plaintextHash,
         bytes32 aggregatePkHash,
-        bytes32 dkgRoot,
+        bytes32 dkgRoot, bytes32 sessionId,
         uint64 epoch,
         bytes32 participantSetHash,
         bytes32 dCommitment,
@@ -580,7 +615,7 @@ contract PvtFheVerifier is IPvthfheVerifier {
     ) internal pure returns (bytes32) {
         // Delegate struct construction to a pure helper to avoid stack-too-deep with 23-field Statement.
         VerificationStatementV1.Statement memory stmt = _buildIvcStatement(
-            ciphertextHash, plaintextHash, aggregatePkHash, dkgRoot,
+            ciphertextHash, plaintextHash, aggregatePkHash, dkgRoot, sessionId,
             epoch, participantSetHash, dCommitment, ivcBinding
         );
         return VerificationStatementV1.computeStatementHashBytes32(stmt);
@@ -590,7 +625,7 @@ contract PvtFheVerifier is IPvthfheVerifier {
         bytes32 ciphertextHash,
         bytes32 plaintextHash,
         bytes32 aggregatePkHash,
-        bytes32 dkgRoot,
+        bytes32 dkgRoot, bytes32 sessionId,
         uint64 epoch,
         bytes32 participantSetHash,
         bytes32 dCommitment,
@@ -621,6 +656,11 @@ contract PvtFheVerifier is IPvthfheVerifier {
         stmt.novaFinalStateCommitment = ivcBinding.novaFinalStateCommitment;
     }
 
+    /// NOTE (GAP-2 — MPC-AUDIT-2026-06-12): Uses `staticcall` and is therefore
+    /// only compatible with VIEW (non-mutating) IVC deciders.  The
+    /// `IvcChainDecider` requires the `verifyAndConsumeWithIvc()` path because
+    /// its `verify()` function writes to the `consumed` mapping.
+    /// Deciders intended for the `verifyWithIvc()` path must be view-compatible.
     function _verifyIvcDeciderStatic(bytes calldata proof, bytes32 statementHash, IvcBinding calldata ivcBinding)
         internal
         view
@@ -666,7 +706,7 @@ contract PvtFheVerifier is IPvthfheVerifier {
     }
 
     /// P4: Record consumption of an IVC proof.
-    function _consumeIvcProof(bytes32 dkgRoot, uint64 epoch, bytes32 ivcProofHash) internal {
+    function _consumeIvcProof(bytes32 dkgRoot, bytes32 sessionId, uint64 epoch, bytes32 ivcProofHash) internal {
         _ivcProofConsumed[dkgRoot][epoch] = ivcProofHash;
         emit IvcProofConsumed(dkgRoot, epoch, ivcProofHash);
     }
@@ -702,7 +742,7 @@ contract PvtFheVerifier is IPvthfheVerifier {
         bytes32 ciphertextHash,
         bytes32 plaintextHash,
         bytes32 aggregatePkHash,
-        bytes32 dkgRoot,
+        bytes32 dkgRoot, bytes32 sessionId,
         uint64 epoch,
         bytes32 participantSetHash,
         bytes32 dCommitment,

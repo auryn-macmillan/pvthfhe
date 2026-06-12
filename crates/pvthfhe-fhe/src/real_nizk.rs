@@ -152,13 +152,17 @@ fn to_nizk_proof(p: &NizkProof) -> pvthfhe_nizk::NizkProof {
 
 fn map_err(e: pvthfhe_nizk::NizkError) -> NizkError {
     match e {
-        pvthfhe_nizk::NizkError::ConditionalSoundnessDisclosure(m) => {
-            NizkError::ConditionalSoundnessDisclosure(m)
+        pvthfhe_nizk::NizkError::ConditionalSoundnessDisclosure { reason, .. } => {
+            NizkError::ConditionalSoundnessDisclosure(reason)
         }
-        pvthfhe_nizk::NizkError::InvalidInput(m) => NizkError::InvalidInput(m),
-        pvthfhe_nizk::NizkError::InvalidProof(m) => NizkError::InvalidProof(m),
-        pvthfhe_nizk::NizkError::VerificationFailed(m) => NizkError::VerificationFailed(m),
-        pvthfhe_nizk::NizkError::ProofGenerationFailed(m) => NizkError::ProofGenerationFailed(m),
+        pvthfhe_nizk::NizkError::InvalidInput { reason, .. } => NizkError::InvalidInput(reason),
+        pvthfhe_nizk::NizkError::InvalidProof { reason, .. } => NizkError::InvalidProof(reason),
+        pvthfhe_nizk::NizkError::VerificationFailed { reason, .. } => {
+            NizkError::VerificationFailed(reason)
+        }
+        pvthfhe_nizk::NizkError::ProofGenerationFailed { reason, .. } => {
+            NizkError::ProofGenerationFailed(reason)
+        }
     }
 }
 

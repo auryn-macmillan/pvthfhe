@@ -16,6 +16,10 @@ fn pow256(r: Field) -> Field {
 ///
 /// Returns (commitment_hash, fold_acc_hash) as public outputs.
 /// fold_acc_hash == 0 means "no fold step included" — only Ajtai commitment verified.
+///
+/// GAP-7 FIX (MPC-AUDIT-2026-06-12): Added `epoch` and `dkg_root` as public
+/// inputs and bind them into the Poseidon preimage to prevent cross-session
+/// commitment replay.  Requires VK recompilation.
 fn main(
     a_evals: [Field; M],
     s: [Field; PHI],
@@ -25,15 +29,21 @@ fn main(
     q_mod: [Field; M],
     fold_r: Field,              // fold challenge (0 = no fold step)
     c_acc: [[Field; PHI]; M],   // old accumulator commitment
+    epoch: pub Field,           // GAP-7: session binding
+    dkg_root: pub Field,        // GAP-7: session binding
 ) -> pub (Field, Field) {
     // ── Ajtai commitment verification ──
     let mut row_hashes = [0; M];
     for i in 0..M {
-        let mut inputs = [0; 257]; inputs[0] = 9;
+        let mut inputs = [0; 259]; inputs[0] = 9;
+        inputs[257] = epoch;
+        inputs[258] = dkg_root;
         for j in 0..PHI { inputs[j + 1] = c[i][j]; }
         row_hashes[i] = poseidon::poseidon::bn254::sponge(inputs);
     }
-    let mut final_inputs = [0; 14]; final_inputs[0] = 9;
+    let mut final_inputs = [0; 16]; final_inputs[0] = 9;
+    final_inputs[14] = epoch;
+    final_inputs[15] = dkg_root;
     for i in 0..M { final_inputs[i + 1] = row_hashes[i]; }
     let commitment_hash = poseidon::poseidon::bn254::sponge(final_inputs);
 
@@ -58,7 +68,9 @@ fn main(
             }
             acc_row_hashes[i] = poseidon::poseidon::bn254::sponge(inputs);
         }
-        let mut acc_inputs = [0; 14]; acc_inputs[0] = 10;
+        let mut acc_inputs = [0; 16]; acc_inputs[0] = 10;
+        acc_inputs[14] = epoch;
+        acc_inputs[15] = dkg_root;
         for i in 0..M { acc_inputs[i + 1] = acc_row_hashes[i]; }
         poseidon::poseidon::bn254::sponge(acc_inputs)
     };
@@ -68,7 +80,7 @@ fn main(
 
 #[test]
 fn test_ajtai_only() {
-    let h = main([0; M], [0; PHI], [[0; PHI]; M], 42, [0; M], [0; M], 0, [[0; PHI]; M]);
+    let h = main([0; M], [0; PHI], [[0; PHI]; M], 42, [0; M], [0; M], 0, [[0; PHI]; M], 1, 2);
     dep::std::println(h.0);
 }
 
@@ -77,7 +89,7 @@ fn test_fold_step() {
     let s = [0; PHI];
     let c = [[0; PHI]; M];
     let c_acc = [[0; PHI]; M];
-    let h = main([0; M], s, c, 42, [0; M], [0; M], 7, c_acc);
+    let h = main([0; M], s, c, 42, [0; M], [0; M], 7, c_acc, 1, 2);
     dep::std::println(h.0);
     dep::std::println(h.1);
 }

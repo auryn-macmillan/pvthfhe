@@ -113,13 +113,21 @@ impl LatticePvssBfvAdapter {
         let mode = match (committed_esm_noise_bytes, committed_smudge_use) {
             (Some(_), Some(committed_use)) => {
                 if committed_use.slot_id == 0 {
-                    return Err(PvssError::InvalidShare);
+                    return Err(PvssError::InvalidShare {
+                        party_id: Some(party_index as u16),
+                    });
                 }
-                let sk_val = effective_sk_share.ok_or(PvssError::InvalidShare)?;
-                let esm_val = effective_esm_share.ok_or(PvssError::InvalidShare)?;
+                let sk_val = effective_sk_share.ok_or(PvssError::InvalidShare {
+                    party_id: Some(party_index as u16),
+                })?;
+                let esm_val = effective_esm_share.ok_or(PvssError::InvalidShare {
+                    party_id: Some(party_index as u16),
+                })?;
                 let ciphertext_hash = compute_decrypt_ciphertext_hash(ciphertext_u, &ciphertext_v);
                 let recipient_id =
-                    u16::try_from(party_index).map_err(|_| PvssError::InvalidShare)?;
+                    u16::try_from(party_index).map_err(|_| PvssError::InvalidShare {
+                        party_id: Some(party_index as u16),
+                    })?;
                 let accepted_participant_ids: Vec<u16> = (1..=u16::try_from(ctx.n)
                     .map_err(|_| PvssError::BackendError("n too large for u16".to_string()))?)
                     .collect();
@@ -148,10 +156,16 @@ impl LatticePvssBfvAdapter {
                 }
             }
             (None, None) => DecryptNizkMode::LegacyLocalSmudge,
-            _ => return Err(PvssError::InvalidShare),
+            _ => {
+                return Err(PvssError::InvalidShare {
+                    party_id: Some(party_index as u16),
+                })
+            }
         };
 
-        let expected_sk_agg_share = effective_sk_share.ok_or(PvssError::InvalidShare)?;
+        let expected_sk_agg_share = effective_sk_share.ok_or(PvssError::InvalidShare {
+            party_id: Some(party_index as u16),
+        })?;
         let statement = DecryptNizkStatement {
             session_id: ctx.session_id.clone(),
             party_index,
@@ -178,15 +192,21 @@ impl LatticePvssBfvAdapter {
         let proof = DecryptNizkProof::from_bytes(share.proof.0.clone())?;
         let opened = proof.decode()?;
         if opened.statement.party_index != share.index {
-            return Err(PvssError::InvalidShare);
+            return Err(PvssError::InvalidShare {
+                party_id: Some(share.index as u16),
+            });
         }
         if opened.statement.decrypted_share_bytes != share.share_bytes.expose() {
-            return Err(PvssError::InvalidShare);
+            return Err(PvssError::InvalidShare {
+                party_id: Some(share.index as u16),
+            });
         }
         if opened.statement.party_index != share.index
             || opened.statement.decrypted_share_bytes != share.share_bytes.expose()
         {
-            return Err(PvssError::InvalidShare);
+            return Err(PvssError::InvalidShare {
+                party_id: Some(share.index as u16),
+            });
         }
 
         DecryptNizkVerifier::verify(&opened.statement, &proof)
@@ -201,16 +221,16 @@ impl PvssAdapter for LatticePvssBfvAdapter {
         recipient_pks: &[Vec<u8>],
         ctx: &PvssContext,
     ) -> Result<EncryptedShares, PvssError> {
-        self.deal_with_rng(secret, recipient_pks, ctx, &mut OsRng)
+        self.deal_with_rng(secret, recipient_pks, ctx, None, &mut OsRng)
     }
 
     fn verify_shares(&self, shares: &EncryptedShares, ctx: &PvssContext) -> Result<(), PvssError> {
         validate_context(ctx)?;
         if shares.backend_id != BACKEND_ID {
-            return Err(PvssError::InvalidShare);
+            return Err(PvssError::InvalidShare { party_id: None });
         }
         if shares.ciphertexts.len() != ctx.n || shares.proofs.len() != ctx.n {
-            return Err(PvssError::InvalidShare);
+            return Err(PvssError::InvalidShare { party_id: None });
         }
         let dkg_root = share_proof_dkg_root(ctx)?;
         let bfv_params_digest = canonical_bfv_params_digest().to_vec();
@@ -274,8 +294,9 @@ impl PvssAdapter for LatticePvssBfvAdapter {
                         let arr: &[u8; FR_SERIALIZED_LEN] = payload
                             [offset..offset + FR_SERIALIZED_LEN]
                             .try_into()
-                            .map_err(|_| PvssError::InvalidShare)?;
-                        let fr = bytes32_to_fr(arr).ok_or(PvssError::InvalidShare)?;
+                            .map_err(|_| PvssError::InvalidShare { party_id: None })?;
+                        let fr =
+                            bytes32_to_fr(arr).ok_or(PvssError::InvalidShare { party_id: None })?;
                         points.push((i + 1, fr));
                     }
                     let recovered = crate::shamir::recover(&points, needed).map_err(|_| {
@@ -336,29 +357,29 @@ impl PvssAdapter for LatticePvssBfvAdapter {
     ) -> Result<Vec<u8>, PvssError> {
         validate_context(ctx)?;
         if decrypted_shares.len() < ctx.t {
-            return Err(PvssError::RecoveryFailed);
+            return Err(PvssError::RecoveryFailed { party_id: None });
         }
 
         let selected = &decrypted_shares[..ctx.t];
 
         // Validate share payload consistency.
         if selected.is_empty() {
-            return Err(PvssError::RecoveryFailed);
+            return Err(PvssError::RecoveryFailed { party_id: None });
         }
         let share_len = selected[0].share_bytes.expose().len();
         if share_len < LENGTH_PREFIX_LEN + FR_SERIALIZED_LEN {
-            return Err(PvssError::InvalidShare);
+            return Err(PvssError::InvalidShare { party_id: None });
         }
         // Shares must all have identical length.
         if selected
             .iter()
             .any(|share| share.share_bytes.expose().len() != share_len)
         {
-            return Err(PvssError::InvalidShare);
+            return Err(PvssError::InvalidShare { party_id: None });
         }
         // Share indices must be in-bounds.
         if selected.iter().any(|share| share.index >= ctx.n) {
-            return Err(PvssError::InvalidShare);
+            return Err(PvssError::InvalidShare { party_id: None });
         }
 
         // Verify NIZK proofs.
@@ -370,7 +391,7 @@ impl PvssAdapter for LatticePvssBfvAdapter {
         let mut seen = vec![false; ctx.n];
         for share in selected {
             if seen[share.index] {
-                return Err(PvssError::InvalidShare);
+                return Err(PvssError::InvalidShare { party_id: None });
             }
             seen[share.index] = true;
         }
@@ -380,7 +401,7 @@ impl PvssAdapter for LatticePvssBfvAdapter {
         let (original_len, share_frs_by_party) = deserialize_share_payloads(selected)?;
         let num_chunks = share_frs_by_party[0].len();
         if num_chunks == 0 {
-            return Err(PvssError::InvalidShare);
+            return Err(PvssError::InvalidShare { party_id: None });
         }
 
         // Recover each chunk independently via Lagrange interpolation.
@@ -395,8 +416,8 @@ impl PvssAdapter for LatticePvssBfvAdapter {
                 })
                 .collect();
 
-            let recovered =
-                shamir::recover(&chunk_shares, ctx.t).map_err(|_| PvssError::RecoveryFailed)?;
+            let recovered = shamir::recover(&chunk_shares, ctx.t)
+                .map_err(|_| PvssError::RecoveryFailed { party_id: None })?;
             recovered_frs.push(recovered);
         }
 
@@ -538,26 +559,26 @@ fn deserialize_share_payloads(
     let original_len = u32::from_be_bytes(
         first_payload[..LENGTH_PREFIX_LEN]
             .try_into()
-            .map_err(|_| PvssError::InvalidShare)?,
+            .map_err(|_| PvssError::InvalidShare { party_id: None })?,
     ) as usize;
 
     let num_chunks = (first_payload.len() - LENGTH_PREFIX_LEN) / FR_SERIALIZED_LEN;
     if !(first_payload.len() - LENGTH_PREFIX_LEN).is_multiple_of(FR_SERIALIZED_LEN) {
-        return Err(PvssError::InvalidShare);
+        return Err(PvssError::InvalidShare { party_id: None });
     }
 
     for share in selected.iter().skip(1) {
         let payload = share.share_bytes.expose();
         if payload.len() != first_payload.len() {
-            return Err(PvssError::InvalidShare);
+            return Err(PvssError::InvalidShare { party_id: None });
         }
         let len = u32::from_be_bytes(
             payload[..LENGTH_PREFIX_LEN]
                 .try_into()
-                .map_err(|_| PvssError::InvalidShare)?,
+                .map_err(|_| PvssError::InvalidShare { party_id: None })?,
         ) as usize;
         if len != original_len {
-            return Err(PvssError::InvalidShare);
+            return Err(PvssError::InvalidShare { party_id: None });
         }
     }
 
@@ -569,8 +590,8 @@ fn deserialize_share_payloads(
             let chunk: &[u8; FR_SERIALIZED_LEN] = payload
                 [chunk_start..chunk_start + FR_SERIALIZED_LEN]
                 .try_into()
-                .map_err(|_| PvssError::InvalidShare)?;
-            let fr = bytes32_to_fr(chunk).ok_or(PvssError::InvalidShare)?;
+                .map_err(|_| PvssError::InvalidShare { party_id: None })?;
+            let fr = bytes32_to_fr(chunk).ok_or(PvssError::InvalidShare { party_id: None })?;
             frs.push(fr);
         }
         share_frs_by_party.push(frs);
@@ -762,7 +783,46 @@ impl LatticePvssBfvAdapter {
         use rand::SeedableRng;
         use rand_chacha::ChaCha20Rng;
         let mut shamir_rng = ChaCha20Rng::from_seed(*seed);
-        self.deal_with_rng(secret, recipient_pks, ctx, &mut shamir_rng)
+        self.deal_with_rng(secret, recipient_pks, ctx, None, &mut shamir_rng)
+    }
+
+    /// Deal shares only to a specific committee of parties.
+    ///
+    /// When `committee` is `Some`, only parties whose 1-based ids appear in
+    /// the list receive encrypted shares.  Non-committee slots are filled
+    /// with empty ciphertexts and proofs.  Shamir splitting still runs over
+    /// all `ctx.n` parties so that threshold recovery remains possible.
+    #[cfg(feature = "committee-pvss")]
+    pub fn deal_committee(
+        &self,
+        secret: &[u8],
+        recipient_pks: &[Vec<u8>],
+        ctx: &PvssContext,
+        committee: Vec<u32>,
+    ) -> Result<EncryptedShares, PvssError> {
+        self.deal_with_rng(secret, recipient_pks, ctx, Some(&committee), &mut OsRng)
+    }
+
+    /// Deterministic variant of [`deal_committee`] with a seeded RNG.
+    #[cfg(feature = "committee-pvss")]
+    pub fn deal_committee_seeded(
+        &self,
+        secret: &[u8],
+        recipient_pks: &[Vec<u8>],
+        ctx: &PvssContext,
+        committee: Vec<u32>,
+        seed: &[u8; 32],
+    ) -> Result<EncryptedShares, PvssError> {
+        use rand::SeedableRng;
+        use rand_chacha::ChaCha20Rng;
+        let mut shamir_rng = ChaCha20Rng::from_seed(*seed);
+        self.deal_with_rng(
+            secret,
+            recipient_pks,
+            ctx,
+            Some(&committee),
+            &mut shamir_rng,
+        )
     }
 
     /// Shared deal implementation parameterised by a supplied RNG.
@@ -771,11 +831,12 @@ impl LatticePvssBfvAdapter {
         secret: &[u8],
         recipient_pks: &[Vec<u8>],
         ctx: &PvssContext,
+        committee: Option<&[u32]>,
         rng: &mut R,
     ) -> Result<EncryptedShares, PvssError> {
         validate_context(ctx)?;
         if recipient_pks.len() != ctx.n {
-            return Err(PvssError::InvalidShare);
+            return Err(PvssError::InvalidShare { party_id: None });
         }
 
         let secret_frs = secret_to_frs(secret);
@@ -808,6 +869,18 @@ impl LatticePvssBfvAdapter {
         for (index, (share_bytes, recipient_pk_bytes)) in
             all_share_bytes.iter().zip(recipient_pks.iter()).enumerate()
         {
+            let party_id_1based = (index + 1) as u32;
+            let in_committee = match committee {
+                Some(ids) => ids.contains(&party_id_1based),
+                None => true,
+            };
+
+            if !in_committee {
+                ciphertexts.push(Vec::new());
+                proofs.push(Vec::new());
+                continue;
+            }
+
             let recipient_pk = PublicKey {
                 bytes: recipient_pk_bytes.clone(),
             };
@@ -820,7 +893,7 @@ impl LatticePvssBfvAdapter {
                 .map(|ciphertext| ciphertext.bytes)
                 .map_err(map_fhe_error)?;
 
-            let share_commitment = compute_share_commitment(&ctx.session_id, index, share_bytes);
+            let share_commitment = compute_share_commitment(&ctx.session_id, index, share_bytes)?;
             let ciphertext_v = compute_ciphertext_v(&ciphertext_u);
             let statement = ShareNizkStatement {
                 session_id: ProtocolBytes(ctx.session_id.clone()),
@@ -843,10 +916,13 @@ impl LatticePvssBfvAdapter {
             proofs.push(proof.proof_bytes.0);
         }
 
-        let enc_validity_data: Vec<u8> = ciphertexts.iter().flatten().copied().collect();
-        let parity_proof_bytes =
+        let parity_proof_bytes = if committee.is_some() {
+            None
+        } else {
+            let enc_validity_data: Vec<u8> = ciphertexts.iter().flatten().copied().collect();
             crate::parity::prove_parity(&chunk_shares, ctx.n, ctx.t, secret, &enc_validity_data)
-                .map(|pp| crate::parity::serialize_parity_proof(&pp));
+                .map(|pp| crate::parity::serialize_parity_proof(&pp))
+        };
 
         Ok(EncryptedShares {
             ciphertexts,

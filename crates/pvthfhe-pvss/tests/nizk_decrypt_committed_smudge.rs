@@ -167,7 +167,7 @@ fn production_adapter_rejects_zero_committed_smudge_slot() {
         Some(0x11_u64),
     );
 
-    assert_eq!(result, Err(PvssError::InvalidShare));
+    assert_eq!(result, Err(PvssError::InvalidShare { party_id: None }));
 }
 
 #[test]
@@ -179,7 +179,7 @@ fn committed_smudge_requires_explicit_esm_witness() {
 
     let result = DecryptNizkProver::prove(&statement, &witness);
 
-    assert_eq!(result, Err(PvssError::InvalidShare));
+    assert_eq!(result, Err(PvssError::InvalidShare { party_id: None }));
 }
 
 #[test]
@@ -201,7 +201,7 @@ fn committed_smudge_rejects_local_smudge_proof() {
 
     let result = DecryptNizkVerifier::verify(&committed, &proof);
 
-    assert_eq!(result, Err(PvssError::InvalidShare));
+    assert_eq!(result, Err(PvssError::InvalidShare { party_id: None }));
 }
 
 #[test]
@@ -222,7 +222,7 @@ fn committed_smudge_legacy_missing_sk_agg_share_fails_closed() {
     let result = DecryptNizkProver::prove(&statement, &witness)
         .and_then(|proof| DecryptNizkVerifier::verify(&statement, &proof));
 
-    assert_eq!(result, Err(PvssError::InvalidShare));
+    assert_eq!(result, Err(PvssError::InvalidShare { party_id: None }));
 }
 
 #[test]
@@ -260,7 +260,7 @@ fn committed_smudge_binds_slot_round_and_aggregate_commitments() {
 
     let result = DecryptNizkVerifier::verify(&wrong_round, &proof);
 
-    assert_eq!(result, Err(PvssError::InvalidShare));
+    assert_eq!(result, Err(PvssError::InvalidShare { party_id: None }));
 }
 
 #[test]
@@ -277,7 +277,7 @@ fn red_committed_smudge_esm_share_binding() {
     );
     assert_eq!(
         result,
-        Err(PvssError::InvalidShare),
+        Err(PvssError::InvalidShare { party_id: None }),
         "mismatched esm_agg_share must produce InvalidShare"
     );
 }
@@ -320,7 +320,7 @@ fn committed_smudge_binds_to_ciphertext() {
     let result = DecryptNizkVerifier::verify(&wrong_ct, &proof);
     assert_eq!(
         result,
-        Err(PvssError::InvalidShare),
+        Err(PvssError::InvalidShare { party_id: None }),
         "changing ciphertext must change committed-smudge slot binding causing rejection"
     );
 }
@@ -366,7 +366,7 @@ fn committed_smudge_slot_epoch_binding() {
     let result = DecryptNizkProver::prove(&statement, &witness);
     assert_eq!(
         result,
-        Err(PvssError::InvalidShare),
+        Err(PvssError::InvalidShare { party_id: None }),
         "epoch mismatch in committed-smudge slot must be rejected"
     );
 }

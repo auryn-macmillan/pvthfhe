@@ -421,13 +421,17 @@ impl PoulpyBackend {
         use rand::SeedableRng;
 
         let (a_in, b_in) = crate::poulpy_backend_impl::tfhe_ops::extract_lwe_coeffs(&ct_in.bytes)
-            .map_err(|_e| {
-            pvthfhe_nizk::NizkError::InvalidInput("failed to extract ct_in LWE coeffs")
+            .map_err(|_e| pvthfhe_nizk::NizkError::InvalidInput {
+            reason: "failed to extract ct_in LWE coeffs",
+            party_id: None,
         })?;
-        let (a_out, b_out) =
-            crate::poulpy_backend_impl::tfhe_ops::extract_lwe_coeffs(&ct_out.bytes).map_err(
-                |_e| pvthfhe_nizk::NizkError::InvalidInput("failed to extract ct_out LWE coeffs"),
-            )?;
+        let (a_out, b_out) = crate::poulpy_backend_impl::tfhe_ops::extract_lwe_coeffs(
+            &ct_out.bytes,
+        )
+        .map_err(|_e| pvthfhe_nizk::NizkError::InvalidInput {
+            reason: "failed to extract ct_out LWE coeffs",
+            party_id: None,
+        })?;
 
         let q: u64 = 18_446_744_073_709_551_557;
         let q128 = q as u128;
@@ -443,9 +447,12 @@ impl PoulpyBackend {
             bsk_hash: [0u8; 32],
         };
 
-        let sk = self
-            .secret_key_coeffs(party_id)
-            .map_err(|_e| pvthfhe_nizk::NizkError::InvalidInput("no secret key available"))?;
+        let sk = self.secret_key_coeffs(party_id).map_err(|_e| {
+            pvthfhe_nizk::NizkError::InvalidInput {
+                reason: "no secret key available",
+                party_id: None,
+            }
+        })?;
         let s = sk.first().copied().unwrap_or(0);
 
         let e_raw =

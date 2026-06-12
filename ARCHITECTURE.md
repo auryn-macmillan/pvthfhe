@@ -33,7 +33,8 @@ The pipeline uses three proving backends: **LatticeFold+** (lattice-native foldi
 | :--- | :--- | :--- |
 | **Lattice Layer** | RLWE arithmetic, BFV encryption/decryption | `pvthfhe-fhe`, `fhe.rs` |
 | **Proof Layer** | Share well-formedness, Cyclo RLWE folding, LatticeFold+ compression | `circuits/`, `pvthfhe-nizk`, `pvthfhe-compressor` |
-| **Coordination** | DKG, decryption rounds, blame assignment | `pvthfhe-core`, `pvthfhe-aggregator` |
+| **Coordination** | DKG, decryption rounds, blame assignment, leader election | `pvthfhe-core`, `pvthfhe-aggregator`, `pvthfhe-leader-election` |
+| **Integrity** | Non-equivocation, information dispersal, committee selection, key escrow | `pvthfhe-non-equiv`, `pvthfhe-pvss` (avid, key_escrow) |
 | **Verification** | Proof binding, gas-efficient on-chain check | `contracts/` (UltraHonkVerifier.sol) |
 
 ## RLWE Parameters
@@ -115,6 +116,13 @@ Each protocol step produces verifiable artifacts. Publicly verifiable steps incl
 - [Decryption](.sisyphus/design/spec-decrypt.md)
 - [Proof Boundary](.sisyphus/design/proof-boundary.md)
 - [Parameters](.sisyphus/design/parameters.md)
+- [Non-Equivocation](.sisyphus/design/spec-non-equiv.md)
+- [Provable AVID](.sisyphus/design/spec-avid.md)
+- [Committee PVSS](.sisyphus/design/spec-committee-pvss.md)
+- [Key Escrow](.sisyphus/design/spec-key-escrow.md)
+- [Leader Election](.sisyphus/design/spec-leader-election.md)
+
+All DKG subprotocols (NonEquiv, AVID, Leader Election) bind `session_id` in their hash constructions to prevent cross-session replay (MPC-AUDIT-2026-06-12, findings F1-F3).
 
 ## Performance Ceiling
 

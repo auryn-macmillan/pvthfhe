@@ -95,8 +95,11 @@ pub struct FinalProof {
 
 #[cfg(feature = "real-folding")]
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
-#[error("{0}")]
-pub struct FoldError(pub String);
+#[error("{message}")]
+pub struct FoldError {
+    pub message: String,
+    pub party_id: Option<u16>,
+}
 
 #[cfg(feature = "real-folding")]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -155,20 +158,20 @@ impl FoldingScheme for HashChainFoldingScheme {
 
         // Convert FoldStatement + FoldWitness → CcsPShareInstance
         let ccs_instance = fold_stmt_witness_to_cyclo_instance(stmt, witness, acc)
-            .map_err(|e| FoldError(format!("fold_stmt_witness_to_cyclo_instance: {e}")))?;
+            .map_err(|e| FoldError { message: format!("fold_stmt_witness_to_cyclo_instance: {e}"), party_id: None })?;
 
         // Get or initialise the Cyclo accumulator
         let prev_cyclo_acc = match acc.cyclo_acc.clone() {
             Some(acc) => acc,
             None => cyclo_fold::init_accumulator_multitrack(&ccs_instance, &acc.session_id)
-                .map_err(|e| FoldError(format!("init_accumulator: {e}")))?,
+                .map_err(|e| FoldError { message: format!("init_accumulator: {e}"), party_id: None })?,
         };
 
         // Fold via the Cyclo LatticeFold+ backend, including H.2 metadata.
         let mut rng = OsRng;
         let new_cyclo_acc =
             cyclo_fold::fold_one_step_multitrack(prev_cyclo_acc, &ccs_instance, &mut rng)
-                .map_err(|e| FoldError(format!("Cyclo fold failed: {e}")))?;
+                .map_err(|e| FoldError { message: format!("Cyclo fold failed: {e}"), party_id: None })?;
 
         // Maintain backward-compatible hash-chain fields
         let stmt_bytes = serialize_fold_statement(stmt);
@@ -198,15 +201,13 @@ impl FoldingScheme for HashChainFoldingScheme {
     ) -> Result<(), FoldError> {
         validate_accumulator(acc)?;
         if acc.params != *expected_params {
-            return Err(FoldError("param mismatch".to_string()));
+            return Err(FoldError { message: "param mismatch".to_string(), party_id: None });
         }
         // Verify Cyclo accumulator structure when present
         if let Some(cyclo_acc) = &acc.cyclo_acc {
             verify_cyclo_accumulator_structure(cyclo_acc)?;
         } else if acc.fold_depth > 0 {
-            return Err(FoldError(
-                "accumulator at depth > 0 must carry Cyclo data".to_string(),
-            ));
+            return Err(FoldError { message: "accumulator at depth > 0 must carry Cyclo data".to_string(), party_id: None });
         }
         Ok(())
     }
@@ -292,13 +293,13 @@ fn validate_statement_binding(
 ) -> Result<(), FoldError> {
     let expected_fold_index = acc.fold_depth.saturating_add(1);
     if acc.params != stmt.params || stmt.params != stmt.nizk_statement.params {
-        return Err(FoldError("param mismatch".to_string()));
+        return Err(FoldError { message: "param mismatch".to_string(), party_id: None });
     }
     if acc.session_id != stmt.session_id || stmt.session_id != stmt.nizk_statement.session_id {
-        return Err(FoldError("session mismatch".to_string()));
+        return Err(FoldError { message: "session mismatch".to_string(), party_id: None });
     }
     if stmt.fold_index != expected_fold_index {
-        return Err(FoldError("fold index mismatch".to_string()));
+        return Err(FoldError { message: "fold index mismatch".to_string(), party_id: None });
     }
     Ok(())
 }
@@ -308,15 +309,15 @@ fn validate_witness(witness: &FoldWitness, stmt: &FoldStatement) -> Result<(), F
     let proof_bytes = &witness.nizk_proof.proof_bytes;
     // Quick-reject empty proofs before heavier Cyclo processing
     if proof_bytes.is_empty() {
-        return Err(FoldError("proof integrity check failed".to_string()));
+        return Err(FoldError { message: "proof integrity check failed".to_string(), party_id: None });
     }
     // Quick-reject proofs exceeding the Cyclo norm bound before encoding
     let error_bound = stmt.params.2;
     if proof_bytes.iter().any(|&b| u64::from(b) > error_bound) {
-        return Err(FoldError(format!(
+        return Err(FoldError { message: format!(
             "witness coefficient exceeds norm bound {}",
             error_bound,
-        )));
+        ), party_id: None });
     }
     // R4.4: validate NIZK proof structure — verifies backend_id,
     // proof version, and CCS instance ID binding.
@@ -340,11 +341,11 @@ fn validate_witness(witness: &FoldWitness, stmt: &FoldStatement) -> Result<(), F
 fn validate_nizk_structure(witness: &FoldWitness, _stmt: &FoldStatement) -> Result<(), FoldError> {
     let proof = &witness.nizk_proof;
     if proof.nizk_backend_id != NizkProof::EXPECTED_BACKEND_ID {
-        return Err(FoldError(format!(
+        return Err(FoldError { message: format!(
             "NIZK backend mismatch: expected {}, got {}",
             NizkProof::EXPECTED_BACKEND_ID,
             proof.nizk_backend_id,
-        )));
+        ), party_id: None });
     }
     // R4.4: when real NIZK is wired, enforce minimum proof size.
     // Real Ajtai D2 NIZK proofs carry: version(2) + ccs_id(32) + ajtai(26624).
@@ -353,11 +354,11 @@ fn validate_nizk_structure(witness: &FoldWitness, _stmt: &FoldStatement) -> Resu
     {
         const MIN_NIZK_PROOF_SIZE: usize = 2 + 32 + 26624;
         if proof.proof_bytes.len() < MIN_NIZK_PROOF_SIZE {
-            return Err(FoldError(format!(
+            return Err(FoldError { message: format!(
                 "NIZK proof too short: {} bytes (minimum {}) for structured Cyclo-Ajtai-D2 proof",
                 proof.proof_bytes.len(),
                 MIN_NIZK_PROOF_SIZE,
-            )));
+            ), party_id: None });
         }
     }
     Ok(())
@@ -386,7 +387,7 @@ fn verify_full_nizk(witness: &FoldWitness, stmt: &FoldStatement) -> Result<(), F
     }
 
     let participant_id = u16::try_from(stmt.fold_index)
-        .map_err(|_| FoldError("fold_index exceeds u16".to_string()))?;
+        .map_err(|_| FoldError { message: "fold_index exceeds u16".to_string(), party_id: None })?;
 
     let nizk_crate_stmt = NizkCrateStatement {
         ciphertext_bytes: stmt.nizk_statement.ciphertext_bytes.clone(),
@@ -406,7 +407,7 @@ fn verify_full_nizk(witness: &FoldWitness, stmt: &FoldStatement) -> Result<(), F
     let adapter = CycloNizkAdapter;
     adapter
         .verify(&nizk_crate_stmt, &nizk_crate_proof)
-        .map_err(|e| FoldError(format!("full NIZK verification failed: {e}")))?;
+        .map_err(|e| FoldError { message: format!("full NIZK verification failed: {e}"), party_id: None })?;
 
     Ok(())
 }
@@ -490,29 +491,25 @@ pub fn fold_stmt_witness_to_cyclo_instance(
 fn verify_cyclo_accumulator_structure(cyclo_acc: &CycloAccumulator) -> Result<(), FoldError> {
     use pvthfhe_cyclo::PVTHFHE_CYCLO_PARAMS;
     if cyclo_acc.fold_depth > PVTHFHE_CYCLO_PARAMS.sequential_t {
-        return Err(FoldError(format!(
+        return Err(FoldError { message: format!(
             "Cyclo fold depth {} exceeds T={}",
             cyclo_acc.fold_depth, PVTHFHE_CYCLO_PARAMS.sequential_t,
-        )));
+        ), party_id: None });
     }
     if cyclo_acc.norm_bound_current > PVTHFHE_CYCLO_PARAMS.beta_at_t {
-        return Err(FoldError(
-            "Cyclo accumulator norm bound exceeded beta_at_t".to_string(),
-        ));
+        return Err(FoldError { message: "Cyclo accumulator norm bound exceeded beta_at_t".to_string(), party_id: None });
     }
     if cyclo_acc.acc_commitment_bytes.len() != 32 {
         if cyclo_acc.acc_commitment_bytes.len() != AJTAI_COMMITMENT_BYTES {
-            return Err(FoldError(format!(
+            return Err(FoldError { message: format!(
                 "Cyclo acc_commitment_bytes must be 32 bytes or Ajtai commitment bytes ({}), got {}",
                 AJTAI_COMMITMENT_BYTES,
                 cyclo_acc.acc_commitment_bytes.len()
-            )));
+            ), party_id: None });
         }
     }
     if cyclo_acc.acc_public_io_bytes.len() != 32 {
-        return Err(FoldError(
-            "Cyclo acc_public_io_bytes must be 32 bytes".to_string(),
-        ));
+        return Err(FoldError { message: "Cyclo acc_public_io_bytes must be 32 bytes".to_string(), party_id: None });
     }
     Ok(())
 }
@@ -520,10 +517,10 @@ fn verify_cyclo_accumulator_structure(cyclo_acc: &CycloAccumulator) -> Result<()
 #[cfg(feature = "real-folding")]
 fn validate_accumulator(acc: &FoldAccumulator) -> Result<(), FoldError> {
     if acc.acc_commitment.is_empty() {
-        return Err(FoldError("empty accumulator commitment".to_string()));
+        return Err(FoldError { message: "empty accumulator commitment".to_string(), party_id: None });
     }
     if acc.session_id.is_empty() {
-        return Err(FoldError("empty session id".to_string()));
+        return Err(FoldError { message: "empty session id".to_string(), party_id: None });
     }
     Ok(())
 }

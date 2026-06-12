@@ -1,11 +1,17 @@
 use super::types::{DkgTranscript, PartyId, Round1Message, Round2Message, Round3Aggregate};
 use anyhow::Context;
+use ark_bn254::{Fr, G1Affine};
+use ark_ff::{BigInteger, PrimeField};
 use pvthfhe_domain_tags::Tag;
 use pvthfhe_fhe::{Ciphertext, FheBackend, PublicKey};
 use pvthfhe_nizk::adapter::CycloNizkAdapter;
 use pvthfhe_nizk::bfv_sigma::poly_bytes_to_rns;
+use pvthfhe_nizk::schnorr::generate_signing_keypair;
 use pvthfhe_nizk::sigma::{self, SigmaStatement, SigmaWitness};
 use pvthfhe_nizk::{NizkAdapter, NizkStatement, NizkWitness};
+use pvthfhe_non_equiv::{
+    hash_round1_message, produce_signed_signature, NonEquivCollector, NonEquivProof,
+};
 use pvthfhe_types::ProtocolBytes;
 use rand_chacha::ChaCha8Rng;
 use rand_core::OsRng;
@@ -15,6 +21,7 @@ use std::{
     collections::{HashMap, HashSet},
     fmt,
     sync::Arc,
+    time::{Duration, Instant},
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -255,7 +262,23 @@ impl KeygenSimulator {
     }
 
     pub fn run(&mut self) -> Result<KeygenResult, pvthfhe_fhe::FheError> {
+        self.run_with_timeout(None)
+    }
+
+    /// Run DKG with per-round timeout enforcement.
+    ///
+    /// If `round_timeout` is `Some(d)`, each protocol round (Round 1, NonEquiv,
+    /// Round 2, Round 3) must complete within `d`. If a round exceeds the
+    /// timeout, the method returns with a descriptive error identifying the
+    /// round and parties that have not yet responded.
+    ///
+    /// If `round_timeout` is `None`, the method behaves identically to `run()`.
+    pub fn run_with_timeout(
+        &mut self,
+        round_timeout: Option<Duration>,
+    ) -> Result<KeygenResult, pvthfhe_fhe::FheError> {
         let session_id = self.session_id();
+        let round_start = Instant::now();
 
         // Pre-compute all party public keys (also initialises backend party states).
         let mut all_pks: HashMap<PartyId, PublicKey> = HashMap::new();
@@ -264,6 +287,25 @@ impl KeygenSimulator {
             let share = self.keygen_share_with_session(&session_id, party_id)?;
             let pk = self.backend.aggregate_keygen(&[share.clone()])?;
             all_pks.insert(party_id, pk);
+        }
+
+        // Generate Schnorr signing keypairs for NonEquiv protocol (simulator controls all parties).
+        let mut schnorr_sks: HashMap<PartyId, Fr> = HashMap::new();
+        let mut schnorr_pks: HashMap<PartyId, G1Affine> = HashMap::new();
+        for i in 0..self.n_parties {
+            let party_id = party_id_from_index(i);
+            let mut seed = [0u8; 32];
+            {
+                let mut h = Sha256::new();
+                h.update(b"pvthfhe-sim-schnorr-v1");
+                h.update(&session_id);
+                h.update(&party_id.to_be_bytes());
+                seed.copy_from_slice(&h.finalize());
+            }
+            let mut rng = ChaCha8Rng::from_seed(seed);
+            let (sk, pk) = generate_signing_keypair(&mut rng);
+            schnorr_sks.insert(party_id, sk);
+            schnorr_pks.insert(party_id, pk);
         }
 
         // ROUND 1
@@ -294,19 +336,114 @@ impl KeygenSimulator {
             }
         }
 
-        // AGGREGATOR CHECK ROUND 1
+        // NON-EQUIV SUB-ROUND: each signer signs every dealer's Round 1 message.
+        // We keep the first message seen for each dealer as the transcript-bound
+        // target and collect a quorum of signatures for that message.
+        let f = self.n_parties.saturating_sub(self.threshold);
+        let mut non_equiv_proofs: HashMap<PartyId, NonEquivProof> = HashMap::new();
+        let mut dealer_collectors: HashMap<PartyId, NonEquivCollector> = HashMap::new();
+        let mut canonical_r1_msgs: Vec<Round1Message> = Vec::new();
+        let mut seen_dealer_msg: HashMap<PartyId, [u8; 32]> = HashMap::new();
+
+        for msg in &r1_msgs {
+            let dealer_id = msg.party_id;
+            let payload = self.build_round1_payload(msg);
+            let msg_hash = hash_round1_message(dealer_id, &payload, &session_id);
+            if let Some(&existing_hash) = seen_dealer_msg.get(&dealer_id) {
+                if existing_hash != msg_hash {
+                    equivocated.insert(dealer_id);
+                }
+                continue;
+            }
+            seen_dealer_msg.insert(dealer_id, msg_hash);
+            canonical_r1_msgs.push(msg.clone());
+            dealer_collectors.insert(
+                dealer_id,
+                NonEquivCollector::new(dealer_id, msg_hash, self.n_parties, f),
+            );
+        }
+        // MEMORY: drop r1_msgs — canonical_r1_msgs holds the canonical copy;
+        // the original vector is no longer needed.
+        std::mem::drop(r1_msgs);
+
+        for i in 0..self.n_parties {
+            let signer_id = party_id_from_index(i);
+            let sk = schnorr_sks
+                .get(&signer_id)
+                .ok_or_else(|| pvthfhe_fhe::FheError::Backend {
+                    reason: format!("missing Schnorr sk for party {signer_id}"),
+                })?;
+            let pk = schnorr_pks
+                .get(&signer_id)
+                .ok_or_else(|| pvthfhe_fhe::FheError::Backend {
+                    reason: format!("missing Schnorr pk for party {signer_id}"),
+                })?;
+            let sigs =
+                self.non_equiv_round(signer_id, *sk, *pk, &canonical_r1_msgs, &session_id)?;
+
+            for (msg, sig) in canonical_r1_msgs.iter().zip(sigs.into_iter()) {
+                if let Some(collector) = dealer_collectors.get_mut(&msg.party_id) {
+                    let _quorum_reached = collector.add_signature(sig).map_err(|e| {
+                        pvthfhe_fhe::FheError::Backend {
+                            reason: format!(
+                                "non-equiv add_sig for dealer {} signer {signer_id}: {e}",
+                                msg.party_id
+                            ),
+                        }
+                    })?;
+                }
+            }
+        }
+
+        for (dealer_id, collector) in dealer_collectors {
+            let proof = collector
+                .finalize()
+                .map_err(|e| pvthfhe_fhe::FheError::Backend {
+                    reason: format!("non-equiv finalize for party {dealer_id}: {e}"),
+                })?;
+            let proof_bytes = proof.to_bytes();
+            let proof = NonEquivProof::from_bytes(&proof_bytes).map_err(|e| {
+                pvthfhe_fhe::FheError::Backend {
+                    reason: format!("non-equiv round-trip for party {dealer_id}: {e}"),
+                }
+            })?;
+            pvthfhe_non_equiv::verify_nonequiv_proof(
+                &proof,
+                &schnorr_pks,
+                &proof.message_hash,
+                &session_id,
+            )
+            .map_err(|e| pvthfhe_fhe::FheError::Backend {
+                reason: format!("non-equiv verify for party {dealer_id}: {e}"),
+            })?;
+            non_equiv_proofs.insert(dealer_id, proof);
+        }
+        // MEMORY: canonical_r1_msgs no longer needed after NonEquiv collection
+        // and aggregator check — all needed data is now in valid_r1.
+
+        // AGGREGATOR CHECK ROUND 1 — uses canonical_r1_msgs (r1_msgs dropped above).
         let mut blames = Vec::new();
+        // Propagate NonEquiv-detected equivocators to blame list.
+        for &eq in &equivocated {
+            if !blames.contains(&eq) {
+                blames.push(eq);
+            }
+        }
         let mut valid_r1 = Vec::new();
         let mut seen = HashSet::new();
         let mut duplicates = HashSet::new();
 
-        for msg in &r1_msgs {
+        for msg in &canonical_r1_msgs {
             if !seen.insert(msg.party_id) {
                 duplicates.insert(msg.party_id);
             }
         }
 
-        for msg in &r1_msgs {
+        for msg in &canonical_r1_msgs {
+            // Skip parties already blamed for equivocation above
+            if blames.contains(&msg.party_id) {
+                continue;
+            }
             if duplicates.contains(&msg.party_id) {
                 if !blames.contains(&msg.party_id) {
                     blames.push(msg.party_id);
@@ -333,6 +470,32 @@ impl KeygenSimulator {
             // For WithholdShare, another party will complain in Round 2
             valid_r1.push(msg.clone());
         }
+        // MEMORY: clear encrypted_shares ciphertexts — Round 2 only needs
+        // key presence (contains_key), not the actual ciphertext bytes.
+        // This frees n×(n-1) BFV ciphertexts (~392 KB each with real backend).
+        for msg in &mut valid_r1 {
+            msg.encrypted_shares.values_mut().for_each(|v| v.clear());
+        }
+        std::mem::drop(canonical_r1_msgs);
+
+        // Round 1 timeout check
+        if let Some(timeout) = round_timeout {
+            if round_start.elapsed() > timeout {
+                let pending: Vec<PartyId> = (0..self.n_parties)
+                    .map(party_id_from_index)
+                    .filter(|id| {
+                        !valid_r1.iter().any(|m| m.party_id == *id) && !blames.contains(id)
+                    })
+                    .collect();
+                return Err(pvthfhe_fhe::FheError::Backend {
+                    reason: format!(
+                        "round 1 timed out after {:?}: {} pending parties",
+                        round_start.elapsed(),
+                        pending.len()
+                    ),
+                });
+            }
+        }
 
         if !blames.is_empty() {
             blames.sort();
@@ -340,6 +503,7 @@ impl KeygenSimulator {
         }
 
         // ROUND 2
+        let round_start = Instant::now();
         let mut r2_msgs = Vec::new();
         for i in 0..self.n_parties {
             let party_id = party_id_from_index(i);
@@ -370,12 +534,30 @@ impl KeygenSimulator {
             }
         }
 
+        // Round 2 timeout check
+        if let Some(timeout) = round_timeout {
+            if round_start.elapsed() > timeout {
+                let pending: Vec<PartyId> = (0..self.n_parties)
+                    .map(party_id_from_index)
+                    .filter(|id| !r2_msgs.iter().any(|m| m.party_id == *id) && !blames.contains(id))
+                    .collect();
+                return Err(pvthfhe_fhe::FheError::Backend {
+                    reason: format!(
+                        "round 2 timed out after {:?}: {} pending parties",
+                        round_start.elapsed(),
+                        pending.len()
+                    ),
+                });
+            }
+        }
+
         if !blames.is_empty() {
             blames.sort();
             return Ok(KeygenResult::Blamed(blames));
         }
 
         // ROUND 3
+        let round_start = Instant::now();
         let participant_set: Vec<PartyId> = valid_r1.iter().map(|m| m.party_id).collect();
         let mut shares = Vec::new();
         for r1 in &valid_r1 {
@@ -472,9 +654,74 @@ impl KeygenSimulator {
             },
             dkg_root,
             transcript_hash,
+            non_equiv_proofs,
         };
 
+        // Round 3 timeout check
+        if let Some(timeout) = round_timeout {
+            if round_start.elapsed() > timeout {
+                let pending: Vec<PartyId> = (0..self.n_parties)
+                    .map(party_id_from_index)
+                    .filter(|id| !shares.iter().any(|s| s.party_id == *id) && !blames.contains(id))
+                    .collect();
+                return Err(pvthfhe_fhe::FheError::Backend {
+                    reason: format!(
+                        "round 3 timed out after {:?}: {} pending parties",
+                        round_start.elapsed(),
+                        pending.len()
+                    ),
+                });
+            }
+        }
+
         Ok(KeygenResult::Complete(transcript))
+    }
+
+    fn build_round1_payload(&self, msg: &Round1Message) -> Vec<u8> {
+        let mut payload = Vec::new();
+        payload.extend_from_slice(&msg.party_id.to_be_bytes());
+        payload.extend_from_slice(&msg.pk_i_hash);
+        payload.extend_from_slice(&msg.commitment_nonce);
+        payload.extend_from_slice(&msg.commitment);
+        payload.extend_from_slice(&msg.poly_commit);
+        payload
+    }
+
+    fn non_equiv_round(
+        &self,
+        signer_id: PartyId,
+        signing_key: Fr,
+        signing_pk: G1Affine,
+        round1_msgs: &[Round1Message],
+        session_id: &[u8; 32],
+    ) -> Result<Vec<pvthfhe_non_equiv::NonEquivSignature>, pvthfhe_fhe::FheError> {
+        let mut signatures = Vec::with_capacity(round1_msgs.len());
+        let mut rng_seed = [0u8; 32];
+        {
+            let mut h = Sha256::new();
+            h.update(b"pvthfhe-sim-nonequiv-rng-v1");
+            h.update(&signer_id.to_be_bytes());
+            h.update(signing_key.into_bigint().to_bytes_le());
+            rng_seed.copy_from_slice(&h.finalize());
+        }
+        let mut rng = ChaCha8Rng::from_seed(rng_seed);
+
+        for msg in round1_msgs {
+            let dealer_id = msg.party_id;
+            let payload = self.build_round1_payload(msg);
+            let msg_hash = hash_round1_message(dealer_id, &payload, session_id);
+            let sig = produce_signed_signature(
+                signer_id,
+                signing_key,
+                signing_pk,
+                dealer_id,
+                &msg_hash,
+                session_id,
+                &mut rng,
+            );
+            signatures.push(sig);
+        }
+        Ok(signatures)
     }
 
     fn generate_r1_msg(
@@ -681,8 +928,11 @@ impl KeygenSimulator {
         plaintext: &[u8],
     ) -> Result<Vec<u8>, pvthfhe_nizk::NizkError> {
         let session_str = hex::encode(session_id);
-        let participant_id = u16::try_from(dealer_id)
-            .map_err(|_| pvthfhe_nizk::NizkError::InvalidInput("dealer_id too large"))?;
+        let participant_id =
+            u16::try_from(dealer_id).map_err(|_| pvthfhe_nizk::NizkError::InvalidInput {
+                reason: "dealer_id too large",
+                party_id: None,
+            })?;
 
         let pvss_commitment = {
             let mut h = Sha256::new();

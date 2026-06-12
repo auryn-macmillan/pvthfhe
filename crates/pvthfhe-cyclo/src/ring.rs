@@ -179,8 +179,8 @@ pub fn ring_add_poly(a: &RqPoly, b: &RqPoly) -> RqPoly {
 /// Each coefficient `c` is multiplied by `s` modulo [`Q_COMMIT`].
 /// Uses `u128` for the intermediate product to avoid overflow
 /// (s up to Q_COMMIT-1, c up to Q_COMMIT-1, product fits in u128).
-pub fn scalar_mul(poly: &RqPoly, s: u64) -> RqPoly {
-    let s_mod = s % Q_COMMIT;
+pub fn scalar_mul(poly: &RqPoly, s: u128) -> RqPoly {
+    let s_mod = (s % Q_COMMIT as u128) as u64;
     if s_mod == 0 {
         return RqPoly::zero();
     }

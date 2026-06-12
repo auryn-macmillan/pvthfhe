@@ -50,14 +50,21 @@ const B_Z: i64 = 2i64.pow(61);
 /// Parse LWE ciphertext coefficients.
 fn parse_lwe_ct(bytes: &[u8]) -> Result<(u64, u64), NizkError> {
     if bytes.len() < 16 {
-        return Err(NizkError::InvalidInput("ciphertext bytes too short"));
+        return Err(NizkError::InvalidInput {
+            reason: "ciphertext bytes too short",
+            party_id: None,
+        });
     }
-    let a_bytes: [u8; 8] = bytes[..8]
-        .try_into()
-        .map_err(|_| NizkError::InvalidInput("ciphertext bytes too short"))?;
+    let a_bytes: [u8; 8] = bytes[..8].try_into().map_err(|_| NizkError::InvalidInput {
+        reason: "ciphertext bytes too short",
+        party_id: None,
+    })?;
     let b_bytes: [u8; 8] = bytes[8..16]
         .try_into()
-        .map_err(|_| NizkError::InvalidInput("ciphertext bytes too short"))?;
+        .map_err(|_| NizkError::InvalidInput {
+            reason: "ciphertext bytes too short",
+            party_id: None,
+        })?;
     let a = u64::from_le_bytes(a_bytes);
     let b = u64::from_le_bytes(b_bytes);
     Ok((a, b))
@@ -171,9 +178,10 @@ pub fn prove(
         }
         return Ok(BootstrapSigmaProof { t, z_s, z_e, ch });
     }
-    Err(NizkError::VerificationFailed(
-        "sigma rejection sampling exhausted",
-    ))
+    Err(NizkError::VerificationFailed {
+        reason: "sigma rejection sampling exhausted",
+        party_id: None,
+    })
 }
 
 /// Verify a single-round bootstrap sigma proof.
@@ -196,9 +204,10 @@ pub fn verify(
     let q = TFHE_Q;
 
     if proof.ch != -1 && proof.ch != 0 && proof.ch != 1 {
-        return Err(NizkError::VerificationFailed(
-            "challenge must be -1, 0, or 1",
-        ));
+        return Err(NizkError::VerificationFailed {
+            reason: "challenge must be -1, 0, or 1",
+            party_id: None,
+        });
     }
     let expected_ch = derive_challenge(
         proof.t,
@@ -210,16 +219,25 @@ pub fn verify(
         round_index,
     );
     if proof.ch != expected_ch {
-        return Err(NizkError::VerificationFailed("challenge mismatch"));
+        return Err(NizkError::VerificationFailed {
+            reason: "challenge mismatch",
+            party_id: None,
+        });
     }
     if proof.z_s.abs() > B_Z || proof.z_e.abs() > B_Z {
-        return Err(NizkError::VerificationFailed("response norm exceeded"));
+        return Err(NizkError::VerificationFailed {
+            reason: "response norm exceeded",
+            party_id: None,
+        });
     }
 
     let lhs = scalar_add_mod(scalar_mul_mod(c, proof.z_s, q), proof.z_e, q);
     let rhs = scalar_add_u64_mod(scalar_mul_mod(d, proof.ch, q), proof.t, q);
     if lhs != rhs {
-        return Err(NizkError::VerificationFailed("algebraic equation failed"));
+        return Err(NizkError::VerificationFailed {
+            reason: "algebraic equation failed",
+            party_id: None,
+        });
     }
     Ok(())
 }
@@ -258,9 +276,10 @@ pub fn verify_multi(
     d_commitment: &[u8; 32],
 ) -> Result<(), NizkError> {
     if proof.rounds.is_empty() {
-        return Err(NizkError::VerificationFailed(
-            "bootstrap sigma multi-proof must have at least one round",
-        ));
+        return Err(NizkError::VerificationFailed {
+            reason: "bootstrap sigma multi-proof must have at least one round",
+            party_id: None,
+        });
     }
     for (i, round_proof) in proof.rounds.iter().enumerate() {
         verify(session_id, party_id, stmt, round_proof, d_commitment, i)?;

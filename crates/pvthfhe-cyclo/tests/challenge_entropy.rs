@@ -2,8 +2,8 @@
 //!
 //! Exercises the fold challenge sampler 10⁴ times and asserts that the
 //! challenge space has at least 13 bits of entropy (>= 8192 unique values).
-//! The GREEN implementation derives challenges via `u16::from_le_bytes(h[0..2])`
-//! over the constant subring Z_q \subset R_q, providing |C| = 2^16.
+//! The GREEN implementation derives challenges via `u128::from_le_bytes(h[..16])`
+//! over the constant subring Z_q \subset R_q, providing |C| = 2^128.
 
 use pvthfhe_cyclo::{
     fiat_shamir,
@@ -44,7 +44,7 @@ fn compute_challenge(
     acc_commitment: &[u8],
     inst_ajtai_bytes: &[u8],
     inst_public_io_bytes: &[u8],
-) -> u64 {
+) -> u128 {
     let h = fiat_shamir::challenge_v2(
         session_id,
         fold_depth,
@@ -53,7 +53,7 @@ fn compute_challenge(
         inst_ajtai_bytes,
         inst_public_io_bytes,
     );
-    u64::from_le_bytes(h[..8].try_into().unwrap())
+    u128::from_le_bytes(h[..16].try_into().unwrap())
 }
 
 #[test]
@@ -61,7 +61,7 @@ fn challenge_entropy_minimum_13_bits() {
     const NUM_SAMPLES: usize = 10_000;
 
     let mut rng = make_rng();
-    let mut seen_challenges: HashSet<u64> = HashSet::new();
+    let mut seen_challenges: HashSet<u128> = HashSet::new();
 
     for i in 0..NUM_SAMPLES {
         let session_id = format!("challenge-entropy-{:05}", i);

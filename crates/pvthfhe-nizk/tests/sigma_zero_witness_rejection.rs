@@ -45,9 +45,10 @@ fn sample_error(rng: &mut ChaCha20Rng) -> Result<Vec<i64>, NizkError> {
         loop {
             let v = rng.next_u64();
             if v < THRESHOLD {
-                *x = i64::try_from(v % RANGE)
-                    .map_err(|_| NizkError::InvalidInput("error sample overflow"))?
-                    - B_E;
+                *x = i64::try_from(v % RANGE).map_err(|_| NizkError::InvalidInput {
+                    reason: "error sample overflow",
+                    party_id: None,
+                })? - B_E;
                 break;
             }
         }
@@ -86,15 +87,17 @@ fn zero_witness_proof_rejected() -> Result<(), NizkError> {
 
     // M7: verifier MUST reject proofs where s_i = 0
     match adapter.verify(&stmt, &proof) {
-        Err(NizkError::VerificationFailed(_)) | Err(NizkError::InvalidProof(_)) => Ok(()),
-        Ok(()) => Err(NizkError::VerificationFailed(
-            "M7 FAIL: zero-witness proof was accepted",
-        )),
+        Err(NizkError::VerificationFailed { .. }) | Err(NizkError::InvalidProof { .. }) => Ok(()),
+        Ok(()) => Err(NizkError::VerificationFailed {
+            reason: "M7 FAIL: zero-witness proof was accepted",
+            party_id: None,
+        }),
         other => {
             let msg = format!("M7: unexpected error: {other:?}");
-            Err(NizkError::VerificationFailed(Box::leak(
-                msg.into_boxed_str(),
-            )))
+            Err(NizkError::VerificationFailed {
+                reason: Box::leak(msg.into_boxed_str()),
+                party_id: None,
+            })
         }
     }
 }

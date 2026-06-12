@@ -1,4 +1,6 @@
 use pvthfhe_fhe::PublicKey;
+use pvthfhe_non_equiv::NonEquivProof;
+use std::collections::HashMap;
 
 pub type PartyId = u32;
 
@@ -38,6 +40,7 @@ pub struct DkgTranscript {
     pub round3_aggregate: Round3Aggregate,
     pub dkg_root: [u8; 32],
     pub transcript_hash: [u8; 32],
+    pub non_equiv_proofs: HashMap<PartyId, NonEquivProof>,
 }
 
 pub enum KeygenState {

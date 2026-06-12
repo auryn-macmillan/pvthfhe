@@ -1,0 +1,19 @@
+[package]
+name = "pvthfhe-non-equiv"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Non-equivocation protocol for pvthfhe DKG (ePrint 2026/1159 §4.1)"
+
+[dependencies]
+pvthfhe-nizk = { path = "../pvthfhe-nizk" }
+pvthfhe-types = { path = "../pvthfhe-types" }
+ark-bn254 = "0.5"
+ark-ff = "0.5"
+ark-ec = "0.5"
+rand_core = "0.6"
+sha2 = "0.10"
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+rand_chacha = "0.3"

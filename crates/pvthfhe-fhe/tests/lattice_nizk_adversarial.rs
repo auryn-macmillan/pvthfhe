@@ -140,7 +140,7 @@ mod lattice_nizk_adversarial {
 
         assert!(matches!(
             RealNizkAdapter::verify(&statement, &tampered),
-            Err(NizkError::VerificationFailed(_))
+            Err(NizkError::VerificationFailed { .. })
         ));
     }
 

@@ -50,7 +50,7 @@ fn changing_dkg_root_rejects_verify() {
     stmt_b.dkg_root = vec![0xCD; 64];
 
     let result = DecryptNizkVerifier::verify(&stmt_b, &proof);
-    assert_eq!(result, Err(PvssError::InvalidShare));
+    assert_eq!(result, Err(PvssError::InvalidShare { party_id: None }));
 }
 
 #[test]
@@ -84,7 +84,7 @@ fn statement_mismatch_due_to_dkg_root_fails() {
 
     // Statement mismatch is checked by the verifier after decoding.
     let result = DecryptNizkVerifier::verify(&stmt_b, &proof);
-    assert_eq!(result, Err(PvssError::InvalidShare));
+    assert_eq!(result, Err(PvssError::InvalidShare { party_id: None }));
 }
 
 #[test]
@@ -94,7 +94,7 @@ fn empty_dkg_root_rejected() {
 
     let witness = sample_witness();
     let result = DecryptNizkProver::prove(&stmt, &witness);
-    assert_eq!(result, Err(PvssError::InvalidShare));
+    assert_eq!(result, Err(PvssError::InvalidShare { party_id: None }));
 }
 
 #[test]
@@ -104,5 +104,5 @@ fn oversized_dkg_root_rejected() {
 
     let witness = sample_witness();
     let result = DecryptNizkProver::prove(&stmt, &witness);
-    assert_eq!(result, Err(PvssError::InvalidShare));
+    assert_eq!(result, Err(PvssError::InvalidShare { party_id: None }));
 }

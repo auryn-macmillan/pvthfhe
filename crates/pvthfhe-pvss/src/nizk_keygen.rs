@@ -64,34 +64,56 @@ fn decode_keygen_proof(
     use pvthfhe_nizk::NizkError;
 
     if data.len() < 4 {
-        return Err(NizkError::InvalidInput("keygen proof too short"));
+        return Err(NizkError::InvalidInput {
+            reason: "keygen proof too short",
+            party_id: None,
+        });
     }
 
-    let z_s = decode_i64_vec(data);
+    let z_s = decode_i64_vec(data).map_err(|_| NizkError::InvalidInput {
+        reason: "keygen proof: failed to decode z_s (truncated or invalid)",
+        party_id: None,
+    })?;
     let z_s_size = 4 + z_s.len() * 8;
     if data.len() < z_s_size + 4 {
-        return Err(NizkError::InvalidInput("keygen proof truncated at z_s"));
+        return Err(NizkError::InvalidInput {
+            reason: "keygen proof truncated at z_s",
+            party_id: None,
+        });
     }
 
-    let z_e = decode_i64_vec(&data[z_s_size..]);
+    let z_e = decode_i64_vec(&data[z_s_size..]).map_err(|_| NizkError::InvalidInput {
+        reason: "keygen proof: failed to decode z_e (truncated or invalid)",
+        party_id: None,
+    })?;
     let z_e_size = 4 + z_e.len() * 8;
     if data.len() < z_s_size + z_e_size + 4 {
-        return Err(NizkError::InvalidInput("keygen proof truncated at z_e"));
+        return Err(NizkError::InvalidInput {
+            reason: "keygen proof truncated at z_e",
+            party_id: None,
+        });
     }
 
     let t_offset = z_s_size + z_e_size;
-    let t_rns = decode_u64_vec(&data[t_offset..]);
+    let t_rns = decode_u64_vec(&data[t_offset..]).map_err(|_| NizkError::InvalidInput {
+        reason: "keygen proof: failed to decode t_rns (truncated or invalid)",
+        party_id: None,
+    })?;
     let t_size = 4 + t_rns.len() * 8;
 
     let ch_offset = t_offset + t_size;
     if data.len() < ch_offset + 8 {
-        return Err(NizkError::InvalidInput("keygen proof truncated at ch"));
+        return Err(NizkError::InvalidInput {
+            reason: "keygen proof truncated at ch",
+            party_id: None,
+        });
     }
-    let ch = i64::from_le_bytes(
-        data[ch_offset..ch_offset + 8]
-            .try_into()
-            .map_err(|_| NizkError::InvalidInput("keygen proof: ch truncated"))?,
-    );
+    let ch = i64::from_le_bytes(data[ch_offset..ch_offset + 8].try_into().map_err(|_| {
+        NizkError::InvalidInput {
+            reason: "keygen proof: ch truncated",
+            party_id: None,
+        }
+    })?);
 
     Ok(pvthfhe_nizk::sigma::SigmaProof {
         z_s,
@@ -131,9 +153,9 @@ fn encode_u64_vec_buf(v: &[u64], buf: &mut Vec<u8>) {
     }
 }
 
-fn decode_i64_vec(data: &[u8]) -> Vec<i64> {
+fn decode_i64_vec(data: &[u8]) -> Result<Vec<i64>, crate::PvssError> {
     if data.len() < 4 {
-        return vec![];
+        return Err(crate::PvssError::InvalidShare { party_id: None });
     }
     let len = (u32::from_le_bytes(data[..4].try_into().unwrap_or([0u8; 4])) as usize)
         .min(MAX_KEYGEN_VEC_LEN);
@@ -146,12 +168,12 @@ fn decode_i64_vec(data: &[u8]) -> Vec<i64> {
         }
     }
     out.resize(len, 0);
-    out
+    Ok(out)
 }
 
-fn decode_u64_vec(data: &[u8]) -> Vec<u64> {
+fn decode_u64_vec(data: &[u8]) -> Result<Vec<u64>, crate::PvssError> {
     if data.len() < 4 {
-        return vec![];
+        return Err(crate::PvssError::InvalidShare { party_id: None });
     }
     let len = (u32::from_le_bytes(data[..4].try_into().unwrap_or([0u8; 4])) as usize)
         .min(MAX_KEYGEN_VEC_LEN);
@@ -164,7 +186,7 @@ fn decode_u64_vec(data: &[u8]) -> Vec<u64> {
         }
     }
     out.resize(len, 0);
-    out
+    Ok(out)
 }
 
 #[cfg(test)]

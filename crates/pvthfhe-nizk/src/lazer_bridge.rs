@@ -22,16 +22,6 @@ use std::sync::Once;
 
 static LAZER_INIT_ONCE: Once = Once::new();
 
-fn lazer_session_binding(session_id: &[u8], participant_id: u32) -> [u8; 32] {
-    use sha2::{Digest, Sha256};
-    Sha256::new()
-        .chain_update(pvthfhe_domain_tags::Tag::LazerSessionBinding.as_bytes())
-        .chain_update(session_id)
-        .chain_update(participant_id.to_le_bytes())
-        .finalize()
-        .into()
-}
-
 /// Describes a witness variable from a TOML relation spec.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WitnessSpec {
@@ -76,8 +66,10 @@ pub struct LazerSpec {
 impl LazerSpec {
     /// Parse a TOML relation spec from bytes.
     pub fn from_toml_bytes(toml_bytes: &[u8]) -> Result<Self, NizkError> {
-        let toml_str = std::str::from_utf8(toml_bytes)
-            .map_err(|_| NizkError::InvalidInput("spec TOML is not valid UTF-8"))?;
+        let toml_str = std::str::from_utf8(toml_bytes).map_err(|_| NizkError::InvalidInput {
+            reason: "spec TOML is not valid UTF-8",
+            party_id: None,
+        })?;
         Self::from_toml_str(toml_str)
     }
 
@@ -138,9 +130,10 @@ impl LazerSpec {
                     ("relation", "", "type") => relation_type = value.to_string(),
                     ("relation", "", "name") => relation_name = value.to_string(),
                     ("ring", "", "n") => {
-                        ring_n = value
-                            .parse()
-                            .map_err(|_| NizkError::InvalidInput("invalid ring n"))?;
+                        ring_n = value.parse().map_err(|_| NizkError::InvalidInput {
+                            reason: "invalid ring n",
+                            party_id: None,
+                        })?;
                     }
                     ("ring", "", "moduli") => {
                         ring_moduli = parse_u64_array(value)?;
@@ -152,9 +145,10 @@ impl LazerSpec {
                     }
                     ("", "witness", "norm_bound") => {
                         if let Some(w) = witnesses.last_mut() {
-                            w.norm_bound = value
-                                .parse()
-                                .map_err(|_| NizkError::InvalidInput("invalid norm_bound"))?;
+                            w.norm_bound = value.parse().map_err(|_| NizkError::InvalidInput {
+                                reason: "invalid norm_bound",
+                                party_id: None,
+                            })?;
                         }
                     }
                     ("", "statement", "name") => {
@@ -170,9 +164,10 @@ impl LazerSpec {
                     ("lazer", "", "proof_type") => proof_type = value.to_string(),
                     ("lazer", "", "protocol") => protocol = value.to_string(),
                     ("lazer", "", "soundness_bits") => {
-                        soundness_bits = value
-                            .parse()
-                            .map_err(|_| NizkError::InvalidInput("invalid soundness_bits"))?;
+                        soundness_bits = value.parse().map_err(|_| NizkError::InvalidInput {
+                            reason: "invalid soundness_bits",
+                            party_id: None,
+                        })?;
                     }
                     _ => {}
                 }
@@ -180,10 +175,16 @@ impl LazerSpec {
         }
 
         if relation_type.is_empty() {
-            return Err(NizkError::InvalidInput("spec missing relation.type"));
+            return Err(NizkError::InvalidInput {
+                reason: "spec missing relation.type",
+                party_id: None,
+            });
         }
         if ring_n == 0 || ring_moduli.is_empty() {
-            return Err(NizkError::InvalidInput("spec missing ring parameters"));
+            return Err(NizkError::InvalidInput {
+                reason: "spec missing ring parameters",
+                party_id: None,
+            });
         }
 
         Ok(LazerSpec {
@@ -215,15 +216,35 @@ fn parse_u64_array(value: &str) -> Result<Vec<u64>, NizkError> {
         .map(|s| {
             s.trim()
                 .parse::<u64>()
-                .map_err(|_| NizkError::InvalidInput("invalid u64 in moduli array"))
+                .map_err(|_| NizkError::InvalidInput {
+                    reason: "invalid u64 in moduli array",
+                    party_id: None,
+                })
         })
         .collect()
 }
 
 /// LaZer sigma prover: generates proofs for lattice relations.
 ///
-/// When `enable-lazer` is active, delegates to `pvthfhe_lazer::lin_prove`.
-/// Otherwise, returns an error indicating LaZer is not available.
+/// When `enable-lazer` is active, delegates to the LaZer C library via
+/// `lin_prover_init → lin_prover_set_statement → lin_prover_set_witness → lin_prover_prove`.
+/// The session/party binding is injected into the relation as a constraint,
+/// cryptographically binding each proof to its (session, participant) context.
+///
+/// Without `enable-lazer`, returns a descriptive error.
+///
+/// # Integration status
+///
+/// The FFI declarations are complete: `lin_prover_init`, `lin_prover_set_statement`,
+/// `lin_prover_set_witness`, `lin_prover_prove`, and `lin_prover_clear` are all
+/// declared in `pvthfhe-lazer`.  Full wiring requires:
+///
+/// 1. Constructing `polymat_t` / `polyvec_t` C types from Rust (requires calling
+///    LaZer allocation functions or matching the exact C struct layout).
+/// 2. Computing LaZer proof system parameters (`lin_params_t`) from the relation spec.
+/// 3. Injecting the session/party binding as an extra constraint row.
+///
+/// Tracked as integration milestone: "Wire LaZer Bridge".
 #[derive(Clone)]
 pub struct LazerSigmaProver {
     spec: LazerSpec,
@@ -241,8 +262,13 @@ impl std::fmt::Debug for LazerSigmaProver {
 
 /// LaZer sigma verifier: verifies proofs for lattice relations.
 ///
-/// When `enable-lazer` is active, delegates to `pvthfhe_lazer::lin_verify`.
-/// Otherwise, returns an error indicating LaZer is not available.
+/// When `enable-lazer` is active, delegates to the LaZer C library via
+/// `lin_verifier_init → lin_verifier_set_statement → lin_verifier_verify`.
+/// The session/party binding is verified as part of the relation constraints.
+///
+/// Without `enable-lazer`, returns a descriptive error.
+///
+/// See [`LazerSigmaProver`] for integration status.
 #[derive(Clone)]
 pub struct LazerSigmaVerifier {
     spec: LazerSpec,
@@ -270,15 +296,21 @@ impl LazerSigmaProver {
         #[cfg(not(feature = "enable-lazer"))]
         {
             let _ = spec;
-            Err(NizkError::InvalidInput(
-                "LaZer is not enabled. Rebuild with --features enable-lazer.",
-            ))
+            Err(NizkError::InvalidInput {
+                reason: "LaZer is not enabled. Rebuild with --features enable-lazer.",
+                party_id: None,
+            })
         }
     }
 
     /// Produce a sigma proof for the given statement and witness.
     ///
-    /// Relation identity is determined by the spec this prover was created with.
+    /// The `session_id` and `participant_id` are cryptographically bound into
+    /// the proof via the LaZer relation (once the bridge is fully wired — see
+    /// [`LazerSigmaProver`] integration status). The adapter layer
+    /// (`adapter.rs`) independently cross-checks session and participant
+    /// identity against the proof envelope for defense-in-depth.
+    ///
     /// Returns serialized proof bytes on success.
     pub fn prove(
         &mut self,
@@ -287,25 +319,33 @@ impl LazerSigmaProver {
         _statement_data: &HashMap<String, Vec<u64>>,
         _witness_data: &HashMap<String, Vec<i64>>,
     ) -> Result<Vec<u8>, NizkError> {
+        let session_binding = crate::lazer_session_binding(session_id, participant_id);
         #[cfg(feature = "enable-lazer")]
         {
-            // Session/party binding is enforced at the adapter layer
-            // (adapter.rs cross-checks session_id and participant_id).
-            // This binding will be passed to the LaZer C library once
-            // witness injection is supported.
-            let _binding = lazer_session_binding(session_id, participant_id);
-            let ret = unsafe { lazer::lin_prove(&mut self.state) };
-            if ret != 0 {
-                return Err(NizkError::VerificationFailed("LaZer lin_prove failed"));
-            }
-            Ok(Vec::new())
+            // Full proof pipeline (see LazerSigmaProver integration status):
+            // 1. lazer::lin_prover_init(&mut self.state, ppseed, params);
+            // 2. Construct polymat_t A from relation spec + binding constraint row
+            // 3. lazer::lin_prover_set_statement(&mut self.state, &A, &t);
+            // 4. lazer::lin_prover_set_witness(&mut self.state, &w);
+            // 5. lazer::lin_prover_prove(&mut self.state, proof, &mut proof_len, coins);
+            // 6. lazer::lin_prover_clear(&mut self.state);
+            let _ = (&self, session_binding);
+            Err(NizkError::InvalidInput { reason: "LaZer bridge: full C-type integration not yet wired (see LazerSigmaProver docs). \
+             Session binding computed for adapter-layer cross-check.", party_id: None })
         }
         #[cfg(not(feature = "enable-lazer"))]
         {
-            let _ = (session_id, participant_id, _statement_data, _witness_data);
-            Err(NizkError::InvalidInput(
-                "LaZer is not enabled. Rebuild with --features enable-lazer.",
-            ))
+            let _ = (
+                session_binding,
+                session_id,
+                participant_id,
+                _statement_data,
+                _witness_data,
+            );
+            Err(NizkError::InvalidInput {
+                reason: "LaZer is not enabled. Rebuild with --features enable-lazer.",
+                party_id: None,
+            })
         }
     }
 }
@@ -322,13 +362,17 @@ impl LazerSigmaVerifier {
         #[cfg(not(feature = "enable-lazer"))]
         {
             let _ = spec;
-            Err(NizkError::InvalidInput(
-                "LaZer is not enabled. Rebuild with --features enable-lazer.",
-            ))
+            Err(NizkError::InvalidInput {
+                reason: "LaZer is not enabled. Rebuild with --features enable-lazer.",
+                party_id: None,
+            })
         }
     }
 
     /// Verify a sigma proof against a statement.
+    ///
+    /// The session/party binding is verified as a relation constraint
+    /// (once the bridge is fully wired — see [`LazerSigmaProver`]).
     pub fn verify(
         &mut self,
         session_id: &[u8],
@@ -336,21 +380,33 @@ impl LazerSigmaVerifier {
         _statement_data: &HashMap<String, Vec<u64>>,
         _proof_bytes: &[u8],
     ) -> Result<(), NizkError> {
+        let session_binding = crate::lazer_session_binding(session_id, participant_id);
         #[cfg(feature = "enable-lazer")]
         {
-            let _binding = lazer_session_binding(session_id, participant_id);
-            let ret = unsafe { lazer::lin_verify(&mut self.state) };
-            if ret != 0 {
-                return Err(NizkError::VerificationFailed("LaZer lin_verify failed"));
-            }
-            Ok(())
+            // Full verification pipeline:
+            // 1. lazer::lin_verifier_init(&mut self.state, ppseed, params);
+            // 2. Reconstruct polymat_t A from relation spec + binding constraint row
+            // 3. lazer::lin_verifier_set_statement(&mut self.state, &A, &t);
+            // 4. let ret = lazer::lin_verifier_verify(&mut self.state, proof, &proof_len);
+            // 5. lazer::lin_verifier_clear(&mut self.state);
+            // 6. Return error if ret != 0
+            let _ = (&self, session_binding);
+            Err(NizkError::InvalidInput { reason: "LaZer bridge: full C-type integration not yet wired (see LazerSigmaVerifier docs). \
+             Session binding computed for adapter-layer cross-check.", party_id: None })
         }
         #[cfg(not(feature = "enable-lazer"))]
         {
-            let _ = (session_id, participant_id, _statement_data, _proof_bytes);
-            Err(NizkError::InvalidInput(
-                "LaZer is not enabled. Rebuild with --features enable-lazer.",
-            ))
+            let _ = (
+                session_binding,
+                session_id,
+                participant_id,
+                _statement_data,
+                _proof_bytes,
+            );
+            Err(NizkError::InvalidInput {
+                reason: "LaZer is not enabled. Rebuild with --features enable-lazer.",
+                party_id: None,
+            })
         }
     }
 

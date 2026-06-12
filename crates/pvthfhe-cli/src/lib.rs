@@ -40,3 +40,9 @@ pub mod full_pipeline;
 pub mod protocol_verifier;
 
 pub mod noir_poseidon;
+
+#[cfg(all(
+    feature = "with-fhe",
+    any(feature = "enable-ckks", feature = "enable-tfhe")
+))]
+pub mod scheme_switch;

@@ -1,1 +1,1 @@
-global N: u32 = 8;
+global N: u32 = 8192;

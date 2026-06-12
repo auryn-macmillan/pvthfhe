@@ -15,6 +15,27 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 #![deny(missing_docs)]
 
+/// Compute a cryptographic session/party binding for LaZer proof context.
+///
+/// This binding is a SHA-256 hash over the domain-separated `(session_id, participant_id)`
+/// pair.  When the LaZer bridge is fully wired, this hash is injected as an extra constraint
+/// in the lattice relation so that each proof is cryptographically bound to its
+/// (session, participant) context.
+///
+/// The adapter layer (`adapter.rs`) independently cross-checks session and participant
+/// identity against the proof envelope for defense-in-depth.
+///
+/// Available regardless of the `enable-lazer` feature flag.
+pub fn lazer_session_binding(session_id: &[u8], participant_id: u32) -> [u8; 32] {
+    use sha2::{Digest, Sha256};
+    Sha256::new()
+        .chain_update(pvthfhe_domain_tags::Tag::LazerSessionBinding.as_bytes())
+        .chain_update(session_id)
+        .chain_update(participant_id.to_le_bytes())
+        .finalize()
+        .into()
+}
+
 pub mod adapter;
 pub mod ajtai;
 pub mod bfv_sigma;
@@ -113,24 +134,53 @@ impl NizkProof {
 }
 
 /// Errors produced by [`NizkAdapter`] implementations.
+///
+/// All variants carry an optional `party_id: Option<u16>` for blame attribution.
+/// When `Some(id)`, the error is attributable to a specific party; `None` means
+/// the error occurred before party context was available (e.g., during deserialization).
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum NizkError {
     /// Verification succeeded algebraically but soundness is conditional on an
     /// unproven extractor (T2 — Open Problem P1).  See `SECURITY.md §P1`.
-    #[error("conditional soundness: {0}")]
-    ConditionalSoundnessDisclosure(&'static str),
+    #[error("conditional soundness (party {party_id:?}): {reason}")]
+    ConditionalSoundnessDisclosure {
+        /// Human-readable reason for conditional soundness disclosure.
+        reason: &'static str,
+        /// Optional party identifier.
+        party_id: Option<u16>,
+    },
     /// Statement or witness encoding is malformed.
-    #[error("invalid NIZK input: {0}")]
-    InvalidInput(&'static str),
+    #[error("invalid NIZK input (party {party_id:?}): {reason}")]
+    InvalidInput {
+        /// Human-readable reason for the invalid input.
+        reason: &'static str,
+        /// Optional party identifier.
+        party_id: Option<u16>,
+    },
     /// Proof bytes could not be decoded.
-    #[error("invalid NIZK proof: {0}")]
-    InvalidProof(&'static str),
+    #[error("invalid NIZK proof (party {party_id:?}): {reason}")]
+    InvalidProof {
+        /// Human-readable reason for the invalid proof.
+        reason: &'static str,
+        /// Optional party identifier.
+        party_id: Option<u16>,
+    },
     /// The proof does not satisfy the verification equation.
-    #[error("NIZK verification failed: {0}")]
-    VerificationFailed(&'static str),
+    #[error("NIZK verification failed (party {party_id:?}): {reason}")]
+    VerificationFailed {
+        /// Human-readable reason for verification failure.
+        reason: &'static str,
+        /// Optional party identifier.
+        party_id: Option<u16>,
+    },
     /// Proof generation failed due to exhaustion of retries (e.g., rejection sampling).
-    #[error("proof generation failed: {0}")]
-    ProofGenerationFailed(&'static str),
+    #[error("proof generation failed (party {party_id:?}): {reason}")]
+    ProofGenerationFailed {
+        /// Human-readable reason for proof generation failure.
+        reason: &'static str,
+        /// Optional party identifier.
+        party_id: Option<u16>,
+    },
 }
 
 /// Object-safe adapter trait for per-share P1 NIZK backends.
@@ -170,4 +220,42 @@ pub trait NizkAdapter {
     ///
     /// Implementations MAY short-circuit on the first failure.
     fn batch_verify(&self, stmts: &[NizkStatement], proofs: &[NizkProof]) -> Result<(), NizkError>;
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::lazer_session_binding;
+
+    #[test]
+    fn session_binding_different_session_yields_different_binding() {
+        let b1 = lazer_session_binding(b"session-alpha", 1);
+        let b2 = lazer_session_binding(b"session-beta", 1);
+        assert_ne!(b1, b2);
+    }
+
+    #[test]
+    fn session_binding_different_participant_yields_different_binding() {
+        let b1 = lazer_session_binding(b"session", 1);
+        let b2 = lazer_session_binding(b"session", 2);
+        assert_ne!(b1, b2);
+    }
+
+    #[test]
+    fn session_binding_is_deterministic() {
+        let b1 = lazer_session_binding(b"test-session", 42);
+        let b2 = lazer_session_binding(b"test-session", 42);
+        assert_eq!(b1, b2);
+    }
+
+    #[test]
+    fn session_binding_includes_domain_tag() {
+        use sha2::{Digest, Sha256};
+        let raw = Sha256::new()
+            .chain_update(b"test-session")
+            .chain_update(42u32.to_le_bytes())
+            .finalize();
+        let binding = lazer_session_binding(b"test-session", 42);
+        assert_ne!(binding, raw.as_slice());
+        assert_ne!(binding, [0u8; 32]);
+    }
 }

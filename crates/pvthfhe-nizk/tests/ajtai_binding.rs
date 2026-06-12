@@ -33,7 +33,7 @@ fn ajtai_binding_negative_witness_differs() -> Result<(), NizkError> {
 
     let result = commitment.verify_open(&matrix, &s2);
     assert!(
-        matches!(result, Err(NizkError::VerificationFailed(_))),
+        matches!(result, Err(NizkError::VerificationFailed { .. })),
         "expected VerificationFailed, got {result:?}",
     );
     Ok(())

@@ -1983,7 +1983,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 "C7Prover",
             ])
             .current_dir(&noir_workspace);
-        let status = run_with_timeout(&mut nargo_cmd, 120);
+        let status = run_with_timeout(&mut nargo_cmd, 300); // N=8192 RLC circuit: ~80K ACIR ops, compiler needs ~2-5min
         match status {
             Ok(s) if s.success() => {}
             Ok(s) => {

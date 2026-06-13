@@ -10,7 +10,7 @@ use protocol_constants;
 // Per-coefficient range checks (sk ternary, e norm) are verified
 // natively by the sigma protocol verifier; only the algebraic
 // Schwartz-Zippel relation is proved in-circuit.
-global N: u32 = 8192;
+global N: u32 = 256;
 global LOG_N: u32 = 13;
 global B_E: u32 = 16;
 

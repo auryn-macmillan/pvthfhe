@@ -43,13 +43,13 @@ contract SessionRegistryAbortRestartTest is Test {
 
     function test_liveness_abortRestart_epochReusableUnderNewRunId() public {
         reg.registerSession(DKG_ROOT, N, T, ROSTER_HASH);
-        reg.markEpochConsumed(DKG_ROOT, EPOCH_1);
-        assertTrue(reg.isEpochConsumed(DKG_ROOT, EPOCH_1), "epoch 1 must be consumed in run 0");
+        reg.markEpochConsumed(DKG_ROOT, bytes32(uint256(1)), EPOCH_1);
+        assertTrue(reg.isEpochConsumed(DKG_ROOT, bytes32(uint256(1)), EPOCH_1), "epoch 1 must be consumed in run 0");
         reg.abortSession(DKG_ROOT);
 
         reg.registerSession(DKG_ROOT, N, T, ROSTER_HASH);
-        reg.markEpochConsumed(DKG_ROOT, EPOCH_1);
-        assertTrue(reg.isEpochConsumed(DKG_ROOT, EPOCH_1), "epoch 1 must be consumed in run 1");
+        reg.markEpochConsumed(DKG_ROOT, bytes32(uint256(1)), EPOCH_1);
+        assertTrue(reg.isEpochConsumed(DKG_ROOT, bytes32(uint256(1)), EPOCH_1), "epoch 1 must be consumed in run 1");
     }
 
     // =========================================================================
@@ -58,21 +58,21 @@ contract SessionRegistryAbortRestartTest is Test {
 
     function test_replayProtection_oldRunConsumedDoesNotBlockNewRun() public {
         reg.registerSession(DKG_ROOT, N, T, ROSTER_HASH);
-        reg.markEpochConsumed(DKG_ROOT, EPOCH_1);
-        reg.markEpochConsumed(DKG_ROOT, EPOCH_2);
+        reg.markEpochConsumed(DKG_ROOT, bytes32(uint256(1)), EPOCH_1);
+        reg.markEpochConsumed(DKG_ROOT, bytes32(uint256(1)), EPOCH_2);
         reg.abortSession(DKG_ROOT);
 
         reg.registerSession(DKG_ROOT, N, T, ROSTER_HASH);
-        reg.markEpochConsumed(DKG_ROOT, EPOCH_1);
-        reg.markEpochConsumed(DKG_ROOT, EPOCH_2);
+        reg.markEpochConsumed(DKG_ROOT, bytes32(uint256(1)), EPOCH_1);
+        reg.markEpochConsumed(DKG_ROOT, bytes32(uint256(1)), EPOCH_2);
 
-        assertTrue(reg.isEpochConsumed(DKG_ROOT, EPOCH_1), "epoch 1 consumed in run 1");
-        assertTrue(reg.isEpochConsumed(DKG_ROOT, EPOCH_2), "epoch 2 consumed in run 1");
+        assertTrue(reg.isEpochConsumed(DKG_ROOT, bytes32(uint256(1)), EPOCH_1), "epoch 1 consumed in run 1");
+        assertTrue(reg.isEpochConsumed(DKG_ROOT, bytes32(uint256(1)), EPOCH_2), "epoch 2 consumed in run 1");
 
         vm.expectRevert(
             abi.encodeWithSelector(SessionRegistry.EpochAlreadyConsumed.selector, DKG_ROOT, EPOCH_1)
         );
-        reg.markEpochConsumed(DKG_ROOT, EPOCH_1);
+        reg.markEpochConsumed(DKG_ROOT, bytes32(uint256(1)), EPOCH_1);
     }
 
     // =========================================================================
@@ -103,23 +103,17 @@ contract SessionRegistryAbortRestartTest is Test {
 
         // Invalid proof → HonkVerifier reverts, propagated by verifyAndConsume.
         vm.expectRevert();
-        verifier.verifyAndConsume(
-            ZERO_HASH, ZERO_HASH, ZERO_HASH, DKG_ROOT, EPOCH_1, ZERO_HASH, ZERO_HASH, proof0
-        );
+        verifier.verifyAndConsume(ZERO_HASH, ZERO_HASH, ZERO_HASH, DKG_ROOT, bytes32(uint256(1)), EPOCH_1, ZERO_HASH, ZERO_HASH, proof0);
 
         reg.abortSession(DKG_ROOT);
         reg.registerSession(DKG_ROOT, N, T, ROSTER_HASH);
 
         bytes memory proof1 = _makeProof();
         vm.expectRevert();
-        verifier.verifyAndConsume(
-            ZERO_HASH, ZERO_HASH, ZERO_HASH, DKG_ROOT, EPOCH_1, ZERO_HASH, ZERO_HASH, proof1
-        );
+        verifier.verifyAndConsume(ZERO_HASH, ZERO_HASH, ZERO_HASH, DKG_ROOT, bytes32(uint256(1)), EPOCH_1, ZERO_HASH, ZERO_HASH, proof1);
 
         // Replay also reverts.
         vm.expectRevert();
-        verifier.verifyAndConsume(
-            ZERO_HASH, ZERO_HASH, ZERO_HASH, DKG_ROOT, EPOCH_1, ZERO_HASH, ZERO_HASH, proof1
-        );
+        verifier.verifyAndConsume(ZERO_HASH, ZERO_HASH, ZERO_HASH, DKG_ROOT, bytes32(uint256(1)), EPOCH_1, ZERO_HASH, ZERO_HASH, proof1);
     }
 }

@@ -236,6 +236,9 @@ pub struct CycloParams {
     /// `beta_at_t = norm_bound_b + sequential_t * base_b * 16`.
     /// At T=10: 1024 + 10·2·16 = 1344.
     pub beta_at_t: u64,
+    /// Batch fold arity: number of instances pre-combined into one fold step.
+    /// Default 10, matching [`sequential_t`](Self::sequential_t).
+    pub batch_fold_arity: u32,
 }
 
 /// Locked parameter set for PVTHFHE Phase 2 Cyclo folding.
@@ -249,6 +252,7 @@ pub const PVTHFHE_CYCLO_PARAMS: CycloParams = CycloParams {
     sequential_t: 10,
     l_per_round: 1,
     beta_at_t: 1344,
+    batch_fold_arity: 10,
 };
 
 /// A per-participant CCS instance produced by the P1 NIZK layer.

@@ -76,14 +76,14 @@ contract SessionRegistryTest is Test {
         reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
         vm.expectEmit(true, false, false, true);
         emit SessionRegistry.EpochConsumed(DKG_ROOT_A, 1, 0);
-        reg.markEpochConsumed(DKG_ROOT_A, 1);
+        reg.markEpochConsumed(DKG_ROOT_A, bytes32(uint256(1)), 1);
     }
 
     /// @notice After markEpochConsumed, isEpochConsumed returns true (R6.9: scoped to current runId).
     function test_markEpochConsumed_setsConsumed() public {
         reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
-        reg.markEpochConsumed(DKG_ROOT_A, 1);
-        assertTrue(reg.isEpochConsumed(DKG_ROOT_A, 1));
+        reg.markEpochConsumed(DKG_ROOT_A, bytes32(uint256(1)), 1);
+        assertTrue(reg.isEpochConsumed(DKG_ROOT_A, bytes32(uint256(1)), 1));
     }
 
     // -------------------------------------------------------------------------
@@ -93,9 +93,9 @@ contract SessionRegistryTest is Test {
     /// @notice markEpochConsumed twice on the same epoch must revert EpochAlreadyConsumed.
     function test_rejectEpochReplay() public {
         reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
-        reg.markEpochConsumed(DKG_ROOT_A, 42);
+        reg.markEpochConsumed(DKG_ROOT_A, bytes32(uint256(1)), 42);
         vm.expectRevert(abi.encodeWithSelector(SessionRegistry.EpochAlreadyConsumed.selector, DKG_ROOT_A, uint64(42)));
-        reg.markEpochConsumed(DKG_ROOT_A, 42);
+        reg.markEpochConsumed(DKG_ROOT_A, bytes32(uint256(1)), 42);
     }
 
     // -------------------------------------------------------------------------
@@ -127,7 +127,7 @@ contract SessionRegistryTest is Test {
     /// @notice markEpochConsumed on unregistered session must revert SessionNotFound.
     function test_markEpochConsumed_rejectsUnregistered() public {
         vm.expectRevert(abi.encodeWithSelector(SessionRegistry.SessionNotFound.selector, DKG_ROOT_A));
-        reg.markEpochConsumed(DKG_ROOT_A, 1);
+        reg.markEpochConsumed(DKG_ROOT_A, bytes32(uint256(1)), 1);
     }
 
     // -------------------------------------------------------------------------
@@ -149,7 +149,7 @@ contract SessionRegistryTest is Test {
     /// @notice verifySession on a consumed epoch must revert EpochAlreadyConsumed.
     function test_verifySession_rejectsConsumedEpoch() public {
         reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
-        reg.markEpochConsumed(DKG_ROOT_A, 7);
+        reg.markEpochConsumed(DKG_ROOT_A, bytes32(uint256(1)), 7);
         vm.expectRevert(abi.encodeWithSelector(SessionRegistry.EpochAlreadyConsumed.selector, DKG_ROOT_A, uint64(7)));
         reg.verifySession(DKG_ROOT_A, 7, ROSTER_HASH);
     }
@@ -162,7 +162,7 @@ contract SessionRegistryTest is Test {
     function test_crossSessionReplay_independent() public {
         reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
         reg.registerSession(DKG_ROOT_B, 10, 6, ROSTER_HASH);
-        reg.markEpochConsumed(DKG_ROOT_A, 1);
+        reg.markEpochConsumed(DKG_ROOT_A, bytes32(uint256(1)), 1);
         // Session B, same epoch 1 → should NOT revert
         reg.verifySession(DKG_ROOT_B, 1, ROSTER_HASH);
     }
@@ -196,7 +196,7 @@ contract SessionRegistryTest is Test {
         reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
         reg.abortSession(DKG_ROOT_A);
         vm.expectRevert(abi.encodeWithSelector(SessionRegistry.SessionAbortedError.selector, DKG_ROOT_A));
-        reg.markEpochConsumed(DKG_ROOT_A, 1);
+        reg.markEpochConsumed(DKG_ROOT_A, bytes32(uint256(1)), 1);
     }
 
     /// @notice RED → GREEN: abortSession on unregistered dkgRoot reverts SessionNotFound.
@@ -235,7 +235,7 @@ contract SessionRegistryTest is Test {
     function test_liveness_consumedEpochsReusableAfterReregister() public {
         reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
         // Consume epoch 99 under run 0
-        reg.markEpochConsumed(DKG_ROOT_A, 99);
+        reg.markEpochConsumed(DKG_ROOT_A, bytes32(uint256(1)), 99);
         // Verify it was consumed under runId=0
         assertTrue(reg.consumed(DKG_ROOT_A, 99, 0), "epoch 99 consumed under runId=0");
 
@@ -243,13 +243,13 @@ contract SessionRegistryTest is Test {
         reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
 
         // R6.9: epoch 99 is NOT consumed under new runId=1
-        assertFalse(reg.isEpochConsumed(DKG_ROOT_A, 99), "epoch 99 must be reusable under runId=1");
+        assertFalse(reg.isEpochConsumed(DKG_ROOT_A, bytes32(uint256(1)), 99), "epoch 99 must be reusable under runId=1");
         // But still consumed under old runId=0 (off-chain audit trail)
         assertTrue(reg.consumed(DKG_ROOT_A, 99, 0), "epoch 99 still consumed under runId=0");
 
         // New run can consume epoch 99 fresh
-        reg.markEpochConsumed(DKG_ROOT_A, 99);
-        assertTrue(reg.isEpochConsumed(DKG_ROOT_A, 99), "epoch 99 consumed under runId=1");
+        reg.markEpochConsumed(DKG_ROOT_A, bytes32(uint256(1)), 99);
+        assertTrue(reg.isEpochConsumed(DKG_ROOT_A, bytes32(uint256(1)), 99), "epoch 99 consumed under runId=1");
     }
 
     // -------------------------------------------------------------------------
@@ -261,32 +261,32 @@ contract SessionRegistryTest is Test {
         bytes32 firstCiphertext = keccak256("ciphertext-a");
         bytes32 secondCiphertext = keccak256("ciphertext-b");
 
-        reg.recordSmudgeSlotUse(DKG_ROOT_A, 3, 7, firstCiphertext, 11);
+        reg.recordSmudgeSlotUse(DKG_ROOT_A, bytes32(uint256(1)), 3, 7, firstCiphertext, 11);
 
         vm.expectRevert(
             abi.encodeWithSelector(SessionRegistry.SmudgeSlotAlreadyBound.selector, DKG_ROOT_A, uint32(3), uint32(7))
         );
-        reg.recordSmudgeSlotUse(DKG_ROOT_A, 3, 7, secondCiphertext, 11);
+        reg.recordSmudgeSlotUse(DKG_ROOT_A, bytes32(uint256(1)), 3, 7, secondCiphertext, 11);
     }
 
     function test_smudgeSlot_rejectsReuseForDifferentDecryptRound() public {
         reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
         bytes32 ciphertextHash = keccak256("ciphertext-a");
 
-        reg.recordSmudgeSlotUse(DKG_ROOT_A, 3, 7, ciphertextHash, 11);
+        reg.recordSmudgeSlotUse(DKG_ROOT_A, bytes32(uint256(1)), 3, 7, ciphertextHash, 11);
 
         vm.expectRevert(
             abi.encodeWithSelector(SessionRegistry.SmudgeSlotAlreadyBound.selector, DKG_ROOT_A, uint32(3), uint32(7))
         );
-        reg.recordSmudgeSlotUse(DKG_ROOT_A, 3, 7, ciphertextHash, 12);
+        reg.recordSmudgeSlotUse(DKG_ROOT_A, bytes32(uint256(1)), 3, 7, ciphertextHash, 12);
     }
 
     function test_smudgeSlot_allowsIdempotentSameTuple() public {
         reg.registerSession(DKG_ROOT_A, 10, 6, ROSTER_HASH);
         bytes32 ciphertextHash = keccak256("ciphertext-a");
 
-        reg.recordSmudgeSlotUse(DKG_ROOT_A, 3, 7, ciphertextHash, 11);
-        reg.recordSmudgeSlotUse(DKG_ROOT_A, 3, 7, ciphertextHash, 11);
+        reg.recordSmudgeSlotUse(DKG_ROOT_A, bytes32(uint256(1)), 3, 7, ciphertextHash, 11);
+        reg.recordSmudgeSlotUse(DKG_ROOT_A, bytes32(uint256(1)), 3, 7, ciphertextHash, 11);
 
         (bool consumed, bytes32 storedCiphertextHash, uint64 storedDecryptRound) = reg.smudgeSlotUse(DKG_ROOT_A, 3, 7);
         assertTrue(consumed, "slot must be recorded");
@@ -300,6 +300,6 @@ contract SessionRegistryTest is Test {
 
         vm.prank(outsider);
         vm.expectRevert();
-        reg.recordSmudgeSlotUse(DKG_ROOT_A, 3, 7, keccak256("ciphertext-a"), 11);
+        reg.recordSmudgeSlotUse(DKG_ROOT_A, bytes32(uint256(1)), 3, 7, keccak256("ciphertext-a"), 11);
     }
 }

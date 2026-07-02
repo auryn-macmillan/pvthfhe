@@ -613,6 +613,14 @@ fn verify_accumulator_transcript(
             if ir.ajtai_commitment_hash != expected_ajtai_hash {
                 return Err(NizkError::VerificationFailed { reason: "accumulator transcript: ajtai_commitment_hash mismatch for current participant", party_id: Some(stmt.participant_id) });
             }
+
+            if ir.sha256_binding != stmt.pvss_commitment {
+                return Err(NizkError::VerificationFailed {
+                    reason:
+                        "accumulator transcript: sha256_binding mismatch for current participant",
+                    party_id: Some(stmt.participant_id),
+                });
+            }
         }
     }
 
@@ -935,25 +943,6 @@ pub fn append_accumulator_to_proof(
     proof_bytes.extend_from_slice(&acc_len.to_be_bytes());
     proof_bytes.extend_from_slice(&acc_transcript);
     Ok(())
-}
-
-fn decode_sigma_section(bytes: &[u8]) -> Result<(Vec<u64>, sigma::SigmaProof), NizkError> {
-    let mut cur = Cursor::new(bytes);
-    let d_rns = cur.read_u64s()?;
-    let t_rns = cur.read_u64s()?;
-    let z_s = cur.read_i64s()?;
-    let z_e = cur.read_i64s()?;
-    let ch = cur.read_ch_ternary_32()?;
-    cur.finish()?;
-    Ok((
-        d_rns,
-        sigma::SigmaProof {
-            t_rns,
-            z_s,
-            z_e,
-            ch,
-        },
-    ))
 }
 
 fn decode_sigma_section_multi(

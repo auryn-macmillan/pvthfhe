@@ -33,20 +33,20 @@ contract EpochConsumptionAtomicityTest is Test {
     }
 
     function test_invalid_proof_does_not_consume_epoch() public {
-        assertFalse(reg.isEpochConsumed(DKG_ROOT, EPOCH), "pre: epoch must be fresh");
+        assertFalse(reg.isEpochConsumed(DKG_ROOT, bytes32(uint256(1)), EPOCH), "pre: epoch must be fresh");
 
         // Invalid proof → HonkVerifier rejects. verifyAndConsume reverts.
         vm.expectRevert();
         verifier.verifyAndConsume(
             bytes32(uint256(0xDEAD)),
             bytes32(uint256(2)), bytes32(uint256(3)),
-            DKG_ROOT, EPOCH,
+            DKG_ROOT, bytes32(uint256(1)), EPOCH,
             bytes32(uint256(5)), bytes32(uint256(6)),
             validProof
         );
 
         // Epoch must NOT be consumed by a reverting proof.
-        assertFalse(reg.isEpochConsumed(DKG_ROOT, EPOCH), "epoch must NOT be consumed by invalid proof");
+        assertFalse(reg.isEpochConsumed(DKG_ROOT, bytes32(uint256(1)), EPOCH), "epoch must NOT be consumed by invalid proof");
     }
 
     function test_valid_proof_consumes_epoch_and_succeeds() public {
@@ -54,13 +54,13 @@ contract EpochConsumptionAtomicityTest is Test {
         vm.expectRevert();
         verifier.verifyAndConsume(
             bytes32(uint256(1)), bytes32(uint256(2)), bytes32(uint256(3)),
-            DKG_ROOT, EPOCH,
+            DKG_ROOT, bytes32(uint256(1)), EPOCH,
             bytes32(uint256(5)), bytes32(uint256(6)),
             validProof
         );
 
         // Epoch must NOT be consumed when proof reverts.
-        assertFalse(reg.isEpochConsumed(DKG_ROOT, EPOCH), "epoch must not be consumed when proof reverts");
+        assertFalse(reg.isEpochConsumed(DKG_ROOT, bytes32(uint256(1)), EPOCH), "epoch must not be consumed when proof reverts");
     }
 
     function test_invalid_then_valid_still_consumes_epoch() public {
@@ -68,19 +68,19 @@ contract EpochConsumptionAtomicityTest is Test {
         vm.expectRevert();
         verifier.verifyAndConsume(
             bytes32(uint256(0xDEAD)), bytes32(uint256(2)), bytes32(uint256(3)),
-            DKG_ROOT, EPOCH, bytes32(uint256(5)), bytes32(uint256(6)), validProof
+            DKG_ROOT, bytes32(uint256(1)), EPOCH, bytes32(uint256(5)), bytes32(uint256(6)), validProof
         );
 
-        assertFalse(reg.isEpochConsumed(DKG_ROOT, EPOCH), "epoch must NOT be consumed after invalid proof");
+        assertFalse(reg.isEpochConsumed(DKG_ROOT, bytes32(uint256(1)), EPOCH), "epoch must NOT be consumed after invalid proof");
 
         // Second: another attempt (still no real valid proof → reverts)
         vm.expectRevert();
         verifier.verifyAndConsume(
             bytes32(uint256(1)), bytes32(uint256(2)), bytes32(uint256(3)),
-            DKG_ROOT, EPOCH, bytes32(uint256(5)), bytes32(uint256(6)), validProof
+            DKG_ROOT, bytes32(uint256(1)), EPOCH, bytes32(uint256(5)), bytes32(uint256(6)), validProof
         );
 
-        assertFalse(reg.isEpochConsumed(DKG_ROOT, EPOCH), "epoch must NOT be consumed without valid proof");
+        assertFalse(reg.isEpochConsumed(DKG_ROOT, bytes32(uint256(1)), EPOCH), "epoch must NOT be consumed without valid proof");
     }
 
     function test_replay_protection_still_works() public {
@@ -88,11 +88,11 @@ contract EpochConsumptionAtomicityTest is Test {
         vm.expectRevert();
         verifier.verifyAndConsume(
             bytes32(uint256(1)), bytes32(uint256(2)), bytes32(uint256(3)),
-            DKG_ROOT, EPOCH, bytes32(uint256(5)), bytes32(uint256(6)), validProof
+            DKG_ROOT, bytes32(uint256(1)), EPOCH, bytes32(uint256(5)), bytes32(uint256(6)), validProof
         );
 
         // Epoch was never consumed, so replay should NOT trigger epoch replay error.
         // (It will again reject because proof is invalid.)
-        assertFalse(reg.isEpochConsumed(DKG_ROOT, EPOCH), "epoch was never consumed");
+        assertFalse(reg.isEpochConsumed(DKG_ROOT, bytes32(uint256(1)), EPOCH), "epoch was never consumed");
     }
 }

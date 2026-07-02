@@ -110,7 +110,8 @@ impl Compressor {
     /// Set the decrypt NIZK hash for IVC proof binding (P1.5).
     pub fn set_decrypt_nizk_hash(&mut self, hash: [u8; 32]) {
         #[cfg(feature = "enable-latticefold")]
-        if let Self::LatticeFold { inner, .. } = self {
+        {
+            let Self::LatticeFold { inner, .. } = self;
             inner.set_decrypt_nizk_hash(hash);
         }
     }
@@ -118,7 +119,8 @@ impl Compressor {
     /// Set the DKG transcript hash for IVC proof binding (P1.5).
     pub fn set_dkg_transcript_hash(&mut self, hash: [u8; 32]) {
         #[cfg(feature = "enable-latticefold")]
-        if let Self::LatticeFold { inner, .. } = self {
+        {
+            let Self::LatticeFold { inner, .. } = self;
             inner.set_dkg_transcript_hash(hash);
         }
     }
@@ -126,7 +128,8 @@ impl Compressor {
     /// Set whether FHE Mul operations were performed (S2).
     pub fn set_has_fhe_mul_ops(&mut self, v: u64) {
         #[cfg(feature = "enable-latticefold")]
-        if let Self::LatticeFold { inner, .. } = self {
+        {
+            let Self::LatticeFold { inner, .. } = self;
             inner.set_has_fhe_mul_ops(v);
         }
     }

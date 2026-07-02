@@ -39,10 +39,15 @@
 // element can hold a coefficient value without overflow.
 //
 // What this circuit proves (C7 correctness relation):
-// 1. sum(lambda_i) = 1                    (Lagrange interpolation identity)
-// 2. sum(lambda_i * d_i(r)) = pt(r)      (Schwartz-Zippel recombination)
-// 3. plaintext_commitment = Poseidon(pt)  (plaintext commitment binding)
-// 4. Existing: non-zero guards, ciphertext-vs-plaintext, IVC hash, chain hash
+// 1. sum(lambda_i) = 1                    (Lagrange interpolation identity, redundant safety net)
+// 2. λ_i = Π_{j≠i} (x_j − r) / (x_j − x_i)  (O(t²) in-circuit Lagrange computation from public committee_party_ids)
+// 3. sum(lambda_i * d_i(r)) = pt(r)      (Schwartz-Zippel recombination)
+// 4. plaintext_commitment = Poseidon(pt)  (plaintext commitment binding)
+// 5. Existing: non-zero guards, ciphertext-vs-plaintext, IVC hash, chain hash
+//
+// Trust gap closure (2026-06-30): λ_i are now verified against in-circuit
+// computation from public committee_party_ids, closing the 126-degree-of-freedom
+// exploit where a prover could bias decryption. See c7-solution-decision.md §Trust Gap.
 //
 // G2: Merkle-bound share commitment verification (proof-gap-remediation)
 // ---
@@ -115,6 +120,33 @@ fn eval_poly(coeffs: [Field; N], r: Field) -> Field {
         result = result * r + coeffs[N - 1 - i];
     }
     result
+}
+
+/// C7-LAGRANGE: Compute the i-th Lagrange coefficient at evaluation point `r`.
+///
+/// Formula: λ_i(r) = Π_{j≠i, j<n} (x_j − r) / (x_j − x_i)
+///
+/// Where `x_i = party_ids[i]` are the committee party IDs (evaluation points
+/// for the Shamir sharing polynomial). The party IDs must be distinct.
+///
+/// For n=1 (single party), λ_0 = 1 (trivially, since num/den = 1/1).
+///
+/// Closes the trust gap documented in §Trust Gap of c7-solution-decision.md:
+/// previously, lagrange_coeffs were prover-supplied with only Σ λ_i == 1 enforced.
+/// Computing them in-circuit from public committee_party_ids eliminates the
+/// 126 degrees of freedom a malicious prover could exploit.
+fn compute_lagrange_coeff_r(party_ids: [Field; MAX_SHARES], n_shares: u32, r: Field, i: u32) -> Field {
+    let xi = party_ids[i];
+    let mut num: Field = 1;
+    let mut den: Field = 1;
+    for j in 0..MAX_SHARES {
+        if (j != i) & (j < n_shares) {
+            let xj = party_ids[j];
+            num = num * (xj - r);
+            den = den * (xj - xi);
+        }
+    }
+    num / den
 }
 
 fn verification_statement_v1_hash(preimage: [Field; 92]) -> Field {
@@ -288,9 +320,10 @@ fn main(
     plaintext_commitment: pub Field,
     ivc_snark_proof_hash: pub Field,
 
-    // -- New C7 public inputs (2) --
+    // -- New C7 public inputs (3) --
     n_shares: pub Field,
     share_commitment_root: pub Field,
+    committee_party_ids: pub [Field; MAX_SHARES],
 
     // -- Nova final state (existing, 2) --
     nova_final_plaintext: pub [Field; N],
@@ -361,7 +394,9 @@ fn main(
     assert(n_shares as u32 > 0, "n_shares must be positive");
     assert(n_shares as u32 <= MAX_SHARES, "n_shares must not exceed MAX_SHARES");
 
-    // ---- New C7: Lagrange identity (sum lambda_i = 1) ----
+    // ---- C7: Lagrange identity (sum lambda_i = 1, redundant safety net) ----
+    // This check is now redundant with the in-circuit Lagrange computation
+    // (below), but kept as a cheap invariant (t additions).
     let lagrange_sum = fold_sum(lagrange_coeffs);
     assert(lagrange_sum == 1, "Lagrange coefficients must sum to 1");
 
@@ -381,10 +416,29 @@ fn main(
         session_id,               // GAP-1: session binding in challenge
         epoch,
         participant_set_hash,
-        share_commitment_root,
         n_shares,
         protocol_constants::DOMAIN_SZ_CHALLENGE,
     ]);
+
+    // ---- C7-LAGRANGE: In-circuit Lagrange coefficient verification ----
+    // Closes the trust gap documented in .sisyphus/design/c7-solution-decision.md §Trust Gap.
+    // Previously, lagrange_coeffs were prover-supplied with only Σ λ_i == 1 enforced,
+    // giving a malicious prover 126 degrees of freedom to bias decryption.
+    //
+    // Now: compute λ_i in-circuit from public committee_party_ids and challenge_r,
+    // verify prover-supplied lagrange_coeffs match. The challenge_r is the same point
+    // used for the Schwartz-Zippel evaluation, ensuring soundness.
+    //
+    // O(t²) = ~16K constraints at t=128; the Σ λ_i == 1 check (above) is now
+    // a redundant safety net.
+    for i in 0..MAX_SHARES {
+        if (n_shares as u32) > i {
+            let computed_lambda = compute_lagrange_coeff_r(committee_party_ids, n_shares as u32, challenge_r, i);
+            assert(computed_lambda == lagrange_coeffs[i], f"Lagrange coefficient mismatch at index {i}");
+        } else {
+            assert(lagrange_coeffs[i] == 0, "padding lagrange_coeffs must be zero");
+        }
+    }
 
     // ---- G2-RLC: Random linear combination per-share verification ----
     // RLC DESIGN (2026-06-12): Instead of verifying 128 individual polynomial
@@ -418,7 +472,6 @@ fn main(
             beta_pow = beta_pow * rlc_beta;
         } else {
             assert(share_evals[i] == 0, "padding share_evals must be zero");
-            assert(lagrange_coeffs[i] == 0, "padding lagrange_coeffs must be zero");
         }
     }
     assert(combined_eval == rlc_expected, f"RLC check failed: eval={combined_eval} expected={rlc_expected}");
@@ -450,14 +503,20 @@ fn g4_neutral_fixture() -> (Field, Field, [Field; DEPTH], Field, Field) {
     (root, pk_hash, path, index, leaf)
 }
 
-/// Returns neutral C2 data (all zeros).
+/// Returns neutral C2 data.
 /// Zero polynomials → zero evaluations → trivially satisfied RLWE encryption check:
 ///   0 = 0·0 + 0 + Δ·0  and  0 = 0·0 + 0.
+/// Commitment values are computed from vector_hash to match the C2 verifier's
+/// in-circuit check: assert(vector_hash(pk_coeffs, tag) == pk_commitment).
+/// The recipient_pk_root is the Merkle root of the zero-commitment tree.
 /// Returns 22 values as a tuple matching the C2 parameter block in main().
 fn c2_neutral_fixture() -> (Field, Field, Field, Field, Field, Field, Field, Field, Field, Field, [Field; N], [Field; N], [Field; N], [Field; N], [Field; N], [Field; N], [Field; N], [Field; N], Field, Field, [Field; DEPTH], Field) {
     let zero_poly = [0; N];
     let zero_path = [0; DEPTH];
-    (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, zero_poly, zero_poly, zero_poly, zero_poly, zero_poly, zero_poly, zero_poly, zero_poly, 0, 0, zero_path, 0)
+    let zero_poly_commitment = vector_hash(zero_poly, protocol_constants::DOMAIN_VECTOR_MERKLE);
+    // Compute Merkle root for the zero-commitment tree at leaf 0 with zero path
+    let zero_root = compute_merkle_root(zero_poly_commitment, zero_path, 0);
+    (0, 0, 0, 0, 0, 0, 0, 0, zero_root, 0, zero_poly, zero_poly, zero_poly, zero_poly, zero_poly, zero_poly, zero_poly, zero_poly, zero_poly_commitment, zero_poly_commitment, zero_path, 0)
 }
 
 /// Returns neutral G2 data for a tree where all share polynomials are zero.
@@ -492,6 +551,50 @@ fn plaintext_with_42() -> [Field; N] {
     pt
 }
 
+// ============================================================
+// C7-LAGRANGE: Test helpers
+// ============================================================
+
+/// Returns party IDs [1, 2, ..., n, 0, 0, ...] for n active committee members.
+/// Traditional 1-based party indices for Shamir sharing x-coordinates.
+fn committee_party_ids_for_test(n: u32) -> [Field; MAX_SHARES] {
+    let mut ids = [0; MAX_SHARES];
+    for i in 0..n {
+        ids[i] = (i + 1) as Field;
+    }
+    ids
+}
+
+/// Derive the Schwartz-Zippel challenge point r from test parameters.
+/// MUST match the derivation in main() exactly.
+fn derive_test_challenge_r(
+    ciphertext_hash: Field,
+    dkg_root: Field,
+    session_id: Field,
+    epoch: Field,
+    participant_set_hash: Field,
+    n_shares: Field,
+) -> Field {
+    poseidon::poseidon::bn254::sponge([
+        ciphertext_hash, dkg_root, session_id, epoch, participant_set_hash,
+        n_shares, protocol_constants::DOMAIN_SZ_CHALLENGE,
+    ])
+}
+
+/// Compute correct Lagrange coefficients at challenge_r for committee party IDs.
+/// Returns [MAX_SHARES] array with λ_i for i < n_shares, zero for padding.
+fn compute_test_lagrange_coeffs(
+    party_ids: [Field; MAX_SHARES],
+    n_shares: u32,
+    r: Field,
+) -> [Field; MAX_SHARES] {
+    let mut coeffs = [0; MAX_SHARES];
+    for i in 0..n_shares {
+        coeffs[i] = compute_lagrange_coeff_r(party_ids, n_shares, r, i);
+    }
+    coeffs
+}
+
 // -- Existing tests (updated for G2 parameters) --
 
 #[test]
@@ -504,9 +607,10 @@ fn test_simplified_honest() {
     let ciphertext_hash = 99;
 
     let n_shares = 1;
+    let party_ids = committee_party_ids_for_test(n_shares as u32);
     let share_evals = [0; MAX_SHARES];
     let mut lagrange_coeffs = [0; MAX_SHARES];
-    lagrange_coeffs[0] = 1;
+    lagrange_coeffs[0] = 1; // for n=1, λ = 1 always
     let pt_eval = 0;
 
     let result: [Field; N] = main(
@@ -524,6 +628,7 @@ fn test_simplified_honest() {
         777,
         n_shares,
         g2_root,
+        party_ids,
         plaintext,
         888,
         share_evals,
@@ -549,6 +654,7 @@ fn test_plaintext_mismatch() {
     let plaintext = { let mut a = [0; N]; a[0] = 1; a };
     let wrong_commitment = 0;
     let n_shares = 1;
+    let party_ids = committee_party_ids_for_test(n_shares as u32);
     let share_evals = [0; MAX_SHARES];
     let mut lagrange_coeffs = [0; MAX_SHARES];
     lagrange_coeffs[0] = 1;
@@ -556,6 +662,7 @@ fn test_plaintext_mismatch() {
     let _ = main(
         99, pk_hash, 500, 999, dkg_root, 1, 1, 300, 3, 2, wrong_commitment, 777,
         n_shares, g2_root,
+        party_ids,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         combined_poly, combined_merkle_path, combined_leaf_index,
@@ -574,6 +681,7 @@ fn test_ivc_hash_zero() {
     let plaintext = [0; N];
     let pt_hash = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
     let n_shares = 1;
+    let party_ids = committee_party_ids_for_test(n_shares as u32);
     let share_evals = [0; MAX_SHARES];
     let mut lagrange_coeffs = [0; MAX_SHARES];
     lagrange_coeffs[0] = 1;
@@ -581,6 +689,7 @@ fn test_ivc_hash_zero() {
     let _ = main(
         pt_hash + 1, pk_hash, 500, 999, dkg_root, 1, 1, 300, 3, 2, pt_hash, 0,
         n_shares, g2_root,
+        party_ids,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         combined_poly, combined_merkle_path, combined_leaf_index,
@@ -601,6 +710,7 @@ fn test_g4_honest_pk_binding_accepts() {
     let plaintext = [0; N];
     let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
     let n_shares = 1;
+    let party_ids = committee_party_ids_for_test(n_shares as u32);
     let share_evals = [0; MAX_SHARES];
     let mut lagrange_coeffs = [0; MAX_SHARES];
     lagrange_coeffs[0] = 1;
@@ -609,6 +719,7 @@ fn test_g4_honest_pk_binding_accepts() {
     let result: [Field; N] = main(
         99, pk_hash, 500, 999, dkg_root, 1, 1, 300, 3, 2, plaintext_commitment, 777,
         n_shares, g2_root,
+        party_ids,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         combined_poly, combined_merkle_path, combined_leaf_index,
@@ -631,6 +742,7 @@ fn test_g4_wrong_aggregate_pk_leaf_rejects() {
     let plaintext = [0; N];
     let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
     let n_shares = 1;
+    let party_ids = committee_party_ids_for_test(n_shares as u32);
     let share_evals = [0; MAX_SHARES];
     let mut lagrange_coeffs = [0; MAX_SHARES];
     lagrange_coeffs[0] = 1;
@@ -639,6 +751,7 @@ fn test_g4_wrong_aggregate_pk_leaf_rejects() {
     let _ = main(
         99, pk_hash, 500, 999, dkg_root, 1, 1, 300, 3, 2, plaintext_commitment, 777,
         n_shares, g2_root,
+        party_ids,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         combined_poly, combined_merkle_path, combined_leaf_index,
@@ -661,6 +774,7 @@ fn test_g4_forged_merkle_path_rejects() {
     let plaintext = [0; N];
     let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
     let n_shares = 1;
+    let party_ids = committee_party_ids_for_test(n_shares as u32);
     let share_evals = [0; MAX_SHARES];
     let mut lagrange_coeffs = [0; MAX_SHARES];
     lagrange_coeffs[0] = 1;
@@ -669,6 +783,7 @@ fn test_g4_forged_merkle_path_rejects() {
     let _ = main(
         99, pk_hash, 500, 999, dkg_root, 1, 1, 300, 3, 2, plaintext_commitment, 777,
         n_shares, g2_root,
+        party_ids,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         combined_poly, combined_merkle_path, combined_leaf_index,
@@ -699,6 +814,7 @@ fn test_g4_pk_binding_missing_rejects() {
     let plaintext = [0; N];
     let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
     let n_shares = 1;
+    let party_ids = committee_party_ids_for_test(n_shares as u32);
     let share_evals = [0; MAX_SHARES];
     let mut lagrange_coeffs = [0; MAX_SHARES];
     lagrange_coeffs[0] = 1;
@@ -707,6 +823,7 @@ fn test_g4_pk_binding_missing_rejects() {
     let _ = main(
         99, aggregate_pk_hash, 500, 999, wrong_dkg_root, 1, 1, 300, 3, 2, plaintext_commitment, 777,
         n_shares, g2_root,
+        party_ids,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         combined_poly, combined_merkle_path, combined_leaf_index,
@@ -754,15 +871,11 @@ fn test_verification_statement_v1_hash_mismatch_rejects_mutated_statement() {
 
 /// T.4.1: Honest Lagrange recombination for t=2, party IDs [1,2].
 ///
-/// Lagrange coefficients for evaluation at 0:
-///   lambda_1 = (0-2)/(1-2) = -2/-1 = 2
-///   lambda_2 = (0-1)/(2-1) = -1/1 = -1
-///   sum(lambda) = 2 + (-1) = 1
+/// Lagrange coefficients are computed in-circuit from committee_party_ids
+/// and challenge_r. The test derives the same challenge_r and computes
+/// correct λ, then verifies the circuit accepts.
 ///
-/// If d_1(r) = 42, d_2(r) = 84, then:
-///   pt(r) = 2*42 + (-1)*84 = 84 - 84 = 0
-///
-/// Expected: ACCEPT (all constraints satisfied).
+/// Expected: ACCEPT (all constraints satisfied, in-circuit Lagrange matches).
 #[test]
 fn test_c7_honest_lagrange_recombination() {
     let (dkg_root, pk_hash, path, idx, leaf) = g4_neutral_fixture();
@@ -771,19 +884,23 @@ fn test_c7_honest_lagrange_recombination() {
     let plaintext = [0; N];
     let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
 
-    let n_shares = 2;
+    let n_shares: u32 = 2;
+    let party_ids = committee_party_ids_for_test(n_shares);
+
+    // Derive challenge_r matching main() computation
+    let challenge_r_for_test = derive_test_challenge_r(99, dkg_root, 1, 1, 300, n_shares as Field);
 
     let share_evals = [0; MAX_SHARES];
 
-    let mut lagrange_coeffs = [0; MAX_SHARES];
-    lagrange_coeffs[0] = 2;
-    lagrange_coeffs[1] = -1;
+    // Compute correct Lagrange coefficients for the test's challenge_r
+    let lagrange_coeffs = compute_test_lagrange_coeffs(party_ids, n_shares, challenge_r_for_test);
 
     let pt_eval = 0;
 
     let result: [Field; N] = main(
         99, pk_hash, 500, 999, dkg_root, 1, 1, 300, 3, 2, plaintext_commitment, 777,
-        n_shares, g2_root,
+        n_shares as Field, g2_root,
+        party_ids,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         combined_poly, combined_merkle_path, combined_leaf_index,
@@ -803,21 +920,24 @@ fn test_c7_wrong_lagrange_sum() {
     let c2 = c2_neutral_fixture();
     let plaintext = [0; N];
     let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
-    let n_shares = 2;
+    let n_shares: u32 = 2;
+    let party_ids = committee_party_ids_for_test(n_shares);
+    let challenge_r_for_test = derive_test_challenge_r(99, dkg_root, 1, 1, 300, n_shares as Field);
 
     let mut share_evals = [0; MAX_SHARES];
     share_evals[0] = 42;
     share_evals[1] = 84;
 
-    let mut lagrange_coeffs = [0; MAX_SHARES];
-    lagrange_coeffs[0] = 3;
-    lagrange_coeffs[1] = -1;
+    // Compute correct λ, then break the sum by modifying λ[0]
+    let mut lagrange_coeffs = compute_test_lagrange_coeffs(party_ids, n_shares, challenge_r_for_test);
+    lagrange_coeffs[0] = lagrange_coeffs[0] + 1;  // breaks sum
 
     let pt_eval = 42;
 
     let _ = main(
         99, pk_hash, 500, 999, dkg_root, 1, 1, 300, 3, 2, plaintext_commitment, 777,
-        n_shares, g2_root,
+        n_shares as Field, g2_root,
+        party_ids,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         combined_poly, combined_merkle_path, combined_leaf_index,
@@ -836,21 +956,23 @@ fn test_c7_wrong_recombination() {
     let c2 = c2_neutral_fixture();
     let plaintext = [0; N];
     let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
-    let n_shares = 2;
+    let n_shares: u32 = 2;
+    let party_ids = committee_party_ids_for_test(n_shares);
+    let challenge_r_for_test = derive_test_challenge_r(99, dkg_root, 1, 1, 300, n_shares as Field);
 
     let mut share_evals = [0; MAX_SHARES];
     share_evals[0] = 42;
     share_evals[1] = 84;
 
-    let mut lagrange_coeffs = [0; MAX_SHARES];
-    lagrange_coeffs[0] = 2;
-    lagrange_coeffs[1] = -1;
+    // Correct Lagrange coefficients; wrong pt_eval caught by recombination check
+    let lagrange_coeffs = compute_test_lagrange_coeffs(party_ids, n_shares, challenge_r_for_test);
 
-    let pt_eval = 99;
+    let pt_eval = 99;  // wrong: correct value is Σ λ_i · share_evals[i]
 
     let _ = main(
         99, pk_hash, 500, 999, dkg_root, 1, 1, 300, 3, 2, plaintext_commitment, 777,
-        n_shares, g2_root,
+        n_shares as Field, g2_root,
+        party_ids,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         combined_poly, combined_merkle_path, combined_leaf_index,
@@ -869,21 +991,24 @@ fn test_c7_wrong_share_eval() {
     let c2 = c2_neutral_fixture();
     let plaintext = [0; N];
     let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
-    let n_shares = 2;
+    let n_shares: u32 = 2;
+    let party_ids = committee_party_ids_for_test(n_shares);
+    let challenge_r_for_test = derive_test_challenge_r(99, dkg_root, 1, 1, 300, n_shares as Field);
 
     let mut share_evals = [0; MAX_SHARES];
-    share_evals[0] = 99;
-    share_evals[1] = 84;
+    share_evals[0] = 99;  // forged: should be 42
+    share_evals[1] = 84;  // correct
 
-    let mut lagrange_coeffs = [0; MAX_SHARES];
-    lagrange_coeffs[0] = 2;
-    lagrange_coeffs[1] = -1;
+    // Correct Lagrange coefficients; wrong share_evals caught by RLC check
+    let lagrange_coeffs = compute_test_lagrange_coeffs(party_ids, n_shares, challenge_r_for_test);
 
+    // pt_eval set to match the forged share_evals with correct λ (inconsistent)
     let pt_eval = 0;
 
     let _ = main(
         99, pk_hash, 500, 999, dkg_root, 1, 1, 300, 3, 2, plaintext_commitment, 777,
-        n_shares, g2_root,
+        n_shares as Field, g2_root,
+        party_ids,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         combined_poly, combined_merkle_path, combined_leaf_index,
@@ -895,6 +1020,8 @@ fn test_c7_wrong_share_eval() {
 }
 
 /// T.4.5: Manipulated Lagrange coefficients (scaled 2x).
+/// With in-circuit Lagrange computation, manipulated λ values are caught
+/// by the assert(computed_lambda == lagrange_coeffs[i]) check.
 #[test(should_fail)]
 fn test_c7_manipulated_lagrange_coeffs() {
     let (dkg_root, pk_hash, path, idx, leaf) = g4_neutral_fixture();
@@ -902,12 +1029,14 @@ fn test_c7_manipulated_lagrange_coeffs() {
     let c2 = c2_neutral_fixture();
     let plaintext = [0; N];
     let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
-    let n_shares = 2;
+    let n_shares: u32 = 2;
+    let party_ids = committee_party_ids_for_test(n_shares);
 
     let mut share_evals = [0; MAX_SHARES];
     share_evals[0] = 42;
     share_evals[1] = 84;
 
+    // Scaled 2x: will fail in-circuit Lagrange check
     let mut lagrange_coeffs = [0; MAX_SHARES];
     lagrange_coeffs[0] = 4;
     lagrange_coeffs[1] = -2;
@@ -916,7 +1045,8 @@ fn test_c7_manipulated_lagrange_coeffs() {
 
     let _ = main(
         99, pk_hash, 500, 999, dkg_root, 1, 1, 300, 3, 2, plaintext_commitment, 777,
-        n_shares, g2_root,
+        n_shares as Field, g2_root,
+        party_ids,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         combined_poly, combined_merkle_path, combined_leaf_index,
@@ -935,19 +1065,20 @@ fn test_c7_zero_padded_shares() {
     let c2 = c2_neutral_fixture();
     let plaintext = [0; N];
     let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
-    let n_shares = 2;
+    let n_shares: u32 = 2;
+    let party_ids = committee_party_ids_for_test(n_shares);
+    let challenge_r_for_test = derive_test_challenge_r(99, dkg_root, 1, 1, 300, n_shares as Field);
 
     let share_evals = [0; MAX_SHARES];
 
-    let mut lagrange_coeffs = [0; MAX_SHARES];
-    lagrange_coeffs[0] = 2;
-    lagrange_coeffs[1] = -1;
+    let lagrange_coeffs = compute_test_lagrange_coeffs(party_ids, n_shares, challenge_r_for_test);
 
     let pt_eval = 0;
 
     let result: [Field; N] = main(
         99, pk_hash, 500, 999, dkg_root, 1, 1, 300, 3, 2, plaintext_commitment, 777,
-        n_shares, g2_root,
+        n_shares as Field, g2_root,
+        party_ids,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         combined_poly, combined_merkle_path, combined_leaf_index,
@@ -968,6 +1099,7 @@ fn test_c7_plaintext_commitment_consistent() {
     let plaintext = [0; N];
     let wrong_commitment = 0;
     let n_shares = 1;
+    let party_ids = committee_party_ids_for_test(n_shares as u32);
 
     let share_evals = [0; MAX_SHARES];
     let mut lagrange_coeffs = [0; MAX_SHARES];
@@ -977,6 +1109,7 @@ fn test_c7_plaintext_commitment_consistent() {
     let _ = main(
         99, pk_hash, 500, 999, dkg_root, 1, 1, 300, 3, 2, wrong_commitment, 777,
         n_shares, g2_root,
+        party_ids,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         combined_poly, combined_merkle_path, combined_leaf_index,
@@ -996,15 +1129,59 @@ fn test_c7_n_shares_zero() {
     let plaintext = [0; N];
     let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
     let n_shares = 0;
+    let party_ids = committee_party_ids_for_test(n_shares as u32); // all zeros
 
     let share_evals = [0; MAX_SHARES];
     let mut lagrange_coeffs = [0; MAX_SHARES];
-    lagrange_coeffs[0] = 1;
+    lagrange_coeffs[0] = 1;  // will fail: n_shares=0 guard or lambda check
     let pt_eval = 0;
 
     let _ = main(
         99, pk_hash, 500, 999, dkg_root, 1, 1, 300, 3, 2, plaintext_commitment, 777,
         n_shares, g2_root,
+        party_ids,
+        plaintext, 888,
+        share_evals, lagrange_coeffs, pt_eval,
+        combined_poly, combined_merkle_path, combined_leaf_index,
+        leaf, path, idx,
+        c2.0, c2.1, c2.2, c2.3, c2.4, c2.5, c2.6, c2.7, c2.8, c2.9,
+        c2.10, c2.11, c2.12, c2.13, c2.14, c2.15, c2.16, c2.17,
+        c2.18, c2.19, c2.20, c2.21,
+    );
+}
+
+/// T.4.9: RED — prover-supplied wrong λ_i rejected by in-circuit computation.
+///
+/// Provides lagrange_coeffs that satisfy Σ λ_i == 1 but do NOT match the
+/// in-circuit computation from committee_party_ids=[1,2] at challenge_r.
+/// The circuit must REJECT via assert(computed_lambda == lagrange_coeffs[i]).
+///
+/// This directly tests the trust gap closure from c7-solution-decision.md:
+/// a malicious prover cannot bias decryption via arbitrary λ_i.
+#[test(should_fail)]
+fn test_c7_lagrange_mismatch_rejected() {
+    let (dkg_root, pk_hash, path, idx, leaf) = g4_neutral_fixture();
+    let (g2_root, combined_poly, combined_merkle_path, combined_leaf_index) = g2_neutral_fixture();
+    let c2 = c2_neutral_fixture();
+    let plaintext = [0; N];
+    let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
+
+    let n_shares: u32 = 2;
+    let party_ids = committee_party_ids_for_test(n_shares);
+
+    let share_evals = [0; MAX_SHARES];
+
+    // Deliberately wrong λ: [3, -2] sums to 1 but isn't the correct Lagrange
+    let mut lagrange_coeffs = [0; MAX_SHARES];
+    lagrange_coeffs[0] = 3;
+    lagrange_coeffs[1] = -2;
+
+    let pt_eval = 0;  // all share_evals are zero, so any λ gives pt_eval=0
+
+    let _ = main(
+        99, pk_hash, 500, 999, dkg_root, 1, 1, 300, 3, 2, plaintext_commitment, 777,
+        n_shares as Field, g2_root,
+        party_ids,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         combined_poly, combined_merkle_path, combined_leaf_index,
@@ -1084,7 +1261,8 @@ fn test_sz_challenge_not_bound_rejected() {
 
     // Prover computes share_evals at r=0 (their chosen challenge point).
     // At r=0, eval_poly(coeffs, 0) = coeffs[0] (the constant term).
-    let n_shares = 2;
+    let n_shares: u32 = 2;
+    let party_ids = committee_party_ids_for_test(n_shares);
     let mut share_evals = [0; MAX_SHARES];
     share_evals[0] = 42; // eval_poly([42,7,0,...], 0) = 42
     share_evals[1] = 84; // eval_poly([84,13,0,...], 0) = 84
@@ -1109,21 +1287,23 @@ fn test_sz_challenge_not_bound_rejected() {
     let combined_merkle_path = rlc_paths[0];
     let combined_leaf_index: Field = 0;
 
+    // Lagrange coefficients for r=0 with party_ids=[1,2]: λ=[2, -1]
+    // These will fail the in-circuit Lagrange check (circuit derives challenge_r ≠ 0).
     let mut lagrange_coeffs = [0; MAX_SHARES];
     lagrange_coeffs[0] = 2;
     lagrange_coeffs[1] = -1;
-    let pt_eval = 0; // 2*42 + (-1)*84 = 0
+    let pt_eval = 0; // 2*42 + (-1)*84 = 0 at r=0
 
     let plaintext = [0; N];
     let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
 
-    // Before fix: challenge_r=0 is a public input. The circuit ACCEPTS
-    // because all G2 checks pass with the chosen r=0.
-    // RED: should_fail test reports FAILURE because circuit ACCEPTS.
+    // Circuit rejects: either Lagrange mismatch (λ computed at in-circuit r ≠ λ at r=0)
+    // or RLC consistency check (eval at challenge_r ≠ Σ β^i · share_evals_at_r0).
     let c2 = c2_neutral_fixture();
     let _ = main(
         99, pk_hash, 500, 999, dkg_root, 1, 1, 300, 3, 2, plaintext_commitment, 777,
-        n_shares, g2_root,
+        n_shares as Field, g2_root,
+        party_ids,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         combined_poly, combined_merkle_path, combined_leaf_index,
@@ -1156,7 +1336,8 @@ fn test_g2_padding_violation_rejected() {
     let c2 = c2_neutral_fixture();
 
     // n_shares = 2, but put non-zero data at position 3
-    let n_shares = 2;
+    let n_shares: u32 = 2;
+    let party_ids = committee_party_ids_for_test(n_shares);
     let share_evals = [0; MAX_SHARES];
     let mut lagrange_coeffs = [0; MAX_SHARES];
     lagrange_coeffs[0] = 2;
@@ -1170,12 +1351,8 @@ fn test_g2_padding_violation_rejected() {
     lagrange_coeffs[0] = 2 - 99;
     lagrange_coeffs[3] = 99;
 
-    // share_evals all zero, share_polys all zero (from neutral fixture).
-    // G2 check for position 3 evaluates zero_poly at challenge_r, gives 0 == share_evals[3]=0.
-    // Merkle check: zero_commitment at position 3 has a valid path to g2_root.
-    // Lagrange sum: -97 + (-1) + 99 = 1.
-    // Recombination: lagrange_coeffs[3] * share_evals[3] = 99 * 0 = 0, no effect.
-    // All checks pass -> circuit ACCEPTS. RED.
+    // Circuit rejects: in-circuit Lagrange check catches λ[0] mismatch (computed ≠ -97)
+    // or padding check catches λ[3] = 99 ≠ 0 (since 3 >= n_shares=2).
 
     let pt_eval = 0;
     let plaintext = [0; N];
@@ -1183,7 +1360,8 @@ fn test_g2_padding_violation_rejected() {
 
     let _ = main(
         99, pk_hash, 500, 999, dkg_root, 1, 1, 300, 3, 2, plaintext_commitment, 777,
-        n_shares, g2_root,
+        n_shares as Field, g2_root,
+        party_ids,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         combined_poly, combined_merkle_path, combined_leaf_index,
@@ -1215,13 +1393,15 @@ fn test_per_share_eval_not_in_merkle_rejected() {
     let (dkg_root, pk_hash, path, idx, leaf) = g4_neutral_fixture();
     let c2 = c2_neutral_fixture();
 
-    // Build honest G2 data with two non-zero shares.
+    // Build honest G2 data with two non-zero shares (constant polynomials).
     let mut share_polys = [[0; N]; MAX_SHARES];
-    share_polys[0] = plaintext_with_42();  // d_1 coeffs
-    share_polys[1] = { let mut a = [0; N]; a[0] = 84; a };  // d_2 coeffs
+    share_polys[0] = plaintext_with_42();  // d_1 coeffs: [42, 0, ...]
+    share_polys[1] = { let mut a = [0; N]; a[0] = 84; a };  // d_2 coeffs: [84, 0, ...]
 
-    // share_evals from the polynomials evaluated at r=0: eval_poly([42,0,...], 0) = 42
-    let n_shares = 2;
+    let n_shares: u32 = 2;
+    let party_ids = committee_party_ids_for_test(n_shares);
+
+    // Share evaluations at any r (constant polynomials): same as constant terms
     let mut share_evals = [0; MAX_SHARES];
     share_evals[0] = 42;
     share_evals[1] = 84;
@@ -1238,21 +1418,27 @@ fn test_per_share_eval_not_in_merkle_rejected() {
     }
 
     // Use WRONG root from neutral fixture (all-zero tree).
-    // The neutral fixture's Merkle path proves zero_commitment is at leaf 0,
-    // but our combined_commitment is different → Merkle check fails → REJECT.
     let (wrong_root, _zero_poly, combined_merkle_path, combined_leaf_index) = g2_neutral_fixture();
 
-    let mut lagrange_coeffs = [0; MAX_SHARES];
-    lagrange_coeffs[0] = 2;
-    lagrange_coeffs[1] = -1;
-    let pt_eval = 0;  // 2*42 + (-1)*84 = 0
+    // Compute correct Lagrange coeffs using wrong_root (matching circuit challenge_r)
+    let challenge_r_for_test = derive_test_challenge_r(99, dkg_root, 1, 1, 300, n_shares as Field);
+    let lagrange_coeffs = compute_test_lagrange_coeffs(party_ids, n_shares, challenge_r_for_test);
+
+    // Correct pt_eval = Σ correct_λ_i * share_evals[i]
+    let mut pt_eval: Field = 0;
+    for i in 0..n_shares {
+        pt_eval += lagrange_coeffs[i] * share_evals[i];
+    }
 
     let plaintext = [0; N];
     let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
 
+    // Circuit rejects: Merkle check fails because combined_poly's hash
+    // is not in the all-zero Merkle tree rooted at wrong_root.
     let _ = main(
         99, pk_hash, 500, 999, dkg_root, 1, 1, 300, 3, 2, plaintext_commitment, 777,
-        n_shares, wrong_root,
+        n_shares as Field, wrong_root,
+        party_ids,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         combined_poly, combined_merkle_path, combined_leaf_index,
@@ -1277,12 +1463,14 @@ fn test_valid_merkle_wrong_leaf_rejected() {
     let (dkg_root, pk_hash, path, idx, leaf) = g4_neutral_fixture();
     let c2 = c2_neutral_fixture();
 
-    // Build honest share polynomials and their evaluations.
+    let n_shares: u32 = 2;
+    let party_ids = committee_party_ids_for_test(n_shares);
+
+    // Build honest share polynomials (constant) and their evaluations.
     let mut share_polys = [[0; N]; MAX_SHARES];
     share_polys[0] = plaintext_with_42();
     share_polys[1] = { let mut a = [0; N]; a[0] = 84; a };
 
-    let n_shares = 2;
     let mut share_evals = [0; MAX_SHARES];
     share_evals[0] = 42;
     share_evals[1] = 84;
@@ -1309,21 +1497,27 @@ fn test_valid_merkle_wrong_leaf_rejected() {
     let combined_leaf_index: Field = 0;
 
     // ATTACK: provide the WRONG combined_poly (all zeros) instead of honest.
-    // vector_hash(zero_poly) ≠ honest_combined_commitment, so
-    // compute_merkle_root(zero_commitment, honest_path, 0) ≠ g2_root → REJECT.
     let submitted_combined_poly = zero_poly;
 
-    let mut lagrange_coeffs = [0; MAX_SHARES];
-    lagrange_coeffs[0] = 2;
-    lagrange_coeffs[1] = -1;
-    let pt_eval = 0;
+    // Compute correct Lagrange coeffs using g2_root (matching circuit challenge_r)
+    let challenge_r_for_test = derive_test_challenge_r(99, dkg_root, 1, 1, 300, n_shares as Field);
+    let lagrange_coeffs = compute_test_lagrange_coeffs(party_ids, n_shares, challenge_r_for_test);
+
+    // Correct pt_eval = Σ correct_λ_i * share_evals[i]
+    let mut pt_eval: Field = 0;
+    for i in 0..n_shares {
+        pt_eval += lagrange_coeffs[i] * share_evals[i];
+    }
 
     let plaintext = [0; N];
     let plaintext_commitment = vector_hash(plaintext, protocol_constants::DOMAIN_VECTOR_MERKLE);
 
+    // Circuit rejects: the submitted zero polynomial's hash differs from
+    // the honest_combined_commitment at leaf 0 of the Merkle tree.
     let _ = main(
         99, pk_hash, 500, 999, dkg_root, 1, 1, 300, 3, 2, plaintext_commitment, 777,
-        n_shares, g2_root,
+        n_shares as Field, g2_root,
+        party_ids,
         plaintext, 888,
         share_evals, lagrange_coeffs, pt_eval,
         submitted_combined_poly, combined_merkle_path, combined_leaf_index,

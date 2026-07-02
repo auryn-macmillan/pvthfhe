@@ -49,7 +49,7 @@ contract EncodingConsistencyTest is Test {
         honk.verify(proof, manual);
 
         vm.expectRevert();
-        verifier.verify(CT, PT, PK, DKG_ROOT, uint64(1), PS, DC, proof);
+        verifier.verify(CT, PT, PK, DKG_ROOT, bytes32(uint256(1)), uint64(1), PS, DC, proof);
     }
 
     /// @notice verify and verifyAndConsume both use the same layout.
@@ -58,7 +58,7 @@ contract EncodingConsistencyTest is Test {
         // Both use the same underlying HonkVerifier → same result (revert).
         vm.expectRevert();
         verifier.verifyAndConsume(
-            CT, PT, PK, DKG_ROOT, uint64(99), PS, DC, proof
+            CT, PT, PK, DKG_ROOT, bytes32(uint256(1)), uint64(99), PS, DC, proof
         );
     }
 

@@ -207,4 +207,80 @@ mod tests {
         let instance = scheme_switch_prove(&stmt, &wit).unwrap();
         scheme_switch_verify(&stmt, &instance).unwrap();
     }
+
+    #[test]
+    fn scheme_switch_binding_different_session() {
+        let ckks_hash = [1u8; 32];
+        let tfhe_commit = [2u8; 32];
+        let session_a = [3u8; 32];
+        let session_b = [4u8; 32];
+        let b1 = scheme_switch_binding(&ckks_hash, &tfhe_commit, 10.0, &session_a);
+        let b2 = scheme_switch_binding(&ckks_hash, &tfhe_commit, 10.0, &session_b);
+        assert_ne!(b1, b2);
+    }
+
+    #[test]
+    fn scheme_switch_prove_empty_bits() {
+        let wit = SchemeSwitchWitness {
+            ckks_plaintext: 0.0,
+            tfhe_bits: vec![],
+            ckks_sk_coeffs: None,
+            tfhe_sk: None,
+        };
+        let stmt = SchemeSwitchStatement {
+            ckks_ct_hash: [0xBB; 32],
+            tfhe_bit_commitment: compute_tfhe_bit_commitment(&[]),
+            num_bits: 0,
+            ckks_tolerance: 1.0,
+            session_id: [0xDD; 32],
+        };
+        let instance = scheme_switch_prove(&stmt, &wit).unwrap();
+        scheme_switch_verify(&stmt, &instance).unwrap();
+    }
+
+    #[test]
+    fn scheme_switch_prove_all_zeros_bits() {
+        let bits = vec![false; 64];
+        let wit = SchemeSwitchWitness {
+            ckks_plaintext: 0.0,
+            tfhe_bits: bits.clone(),
+            ckks_sk_coeffs: None,
+            tfhe_sk: None,
+        };
+        let stmt = SchemeSwitchStatement {
+            ckks_ct_hash: [0xEE; 32],
+            tfhe_bit_commitment: compute_tfhe_bit_commitment(&bits),
+            num_bits: 64,
+            ckks_tolerance: 1.0,
+            session_id: [0xFF; 32],
+        };
+        let instance = scheme_switch_prove(&stmt, &wit).unwrap();
+        scheme_switch_verify(&stmt, &instance).unwrap();
+    }
+
+    #[test]
+    fn scheme_switch_verify_rejects_wrong_commitment() {
+        let wit = SchemeSwitchWitness {
+            ckks_plaintext: 100.0,
+            tfhe_bits: vec![true, false, true],
+            ckks_sk_coeffs: None,
+            tfhe_sk: None,
+        };
+        let stmt = SchemeSwitchStatement {
+            ckks_ct_hash: [0x11; 32],
+            tfhe_bit_commitment: compute_tfhe_bit_commitment(&wit.tfhe_bits),
+            num_bits: 3,
+            ckks_tolerance: 5.0,
+            session_id: [0x22; 32],
+        };
+        let instance = scheme_switch_prove(&stmt, &wit).unwrap();
+
+        // Tamper with the commitment
+        let wrong_stmt = SchemeSwitchStatement {
+            tfhe_bit_commitment: [0u8; 32],
+            ..stmt.clone()
+        };
+        let result = scheme_switch_verify(&wrong_stmt, &instance);
+        assert!(result.is_err(), "verify should reject wrong commitment");
+    }
 }

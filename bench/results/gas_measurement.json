@@ -1,10 +1,10 @@
 {
-  "calldata_bytes": 7976,
+  "calldata_bytes": 8008,
   "gas_budget": 5000000,
   "note": "measured via forge test --root contracts --match-test test_gas_within_cap",
   "proof_bytes": 7776,
-  "public_inputs_bytes": 200,
+  "public_inputs_bytes": 232,
   "stack": "UltraHonk-HonkVerifier-adapter",
-  "verify_gas": 742772,
+  "verify_gas": 742352,
   "within_cap": true
 }

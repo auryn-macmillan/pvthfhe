@@ -42,9 +42,10 @@ fn sample_error(rng: &mut ChaCha20Rng) -> Result<Vec<i64>, NizkError> {
         loop {
             let v = rng.next_u64();
             if v < THRESHOLD {
-                *x = i64::try_from(v % RANGE)
-                    .map_err(|_| NizkError::InvalidInput { reason: "error sample overflow", party_id: None })?
-                    - B_E;
+                *x = i64::try_from(v % RANGE).map_err(|_| NizkError::InvalidInput {
+                    reason: "error sample overflow",
+                    party_id: None,
+                })? - B_E;
                 break;
             }
         }
@@ -150,8 +151,7 @@ fn valid_accumulator_transcript_accepted() {
         params_digest: accumulator_codec::params_digest(),
     };
 
-    let mut sha_binding = [0u8; 32];
-    sha_binding[0..2].copy_from_slice(&stmt.participant_id.to_be_bytes());
+    let sha_binding = stmt.pvss_commitment;
 
     let instances = vec![CcsPShareInstance {
         participant_id: stmt.participant_id,
@@ -196,8 +196,7 @@ fn accumulator_too_many_bytes_rejected() {
         params_digest: accumulator_codec::params_digest(),
     };
 
-    let mut sha_binding = [0u8; 32];
-    sha_binding[0..2].copy_from_slice(&stmt.participant_id.to_be_bytes());
+    let sha_binding = stmt.pvss_commitment;
 
     let instances = vec![CcsPShareInstance {
         participant_id: stmt.participant_id,

@@ -55,7 +55,7 @@ Standardized secure parameters for 128-bit security: **N** = 8192, **L** = 3 RNS
 
 ## Symphony: Proof-Compression Optimization Techniques
 
-Four optimization techniques from the Symphony paper. These were originally implemented in the Nova compressor (Track A, now removed). Their latticefold equivalents are under development.
+Four optimization techniques from the Symphony paper, implemented in the LatticeFold+ compressor path. The `nova-compressor` feature flag is a legacy name that activates `enable-latticefold`.
 
 | Technique | Description |
 | --- | --- |
@@ -64,7 +64,7 @@ Four optimization techniques from the Symphony paper. These were originally impl
 | **T3: Monomial embedding** | Adaptive bit-count range checks via monomial embedding. Reduces per-coefficient constraint cost. |
 | **T4: Random projection** | JL projection reduces sigma witness size ~n/256×. Verifies norms on projected vectors instead of full-dimension vectors. |
 
-T1+T2 were enabled by default in the Nova compressor. T3+T4 enabled k=90-round repetition within practical budgets.
+T1+T2 are enabled by default in the LatticeFold+ compressor. T3+T4 enable k=90-round repetition within practical budgets.
 
 ## LaZer: Auto-Generated Sigma Proofs (P1)
 

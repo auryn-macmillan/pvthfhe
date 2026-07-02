@@ -27,30 +27,14 @@ contract IvcFailClosedTest is BaseVerifierTest {
 
     function testIvcRequiresDecider() public {
         vm.expectRevert(bytes("PVTHFHE: IVC decider not configured"));
-        verifier.verifyWithIvc(
-            SAMPLE_HASH,
-            SAMPLE_HASH,
-            SAMPLE_HASH,
-            DKG_ROOT,
-            SAMPLE_EPOCH,
-            SAMPLE_HASH,
-            SAMPLE_HASH,
-            _wellFormedIvcBinding(1),
+        verifier.verifyWithIvc(SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH, DKG_ROOT, bytes32(uint256(1)), SAMPLE_EPOCH, SAMPLE_HASH, SAMPLE_HASH, _wellFormedIvcBinding(1),
             sampleProof
         );
     }
 
     function testIvcConsumeRequiresDecider() public {
         vm.expectRevert(bytes("PVTHFHE: IVC decider not configured"));
-        verifier.verifyAndConsumeWithIvc(
-            SAMPLE_HASH,
-            SAMPLE_HASH,
-            SAMPLE_HASH,
-            DKG_ROOT,
-            SAMPLE_EPOCH,
-            SAMPLE_HASH,
-            SAMPLE_HASH,
-            _wellFormedIvcBinding(1),
+        verifier.verifyAndConsumeWithIvc(SAMPLE_HASH, SAMPLE_HASH, SAMPLE_HASH, DKG_ROOT, bytes32(uint256(1)), SAMPLE_EPOCH, SAMPLE_HASH, SAMPLE_HASH, _wellFormedIvcBinding(1),
             sampleProof
         );
     }
@@ -64,6 +48,7 @@ contract IvcFailClosedTest is BaseVerifierTest {
             SAMPLE_HASH,
             SAMPLE_HASH,
             DKG_ROOT,
+            bytes32(uint256(1)),
             SAMPLE_EPOCH,
             SAMPLE_HASH,
             SAMPLE_HASH,

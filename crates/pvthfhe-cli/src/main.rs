@@ -519,7 +519,7 @@ fn r8_snapshot(action: SnapshotCommand) -> anyhow::Result<()> {
     match action {
         SnapshotCommand::Prove {
             pk,
-            ct,
+            ct: _,
             plaintext,
             session,
         } => {
@@ -717,9 +717,6 @@ fn encode_triple_inline(_a: Fr, _b: Fr, _c: Fr) -> Vec<u8> {
 /// Convert a byte slice to a Vec<u64> by interpreting each 8 bytes as one u64 (little-endian).
 
 /// Compute a Poseidon hash of the plaintext bytes, returning an Fr scalar.
-fn poseidon_hash_scalar(_data: &[u8]) -> Fr {
-    Fr::from(0u64) // Track A IVC removed
-}
 /// Run the full demo pipeline with `n` parties and deterministic `seed`.
 #[cfg(feature = "with-fhe")]
 fn run_demo(n: usize, threshold: usize, seed: u64, verbose: bool) -> anyhow::Result<()> {
@@ -1309,7 +1306,7 @@ fn run_tfhe_demo(n: usize, threshold: usize, seed: u64, bootstrap: bool) -> anyh
     let aggregate_decrypt_ms = aggregate_decrypt_start.elapsed().as_secs_f64() * 1000.0;
     println!("step 5/7: aggregate_decrypt complete ({aggregate_decrypt_ms:.1}ms)");
 
-    println!("step 6/7: tfhe_nand — homomorphic NAND test");
+    println!("step 6/7: tfhe_gates — multi-gate boolean operations (NOT, AND, OR, XOR, NAND)");
 
     let bit0 = vec![0u8];
     let bit1 = vec![1u8];
@@ -1319,14 +1316,50 @@ fn run_tfhe_demo(n: usize, threshold: usize, seed: u64, bootstrap: bool) -> anyh
     let ct1 = backend
         .encrypt(&aggregate_pk, &bit1, &mut encrypt_rng)
         .context("encrypt bit1")?;
+
+    let ct_not = backend.tfhe_not(&ct1).context("tfhe_not")?;
+    let not_dec = backend
+        .partial_decrypt(&ct_not, 1, &mut encrypt_rng)
+        .context("decrypt not")?;
+    println!(
+        "  tfhe_not(true=1) = {}",
+        not_dec.bytes.as_slice().first().copied().unwrap_or(0)
+    );
+
+    let ct_and = backend.tfhe_and(&ct1, &ct0).context("tfhe_and")?;
+    let and_dec = backend
+        .partial_decrypt(&ct_and, 1, &mut encrypt_rng)
+        .context("decrypt and")?;
+    println!(
+        "  tfhe_and(true=1, false=0) = {}",
+        and_dec.bytes.as_slice().first().copied().unwrap_or(0)
+    );
+
+    let ct_or = backend.tfhe_or(&ct0, &ct1).context("tfhe_or")?;
+    let or_dec = backend
+        .partial_decrypt(&ct_or, 1, &mut encrypt_rng)
+        .context("decrypt or")?;
+    println!(
+        "  tfhe_or(false=0, true=1) = {}",
+        or_dec.bytes.as_slice().first().copied().unwrap_or(0)
+    );
+
+    let ct_xor = backend.tfhe_xor(&ct1, &ct0).context("tfhe_xor")?;
+    let xor_dec = backend
+        .partial_decrypt(&ct_xor, 1, &mut encrypt_rng)
+        .context("decrypt xor")?;
+    println!(
+        "  tfhe_xor(true=1, false=0) = {}",
+        xor_dec.bytes.as_slice().first().copied().unwrap_or(0)
+    );
+
     let ct_nand = backend.tfhe_nand(&ct0, &ct1).context("tfhe_nand")?;
     let nand_dec = backend
         .partial_decrypt(&ct_nand, 1, &mut encrypt_rng)
         .context("decrypt nand")?;
-    let nand_val = nand_dec.bytes.as_slice();
     println!(
-        "step 6/7: tfhe_nand(0,1) = {}",
-        nand_val.first().copied().unwrap_or(0)
+        "  tfhe_nand(false=0, true=1) = {}",
+        nand_dec.bytes.as_slice().first().copied().unwrap_or(0)
     );
 
     if bootstrap {
@@ -1451,11 +1484,11 @@ fn run_tfhe_demo(_n: usize, _threshold: usize, _seed: u64, _bootstrap: bool) -> 
     anyhow::bail!("TFHE backend requires the `enable-tfhe` feature")
 }
 
-fn run_poulpy_all_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
+fn run_poulpy_all_demo(_n: usize, _threshold: usize, _seed: u64) -> anyhow::Result<()> {
     #[cfg(all(feature = "enable-ckks", feature = "enable-tfhe"))]
     {
-        run_ckks_demo(n, threshold, seed)?;
-        run_tfhe_demo(n, threshold, seed, false)?;
+        run_ckks_demo(_n, _threshold, _seed)?;
+        run_tfhe_demo(_n, _threshold, _seed, false)?;
         return Ok(());
     }
     #[cfg(not(all(feature = "enable-ckks", feature = "enable-tfhe")))]
@@ -1464,10 +1497,10 @@ fn run_poulpy_all_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<
     }
 }
 
-fn run_poulpy_switch_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Result<()> {
+fn run_poulpy_switch_demo(_n: usize, _threshold: usize, _seed: u64) -> anyhow::Result<()> {
     #[cfg(all(feature = "enable-ckks", feature = "enable-tfhe"))]
     {
-        run_poulpy_coherent_demo(n, threshold, seed)
+        run_poulpy_coherent_demo(_n, _threshold, _seed)
     }
     #[cfg(all(feature = "enable-ckks", not(feature = "enable-tfhe")))]
     {
@@ -1601,6 +1634,10 @@ fn run_poulpy_coherent_demo(n: usize, threshold: usize, seed: u64) -> anyhow::Re
         .context("scheme-switch prove")?;
     let ss_binding_hex = hex::encode(&ss_instance.sha256_binding_bytes.as_slice()[..8]);
     println!("  scheme_switch_binding={ss_binding_hex}...");
+
+    pvthfhe_cli::scheme_switch::scheme_switch_verify(&ss_stmt, &ss_instance)
+        .context("scheme-switch verify")?;
+    println!("  scheme_switch_verified: ACCEPT");
 
     // ── Phase 3: TFHE ────────────────────────────────────────────────
     println!("── Phase 3: TFHE Binary Logic ──");

@@ -95,7 +95,7 @@ contract SessionRegistryAccessTest is Test {
         // A random caller tries to mark epoch consumed → must revert.
         vm.prank(RANDOM_CALLER);
         vm.expectRevert();
-        registry.markEpochConsumed(DKG_ROOT, 1);
+        registry.markEpochConsumed(DKG_ROOT, bytes32(uint256(1)), 1);
     }
 
     /// @notice RED: markEpochConsumed succeeds for VERIFIER address.
@@ -104,9 +104,9 @@ contract SessionRegistryAccessTest is Test {
         registry.registerSession(DKG_ROOT, 10, 6, ROSTER_HASH);
 
         vm.prank(VERIFIER_ADDR);
-        registry.markEpochConsumed(DKG_ROOT, 1);
+        registry.markEpochConsumed(DKG_ROOT, bytes32(uint256(1)), 1);
 
-        assertTrue(registry.isEpochConsumed(DKG_ROOT, 1), "epoch must be consumed");
+        assertTrue(registry.isEpochConsumed(DKG_ROOT, bytes32(uint256(1)), 1), "epoch must be consumed");
     }
 
     // -------------------------------------------------------------------------

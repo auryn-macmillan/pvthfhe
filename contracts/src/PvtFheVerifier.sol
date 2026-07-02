@@ -63,7 +63,8 @@ interface IIvcDeciderVerifier {
         bytes32 ppHash,
         bytes32 z0,
         bytes32 zi,
-        uint64 steps
+        uint64 steps,
+        bytes32 ivcProofHash
     ) external returns (bool);
 }
 
@@ -240,15 +241,16 @@ contract PvtFheVerifier is IPvthfheVerifier {
         bytes calldata proof
     ) external view override returns (bool) {
         _requireSessionValid(dkgRoot, sessionId, epoch);
-        bytes32[] memory publicInputs = new bytes32[](8);
+        // HonkVerifier VK expects 7 public inputs (15 VK - 8 pairing points).
+        // sessionId is checked via _requireSessionValid; not bound to the proof.
+        bytes32[] memory publicInputs = new bytes32[](7);
         publicInputs[0] = ciphertextHash;
         publicInputs[1] = plaintextHash;
         publicInputs[2] = aggregatePkHash;
         publicInputs[3] = dkgRoot;
-        publicInputs[4] = sessionId;
-        publicInputs[5] = bytes32(uint256(epoch));
-        publicInputs[6] = participantSetHash;
-        publicInputs[7] = dCommitment;
+        publicInputs[4] = bytes32(uint256(epoch));
+        publicInputs[5] = participantSetHash;
+        publicInputs[6] = dCommitment;
         return _honkVerifier.verify(proof, publicInputs);
     }
 
@@ -273,15 +275,14 @@ contract PvtFheVerifier is IPvthfheVerifier {
         _requireIvcBindingValid(ivcBinding);
         require(ivcBinding.shareVerificationHash != bytes32(0), "PVTHFHE: shareVerificationHash zero");
 
-        bytes32[] memory publicInputs = new bytes32[](8);
+        bytes32[] memory publicInputs = new bytes32[](7);
         publicInputs[0] = ciphertextHash;
         publicInputs[1] = plaintextHash;
         publicInputs[2] = aggregatePkHash;
         publicInputs[3] = dkgRoot;
-        publicInputs[4] = sessionId;
-        publicInputs[5] = bytes32(uint256(epoch));
-        publicInputs[6] = participantSetHash;
-        publicInputs[7] = dCommitment;
+        publicInputs[4] = bytes32(uint256(epoch));
+        publicInputs[5] = participantSetHash;
+        publicInputs[6] = dCommitment;
         if (!_honkVerifier.verify(proof, publicInputs)) {
             return false;
         }
@@ -303,15 +304,14 @@ contract PvtFheVerifier is IPvthfheVerifier {
         bytes calldata proof
     ) external override returns (bool) {
         _requireSessionValid(dkgRoot, sessionId, epoch);
-        bytes32[] memory publicInputs = new bytes32[](8);
+        bytes32[] memory publicInputs = new bytes32[](7);
         publicInputs[0] = ciphertextHash;
         publicInputs[1] = plaintextHash;
         publicInputs[2] = aggregatePkHash;
         publicInputs[3] = dkgRoot;
-        publicInputs[4] = sessionId;
-        publicInputs[5] = bytes32(uint256(epoch));
-        publicInputs[6] = participantSetHash;
-        publicInputs[7] = dCommitment;
+        publicInputs[4] = bytes32(uint256(epoch));
+        publicInputs[5] = participantSetHash;
+        publicInputs[6] = dCommitment;
 
         bool proofValid = _honkVerifier.verify(proof, publicInputs);
         if (!proofValid) {
@@ -343,15 +343,14 @@ contract PvtFheVerifier is IPvthfheVerifier {
             revert("PVTHFHE: IVC proof replay");
         }
 
-        bytes32[] memory publicInputs = new bytes32[](8);
+        bytes32[] memory publicInputs = new bytes32[](7);
         publicInputs[0] = ciphertextHash;
         publicInputs[1] = plaintextHash;
         publicInputs[2] = aggregatePkHash;
         publicInputs[3] = dkgRoot;
-        publicInputs[4] = sessionId;
-        publicInputs[5] = bytes32(uint256(epoch));
-        publicInputs[6] = participantSetHash;
-        publicInputs[7] = dCommitment;
+        publicInputs[4] = bytes32(uint256(epoch));
+        publicInputs[5] = participantSetHash;
+        publicInputs[6] = dCommitment;
         if (!_honkVerifier.verify(proof, publicInputs)) {
             return false;
         }
@@ -388,15 +387,14 @@ contract PvtFheVerifier is IPvthfheVerifier {
             revert AnchorMismatch();
         }
 
-        bytes32[] memory publicInputs = new bytes32[](8);
+        bytes32[] memory publicInputs = new bytes32[](7);
         publicInputs[0] = ciphertextHash;
         publicInputs[1] = plaintextHash;
         publicInputs[2] = aggregatePkHash;
         publicInputs[3] = dkgRoot;
-        publicInputs[4] = sessionId;
-        publicInputs[5] = bytes32(uint256(epoch));
-        publicInputs[6] = participantSetHash;
-        publicInputs[7] = dCommitment;
+        publicInputs[4] = bytes32(uint256(epoch));
+        publicInputs[5] = participantSetHash;
+        publicInputs[6] = dCommitment;
 
         bool proofValid = _honkVerifier.verify(proof, publicInputs);
         if (!proofValid) {
@@ -426,15 +424,14 @@ contract PvtFheVerifier is IPvthfheVerifier {
         }
         _requireSessionValid(dkgRoot, sessionId, epoch);
 
-        bytes32[] memory publicInputs = new bytes32[](8);
+        bytes32[] memory publicInputs = new bytes32[](7);
         publicInputs[0] = ciphertextHash;
         publicInputs[1] = plaintextHash;
         publicInputs[2] = aggregatePkHash;
         publicInputs[3] = dkgRoot;
-        publicInputs[4] = sessionId;
-        publicInputs[5] = bytes32(uint256(epoch));
-        publicInputs[6] = participantSetHash;
-        publicInputs[7] = dCommitment;
+        publicInputs[4] = bytes32(uint256(epoch));
+        publicInputs[5] = participantSetHash;
+        publicInputs[6] = dCommitment;
 
         bool proofValid = _honkVerifier.verify(proof, publicInputs);
         if (!proofValid) {
@@ -676,7 +673,8 @@ contract PvtFheVerifier is IPvthfheVerifier {
                     ivcBinding.ivcPpHash,
                     ivcBinding.z0Commitment,
                     ivcBinding.ziCommitment,
-                    ivcBinding.ivcSteps
+                    ivcBinding.ivcSteps,
+                    ivcBinding.ivcProofHash
                 )
             )
         );
@@ -697,7 +695,8 @@ contract PvtFheVerifier is IPvthfheVerifier {
             ivcBinding.ivcPpHash,
             ivcBinding.z0Commitment,
             ivcBinding.ziCommitment,
-            ivcBinding.ivcSteps
+            ivcBinding.ivcSteps,
+            ivcBinding.ivcProofHash
         ) returns (bool ok) {
             return ok;
         } catch {

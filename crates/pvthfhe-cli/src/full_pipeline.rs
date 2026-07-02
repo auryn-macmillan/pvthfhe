@@ -78,8 +78,10 @@ const NOIR_MAX_PARTICIPANTS: usize = 128;
 
 /// Matches Noir circuit's DEPTH (binary Merkle tree depth).
 const DEPTH_BINARY: usize = 7; // 128 leaves = 7 Merkle path hops
-/// Matches Noir circuit's N (polynomial coefficient count).
+/// Matches Noir circuit's N (polynomial coefficient count) for computation.
 const N_COEFFS: usize = 8;
+/// Noir circuit array size (ring_dim.nr: global N = 256). TOML output arrays are padded to this.
+const CIRCUIT_N: usize = 256;
 
 /// Pipeline track selector.
 ///
@@ -416,7 +418,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let parity_verified;
     let recipient_fold_hashes;
     let recipient_parity_proof_hashes;
-    let mut c4_proof_hash: Fr = Fr::from(0u64);
+    let c4_proof_hash: Fr = Fr::from(0u64);
     let mut dealer_recipient_total_shares: Vec<Vec<Fr>> = vec![vec![Fr::zero(); cfg.n]; cfg.n];
     let mut dkg_root_vec: Vec<u8> = Vec::new();
     observer.phase_start("dkg_ceremony", Some(&format!("n={} t={}", cfg.n, cfg.t)));
@@ -704,19 +706,36 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     use rayon::prelude::*;
     let mut nizk_verify_total_ms = 0.0;
     let mut nizk_verify_per_instance_ms = Vec::new();
+    // C3: share-commitment binding — after the sigma proof verifies, assert
+    // that the pvss_commitment claimed in the NIZK statement matches the
+    // expected commitment computed from the dealer's actual secret key.
+    // Without this, a malicious dealer can submit a valid sigma proof over one
+    // share while claiming a commitment to a different share.
     let results: Vec<Result<(String, f64), anyhow::Error>> = nizk_outputs
         .par_iter()
         .flat_map(|(dealer_id, statement, _witness, proof)| {
+            let expected_commitment = sk_commitments
+                .get((*dealer_id as usize).saturating_sub(1))
+                .copied()
+                .unwrap_or([0u8; 32]);
             (1..=cfg.n).into_par_iter().map(move |recipient_id| {
                 let detail = format!("dealer={dealer_id} recipient={recipient_id}");
                 let started = Instant::now();
-                RealNizkAdapter::verify(statement, proof)
-                    .map(|_| (detail, started.elapsed().as_secs_f64() * 1000.0))
-                    .map_err(|e| {
-                        anyhow::anyhow!(
-                            "nizk_verify dealer={dealer_id} recipient={recipient_id}: {e}"
-                        )
-                    })
+                RealNizkAdapter::verify(statement, proof).map_err(|e| {
+                    anyhow::anyhow!("nizk_verify dealer={dealer_id} recipient={recipient_id}: {e}")
+                })?;
+                // C3: decoded PVSS commitment from the proof must match the
+                // expected share commitment computed from the dealer's secret key.
+                if statement.pvss_commitment != expected_commitment {
+                    anyhow::bail!(
+                        "PVSS commitment mismatch for dealer {dealer_id} recipient {recipient_id}: \
+                         proof claims commitment {:02x?} but expected {:02x?}",
+                        &statement.pvss_commitment[..],
+                        &expected_commitment[..]
+                    );
+                }
+                let ms = started.elapsed().as_secs_f64() * 1000.0;
+                Ok((detail, ms))
             })
         })
         .collect();
@@ -1782,6 +1801,8 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let threshold = Fr::from(cfg.t as u64);
 
     // Plaintext from Lagrange interpolation + Poseidon commitment
+    // Must match Noir's vector_hash([Field; CIRCUIT_N], DOMAIN_VECTOR_MERKLE):
+    //   poseidon::sponge([1, pt0, ..., pt7, 0, ..., 0]) — 257 elements total
     let mut nova_final_plaintext = [Fr::zero(); 8];
     for k in 0..8 {
         let mut sum = Fr::zero();
@@ -1792,10 +1813,14 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         nova_final_plaintext[k] = sum;
     }
     let plaintext_commitment = {
-        let mut inputs = Vec::with_capacity(9);
-        inputs.push(Fr::from(1u64));
+        let mut inputs = Vec::with_capacity(CIRCUIT_N + 1);
+        inputs.push(Fr::from(1u64)); // DOMAIN_VECTOR_MERKLE
         for k in 0..8 {
             inputs.push(nova_final_plaintext[k]);
+        }
+        // Pad remaining CIRCUIT_N-8 elements with zeros
+        for _ in 8..CIRCUIT_N {
+            inputs.push(Fr::zero());
         }
         poseidon_sponge_native_noir(&inputs)
     };
@@ -1811,20 +1836,17 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         for k in 0..N_COEFFS {
             share_polys[i][k] = share_coeffs_fr[i].get(k).copied().unwrap_or(Fr::zero());
         }
-        let mut inputs = Vec::with_capacity(N_COEFFS + 1);
-        inputs.push(domain_vec_merkle);
-        for k in 0..N_COEFFS {
-            inputs.push(share_polys[i][k]);
-        }
-        share_commitments[i] = poseidon_sponge_native_noir(&inputs);
+        share_commitments[i] = {
+            let mut inputs = vec![domain_vec_merkle];
+            inputs.extend_from_slice(&share_polys[i][..N_COEFFS]);
+            inputs.extend(std::iter::repeat(Fr::zero()).take(CIRCUIT_N - N_COEFFS));
+            poseidon_sponge_native_noir(&inputs)
+        };
     }
     // Zero-padded entries: compute commitment for zero polynomial
     let zero_poly_commitment = {
-        let mut inputs = Vec::with_capacity(N_COEFFS + 1);
-        inputs.push(domain_vec_merkle);
-        for _ in 0..N_COEFFS {
-            inputs.push(Fr::zero());
-        }
+        let mut inputs = vec![domain_vec_merkle];
+        inputs.extend(std::iter::repeat(Fr::zero()).take(CIRCUIT_N));
         poseidon_sponge_native_noir(&inputs)
     };
     for i in share_coeffs_fr.len()..NOIR_MAX_PARTICIPANTS {
@@ -1849,66 +1871,26 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             crate::noir_poseidon::hash_2(node, *sibling)
         });
 
-    // First pass: compute share_evals using old root as initial challenge point.
-    // The RLC root depends on combined_poly which depends on share_evals, which
-    // depends on the challenge_r that uses share_commitment_root.  We resolve
-    // the circular dependency by iterating: compute the RLC tree root, then
-    // re-derive share_evals with that root so the witness bundle is self-consistent.
-    let derive_challenge_r = |root: Fr| -> Fr {
-        poseidon_sponge_native_noir(&[
-            ciphertext_hash,
-            dkg_root,
-            session_id_field,
-            epoch,
-            participant_set_hash,
-            root,
-            n_shares_field,
-            Fr::from(8u64),
-        ])
-    };
-    let zero_poly_commitment = {
-        let mut inputs = Vec::with_capacity(N_COEFFS + 1);
-        inputs.push(Fr::from(1u64));
-        for _ in 0..N_COEFFS {
-            inputs.push(Fr::zero());
-        }
-        poseidon_sponge_native_noir(&inputs)
-    };
-
-    // Bootstrap combined_poly from zero share_evals so we can build the tree.
-    let share_evals_init: Vec<Fr> = share_polys
-        .iter()
-        .map(|poly| eval_c7_share_poly_noir(poly, derive_challenge_r(_old_root)))
-        .collect();
-    let combined_poly_init = compute_combined_poly(&share_polys, &share_evals_init);
-    let combined_commitment_init = {
-        let mut inputs = Vec::with_capacity(N_COEFFS + 1);
-        inputs.push(Fr::from(1u64));
-        for k in 0..N_COEFFS {
-            inputs.push(combined_poly_init[k]);
-        }
-        poseidon_sponge_native_noir(&inputs)
-    };
-    let mut leaves_init = vec![zero_poly_commitment; 128];
-    leaves_init[0] = combined_commitment_init;
-    let (_, rlc_root) = build_binary_merkle_tree(&leaves_init);
-
-    // Second pass: recompute share_evals and combined_poly with the RLC root
-    // so that share_evals match the in-circuit challenge_r derivation.
-    let challenge_r = derive_challenge_r(rlc_root);
+    // challenge_r is derived from fixed public inputs (not share_commitment_root)
+    // matching Noir's derive_challenge_r — no circular dependency.
+    let challenge_r = poseidon_sponge_native_noir(&[
+        ciphertext_hash,
+        dkg_root,
+        session_id_field,
+        epoch,
+        participant_set_hash,
+        n_shares_field,
+        Fr::from(8u64),
+    ]);
     let share_evals: Vec<Fr> = share_polys
         .iter()
         .map(|poly| eval_c7_share_poly_noir(poly, challenge_r))
         .collect();
     let combined_poly = compute_combined_poly(&share_polys, &share_evals);
-
-    // Build final RLC Merkle tree with consistent combined_poly.
     let combined_commitment = {
-        let mut inputs = Vec::with_capacity(N_COEFFS + 1);
-        inputs.push(Fr::from(1u64));
-        for k in 0..N_COEFFS {
-            inputs.push(combined_poly[k]);
-        }
+        let mut inputs = vec![Fr::from(1u64)];
+        inputs.extend_from_slice(&combined_poly[..N_COEFFS]);
+        inputs.extend(std::iter::repeat(Fr::zero()).take(CIRCUIT_N - N_COEFFS));
         poseidon_sponge_native_noir(&inputs)
     };
     let mut leaves = vec![zero_poly_commitment; 128];
@@ -1916,10 +1898,21 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let (merkle_tree_levels, share_commitment_root) = build_binary_merkle_tree(&leaves);
     let paths = prove_binary_merkle_paths(&merkle_tree_levels);
     let combined_merkle_path = paths[0];
-    let combined_leaf_index = Fr::zero();
+    let lagrange_coeffs_circuit: Vec<Fr> =
+        compute_lagrange_coeffs_bn254(&party_ids_fr, challenge_r);
 
     let g4_merkle_path: [Fr; DEPTH_BINARY] = [Fr::zero(); DEPTH_BINARY];
     let g4_leaf_index = Fr::zero();
+
+    let committee_party_ids: [Fr; 128] = {
+        let mut ids = [Fr::from(0u64); 128];
+        for i in 0..share_coeffs.len().min(128) {
+            ids[i] = Fr::from((i + 1) as u64);
+        }
+        ids
+    };
+    let zero_poly_256: [Fr; N_COEFFS] = [Fr::from(0u64); N_COEFFS];
+    let combined_leaf_index = Fr::zero();
 
     let prover_toml = build_c7_prover_toml(
         ciphertext_hash,
@@ -1937,7 +1930,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         &nova_final_plaintext,
         combined_share_hash,
         n_shares_field,
-        &lagrange_coeffs_fr,
+        &lagrange_coeffs_circuit,
         share_commitment_root,
         &share_evals,
         &combined_poly,
@@ -1946,6 +1939,15 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         aggregate_pk_leaf,
         g4_merkle_path,
         g4_leaf_index,
+        &committee_party_ids,
+        &zero_poly_256,
+        &zero_poly_256,
+        &zero_poly_256,
+        &zero_poly_256,
+        &zero_poly_256,
+        &zero_poly_256,
+        &zero_poly_256,
+        &zero_poly_256,
     );
     let mut noir_passed = true;
 
@@ -1982,7 +1984,9 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 "--prover-name",
                 "C7Prover",
             ])
-            .current_dir(&noir_workspace);
+            .current_dir(&noir_workspace)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::piped());
         let status = run_with_timeout(&mut nargo_cmd, 300); // N=8192 RLC circuit: ~80K ACIR ops, compiler needs ~2-5min
         match status {
             Ok(s) if s.success() => {}
@@ -3380,20 +3384,17 @@ pub fn build_c7_share_commitment_bundle(
         for k in 0..N_COEFFS {
             share_polys[i][k] = share_coeffs_fr[i].get(k).copied().unwrap_or(Fr::zero());
         }
-        let mut inputs = Vec::with_capacity(N_COEFFS + 1);
-        inputs.push(domain_vec_merkle);
-        for k in 0..N_COEFFS {
-            inputs.push(share_polys[i][k]);
-        }
-        share_commitments[i] = poseidon_sponge_native_noir(&inputs);
+        share_commitments[i] = {
+            let mut inputs = vec![domain_vec_merkle];
+            inputs.extend_from_slice(&share_polys[i][..N_COEFFS]);
+            inputs.extend(std::iter::repeat(Fr::zero()).take(CIRCUIT_N - N_COEFFS));
+            poseidon_sponge_native_noir(&inputs)
+        };
     }
 
     let zero_poly_commitment = {
-        let mut inputs = Vec::with_capacity(N_COEFFS + 1);
-        inputs.push(domain_vec_merkle);
-        for _ in 0..N_COEFFS {
-            inputs.push(Fr::zero());
-        }
+        let mut inputs = vec![domain_vec_merkle];
+        inputs.extend(std::iter::repeat(Fr::zero()).take(CIRCUIT_N));
         poseidon_sponge_native_noir(&inputs)
     };
     for i in share_coeffs_fr.len()..NOIR_MAX_PARTICIPANTS {
@@ -3491,6 +3492,15 @@ pub fn build_c7_prover_toml(
     aggregate_pk_leaf: Fr,
     merkle_path: [Fr; DEPTH_BINARY],
     leaf_index: Fr,
+    committee_party_ids: &[Fr; 128],
+    c2_pk0_coeffs: &[Fr; N_COEFFS],
+    c2_pk1_coeffs: &[Fr; N_COEFFS],
+    c2_ct0_coeffs: &[Fr; N_COEFFS],
+    c2_ct1_coeffs: &[Fr; N_COEFFS],
+    c2_u_coeffs: &[Fr; N_COEFFS],
+    c2_e0_coeffs: &[Fr; N_COEFFS],
+    c2_e1_coeffs: &[Fr; N_COEFFS],
+    c2_m_coeffs: &[Fr; N_COEFFS],
 ) -> String {
     // Derive challenge_r in-circuit from session-binding inputs (F3 + GAP-1 fix).
     // Must match the Noir derivation: Poseidon(ciphertext_hash, dkg_root, session_id,
@@ -3557,16 +3567,14 @@ pub fn build_c7_prover_toml(
     // C7 public inputs
     writeln!(s, "n_shares = \"0x{}\"", field_hex_be(n_shares)).unwrap();
 
-    writeln!(
-        s,
-        "nova_final_plaintext = [{}]",
-        nova_final_plaintext
-            .iter()
-            .map(|v| format!("\"0x{}\"", field_hex_be(*v)))
-            .collect::<Vec<_>>()
-            .join(", ")
-    )
-    .unwrap();
+    // nova_final_plaintext padded to CIRCUIT_N=256 (Noir ring_dim.nr N=256)
+    write!(s, "nova_final_plaintext = [").unwrap();
+    for k in 0..CIRCUIT_N {
+        if k > 0 { write!(s, ", ").unwrap(); }
+        let v = if k < nova_final_plaintext.len() { nova_final_plaintext[k] } else { Fr::zero() };
+        write!(s, "\"0x{}\"", field_hex_be(v)).unwrap();
+    }
+    writeln!(s, "]").unwrap();
     writeln!(
         s,
         "nova_share_chain_hash = \"0x{}\"",
@@ -3614,13 +3622,12 @@ pub fn build_c7_prover_toml(
     )
     .unwrap();
 
-    // RLC combined polynomial (single array, replaces per-share polynomials)
+    // RLC combined polynomial (padded to CIRCUIT_N=256)
     write!(s, "combined_poly = [").unwrap();
-    for k in 0..N_COEFFS {
-        if k > 0 {
-            write!(s, ", ").unwrap();
-        }
-        write!(s, "\"0x{}\"", field_hex_be(combined_poly[k])).unwrap();
+    for k in 0..CIRCUIT_N {
+        if k > 0 { write!(s, ", ").unwrap(); }
+        let v = if k < N_COEFFS { combined_poly[k] } else { Fr::zero() };
+        write!(s, "\"0x{}\"", field_hex_be(v)).unwrap();
     }
     writeln!(s, "]").unwrap();
 
@@ -3658,6 +3665,79 @@ pub fn build_c7_prover_toml(
     }
     writeln!(s, "]").unwrap();
     writeln!(s, "leaf_index = \"0x{}\"", field_hex_be(leaf_index)).unwrap();
+
+    // committee_party_ids (public, 128 entries, 1-based indices)
+    write!(s, "committee_party_ids = [").unwrap();
+    for i in 0..128 {
+        if i > 0 {
+            write!(s, ", ").unwrap();
+        }
+        write!(s, "\"0x{}\"", field_hex_be(committee_party_ids[i])).unwrap();
+    }
+    writeln!(s, "]").unwrap();
+
+    // C2: BFV encryption sigma verifier — neutral fixture (all zeros)
+    let zero_array_n: [Fr; N_COEFFS] = [Fr::from(0u64); N_COEFFS];
+    let zero_array_depth: [Fr; DEPTH_BINARY] = [Fr::from(0u64); DEPTH_BINARY];
+    let zero_fr = Fr::from(0u64);
+
+    let c2_arrays: [(&str, &[Fr; N_COEFFS]); 8] = [
+        ("c2_pk0_coeffs", c2_pk0_coeffs),
+        ("c2_pk1_coeffs", c2_pk1_coeffs),
+        ("c2_ct0_coeffs", c2_ct0_coeffs),
+        ("c2_ct1_coeffs", c2_ct1_coeffs),
+        ("c2_u_coeffs", c2_u_coeffs),
+        ("c2_e0_coeffs", c2_e0_coeffs),
+        ("c2_e1_coeffs", c2_e1_coeffs),
+        ("c2_m_coeffs", c2_m_coeffs),
+    ];
+    for (name, arr) in &c2_arrays {
+        write!(s, "{name} = [").unwrap();
+        for k in 0..CIRCUIT_N {
+            if k > 0 { write!(s, ", ").unwrap(); }
+            let v = if k < N_COEFFS { arr[k] } else { Fr::zero() };
+            write!(s, "\"0x{}\"", field_hex_be(v)).unwrap();
+        }
+        writeln!(s, "]").unwrap();
+    }
+
+    let c2_eval_names: [&str; 8] = [
+        "c2_pk0_eval", "c2_pk1_eval", "c2_ct0_eval", "c2_ct1_eval",
+        "c2_u_eval", "c2_e0_eval", "c2_e1_eval", "c2_m_eval",
+    ];
+    for name in &c2_eval_names {
+        writeln!(s, "{name} = \"0x{}\"", field_hex_be(zero_fr)).unwrap();
+    }
+    writeln!(s, "c2_delta = \"0x{}\"", field_hex_be(zero_fr)).unwrap();
+
+    // C2 commitments must match vector_hash(all_zeros, DOMAIN_VECTOR_MERKLE).
+    // Compute the zero-poly-commitment: poseidon([1, 0, ..., 0]) with CIRCUIT_N+1 elements.
+    let zero_poly_comm = {
+        let mut inputs = vec![Fr::from(1u64)];
+        for _ in 0..CIRCUIT_N {
+            inputs.push(Fr::zero());
+        }
+        poseidon_sponge_native_noir(&inputs)
+    };
+    // c2_recipient_pk_root = merkle_root(zero_poly_comm, [0;7], 0)
+    // Noir uses hash_2 (x5_3 permutation), not sponge, for Merkle pairs.
+    let mut c2_root = zero_poly_comm;
+    for _ in 0..DEPTH_BINARY {
+        c2_root = crate::noir_poseidon::hash_2(c2_root, Fr::zero());
+    }
+    writeln!(s, "c2_pk0_commitment = \"0x{}\"", field_hex_be(zero_poly_comm)).unwrap();
+    writeln!(s, "c2_pk1_commitment = \"0x{}\"", field_hex_be(zero_poly_comm)).unwrap();
+    writeln!(s, "c2_recipient_pk_root = \"0x{}\"", field_hex_be(c2_root)).unwrap();
+
+    write!(s, "c2_pk_merkle_path = [").unwrap();
+    for j in 0..DEPTH_BINARY {
+        if j > 0 {
+            write!(s, ", ").unwrap();
+        }
+        write!(s, "\"0x{}\"", field_hex_be(zero_array_depth[j])).unwrap();
+    }
+    writeln!(s, "]").unwrap();
+    writeln!(s, "c2_pk_leaf_index = \"0x{}\"", field_hex_be(zero_fr)).unwrap();
 
     s
 }
@@ -3846,11 +3926,8 @@ mod tests {
         let aggregate_pk_leaf = Fr::from(78u64);
 
         let zero_poly_commitment = {
-            let mut inputs = Vec::with_capacity(N_COEFFS + 1);
-            inputs.push(Fr::from(1u64));
-            for _ in 0..N_COEFFS {
-                inputs.push(Fr::zero());
-            }
+            let mut inputs = vec![Fr::from(1u64)];
+            inputs.extend(std::iter::repeat(Fr::zero()).take(CIRCUIT_N));
             poseidon_sponge_native_noir(&inputs)
         };
 
@@ -3869,7 +3946,9 @@ mod tests {
         let g4_merkle_path: [Fr; DEPTH_BINARY] = [Fr::zero(); DEPTH_BINARY];
         let g4_leaf_index = Fr::zero();
 
-        let prover_toml = build_c7_prover_toml(
+    let combined_leaf_index = Fr::zero();
+
+    let prover_toml = build_c7_prover_toml(
             ciphertext_hash,
             aggregate_pk_hash,
             decrypt_nizk_hash,
@@ -3894,6 +3973,15 @@ mod tests {
             aggregate_pk_leaf,
             g4_merkle_path,
             g4_leaf_index,
+            &[Fr::from(0u64); 128],
+            &[Fr::from(0u64); N_COEFFS],
+            &[Fr::from(0u64); N_COEFFS],
+            &[Fr::from(0u64); N_COEFFS],
+            &[Fr::from(0u64); N_COEFFS],
+            &[Fr::from(0u64); N_COEFFS],
+            &[Fr::from(0u64); N_COEFFS],
+            &[Fr::from(0u64); N_COEFFS],
+            &[Fr::from(0u64); N_COEFFS],
         );
         assert!(
             prover_toml.contains("decrypt_nizk_hash ="),

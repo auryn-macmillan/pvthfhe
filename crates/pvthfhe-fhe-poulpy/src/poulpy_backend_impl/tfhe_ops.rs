@@ -314,6 +314,48 @@ fn lwe_torus_coeffs(ct: &LWE<Vec<u8>>) -> (u64, u64) {
     (mask_u64, body_u64)
 }
 
+/// NOT gate: NOT(a) = NAND(a,a)
+/// Formula: 1 - a (mod 2), implemented via one NAND call.
+pub(crate) fn not(inner: &PoulpyInner, ct_bytes: &[u8]) -> Result<Vec<u8>, FheError> {
+    nand(inner, ct_bytes, ct_bytes)
+}
+
+/// AND gate: AND(a,b) = NOT(NAND(a,b)) = NAND(NAND(a,b), NAND(a,b))
+/// Formula: a · b (mod 2), implemented via two NAND calls.
+pub(crate) fn and(
+    inner: &PoulpyInner,
+    ct0_bytes: &[u8],
+    ct1_bytes: &[u8],
+) -> Result<Vec<u8>, FheError> {
+    let nand_ab = nand(inner, ct0_bytes, ct1_bytes)?;
+    not(inner, &nand_ab)
+}
+
+/// OR gate: OR(a,b) = NAND(NOT(a), NOT(b))
+/// Formula: a + b - a·b (mod 2), implemented via three NAND calls.
+pub(crate) fn or(
+    inner: &PoulpyInner,
+    ct0_bytes: &[u8],
+    ct1_bytes: &[u8],
+) -> Result<Vec<u8>, FheError> {
+    let not_a = not(inner, ct0_bytes)?;
+    let not_b = not(inner, ct1_bytes)?;
+    nand(inner, &not_a, &not_b)
+}
+
+/// XOR gate: XOR(a,b) via 4-NAND standard circuit
+/// Formula: a + b (mod 2), implemented via four NAND calls.
+pub(crate) fn xor(
+    inner: &PoulpyInner,
+    ct0_bytes: &[u8],
+    ct1_bytes: &[u8],
+) -> Result<Vec<u8>, FheError> {
+    let nand_ab = nand(inner, ct0_bytes, ct1_bytes)?;
+    let nand_a_nandab = nand(inner, ct0_bytes, &nand_ab)?;
+    let nand_b_nandab = nand(inner, ct1_bytes, &nand_ab)?;
+    nand(inner, &nand_a_nandab, &nand_b_nandab)
+}
+
 pub(crate) fn poulpy_ct_to_sigma_bytes(ct_bytes: &[u8]) -> Result<Vec<u8>, FheError> {
     let ct = ct_from_bytes(ct_bytes)?;
     let (a, b) = lwe_torus_coeffs(&ct);

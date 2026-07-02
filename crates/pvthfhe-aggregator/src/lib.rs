@@ -1,6 +1,7 @@
 //! pvthfhe-aggregator — aggregation protocol for PVTHFHE threshold decryption.
-// Allowed: simulator stubs (keygen NIZK, encrypted_shares) and debug-only helpers.
-// Remove when real DKG with distributed peers replaces the simulator.
+// Keygen encrypted shares are real BFV ciphertexts (no [0x11,0x22] stubs).
+// NIZK proofs use Cyclo lattice-native sigma protocol.
+// Accumulator transcripts use the versioned Cyclo codec.
 #![allow(
     missing_docs,
     dead_code,

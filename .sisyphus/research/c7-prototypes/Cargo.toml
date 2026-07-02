@@ -1,0 +1,23 @@
+[package]
+name = "c7-prototypes"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[workspace]
+
+[[bin]]
+name = "proto-sz-multipoint"
+path = "src/proto_sz_multipoint.rs"
+
+[[bin]]
+name = "proto-rlc-batch"
+path = "src/proto_rlc_batch.rs"
+
+[dependencies]
+ark-bn254 = "0.5"
+ark-ff = "0.5"
+ark-std = { version = "0.5", features = ["parallel"] }
+rand = "0.8"
+rand_chacha = "0.3"

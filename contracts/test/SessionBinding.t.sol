@@ -47,7 +47,7 @@ contract SessionBindingTest is Test {
         vm.expectRevert(bytes("PVTHFHE: unknown dkg root"));
         verifier.verify(
             ZERO_HASH, ZERO_HASH, ZERO_HASH,
-            unknownDkgRoot, 0, ZERO_HASH, ZERO_HASH, proof
+            unknownDkgRoot, bytes32(uint256(1)), 0, ZERO_HASH, ZERO_HASH, proof
         );
     }
 
@@ -57,14 +57,11 @@ contract SessionBindingTest is Test {
 
     function test_verify_reverts_on_consumed_epoch() public {
         registry.registerSession(DKG_ROOT, N, T, ROSTER_HASH);
-        registry.markEpochConsumed(DKG_ROOT, EPOCH);
+        registry.markEpochConsumed(DKG_ROOT, bytes32(uint256(1)), EPOCH);
         bytes memory proof = _makeProof();
 
         vm.expectRevert(bytes("PVTHFHE: epoch replay"));
-        verifier.verify(
-            ZERO_HASH, ZERO_HASH, ZERO_HASH,
-            DKG_ROOT, EPOCH, ZERO_HASH, ZERO_HASH, proof
-        );
+        verifier.verify(ZERO_HASH, ZERO_HASH, ZERO_HASH, DKG_ROOT, bytes32(uint256(1)), EPOCH, ZERO_HASH, ZERO_HASH, proof);
     }
 
     // -------------------------------------------------------------------------
@@ -79,22 +76,16 @@ contract SessionBindingTest is Test {
         // Invalid proof → HonkVerifier reverts during deserialization.
         // verifyAndConsume propagates the revert.
         vm.expectRevert();
-        verifier.verifyAndConsume(
-            ZERO_HASH, ZERO_HASH, ZERO_HASH,
-            DKG_ROOT, EPOCH, ZERO_HASH, ZERO_HASH, proof
-        );
+        verifier.verifyAndConsume(ZERO_HASH, ZERO_HASH, ZERO_HASH, DKG_ROOT, bytes32(uint256(1)), EPOCH, ZERO_HASH, ZERO_HASH, proof);
 
         // Epoch must NOT be consumed (proof was invalid, call reverted).
         assertFalse(
-            registry.isEpochConsumed(DKG_ROOT, EPOCH),
+            registry.isEpochConsumed(DKG_ROOT, bytes32(uint256(1)), EPOCH),
             "epoch must not be consumed when proof is invalid"
         );
 
         // Replay: same proof, same epoch — also reverts (still not consumed).
         vm.expectRevert();
-        verifier.verifyAndConsume(
-            ZERO_HASH, ZERO_HASH, ZERO_HASH,
-            DKG_ROOT, EPOCH, ZERO_HASH, ZERO_HASH, proof
-        );
+        verifier.verifyAndConsume(ZERO_HASH, ZERO_HASH, ZERO_HASH, DKG_ROOT, bytes32(uint256(1)), EPOCH, ZERO_HASH, ZERO_HASH, proof);
     }
 }

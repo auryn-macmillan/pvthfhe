@@ -86,7 +86,7 @@ contract PublicAnchorSurfaceTest is Test {
         vm.expectRevert();
         verifier.verifyAndConsumeWithPublicAnchors(
             ciphertextHash, decrypt.plaintextHash,
-            dkg.aggregatedPkCommit, dkg.dkgRoot, 33,
+            dkg.aggregatedPkCommit, dkg.dkgRoot, bytes32(uint256(1)), 33,
             dkg.participantSetHash, bytes32(uint256(77)),
             proof, decrypt
         );
@@ -107,11 +107,11 @@ contract PublicAnchorSurfaceTest is Test {
         vm.expectRevert();
         verifier.verifyAndConsumeWithPublicAnchors(
             ciphertextHash, decrypt.plaintextHash,
-            dkg.aggregatedPkCommit, dkg.dkgRoot, 34,
+            dkg.aggregatedPkCommit, dkg.dkgRoot, bytes32(uint256(1)), 34,
             dkg.participantSetHash, bytes32(uint256(77)),
             proof, decrypt
         );
-        assertFalse(registry.isEpochConsumed(dkg.dkgRoot, 34), "mismatched esm must not consume epoch");
+        assertFalse(registry.isEpochConsumed(dkg.dkgRoot, bytes32(uint256(1)), 34), "mismatched esm must not consume epoch");
     }
 
     function _dkgAnchors() internal pure returns (PvtFheVerifier.DkgPublicAnchors memory) {

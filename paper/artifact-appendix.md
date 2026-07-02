@@ -129,7 +129,7 @@ selectable via environment variables:
 | (default) | G2 full: Poseidon sponge in-circuit commitment verification (\texttt{C7DecryptAggregationCircuit}, $\sim$639K constraints/step) |
 | `PVTHFHE_RUN_C7_MERKLE=1` | C7 Phase 3: in-circuit Merkle-tree verification (\texttt{C7MerkleStepCircuit}, depth-5, N=8192, $\sim$6,500 constraints/step) |
 | `PVTHFHE_RUN_NOIR_C7=1` | Noir aggregator\_final circuit as additional C7 phase |
-| `PVTHFHE_COMPRESSOR=micronova` | MicroNova heterogeneous IVC compressor (replaces Sonobe Nova) |
+| `PVTHFHE_COMPRESSOR=micronova` | MicroNova heterogeneous IVC compressor |
 
 ## License
 

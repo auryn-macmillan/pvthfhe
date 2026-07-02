@@ -763,7 +763,12 @@ impl KeygenSimulator {
                         nizk_proofs.push(nizk_bytes);
                     }
                     None => {
-                        encrypted_shares.insert(recipient_id, vec![0x11, 0x22]);
+                        return Err(pvthfhe_fhe::FheError::Backend {
+                            reason: format!(
+                                "recipient {} has no public key registered in all_pks",
+                                recipient_id
+                            ),
+                        });
                     }
                 }
             }

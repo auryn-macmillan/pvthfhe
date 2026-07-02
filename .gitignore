@@ -4,3 +4,4 @@
 /contracts/cache
 *.log
 .env
+.sisyphus/research/c7-prototypes/target/

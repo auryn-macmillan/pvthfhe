@@ -42,21 +42,23 @@ abstract contract P3RealVerifierBase is Test {
         bytes32 plaintextHash,
         bytes32 aggregatePkHash,
         bytes32 dkgRoot,
-        bytes32(uint256(1)), // sessionId (GAP-1)
         uint64 epoch,
         bytes32 participantSetHash,
         bytes32 dCommitment
     ) internal pure returns (bytes memory pi) {
-        pi = new bytes(200);
+        // Canonical 232-byte layout matching UltraHonkVerifier.sol (8 fields)
+        pi = new bytes(232);
+        bytes32 sessionId = bytes32(uint256(1));
         assembly {
-            let ptr := add(pi, 32)
-            mstore(ptr, ciphertextHash)
-            mstore(add(ptr, 32), plaintextHash)
-            mstore(add(ptr, 64), aggregatePkHash)
-            mstore(add(ptr, 96), dkgRoot)
-            mstore(add(ptr, 128), shl(192, epoch))
-            mstore(add(ptr, 136), participantSetHash)
-            mstore(add(ptr, 168), dCommitment)
+            let ptr := add(pi, 0x20)
+            mstore(ptr,                     ciphertextHash)
+            mstore(add(ptr, 0x20),          plaintextHash)
+            mstore(add(ptr, 0x40),          aggregatePkHash)
+            mstore(add(ptr, 0x60),          dkgRoot)
+            mstore(add(ptr, 0x80),          sessionId)
+            mstore(add(ptr, 0xA0),          shl(192, epoch))
+            mstore(add(ptr, 0xA8),          participantSetHash)
+            mstore(add(ptr, 0xC8),          dCommitment)
         }
     }
 

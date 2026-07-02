@@ -337,9 +337,25 @@ impl PoulpyBackend {
     }
 
     #[cfg(feature = "enable-tfhe")]
+    pub fn tfhe_lwe_nand(
+        &self,
+        ct0: &Ciphertext,
+        ct1: &Ciphertext,
+    ) -> Result<Ciphertext, FheError> {
+        let result = tfhe_ops::nand(&self.inner, &ct0.bytes, &ct1.bytes)?;
+        Ok(Ciphertext { bytes: result })
+    }
+
+    #[cfg(feature = "enable-tfhe")]
     pub fn tfhe_not(&self, ct: &Ciphertext) -> Result<Ciphertext, FheError> {
         let a = self.decrypt_tfhe_bit(ct)?;
         self.encrypt_tfhe_bit(a == 0)
+    }
+
+    #[cfg(feature = "enable-tfhe")]
+    pub fn tfhe_lwe_not(&self, ct: &Ciphertext) -> Result<Ciphertext, FheError> {
+        let result = tfhe_ops::not(&self.inner, &ct.bytes)?;
+        Ok(Ciphertext { bytes: result })
     }
 
     #[cfg(feature = "enable-tfhe")]
@@ -350,6 +366,12 @@ impl PoulpyBackend {
     }
 
     #[cfg(feature = "enable-tfhe")]
+    pub fn tfhe_lwe_and(&self, ct0: &Ciphertext, ct1: &Ciphertext) -> Result<Ciphertext, FheError> {
+        let result = tfhe_ops::and(&self.inner, &ct0.bytes, &ct1.bytes)?;
+        Ok(Ciphertext { bytes: result })
+    }
+
+    #[cfg(feature = "enable-tfhe")]
     pub fn tfhe_or(&self, ct0: &Ciphertext, ct1: &Ciphertext) -> Result<Ciphertext, FheError> {
         let a = self.decrypt_tfhe_bit(ct0)?;
         let b = self.decrypt_tfhe_bit(ct1)?;
@@ -357,10 +379,22 @@ impl PoulpyBackend {
     }
 
     #[cfg(feature = "enable-tfhe")]
+    pub fn tfhe_lwe_or(&self, ct0: &Ciphertext, ct1: &Ciphertext) -> Result<Ciphertext, FheError> {
+        let result = tfhe_ops::or(&self.inner, &ct0.bytes, &ct1.bytes)?;
+        Ok(Ciphertext { bytes: result })
+    }
+
+    #[cfg(feature = "enable-tfhe")]
     pub fn tfhe_xor(&self, ct0: &Ciphertext, ct1: &Ciphertext) -> Result<Ciphertext, FheError> {
         let a = self.decrypt_tfhe_bit(ct0)?;
         let b = self.decrypt_tfhe_bit(ct1)?;
         self.encrypt_tfhe_bit(a != b)
+    }
+
+    #[cfg(feature = "enable-tfhe")]
+    pub fn tfhe_lwe_xor(&self, ct0: &Ciphertext, ct1: &Ciphertext) -> Result<Ciphertext, FheError> {
+        let result = tfhe_ops::xor(&self.inner, &ct0.bytes, &ct1.bytes)?;
+        Ok(Ciphertext { bytes: result })
     }
 
     #[cfg(feature = "enable-tfhe")]

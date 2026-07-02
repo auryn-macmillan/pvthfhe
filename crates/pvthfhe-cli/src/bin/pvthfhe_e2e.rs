@@ -400,7 +400,7 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
         use pvthfhe_cli::full_pipeline::poseidon_sponge_native_noir;
         poseidon_sponge_native_noir(&[aggregate_pk_leaf])
     };
-    let merkle_path: [ark_bn254::Fr; 7] = [ark_bn254::Fr::from(0u64); 7];
+    let _merkle_path: [ark_bn254::Fr; 7] = [ark_bn254::Fr::from(0u64); 7];
     let leaf_index = ark_bn254::Fr::from(0u64);
     let decrypt_nizk_hash_field = Fr::from_be_bytes_mod_order(&report.decrypt_nizk_hash);
     let dkg_transcript_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(
@@ -556,6 +556,15 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
         aggregate_pk_leaf,
         g4_merkle_path,
         leaf_index,
+        &[Fr::from(0u64); 128],
+        &[Fr::from(0u64); 8],
+        &[Fr::from(0u64); 8],
+        &[Fr::from(0u64); 8],
+        &[Fr::from(0u64); 8],
+        &[Fr::from(0u64); 8],
+        &[Fr::from(0u64); 8],
+        &[Fr::from(0u64); 8],
+        &[Fr::from(0u64); 8],
     );
     if let Err(e) = std::fs::write(&prover_toml_path, &prover_toml_data) {
         warn!(phase = "noir_aggregator_final", error = %e, "Noir aggregator_final: failed to write Prover.toml");

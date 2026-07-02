@@ -23,7 +23,7 @@ fn per_step_norm_budget() -> u64 {
     PVTHFHE_CYCLO_PARAMS.norm_bound_b / u64::from(PVTHFHE_CYCLO_PARAMS.sequential_t)
 }
 
-fn witness_norm_estimate(witness_bytes: &[u8]) -> u64 {
+pub(crate) fn witness_norm_estimate(witness_bytes: &[u8]) -> u64 {
     match ccs_encode::parse_witness(witness_bytes) {
         Ok(frs) => frs
             .iter()

@@ -1,0 +1,7 @@
+ivc_proof_hash = "100"
+ivc_vk_hash = "200"
+ivc_pp_hash = "300"
+z0_commitment = "400"
+zi_commitment = "500"
+ivc_steps = "7"
+statement_hash = "999"

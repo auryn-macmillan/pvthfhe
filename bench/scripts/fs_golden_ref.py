@@ -53,6 +53,7 @@ class Transcript:
         counter = 0
         while len(out) < n:
             h = hashlib.sha256()
+            h.update(label)
             h.update(u64be(counter))
             h.update(state)
             out += h.digest()

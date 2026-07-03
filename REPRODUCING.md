@@ -13,8 +13,8 @@ This document provides instructions for reproducing the scaling and performance 
 Reproducibility requires the exact toolchain versions used during development:
 
 - **Rust**: `1.95.0` (`rustc 1.95.0 (59807616e 2026-04-14)`; `rust-toolchain.toml` tracks the stable channel, which resolved to 1.95.0 for these artifacts)
-- **Nargo (Noir)**: `1.0.0-beta.20` (`noirc 1.0.0-beta.20+b4236c1957d0c26cb65d82adc9e5447b6ff1d629`)
-- **BB CLI (Barretenberg)**: `5.0.0-nightly.20260324`
+- **Nargo (Noir)**: `1.0.0-beta.22` (`noirc 1.0.0-beta.22`)
+- **BB CLI (Barretenberg)**: `5.0.0-nightly.20260522`
 - **Forge (Foundry)**: `1.6.0-v1.7.0` (commit `f83bad912a9dba7bf0371def1e70bb1896048356`)
 
 ## Git Dependency Pins (PINNED)

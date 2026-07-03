@@ -20,7 +20,7 @@ const D2_DOMAIN: &[u8] = b"pvthfhe-d2-hash-bridge/v1";
 pub fn commit(session_id: &str, participant_id: u16, secret_share: u64) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(D2_DOMAIN);
-    hasher.update(&(session_id.len() as u32).to_be_bytes());
+    hasher.update((session_id.len() as u32).to_be_bytes());
     hasher.update(session_id.as_bytes());
     hasher.update(participant_id.to_be_bytes());
     hasher.update(secret_share.to_be_bytes());

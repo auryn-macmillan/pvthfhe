@@ -143,7 +143,7 @@ impl CycloTernaryTranscript {
         self.state.update(hash);
         for &byte in &hash {
             if let Some(ch) = uniform_ternary(byte) {
-                return ch as i8;
+                return ch;
             }
         }
         0

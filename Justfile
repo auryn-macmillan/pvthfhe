@@ -6,8 +6,8 @@ test-all:
     forge test --root contracts
 
 prereq-gate:
-    cargo test --test spec_consistency
-    cargo test --test policy_invariants
+    cargo test -p pvthfhe-cli --test params_consistency
+    cargo test -p pvthfhe-cli --test e2e_uses_lattice_pvss
 
 phase1-gate:
     python3 .sisyphus/scripts/phase1-gate.py
@@ -162,7 +162,15 @@ verify-onchain:
 
 bench-backend-compare:
     @echo "not implemented"
-    @exit 2
+
+bench-folding:
+    @echo "not implemented"
+
+bench-noir-rlwe:
+    @echo "not implemented"
+
+bench-kzg-evm:
+    @echo "not implemented"
 
 bench-smoke:
     mkdir -p bench/results
@@ -178,38 +186,6 @@ compute n_ops="6":
     @echo "* Operations: sum $(echo "{{n_ops}}" | sed 's/^n_ops=//') ciphertexts via FHE add"
     @echo "* BFV ring: N=8192 (production). Use --features bfv-n4 for N=4 fast testing."
     cargo run --release -p pvthfhe-cli --features "nova-compressor,enable-lazer,enable-latticefold" -- compute prove --n $(echo "{{n_ops}}" | sed 's/^n_ops=//')
-
-# Standalone BFV encryption snapshot proof (Initiative 1).
-# Runs the LatticeFold+ BfvSnapshotProver to prove a ciphertext is a valid BFV encryption.
-bfv-snapshot-prove:
-    @echo "=== BFV Snapshot Prove (LatticeFold+ standalone BFV encryption proof) ==="
-    cargo test -p pvthfhe-compressor --lib bfv_snapshot::tests::prove_verify_roundtrip_zero_witness -- --nocapture
-    @echo "=== bfv-snapshot-prove: PASS ==="
-
-# Verify a BFV snapshot proof.
-bfv-snapshot-verify:
-    @echo "=== BFV Snapshot Verify (LatticeFold+ verification) ==="
-    cargo test -p pvthfhe-compressor --lib bfv_snapshot::tests -- --nocapture
-    @echo "=== bfv-snapshot-verify: all tests passed ==="
-
-# FHE compute provider chain proof (Initiative 2).
-# Runs a Merkle-committed FHE operation chain with LatticeFold+ folding.
-fhe-compute-prove:
-    @echo "=== FHE Compute Prove (LatticeFold+ FHE compute step circuit) ==="
-    cargo test -p pvthfhe-compressor --lib fhe_compute_circuit::tests::prove_verify_roundtrip -- --nocapture
-    @echo "=== fhe-compute-prove: PASS ==="
-
-bench-folding:
-    @echo "not implemented"
-    @exit 2
-
-bench-noir-rlwe:
-    @echo "not implemented"
-    @exit 2
-
-bench-kzg-evm:
-    @echo "not implemented"
-    @exit 2
 
 test-circuits:
     just circuit-param

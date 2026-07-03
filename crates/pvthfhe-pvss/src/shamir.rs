@@ -44,11 +44,11 @@ use std::fmt;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ShamirError {
     /// Not enough shares provided to satisfy the threshold.
-    InsufficientShares,
+    InsufficientShares { received: usize, required: usize },
     /// Duplicate x-coordinates detected in the share set.
-    DuplicateX,
+    DuplicateX { party_id: usize },
     /// Recovery failed (e.g., degenerate x-coordinates, zero denominator).
-    RecoveryFailed,
+    RecoveryFailed { party_id: Option<usize> },
     /// Invalid parameters were passed to a function (e.g., t == 0 or n < t).
     InvalidParameters(String),
 }
@@ -56,9 +56,18 @@ pub enum ShamirError {
 impl fmt::Display for ShamirError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InsufficientShares => f.write_str("not enough shares to satisfy threshold"),
-            Self::DuplicateX => f.write_str("duplicate x-coordinates in share set"),
-            Self::RecoveryFailed => f.write_str("Shamir recovery failed"),
+            Self::InsufficientShares { received, required } => {
+                write!(f, "not enough shares: received {received}, required {required}")
+            }
+            Self::DuplicateX { party_id } => {
+                write!(f, "duplicate x-coordinate for party {party_id}")
+            }
+            Self::RecoveryFailed { party_id } => {
+                match party_id {
+                    Some(pid) => write!(f, "Shamir recovery failed for party {pid}"),
+                    None => write!(f, "Shamir recovery failed"),
+                }
+            }
             Self::InvalidParameters(msg) => write!(f, "invalid Shamir parameters: {msg}"),
         }
     }
@@ -139,14 +148,24 @@ pub fn split(
 /// or a `ShamirError` if the shares are insufficient or malformed.
 pub fn recover(shares: &[(usize, Fr)], threshold: usize) -> Result<Fr, ShamirError> {
     if shares.len() < threshold {
-        return Err(ShamirError::InsufficientShares);
+        return Err(ShamirError::InsufficientShares {
+            received: shares.len(),
+            required: threshold,
+        });
     }
 
     // Check for duplicate x-coordinates.
     let mut xs: Vec<usize> = shares.iter().map(|(x, _)| *x).collect();
     xs.sort_unstable();
     if xs.windows(2).any(|w| w[0] == w[1]) {
-        return Err(ShamirError::DuplicateX);
+        // Find the duplicate x-coordinate
+        for window in xs.windows(2) {
+            if window[0] == window[1] {
+                return Err(ShamirError::DuplicateX { party_id: window[0] });
+            }
+        }
+        // This should never happen, but return generic error as fallback
+        return Err(ShamirError::RecoveryFailed { party_id: None });
     }
 
     let x_frs: Vec<Fr> = shares.iter().map(|(x, _)| Fr::from(*x as u64)).collect();
@@ -159,7 +178,7 @@ pub fn recover(shares: &[(usize, Fr)], threshold: usize) -> Result<Fr, ShamirErr
     //                 = Π_{j≠i} (-x_j) / (x_i - x_j)
     let mut recovered = Fr::ZERO;
     for (i, (_, y_i)) in shares.iter().enumerate() {
-        let lambda = lagrange_coefficient_at_zero(i, &x_frs).ok_or(ShamirError::RecoveryFailed)?;
+        let lambda = lagrange_coefficient_at_zero(i, &x_frs).ok_or(ShamirError::RecoveryFailed { party_id: None })?;
         recovered += *y_i * lambda;
     }
 
@@ -261,7 +280,13 @@ mod tests {
 
         // RED: fewer than t shares should return InsufficientShares.
         let result = recover(&shares[..t - 1], t);
-        assert_eq!(result, Err(ShamirError::InsufficientShares));
+        assert_eq!(
+            result,
+            Err(ShamirError::InsufficientShares {
+                received: t - 1,
+                required: t
+            })
+        );
 
         // Recovery with exactly t shares should still succeed.
         let recovered = recover(&shares[..t], t).expect("recovery with t shares");
@@ -271,7 +296,13 @@ mod tests {
     #[test]
     fn empty_shares_fails() {
         let result = recover(&[], 1);
-        assert_eq!(result, Err(ShamirError::InsufficientShares));
+        assert_eq!(
+            result,
+            Err(ShamirError::InsufficientShares {
+                received: 0,
+                required: 1
+            })
+        );
     }
 
     #[test]
@@ -286,10 +317,13 @@ mod tests {
         // Fix x-coordinates to be distinct even though values are the same.
         // Actually, the duplicate is on x-coordinates:
         dup[1].0 = dup[0].0; // Same x, different y would fail in Lagrange.
-                             // But we need actually duplicate x. The first two entries now have the
-                             // same x, but different y values. That's what we want to test.
+                              // But we need actually duplicate x. The first two entries now have the
+                              // same x, but different y values. That's what we want to test.
         let result = recover(&dup, 3);
-        assert_eq!(result, Err(ShamirError::DuplicateX));
+        assert_eq!(
+            result,
+            Err(ShamirError::DuplicateX { party_id: dup[0].0 })
+        );
     }
 
     #[test]

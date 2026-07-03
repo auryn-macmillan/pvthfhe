@@ -129,7 +129,10 @@ impl LatticePvssBfvAdapter {
                         party_id: Some(party_index as u16),
                     })?;
                 let accepted_participant_ids: Vec<u16> = (1..=u16::try_from(ctx.n)
-                    .map_err(|_| PvssError::BackendError("n too large for u16".to_string()))?)
+                    .map_err(|_| PvssError::BackendError {
+                        party_id: None,
+                        message: "n too large for u16".to_string(),
+                    })?)
                     .collect();
                 let sk_agg_commit = compute_sk_aggregate_commitment(
                     &ctx.session_id,
@@ -210,7 +213,10 @@ impl LatticePvssBfvAdapter {
         }
 
         DecryptNizkVerifier::verify(&opened.statement, &proof)
-            .map_err(|e| PvssError::ShareVerification(format!("decrypt NIZK: {e}")))
+            .map_err(|e| PvssError::ShareVerification {
+                party_id: None,
+                message: format!("decrypt NIZK: {e}"),
+            })
     }
 }
 
@@ -260,7 +266,10 @@ impl PvssAdapter for LatticePvssBfvAdapter {
 
         if let Some(ref pp_bytes) = shares.parity_proof {
             let proof = crate::parity::deserialize_parity_proof(pp_bytes).ok_or_else(|| {
-                PvssError::ShareVerification("parity proof deserialization failed".into())
+                PvssError::ShareVerification {
+                    party_id: None,
+                    message: "parity proof deserialization failed".into(),
+                }
             })?;
 
             let enc_validity_data: Vec<u8> = shares.ciphertexts.iter().flatten().copied().collect();
@@ -269,22 +278,29 @@ impl PvssAdapter for LatticePvssBfvAdapter {
             let expected_norm_hash = if !shares.share_bytes.is_empty() {
                 let first_len = shares.share_bytes[0].len();
                 if first_len < LENGTH_PREFIX_LEN + FR_SERIALIZED_LEN {
-                    return Err(PvssError::ShareVerification(
-                        "share payload too short for norm witness recovery".into(),
-                    ));
+                    return Err(PvssError::ShareVerification {
+                        party_id: None,
+                        message: "share payload too short for norm witness recovery".into(),
+                    });
                 }
                 let original_len = u32::from_be_bytes(
                     shares.share_bytes[0][..LENGTH_PREFIX_LEN]
                         .try_into()
-                        .map_err(|_| PvssError::ShareVerification("original_len parse".into()))?,
+                        .map_err(|_| PvssError::ShareVerification {
+                            party_id: None,
+                            message: "original_len parse".into(),
+                        })?,
                 ) as usize;
                 let num_chunks = (first_len - LENGTH_PREFIX_LEN) / FR_SERIALIZED_LEN;
                 let needed = ctx.t;
                 if shares.share_bytes.len() < needed {
-                    return Err(PvssError::ShareVerification(format!(
-                        "need {needed} shares for norm witness recovery, got {}",
-                        shares.share_bytes.len()
-                    )));
+                    return Err(PvssError::ShareVerification {
+                        party_id: None,
+                        message: format!(
+                            "need {needed} shares for norm witness recovery, got {}",
+                            shares.share_bytes.len()
+                        ),
+                    });
                 }
                 let mut recovered_frs = Vec::with_capacity(num_chunks);
                 for chunk_idx in 0..num_chunks {
@@ -300,18 +316,20 @@ impl PvssAdapter for LatticePvssBfvAdapter {
                         points.push((i + 1, fr));
                     }
                     let recovered = crate::shamir::recover(&points, needed).map_err(|_| {
-                        PvssError::ShareVerification(format!(
-                            "norm witness recovery failed for chunk {chunk_idx}"
-                        ))
+                        PvssError::ShareVerification {
+                            party_id: None,
+                            message: format!("norm witness recovery failed for chunk {chunk_idx}"),
+                        }
                     })?;
                     recovered_frs.push(recovered);
                 }
                 let secret_bytes = frs_to_secret(&recovered_frs, original_len);
                 crate::parity::hash_norm_witness(&secret_bytes)
             } else {
-                return Err(PvssError::ShareVerification(
-                    "no shares for norm witness recovery".into(),
-                ));
+                return Err(PvssError::ShareVerification {
+                    party_id: None,
+                    message: "no shares for norm witness recovery".into(),
+                });
             };
 
             for (party_idx, payload) in shares.share_bytes.iter().enumerate() {
@@ -319,10 +337,16 @@ impl PvssAdapter for LatticePvssBfvAdapter {
                 let mut share_frs = Vec::new();
                 for chunk in fr_data.chunks(32) {
                     let arr: &[u8; 32] = chunk.try_into().map_err(|_| {
-                        PvssError::ShareVerification("share chunk misaligned".into())
+                        PvssError::ShareVerification {
+                            party_id: None,
+                            message: "share chunk misaligned".into(),
+                        }
                     })?;
                     let fr = bytes32_to_fr(arr).ok_or_else(|| {
-                        PvssError::ShareVerification("share Fr out of range".into())
+                        PvssError::ShareVerification {
+                            party_id: None,
+                            message: "share Fr out of range".into(),
+                        }
                     })?;
                     share_frs.push(fr);
                 }
@@ -334,16 +358,20 @@ impl PvssAdapter for LatticePvssBfvAdapter {
                     expected_norm_hash,
                     expected_enc_hash,
                 ) {
-                    return Err(PvssError::ShareVerification(format!(
-                        "parity proof: share {idx} not on RS codeword or witness hash mismatch"
-                    )));
+                    return Err(PvssError::ShareVerification {
+                        party_id: None,
+                        message: format!("parity proof: share {idx} not on RS codeword or witness hash mismatch"),
+                    });
                 }
             }
         }
 
         if !shares.share_bytes.is_empty() {
             verify_share_rs_consistency(&shares.share_bytes, ctx.t).map_err(|e| {
-                PvssError::ShareVerification(format!("cross-share RS parity check failed: {e}"))
+                PvssError::ShareVerification {
+                    party_id: None,
+                    message: format!("cross-share RS parity check failed: {e}"),
+                }
             })?;
         }
 
@@ -434,25 +462,32 @@ impl PvssAdapter for LatticePvssBfvAdapter {
 
 fn validate_context(ctx: &PvssContext) -> Result<(), PvssError> {
     if ctx.n > MAX_PARTIES {
-        return Err(PvssError::BackendError(format!(
-            "invalid PVSS context: n={} exceeds maximum supported parties {}",
-            ctx.n, MAX_PARTIES
-        )));
+        return Err(PvssError::BackendError {
+            party_id: None,
+            message: format!(
+                "invalid PVSS context: n={} exceeds maximum supported parties {}",
+                ctx.n, MAX_PARTIES
+            ),
+        });
     }
     if ctx.n == 0 || ctx.t == 0 || ctx.t > ctx.n {
-        return Err(PvssError::BackendError(format!(
-            "invalid PVSS context: n={}, t={}",
-            ctx.n, ctx.t
-        )));
+        return Err(PvssError::BackendError {
+            party_id: None,
+            message: format!(
+                "invalid PVSS context: n={}, t={}",
+                ctx.n, ctx.t
+            ),
+        });
     }
     Ok(())
 }
 
 pub fn share_proof_dkg_root(ctx: &PvssContext) -> Result<Vec<u8>, PvssError> {
     if ctx.dkg_root.is_empty() {
-        return Err(PvssError::BackendError(
-            "dkg_root is empty — must be set to bind proofs to a specific DKG ceremony".to_string(),
-        ));
+        return Err(PvssError::BackendError {
+            party_id: None,
+            message: "dkg_root is empty — must be set to bind proofs to a specific DKG ceremony".to_string(),
+        });
     }
     Ok(ctx.dkg_root.clone())
 }
@@ -763,7 +798,10 @@ pub fn compute_poly_factors(n: usize, t: usize, r: ark_bn254::Fr) -> Vec<ark_bn2
 }
 
 fn map_fhe_error(error: FheError) -> PvssError {
-    PvssError::BackendError(error.to_string())
+    PvssError::BackendError {
+        party_id: None,
+        message: error.to_string(),
+    }
 }
 
 // ── Deterministic deal path (P1: pre-computation during keygen) ────────
@@ -845,8 +883,11 @@ impl LatticePvssBfvAdapter {
         let mut party_shares: Vec<Vec<Fr>> = vec![Vec::with_capacity(num_chunks); ctx.n];
 
         for secret_fr in &secret_frs {
-            let chunk_shares = shamir::split(secret_fr, ctx.n, ctx.t, rng)
-                .map_err(|e| PvssError::BackendError(format!("shamir split: {e}")))?;
+        let chunk_shares = shamir::split(secret_fr, ctx.n, ctx.t, rng)
+            .map_err(|e| PvssError::BackendError {
+                party_id: None,
+                message: format!("shamir split: {e}"),
+            })?;
             for (x, share_value) in chunk_shares {
                 party_shares[x - 1].push(share_value);
             }

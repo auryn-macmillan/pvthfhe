@@ -77,21 +77,27 @@ pub struct CheckedBatchedShareComputation {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ShareComputationError {
     /// Statement metadata is malformed.
-    InvalidStatement(&'static str),
+    InvalidStatement { dealer_id: u16, message: &'static str },
     /// A track contains malformed share coordinates.
-    InvalidShareVector(&'static str),
+    InvalidShareVector { dealer_id: u16, message: &'static str },
     /// A track is not a Reed-Solomon codeword for the configured degree.
     NonLowDegree {
+        /// The dealer whose shares failed the RS check.
+        dealer_id: u16,
         /// Track label that failed the RS parity/low-degree check.
         track: String,
     },
     /// Interpolated constant term does not match the public commitment.
     CommitmentMismatch {
+        /// The dealer whose commitment mismatched.
+        dealer_id: u16,
         /// Track label whose constant-term commitment mismatched.
         track: String,
     },
     /// A coefficient exceeds the configured signed bound.
     CoefficientBound {
+        /// The dealer whose coefficient exceeded the bound.
+        dealer_id: u16,
         /// Track label with a coefficient outside the configured bound.
         track: String,
     },
@@ -100,15 +106,21 @@ pub enum ShareComputationError {
 impl core::fmt::Display for ShareComputationError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::InvalidStatement(message) => {
-                write!(f, "invalid share-computation statement: {message}")
+            Self::InvalidStatement { dealer_id, message } => {
+                write!(f, "invalid share-computation statement from dealer {dealer_id}: {message}")
             }
-            Self::InvalidShareVector(track) => write!(f, "invalid share vector for {track}"),
-            Self::NonLowDegree { track } => {
-                write!(f, "{track} shares are not low-degree Shamir/RS evaluations")
+            Self::InvalidShareVector { dealer_id, message } => {
+                write!(f, "invalid share vector from dealer {dealer_id}: {message}")
             }
-            Self::CommitmentMismatch { track } => write!(f, "{track} secret commitment mismatch"),
-            Self::CoefficientBound { track } => write!(f, "{track} coefficient bound exceeded"),
+            Self::NonLowDegree { dealer_id, track } => {
+                write!(f, "dealer {dealer_id} shares for {track} are not low-degree Shamir/RS evaluations")
+            }
+            Self::CommitmentMismatch { dealer_id, track } => {
+                write!(f, "dealer {dealer_id} {track} secret commitment mismatch")
+            }
+            Self::CoefficientBound { dealer_id, track } => {
+                write!(f, "dealer {dealer_id} {track} coefficient bound exceeded")
+            }
         }
     }
 }
@@ -155,13 +167,14 @@ pub fn compute_esm_secret_commitment(
 pub fn verify_batched_share_computation(
     statement: &BatchedShareComputationStatement,
 ) -> Result<CheckedBatchedShareComputation, ShareComputationError> {
-    validate_statement(statement)?;
+    validate_statement(statement, statement.dealer_id)?;
 
     let sk_coefficients = check_track(
         "sk",
         &statement.sk.shares,
         statement.max_degree,
         statement.coefficient_bound,
+        statement.dealer_id,
     )?;
     let expected_sk = compute_sk_secret_commitment(
         &statement.session_id,
@@ -171,6 +184,7 @@ pub fn verify_batched_share_computation(
     );
     if expected_sk != statement.sk.secret_commitment {
         return Err(ShareComputationError::CommitmentMismatch {
+            dealer_id: statement.dealer_id,
             track: "sk".to_owned(),
         });
     }
@@ -179,9 +193,10 @@ pub fn verify_batched_share_computation(
     let mut esm_coefficients = Vec::with_capacity(statement.esm_slots.len());
     for slot in &statement.esm_slots {
         if seen_slots.contains(&slot.slot_index) {
-            return Err(ShareComputationError::InvalidStatement(
-                "duplicate e_sm slot",
-            ));
+            return Err(ShareComputationError::InvalidStatement {
+                dealer_id: statement.dealer_id,
+                message: "duplicate e_sm slot",
+            });
         }
         seen_slots.push(slot.slot_index);
         let track_name = format!("e_sm slot {}", slot.slot_index);
@@ -190,6 +205,7 @@ pub fn verify_batched_share_computation(
             &slot.shares,
             statement.max_degree,
             statement.coefficient_bound,
+            statement.dealer_id,
         )?;
         let expected = compute_esm_secret_commitment(
             &statement.session_id,
@@ -199,7 +215,10 @@ pub fn verify_batched_share_computation(
             coeffs[0],
         );
         if expected != slot.smudge_commitment {
-            return Err(ShareComputationError::CommitmentMismatch { track: track_name });
+            return Err(ShareComputationError::CommitmentMismatch {
+                dealer_id: statement.dealer_id,
+                track: track_name,
+            });
         }
         esm_coefficients.push((slot.slot_index, coeffs));
     }
@@ -213,22 +232,31 @@ pub fn verify_batched_share_computation(
 
 fn validate_statement(
     statement: &BatchedShareComputationStatement,
+    dealer_id: u16,
 ) -> Result<(), ShareComputationError> {
     if statement.session_id.is_empty() {
-        return Err(ShareComputationError::InvalidStatement("empty session_id"));
+        return Err(ShareComputationError::InvalidStatement {
+            dealer_id,
+            message: "empty session_id",
+        });
     }
     if statement.dkg_root.is_empty() {
-        return Err(ShareComputationError::InvalidStatement("empty dkg_root"));
+        return Err(ShareComputationError::InvalidStatement {
+            dealer_id,
+            message: "empty dkg_root",
+        });
     }
     if statement.esm_slots.is_empty() {
-        return Err(ShareComputationError::InvalidStatement(
-            "missing e_sm slots",
-        ));
+        return Err(ShareComputationError::InvalidStatement {
+            dealer_id,
+            message: "missing e_sm slots",
+        });
     }
     if statement.max_degree == usize::MAX {
-        return Err(ShareComputationError::InvalidStatement(
-            "max_degree overflow",
-        ));
+        return Err(ShareComputationError::InvalidStatement {
+            dealer_id,
+            message: "max_degree overflow",
+        });
     }
     Ok(())
 }
@@ -238,28 +266,34 @@ fn check_track(
     shares: &[FieldShare],
     max_degree: usize,
     coefficient_bound: u64,
+    dealer_id: u16,
 ) -> Result<Vec<Fr>, ShareComputationError> {
     let min_points = max_degree
         .checked_add(1)
-        .ok_or(ShareComputationError::InvalidStatement("degree overflow"))?;
+        .ok_or(ShareComputationError::InvalidStatement {
+            dealer_id,
+            message: "degree overflow",
+        })?;
     if shares.len() <= min_points {
-        return Err(ShareComputationError::InvalidShareVector(
-            "insufficient parity shares",
-        ));
+        return Err(ShareComputationError::InvalidShareVector {
+            dealer_id,
+            message: "insufficient parity shares",
+        });
     }
-    validate_share_coordinates(track, shares)?;
+    validate_share_coordinates(track, shares, dealer_id)?;
 
     let interpolation_points: Vec<(Fr, Fr)> = shares
         .iter()
         .take(min_points)
         .map(|share| (Fr::from(u64::from(share.recipient_index)), share.value))
         .collect();
-    let coefficients = interpolate_coefficients(&interpolation_points)?;
+    let coefficients = interpolate_coefficients(&interpolation_points, dealer_id)?;
 
     for share in shares {
         let x = Fr::from(u64::from(share.recipient_index));
         if eval_bn254_poly(&coefficients, x) != share.value {
             return Err(ShareComputationError::NonLowDegree {
+                dealer_id,
                 track: track.to_owned(),
             });
         }
@@ -270,6 +304,7 @@ fn check_track(
         .any(|coeff| !coefficient_within_signed_bound(coeff, coefficient_bound))
     {
         return Err(ShareComputationError::CoefficientBound {
+            dealer_id,
             track: track.to_owned(),
         });
     }
@@ -280,20 +315,25 @@ fn check_track(
 fn validate_share_coordinates(
     track: &str,
     shares: &[FieldShare],
+    dealer_id: u16,
 ) -> Result<(), ShareComputationError> {
     let mut seen = Vec::with_capacity(shares.len());
     for share in shares {
         if share.recipient_index == 0 || seen.contains(&share.recipient_index) {
-            return Err(ShareComputationError::InvalidShareVector(
-                if track == "sk" { "sk" } else { "e_sm" },
-            ));
+            return Err(ShareComputationError::InvalidShareVector {
+                dealer_id,
+                message: if track == "sk" { "sk" } else { "e_sm" },
+            });
         }
         seen.push(share.recipient_index);
     }
     Ok(())
 }
 
-pub fn interpolate_coefficients(points: &[(Fr, Fr)]) -> Result<Vec<Fr>, ShareComputationError> {
+pub fn interpolate_coefficients(
+    points: &[(Fr, Fr)],
+    dealer_id: u16,
+) -> Result<Vec<Fr>, ShareComputationError> {
     let degree = points.len() - 1;
     let mut coefficients = vec![Fr::ZERO; degree + 1];
 
@@ -309,7 +349,10 @@ pub fn interpolate_coefficients(points: &[(Fr, Fr)]) -> Result<Vec<Fr>, ShareCom
         }
         let inv = denominator
             .inverse()
-            .ok_or(ShareComputationError::InvalidShareVector("duplicate x"))?;
+            .ok_or(ShareComputationError::InvalidShareVector {
+                dealer_id,
+                message: "duplicate x",
+            })?;
         let scale = *y_i * inv;
         for (index, coeff) in basis.iter().enumerate() {
             coefficients[index] += *coeff * scale;

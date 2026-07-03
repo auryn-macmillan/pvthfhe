@@ -64,12 +64,13 @@ pub fn fold_all(
 /// Derives a deterministic β coefficient for batch folding.
 ///
 /// Uses Fiat-Shamir: `SHA-256("pvthfhe-cyclo-batch-beta-v1" ‖ session_id ‖ batch_id ‖ i)`.
+#[allow(clippy::unwrap_used)]
 pub fn derive_beta(session_id: &str, batch_id: usize, i: usize) -> u128 {
     let mut hasher = Sha256::new();
     hasher.update(b"pvthfhe-cyclo-batch-beta-v1");
     hasher.update(session_id.as_bytes());
-    hasher.update(&batch_id.to_le_bytes());
-    hasher.update(&i.to_le_bytes());
+    hasher.update(batch_id.to_le_bytes());
+    hasher.update(i.to_le_bytes());
     let hash: [u8; 32] = hasher.finalize().into();
     u128::from_le_bytes(hash[..16].try_into().unwrap())
 }
@@ -133,9 +134,9 @@ pub fn fold_all_batched(
             let mut hasher = Sha256::new();
             hasher.update(b"pvthfhe-cyclo-batch-io-v1");
             hasher.update(session_id.as_bytes());
-            hasher.update(&batch_id.to_le_bytes());
+            hasher.update(batch_id.to_le_bytes());
             for (i, inst) in batch.iter().enumerate() {
-                hasher.update(&betas[i].to_le_bytes());
+                hasher.update(betas[i].to_le_bytes());
                 hasher.update(inst.public_io_bytes.as_slice());
             }
             let hash: [u8; 32] = hasher.finalize().into();
@@ -321,9 +322,9 @@ pub fn fold_all_batched_with_betas(
             let mut hasher = Sha256::new();
             hasher.update(b"pvthfhe-cyclo-batch-io-v1");
             hasher.update(session_id.as_bytes());
-            hasher.update(&batch_id.to_le_bytes());
+            hasher.update(batch_id.to_le_bytes());
             for (i, inst) in batch.iter().enumerate() {
-                hasher.update(&batch_betas[i].to_le_bytes());
+                hasher.update(batch_betas[i].to_le_bytes());
                 hasher.update(inst.public_io_bytes.as_slice());
             }
             let hash: [u8; 32] = hasher.finalize().into();

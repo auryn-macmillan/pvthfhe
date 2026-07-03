@@ -21,6 +21,7 @@ backend-fhe-rs = ["dep:fhe", "dep:fhe-math"]
 backend-poulpy = ["dep:poulpy-hal", "dep:poulpy-cpu-ref"]
 surrogate-compressor = []
 nova-compressor = ["dep:pvthfhe-compressor"]
+hermine = ["pvthfhe-keygen/hermine"]
 
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
@@ -63,6 +64,7 @@ path = "src/bin/bench_scaling.rs"
 [[bin]]
 name = "bench_p4"
 path = "src/bin/bench_p4.rs"
+required-features = ["hermine"]
 
 [[bin]]
 name = "worked_example"

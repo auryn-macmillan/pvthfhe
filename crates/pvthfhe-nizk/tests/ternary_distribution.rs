@@ -49,6 +49,7 @@ fn ternary_distribution_100k_uniform() {
     );
 }
 
+#[allow(clippy::expect_used)]
 #[test]
 fn ternary_distribution_exact_252_buckets() {
     // All 252 valid bytes (0..252) should distribute exactly:

@@ -278,7 +278,10 @@ impl DecryptNizkVerifier {
 
         CycloNizkAdapter
             .verify(&inner_stmt, &inner_proof)
-            .map_err(|e| PvssError::ShareVerification(format!("sigma verify: {e}")))
+            .map_err(|e| PvssError::ShareVerification {
+                party_id: None,
+                message: format!("sigma verify: {e}"),
+            })
     }
 }
 

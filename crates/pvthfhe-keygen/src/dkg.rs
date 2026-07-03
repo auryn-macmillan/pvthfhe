@@ -14,7 +14,7 @@ use pvthfhe_nizk::schnorr::{self, SchnorrPopProof};
 use pvthfhe_rng::OsRng;
 use rand_core::RngCore;
 use sha2::{Digest, Sha256};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const CANONICAL_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
 
@@ -56,9 +56,17 @@ pub enum DkgError {
         party_id: Option<u32>,
     },
     /// Ceremony has not been run yet.
-    NotInitialized,
+    NotInitialized {
+        /// Optional party identifier for blame attribution.
+        party_id: Option<u32>,
+    },
     /// Invalid parameters supplied.
-    InvalidParams(String),
+    InvalidParams {
+        /// Optional party identifier for blame attribution.
+        party_id: Option<u32>,
+        /// The error message.
+        message: String,
+    },
     /// Round timeout triggered.
     RoundTimeout {
         /// Round number that timed out.
@@ -84,8 +92,14 @@ impl core::fmt::Display for DkgError {
                 Some(id) => write!(f, "FHE error (party {id}): {message}"),
                 None => write!(f, "FHE error: {message}"),
             },
-            DkgError::NotInitialized => f.write_str("DKG ceremony not yet run"),
-            DkgError::InvalidParams(msg) => write!(f, "invalid DKG params: {msg}"),
+            DkgError::NotInitialized { party_id } => match party_id {
+                Some(id) => write!(f, "DKG ceremony not yet run (party {id})"),
+                None => write!(f, "DKG ceremony not yet run"),
+            },
+            DkgError::InvalidParams { party_id, message } => match party_id {
+                Some(id) => write!(f, "invalid DKG params (party {id}): {message}"),
+                None => write!(f, "invalid DKG params: {message}"),
+            },
             DkgError::RoundTimeout {
                 round,
                 missing_parties,
@@ -108,6 +122,7 @@ pub struct DkgCeremony {
     keygen_shares: Vec<KeygenShare>,
     public_key: Option<PublicKey>,
     party_identities: Vec<PartyIdentity>,
+    round_timeout: Option<Duration>,
 }
 
 impl DkgCeremony {
@@ -116,10 +131,13 @@ impl DkgCeremony {
     /// Validates that `1 <= t <= n` and initialises the BFV backend.
     pub fn new(params: DkgParams) -> Result<Self, DkgError> {
         if params.t == 0 || params.t > params.n {
-            return Err(DkgError::InvalidParams(format!(
-                "threshold t={} must satisfy 1 <= t <= n={}",
-                params.t, params.n
-            )));
+            return Err(DkgError::InvalidParams {
+                party_id: None,
+                message: format!(
+                    "threshold t={} must satisfy 1 <= t <= n={}",
+                    params.t, params.n
+                ),
+            });
         }
 
         let backend = FhersBackend::load_params(CANONICAL_PARAMS_TOML)?;
@@ -135,6 +153,7 @@ impl DkgCeremony {
             keygen_shares: Vec::with_capacity(params.n),
             public_key: None,
             party_identities: Vec::with_capacity(params.n),
+            round_timeout: params.round_timeout,
         })
     }
 
@@ -146,13 +165,34 @@ impl DkgCeremony {
     /// Additionally generates Schnorr keypairs and proof-of-possession
     /// (PoP) proofs for each party to prevent rogue-key attacks on the
     /// aggregate public key.
+    ///
+    /// If `round_timeout` is set, the coordinator will time out after the
+    /// specified duration and advance without waiting for unresponsive parties.
     pub fn run(&mut self) -> Result<(), DkgError> {
         let mut rng = OsRng;
+        let start_time = Instant::now();
 
         for party_id in 1u32..=self.n as u32 {
-            let share =
-                self.backend
-                    .keygen_share_with_session(&self.session_id, party_id, &mut rng)?;
+            // Check timeout before processing next party
+            if let Some(timeout) = self.round_timeout {
+                if start_time.elapsed() >= timeout {
+                    // Collect missing parties (those not yet processed)
+                    let current_party = party_id;
+                    let missing_parties = (current_party..=self.n as u32).collect();
+                    return Err(DkgError::RoundTimeout {
+                        round: 1,
+                        missing_parties,
+                    });
+                }
+            }
+
+            let share = match self.backend.keygen_share_with_session(&self.session_id, party_id, &mut rng) {
+                Ok(share) => share,
+                Err(e) => return Err(DkgError::Fhe {
+                    message: e.to_string(),
+                    party_id: Some(party_id),
+                }),
+            };
             self.keygen_shares.push(share);
 
             let (sk, pk) = schnorr::generate_signing_keypair(&mut rng);
@@ -165,7 +205,11 @@ impl DkgCeremony {
         }
 
         let session_seed: [u8; 32] = Sha256::digest(self.session_id).into();
-        self.backend.setup_threshold(self.n, self.t, session_seed)?;
+        self.backend.setup_threshold(self.n, self.t, session_seed)
+            .map_err(|e| DkgError::Fhe {
+                message: e.to_string(),
+                party_id: None,
+            })?;
 
         let pk = self.backend.aggregate_keygen(&self.keygen_shares)?;
         self.public_key = Some(pk);
@@ -177,7 +221,7 @@ impl DkgCeremony {
     ///
     /// Errors with [`DkgError::NotInitialized`] if `run` has not been called.
     pub fn public_key(&self) -> Result<&PublicKey, DkgError> {
-        self.public_key.as_ref().ok_or(DkgError::NotInitialized)
+        self.public_key.as_ref().ok_or(DkgError::NotInitialized { party_id: None })
     }
 
     /// Returns the identity records for all parties that participated in the

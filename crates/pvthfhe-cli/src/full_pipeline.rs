@@ -2645,7 +2645,7 @@ fn verify_all_dealer_share_computations(
             .iter()
             .map(|fs| (Fr::from(fs.recipient_index as u64), fs.value))
             .collect();
-        let coefficients = interpolate_coefficients(&points)
+        let coefficients = interpolate_coefficients(&points, dealer_id)
             .map_err(|e| anyhow::anyhow!("share interpolation failed: {e}"))?;
         let sk_constant = coefficients[0];
 

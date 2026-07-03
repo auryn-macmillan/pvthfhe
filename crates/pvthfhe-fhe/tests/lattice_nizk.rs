@@ -32,24 +32,28 @@ mod lattice_nizk {
         };
         let participant_id = some(share.participant_id, "participant id");
         let commitment = pvss_commitment(&share.session_id, participant_id, secret_value);
+        let n = pvthfhe_types::rlwe_n();
         let statement = NizkStatement {
             ciphertext_bytes: vec![0x10, 0x20, 0x30, 0x40],
             decrypt_share_bytes: vec![0x44, 0x55, 0x66, 0x77],
             pvss_commitment: commitment,
-            params: (65_537, 1_024, 17),
+            params: (65_537, n, 17),
             session_id: share.session_id.clone(),
             participant_id,
             epoch: 0,
             c_rns_override: None,
             d_rns_override: None,
         };
-        let mut secret_share_poly = vec![0i64; 8192];
+        let mut secret_share_poly = vec![0i64; n];
         secret_share_poly[0] = 1;
         secret_share_poly[1] = -1;
+        let mut error = vec![0i64; n];
+        error[0] = 1;
+        error[1] = -1;
         let witness = NizkWitness {
             secret_share: secret_value,
             secret_share_poly,
-            error: vec![1, -1, 0, 2],
+            error,
             randomness: vec![0xAA, 0xBB, 0xCC, 0xDD],
         };
         (statement, witness)

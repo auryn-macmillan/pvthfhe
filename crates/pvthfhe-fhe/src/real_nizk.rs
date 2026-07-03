@@ -73,20 +73,20 @@ impl NizkProof {
 pub enum NizkError {
     /// Verification succeeded algebraically but soundness is conditional
     /// (mirrors `pvthfhe_nizk::NizkError::ConditionalSoundnessDisclosure`).
-    #[error("conditional soundness: {0}")]
-    ConditionalSoundnessDisclosure(&'static str),
+    #[error("conditional soundness (party {0:?}): {1}")]
+    ConditionalSoundnessDisclosure(Option<u16>, &'static str),
     /// Statement or witness encoding is malformed.
-    #[error("invalid lattice NIZK input: {0}")]
-    InvalidInput(&'static str),
+    #[error("invalid lattice NIZK input (party {0:?}): {1}")]
+    InvalidInput(Option<u16>, &'static str),
     /// Proof bytes could not be decoded.
-    #[error("invalid lattice NIZK proof: {0}")]
-    InvalidProof(&'static str),
+    #[error("invalid lattice NIZK proof (party {0:?}): {1}")]
+    InvalidProof(Option<u16>, &'static str),
     /// The proof does not satisfy the verification equation.
-    #[error("lattice NIZK verification failed: {0}")]
-    VerificationFailed(&'static str),
+    #[error("lattice NIZK verification failed (party {0:?}): {1}")]
+    VerificationFailed(Option<u16>, &'static str),
     /// Proof generation failed due to exhaustion of retries.
-    #[error("proof generation failed: {0}")]
-    ProofGenerationFailed(&'static str),
+    #[error("proof generation failed (party {0:?}): {1}")]
+    ProofGenerationFailed(Option<u16>, &'static str),
 }
 
 /// Frozen trait boundary for P1 lattice NIZK backends.
@@ -150,18 +150,22 @@ fn to_nizk_proof(p: &NizkProof) -> pvthfhe_nizk::NizkProof {
     }
 }
 
-fn map_err(e: pvthfhe_nizk::NizkError) -> NizkError {
+fn map_err(e: pvthfhe_nizk::NizkError, participant_id: Option<u16>) -> NizkError {
     match e {
         pvthfhe_nizk::NizkError::ConditionalSoundnessDisclosure { reason, .. } => {
-            NizkError::ConditionalSoundnessDisclosure(reason)
+            NizkError::ConditionalSoundnessDisclosure(participant_id, reason)
         }
-        pvthfhe_nizk::NizkError::InvalidInput { reason, .. } => NizkError::InvalidInput(reason),
-        pvthfhe_nizk::NizkError::InvalidProof { reason, .. } => NizkError::InvalidProof(reason),
+        pvthfhe_nizk::NizkError::InvalidInput { reason, .. } => {
+            NizkError::InvalidInput(participant_id, reason)
+        }
+        pvthfhe_nizk::NizkError::InvalidProof { reason, .. } => {
+            NizkError::InvalidProof(participant_id, reason)
+        }
         pvthfhe_nizk::NizkError::VerificationFailed { reason, .. } => {
-            NizkError::VerificationFailed(reason)
+            NizkError::VerificationFailed(participant_id, reason)
         }
         pvthfhe_nizk::NizkError::ProofGenerationFailed { reason, .. } => {
-            NizkError::ProofGenerationFailed(reason)
+            NizkError::ProofGenerationFailed(participant_id, reason)
         }
     }
 }
@@ -177,15 +181,15 @@ impl LatticeNizk for RealNizkAdapter {
         let nizk_witness = to_nizk_witness(witness);
         let proof = adapter
             .prove(&nizk_stmt, &nizk_witness, &mut *rng)
-            .map_err(map_err)?;
-        Ok(from_nizk_proof(proof))
+            .map_err(|e| map_err(e, Some(stmt.participant_id)));
+        Ok(from_nizk_proof(proof?))
     }
 
     fn verify(stmt: &NizkStatement, proof: &NizkProof) -> Result<(), NizkError> {
         let adapter = CycloNizkAdapter;
         let nizk_stmt = to_nizk_stmt(stmt);
         let nizk_proof = to_nizk_proof(proof);
-        adapter.verify(&nizk_stmt, &nizk_proof).map_err(map_err)
+        adapter.verify(&nizk_stmt, &nizk_proof).map_err(|e| map_err(e, Some(stmt.participant_id)))
     }
 
     fn batch_verify(stmts: &[NizkStatement], proofs: &[NizkProof]) -> Result<(), NizkError> {
@@ -194,7 +198,11 @@ impl LatticeNizk for RealNizkAdapter {
         let nizk_proofs: Vec<_> = proofs.iter().map(to_nizk_proof).collect();
         adapter
             .batch_verify(&nizk_stmts, &nizk_proofs)
-            .map_err(map_err)
+            .map_err(|e| {
+                // Use first participant_id from statements as representative
+                let participant_id = stmts.first().map(|s| s.participant_id);
+                map_err(e, participant_id)
+            })
     }
 }
 

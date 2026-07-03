@@ -43,6 +43,7 @@ pub(crate) fn witness_norm_estimate(witness_bytes: &[u8]) -> u64 {
     }
 }
 
+#[allow(clippy::unwrap_used)]
 fn derive_challenge(
     session_id: &str,
     fold_depth: u32,

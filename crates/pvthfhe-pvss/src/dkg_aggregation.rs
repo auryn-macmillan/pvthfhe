@@ -85,6 +85,8 @@ pub enum DkgAggregationError {
     DealerSetMismatch,
     /// A dealer's decrypted share does not match its prior public commitment.
     DealerShareCommitmentMismatch {
+        /// The dealer whose share commitment mismatched.
+        dealer_id: u16,
         /// Track label whose dealer share commitment mismatched.
         track: String,
     },
@@ -112,8 +114,8 @@ impl core::fmt::Display for DkgAggregationError {
                 write!(f, "invalid DKG aggregation statement: {message}")
             }
             Self::DealerSetMismatch => f.write_str("accepted dealer set mismatch"),
-            Self::DealerShareCommitmentMismatch { track } => {
-                write!(f, "dealer {track} share commitment mismatch")
+            Self::DealerShareCommitmentMismatch { dealer_id, track } => {
+                write!(f, "dealer {dealer_id} {track} share commitment mismatch")
             }
             Self::AggregateSumMismatch { track } => write!(f, "{track} aggregate sum mismatch"),
             Self::AggregateCommitmentMismatch { track } => {
@@ -463,6 +465,7 @@ fn check_dealer_commitments(
         );
         if expected_sk != input.sk_share_commitment {
             return Err(DkgAggregationError::DealerShareCommitmentMismatch {
+                dealer_id: input.dealer_id,
                 track: "sk".to_owned(),
             });
         }
@@ -483,6 +486,7 @@ fn check_dealer_commitments(
             )?;
             if expected != actual {
                 return Err(DkgAggregationError::DealerShareCommitmentMismatch {
+                    dealer_id: input.dealer_id,
                     track: format!("e_sm slot {slot_index}"),
                 });
             }

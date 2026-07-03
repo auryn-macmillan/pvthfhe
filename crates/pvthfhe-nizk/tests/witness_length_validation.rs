@@ -7,7 +7,6 @@
 //! for N=8192 because `pad_or_truncate_to_rlwe_n` silently pads with zeros.
 
 use pvthfhe_nizk::adapter::CycloNizkAdapter;
-use pvthfhe_nizk::hash_bridge;
 use pvthfhe_nizk::sigma::rlwe_n;
 use pvthfhe_nizk::{NizkAdapter, NizkStatement, NizkWitness};
 use rand_chacha::ChaCha20Rng;

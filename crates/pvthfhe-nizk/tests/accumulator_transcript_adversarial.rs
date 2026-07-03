@@ -17,7 +17,6 @@ use pvthfhe_nizk::{NizkAdapter, NizkError, NizkProof, NizkStatement, NizkWitness
 use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
-use sha2::Digest;
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -200,7 +199,7 @@ fn ac2_random_accumulator_bytes_rejected() {
 
 #[test]
 fn ac2_random_large_accumulator_bytes_rejected() {
-    let (adapter, stmt, proof) = make_base_proof(0xAC_02b);
+    let (adapter, stmt, proof) = make_base_proof(0xAC_02B);
 
     let mut proof_bytes = proof.proof_bytes.clone();
     let random_bytes: Vec<u8> = (0..10_000).map(|i| (i % 256) as u8).collect();
@@ -273,7 +272,7 @@ fn ac4_accumulator_tampered_commitment_bytes_rejected() {
 
 #[test]
 fn ac4_accumulator_tampered_ajtai_commitment_hash_rejected() {
-    let (adapter, stmt, proof) = make_base_proof(0xAC_04b);
+    let (adapter, stmt, proof) = make_base_proof(0xAC_04B);
     let proof_commitment_bytes = &proof.proof_bytes[34..34 + AJTAI_COMMITMENT_BYTES];
     let (acc, instance) = build_valid_transcript(proof_commitment_bytes, &stmt);
 
@@ -362,9 +361,9 @@ fn ac6_accumulator_depth_instance_count_mismatch_rejected() {
     bytes.extend_from_slice(&3u32.to_be_bytes()); // fold_depth = 3
     let clen = AJTAI_COMMITMENT_BYTES as u32;
     bytes.extend_from_slice(&clen.to_be_bytes());
-    bytes.extend_from_slice(&vec![0u8; AJTAI_COMMITMENT_BYTES]);
+    bytes.extend_from_slice(&[0u8; AJTAI_COMMITMENT_BYTES]);
     bytes.extend_from_slice(&32u32.to_be_bytes());
-    bytes.extend_from_slice(&vec![0u8; 32]);
+    bytes.extend_from_slice(&[0u8; 32]);
     bytes.extend_from_slice(&PVTHFHE_CYCLO_PARAMS.beta_at_t.to_be_bytes());
     bytes.extend_from_slice(&4u32.to_be_bytes());
     bytes.extend_from_slice(b"test");
@@ -646,9 +645,9 @@ fn t5_accumulator_adversary_wrong_instance_count_truncated_rejected() {
     bytes.extend_from_slice(&5u32.to_be_bytes());
     let clen = AJTAI_COMMITMENT_BYTES as u32;
     bytes.extend_from_slice(&clen.to_be_bytes());
-    bytes.extend_from_slice(&vec![0u8; AJTAI_COMMITMENT_BYTES]);
+    bytes.extend_from_slice(&[0u8; AJTAI_COMMITMENT_BYTES]);
     bytes.extend_from_slice(&32u32.to_be_bytes());
-    bytes.extend_from_slice(&vec![0u8; 32]);
+    bytes.extend_from_slice(&[0u8; 32]);
     bytes.extend_from_slice(&PVTHFHE_CYCLO_PARAMS.beta_at_t.to_be_bytes());
     bytes.extend_from_slice(&4u32.to_be_bytes());
     bytes.extend_from_slice(b"test");
@@ -717,9 +716,9 @@ fn t5_accumulator_adversary_cannot_skip_intermediate_fold() {
     bytes.extend_from_slice(&2u32.to_be_bytes()); // fold_depth = 2
     let clen = AJTAI_COMMITMENT_BYTES as u32;
     bytes.extend_from_slice(&clen.to_be_bytes());
-    bytes.extend_from_slice(&vec![0u8; AJTAI_COMMITMENT_BYTES]);
+    bytes.extend_from_slice(&[0u8; AJTAI_COMMITMENT_BYTES]);
     bytes.extend_from_slice(&32u32.to_be_bytes());
-    bytes.extend_from_slice(&vec![0u8; 32]);
+    bytes.extend_from_slice(&[0u8; 32]);
     bytes.extend_from_slice(&PVTHFHE_CYCLO_PARAMS.beta_at_t.to_be_bytes());
     bytes.extend_from_slice(&4u32.to_be_bytes());
     bytes.extend_from_slice(b"test");
@@ -853,9 +852,9 @@ fn accumulator_wrong_public_io_length_rejected() {
     bytes.extend_from_slice(&1u32.to_be_bytes());
     let clen = AJTAI_COMMITMENT_BYTES as u32;
     bytes.extend_from_slice(&clen.to_be_bytes());
-    bytes.extend_from_slice(&vec![0u8; AJTAI_COMMITMENT_BYTES]);
+    bytes.extend_from_slice(&[0u8; AJTAI_COMMITMENT_BYTES]);
     bytes.extend_from_slice(&31u32.to_be_bytes()); // wrong: 31 instead of 32
-    bytes.extend_from_slice(&vec![0u8; 31]);
+    bytes.extend_from_slice(&[0u8; 31]);
 
     let decode_result = accumulator_codec::decode_accumulator(&bytes);
     assert!(

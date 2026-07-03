@@ -417,7 +417,7 @@ fn scenario_10_zero_witness_rejected() -> Result<(), NizkError> {
             reason: "M7: zero-witness proof was accepted but should be rejected",
             party_id: None,
         }),
-        Err(other) => Err(NizkError::VerificationFailed {
+        Err(_other) => Err(NizkError::VerificationFailed {
             reason: "M7: unexpected error type",
             party_id: None,
         }),

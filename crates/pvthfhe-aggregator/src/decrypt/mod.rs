@@ -27,16 +27,22 @@ const FINAL_PLAINTEXT_HASH_DOMAIN: &[u8] = b"pvthfhe-final-plaintext-hash-v1";
 pub enum DecryptError {
     #[error("invalid share from party {party_id}: {reason}")]
     InvalidShare { party_id: u32, reason: String },
-    #[error("insufficient shares: need {needed}, got {got}")]
-    InsufficientShares { needed: usize, got: usize },
+    #[error("insufficient shares: need {needed}, got {got} (party {party_id:?})")]
+    InsufficientShares { party_id: Option<u32>, needed: usize, got: usize },
     #[error("duplicate party id {0}")]
     DuplicateParty(u32),
     #[error("unknown party id {0}")]
     UnknownParty(u32),
     #[error("NIZK verification failed for party {party_id}")]
     NizkVerify { party_id: u32 },
-    #[error("backend error: {0}")]
-    Backend(#[from] FheError),
+    #[error("backend error (party {pid:?}): {0}", pid = party_id.as_ref().map(|p| *p as u16).unwrap_or(0))]
+    Backend { party_id: Option<u32>, source: FheError },
+}
+
+impl From<FheError> for DecryptError {
+    fn from(e: FheError) -> Self {
+        DecryptError::Backend { party_id: None, source: e }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -158,7 +164,7 @@ pub fn partial_decrypt(
                 version: 1,
             });
         }
-        Err(e) => return Err(DecryptError::Backend(e).into()),
+        Err(e) => return Err(DecryptError::Backend { party_id: Some(party_id), source: e }.into()),
     };
 
     let pk_i_hash = sha256_bytes(party_pk_bytes);
@@ -424,6 +430,7 @@ pub fn aggregate_decrypt(
 
     if valid_shares.len() < threshold {
         return Err(DecryptError::InsufficientShares {
+            party_id: None,
             needed: threshold,
             got: valid_shares.len(),
         });

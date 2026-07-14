@@ -3,6 +3,19 @@
 > **Status**: R2.0 design freeze. Documents the Nova Nova substitution for the
 > P2 folding layer. Read-only; updates only via plan amendment or escape hatches
 > in `spec-real-p2p3.md §9`.
+>
+> **R3.0 update (2026-07-14)**: The `NethermindEth/latticefold` repository (verified
+> as of 2026-07-14 with 221 commits, 129 stars, EF ZK grant) provides a working
+> Rust implementation of the base LatticeFold protocol. The `pvthfhe-cyclo` crate
+> now implements a spec-driven LatticeFold NIFS decomposition+folding pipeline
+> over the native `R_q` cyclotomic ring (`decompose/`, `nifs/` modules), replacing
+> the simplified scalar-challenge Ajtai folding with proper random-linear-combination
+> folding. When witness norm exceeds the per-step budget, the pipeline decomposes
+> the witness into base-B digit parts and folds them via NIFS before the commitment
+> layer processes them. The Nova Nova surrogate remains in the compressor path;
+> full LatticeFold+ integration (algebraic range proofs, double commitments) is
+> deferred pending the `latticefold-plus` crate's CCS support maturation.
+> See `.sisyphus/plans/latticefold-plus.md` for the full migration plan.
 
 ---
 

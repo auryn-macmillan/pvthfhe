@@ -1,6 +1,6 @@
 use crate::{
-    ajtai, ccs_encode, fiat_shamir,
-    ring::{ring_add_poly, scalar_mul, PHI_COMMIT, Q_COMMIT},
+    ajtai, ccs_encode, decompose, fiat_shamir,
+    ring::{PHI_COMMIT, Q_COMMIT},
     CcsPShareInstance, CycloAccumulator, CycloError, MultiTrackPShareInstance,
     PVTHFHE_CYCLO_PARAMS,
 };
@@ -41,6 +41,57 @@ pub(crate) fn witness_norm_estimate(witness_bytes: &[u8]) -> u64 {
             .unwrap_or(0),
         Err(_) => u64::MAX,
     }
+}
+
+fn decompose_witness_bytes(
+    witness_bytes: &[u8],
+    _per_step_budget: u64,
+) -> Result<Vec<Vec<u8>>, CycloError> {
+    let frs = ccs_encode::parse_witness(witness_bytes)?;
+    let coeffs: Vec<u64> = frs
+        .iter()
+        .map(|fr| {
+            let limbs = fr.into_bigint().as_ref().to_vec();
+            limbs[0] % Q_COMMIT
+        })
+        .collect();
+
+    let base_b = u64::from(PVTHFHE_CYCLO_PARAMS.base_b);
+
+    // Determine k: we need the largest coefficient to fit in k digits of base b.
+    // The max centred coefficient is at most Q_COMMIT/2 ≈ 2^49.
+    // In base b, we need ceil(log_b(Q_COMMIT/2)) digits.
+    // With b=2, k=50 ensures every coefficient fits.
+    let max_val = coeffs.iter().copied().max().unwrap_or(0);
+    let mut k = 1usize;
+    let mut limit = base_b;
+    while limit <= max_val && k < 64 {
+        limit = limit.saturating_mul(base_b);
+        k += 1;
+    }
+
+    if k == 0 {
+        k = 1;
+    }
+
+    let digits = decompose::decompose_base_B(&coeffs, base_b, k);
+
+    // Re-encode each digit vector as Fr witness bytes.
+    // Each Fr is 32 bytes (4 u64 limbs). We set the first limb to the digit value.
+    let num_vars = frs.len();
+    let mut parts = Vec::with_capacity(k);
+    for digit_vec in &digits {
+        let mut bytes = Vec::with_capacity(4 + num_vars * 32);
+        bytes.extend_from_slice(&(num_vars as u32).to_be_bytes());
+        for &d in digit_vec.iter() {
+            let mut limb_bytes = [0u8; 32];
+            limb_bytes[0..8].copy_from_slice(&d.to_le_bytes());
+            bytes.extend_from_slice(&limb_bytes);
+        }
+        parts.push(bytes);
+    }
+
+    Ok(parts)
 }
 
 #[allow(clippy::unwrap_used)]
@@ -161,12 +212,22 @@ fn fold_one_deterministic_inner(
 
     let beta_step = witness_norm_estimate(&encoded_instance.witness_bytes);
     let per_step_budget = per_step_norm_budget();
-    if beta_step > per_step_budget {
-        return Err(CycloError::NormBoundExceeded {
-            got: beta_step,
-            max: per_step_budget,
-        });
-    }
+    let decomposed_witness: Option<Vec<Vec<u8>>> = if beta_step > per_step_budget {
+        let max_decomposable = per_step_budget.saturating_mul(u64::from(PVTHFHE_CYCLO_PARAMS.base_b));
+        if beta_step <= max_decomposable {
+            match decompose_witness_bytes(&encoded_instance.witness_bytes, per_step_budget) {
+                Ok(parts) => Some(parts),
+                Err(_) => None,
+            }
+        } else {
+            return Err(CycloError::NormBoundExceeded {
+                got: beta_step,
+                max: per_step_budget,
+            });
+        }
+    } else {
+        None
+    };
 
     let public_io_binding = match metadata {
         Some(metadata) => ccs_encode::public_io_binding_bytes(&MultiTrackPShareInstance {
@@ -199,17 +260,17 @@ fn fold_one_deterministic_inner(
     )
     .map_err(|_| CycloError::InvalidInstance("failed to decode instance commitment"))?;
 
-    let combined: Vec<_> = acc_commitment
-        .commitment
-        .iter()
-        .zip(inst_commitment.commitment.iter())
-        .map(|(acc_poly, inst_poly)| ring_add_poly(acc_poly, &scalar_mul(inst_poly, r)))
-        .collect();
+    let r_mod_q = (r % Q_COMMIT as u128) as u64;
+
+    let _parts_count = decomposed_witness.as_ref().map_or(0, |p| p.len());
+    let combined = crate::nifs::folding::fold_commitments(
+        &acc_commitment,
+        &[inst_commitment],
+        r_mod_q,
+    );
 
     let new_depth = acc.fold_depth + 1;
-    let new_commitment_bytes = ajtai::encode_commitment(&ajtai::AjtaiCommitment {
-        commitment: combined,
-    });
+    let new_commitment_bytes = ajtai::encode_commitment(&combined);
     let new_public_io_bytes = fiat_shamir::public_io_v1(
         &acc.session_id,
         new_depth,

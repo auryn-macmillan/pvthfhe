@@ -1,6 +1,10 @@
 //! Per-node scaling simulation: measures wall time for ONE party
 //! at arbitrary n and t, reflecting real O(n) per-party deployments.
 //!
+//! In production, each node produces NIZK proofs for its shares; the aggregator
+//! performs the LatticeFold NIFS folding (not the individual node). This benchmark
+//! therefore measures keygen + shamir + encrypt + NIZK prove/verify — the per-party
+//! work that feeds into the aggregator's fold pipeline.
 
 #![allow(
     unexpected_cfgs,

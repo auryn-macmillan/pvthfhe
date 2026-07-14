@@ -116,7 +116,7 @@ pub fn ntt_mul(a: &RqPoly, b: &RqPoly) -> Result<RqPoly, CycloError> {
 /// Computes the centred coefficient `min(c, Q_COMMIT - c)` for a raw coefficient
 /// `c ∈ [0, Q_COMMIT)`.
 #[inline]
-fn centred(c: u64) -> u64 {
+pub fn centred(c: u64) -> u64 {
     let neg = Q_COMMIT - c;
     if neg < c {
         neg

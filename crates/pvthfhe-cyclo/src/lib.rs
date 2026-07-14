@@ -18,10 +18,12 @@ pub mod adapter;
 pub mod ajtai;
 pub mod ccs_encode;
 pub mod ccs_rlwe;
+pub mod decompose;
 pub mod driver;
 pub mod extension;
 pub mod fiat_shamir;
 pub mod fold;
+pub mod nifs;
 pub mod range_check;
 pub mod ring;
 

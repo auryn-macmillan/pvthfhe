@@ -53,4 +53,4 @@ pub use pk_aggregation::{
 pub use prover::{LatticeFoldAccumulator, LatticeFoldProver};
 pub use range_proof::{algebraic_range_check, AlgebraicRangeProof};
 pub use sumcheck::sumcheck_transform;
-pub use verifier::LatticeFoldVerifier;
+pub use verifier::{LatticeFoldVerifier, VerificationProof};

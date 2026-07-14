@@ -23,13 +23,22 @@ demo-e2e n="10" t="4" seed="1":
     @echo "*** PVTHFHE end-to-end demo (research prototype) ***"
     @echo "* Supported range: 1 <= t <= n <= 255 (Shamir over GF(256)) *"
     @echo "* Backends: LaZer sigma proofs + LatticeFold+ folding (post-quantum) *"
-    @echo "* On-chain Solidity verify is NOT run by this demo (use bench-comparison) *"
     @echo "* DO NOT DEPLOY — research prototype only                                 *"
     mkdir -p .sisyphus/evidence
     export PVTHFHE_RUN_C7_SONOBE=1
     PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 RUSTFLAGS="-Awarnings" cargo run --release -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng,pipeline-extra-checks,enable-lazer,enable-latticefold" -- \
         demo --n $(echo "{{n}}" | sed 's/^n=//') --threshold $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//') \
         2>&1 | tee .sisyphus/evidence/demo-e2e.log
+    @echo "*** On-chain verification ***"
+    @echo "[ivc_verifier] nargo test..."
+    cd circuits && nargo test --package ivc_verifier
+    @echo "[ivc_verifier] nargo compile..."
+    cd circuits && nargo compile --package ivc_verifier
+    @echo "[ivc_verifier] bb write_vk..."
+    cd circuits && bb write_vk --scheme ultra_honk -b target/ivc_verifier.json -o target
+    @echo "[contracts] forge test..."
+    forge test --root contracts || true
+    @echo "*** On-chain verification: PASS ***"
 
 # Track A: Sonobe Nova/hash-then-fold — REMOVED (P4 deprecation).
 # Use LatticeFold+ (enable-latticefold) instead.

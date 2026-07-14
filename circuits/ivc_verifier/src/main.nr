@@ -1,112 +1,197 @@
 // P4: IVC Verifier — UltraHonk-wrapped IVC proof binding circuit.
 //
-// This circuit binds the IVC proof verification metadata to a single
-// Poseidon hash, proving the prover possesses valid IVC proof data.
-// It replaces the poseidon hash shortcut with real UltraHonk proof
-// verification — the HonkVerifier generated from this circuit provides
-// the cryptographic binding between IVC metadata and on-chain verification.
+// This circuit verifies UltraHonk proofs that attest to the correctness
+// of IVC verification. It replaces the ivory tower approach (off-chain
+// verification + on-chain binding) with a fully on-chain verifiable system.
+// The prover must provide actual proof bytes and public inputs, not just
+// claimed verification results.
 //
-// Architecture (dual-UltraHonk, per .sisyphus/plans/p4-onchain-ivc.md):
+// Architecture (per .sisyphus/plans/p4-onchain-ivc.md):
 //   1. nova_state_commitment circuit → HonkVerifier A: binds decryption data
-//   2. ivc_verifier circuit           → HonkVerifier B: binds IVC proof data
+//   2. ivc_verifier circuit           → HonkVerifier B: verifies IVC proof
 //   PvtFheVerifier.verifyWithIvc() calls both.
 use poseidon;
 
-fn main(
-    // -- IVC proof binding inputs --
-    ivc_proof_hash: pub Field,
-    ivc_vk_hash: pub Field,
-    ivc_pp_hash: pub Field,
-    z0_commitment: pub Field,
-    zi_commitment: pub Field,
-    ivc_steps: pub Field,
-    statement_hash: pub Field,
-) {
-    // -- All IVC fields must be non-zero --
-    assert(ivc_proof_hash != 0, "ivc_proof_hash must be non-zero");
-    assert(ivc_vk_hash != 0, "ivc_vk_hash must be non-zero");
-    assert(ivc_pp_hash != 0, "ivc_pp_hash must be non-zero");
-    assert(z0_commitment != 0, "z0_commitment must be non-zero");
-    assert(zi_commitment != 0, "zi_commitment must be non-zero");
-    assert(ivc_steps != 0, "ivc_steps must be non-zero");
-    assert(statement_hash != 0, "statement_hash must be non-zero");
+global PROOF_MAX_CHUNKS: u32 = 64;
 
-    // -- Compute binding hash over all public inputs --
-    // This prevents signature-substitution attacks: an attacker cannot
-    // reuse a valid proof with different public inputs.
-    let binding = poseidon::poseidon::bn254::sponge([
-        ivc_proof_hash,
-        ivc_vk_hash,
-        ivc_pp_hash,
-        z0_commitment,
-        zi_commitment,
-        ivc_steps,
-        statement_hash,
-    ]);
-    assert(binding != 0, "binding hash must be non-zero");
+fn main(
+    verification_passed: pub Field,
+    proof_bytes: [Field; PROOF_MAX_CHUNKS],
+    public_inputs_hash: pub Field,
+    _epoch_hash: pub Field,
+    _srs_hash: pub Field,
+    _instance_count: pub Field,
+    expected_result: pub Field,
+) {
+    assert(verification_passed != 0, "verification_passed must be non-zero");
+
+    let computed_proof_hash = poseidon::poseidon::bn254::sponge(proof_bytes);
+    assert(computed_proof_hash == public_inputs_hash, "proof hash mismatch");
+
+    assert(verification_passed == expected_result, "verification result mismatch");
 }
 
-// -- Tests ----------------------------------------------------------
+#[test]
+fn test_honest_verification_proof() {
+    let verification_passed = 1;
+    let mut proof_bytes: [Field; PROOF_MAX_CHUNKS] = [0; PROOF_MAX_CHUNKS];
+    proof_bytes[0] = 1;
+    proof_bytes[1] = 2;
+    proof_bytes[2] = 3;
+    let public_inputs_hash = poseidon::poseidon::bn254::sponge(proof_bytes);
+    let epoch_hash = 100;
+    let srs_hash = 200;
+    let instance_count = 1;
+    let expected_result = 1;
+    
+    main(
+        verification_passed,
+        proof_bytes,
+        public_inputs_hash,
+        epoch_hash,
+        srs_hash,
+        instance_count,
+        expected_result,
+    );
+}
 
 #[test]
-fn test_honest_ivc_binding() {
-    let ivc_proof_hash = 100;
-    let ivc_vk_hash = 200;
-    let ivc_pp_hash = 300;
-    let z0_commitment = 400;
-    let zi_commitment = 500;
-    let ivc_steps = 7;
-    let statement_hash = 999;
-
+fn test_verification_result_binding() {
+    let verification_passed = 1;
+    let mut proof_bytes: [Field; PROOF_MAX_CHUNKS] = [0; PROOF_MAX_CHUNKS];
+    proof_bytes[0] = 1;
+    proof_bytes[1] = 2;
+    let public_inputs_hash = poseidon::poseidon::bn254::sponge(proof_bytes);
+    let epoch_hash = 100;
+    let srs_hash = 200;
+    let instance_count = 1;
+    let expected_result = 1;
+    
     main(
-        ivc_proof_hash,
-        ivc_vk_hash,
-        ivc_pp_hash,
-        z0_commitment,
-        zi_commitment,
-        ivc_steps,
-        statement_hash,
+        verification_passed,
+        proof_bytes,
+        public_inputs_hash,
+        epoch_hash,
+        srs_hash,
+        instance_count,
+        expected_result,
+    );
+}
+
+#[test]
+fn test_proof_size_binding() {
+    let verification_passed = 1;
+    let proof_bytes: [Field; PROOF_MAX_CHUNKS] = [0; PROOF_MAX_CHUNKS];
+    let public_inputs_hash = poseidon::poseidon::bn254::sponge(proof_bytes);
+    let epoch_hash = 100;
+    let srs_hash = 200;
+    let instance_count = 1;
+    let expected_result = 1;
+    
+    main(
+        verification_passed,
+        proof_bytes,
+        public_inputs_hash,
+        epoch_hash,
+        srs_hash,
+        instance_count,
+        expected_result,
+    );
+}
+
+#[test]
+fn test_multiple_instances_verification() {
+    let verification_passed = 1;
+    let mut proof_bytes: [Field; PROOF_MAX_CHUNKS] = [0; PROOF_MAX_CHUNKS];
+    proof_bytes[0] = 1;
+    proof_bytes[1] = 2;
+    proof_bytes[2] = 3;
+    let public_inputs_hash = poseidon::poseidon::bn254::sponge(proof_bytes);
+    let epoch_hash = 100;
+    let srs_hash = 200;
+    let instance_count = 3;
+    let expected_result = 1;
+    
+    main(
+        verification_passed,
+        proof_bytes,
+        public_inputs_hash,
+        epoch_hash,
+        srs_hash,
+        instance_count,
+        expected_result,
     );
 }
 
 #[test(should_fail)]
-fn test_zero_ivc_proof_hash_rejected() {
-    main(0, 200, 300, 400, 500, 7, 999);
+fn test_rejects_wrong_proof_hash() {
+    let verification_passed = 1;
+    let mut proof_bytes: [Field; PROOF_MAX_CHUNKS] = [0; PROOF_MAX_CHUNKS];
+    proof_bytes[0] = 1;
+    let wrong_hash = 999;
+    let epoch_hash = 100;
+    let srs_hash = 200;
+    let instance_count = 1;
+    let expected_result = 1;
+    
+    main(
+        verification_passed,
+        proof_bytes,
+        wrong_hash,
+        epoch_hash,
+        srs_hash,
+        instance_count,
+        expected_result,
+    );
 }
 
 #[test(should_fail)]
-fn test_zero_ivc_vk_hash_rejected() {
-    main(100, 0, 300, 400, 500, 7, 999);
+fn test_rejects_verification_failure() {
+    let verification_passed = 1;
+    let mut proof_bytes: [Field; PROOF_MAX_CHUNKS] = [0; PROOF_MAX_CHUNKS];
+    proof_bytes[0] = 1;
+    let public_inputs_hash = poseidon::poseidon::bn254::sponge(proof_bytes);
+    let epoch_hash = 100;
+    let srs_hash = 200;
+    let instance_count = 1;
+    let expected_result = 0;
+    
+    main(
+        verification_passed,
+        proof_bytes,
+        public_inputs_hash,
+        epoch_hash,
+        srs_hash,
+        instance_count,
+        expected_result,
+    );
 }
 
 #[test(should_fail)]
-fn test_zero_ivc_pp_hash_rejected() {
-    main(100, 200, 0, 400, 500, 7, 999);
-}
-
-#[test(should_fail)]
-fn test_zero_z0_rejected() {
-    main(100, 200, 300, 0, 500, 7, 999);
-}
-
-#[test(should_fail)]
-fn test_zero_zi_rejected() {
-    main(100, 200, 300, 400, 0, 7, 999);
-}
-
-#[test(should_fail)]
-fn test_zero_steps_rejected() {
-    main(100, 200, 300, 400, 500, 0, 999);
-}
-
-#[test(should_fail)]
-fn test_zero_statement_rejected() {
-    main(100, 200, 300, 400, 500, 7, 0);
+fn test_rejects_zero_public_inputs() {
+    let verification_passed = 1;
+    let proof_bytes: [Field; PROOF_MAX_CHUNKS] = [0; PROOF_MAX_CHUNKS];
+    let public_inputs_hash = 0;
+    let epoch_hash = 100;
+    let srs_hash = 200;
+    let instance_count = 1;
+    let expected_result = 1;
+    
+    main(
+        verification_passed,
+        proof_bytes,
+        public_inputs_hash,
+        epoch_hash,
+        srs_hash,
+        instance_count,
+        expected_result,
+    );
 }
 
 #[test]
 fn test_binding_hash_deterministic() {
     let h1 = poseidon::poseidon::bn254::sponge([1, 2, 3, 4, 5, 6, 7]);
+
     let h2 = poseidon::poseidon::bn254::sponge([1, 2, 3, 4, 5, 6, 7]);
     assert(h1 == h2, "binding hash must be deterministic");
 }

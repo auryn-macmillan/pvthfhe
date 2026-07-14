@@ -1,0 +1,7 @@
+verification_passed = 1
+proof_bytes = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+public_inputs_hash = "0x08e1c0f6d9066f9d2fe58ce1ea4a858a79afeb18030b4be0129e5ad731aa6a27"
+_epoch_hash = 100
+_srs_hash = 200
+_instance_count = 1
+expected_result = 1

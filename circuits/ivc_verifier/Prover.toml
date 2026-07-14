@@ -1,7 +1,7 @@
-ivc_pp_hash = 0
-ivc_proof_hash = 0
-ivc_steps = 0
-ivc_vk_hash = 0
-statement_hash = 0
-z0_commitment = 0
-zi_commitment = 0
+verification_passed = 1
+proof_bytes = [1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+public_inputs_hash = 0
+_epoch_hash = 100
+_srs_hash = 200
+_instance_count = 1
+expected_result = 1

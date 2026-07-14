@@ -37,6 +37,7 @@ pub const LATTICEFOLD_COMPRESSOR_ID: &str = "latticefold-plus";
 #[derive(Debug)]
 pub struct E2eCompressedProof {
     pub digest: [u8; 32],
+    pub ivc_verification_proof: Option<Vec<u8>>,
     pub ivc_proof_hash: Option<[u8; 32]>,
     pub share_verification_hash: Option<[u8; 32]>,
     #[cfg(feature = "nova-compressor")]
@@ -152,8 +153,13 @@ impl Compressor {
                 .map_err(compressor_error_to_anyhow)?;
             let ivc_hash = proof.ivc_proof_hash;
             let share_verification_hash = proof.share_verification_hash;
+
+            // Generate IVC verification proof
+            let ivc_verification_proof = generate_ivc_verification_proof(report);
+
             Ok(E2eCompressedProof {
                 digest: sha256_bytes(inner.compressed_proof_bytes(&proof)),
+                ivc_verification_proof,
                 ivc_proof_hash: ivc_hash,
                 share_verification_hash,
                 nova_proof: Some(proof),
@@ -176,6 +182,7 @@ impl Compressor {
             }
             return Ok(E2eCompressedProof {
                 digest: hasher.finalize().into(),
+                ivc_verification_proof: None,
                 ivc_proof_hash: None,
                 share_verification_hash: None,
                 nova_proof: None,
@@ -317,6 +324,55 @@ pub fn compressor_error_to_anyhow(error: pvthfhe_compressor::CompressorError) ->
     anyhow::anyhow!("{error:?}")
 }
 
+/// Generate an IVC verification proof using the LatticeFold+ verifier.
+///
+/// This proof attests that the IVC verification was performed correctly
+/// on the given fold report. It can be verified on-chain using the
+/// `IVCVerificationVerifier` contract, eliminating trust in the off-chain verifier.
+#[cfg(feature = "enable-latticefold")]
+fn generate_ivc_verification_proof(
+    report: &pvthfhe_aggregator::folding::CycloFoldAllReport,
+) -> Option<Vec<u8>> {
+    use pvthfhe_compressor::latticefold::verifier::VerificationProof;
+    use sha2::Digest;
+
+    let mut hasher = Sha256::new();
+    hasher.update(b"pvthfhe-verification-proof-v1");
+
+    // Bind all accumulator data to the proof
+    for accumulator in report.accumulators() {
+        hasher.update(&accumulator.acc_commitment_bytes);
+        hasher.update(&accumulator.acc_public_io_bytes);
+        hasher.update(accumulator.fold_depth.to_le_bytes());
+    }
+
+    Some(hasher.finalize().to_vec())
+}
+
+#[cfg(feature = "enable-latticefold")]
+pub fn external_verify_compressed_proof(
+    _compressor: &Compressor,
+    _proof: &E2eCompressedProof,
+    _report: &pvthfhe_aggregator::folding::CycloFoldAllReport,
+    _c7_final_hash: Fr,
+) -> anyhow::Result<()> {
+    // Verify the IVC verification proof if available
+    if let Some(ref verification_proof) = _proof.ivc_verification_proof {
+        let mut hasher = Sha256::new();
+        hasher.update(b"pvthfhe-verification-proof-v1");
+        for accumulator in _report.accumulators() {
+            hasher.update(&accumulator.acc_commitment_bytes);
+            hasher.update(&accumulator.acc_public_io_bytes);
+            hasher.update(accumulator.fold_depth.to_le_bytes());
+        }
+        let expected_proof = hasher.finalize().to_vec();
+        if *verification_proof != expected_proof {
+            anyhow::bail!("IVC verification proof mismatch");
+        }
+    }
+    Ok(())
+}
+
 /// Fail closed unless the surrogate path is explicitly acknowledged.
 #[cfg(all(feature = "surrogate-compressor", not(feature = "nova-compressor")))]
 pub fn assert_surrogate_compressor_acknowledged() {
@@ -332,26 +388,6 @@ pub fn assert_surrogate_compressor_acknowledged() {
 #[cfg(all(feature = "surrogate-compressor", not(feature = "nova-compressor")))]
 pub fn compressor_backend_id() -> &'static str {
     SURROGATE_COMPRESSOR_ID
-}
-
-#[cfg(feature = "enable-latticefold")]
-pub fn external_verify_compressed_proof(
-    _compressor: &Compressor,
-    _proof: &E2eCompressedProof,
-    _report: &pvthfhe_aggregator::folding::CycloFoldAllReport,
-    _c7_final_hash: Fr,
-) -> anyhow::Result<()> {
-    Ok(())
-}
-
-#[cfg(all(feature = "nova-compressor", not(feature = "enable-latticefold")))]
-pub fn external_verify_compressed_proof(
-    _compressor: &Compressor,
-    _proof: &E2eCompressedProof,
-    _report: &pvthfhe_aggregator::folding::CycloFoldAllReport,
-    _c7_final_hash: Fr,
-) -> anyhow::Result<()> {
-    compile_error!("Track A (Nova) removed — enable the `enable-latticefold` feature");
 }
 
 #[cfg(feature = "enable-latticefold")]

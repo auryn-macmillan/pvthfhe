@@ -371,7 +371,10 @@ impl PvssAdapter for NoopPvssAdapter {
         _recipient_pks: &[Vec<u8>],
         _ctx: &PvssContext,
     ) -> Result<EncryptedShares, PvssError> {
-        Err(PvssError::BackendError("noop-pvss".to_owned()))
+        Err(PvssError::BackendError {
+            party_id: None,
+            message: "noop-pvss".to_owned(),
+        })
     }
 
     fn verify_shares(
@@ -379,7 +382,10 @@ impl PvssAdapter for NoopPvssAdapter {
         _shares: &EncryptedShares,
         _ctx: &PvssContext,
     ) -> Result<(), PvssError> {
-        Err(PvssError::BackendError("noop-pvss".to_owned()))
+        Err(PvssError::BackendError {
+            party_id: None,
+            message: "noop-pvss".to_owned(),
+        })
     }
 
     fn recover(
@@ -387,7 +393,10 @@ impl PvssAdapter for NoopPvssAdapter {
         _decrypted_shares: &[DecryptedShare],
         _ctx: &PvssContext,
     ) -> Result<Vec<u8>, PvssError> {
-        Err(PvssError::BackendError("noop-pvss".to_owned()))
+        Err(PvssError::BackendError {
+            party_id: None,
+            message: "noop-pvss".to_owned(),
+        })
     }
 
     fn backend_id(&self) -> &'static str {

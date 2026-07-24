@@ -12,7 +12,10 @@ impl PvssAdapter for NoopPvssAdapter {
         _recipient_pks: &[Vec<u8>],
         _ctx: &pvthfhe_pvss::PvssContext,
     ) -> Result<pvthfhe_pvss::EncryptedShares, pvthfhe_pvss::PvssError> {
-        Err(pvthfhe_pvss::PvssError::BackendError("noop-pvss".into()))
+        Err(pvthfhe_pvss::PvssError::BackendError {
+            party_id: None,
+            message: "noop-pvss".into(),
+        })
     }
 
     fn verify_shares(
@@ -20,7 +23,10 @@ impl PvssAdapter for NoopPvssAdapter {
         _shares: &pvthfhe_pvss::EncryptedShares,
         _ctx: &pvthfhe_pvss::PvssContext,
     ) -> Result<(), pvthfhe_pvss::PvssError> {
-        Err(pvthfhe_pvss::PvssError::BackendError("noop-pvss".into()))
+        Err(pvthfhe_pvss::PvssError::BackendError {
+            party_id: None,
+            message: "noop-pvss".into(),
+        })
     }
 
     fn recover(
@@ -28,7 +34,10 @@ impl PvssAdapter for NoopPvssAdapter {
         _decrypted_shares: &[pvthfhe_pvss::DecryptedShare],
         _ctx: &pvthfhe_pvss::PvssContext,
     ) -> Result<Vec<u8>, pvthfhe_pvss::PvssError> {
-        Err(pvthfhe_pvss::PvssError::BackendError("noop-pvss".into()))
+        Err(pvthfhe_pvss::PvssError::BackendError {
+            party_id: None,
+            message: "noop-pvss".into(),
+        })
     }
 
     fn backend_id(&self) -> &'static str {
@@ -63,14 +72,14 @@ fn pvss_adapter_is_trait_object_safe() {
     assert!(!adapter.backend_id().is_empty());
     assert!(matches!(
         adapter.deal(b"secret", &[vec![0xAA]], &ctx),
-        Err(pvthfhe_pvss::PvssError::BackendError(_))
+        Err(pvthfhe_pvss::PvssError::BackendError { .. })
     ));
     assert!(matches!(
         adapter.verify_shares(&shares, &ctx),
-        Err(pvthfhe_pvss::PvssError::BackendError(_))
+        Err(pvthfhe_pvss::PvssError::BackendError { .. })
     ));
     assert!(matches!(
         adapter.recover(&decrypted_shares, &ctx),
-        Err(pvthfhe_pvss::PvssError::BackendError(_))
+        Err(pvthfhe_pvss::PvssError::BackendError { .. })
     ));
 }

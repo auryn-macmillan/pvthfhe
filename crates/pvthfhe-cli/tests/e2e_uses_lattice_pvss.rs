@@ -8,8 +8,10 @@ use serde_json::Value;
 fn e2e_uses_lattice_pvss_by_default() -> Result<(), Box<dyn std::error::Error>> {
     let bin = std::env::var("CARGO_BIN_EXE_pvthfhe-e2e")?;
 
+    // seed=0 maps to OsRng (the tripwire-sanctioned path without the
+    // demo-seeded-rng feature); the assertion below is seed-independent.
     let e2e_output = Command::new(bin)
-        .args(["--n", "5", "--t", "2", "--seed", "1"])
+        .args(["--n", "5", "--t", "2", "--seed", "0"])
         .env("RUST_LOG", "info")
         .env_remove("PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK")
         .output()?;

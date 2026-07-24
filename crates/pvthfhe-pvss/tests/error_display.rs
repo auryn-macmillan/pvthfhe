@@ -7,7 +7,10 @@ use pvthfhe_pvss::PvssError;
 
 #[test]
 fn backend_error_display_includes_inner_string() {
-    let e = PvssError::BackendError("invalid PVSS context: n=256, t=129".into());
+    let e = PvssError::BackendError {
+        party_id: None,
+        message: "invalid PVSS context: n=256, t=129".into(),
+    };
     let s = format!("{e}");
     assert!(
         s.contains("invalid PVSS context"),
@@ -21,7 +24,10 @@ fn backend_error_display_includes_inner_string() {
 
 #[test]
 fn backend_error_display_generic_message_still_present() {
-    let e = PvssError::BackendError("some backend failure".into());
+    let e = PvssError::BackendError {
+        party_id: None,
+        message: "some backend failure".into(),
+    };
     let s = format!("{e}");
     // The display should still contain a recognisable prefix so callers can
     // pattern-match on "PVSS backend error" if they want.

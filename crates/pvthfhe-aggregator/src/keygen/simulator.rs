@@ -472,9 +472,18 @@ impl KeygenSimulator {
         }
         // MEMORY: clear encrypted_shares ciphertexts — Round 2 only needs
         // key presence (contains_key), not the actual ciphertext bytes.
-        // This frees n×(n-1) BFV ciphertexts (~392 KB each with real backend).
-        for msg in &mut valid_r1 {
-            msg.encrypted_shares.values_mut().for_each(|v| v.clear());
+        // This frees n×(n-1) BFV ciphertexts (~392 KB each with real backend),
+        // which is ~25 GB at n=255 but negligible for small ceremonies.
+        // Below the threshold the shares are kept so callers (and tests) can
+        // inspect the transcript.
+        const EST_CIPHERTEXT_BYTES: usize = 392_000;
+        const CLEAR_THRESHOLD_BYTES: usize = 256 * 1024 * 1024;
+        let estimated_bytes = self.n_parties * self.n_parties.saturating_sub(1)
+            * EST_CIPHERTEXT_BYTES;
+        if estimated_bytes > CLEAR_THRESHOLD_BYTES {
+            for msg in &mut valid_r1 {
+                msg.encrypted_shares.values_mut().for_each(|v| v.clear());
+            }
         }
         std::mem::drop(canonical_r1_msgs);
 

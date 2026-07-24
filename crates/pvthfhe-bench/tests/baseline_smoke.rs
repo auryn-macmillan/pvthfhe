@@ -24,6 +24,7 @@ fn baseline_smoke_generates_csv_rows_and_monotone_timings() {
     let status = Command::new(env!("CARGO_BIN_EXE_fhe_baseline"))
         .current_dir(repo_root())
         .env("FHE_BENCH_N_MAX", "8")
+        .env("FHE_BENCH_MAX_RUN_S", "1800")
         .status()
         .expect("run fhe_baseline binary");
 

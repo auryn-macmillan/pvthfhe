@@ -20,7 +20,18 @@ use std::{
 const CANONICAL_PARAMS_TOML: &str =
     "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
 const DEFAULT_NS: [usize; 7] = [4, 8, 16, 32, 64, 128, 256];
-const MAX_SINGLE_RUN: Duration = Duration::from_secs(300);
+const DEFAULT_MAX_SINGLE_RUN: Duration = Duration::from_secs(300);
+
+/// Per-run wall-time budget. Overridable via FHE_BENCH_MAX_RUN_S because the
+/// default is calibrated to the original 16-core bench machine; smaller CI/VM
+/// hosts need a larger allowance for the same work.
+fn max_single_run() -> Duration {
+    env::var("FHE_BENCH_MAX_RUN_S")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .map(Duration::from_secs)
+        .unwrap_or(DEFAULT_MAX_SINGLE_RUN)
+}
 const PLAINTEXT: &[u8] = b"benchmark plaintext";
 const CSV_PATH: &str = "bench/results/fhe-baseline.csv";
 const MARKDOWN_PATH: &str = "bench/results/fhe-baseline.md";
@@ -118,9 +129,9 @@ fn run_benchmark(n: usize, t: usize) -> Result<BenchRow, FheError> {
         );
     }
 
-    if overall_started.elapsed() > MAX_SINGLE_RUN {
+    if overall_started.elapsed() > max_single_run() {
         return Err(FheError::Backend {
-            reason: format!("benchmark exceeded {}s budget", MAX_SINGLE_RUN.as_secs()),
+            reason: format!("benchmark exceeded {}s budget", max_single_run().as_secs()),
         });
     }
 

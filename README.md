@@ -1,46 +1,36 @@
 # PVTHFHE · Private-Verifiable Threshold FHE
 
-> ⚠️ **RESEARCH PROTOTYPE — DO NOT DEPLOY** — not production-ready. Two security audits (70 + 188 findings), three MPC audits (22+ findings), all automatable findings remediated. Seven open problems remain. See [SECURITY.md](SECURITY.md) for threat model and caveats.
+> ⚠️ **RESEARCH PROTOTYPE — DO NOT DEPLOY** — not production-ready. Two security audits (70 + 188 findings) and three MPC audits (22+ findings) are remediated; open problems remain. See [SECURITY.md](SECURITY.md) for the threat model and [docs/OPEN-PROBLEM-BLOCKERS.md](docs/OPEN-PROBLEM-BLOCKERS.md) for the fail-closed ledger.
 
 ## What
 
-Private-verifiable threshold Fully Homomorphic Encryption with O(n) per-party work and O(polylog n) verifier cost. Maliciously-secure DKG, verifiable decryption, and on-chain verification via LatticeFold+ + UltraHonk.
+Private-verifiable threshold Fully Homomorphic Encryption with O(n) per-party work and O(polylog n) verifier cost. Maliciously-secure DKG, verifiable decryption, and on-chain verification via LatticeFold+ + UltraHonk — a post-quantum stack with no elliptic-curve or trusted-setup assumptions on the proving path.
 
 ## Status
 
 | Layer | Backend | State |
 |-------|---------|-------|
-| DKG | Pedersen over BFV/RLWE | ✅ |
-| NIZK | Ajtai D2 sigma + BFV sigma (90-round) | ✅ |
-| LaZer NIZK | Auto-generated sigma proofs (LaBRADOR) via LaZer C lib | ✅ Default |
+| DKG | Pedersen over BFV/RLWE (pvthfhe-pvss) | ✅ |
+| NIZK | Ajtai D2 sigma + BFV sigma (90-round); LaZer (LaBRADOR) via C lib | ✅ Default |
 | Greyhound PCS | Lattice polynomial commitments (53KB proofs) | ✅ Default |
-| LatticeFold+ | Lattice-native folding (no EC assumptions) | ✅ Default |
-| Folding | LatticeFold+ lattice-native folding (no EC assumptions) | ✅ |
+| Folding | LatticeFold+ lattice-native folding (pvthfhe-cyclo) | ✅ |
 | Compression | Transparent IVC, no ceremony | ✅ |
 | On-chain | UltraHonk verifier (Solidity) + IVC binding | ⚠️ OPEN¹ |
 | Decrypt | Threshold BFV partial decrypt | ✅ |
 | Greco | Input validation proofs (`just greco`) | ✅ |
-| Compute | Verifiable FHE ops (`just compute`, Mul+Add in-circuit) | ✅ (Mul verified at N=8192 production scale; use --features bfv-n4 for fast testing) |
+| Compute | Verifiable FHE ops (`just compute`) | ✅ (Mul verified at N=8192 production scale; `--features bfv-n4` for fast tests) |
 
 ¹ IVC binding is NOT cryptographically verified on-chain; IVC mode is fail-closed.
-
-Critical security blockers are documented in [docs/OPEN-PROBLEM-BLOCKERS.md](docs/OPEN-PROBLEM-BLOCKERS.md).
-
-[Full audit and feature table](ARCHITECTURE.md)
 
 ## Quickstart
 
 ```bash
-# Dependencies: Rust 1.95.0, Foundry 1.6+, Noir 1.0.0-beta.20
+# Dependencies: Rust 1.95+, Foundry 1.7+, Noir 1.0.0-beta.22, bb 5.0.0-nightly.20260522
 git clone https://github.com/auryn-macmillan/pvthfhe
 cd pvthfhe
-PVTHFHE_ALLOW_RESEARCH_BUILD=1 cargo build
-just demo-e2e          # n=10, t=4, all 14 steps
-```
-
-```
-per_node_keygen_ms=12.3  per_node_dkg_deal_ms=45.7  distributed_estimate_ms=279.7
-plaintext_roundtrip: OK  verify: ACCEPT
+git submodule update --init   # contracts/lib/* and lazer/
+PVTHFHE_ALLOW_RESEARCH_BUILD=1 cargo build --workspace
+just demo-e2e          # n=10, t=4, full pipeline
 ```
 
 ## Commands
@@ -52,12 +42,12 @@ plaintext_roundtrip: OK  verify: ACCEPT
 | `just aggregator` | Aggregator-node timing benchmark |
 | `just greco` | Greco-style BFV encryption proof |
 | `just compute n=5` | Verifiable FHE: sum n ciphertexts via LatticeFold+ |
-| `just test-all` | Rust + Noir + Solidity test suite |
-| `just non-equiv-test` | NonEquiv protocol tests (ePrint 2026/1159 §4.1) |
-| `just avid-test` | Provable AVID tests (ePrint 2026/1159 §4.3) |
-| `just escrow-test` | Key escrow tests (ePrint 2026/1159 §6) |
-| `just leader-elect-test` | Leader election tests (ePrint 2026/1159 §7) |
-| `just dkg-paper-gate` | Full DKG paper integration gate |
+| `just test-all` | Rust + Noir + Solidity test suites |
+| `just phase1-gate` … `phase3-gate` | Program phase gates |
+| `just dkg-paper-gate` | DKG paper (ePrint 2026/1159) integration gate |
+| `just bench-scripts-test` | Unit tests for the Python bench scripts |
+
+Benchmark reports: [bench/results/comparison-2af6ac2.md](bench/results/comparison-2af6ac2.md) (latest comparison), [bench/results/crisp-comparison.md](bench/results/crisp-comparison.md) (CRISP comparison).
 
 ## Open Problems
 
@@ -68,23 +58,32 @@ plaintext_roundtrip: OK  verify: ACCEPT
 | P3 | Parameterized Nova step circuit verification | ✅ Resolved |
 | P4 | On-chain IVC decider verification (currently fail-closed) | OPEN |
 | C5 | Aggregate public-key formation proof (pk_agg = Σ pk_i) | ✅ Resolved |
-| C6 | Committed-smudge enforcement | PARTIAL |
+| C6 | Committed-smudge enforcement | ✅ Resolved (full slot binding) |
 | C7 | Final aggregation / threshold-decryption correctness | ✅ Resolved |
 | A1 | Cyclo accumulator transcript verification | ✅ Resolved |
+| G-N8 | Noir circuit ring dimension (N=256 vs production N=8192; beta.22 OOM) | PARAMETERIZED |
+
+Three open (P1, P2, P4), one parameterized (G-N8). Canonical ledger: [docs/OPEN-PROBLEM-BLOCKERS.md](docs/OPEN-PROBLEM-BLOCKERS.md).
+
+## Repository layout
+
+- `crates/` — Rust workspace (14 crates; see [ARCHITECTURE.md](ARCHITECTURE.md) for the crate map)
+- `circuits/` — Noir circuits (see [circuits/README.md](circuits/README.md))
+- `contracts/` — Foundry project (on-chain verifier)
+- `bench/` — benchmark harness (Rust bins + Python scripts)
+- `paper/` — the paper (LaTeX, `just paper-build`)
+- `docs/` — protocol docs, security proofs, papers archive
+- `.sisyphus/` — design specs, evidence, plans (read-only history)
 
 ## Documentation
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — system design
 - [SECURITY.md](SECURITY.md) — threat model + caveats
-- [WARNING.md](WARNING.md) — known surrogates
-- [REPRODUCING.md](REPRODUCING.md) — benchmark reproduction
-- [`.sisyphus/design/`](.sisyphus/design/) — protocol design docs
-- [`.sisyphus/audit/`](.sisyphus/audit/) — audit reports + MPC findings
-- [`.sisyphus/plans/`](.sisyphus/plans/) — remediation plans (all resolved)
-- [docs/comparison-paper.md](docs/comparison-paper.md) — Nova IVC vs zkVM
-- [bench/results/crisp-comparison.md](bench/results/crisp-comparison.md) — CRISP benchmarks
-- [docs/papers/2026-1159.md](docs/papers/2026-1159.md) — Abraham, Bacho, Stern — Quadratic Asynchronous DKG from Plain Setup
-- [`.sisyphus/plans/dkg-paper-integration.md`](.sisyphus/plans/dkg-paper-integration.md) — DKG paper integration plan
+- [WARNING.md](WARNING.md) — known surrogates and gaps
+- [REPRODUCING.md](REPRODUCING.md) — benchmark reproduction + pinned toolchain
+- [STATUS.md](STATUS.md) — current status snapshot
+- [docs/papers/2026-1159.md](docs/papers/2026-1159.md) — Abraham–Bacho–Stern, *Quadratic Asynchronous DKG from Plain Setup*
+- [docs/archive/](docs/archive/) — superseded Nova-era and Stage-0 documents
 
 ## License
 

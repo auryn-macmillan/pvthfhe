@@ -6,14 +6,17 @@ PVTHFHE targets private-verifiable threshold FHE: O(n) per-party work with O(pol
 
 ## Layout
 
-- `research/` and `.sisyphus/research/`: experiments and provenance
-- `design/` and `.sisyphus/design/`: architecture notes and scripts
-- `crates/`: Rust workspace crates
-- `circuits/`: Noir workspace and packages
+- `crates/`: Rust workspace (14 crates; map in ARCHITECTURE.md)
+- `circuits/`: Noir workspace and packages (see circuits/README.md)
 - `contracts/`: Foundry project
 - `bench/`: benchmark assets and scripts
-- `docs/`: project documentation
-- `.sisyphus/`: plans, evidence, scripts, notepads
+- `docs/`: project documentation (superseded material in docs/archive/)
+- `paper/`: the paper (LaTeX; `just paper-build`)
+- `.sisyphus/design/`: frozen design specs and parameters
+- `.sisyphus/research/`: experiments and provenance
+- `.sisyphus/`: plans (read-only), evidence, scripts, notepads
+
+(Note: `design/` and `research/` exist only under `.sisyphus/` — there are no top-level directories by those names.)
 
 ## Gates
 
@@ -41,7 +44,7 @@ Always write a RED test before every implementation change.
 
 ## FHE backends
 
-Allowed backends are Poulpy or `gnosisguild/fhe.rs`; final choice is deferred to T4.
+The FHE backend is **`gnosisguild/fhe.rs`** (see Backend Lock below). The Poulpy backend was evaluated and removed (2026-07 refactor); do not reintroduce alternate backends without amending the lock.
 
 ## Stub protocol
 

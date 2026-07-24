@@ -14,12 +14,12 @@ panic = "warn"
 as_conversions = "warn"
 
 [features]
-default = ["nova-compressor"]
+default = ["real-compressor"]
 production-profile = ["pvthfhe-fhe/production-profile"]
 mock = ["pvthfhe-fhe/mock"]
 backend-fhe-rs = ["dep:fhe", "dep:fhe-math"]
 surrogate-compressor = []
-nova-compressor = ["dep:pvthfhe-compressor"]
+real-compressor = ["dep:pvthfhe-compressor"]
 hermine = ["pvthfhe-pvss/hermine"]
 
 [dependencies]

@@ -70,7 +70,7 @@ use protocol_constants;
 // circuit compiles at full ring dimension, 28 tests pass.
 // decrypt_share circuit also parameterized to N=8192 (compiles);
 // nargo test OOM is Noir ACVM limitation — bb prove handles N=8192.
-// nova_state_commitment is independent of N (Nova state fields).
+// ivc_state_commitment is independent of N (IVC state fields).
 global N: u32 = 256;  // GAP-6: production ring dimension
 global MAX_SHARES: u32 = 128;
 global DEPTH: u32 = 7; // 128 leaves = 7 Merkle path hops

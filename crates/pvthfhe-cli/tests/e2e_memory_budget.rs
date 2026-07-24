@@ -18,8 +18,9 @@
 //!   3. Capturing peak RSS via `/usr/bin/time -v` and asserting it is
 //!      below a 500 MB budget (~2x the healthy baseline of ~244 MB).
 //!
-//! Requires the `nova-compressor` feature (the only mode in which the
-//! probe-compressor-only path constructs a real Nova compressor). The test
+//! Requires the `enable-latticefold` feature (pulled in by the default
+//! `real-compressor` feature; the only mode in which the
+//! probe-compressor-only path constructs a real LatticeFold+ compressor). The test
 //! is gated to Linux because `/usr/bin/time -v` and `ulimit -v` semantics are
 //! Linux-specific.
 

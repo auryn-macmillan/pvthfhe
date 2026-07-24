@@ -26,7 +26,7 @@ demo-e2e n="10" t="4" seed="1":
     @echo "* DO NOT DEPLOY — research prototype only                                 *"
     mkdir -p .sisyphus/evidence
     export PVTHFHE_RUN_C7_SONOBE=1
-    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 RUSTFLAGS="-Awarnings" cargo run --release -p pvthfhe-cli --features "nova-compressor,demo-seeded-rng,pipeline-extra-checks,enable-lazer,enable-latticefold" -- \
+    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 RUSTFLAGS="-Awarnings" cargo run --release -p pvthfhe-cli --features "real-compressor,demo-seeded-rng,pipeline-extra-checks,enable-lazer,enable-latticefold" -- \
         demo --n $(echo "{{n}}" | sed 's/^n=//') --threshold $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//') \
         2>&1 | tee .sisyphus/evidence/demo-e2e.log
     @echo "*** On-chain verification ***"
@@ -40,26 +40,21 @@ demo-e2e n="10" t="4" seed="1":
     forge test --root contracts
     @echo "*** On-chain verification: PASS ***"
 
-# Track A: Sonobe Nova/hash-then-fold — REMOVED (P4 deprecation).
-# Use LatticeFold+ (enable-latticefold) instead.
-# demo-e2e-track-a n="10" t="4" seed="1":
-#     PVTHFHE_TRACK=A just demo-e2e $(echo "{{n}}" | sed 's/^n=//') $(echo "{{t}}" | sed 's/^t=//') $(echo "{{seed}}" | sed 's/^seed=//')
-
 # Per-node simulation — measures wall time for ONE party at given n and t
 per-node n="10" t="4" seed="1":
-    cargo run -p pvthfhe-cli --release --bin per-node --features "nova-compressor,enable-lazer,enable-latticefold" -- --n $(echo "{{n}}" | sed 's/^n=//') --threshold $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//')
+    cargo run -p pvthfhe-cli --release --bin per-node --features "real-compressor,enable-lazer,enable-latticefold" -- --n $(echo "{{n}}" | sed 's/^n=//') --threshold $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//')
 
-# Per-node baseline — same as per-node (Track A removed, LatticeFold+ only)
+# Per-node baseline — identical to per-node (single LatticeFold+ backend remains)
 per-node-baseline n="10" t="4" seed="1":
-    cargo run -p pvthfhe-cli --release --bin per-node --features "nova-compressor,enable-latticefold" -- --n $(echo "{{n}}" | sed 's/^n=//') --threshold $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//')
+    cargo run -p pvthfhe-cli --release --bin per-node --features "real-compressor,enable-latticefold" -- --n $(echo "{{n}}" | sed 's/^n=//') --threshold $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//')
 
 # Per-aggregator simulation — measures wall time for the aggregator node
 aggregator n="10" t="4" seed="1":
-    cargo run -p pvthfhe-cli --release --bin per-aggregator --features "nova-compressor,enable-lazer,enable-latticefold" -- --n $(echo "{{n}}" | sed 's/^n=//') --threshold $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//')
+    cargo run -p pvthfhe-cli --release --bin per-aggregator --features "real-compressor,enable-lazer,enable-latticefold" -- --n $(echo "{{n}}" | sed 's/^n=//') --threshold $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//')
 
-# Per-aggregator baseline — same as aggregator (Track A removed, LatticeFold+ only)
+# Per-aggregator baseline — identical to aggregator (single LatticeFold+ backend remains)
 aggregator-baseline n="10" t="4" seed="1":
-    cargo run -p pvthfhe-cli --release --bin per-aggregator --features "nova-compressor,enable-latticefold" -- --n $(echo "{{n}}" | sed 's/^n=//') --threshold $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//')
+    cargo run -p pvthfhe-cli --release --bin per-aggregator --features "real-compressor,enable-latticefold" -- --n $(echo "{{n}}" | sed 's/^n=//') --threshold $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//')
 
 bench-p4:
     @echo "=== P4 on-chain decider benchmark ==="
@@ -76,9 +71,9 @@ bench-scaling:
 
 bench-comparison n="6" t="2" seed="1":
     mkdir -p bench/results
-    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features nova-compressor,demo-seeded-rng,pipeline-extra-checks -- --n $(echo "{{n}}" | sed 's/^n=//') --t $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//')
-    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features nova-compressor,demo-seeded-rng,pipeline-extra-checks -- --n $(echo "{{n}}" | sed 's/^n=//') --t $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//')
-    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features nova-compressor,demo-seeded-rng,pipeline-extra-checks -- --n $(echo "{{n}}" | sed 's/^n=//') --t $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//')
+    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features real-compressor,demo-seeded-rng,pipeline-extra-checks -- --n $(echo "{{n}}" | sed 's/^n=//') --t $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//')
+    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features real-compressor,demo-seeded-rng,pipeline-extra-checks -- --n $(echo "{{n}}" | sed 's/^n=//') --t $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//')
+    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features real-compressor,demo-seeded-rng,pipeline-extra-checks -- --n $(echo "{{n}}" | sed 's/^n=//') --t $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//')
     cargo run -p pvthfhe-bench --bin bench_comparison -- --n $(echo "{{n}}" | sed 's/^n=//') --t $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//')
     cargo run -p pvthfhe-bench --bin render_comparison -- --comparison-json bench/results/comparison.json --output-dir bench/results
 
@@ -132,11 +127,11 @@ noir-onchain-gate:
     cd circuits/aggregator_final && bb write_vk --scheme ultra_honk -b target/aggregator_final.json -o target
     cd circuits/aggregator_final && bb prove --scheme ultra_honk -b target/aggregator_final.json -w target/aggregator_final.gz -o target
     cd circuits/aggregator_final && bb verify --scheme ultra_honk -k target/vk -p target/proof -i target/public_inputs
-    cd circuits/nova_state_commitment && nargo execute --prover-name Nova_state_commitment
-    cd circuits/nova_state_commitment && mkdir -p target && cp ../target/nova_state_commitment.json target/ && cp ../target/nova_state_commitment.gz target/
-    cd circuits/nova_state_commitment && bb write_vk --scheme ultra_honk -b target/nova_state_commitment.json -o target
-    cd circuits/nova_state_commitment && bb prove --scheme ultra_honk -b target/nova_state_commitment.json -w target/nova_state_commitment.gz -o target
-    cd circuits/nova_state_commitment && bb verify --scheme ultra_honk -k target/vk -p target/proof -i target/public_inputs
+    cd circuits/ivc_state_commitment && nargo execute --prover-name Ivc_state_commitment
+    cd circuits/ivc_state_commitment && mkdir -p target && cp ../target/ivc_state_commitment.json target/ && cp ../target/ivc_state_commitment.gz target/
+    cd circuits/ivc_state_commitment && bb write_vk --scheme ultra_honk -b target/ivc_state_commitment.json -o target
+    cd circuits/ivc_state_commitment && bb prove --scheme ultra_honk -b target/ivc_state_commitment.json -w target/ivc_state_commitment.gz -o target
+    cd circuits/ivc_state_commitment && bb verify --scheme ultra_honk -k target/vk -p target/proof -i target/public_inputs
     # P4: Ajtai commitment (LatticeFold+ on-chain decider)
     just ajtai-onchain-gate
     forge test --root contracts
@@ -150,16 +145,16 @@ verify-onchain:
     forge test --root contracts --match-contract PvtFheVerifierE2ETest --gas-report 2>&1 | tee .sisyphus/evidence/task-39-forge.log | python3 .sisyphus/scripts/check-gas.py | tee .sisyphus/evidence/task-39-gas.log
     # O5: bb UltraHonk verify — honest proof accepted
     bb verify --scheme ultra_honk \
-        -k circuits/nova_state_commitment/target/vk \
-        -p circuits/nova_state_commitment/target/proof \
-        -i circuits/nova_state_commitment/target/public_inputs
+        -k circuits/ivc_state_commitment/target/vk \
+        -p circuits/ivc_state_commitment/target/proof \
+        -i circuits/ivc_state_commitment/target/public_inputs
     # O5: tampered proof rejected
-    cp circuits/nova_state_commitment/target/proof /tmp/proof_tampered_verify_onchain
+    cp circuits/ivc_state_commitment/target/proof /tmp/proof_tampered_verify_onchain
     printf '\xde\xad\xbe\xef' | dd of=/tmp/proof_tampered_verify_onchain bs=1 seek=10 conv=notrunc 2>/dev/null
     bb verify --scheme ultra_honk \
-        -k circuits/nova_state_commitment/target/vk \
+        -k circuits/ivc_state_commitment/target/vk \
         -p /tmp/proof_tampered_verify_onchain \
-        -i circuits/nova_state_commitment/target/public_inputs \
+        -i circuits/ivc_state_commitment/target/public_inputs \
         && exit 1 || true
     @echo "O5: honest proof accepted, tampered proof rejected — PASS"
     # P4: Ajtai commitment UltraHonk verify
@@ -180,13 +175,13 @@ bench-scripts-test:
 
 greco:
     @echo "=== Greco-style encryption proof (LatticeFold+ Track B) ==="
-    cargo run --release -p pvthfhe-cli --features "nova-compressor,enable-lazer,enable-latticefold" -- snapshot prove
+    cargo run --release -p pvthfhe-cli --features "real-compressor,enable-lazer,enable-latticefold" -- snapshot prove
 
 compute n_ops="6":
     @echo "=== Verifiable FHE Computation (Track B LatticeFold+) ==="
     @echo "* Operations: sum $(echo "{{n_ops}}" | sed 's/^n_ops=//') ciphertexts via FHE add"
     @echo "* BFV ring: N=8192 (production). Use --features bfv-n4 for N=4 fast testing."
-    cargo run --release -p pvthfhe-cli --features "nova-compressor,enable-lazer,enable-latticefold" -- compute prove --n $(echo "{{n_ops}}" | sed 's/^n_ops=//')
+    cargo run --release -p pvthfhe-cli --features "real-compressor,enable-lazer,enable-latticefold" -- compute prove --n $(echo "{{n_ops}}" | sed 's/^n_ops=//')
 
 test-circuits:
     just circuit-param

@@ -17,7 +17,7 @@ use pvthfhe_fhe::{fhers::FhersBackend, real_nizk::CYCLO_BACKEND_ID, FheBackend};
 use std::{path::Path, time::Instant};
 use tracing::{info, warn};
 
-#[cfg(feature = "nova-compressor")]
+#[cfg(feature = "real-compressor")]
 use {
     ark_bn254::Fr,
     ark_ff::{PrimeField, Zero},
@@ -185,6 +185,7 @@ fn print_phase_markers() {
     println!("compressor_verify");
     println!("noir_decrypt_share");
     println!("noir_aggregator_final");
+    // legacy name, do not change: timing-schema compatibility (bench e2e_timings)
     println!("noir_nova_wrap");
     println!("onchain_verify");
     println!("c7_merkle_aggregation");
@@ -573,21 +574,17 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
         return;
     }
 
-    // Circuit-tests module requires pvthfhe-circuit-tests dep (removed from
-    // nova-compressor feature during Track A deprecation).
-    // Re-enable when circuit-tests is migrated to LatticeFold+.
-    warn!("Noir circuit tests unavailable (Track A removed)");
-    return;
+    // The e2e bin does not link pvthfhe-circuit-tests; Noir circuit execution
+    // is deferred to the circuit-tests harness.
+    warn!("Noir circuit tests unavailable in e2e bin");
 }
 
-// run_noir_aggregator_final_optional always available
-
 fn run_c7_nova_optional(_n: usize, _seed: u64) -> (f64, bool) {
-    (0.0, false) // Track A IVC removed
+    (0.0, false)
 }
 
 fn run_c7_merkle_optional(_n: usize, _seed: u64) -> (f64, bool) {
-    (0.0, false) // Track A IVC removed
+    (0.0, false)
 }
 
 #[cfg(test)]

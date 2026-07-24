@@ -21,7 +21,7 @@
 use poseidon;
 
 // Maximum number of 31-byte proof chunks. Covers ~62 KB IVC proofs.
-// Must match PROOF_MAX_CHUNKS in crates/pvthfhe-compressor/src/nova/snark_bridge.rs.
+// Must match the chunk count expected by the compressor snark bridge.
 global PROOF_MAX_CHUNKS: u32 = 64;
 
 fn hash_state_preimage(preimage: [Field; 4]) -> Field {

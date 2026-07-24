@@ -12,8 +12,9 @@
 #![allow(non_camel_case_types)]
 #![allow(non_upper_case_globals)]
 #![allow(non_snake_case)]
-#![allow(unused)]
 
+
+#[cfg(feature = "enable-lazer")]
 use std::os::raw::c_int;
 
 // ── Opaque type aliases ────────────────────────────────────────────────────

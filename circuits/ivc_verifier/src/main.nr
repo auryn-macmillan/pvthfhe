@@ -7,7 +7,7 @@
 // claimed verification results.
 //
 // Architecture (per .sisyphus/plans/p4-onchain-ivc.md):
-//   1. nova_state_commitment circuit → HonkVerifier A: binds decryption data
+//   1. ivc_state_commitment circuit → HonkVerifier A: binds decryption data
 //   2. ivc_verifier circuit           → HonkVerifier B: verifies IVC proof
 //   PvtFheVerifier.verifyWithIvc() calls both.
 use poseidon;

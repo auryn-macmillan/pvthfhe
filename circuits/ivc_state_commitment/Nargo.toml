@@ -1,5 +1,5 @@
 [package]
-name = "nova_state_commitment"
+name = "ivc_state_commitment"
 type = "bin"
 authors = [""]
 compiler_version = ">=0.36.0"

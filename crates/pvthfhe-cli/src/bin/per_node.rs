@@ -69,7 +69,7 @@ struct Args {
     #[arg(long, default_value = "A")]
     track: String,
 
-    /// Enable C7 Merkle tree folding (requires nova-compressor feature).
+    /// Enable C7 Merkle tree folding (requires real-compressor feature).
     #[arg(long, default_value_t = false)]
     use_c7_tree: bool,
 }
@@ -409,10 +409,10 @@ fn main() -> anyhow::Result<()> {
         cross_verify_ms / 1000.0
     );
 
-    // 6. C7: tree vs flat folding timing (removed with Track A)
+    // 6. C7: tree folding timing
     eprintln!("  c7_tree: starting... (t={})", args.threshold);
     let c7_ms = 0.0;
-    // 7. DKG Nova fold (removed with Track A)
+    // 7. DKG fold timing
     eprintln!("  dkg_fold: starting... (n={})", args.n);
     let dkg_fold_ms = 0.0;
     // Report

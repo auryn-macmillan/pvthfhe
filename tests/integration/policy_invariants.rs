@@ -35,7 +35,7 @@ const PRODUCTION_PROFILE_OWNERS: &[(&str, &str, &[&str])] = &[
         "crates/pvthfhe-cli/Cargo.toml",
         &[
             "with-fhe",
-            "nova-compressor",
+            "real-compressor",
             "pipeline-extra-checks",
             "pvthfhe-fhe/production-profile",
             "pvthfhe-aggregator/production-profile",

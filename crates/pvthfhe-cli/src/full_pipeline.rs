@@ -13,12 +13,12 @@ use pvthfhe_aggregator::{
     },
 };
 use pvthfhe_bench::e2e_timings::E2eTimings;
-#[cfg(feature = "nova-compressor")]
-#[cfg(any(feature = "nova-compressor", feature = "surrogate-compressor"))]
+#[cfg(feature = "real-compressor")]
+#[cfg(any(feature = "real-compressor", feature = "surrogate-compressor"))]
 use pvthfhe_compressor::merkle::{build_merkle_tree, prove_merkle_path};
 // Nova module removed (Track A deprecated) — use latticefold backend instead
 // ShareVerification types available directly from pvthfhe_compressor::witness
-#[cfg(any(feature = "nova-compressor", feature = "surrogate-compressor"))]
+#[cfg(any(feature = "real-compressor", feature = "surrogate-compressor"))]
 use pvthfhe_compressor::witness::{
     hash_all_coeffs, ShareVerificationWitness, ShareVerificationWitnessSet,
 };
@@ -249,7 +249,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     );
 
     // Nova IVC verification flags (C1, C4, C5). Default true — set to
-    // actual verification result inside the nova-compressor cfg blocks.
+    // actual verification result inside the real-compressor cfg blocks.
     #[allow(unused_mut)]
     let mut c1_passed = true;
     #[allow(unused_mut)]

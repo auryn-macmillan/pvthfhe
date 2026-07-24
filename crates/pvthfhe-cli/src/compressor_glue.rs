@@ -1,13 +1,14 @@
 //! Shared compressor glue for CLI binaries.
 //!
-//! Track A (Nova BN254+Grumpkin) removed — Track B (LatticeFold+) is the sole backend.
+//! LatticeFold+ is the sole real compressor backend; a fail-closed SHA-256
+//! surrogate remains available behind the `surrogate-compressor` feature.
 
 use sha2::{Digest, Sha256};
 use tracing::info;
-#[cfg(all(feature = "surrogate-compressor", not(feature = "nova-compressor")))]
+#[cfg(all(feature = "surrogate-compressor", not(feature = "real-compressor")))]
 use tracing::warn;
 
-#[cfg(feature = "nova-compressor")]
+#[cfg(feature = "real-compressor")]
 use {
     ark_bn254::Fr,
     ark_ff::PrimeField,
@@ -17,17 +18,6 @@ use {
 /// Surrogate compressor backend identifier.
 #[cfg(feature = "surrogate-compressor")]
 pub const SURROGATE_COMPRESSOR_ID: &str = "sha256-surrogate-compressor";
-
-/// Legacy Nova compressor identifier (deprecated — Track A removed).
-#[cfg(all(
-    feature = "nova-compressor",
-    not(feature = "enable-latticefold"),
-    not(feature = "enable-greyhound")
-))]
-pub const SONOBE_COMPRESSOR_ID: &str = "nova-bn254-grumpkin";
-/// Greyhound-backed compressor backend identifier (deprecated — Track A removed).
-#[cfg(all(feature = "nova-compressor", feature = "enable-greyhound"))]
-pub const SONOBE_COMPRESSOR_ID: &str = "nova-greyhound-bn254-grumpkin";
 
 /// LatticeFold+ compressor backend identifier (P3).
 #[cfg(feature = "enable-latticefold")]
@@ -40,14 +30,14 @@ pub struct E2eCompressedProof {
     pub ivc_verification_proof: Option<Vec<u8>>,
     pub ivc_proof_hash: Option<[u8; 32]>,
     pub share_verification_hash: Option<[u8; 32]>,
-    #[cfg(feature = "nova-compressor")]
+    #[cfg(feature = "real-compressor")]
     pub nova_proof: Option<CompressedProof>,
 }
 
 /// Compressor backend selector.
 pub enum Compressor {
     /// LatticeFold+ compressor backend (P3).
-    #[cfg(all(feature = "nova-compressor", feature = "enable-latticefold"))]
+    #[cfg(all(feature = "real-compressor", feature = "enable-latticefold"))]
     LatticeFold {
         /// Inner LatticeFold+ compressor instance.
         inner: pvthfhe_compressor::latticefold::LatticeFoldCompressor,
@@ -55,7 +45,7 @@ pub enum Compressor {
         verifier_key: VerifierKey,
     },
     /// Surrogate SHA-256-based compressor backend.
-    #[cfg(all(feature = "surrogate-compressor", not(feature = "nova-compressor")))]
+    #[cfg(all(feature = "surrogate-compressor", not(feature = "real-compressor")))]
     Surrogate,
 }
 
@@ -75,12 +65,7 @@ impl Compressor {
             })
         }
 
-        #[cfg(all(feature = "nova-compressor", not(feature = "enable-latticefold")))]
-        {
-            compile_error!("Track A (Nova) removed — enable the `enable-latticefold` feature to use the LatticeFold+ backend");
-        }
-
-        #[cfg(all(feature = "surrogate-compressor", not(feature = "nova-compressor")))]
+        #[cfg(all(feature = "surrogate-compressor", not(feature = "real-compressor")))]
         {
             assert_surrogate_compressor_acknowledged();
             Ok(Self::Surrogate)
@@ -166,12 +151,7 @@ impl Compressor {
             })
         }
 
-        #[cfg(all(feature = "nova-compressor", not(feature = "enable-latticefold")))]
-        {
-            compile_error!("Track A (Nova) removed — enable the `enable-latticefold` feature");
-        }
-
-        #[cfg(all(feature = "surrogate-compressor", not(feature = "nova-compressor")))]
+        #[cfg(all(feature = "surrogate-compressor", not(feature = "real-compressor")))]
         if let Self::Surrogate = self {
             let mut hasher = Sha256::new();
             hasher.update(self.backend_id().as_bytes());
@@ -229,12 +209,7 @@ impl Compressor {
             Ok(())
         }
 
-        #[cfg(all(feature = "nova-compressor", not(feature = "enable-latticefold")))]
-        {
-            compile_error!("Track A (Nova) removed — enable the `enable-latticefold` feature");
-        }
-
-        #[cfg(all(feature = "surrogate-compressor", not(feature = "nova-compressor")))]
+        #[cfg(all(feature = "surrogate-compressor", not(feature = "real-compressor")))]
         if let Self::Surrogate = self {
             let expected = self.prove(report, c7_final_hash)?;
             if expected.digest != proof.digest {
@@ -260,7 +235,7 @@ impl Compressor {
 /// increments fold_count internally by +1 per step). The total fold depth
 /// from the CycloFoldAllReport is already incorporated into the accumulator
 /// commitment hash.
-#[cfg(feature = "nova-compressor")]
+#[cfg(feature = "real-compressor")]
 pub fn compressor_inputs(
     report: &pvthfhe_aggregator::folding::CycloFoldAllReport,
     c7_final_hash: Fr,
@@ -306,7 +281,7 @@ pub fn compressor_inputs(
     (acc, public_inputs)
 }
 
-#[cfg(feature = "nova-compressor")]
+#[cfg(feature = "real-compressor")]
 fn fr_to_be_bytes(f: ark_bn254::Fr) -> [u8; 32] {
     use ark_ff::PrimeField;
     let bigint: ark_ff::BigInt<4> = f.into();
@@ -319,7 +294,7 @@ fn fr_to_be_bytes(f: ark_bn254::Fr) -> [u8; 32] {
 }
 
 /// Convert compressor backend errors into anyhow errors.
-#[cfg(feature = "nova-compressor")]
+#[cfg(feature = "real-compressor")]
 pub fn compressor_error_to_anyhow(error: pvthfhe_compressor::CompressorError) -> anyhow::Error {
     anyhow::anyhow!("{error:?}")
 }
@@ -374,7 +349,7 @@ pub fn external_verify_compressed_proof(
 }
 
 /// Fail closed unless the surrogate path is explicitly acknowledged.
-#[cfg(all(feature = "surrogate-compressor", not(feature = "nova-compressor")))]
+#[cfg(all(feature = "surrogate-compressor", not(feature = "real-compressor")))]
 pub fn assert_surrogate_compressor_acknowledged() {
     if std::env::var("PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK").as_deref() != Ok("1") {
         eprintln!(
@@ -385,7 +360,7 @@ pub fn assert_surrogate_compressor_acknowledged() {
 }
 
 /// Return the active compressor backend identifier.
-#[cfg(all(feature = "surrogate-compressor", not(feature = "nova-compressor")))]
+#[cfg(all(feature = "surrogate-compressor", not(feature = "real-compressor")))]
 pub fn compressor_backend_id() -> &'static str {
     SURROGATE_COMPRESSOR_ID
 }
@@ -393,11 +368,6 @@ pub fn compressor_backend_id() -> &'static str {
 #[cfg(feature = "enable-latticefold")]
 pub fn compressor_backend_id() -> &'static str {
     LATTICEFOLD_COMPRESSOR_ID
-}
-
-#[cfg(all(feature = "nova-compressor", not(feature = "enable-latticefold")))]
-pub fn compressor_backend_id() -> &'static str {
-    SONOBE_COMPRESSOR_ID
 }
 
 /// Emit the standard compressor-mode log line.
@@ -408,13 +378,7 @@ pub fn log_compressor_mode() {
         "latticefold-compressor active"
     );
 
-    #[cfg(all(feature = "nova-compressor", not(feature = "enable-latticefold")))]
-    info!(
-        compressor_backend_id = SONOBE_COMPRESSOR_ID,
-        "nova-compressor active"
-    );
-
-    #[cfg(all(feature = "surrogate-compressor", not(feature = "nova-compressor")))]
+    #[cfg(all(feature = "surrogate-compressor", not(feature = "real-compressor")))]
     warn!(
         compressor_backend_id = SURROGATE_COMPRESSOR_ID,
         "surrogate-compressor active"

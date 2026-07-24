@@ -129,7 +129,7 @@ pub struct AggregatorFinalWitness {
 
 /// Fully materialized witness in Noir `Prover.toml` string form.
 #[derive(Debug, Clone)]
-pub struct NovaStateCommitmentWitness {
+pub struct IvcStateCommitmentWitness {
     /// Public commitment to the aggregate public key context.
     pub commit_pk: String,
     /// Public commitment to the input ciphertext context.
@@ -281,7 +281,7 @@ impl AggregatorFinalWitness {
     }
 }
 
-impl NovaStateCommitmentWitness {
+impl IvcStateCommitmentWitness {
     /// Serializes the witness into Noir `Prover.toml` syntax.
     pub fn to_toml(&self) -> String {
         let mut output = String::new();
@@ -593,8 +593,8 @@ pub fn generate_aggregator_final_witness() -> AggregatorFinalWitness {
     }
 }
 
-/// Generates a valid witness for the `nova_state_commitment` circuit.
-pub fn generate_nova_state_commitment_witness() -> NovaStateCommitmentWitness {
+/// Generates a valid witness for the `ivc_state_commitment` circuit.
+pub fn generate_ivc_state_commitment_witness() -> IvcStateCommitmentWitness {
     let nova_state_preimage_raw = [
         Fr::from(10u64),
         Fr::from(20u64),
@@ -642,7 +642,7 @@ pub fn generate_nova_state_commitment_witness() -> NovaStateCommitmentWitness {
         arr
     };
 
-    NovaStateCommitmentWitness {
+    IvcStateCommitmentWitness {
         commit_pk: field_to_decimal(Fr::from(1u64)),
         commit_ct_in: field_to_decimal(Fr::from(2u64)),
         commit_ct_out: field_to_decimal(Fr::from(3u64)),

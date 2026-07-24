@@ -11,11 +11,12 @@ use std::{
 
 const NIZK_BACKEND_ID: &str = "cyclo-ajtai-d2-conditional";
 const FOLDING_BACKEND_ID: &str = "cyclo-rlwe-t10-lemma9-heuristic";
-#[cfg(feature = "nova-compressor")]
+// Artifact field value is load-bearing: bench comparison fixtures pin it.
+#[cfg(feature = "real-compressor")]
 const COMPRESSOR_BACKEND_ID: &str = "nova-bn254-grumpkin";
-#[cfg(all(feature = "surrogate-compressor", not(feature = "nova-compressor")))]
+#[cfg(all(feature = "surrogate-compressor", not(feature = "real-compressor")))]
 const COMPRESSOR_BACKEND_ID: &str = "sha256-surrogate-compressor";
-#[cfg(not(any(feature = "nova-compressor", feature = "surrogate-compressor")))]
+#[cfg(not(any(feature = "real-compressor", feature = "surrogate-compressor")))]
 const COMPRESSOR_BACKEND_ID: &str = "ultra-honk-micronova";
 const FHE_BACKEND_ID: &str = "fhers-bfv";
 const PVSS_BACKEND_ID: &str = "lattice-pvss-bfv-d2";

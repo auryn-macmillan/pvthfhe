@@ -25,8 +25,6 @@ name = "per-aggregator"
 path = "src/bin/per_aggregator.rs"
 required-features = ["with-fhe"]
 
-# nova-min binary removed (Track A)
-
 [lints]
 workspace = true
 
@@ -57,11 +55,11 @@ light-poseidon = "0.4"
 fhe = { git = "https://github.com/gnosisguild/fhe.rs", rev = "5f24d0b62a7329b789db07a065b68accd614a47b", optional = true }
 
 [features]
-default = ["with-fhe", "nova-compressor", "pipeline-extra-checks"]
+default = ["with-fhe", "real-compressor", "pipeline-extra-checks"]
 bfv-n4 = ["pvthfhe-compressor/bfv-n4"]
 production-profile = [
     "with-fhe",
-    "nova-compressor",
+    "real-compressor",
     "pipeline-extra-checks",
     "pvthfhe-fhe/production-profile",
     "pvthfhe-aggregator/production-profile",
@@ -79,8 +77,8 @@ with-fhe = [
 mock = ["with-fhe", "pvthfhe-fhe/mock", "pvthfhe-aggregator/mock"]
 probe-no-fhe = []
 surrogate-compressor = []
-nova-compressor = ["dep:pvthfhe-compressor", "dep:ark-bn254", "enable-latticefold"]
-enable-greyhound = ["nova-compressor"]
+real-compressor = ["dep:pvthfhe-compressor", "dep:ark-bn254", "enable-latticefold"]
+enable-greyhound = ["real-compressor"]
 # Stage 0 tripwire bypass: enable seeded RNG in demo paths.
 # Must NOT be enabled in release/production builds.
 demo-seeded-rng = []
@@ -91,7 +89,7 @@ pipeline-extra-checks = []
 enable-lazer = ["pvthfhe-nizk/enable-lazer"]
 # Symphony T3/T4 are now compiled unconditionally (S8). Feature flags removed.
 # P3 LatticeFold+: lattice-native folding with algebraic range proofs.
-enable-latticefold = ["nova-compressor", "pvthfhe-compressor/enable-latticefold"]
+enable-latticefold = ["real-compressor", "pvthfhe-compressor/enable-latticefold"]
 
 [dev-dependencies]
 assert_cmd = "2"

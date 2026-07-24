@@ -28,9 +28,9 @@ fn check_demo_rng_env() {
 
 use anyhow::Context;
 use clap::{Parser, Subcommand};
-#[cfg(all(feature = "with-fhe", feature = "nova-compressor"))]
+#[cfg(all(feature = "with-fhe", feature = "real-compressor"))]
 use pvthfhe_cli::compressor_glue::compressor_backend_id;
-#[cfg(all(feature = "with-fhe", feature = "nova-compressor"))]
+#[cfg(all(feature = "with-fhe", feature = "real-compressor"))]
 use pvthfhe_cli::full_pipeline::{run_full_pipeline, PipelineConfig, PipelineObserver};
 #[cfg(feature = "with-fhe")]
 use pvthfhe_cli::pvss_support::PVSS_BACKEND_ID;
@@ -40,7 +40,7 @@ use pvthfhe_cyclo::CYCLO_BACKEND_ID as CYCLO_P2_BACKEND_ID;
 use pvthfhe_fhe::real_nizk::CYCLO_BACKEND_ID;
 use tracing::info;
 // Track A (Nova) imports removed
-#[cfg(feature = "nova-compressor")]
+#[cfg(feature = "real-compressor")]
 use ark_bn254::Fr;
 #[cfg(feature = "with-fhe")]
 use {
@@ -822,7 +822,7 @@ fn run_demo(n: usize, threshold: usize, seed: u64, verbose: bool) -> anyhow::Res
 
 #[cfg(not(feature = "with-fhe"))]
 fn run_demo(_n: usize, _threshold: usize, _seed: u64, _verbose: bool) -> anyhow::Result<()> {
-    anyhow::bail!("demo requires the `with-fhe` and `nova-compressor` features")
+    anyhow::bail!("demo requires the `with-fhe` and `real-compressor` features")
 }
 
 #[derive(Default)]

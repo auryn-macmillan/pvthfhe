@@ -22,7 +22,7 @@ fn extract_verdict(front_matter: &str) -> Option<&str> {
 }
 
 #[test]
-fn nova_wrap_feasibility_doc_records_binary_verdict() -> Result<(), Box<dyn std::error::Error>> {
+fn ivc_wrap_feasibility_doc_records_binary_verdict() -> Result<(), Box<dyn std::error::Error>> {
     let doc_path = repo_root().join(".sisyphus/research/nova-wrap-feasibility.md");
     let contents = fs::read_to_string(&doc_path)?;
     let front_matter = extract_front_matter(&contents).ok_or("missing YAML front matter")?;

@@ -9,9 +9,9 @@
 //!   `Keccak256(||_{i=0..7} z_i.to_bigint().to_bytes_be())`
 //! (see `crates/pvthfhe-compressor/src/nova/snark_bridge.rs:116-122`).
 //!
-//! The Noir `nova_state_commitment` circuit computes:
+//! The Noir `ivc_state_commitment` circuit computes:
 //!   `Poseidon::hash_4([z0, z1, z2, z3])`
-//! (see `circuits/nova_state_commitment/src/main.nr:24-26`).
+//! (see `circuits/ivc_state_commitment/src/main.nr:24-26`).
 //!
 //! The Noir `aggregator_final` circuit receives `nova_share_chain_hash` and
 //! `ivc_snark_proof_hash` as public inputs and only checks non-zero.

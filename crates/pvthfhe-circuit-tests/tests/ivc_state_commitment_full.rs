@@ -1,4 +1,4 @@
-//! Full-dimension harness coverage for `nova_state_commitment`.
+//! Full-dimension harness coverage for `ivc_state_commitment`.
 
 use std::{
     env, fs,
@@ -21,21 +21,21 @@ fn tool_in_path(tool: &str) -> bool {
 }
 
 #[test]
-fn nova_state_commitment_full_dim_harness_runs_canonical_bb_flow(
+fn ivc_state_commitment_full_dim_harness_runs_canonical_bb_flow(
 ) -> Result<(), Box<dyn std::error::Error>> {
     if !tool_in_path("nargo") || !tool_in_path("bb") {
         eprintln!(
-            "skipping nova_state_commitment full-dimension test because nargo or bb is unavailable in PATH"
+            "skipping ivc_state_commitment full-dimension test because nargo or bb is unavailable in PATH"
         );
         return Ok(());
     }
 
-    let prover_toml = repo_root().join("circuits/nova_state_commitment/Prover.toml");
-    let nargo_artifacts = nargo::execute("nova_state_commitment", &prover_toml)?;
+    let prover_toml = repo_root().join("circuits/ivc_state_commitment/Prover.toml");
+    let nargo_artifacts = nargo::execute("ivc_state_commitment", &prover_toml)?;
     assert!(nargo_artifacts.witness_path.is_file());
     assert!(nargo_artifacts.bytecode_path.is_file());
 
-    let bb_artifacts = bb::write_vk_prove_verify("nova_state_commitment", "ultra_honk")?;
+    let bb_artifacts = bb::write_vk_prove_verify("ivc_state_commitment", "ultra_honk")?;
     assert!(bb_artifacts.vk_path.is_file());
     assert!(bb_artifacts.proof_path.is_file());
     assert!(bb_artifacts.public_inputs_path.is_file());
@@ -49,7 +49,7 @@ fn nova_state_commitment_full_dim_harness_runs_canonical_bb_flow(
     assert_eq!(
         public_inputs.len() / 32,
         EXPECTED_PUBLIC_INPUTS,
-        "nova_state_commitment public input count should be 12 (6 original + 6 IVC binding)"
+        "ivc_state_commitment public input count should be 12 (6 original + 6 IVC binding)"
     );
 
     Ok(())

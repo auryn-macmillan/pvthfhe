@@ -169,18 +169,6 @@ verify-onchain:
         -i circuits/target/public_inputs
     @echo "P4: Ajtai commitment proof accepted — PASS"
 
-bench-backend-compare:
-    @echo "not implemented"
-
-bench-folding:
-    @echo "not implemented"
-
-bench-noir-rlwe:
-    @echo "not implemented"
-
-bench-kzg-evm:
-    @echo "not implemented"
-
 bench-smoke:
     mkdir -p bench/results
     cargo run --release -p pvthfhe-bench --features backend-fhe-rs --bin bench_runner > bench/results/smoke-latest.json

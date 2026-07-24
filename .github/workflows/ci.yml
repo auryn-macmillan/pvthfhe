@@ -88,6 +88,12 @@ jobs:
       - uses: actions/checkout@v4
       - run: bash contracts/test/lints/test_no_keccak_tautology.sh
 
+  contracts-no-stale-todos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash contracts/test/lints/no_stale_todos.sh
+
   forbid-seeded-rng-outside-demo:
     runs-on: ubuntu-latest
     steps:

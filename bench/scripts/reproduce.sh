@@ -11,10 +11,9 @@ while [[ $# -gt 0 ]]; do
         --runs) RUNS="$2"; shift 2 ;;
         t11-rlwe-relation)
             cat <<'EOF'
-source /home/dev/.cargo/env
-export PATH="/home/dev/.cargo/bin:/home/dev/.foundry/bin:/home/dev/.nargo/bin:/home/dev/.bb:$PATH"
+export PATH="$HOME/.cargo/bin:$HOME/.foundry/bin:$HOME/.nargo/bin:$HOME/.bb:$PATH"
 
-cd /home/dev/pvthfhe/circuits
+cd <repo-root>/circuits
 nargo compile --package rlwe_relation
 nargo execute --package rlwe_relation --prover-name Prover_valid
 bb write_vk --scheme ultra_honk -b target/rlwe_relation.json -o target

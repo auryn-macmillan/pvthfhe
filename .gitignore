@@ -17,3 +17,10 @@ __pycache__/
 /.omo/
 /.codegraph
 /.pytest_cache/
+
+# Generated bench outputs
+/bench/results/e2e_timings.json
+/bench/results/fhe-baseline.csv
+/bench/results/fhe-baseline.md
+/bench/results/comparison-dryrun.json
+/bench/results/smoke-latest.json

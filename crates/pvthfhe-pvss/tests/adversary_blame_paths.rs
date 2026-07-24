@@ -3,7 +3,7 @@
 //! MPC-AUDIT-2026-06-12 Gap 5: Verify that the protocol's "abort with public
 //! blame" mechanism correctly identifies each type of adversarial behavior.
 
-use pvthfhe_keygen::{
+use pvthfhe_pvss::keygen::{
     hermine::HermineAdapter, BlameProof, KeygenAdapter, KeygenError, KeygenSession, Participant,
     PublicVerificationArtifact, Share,
 };
@@ -12,7 +12,7 @@ fn make_participants(n: u16) -> Vec<Participant> {
     (1..=n).map(|i| Participant { id: i }).collect()
 }
 
-fn make_session(adapter: &HermineAdapter, n: u16, t: u16) -> pvthfhe_keygen::KeygenSession {
+fn make_session(adapter: &HermineAdapter, n: u16, t: u16) -> pvthfhe_pvss::keygen::KeygenSession {
     let participants = make_participants(n);
     adapter
         .generate_session(&participants, t)

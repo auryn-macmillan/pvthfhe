@@ -2,7 +2,7 @@
 
 #[cfg(feature = "hermine")]
 mod hermine_pvss_adversarial_tests {
-    use pvthfhe_keygen::{hermine::HermineAdapter, KeygenAdapter, Participant};
+    use pvthfhe_pvss::keygen::{hermine::HermineAdapter, KeygenAdapter, Participant};
 
     fn participants(n: u16) -> Vec<Participant> {
         (1..=n).map(|id| Participant { id }).collect()

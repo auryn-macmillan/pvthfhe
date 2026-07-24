@@ -1,7 +1,7 @@
-//! `pvthfhe-keygen` — P4 keygen adapter crate.
+//! `keygen` — P4 keygen adapter module (merged from the `pvthfhe-keygen` crate).
 //!
-//! This crate provides the `KeygenAdapter` trait that bridges the frozen
-//! P4 interface (from `pvthfhe-keygen-spec`) to the `HermineAdapter`
+//! This module provides the `KeygenAdapter` trait that bridges the frozen
+//! P4 interface (from [`crate::keygen_spec`]) to the `HermineAdapter`
 //! PVSS implementation.
 
 #![deny(missing_docs)]

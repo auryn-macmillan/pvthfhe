@@ -1,8 +1,8 @@
-//! Honest-run public-verification test for `pvthfhe-keygen`.
+//! Honest-run public-verification test for `pvthfhe-pvss::keygen`.
 
 #[cfg(feature = "hermine")]
 mod hermine_tests {
-    use pvthfhe_keygen::{hermine::HermineAdapter, KeygenAdapter, Participant};
+    use pvthfhe_pvss::keygen::{hermine::HermineAdapter, KeygenAdapter, Participant};
 
     fn participants(n: u16) -> Vec<Participant> {
         (1..=n).map(|id| Participant { id }).collect()

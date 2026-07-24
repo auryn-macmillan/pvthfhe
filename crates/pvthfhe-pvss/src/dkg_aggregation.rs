@@ -10,7 +10,7 @@
 
 use ark_bn254::Fr;
 use ark_ff::{AdditiveGroup, BigInteger, PrimeField};
-use pvthfhe_keygen_spec::{
+use crate::keygen_spec::{
     compute_accepted_participant_set_hash, AggregatedESmShareCommitment,
     AggregatedSkShareCommitment, Commitment, DkgAnchorSet, HexBlob,
 };

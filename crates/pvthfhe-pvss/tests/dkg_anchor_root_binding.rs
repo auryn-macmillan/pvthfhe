@@ -1,6 +1,6 @@
 #![allow(missing_docs, clippy::unwrap_used, clippy::expect_used)]
 
-use pvthfhe_keygen_spec::{
+use pvthfhe_pvss::keygen_spec::{
     compute_accepted_participant_set_hash, AggregatedESmShareCommitment,
     AggregatedSkShareCommitment, Commitment, DkgAnchorSet, HexBlob, SmudgeSlotPolicy,
 };

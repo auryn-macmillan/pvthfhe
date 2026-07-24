@@ -1,6 +1,6 @@
 #[cfg(feature = "hermine")]
 mod protocol_tests {
-    use pvthfhe_keygen::{
+    use pvthfhe_pvss::keygen::{
         hermine::{check_and_blame, HermineAdapter},
         BFVPublicKey, BlameProof, KeygenAdapter, KeygenSession, Participant,
         PublicVerificationArtifact, Share,

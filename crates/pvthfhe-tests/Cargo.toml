@@ -30,7 +30,6 @@ fhe-traits = { package = "fhe-traits", git = "https://github.com/gnosisguild/fhe
 
 [dev-dependencies]
 proptest = "1"
-pvthfhe-keygen = { path = "../pvthfhe-keygen" }
 pvthfhe-non-equiv = { path = "../pvthfhe-non-equiv" }
 pvthfhe-fhe = { path = "../pvthfhe-fhe", features = ["mock"] }
 hex = "0.4"

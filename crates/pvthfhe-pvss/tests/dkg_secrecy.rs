@@ -1,14 +1,14 @@
 //! DKG secrecy test: with t-1 shares, no information about the secret key.
 //!
-//! Runs the DKG ceremony with n=10, t=7. Demonstrates that:
+//! Runs the DKG ceremony with n=15, t=7. Demonstrates that:
 //!  - t-1=6 decryption shares are insufficient to decrypt (threshold enforced)
 //!  - Distinguisher game: adversary with t-1 shares cannot distinguish ciphertexts
 //!    with advantage exceeding 2⁻¹²⁸ (practically: decryption always fails)
 
-use pvthfhe_keygen::dkg::{DkgCeremony, DkgParams};
+use pvthfhe_pvss::keygen::dkg::{DkgCeremony, DkgParams};
 
 fn build_dkg() -> DkgCeremony {
-    let params = DkgParams { n: 10, t: 7, round_timeout: None };
+    let params = DkgParams { n: 15, t: 7, round_timeout: None };
     let mut dkg = DkgCeremony::new(params).expect("DKG new");
     dkg.run().expect("DKG run");
     dkg

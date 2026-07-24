@@ -1,7 +1,7 @@
 #[cfg(feature = "hermine")]
 mod hermine_forged_share_tests {
-    use pvthfhe_keygen::hermine::HermineAdapter;
-    use pvthfhe_keygen::{KeygenAdapter, Participant};
+    use pvthfhe_pvss::keygen::hermine::HermineAdapter;
+    use pvthfhe_pvss::keygen::{KeygenAdapter, Participant};
 
     fn make_adapter() -> HermineAdapter {
         HermineAdapter::new()

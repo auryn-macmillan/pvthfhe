@@ -1523,7 +1523,6 @@ dependencies = [
  "pvthfhe-cyclo",
  "pvthfhe-domain-tags",
  "pvthfhe-fhe",
- "pvthfhe-keygen-spec",
  "pvthfhe-nizk",
  "pvthfhe-non-equiv",
  "pvthfhe-pvss",
@@ -1553,7 +1552,6 @@ dependencies = [
  "pvthfhe-aggregator",
  "pvthfhe-compressor",
  "pvthfhe-fhe",
- "pvthfhe-keygen",
  "pvthfhe-pvss",
  "pvthfhe-rng",
  "pvthfhe-types",
@@ -1599,7 +1597,6 @@ dependencies = [
  "pvthfhe-cyclo",
  "pvthfhe-domain-tags",
  "pvthfhe-fhe",
- "pvthfhe-keygen",
  "pvthfhe-nizk",
  "pvthfhe-pvss",
  "pvthfhe-rng",
@@ -1669,8 +1666,8 @@ dependencies = [
  "num-bigint",
  "num-traits",
  "pvthfhe-domain-tags",
- "pvthfhe-keygen",
  "pvthfhe-nizk",
+ "pvthfhe-pvss",
  "pvthfhe-rng",
  "pvthfhe-types",
  "pvthfhe-wire",
@@ -1708,31 +1705,6 @@ dependencies = [
  "rand_core 0.6.4",
  "sha2",
  "sha3",
-]
-
-[[package]]
-name = "pvthfhe-keygen"
-version = "0.1.0"
-dependencies = [
- "ark-bn254",
- "ark-ec",
- "ark-ff",
- "pvthfhe-domain-tags",
- "pvthfhe-fhe",
- "pvthfhe-nizk",
- "pvthfhe-rng",
- "rand_core 0.6.4",
- "sha2",
- "subtle",
-]
-
-[[package]]
-name = "pvthfhe-keygen-spec"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
- "sha2",
 ]
 
 [[package]]
@@ -1796,7 +1768,6 @@ dependencies = [
  "proptest",
  "pvthfhe-domain-tags",
  "pvthfhe-fhe",
- "pvthfhe-keygen-spec",
  "pvthfhe-nizk",
  "pvthfhe-rng",
  "pvthfhe-types",
@@ -1804,6 +1775,7 @@ dependencies = [
  "rand 0.8.6",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
+ "serde",
  "serde_json",
  "sha2",
  "sha3",
@@ -1838,7 +1810,6 @@ dependencies = [
  "pvthfhe-cyclo",
  "pvthfhe-domain-tags",
  "pvthfhe-fhe",
- "pvthfhe-keygen",
  "pvthfhe-nizk",
  "pvthfhe-non-equiv",
  "pvthfhe-pvss",

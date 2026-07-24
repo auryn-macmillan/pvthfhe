@@ -7,7 +7,7 @@ mod lattice_nizk_adversarial {
     use pvthfhe_fhe::real_nizk::{
         LatticeNizk, NizkError, NizkProof, NizkStatement, NizkWitness, RealNizkAdapter,
     };
-    use pvthfhe_keygen::Share;
+    use pvthfhe_pvss::keygen::Share;
     use rand::rngs::StdRng;
     use rand::SeedableRng;
     use sha2::{Digest, Sha256};

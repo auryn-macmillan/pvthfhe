@@ -9,7 +9,7 @@
 compile_error!("bench_p4 requires hermine feature");
 
 #[cfg(feature = "hermine")]
-use pvthfhe_keygen::{hermine::HermineAdapter, KeygenAdapter, Participant};
+use pvthfhe_pvss::keygen::{hermine::HermineAdapter, KeygenAdapter, Participant};
 use serde::{Deserialize, Serialize};
 use std::{fs, path::Path, time::Instant};
 

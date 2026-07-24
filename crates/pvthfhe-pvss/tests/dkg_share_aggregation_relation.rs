@@ -1,7 +1,7 @@
 //! Focused E.2 tests for recipient-side DKG share aggregation.
 
 use ark_bn254::Fr;
-use pvthfhe_keygen_spec::{
+use pvthfhe_pvss::keygen_spec::{
     compute_accepted_participant_set_hash, AggregatedESmShareCommitment,
     AggregatedSkShareCommitment, Commitment, DkgAnchorSet, HexBlob, SmudgeSlotPolicy,
 };
@@ -222,9 +222,13 @@ fn rejects_tampered_esm_slot_share_even_with_matching_claimed_commitment() {
     let err = verify_recipient_dkg_aggregation(&statement)
         .expect_err("tampered esm dealer share rejected");
 
-    assert!(err
-        .to_string()
-        .contains("dealer e_sm slot 0 share commitment"));
+    assert!(
+        matches!(
+            err,
+            pvthfhe_pvss::dkg_aggregation::DkgAggregationError::DealerShareCommitmentMismatch { .. }
+        ),
+        "expected DealerShareCommitmentMismatch, got {err:?}"
+    );
 }
 
 #[test]

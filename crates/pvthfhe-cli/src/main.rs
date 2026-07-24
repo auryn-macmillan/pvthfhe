@@ -45,7 +45,7 @@ use ark_bn254::Fr;
 #[cfg(feature = "with-fhe")]
 use {
     pvthfhe_fhe::{fhers::FhersBackend, FheBackend, PublicKey},
-    pvthfhe_keygen::dkg::{DkgCeremony, DkgParams},
+    pvthfhe_pvss::keygen::dkg::{DkgCeremony, DkgParams},
     pvthfhe_rng::OsRng,
     rand_core::RngCore,
     sha2::{Digest, Sha256},

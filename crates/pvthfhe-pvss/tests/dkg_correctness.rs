@@ -6,7 +6,7 @@
 //!  - t=7 honest decryption shares reconstruct the plaintext
 //!  - Reconstruction is consistent across any size-≥t quorum
 
-use pvthfhe_keygen::dkg::{DkgCeremony, DkgParams};
+use pvthfhe_pvss::keygen::dkg::{DkgCeremony, DkgParams};
 
 #[test]
 fn dkg_n14_t7_correctness_encrypt_decrypt() {

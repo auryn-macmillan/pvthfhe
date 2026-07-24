@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use pvthfhe_keygen_spec::{
+use pvthfhe_pvss::keygen_spec::{
     BFVPublicKey, BfvPublicKeyDerivation, BlameProof, BlameProofSpec, KeygenSession,
     KeygenSessionSpec, PublicVerificationArtifact, PublicVerificationArtifactSpec, Share,
     ShareSpec,

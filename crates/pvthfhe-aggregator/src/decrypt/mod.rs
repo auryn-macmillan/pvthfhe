@@ -4,7 +4,7 @@ use pvthfhe_fhe::{
     types::{Ciphertext, DecryptShare},
     FheBackend, FheError,
 };
-use pvthfhe_keygen_spec::DkgAnchorSet;
+use pvthfhe_pvss::keygen_spec::DkgAnchorSet;
 use pvthfhe_pvss::{
     dkg_aggregation::{compute_esm_aggregate_commitment, compute_sk_aggregate_commitment},
     nizk_decrypt::{

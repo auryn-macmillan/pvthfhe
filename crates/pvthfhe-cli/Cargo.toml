@@ -31,7 +31,6 @@ required-features = ["with-fhe"]
 workspace = true
 
 [dependencies]
-pvthfhe-keygen = { path = "../pvthfhe-keygen", optional = true }
 pvthfhe-bench = { path = "../pvthfhe-bench", optional = true }
 pvthfhe-nizk = { path = "../pvthfhe-nizk" }
 pvthfhe-pvss = { path = "../pvthfhe-pvss", optional = true }
@@ -69,12 +68,10 @@ production-profile = [
     "pvthfhe-fhe/production-profile",
     "pvthfhe-aggregator/production-profile",
     "pvthfhe-compressor/production-profile",
-    "pvthfhe-keygen/production-profile",
     "pvthfhe-pvss/production-profile",
     "pvthfhe-bench/production-profile",
 ]
 with-fhe = [
-    "dep:pvthfhe-keygen",
     "dep:pvthfhe-bench",
     "dep:pvthfhe-pvss",
     "dep:pvthfhe-fhe",

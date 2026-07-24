@@ -136,7 +136,7 @@ fn pvss_error_should_include_party_id() {
 /// parties that failed to respond — the structural hook for round timeouts.
 #[test]
 fn dkg_round_timeout_should_identify_round_and_missing_parties() {
-    use pvthfhe_keygen::dkg::DkgError;
+    use pvthfhe_pvss::keygen::dkg::DkgError;
 
     let error = DkgError::RoundTimeout {
         round: 2,
@@ -158,7 +158,7 @@ fn dkg_round_timeout_should_identify_round_and_missing_parties() {
 /// F8-1: DkgError variants include party_id for blame attribution.
 #[test]
 fn dkg_error_should_include_party_context() {
-    use pvthfhe_keygen::dkg::DkgError;
+    use pvthfhe_pvss::keygen::dkg::DkgError;
 
     let error = DkgError::InvalidParams {
         party_id: Some(5),

@@ -7,7 +7,7 @@ fn hermine_not_available_without_feature() {
 #[cfg(feature = "hermine")]
 #[test]
 fn hermine_works_with_feature() {
-    use pvthfhe_keygen::{hermine::HermineAdapter, KeygenAdapter, Participant};
+    use pvthfhe_pvss::keygen::{hermine::HermineAdapter, KeygenAdapter, Participant};
 
     let adapter = HermineAdapter::new();
     let session = adapter

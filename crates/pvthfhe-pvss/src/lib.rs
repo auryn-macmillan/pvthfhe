@@ -13,6 +13,12 @@ pub mod dkg_aggregation;
 pub mod encrypt;
 /// Key Escrow protocol for distributed key authorization (ePrint 2026/1159 §6).
 pub mod key_escrow;
+/// P4 keygen adapter bridging [`keygen_spec`] to Hermine-adapted PVSS
+/// (merged from the `pvthfhe-keygen` crate).
+pub mod keygen;
+/// Frozen interface types for the P4 Hermine-adapted keygen surface
+/// (merged from the `pvthfhe-keygen-spec` crate).
+pub mod keygen_spec;
 /// Share-decryption NIZK helpers and proof types.
 pub mod nizk_decrypt;
 /// Key-generation NIZK for BFV keypair correctness (C0).
@@ -29,6 +35,9 @@ pub mod slot_registry;
 use pvthfhe_types::{ProtocolBytes, ShareSecret};
 
 pub use encrypt::{CommittedSmudgeUse, LatticePvssBfvAdapter};
+pub use keygen_spec::{
+    compute_accepted_participant_set_hash, Commitment, DkgAnchorSet, HexBlob, SmudgeSlotPolicy,
+};
 pub use nizk_decrypt::CommittedSmudgeSlot;
 
 /// Frozen PVSS context shared across backend implementations.

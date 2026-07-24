@@ -28,7 +28,7 @@ compile_error!("the hermine adapter uses deterministic share derivation (CRITICA
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 
-use crate::{
+use super::{
     BFVPublicKey, BlameProof, KeygenAdapter, KeygenError, KeygenSession, Participant,
     PublicVerificationArtifact, Share,
 };
@@ -447,7 +447,7 @@ pub fn check_and_blame(
     session_id: &str,
     share: &Share,
     artifact: &PublicVerificationArtifact,
-) -> Option<crate::BlameProof> {
+) -> Option<BlameProof> {
     let participant_id = share.participant_id?;
     let secret_value = share.secret_value?;
     let dealer_id = artifact.dealer_id?;
@@ -464,7 +464,7 @@ pub fn check_and_blame(
         .unwrap_or(true);
 
     if !in_artifact || !received_matches {
-        return Some(crate::BlameProof {
+        return Some(BlameProof {
             session_id: session_id.to_owned(),
             reason: "commitment_mismatch".to_owned(),
             accused_id: Some(dealer_id),
@@ -487,7 +487,7 @@ fn hex_encode(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod hermine_unit_tests {
     use super::*;
-    use crate::{KeygenAdapter, Participant};
+    use super::{KeygenAdapter, Participant};
 
     fn participants() -> Vec<Participant> {
         vec![
@@ -565,7 +565,7 @@ mod hermine_unit_tests {
     // must be rejected without leaking where the mismatch occurs.
     #[test]
     fn sc_audit_check_and_blame_ct_reject() {
-        use crate::{PublicVerificationArtifact, Share};
+        use super::{PublicVerificationArtifact, Share};
         let session_id = "test-session";
         let real_commit = commit(session_id, 1u16, 42u64);
         // Forge: flip first byte only

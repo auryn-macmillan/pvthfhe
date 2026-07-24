@@ -1,4 +1,4 @@
-use pvthfhe_keygen::dkg::{DkgCeremony, DkgParams};
+use pvthfhe_pvss::keygen::dkg::{DkgCeremony, DkgParams};
 
 #[test]
 fn dkg_pop_verify_honest_accepts() {

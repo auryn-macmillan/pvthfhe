@@ -1,6 +1,6 @@
 #![allow(missing_docs, clippy::unwrap_used, clippy::expect_used)]
 
-use pvthfhe_keygen_spec::{SmudgeSlotError, SmudgeSlotPolicy, SmudgeSlotRegistry};
+use pvthfhe_pvss::keygen_spec::{SmudgeSlotError, SmudgeSlotPolicy, SmudgeSlotRegistry};
 use serde_json;
 
 // ---------------------------------------------------------------------------
@@ -145,7 +145,7 @@ fn registry_default_is_empty() {
 
 #[test]
 fn smudge_slot_policy_serde_roundtrip() {
-    use pvthfhe_keygen_spec::HexBlob;
+    use pvthfhe_pvss::keygen_spec::HexBlob;
 
     let policy = SmudgeSlotPolicy {
         slots_per_party: 16,
@@ -162,7 +162,7 @@ fn smudge_slot_policy_serde_roundtrip() {
 
 #[test]
 fn smudge_slot_policy_on_demand() {
-    use pvthfhe_keygen_spec::HexBlob;
+    use pvthfhe_pvss::keygen_spec::HexBlob;
 
     let policy = SmudgeSlotPolicy {
         slots_per_party: 1,

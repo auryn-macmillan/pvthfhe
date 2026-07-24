@@ -38,7 +38,7 @@ ark-bn254 = "0.5"
 ark-ff = "0.5"
 
 [dev-dependencies]
-pvthfhe-keygen = { path = "../pvthfhe-keygen" }
+pvthfhe-pvss = { path = "../pvthfhe-pvss" }
 serde_json = "1"
 
 [lints]

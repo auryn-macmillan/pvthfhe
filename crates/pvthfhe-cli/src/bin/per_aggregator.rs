@@ -35,7 +35,7 @@ fn main() -> anyhow::Result<()> {
     // ── DKG keygen ──
     let t0 = Instant::now();
     println!("  keygen: starting... (n={}, t={})", args.n, args.threshold);
-    let mut dkg = pvthfhe_keygen::dkg::DkgCeremony::new(pvthfhe_keygen::dkg::DkgParams {
+    let mut dkg = pvthfhe_pvss::keygen::dkg::DkgCeremony::new(pvthfhe_pvss::keygen::dkg::DkgParams {
         n: args.n,
         t: args.threshold,
         round_timeout: None,

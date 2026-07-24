@@ -1,8 +1,8 @@
-//! Adversarial public-verification and blame tests for `pvthfhe-keygen`.
+//! Adversarial public-verification and blame tests for `pvthfhe-pvss::keygen`.
 
 #[cfg(feature = "hermine")]
 mod hermine_adversarial_tests {
-    use pvthfhe_keygen::{
+    use pvthfhe_pvss::keygen::{
         hermine::HermineAdapter, KeygenAdapter, Participant, PublicVerificationArtifact,
     };
 

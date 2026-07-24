@@ -6,7 +6,7 @@
 //! in two different decryption contexts.
 //!
 //! R10 hardening: This is the active SmudgeSlotRegistry used in full_pipeline.rs.
-//! There is a second implementation in pvthfhe-keygen-spec/src/lib.rs (consume-based API)
+//! There is a second implementation in pvthfhe-pvss/src/keygen_spec.rs (consume-based API)
 //! which is a spec-level abstraction not yet wired. Consolidation is planned.
 //! Both track (session_id, party_id, slot_id) tuples, but the keygen-spec version
 //! uses string keys ("session_id:party_id:slot_index") with consume() pattern.

@@ -1,7 +1,7 @@
 //! LaZer bridge: auto-generated sigma proofs using the LaZer C library.
 //!
 //! Provides `LazerSigmaProver` and `LazerSigmaVerifier` that replace
-//! hand-crafted sigma protocols (`sigma.rs`, `bfv_sigma.rs`, `bootstrap_sigma.rs`)
+//! hand-crafted sigma protocols (`sigma.rs`, `bfv_sigma.rs`)
 //! when `enable-lazer` is active.
 //!
 //! # Architecture

@@ -39,17 +39,11 @@ pub fn lazer_session_binding(session_id: &[u8], participant_id: u32) -> [u8; 32]
 pub mod adapter;
 pub mod ajtai;
 pub mod bfv_sigma;
-#[doc = "Bootstrap sigma protocol for TFHE LWE bootstrapping (N=1 scalar NIZK)."]
-pub mod bootstrap_sigma;
 pub mod fiat_shamir;
 pub mod hash_bridge;
 #[cfg(feature = "enable-lazer")]
 #[doc = "LaZer bridge: auto-generated sigma proofs via LaZer C library."]
 pub mod lazer_bridge;
-#[cfg(feature = "enable-poulpy")]
-#[doc = "Sigma protocol adaptation for Poulpy CKKS (RLWE) and TFHE (LWE) schemes."]
-#[doc = "\n\nPowered by `poulpy-hal` for VecZnx coefficient extraction and S-Z evaluation over per-limb moduli."]
-pub mod poulpy_sigma;
 pub mod schnorr;
 pub mod sigma;
 

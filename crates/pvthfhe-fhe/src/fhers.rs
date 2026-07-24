@@ -23,7 +23,7 @@ use fhe_traits::{
 use ndarray::Array2;
 use num_bigint::{BigInt, BigUint};
 use num_traits::ToPrimitive;
-use pvthfhe_types::ProtocolBytes;
+use pvthfhe_foundations::types::ProtocolBytes;
 use rand::rngs::StdRng;
 use rand_chacha::ChaCha8Rng;
 use rand_core::{RngCore, SeedableRng};

@@ -7,8 +7,8 @@ use pvthfhe_pvss::{
     nizk_share::ShareNizkProof,
     DecryptedShare, LatticePvssBfvAdapter, PvssAdapter, PvssContext,
 };
-use pvthfhe_rng::OsRng;
-use pvthfhe_types::{ProtocolBytes, Secret};
+use pvthfhe_foundations::rng::OsRng;
+use pvthfhe_foundations::types::{ProtocolBytes, Secret};
 use rand_core::RngCore;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;

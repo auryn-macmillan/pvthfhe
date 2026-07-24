@@ -80,7 +80,7 @@ jobs:
       - name: Install ripgrep
         run: sudo apt-get update && sudo apt-get install -y ripgrep
       - name: Run R0.4 forbid::raw_pvthfhe_domain_tag lint
-        run: bash crates/pvthfhe-domain-tags/lints/forbid_raw_pvthfhe_domain_tag.sh
+        run: bash crates/pvthfhe-foundations/lints/forbid_raw_pvthfhe_domain_tag.sh
 
   solidity-no-tautology:
     runs-on: ubuntu-latest
@@ -100,7 +100,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Run R0.7 forbid::seeded_rng_outside_demo lint
-        run: cargo test -p pvthfhe-rng --test no_seeded_rng_outside_demo
+        run: cargo test -p pvthfhe-foundations --test no_seeded_rng_outside_demo
 
   r02-gate-stub-not-default:
     runs-on: ubuntu-latest
@@ -116,7 +116,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Run R0.3 forbid::vec_u8_in_secret_field lint
-        run: cargo test -p pvthfhe-types --test secret_types_present
+        run: cargo test -p pvthfhe-foundations --test secret_types_present
 
 
   no-skeleton-crates:

@@ -32,7 +32,7 @@ mod lattice_nizk {
         };
         let participant_id = some(share.participant_id, "participant id");
         let commitment = pvss_commitment(&share.session_id, participant_id, secret_value);
-        let n = pvthfhe_types::rlwe_n();
+        let n = pvthfhe_foundations::types::rlwe_n();
         let statement = NizkStatement {
             ciphertext_bytes: vec![0x10, 0x20, 0x30, 0x40],
             decrypt_share_bytes: vec![0x44, 0x55, 0x66, 0x77],

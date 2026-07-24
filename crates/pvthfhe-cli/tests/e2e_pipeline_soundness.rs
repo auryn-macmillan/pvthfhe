@@ -12,7 +12,7 @@
 mod tests {
     use pvthfhe_cli::full_pipeline::{run_full_pipeline, PipelineConfig, PipelineObserver};
     use pvthfhe_fhe::{fhers::FhersBackend, FheBackend};
-    use pvthfhe_rng::OsRng;
+    use pvthfhe_foundations::rng::OsRng;
     use sha2::{Digest, Sha256};
     use std::collections::BTreeMap;
 
@@ -122,7 +122,7 @@ mod tests {
             .iter()
             .map(|b| b.wrapping_add(1))
             .collect();
-        tampered[1].bytes = pvthfhe_types::ProtocolBytes(corruption);
+        tampered[1].bytes = pvthfhe_foundations::types::ProtocolBytes(corruption);
         let result = backend.aggregate_decrypt(&ct, &tampered, t, b"");
         assert!(
             result.is_err(),

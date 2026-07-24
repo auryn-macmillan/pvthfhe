@@ -13,10 +13,7 @@ pvthfhe-nizk = { path = "../pvthfhe-nizk" }
 pvthfhe-pvss = { path = "../pvthfhe-pvss" }
 pvthfhe-fhe = { path = "../pvthfhe-fhe" }
 pvthfhe-compressor = { path = "../pvthfhe-compressor" }
-pvthfhe-types = { path = "../pvthfhe-types" }
-pvthfhe-domain-tags = { path = "../pvthfhe-domain-tags" }
-pvthfhe-wire = { path = "../pvthfhe-wire" }
-pvthfhe-rng = { path = "../pvthfhe-rng" }
+pvthfhe-foundations = { path = "../pvthfhe-foundations" }
 pvthfhe-cyclo = { path = "../pvthfhe-cyclo" }
 rand = "0.8"
 rand_chacha = "0.3"

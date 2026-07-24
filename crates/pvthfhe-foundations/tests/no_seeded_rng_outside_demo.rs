@@ -5,7 +5,7 @@ const FORBIDDEN: &str = r"\bseed_from_u64\b|\bfrom_seed\b|\bStdRng::\w*seed|\bCh
 fn is_allowlisted(path: &str) -> bool {
     path.contains("/tests/")
         || path.contains("/benches/")
-        || path.starts_with("crates/pvthfhe-rng/")
+        || path.starts_with("crates/pvthfhe-foundations/")
         || path.split('/').next_back().is_some_and(|file| {
             file.starts_with("demo")
                 || file.starts_with("worked_example")
@@ -63,7 +63,7 @@ fn no_seeded_rng_in_production() {
 
     if !violations.is_empty() {
         panic!(
-            "R0.7 violation: {} production seeded-RNG callsite(s):\n{}\n\nMigrate to OsRng via `pvthfhe_rng::ProductionRng`, or annotate with `// allow-seeded-rng: <reason>` for construction-required determinism.",
+            "R0.7 violation: {} production seeded-RNG callsite(s):\n{}\n\nMigrate to OsRng via `pvthfhe_foundations::rng::ProductionRng`, or annotate with `// allow-seeded-rng: <reason>` for construction-required determinism.",
             violations.len(),
             violations.join("\n")
         );

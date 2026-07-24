@@ -15,9 +15,9 @@
 //! Full coefficient-domain validation is deferred to production hardening.
 
 use crate::FheError;
-use pvthfhe_domain_tags::Tag;
-use pvthfhe_types::ProtocolBytes;
-use pvthfhe_wire::{WireError, WireFormat};
+use pvthfhe_foundations::domain_tags::Tag;
+use pvthfhe_foundations::types::ProtocolBytes;
+use pvthfhe_foundations::wire::{WireError, WireFormat};
 
 const WIRE_V1: u8 = 0x01;
 const WIRE_V2: u8 = 0x02;

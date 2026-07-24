@@ -9,7 +9,7 @@ use pvthfhe_cyclo::{
     fold::{fold_one_step, init_accumulator, verify_fold},
     CcsPShareInstance,
 };
-use pvthfhe_types::CcsWitnessSecret;
+use pvthfhe_foundations::types::CcsWitnessSecret;
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
 

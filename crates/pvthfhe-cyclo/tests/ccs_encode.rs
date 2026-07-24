@@ -3,7 +3,7 @@
 use ark_bn254::Fr;
 use ark_ff::{AdditiveGroup, BigInteger, PrimeField};
 use pvthfhe_cyclo::{ccs_encode, CcsPShareInstance};
-use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
+use pvthfhe_foundations::types::{CcsWitnessSecret, ProtocolBytes};
 use sha2::{Digest, Sha256};
 
 /// 1×1 CCS matrix with element `e`: only witness z=[0] satisfies (e·z)⊙z=0.

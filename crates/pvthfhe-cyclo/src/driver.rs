@@ -14,7 +14,7 @@ use crate::{
     ring::{ring_add_poly, scalar_mul, RqPoly},
     CcsPShareInstance, CycloAccumulator, CycloError, PVTHFHE_CYCLO_PARAMS,
 };
-use pvthfhe_types::ProtocolBytes;
+use pvthfhe_foundations::types::ProtocolBytes;
 use rand_core::RngCore;
 use sha2::{Digest, Sha256};
 
@@ -366,7 +366,7 @@ mod tests {
     use crate::CcsPShareInstance;
     use ark_bn254::Fr;
     use ark_ff::{AdditiveGroup, BigInteger, PrimeField};
-    use pvthfhe_types::CcsWitnessSecret;
+    use pvthfhe_foundations::types::CcsWitnessSecret;
     use rand_chacha::ChaCha20Rng;
     use rand_core::SeedableRng;
 

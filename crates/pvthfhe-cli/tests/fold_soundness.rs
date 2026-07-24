@@ -4,7 +4,7 @@
 //! the real Cyclo `check_satisfiability` path (`M·z ⊙ z == 0`).
 
 use pvthfhe_cyclo::{fold, CcsPShareInstance};
-use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
+use pvthfhe_foundations::types::{CcsWitnessSecret, ProtocolBytes};
 use rand_core::OsRng;
 
 fn build_matrix_1x1(element_limbs: [u64; 4]) -> Vec<u8> {

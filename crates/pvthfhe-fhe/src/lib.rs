@@ -28,7 +28,7 @@ mod mock_impl;
 pub mod mock;
 
 pub use error::FheError;
-pub use pvthfhe_types::{DecryptionWitness, EncryptionWitness};
+pub use pvthfhe_foundations::types::{DecryptionWitness, EncryptionWitness};
 pub use types::{Ciphertext, DecryptShare, KeygenShare, Params, PublicKey};
 
 use rand_core::RngCore;

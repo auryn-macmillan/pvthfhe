@@ -11,7 +11,7 @@
 
 use fhe_math::rq::Context;
 use fhe_traits::DeserializeWithContext;
-use pvthfhe_domain_tags::Tag;
+use pvthfhe_foundations::domain_tags::Tag;
 use pvthfhe_fhe::types::{Ciphertext, PublicKey};
 use pvthfhe_fhe::wire;
 use pvthfhe_fhe::FheBackend;
@@ -24,11 +24,11 @@ use pvthfhe_nizk::bfv_sigma::{
 };
 use pvthfhe_nizk::fiat_shamir::Transcript;
 use pvthfhe_nizk::sigma;
-use pvthfhe_types::witness_language::{
+use pvthfhe_foundations::types::witness_language::{
     BfvParameters as SchemaBfvParams, R3Relation, WitnessStatement,
 };
-use pvthfhe_types::{EncRandomness, EncryptionWitness, ProtocolBytes, ShareSecret};
-use pvthfhe_wire::{WireError, WireFormat};
+use pvthfhe_foundations::types::{EncRandomness, EncryptionWitness, ProtocolBytes, ShareSecret};
+use pvthfhe_foundations::wire::{WireError, WireFormat};
 use rand::rngs::OsRng;
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
@@ -572,7 +572,7 @@ fn build_algebraic_proof(stmt: &ShareNizkStatement, witness: &ShareNizkWitness) 
     let e_i = vec![0i64; sigma::rlwe_n()];
     let c_rns = derive_share_sigma_c_rns(stmt.session_id.as_slice(), stmt.recipient_index);
     let d_rns = sigma::compute_d_rns(&c_rns, &s_i, &e_i)
-        .unwrap_or_else(|_| vec![0u64; sigma::rlwe_n() * pvthfhe_types::rlwe_moduli().len()]);
+        .unwrap_or_else(|_| vec![0u64; sigma::rlwe_n() * pvthfhe_foundations::types::rlwe_moduli().len()]);
 
     let mut proof_rng = match ChaCha20Rng::from_rng(&mut OsRng) {
         Ok(rng) => rng,
@@ -623,7 +623,7 @@ fn derive_share_sigma_c_rns(session_id: &[u8], recipient_index: usize) -> Vec<u6
     h.update(session_id);
     h.update(recipient_index.to_be_bytes());
     let mut rng = ChaCha20Rng::from_seed(h.finalize().into());
-    let moduli = pvthfhe_types::rlwe_moduli();
+    let moduli = pvthfhe_foundations::types::rlwe_moduli();
     let n = sigma::rlwe_n();
     let mut out = vec![0u64; n * moduli.len()];
     for (limb, modulus) in moduli.iter().enumerate() {
@@ -1046,7 +1046,7 @@ fn read_bfv_u64_vec(bytes: &[u8], offset: &mut usize) -> Result<Vec<u64>, PvssEr
 fn get_rlwe_context() -> Result<&'static Arc<Context>, PvssError> {
     static CTX: OnceLock<Result<Arc<Context>, String>> = OnceLock::new();
     CTX.get_or_init(|| {
-        let moduli = pvthfhe_types::rlwe_moduli();
+        let moduli = pvthfhe_foundations::types::rlwe_moduli();
         Context::new(&moduli, sigma::rlwe_n())
             .map(Arc::new)
             .map_err(|e| format!("{e:?}"))

@@ -1,4 +1,4 @@
-pub use crate::ProtocolBytes;
+pub use super::ProtocolBytes;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WitnessSchemaVersion {
@@ -125,9 +125,9 @@ impl WitnessStatement {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WitnessSecret {
-    pub secret_share: crate::ShareSecret,
-    pub randomness: crate::EncRandomness,
-    pub noise: crate::NoisePoly,
+    pub secret_share: super::ShareSecret,
+    pub randomness: super::EncRandomness,
+    pub noise: super::NoisePoly,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

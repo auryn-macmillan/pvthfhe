@@ -369,7 +369,7 @@ pub fn decode_accumulator(
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
-    use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
+    use pvthfhe_foundations::types::{CcsWitnessSecret, ProtocolBytes};
 
     fn make_test_instance(pid: u16, _session_id: &str) -> CcsPShareInstance {
         let ajtai_bytes = vec![0u8; AJTAI_COMMITMENT_BYTES];

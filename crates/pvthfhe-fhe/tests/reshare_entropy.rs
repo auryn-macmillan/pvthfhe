@@ -18,7 +18,7 @@ fn reshare_entropy() {
 
     use fhe::trbfv::ShareManager;
     use pvthfhe_fhe::{fhers::FhersBackend, FheBackend};
-    use pvthfhe_rng::OsRng;
+    use pvthfhe_foundations::rng::OsRng;
 
     const CANONICAL_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 65536\nmoduli = [288230376173076481, 288230376167047169, 288230376161280001]\nvariance = 10\n";
 

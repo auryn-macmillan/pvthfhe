@@ -1,7 +1,7 @@
-//! M2 RED: no raw domain string literals outside `crates/pvthfhe-domain-tags/src/lib.rs`.
+//! M2 RED: no raw domain string literals outside `crates/pvthfhe-foundations/src/domain_tags.rs`.
 //!
 //! This test greps all crate source directories for `b"pvthfhe` and `"pvthfhe/`
-//! patterns, excluding the domain-tags crate itself and test files.
+//! patterns, excluding the canonical domain_tags module itself and test files.
 //! It is expected to be RED until all inline domain strings are consolidated.
 //!
 //! Every inline match found means a Tag variant still needs to be registered
@@ -31,9 +31,9 @@ fn no_inline_domain_tag_literals_anywhere() {
         .arg("--glob")
         .arg("!**/tests/**")
         .arg("--glob")
-        .arg("!crates/pvthfhe-domain-tags/src/**")
+        .arg("!crates/pvthfhe-foundations/src/domain_tags.rs")
         .arg("--glob")
-        .arg("!crates/pvthfhe-domain-tags/tests/**")
+        .arg("!crates/pvthfhe-foundations/tests/**")
         .arg("crates/")
         .current_dir(&root)
         .output()
@@ -65,9 +65,9 @@ fn no_inline_domain_tag_literals_anywhere() {
         .arg("--glob")
         .arg("!**/tests/**")
         .arg("--glob")
-        .arg("!crates/pvthfhe-domain-tags/src/**")
+        .arg("!crates/pvthfhe-foundations/src/domain_tags.rs")
         .arg("--glob")
-        .arg("!crates/pvthfhe-domain-tags/tests/**")
+        .arg("!crates/pvthfhe-foundations/tests/**")
         .arg("crates/")
         .current_dir(&root)
         .output()

@@ -1,4 +1,4 @@
-use pvthfhe_types::verification_statement::{
+use pvthfhe_foundations::types::verification_statement::{
     field_elements_to_decimal_strings, field_elements_to_hex_strings, VerificationStatementV1,
     GOLDEN_STATEMENT_HASH_DECIMAL, GOLDEN_STATEMENT_HASH_HEX, POSEIDON_PREIMAGE_LEN,
 };

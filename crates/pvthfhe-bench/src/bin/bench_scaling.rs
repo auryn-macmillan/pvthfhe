@@ -16,7 +16,7 @@ use pvthfhe_bench::{summarize_samples, BenchEnv, ScalingBenchEnv, ScalingEnvelop
 #[cfg(feature = "mock")]
 use pvthfhe_fhe::mock::MockBackend;
 use pvthfhe_fhe::{fhers::FhersBackend, FheBackend};
-use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
+use pvthfhe_foundations::types::{CcsWitnessSecret, ProtocolBytes};
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
 use sha2::{Digest, Sha256};

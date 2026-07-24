@@ -8,7 +8,7 @@
 
 use clap::Parser;
 use pvthfhe_aggregator::folding::{CcsPShareInstance, HashChainCycloAdapter};
-use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
+use pvthfhe_foundations::types::{CcsWitnessSecret, ProtocolBytes};
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
 use serde_json::json;

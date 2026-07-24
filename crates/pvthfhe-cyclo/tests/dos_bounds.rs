@@ -2,7 +2,7 @@ use pvthfhe_cyclo::{
     fold::{verify_fold, AJTAI_COMMITMENT_BYTES},
     CcsPShareInstance, CycloAccumulator, PVTHFHE_CYCLO_PARAMS,
 };
-use pvthfhe_types::CcsWitnessSecret;
+use pvthfhe_foundations::types::CcsWitnessSecret;
 
 fn trivial_matrix() -> Vec<u8> {
     let mut m = vec![0u8, 0, 0, 1, 0, 0, 0, 1];

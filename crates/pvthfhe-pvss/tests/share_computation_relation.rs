@@ -6,7 +6,7 @@ use pvthfhe_pvss::share_computation::{
     compute_esm_secret_commitment, compute_sk_secret_commitment, verify_batched_share_computation,
     BatchedShareComputationStatement, ESmShareComputationSlot, FieldShare, ShareComputationTrack,
 };
-use pvthfhe_types::ProtocolBytes;
+use pvthfhe_foundations::types::ProtocolBytes;
 
 fn eval(coeffs: &[Fr], x: usize) -> Fr {
     let x = Fr::from(x as u64);

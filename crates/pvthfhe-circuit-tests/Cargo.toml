@@ -9,7 +9,7 @@ ark-bn254 = "0.5"
 ark-ff = "0.5"
 light-poseidon = "0.4"
 pvthfhe-compressor = { path = "../pvthfhe-compressor" }
-pvthfhe-types = { version = "0.1.0", path = "../pvthfhe-types" }
+pvthfhe-foundations = { version = "0.1.0", path = "../pvthfhe-foundations" }
 thiserror = "1"
 
 [[test]]

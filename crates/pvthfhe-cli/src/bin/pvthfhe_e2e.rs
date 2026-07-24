@@ -122,11 +122,11 @@ fn run_e2e(args: Args) -> anyhow::Result<()> {
     }
 
     let preset = match args.params.to_lowercase().as_str() {
-        "insecure512" => pvthfhe_types::BfvParameterPreset::insecure512(),
-        "production8192" => pvthfhe_types::BfvParameterPreset::production8192(),
+        "insecure512" => pvthfhe_foundations::types::BfvParameterPreset::insecure512(),
+        "production8192" => pvthfhe_foundations::types::BfvParameterPreset::production8192(),
         other => anyhow::bail!("unknown preset: {other}. Use 'production8192' or 'insecure512'"),
     };
-    pvthfhe_types::set_active_preset(preset);
+    pvthfhe_foundations::types::set_active_preset(preset);
     info!(params = %args.params, "active parameter preset set");
 
     let mut observer = BenchObserver::new(args.n, args.t, args.seed);

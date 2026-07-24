@@ -40,30 +40,14 @@ const PRODUCTION_PROFILE_OWNERS: &[(&str, &str, &[&str])] = &[
             "pvthfhe-fhe/production-profile",
             "pvthfhe-aggregator/production-profile",
             "pvthfhe-compressor/production-profile",
-            "pvthfhe-keygen/production-profile",
             "pvthfhe-pvss/production-profile",
             "pvthfhe-bench/production-profile",
         ],
     ),
     (
-        "pvthfhe-keygen",
-        "crates/pvthfhe-keygen/Cargo.toml",
-        &["pvthfhe-fhe/production-profile"],
-    ),
-    (
         "pvthfhe-pvss",
         "crates/pvthfhe-pvss/Cargo.toml",
         &["pvthfhe-fhe/production-profile"],
-    ),
-    (
-        "pvthfhe-enclave-adapter",
-        "crates/pvthfhe-enclave-adapter/Cargo.toml",
-        &["pvthfhe-fhe/production-profile"],
-    ),
-    (
-        "pvthfhe-offchain-verifier",
-        "crates/pvthfhe-offchain-verifier/Cargo.toml",
-        &["pvthfhe-compressor/production-profile"],
     ),
     (
         "pvthfhe-bench",

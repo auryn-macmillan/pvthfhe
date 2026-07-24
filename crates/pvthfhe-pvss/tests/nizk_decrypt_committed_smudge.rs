@@ -9,7 +9,7 @@ use pvthfhe_pvss::nizk_decrypt::{
 };
 use pvthfhe_pvss::slot_registry::SmudgeSlotRegistry;
 use pvthfhe_pvss::{PvssContext, PvssError};
-use pvthfhe_types::Secret;
+use pvthfhe_foundations::types::Secret;
 
 const SLOT_ID: u16 = 3;
 const DECRYPT_ROUND: u64 = 9;

@@ -14,7 +14,7 @@ use crate::{
     FheBackend,
 };
 #[cfg(not(feature = "production-profile"))]
-use pvthfhe_types::ProtocolBytes;
+use pvthfhe_foundations::types::ProtocolBytes;
 #[cfg(not(feature = "production-profile"))]
 use rand_core::RngCore;
 

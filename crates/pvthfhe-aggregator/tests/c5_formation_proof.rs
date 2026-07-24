@@ -4,7 +4,7 @@ use pvthfhe_aggregator::keygen::c5_proof::{
 };
 use pvthfhe_fhe::mock::MockBackend;
 use pvthfhe_fhe::{FheBackend, KeygenShare, PublicKey};
-use pvthfhe_types::ProtocolBytes;
+use pvthfhe_foundations::types::ProtocolBytes;
 use rand::Rng;
 use sha2::{Digest, Sha256};
 

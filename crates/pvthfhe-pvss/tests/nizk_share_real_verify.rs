@@ -14,7 +14,7 @@ use pvthfhe_pvss::nizk_share::{
     canonical_bfv_params_digest, compute_ciphertext_v, compute_share_commitment, ShareNizkProver,
     ShareNizkStatement, ShareNizkVerifier, ShareNizkWitness,
 };
-use pvthfhe_types::{EncRandomness, ProtocolBytes, ShareSecret};
+use pvthfhe_foundations::types::{EncRandomness, ProtocolBytes, ShareSecret};
 use rand_chacha::ChaCha8Rng;
 use rand_core::{RngCore, SeedableRng};
 

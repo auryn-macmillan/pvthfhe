@@ -1,7 +1,7 @@
 //! Trait-object safety smoke test for the frozen PVSS adapter API.
 
 use pvthfhe_pvss::PvssAdapter;
-use pvthfhe_types::{ProtocolBytes, ShareSecret};
+use pvthfhe_foundations::types::{ProtocolBytes, ShareSecret};
 
 struct NoopPvssAdapter;
 

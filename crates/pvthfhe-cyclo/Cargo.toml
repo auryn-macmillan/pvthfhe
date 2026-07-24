@@ -5,7 +5,7 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
-pvthfhe-types = { path = "../pvthfhe-types" }
+pvthfhe-foundations = { path = "../pvthfhe-foundations" }
 thiserror = "1"
 sha2 = "0.10"
 rand_core = "0.6"

@@ -39,7 +39,6 @@ use crate::bfv_sigma::BfvSigmaProof;
 use crate::sigma::{int_poly_to_rns, num_rns_limbs, poly_mul_rq, rlwe_n};
 use crate::NizkError;
 use fhe_math::rq::Context;
-use pvthfhe_types;
 use std::sync::{Arc, OnceLock};
 
 /// Bound on Greco quotient polynomial coefficients in ∞-norm.
@@ -57,7 +56,7 @@ fn greco_rlwe_context() -> Result<&'static Arc<Context>, NizkError> {
     static CTX: OnceLock<Result<Arc<Context>, String>> = OnceLock::new();
     CTX.get_or_init(|| {
         let n = rlwe_n();
-        let moduli = pvthfhe_types::rlwe_moduli();
+        let moduli = pvthfhe_foundations::types::rlwe_moduli();
         Context::new(&moduli, n)
             .map(Arc::new)
             .map_err(|e| format!("{e:?}"))
@@ -213,7 +212,7 @@ pub fn verify_greco_bounds(
 ) -> Result<(), NizkError> {
     let n = rlwe_n();
     let num_limbs = num_rns_limbs();
-    let moduli = pvthfhe_types::rlwe_moduli();
+    let moduli = pvthfhe_foundations::types::rlwe_moduli();
 
     if pk0_rns.len() != n * num_limbs
         || pk1_rns.len() != n * num_limbs
@@ -403,7 +402,7 @@ mod tests {
         // Build a minimal valid-looking proof that would produce an
         // out-of-bounds quotient if the verifier didn't catch it.
         let n = rlwe_n();
-        let moduli = pvthfhe_types::rlwe_moduli();
+        let moduli = pvthfhe_foundations::types::rlwe_moduli();
         let num_limbs = moduli.len();
 
         // Zero statement and proof — quotients should be 0

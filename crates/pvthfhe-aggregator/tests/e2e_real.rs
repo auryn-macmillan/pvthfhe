@@ -35,7 +35,7 @@ use pvthfhe_aggregator::folding::{
     NizkStatement,
 };
 use pvthfhe_aggregator::keygen::simulator::{KeygenResult, KeygenSimulator};
-use pvthfhe_domain_tags::Tag;
+use pvthfhe_foundations::domain_tags::Tag;
 use pvthfhe_fhe::{mock::MockBackend, FheBackend};
 use sha2::{Digest, Sha256};
 

@@ -23,7 +23,7 @@ use pvthfhe_compressor::witness::{
     hash_all_coeffs, ShareVerificationWitness, ShareVerificationWitnessSet,
 };
 use pvthfhe_cyclo::{fold, CYCLO_BACKEND_ID, PVTHFHE_CYCLO_PARAMS};
-use pvthfhe_domain_tags::Tag;
+use pvthfhe_foundations::domain_tags::Tag;
 use pvthfhe_fhe::{
     fhers::FhersBackend,
     real_nizk::{LatticeNizk, NizkProof, NizkStatement, NizkWitness, RealNizkAdapter},
@@ -42,8 +42,8 @@ use pvthfhe_pvss::nizk_decrypt::{
 use pvthfhe_pvss::nizk_share::{compute_ciphertext_v, compute_share_commitment};
 use pvthfhe_pvss::slot_registry::SmudgeSlotRegistry;
 use pvthfhe_pvss::{EncryptedShares, PvssAdapter};
-use pvthfhe_rng::OsRng;
-use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes, Secret};
+use pvthfhe_foundations::rng::OsRng;
+use pvthfhe_foundations::types::{CcsWitnessSecret, ProtocolBytes, Secret};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::time::Instant;
@@ -2612,7 +2612,7 @@ fn verify_all_dealer_share_computations(
         verify_batched_share_computation, BatchedShareComputationStatement,
         ESmShareComputationSlot, FieldShare, ShareComputationTrack,
     };
-    use pvthfhe_types::ProtocolBytes;
+    use pvthfhe_foundations::types::ProtocolBytes;
 
     let session_id_bytes = ProtocolBytes::from(session_id.as_bytes().to_vec());
     let dkg_root = ProtocolBytes::from(dkg_root_bytes.to_vec());

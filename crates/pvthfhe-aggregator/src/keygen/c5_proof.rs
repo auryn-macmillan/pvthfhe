@@ -102,7 +102,7 @@ pub fn verify_pop(
     // 2. Check that the keygen share produces the claimed public key
     let share = KeygenShare {
         party_id: pop.party_id,
-        bytes: pvthfhe_types::ProtocolBytes(pop.keygen_share_bytes.clone()),
+        bytes: pvthfhe_foundations::types::ProtocolBytes(pop.keygen_share_bytes.clone()),
     };
     let pk_from_share = backend
         .aggregate_keygen(&[share])
@@ -169,7 +169,7 @@ pub fn verify_pk_formation(
         .iter()
         .map(|pop| KeygenShare {
             party_id: pop.party_id,
-            bytes: pvthfhe_types::ProtocolBytes(pop.keygen_share_bytes.clone()),
+            bytes: pvthfhe_foundations::types::ProtocolBytes(pop.keygen_share_bytes.clone()),
         })
         .collect();
 

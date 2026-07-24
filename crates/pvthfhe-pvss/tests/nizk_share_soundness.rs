@@ -14,7 +14,7 @@ use pvthfhe_pvss::nizk_share::{
     ShareNizkOpenedProof, ShareNizkProof, ShareNizkProver, ShareNizkStatement, ShareNizkVerifier,
     ShareNizkWitness, SHARE_NIZK_DOMAIN_SEPARATOR,
 };
-use pvthfhe_types::{EncRandomness, ProtocolBytes, ShareSecret};
+use pvthfhe_foundations::types::{EncRandomness, ProtocolBytes, ShareSecret};
 use rand_chacha::ChaCha20Rng;
 use rand_chacha::ChaCha8Rng;
 use rand_core::{RngCore, SeedableRng};

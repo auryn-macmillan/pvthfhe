@@ -32,7 +32,7 @@ pub mod share_computation;
 /// Smudge-slot freshness enforcement (F.2).
 pub mod slot_registry;
 
-use pvthfhe_types::{ProtocolBytes, ShareSecret};
+use pvthfhe_foundations::types::{ProtocolBytes, ShareSecret};
 
 pub use encrypt::{CommittedSmudgeUse, LatticePvssBfvAdapter};
 pub use keygen_spec::{

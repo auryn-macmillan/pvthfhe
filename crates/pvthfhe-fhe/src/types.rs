@@ -2,7 +2,7 @@
 //!
 //! All types are opaque byte wrappers. No backend-internal types appear here.
 
-use pvthfhe_types::ProtocolBytes;
+use pvthfhe_foundations::types::ProtocolBytes;
 use serde::{Deserialize, Serialize};
 
 /// A keygen share produced by one party during distributed key generation.

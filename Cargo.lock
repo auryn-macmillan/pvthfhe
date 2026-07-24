@@ -1521,12 +1521,11 @@ dependencies = [
  "criterion",
  "hex",
  "pvthfhe-cyclo",
- "pvthfhe-domain-tags",
  "pvthfhe-fhe",
+ "pvthfhe-foundations",
  "pvthfhe-nizk",
  "pvthfhe-non-equiv",
  "pvthfhe-pvss",
- "pvthfhe-types",
  "rand 0.8.6",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
@@ -1552,9 +1551,8 @@ dependencies = [
  "pvthfhe-aggregator",
  "pvthfhe-compressor",
  "pvthfhe-fhe",
+ "pvthfhe-foundations",
  "pvthfhe-pvss",
- "pvthfhe-rng",
- "pvthfhe-types",
  "rand 0.8.6",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
@@ -1572,7 +1570,7 @@ dependencies = [
  "ark-ff",
  "light-poseidon",
  "pvthfhe-compressor",
- "pvthfhe-types",
+ "pvthfhe-foundations",
  "thiserror",
 ]
 
@@ -1595,12 +1593,10 @@ dependencies = [
  "pvthfhe-circuit-tests",
  "pvthfhe-compressor",
  "pvthfhe-cyclo",
- "pvthfhe-domain-tags",
  "pvthfhe-fhe",
+ "pvthfhe-foundations",
  "pvthfhe-nizk",
  "pvthfhe-pvss",
- "pvthfhe-rng",
- "pvthfhe-types",
  "rand 0.8.6",
  "rand_core 0.6.4",
  "rayon",
@@ -1620,9 +1616,7 @@ dependencies = [
  "bincode",
  "hex",
  "pvthfhe-aggregator",
- "pvthfhe-domain-tags",
- "pvthfhe-rng",
- "pvthfhe-types",
+ "pvthfhe-foundations",
  "rand 0.8.6",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
@@ -1640,7 +1634,7 @@ dependencies = [
  "ark-ff",
  "fhe-math",
  "num-bigint",
- "pvthfhe-types",
+ "pvthfhe-foundations",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
  "sha2",
@@ -1648,10 +1642,6 @@ dependencies = [
  "thiserror",
  "walkdir",
 ]
-
-[[package]]
-name = "pvthfhe-domain-tags"
-version = "0.1.0"
 
 [[package]]
 name = "pvthfhe-fhe"
@@ -1665,12 +1655,9 @@ dependencies = [
  "ndarray",
  "num-bigint",
  "num-traits",
- "pvthfhe-domain-tags",
+ "pvthfhe-foundations",
  "pvthfhe-nizk",
  "pvthfhe-pvss",
- "pvthfhe-rng",
- "pvthfhe-types",
- "pvthfhe-wire",
  "rand 0.8.6",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
@@ -1685,6 +1672,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "pvthfhe-foundations"
+version = "0.1.0"
+dependencies = [
+ "ark-bn254",
+ "ark-ff",
+ "light-poseidon",
+ "proptest",
+ "quote",
+ "rand 0.8.6",
+ "rand_core 0.6.4",
+ "serde",
+ "syn",
+ "walkdir",
+ "zeroize",
+]
+
+[[package]]
 name = "pvthfhe-fuzz"
 version = "0.1.0"
 dependencies = [
@@ -1694,12 +1698,10 @@ dependencies = [
  "fhe-math",
  "fhe-traits",
  "pvthfhe-compressor",
- "pvthfhe-domain-tags",
  "pvthfhe-fhe",
+ "pvthfhe-foundations",
  "pvthfhe-nizk",
  "pvthfhe-pvss",
- "pvthfhe-types",
- "pvthfhe-wire",
  "rand 0.8.6",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
@@ -1727,10 +1729,8 @@ dependencies = [
  "light-poseidon",
  "num-bigint",
  "pvthfhe-cyclo",
- "pvthfhe-domain-tags",
+ "pvthfhe-foundations",
  "pvthfhe-lazer",
- "pvthfhe-rng",
- "pvthfhe-types",
  "rand 0.8.6",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
@@ -1749,8 +1749,8 @@ dependencies = [
  "ark-bn254",
  "ark-ec",
  "ark-ff",
+ "pvthfhe-foundations",
  "pvthfhe-nizk",
- "pvthfhe-types",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
  "serde",
@@ -1766,12 +1766,9 @@ dependencies = [
  "fhe-math",
  "fhe-traits",
  "proptest",
- "pvthfhe-domain-tags",
  "pvthfhe-fhe",
+ "pvthfhe-foundations",
  "pvthfhe-nizk",
- "pvthfhe-rng",
- "pvthfhe-types",
- "pvthfhe-wire",
  "rand 0.8.6",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
@@ -1782,14 +1779,6 @@ dependencies = [
  "subtle",
  "syn",
  "tracing",
-]
-
-[[package]]
-name = "pvthfhe-rng"
-version = "0.1.0"
-dependencies = [
- "rand 0.8.6",
- "rand_core 0.6.4",
 ]
 
 [[package]]
@@ -1808,14 +1797,11 @@ dependencies = [
  "proptest",
  "pvthfhe-compressor",
  "pvthfhe-cyclo",
- "pvthfhe-domain-tags",
  "pvthfhe-fhe",
+ "pvthfhe-foundations",
  "pvthfhe-nizk",
  "pvthfhe-non-equiv",
  "pvthfhe-pvss",
- "pvthfhe-rng",
- "pvthfhe-types",
- "pvthfhe-wire",
  "rand 0.8.6",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
@@ -1823,28 +1809,6 @@ dependencies = [
  "serde_json",
  "sha2",
  "sha3",
-]
-
-[[package]]
-name = "pvthfhe-types"
-version = "0.1.0"
-dependencies = [
- "ark-bn254",
- "ark-ff",
- "light-poseidon",
- "quote",
- "serde",
- "syn",
- "walkdir",
- "zeroize",
-]
-
-[[package]]
-name = "pvthfhe-wire"
-version = "0.1.0"
-dependencies = [
- "proptest",
- "pvthfhe-domain-tags",
 ]
 
 [[package]]

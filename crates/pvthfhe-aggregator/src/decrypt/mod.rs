@@ -13,7 +13,7 @@ use pvthfhe_pvss::{
     },
     nizk_share::compute_ciphertext_v,
 };
-use pvthfhe_types::{ProtocolBytes, Secret};
+use pvthfhe_foundations::types::{ProtocolBytes, Secret};
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};

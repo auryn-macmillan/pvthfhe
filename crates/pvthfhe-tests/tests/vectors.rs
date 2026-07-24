@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use pvthfhe_fhe::mock::MockBackend;
 use pvthfhe_fhe::types::{DecryptShare, KeygenShare, PublicKey};
 use pvthfhe_fhe::FheBackend;
-use pvthfhe_types::ProtocolBytes;
+use pvthfhe_foundations::types::ProtocolBytes;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use serde::Deserialize;

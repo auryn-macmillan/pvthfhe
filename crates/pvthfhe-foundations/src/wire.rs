@@ -1,6 +1,6 @@
 //! Canonical wire format for PVTHFHE adapters. Phase R0.5.
 
-use pvthfhe_domain_tags::Tag;
+use crate::domain_tags::Tag;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WireError {

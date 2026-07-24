@@ -46,7 +46,7 @@ use ark_bn254::Fr;
 use {
     pvthfhe_fhe::{fhers::FhersBackend, FheBackend, PublicKey},
     pvthfhe_pvss::keygen::dkg::{DkgCeremony, DkgParams},
-    pvthfhe_rng::OsRng,
+    pvthfhe_foundations::rng::OsRng,
     rand_core::RngCore,
     sha2::{Digest, Sha256},
 };
@@ -336,15 +336,15 @@ fn main() -> anyhow::Result<()> {
             match backend.to_lowercase().as_str() {
                 "fhe-rs" => {
                     let preset = match params.to_lowercase().as_str() {
-                        "insecure512" => pvthfhe_types::BfvParameterPreset::insecure512(),
-                        "production8192" => pvthfhe_types::BfvParameterPreset::production8192(),
+                        "insecure512" => pvthfhe_foundations::types::BfvParameterPreset::insecure512(),
+                        "production8192" => pvthfhe_foundations::types::BfvParameterPreset::production8192(),
                         other => {
                             anyhow::bail!(
                                 "unknown preset: {other}. Use 'production8192' or 'insecure512'"
                             )
                         }
                     };
-                    pvthfhe_types::set_active_preset(preset);
+                    pvthfhe_foundations::types::set_active_preset(preset);
                     info!(%params, "active parameter preset set");
                     run_demo(n, t, seed, verbose)?;
                 }
@@ -476,7 +476,7 @@ fn r8_aggregate(ciphertext_hex: &str, shares_hex: &str, threshold: usize) -> any
             .with_context(|| format!("invalid share hex at index {i}"))?;
         shares.push(pvthfhe_fhe::DecryptShare {
             party_id: (i + 1) as u32,
-            bytes: pvthfhe_types::ProtocolBytes(share_bytes),
+            bytes: pvthfhe_foundations::types::ProtocolBytes(share_bytes),
             nizk_proof_bytes: None,
         });
     }

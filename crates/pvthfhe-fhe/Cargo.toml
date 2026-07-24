@@ -13,12 +13,9 @@ surrogate-decrypt-share = []
 trace-decrypt = []
 
 [dependencies]
-pvthfhe-rng = { path = "../pvthfhe-rng" }
+pvthfhe-foundations = { path = "../pvthfhe-foundations" }
 rand_distr = "0.4"
 pvthfhe-nizk = { path = "../pvthfhe-nizk" }
-pvthfhe-domain-tags = { path = "../pvthfhe-domain-tags" }
-pvthfhe-types = { path = "../pvthfhe-types" }
-pvthfhe-wire = { path = "../pvthfhe-wire" }
 rand_chacha = "0.3"
 rand = "0.8"
 rayon = "1"

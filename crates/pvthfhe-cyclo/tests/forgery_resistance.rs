@@ -34,7 +34,7 @@ use pvthfhe_cyclo::{
     fold::{fold_one_step, init_accumulator, verify_fold},
     CcsPShareInstance, CycloError, PVTHFHE_CYCLO_PARAMS,
 };
-use pvthfhe_types::CcsWitnessSecret;
+use pvthfhe_foundations::types::CcsWitnessSecret;
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
 use sha2::{Digest, Sha256};

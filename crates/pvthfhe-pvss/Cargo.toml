@@ -15,11 +15,8 @@ hermine = []
 
 [dependencies]
 pvthfhe-fhe = { path = "../pvthfhe-fhe" }
-pvthfhe-domain-tags = { path = "../pvthfhe-domain-tags" }
+pvthfhe-foundations = { path = "../pvthfhe-foundations" }
 pvthfhe-nizk = { path = "../pvthfhe-nizk" }
-pvthfhe-rng = { path = "../pvthfhe-rng" }
-pvthfhe-types = { path = "../pvthfhe-types" }
-pvthfhe-wire = { path = "../pvthfhe-wire" }
 ark-ff = "0.5"
 ark-bn254 = "0.5"
 rand = "0.8"

@@ -8,7 +8,7 @@
 
 use ark_bn254::Fr;
 use ark_ff::{AdditiveGroup, BigInteger, Field, PrimeField, Zero};
-use pvthfhe_types::ProtocolBytes;
+use pvthfhe_foundations::types::ProtocolBytes;
 use sha2::{Digest, Sha256};
 
 const DIGEST_LEN: usize = 32;

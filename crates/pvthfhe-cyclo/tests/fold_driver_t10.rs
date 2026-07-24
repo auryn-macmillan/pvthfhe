@@ -3,7 +3,7 @@
 use ark_bn254::Fr;
 use ark_ff::{AdditiveGroup, BigInteger, PrimeField};
 use pvthfhe_cyclo::{driver::fold_all, fold::verify_fold, CcsPShareInstance};
-use pvthfhe_types::CcsWitnessSecret;
+use pvthfhe_foundations::types::CcsWitnessSecret;
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
 use sha2::{Digest, Sha256};

@@ -3,8 +3,8 @@ use std::sync::Arc;
 use ark_bn254::Fr;
 use ark_ff::{AdditiveGroup, Field, PrimeField};
 use pvthfhe_fhe::{error::FheError, fhers::FhersBackend, types::PublicKey, FheBackend};
-use pvthfhe_rng::OsRng;
-use pvthfhe_types::{EncRandomness, ProtocolBytes, ShareSecret};
+use pvthfhe_foundations::rng::OsRng;
+use pvthfhe_foundations::types::{EncRandomness, ProtocolBytes, ShareSecret};
 use rand_core::{RngCore, SeedableRng};
 
 use crate::dkg_aggregation::{compute_esm_aggregate_commitment, compute_sk_aggregate_commitment};

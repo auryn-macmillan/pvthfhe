@@ -7,7 +7,7 @@ description = "Non-equivocation protocol for pvthfhe DKG (ePrint 2026/1159 §4.1
 
 [dependencies]
 pvthfhe-nizk = { path = "../pvthfhe-nizk" }
-pvthfhe-types = { path = "../pvthfhe-types" }
+pvthfhe-foundations = { path = "../pvthfhe-foundations" }
 ark-bn254 = "0.5"
 ark-ff = "0.5"
 ark-ec = "0.5"

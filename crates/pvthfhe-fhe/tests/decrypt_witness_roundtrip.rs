@@ -60,7 +60,7 @@ fn partial_decrypt_only_returns_bytes_no_witness() {
 /// RED test: `partial_decrypt_with_witness` must exist and return structured witness.
 ///
 /// This test will FAIL to compile until:
-/// - `DecryptionWitness` type is defined in `pvthfhe-types`.
+/// - `DecryptionWitness` type is defined in `pvthfhe-foundations::types`.
 /// - `FheBackend::partial_decrypt_with_witness` trait method exists.
 /// - `FhersBackend` implements the method.
 #[test]

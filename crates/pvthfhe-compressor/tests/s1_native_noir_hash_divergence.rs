@@ -48,7 +48,7 @@ fn native_ivc_state_hash(state: &[Fr]) -> [u8; 32] {
 }
 
 fn noir_state_hash_4(preimage: &[Fr; 4]) -> Fr {
-    pvthfhe_types::verification_statement::noir_bn254_sponge(preimage)
+    pvthfhe_foundations::types::verification_statement::noir_bn254_sponge(preimage)
         .expect("Poseidon hash_4 must succeed for 4 elements")
 }
 
@@ -136,7 +136,7 @@ fn s1_noir_hash_regression() {
 
 #[test]
 fn s1_verification_statement_hash_agrees_cross_language() {
-    use pvthfhe_types::verification_statement::{
+    use pvthfhe_foundations::types::verification_statement::{
         VerificationStatementV1, GOLDEN_STATEMENT_HASH_DECIMAL,
     };
 

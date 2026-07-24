@@ -26,7 +26,7 @@
 //!   outputs are NOT compatible with real Poseidon. Same absorb schedule
 //!   as A but always applies a final permutation (vacuous given the stub
 //!   constants: 0 and identity lanes are fixed points).
-//! - **D** `pvthfhe-types/src/verification_statement.rs` — public sponge
+//! - **D** `pvthfhe-foundations/src/types/verification_statement.rs` — public sponge
 //!   `noir_bn254_sponge` over the private `poseidon_permute` (~line 425),
 //!   using `light_poseidon::parameters::bn254_x5::get_poseidon_parameters(5)`
 //!   (width 5, RF=8, RP=60 — Grain-LFSR constants), same Noir sponge
@@ -51,7 +51,7 @@
 //! Two independent pre-existing pins cross-validate the generated values:
 //! `noir_poseidon.rs`'s own `#[cfg(test)]` cross-language vectors (verified
 //! against Noir's `poseidon::bn254::sponge`, e.g. sponge([1,2]) = 0x2ddd…2c37)
-//! and `GOLDEN_STATEMENT_HASH_{DECIMAL,HEX}` in `pvthfhe-types` (verified
+//! and `GOLDEN_STATEMENT_HASH_{DECIMAL,HEX}` in `pvthfhe-foundations::types` (verified
 //! against the Noir statement-hash circuit). A and D reproduce both.
 //!
 //! ## Known-divergence provenance
@@ -117,7 +117,7 @@ fn v6_s1_state() -> Vec<Fr> {
 /// the 92-element Poseidon preimage of the golden `VerificationStatementV1`
 /// (sponge implementations only; far beyond circom max arity 12).
 fn v7_golden_statement_preimage() -> Vec<Fr> {
-    let fixture = pvthfhe_types::verification_statement::VerificationStatementV1::golden_fixture()
+    let fixture = pvthfhe_foundations::types::verification_statement::VerificationStatementV1::golden_fixture()
         .expect("golden fixture must build");
     fixture
         .poseidon_preimage_decimal
@@ -322,7 +322,7 @@ fn nizk_challenge_replica(
     round_index: usize,
     d_commitment: &[u8; 32],
 ) -> (Fr, Fr, Fr, i64) {
-    let domain = pvthfhe_domain_tags::Tag::SigmaScalarChallenge.as_bytes();
+    let domain = pvthfhe_foundations::domain_tags::Tag::SigmaScalarChallenge.as_bytes();
     let mut prefix = Sha256::new();
     prefix.update(domain);
     prefix.update(b"t2-commit-ch");
@@ -428,7 +428,7 @@ fn golden_compressor_witness_stub_vectors() {
     }
 }
 
-/// D: `pvthfhe-types/src/verification_statement.rs` private `poseidon_permute`
+/// D: `pvthfhe-foundations/src/types/verification_statement.rs` private `poseidon_permute`
 /// via the public `noir_bn254_sponge` (8 vectors, same table as A).
 #[test]
 fn golden_noir_sponge_types_verification_statement() {
@@ -438,7 +438,7 @@ fn golden_noir_sponge_types_verification_statement() {
             .find(|(n, _)| *n == name)
             .expect("every vector has a golden entry")
             .1;
-        let actual = pvthfhe_types::verification_statement::noir_bn254_sponge(&input)
+        let actual = pvthfhe_foundations::types::verification_statement::noir_bn254_sponge(&input)
             .expect("D sponge never fails for valid Fr slices");
         assert_eq!(
             actual,
@@ -539,7 +539,7 @@ fn cross_impl_noir_sponges_byte_identical() {
     for (name, input) in sponge_vectors() {
         let a = pvthfhe_cli::noir_poseidon::sponge(&input);
         let b1 = pvthfhe_cli::full_pipeline::poseidon_sponge_native_noir(&input);
-        let d = pvthfhe_types::verification_statement::noir_bn254_sponge(&input)
+        let d = pvthfhe_foundations::types::verification_statement::noir_bn254_sponge(&input)
             .expect("D sponge never fails");
         assert_eq!(a, b1, "A != B1 on {name}");
         assert_eq!(a, d, "A != D on {name}");
@@ -593,7 +593,7 @@ fn divergence_s1_native_keccak_vs_all_poseidon() {
     let a = pvthfhe_cli::noir_poseidon::sponge(&input);
     let b1 = pvthfhe_cli::full_pipeline::poseidon_sponge_native_noir(&input);
     let c = pvthfhe_compressor::witness::poseidon_sponge_hash_native(&input);
-    let d = pvthfhe_types::verification_statement::noir_bn254_sponge(&input).expect("D sponge");
+    let d = pvthfhe_foundations::types::verification_statement::noir_bn254_sponge(&input).expect("D sponge");
     let b2 = circom_hash_b2_replica(&input);
 
     for (label, value) in [("A", a), ("B1", b1), ("C", c), ("D", d), ("B2", b2)] {
@@ -605,14 +605,14 @@ fn divergence_s1_native_keccak_vs_all_poseidon() {
     // The Noir side of the s1 divergence: A and D agree with each other…
     assert_eq!(a, d, "Noir-side implementations must agree on the s1 vector");
     // …and D on the s1 statement preimage reproduces the cross-language
-    // golden pinned in pvthfhe-types (s1 case #2).
-    let d_stmt = pvthfhe_types::verification_statement::noir_bn254_sponge(
+    // golden pinned in pvthfhe-foundations::types (s1 case #2).
+    let d_stmt = pvthfhe_foundations::types::verification_statement::noir_bn254_sponge(
         &v7_golden_statement_preimage(),
     )
     .expect("D sponge");
     assert_eq!(
         d_stmt.into_bigint().to_string(),
-        pvthfhe_types::verification_statement::GOLDEN_STATEMENT_HASH_DECIMAL,
+        pvthfhe_foundations::types::verification_statement::GOLDEN_STATEMENT_HASH_DECIMAL,
         "D must reproduce GOLDEN_STATEMENT_HASH_DECIMAL on the s1 golden statement"
     );
 }

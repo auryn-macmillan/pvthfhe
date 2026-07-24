@@ -20,9 +20,9 @@ fn every_pvthfhe_byte_literal_is_a_tag_variant() {
         .arg("--glob")
         .arg("!target/**")
         .arg("--glob")
-        .arg("!crates/pvthfhe-domain-tags/tests/exhaustive.rs")
+        .arg("!crates/pvthfhe-foundations/tests/exhaustive.rs")
         .arg("--glob")
-        .arg("!crates/pvthfhe-domain-tags/lints/forbid_raw_pvthfhe_domain_tag.sh")
+        .arg("!crates/pvthfhe-foundations/lints/forbid_raw_pvthfhe_domain_tag.sh")
         .arg(".")
         .current_dir(&root)
         .output()
@@ -51,7 +51,7 @@ fn every_pvthfhe_byte_literal_is_a_tag_variant() {
         "RED sanity: rg must find at least one b\"pvthfhe/...\" literal in the workspace; if this assertion fires, the test itself is broken"
     );
 
-    let known: BTreeSet<Vec<u8>> = pvthfhe_domain_tags::Tag::all_literals()
+    let known: BTreeSet<Vec<u8>> = pvthfhe_foundations::domain_tags::Tag::all_literals()
         .iter()
         .map(|b| b.to_vec())
         .collect();
@@ -63,7 +63,7 @@ fn every_pvthfhe_byte_literal_is_a_tag_variant() {
 
     assert!(
         missing.is_empty(),
-        "R0.4 RED: the following `b\"pvthfhe/...\"` byte literals are NOT covered by pvthfhe_domain_tags::Tag::all_literals():\n  - {}\n\nGREEN must add a Tag variant for each.",
+        "R0.4 RED: the following `b\"pvthfhe/...\"` byte literals are NOT covered by pvthfhe_foundations::domain_tags::Tag::all_literals():\n  - {}\n\nGREEN must add a Tag variant for each.",
         missing.join("\n  - ")
     );
 }

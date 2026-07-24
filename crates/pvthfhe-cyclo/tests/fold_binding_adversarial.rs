@@ -8,7 +8,7 @@ use pvthfhe_cyclo::{
     fold::{fold_one_step, init_accumulator, verify_fold},
     CcsPShareInstance,
 };
-use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
+use pvthfhe_foundations::types::{CcsWitnessSecret, ProtocolBytes};
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
 use sha2::{Digest, Sha256};

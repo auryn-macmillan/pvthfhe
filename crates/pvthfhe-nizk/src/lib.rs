@@ -29,7 +29,7 @@
 pub fn lazer_session_binding(session_id: &[u8], participant_id: u32) -> [u8; 32] {
     use sha2::{Digest, Sha256};
     Sha256::new()
-        .chain_update(pvthfhe_domain_tags::Tag::LazerSessionBinding.as_bytes())
+        .chain_update(pvthfhe_foundations::domain_tags::Tag::LazerSessionBinding.as_bytes())
         .chain_update(session_id)
         .chain_update(participant_id.to_le_bytes())
         .finalize()

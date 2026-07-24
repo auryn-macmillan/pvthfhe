@@ -11,7 +11,7 @@ use pvthfhe_fhe::{
     FheBackend,
 };
 use pvthfhe_nizk::schnorr::{self, SchnorrPopProof};
-use pvthfhe_rng::OsRng;
+use pvthfhe_foundations::rng::OsRng;
 use rand_core::RngCore;
 use sha2::{Digest, Sha256};
 use std::time::{Duration, Instant};

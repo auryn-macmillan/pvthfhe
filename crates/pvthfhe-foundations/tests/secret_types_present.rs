@@ -28,7 +28,7 @@ fn should_skip(path: &Path) -> bool {
         )
     }) || path
         .components()
-        .any(|c| c.as_os_str().to_str() == Some("pvthfhe-types"))
+        .any(|c| c.as_os_str().to_str() == Some("pvthfhe-foundations"))
 }
 
 fn struct_is_secret_like(name: &str) -> bool {

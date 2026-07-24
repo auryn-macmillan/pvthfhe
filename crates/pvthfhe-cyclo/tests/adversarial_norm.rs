@@ -6,7 +6,7 @@ use pvthfhe_cyclo::{
     fold::{fold_one_step, init_accumulator, AJTAI_COMMITMENT_BYTES},
     CcsPShareInstance, PVTHFHE_CYCLO_PARAMS,
 };
-use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
+use pvthfhe_foundations::types::{CcsWitnessSecret, ProtocolBytes};
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
 

@@ -40,12 +40,12 @@ pub const RLWE_Q2: u64 = 288_230_376_161_280_001;
 
 /// RLWE polynomial degree N (delegates to active preset).
 pub fn rlwe_n() -> usize {
-    pvthfhe_types::rlwe_n()
+    pvthfhe_foundations::types::rlwe_n()
 }
 
 /// Return the number of RNS limbs from the active preset.
 pub fn num_rns_limbs() -> usize {
-    pvthfhe_types::rlwe_moduli().len()
+    pvthfhe_foundations::types::rlwe_moduli().len()
 }
 /// Error bound B_e: norm_inf(e_i) <= SIGMA_B_E.
 pub const SIGMA_B_E: i64 = 16;
@@ -182,7 +182,7 @@ fn rlwe_context() -> Result<&'static Arc<Context>, NizkError> {
     static CTX: OnceLock<Result<Arc<Context>, String>> = OnceLock::new();
     CTX.get_or_init(|| {
         let n = rlwe_n();
-        let moduli = pvthfhe_types::rlwe_moduli();
+        let moduli = pvthfhe_foundations::types::rlwe_moduli();
         Context::new(&moduli, n)
             .map(Arc::new)
             .map_err(|e| format!("{e:?}"))
@@ -562,7 +562,7 @@ pub fn verify_multi(
 /// the proof-embedded `d_rns` and check it against the DKG registry.
 pub fn compute_sk_binding(d_rns: &[u64], participant_id: u32, session_id: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
-    hasher.update(pvthfhe_domain_tags::Tag::SigmaSkBinding.as_bytes());
+    hasher.update(pvthfhe_foundations::domain_tags::Tag::SigmaSkBinding.as_bytes());
     for limb in d_rns {
         hasher.update(limb.to_le_bytes());
     }
@@ -675,7 +675,7 @@ pub fn poly_mul_rq_to_int(
 // ── Scalar challenge derivation (Poseidon-based) ─────────────────────────
 
 /// Domain separator for scalar-challenge sigma protocol (v2).
-const SCALAR_CHALLENGE_DOMAIN: &[u8] = pvthfhe_domain_tags::Tag::SigmaScalarChallenge.as_bytes();
+const SCALAR_CHALLENGE_DOMAIN: &[u8] = pvthfhe_foundations::domain_tags::Tag::SigmaScalarChallenge.as_bytes();
 
 // P1 OPEN PROBLEM: Ternary scalar challenge (ch ∈ {-1,0,1}) provides ~1.58 bits
 // of soundness per execution. With one round, the soundness error is 2/3 —
@@ -1022,7 +1022,7 @@ fn compute_one_gamma(
     prev_gammas: &[u64],
 ) -> u64 {
     let mut h = Sha256::new();
-    h.update(pvthfhe_domain_tags::Tag::SigmaSzGamma.as_bytes());
+    h.update(pvthfhe_foundations::domain_tags::Tag::SigmaSzGamma.as_bytes());
     h.update(label);
     h.update(session_id);
     h.update(party_id.to_le_bytes());
@@ -1126,7 +1126,7 @@ pub fn compute_sigma_sz_data(
     party_id: u32,
 ) -> SigmaSzData {
     let n = rlwe_n();
-    let moduli = pvthfhe_types::rlwe_moduli();
+    let moduli = pvthfhe_foundations::types::rlwe_moduli();
     let gammas = compute_sz_gamma(proof, session_id, party_id, c_rns, d_rns);
 
     let total_entries = 3 * moduli.len();

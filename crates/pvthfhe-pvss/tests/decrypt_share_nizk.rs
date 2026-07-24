@@ -5,7 +5,7 @@ use pvthfhe_pvss::nizk_decrypt::{
     DecryptNizkVerifier, DecryptNizkWitness, DECRYPT_NIZK_DOMAIN_SEPARATOR,
 };
 use pvthfhe_pvss::PvssError;
-use pvthfhe_types::Secret;
+use pvthfhe_foundations::types::Secret;
 
 fn sample_statement() -> DecryptNizkStatement {
     DecryptNizkStatement {

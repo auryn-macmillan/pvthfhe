@@ -3,7 +3,7 @@
 use anyhow::Context;
 use pvthfhe_aggregator::keygen::types::Round1Message;
 use pvthfhe_fhe::real_nizk::{NizkStatement, NizkWitness};
-use pvthfhe_rng::OsRng;
+use pvthfhe_foundations::rng::OsRng;
 use rand::RngCore;
 use sha2::{Digest, Sha256};
 

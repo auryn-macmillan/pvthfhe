@@ -67,11 +67,11 @@ fn main() -> anyhow::Result<()> {
         let mut pt = vec![(party_id as u8).wrapping_mul(17)];
         pt.resize(8, 0);
         let mut sid = [0u8; 32];
-        pvthfhe_rng::OsRng.fill_bytes(&mut sid);
+        pvthfhe_foundations::rng::OsRng.fill_bytes(&mut sid);
         let pk = PublicKey {
             bytes: pk.bytes.clone(),
         };
-        let ct = backend.encrypt(&pk, &pt, &mut pvthfhe_rng::OsRng)?;
+        let ct = backend.encrypt(&pk, &pt, &mut pvthfhe_foundations::rng::OsRng)?;
 
         let stmt = NizkStatement {
             ciphertext_bytes: ct.bytes.clone(),
@@ -94,7 +94,7 @@ fn main() -> anyhow::Result<()> {
             error: vec![0i64; 8192],
             randomness: sid.to_vec(),
         };
-        let proof = RealNizkAdapter::prove(&stmt, &witness, &mut pvthfhe_rng::OsRng)?;
+        let proof = RealNizkAdapter::prove(&stmt, &witness, &mut pvthfhe_foundations::rng::OsRng)?;
         proofs.push((party_id, stmt, proof));
     }
     let prove_ms = t1.elapsed().as_secs_f64() * 1000.0;
@@ -120,7 +120,7 @@ fn main() -> anyhow::Result<()> {
         ring::{RqPoly, PHI_COMMIT, Q_COMMIT},
         CcsPShareInstance,
     };
-    use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
+    use pvthfhe_foundations::types::{CcsWitnessSecret, ProtocolBytes};
 
     // Deterministic Ajtai parameters matching the production locked params.
     let ajtai_params = AjtaiParams {
@@ -158,7 +158,7 @@ fn main() -> anyhow::Result<()> {
         // Build a distinct RqPoly per party
         let coeffs = vec![(*party_id as u64) % Q_COMMIT; PHI_COMMIT];
         let witness = RqPoly(coeffs);
-        let commitment = ajtai::commit(&ajtai_params, &[witness], &mut pvthfhe_rng::OsRng)
+        let commitment = ajtai::commit(&ajtai_params, &[witness], &mut pvthfhe_foundations::rng::OsRng)
             .context("ajtai commit")?;
         let commitment_bytes = ajtai::encode_commitment(&commitment);
 
@@ -195,7 +195,7 @@ fn main() -> anyhow::Result<()> {
     let mut acc = cyclo_fold::init_accumulator(&fold_instances[0], session_id)
         .context("fold init")?;
     for instance in &fold_instances {
-        acc = cyclo_fold::fold_one_step(acc, instance, &mut pvthfhe_rng::OsRng)
+        acc = cyclo_fold::fold_one_step(acc, instance, &mut pvthfhe_foundations::rng::OsRng)
             .context("fold step")?;
     }
     cyclo_fold::verify_fold(&acc, &fold_instances)

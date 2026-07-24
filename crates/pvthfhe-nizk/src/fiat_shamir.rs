@@ -24,7 +24,7 @@ use sha2::{Digest, Sha256};
 
 /// Domain separator prefix as specified in §3.6 of `design/spec-real-p2p3.md`.
 pub const DOMAIN_SEP_PREFIX: &str =
-    match core::str::from_utf8(pvthfhe_domain_tags::Tag::FiatShamirDomainPrefix.as_bytes()) {
+    match core::str::from_utf8(pvthfhe_foundations::domain_tags::Tag::FiatShamirDomainPrefix.as_bytes()) {
         Ok(s) => s,
         Err(_) => panic!("Tag::FiatShamirDomainPrefix is not valid UTF-8"),
     };

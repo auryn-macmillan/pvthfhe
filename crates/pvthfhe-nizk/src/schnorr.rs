@@ -74,7 +74,7 @@ pub fn schnorr_pop_verify(pk: G1Affine, pop: &SchnorrPopProof) -> bool {
 fn pop_challenge(pk: G1Affine) -> Fr {
     let pk_bytes = affine_to_bytes(&pk, true);
     let sha = Sha256::new()
-        .chain_update(pvthfhe_domain_tags::Tag::SchnorrPop.as_bytes())
+        .chain_update(pvthfhe_foundations::domain_tags::Tag::SchnorrPop.as_bytes())
         .chain_update(pk_bytes)
         .finalize();
     Fr::from_be_bytes_mod_order(&sha)
@@ -113,7 +113,7 @@ fn affine_to_bytes(p: &G1Affine, is_x: bool) -> [u8; 32] {
 fn hash_to_challenge(r: &G1Affine, pk: &G1Affine, message: Fr) -> Fr {
     use sha2::{Digest, Sha256};
     let mut h = Sha256::new();
-    h.update(pvthfhe_domain_tags::Tag::SchnorrChallenge.as_bytes());
+    h.update(pvthfhe_foundations::domain_tags::Tag::SchnorrChallenge.as_bytes());
     h.update(affine_to_bytes(r, true));
     h.update(affine_to_bytes(r, false));
     h.update(affine_to_bytes(pk, true));
@@ -133,7 +133,7 @@ fn hash_to_challenge_with_session(
     session_id: &[u8],
 ) -> Fr {
     let mut h = Sha256::new();
-    h.update(pvthfhe_domain_tags::Tag::SchnorrChallenge.as_bytes());
+    h.update(pvthfhe_foundations::domain_tags::Tag::SchnorrChallenge.as_bytes());
     h.update(session_id);
     h.update(affine_to_bytes(r, true));
     h.update(affine_to_bytes(r, false));

@@ -29,7 +29,7 @@ pub mod ring;
 
 pub use accumulator_codec::{AccumulatorInstanceRef, ACCUMULATOR_VERSION};
 
-use pvthfhe_types::{CcsWitnessSecret, ProtocolBytes};
+use pvthfhe_foundations::types::{CcsWitnessSecret, ProtocolBytes};
 
 /// Public fold track identity for H.2 multi-track folded instances.
 #[derive(Clone, Debug, PartialEq, Eq)]

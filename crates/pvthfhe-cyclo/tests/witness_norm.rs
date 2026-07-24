@@ -13,7 +13,7 @@ use pvthfhe_cyclo::{
     fold::{fold_one_step, init_accumulator, AJTAI_COMMITMENT_BYTES},
     CcsPShareInstance, CycloError,
 };
-use pvthfhe_types::CcsWitnessSecret;
+use pvthfhe_foundations::types::CcsWitnessSecret;
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
 

@@ -6,9 +6,7 @@ license = "MIT"
 
 [dependencies]
 pvthfhe-aggregator = { path = "../pvthfhe-aggregator" }
-pvthfhe-domain-tags = { path = "../pvthfhe-domain-tags" }
-pvthfhe-rng = { path = "../pvthfhe-rng" }
-pvthfhe-types = { path = "../pvthfhe-types" }
+pvthfhe-foundations = { path = "../pvthfhe-foundations" }
 ark-bn254 = "0.5"
 ark-ff = "0.5"
 ark-serialize = "0.5"

@@ -657,7 +657,7 @@ fn compute_ccs_instance_id(stmt: &NizkStatement) -> Result<[u8; 32], NizkError> 
 /// sampling per limb to avoid modular bias.
 fn expand_c_rns(seed: &[u8; 32]) -> Result<Vec<u64>, NizkError> {
     let mut rng = ChaCha20Rng::from_seed(*seed);
-    let moduli = pvthfhe_types::rlwe_moduli();
+    let moduli = pvthfhe_foundations::types::rlwe_moduli();
     let n = rlwe_n();
     let mut c_rns = vec![0u64; n * moduli.len()];
     for (limb, &q) in moduli.iter().enumerate() {
@@ -780,7 +780,7 @@ fn ajtai_sigma_session_binding(
 ) -> Vec<u8> {
     use sha2::{Digest, Sha256};
     let mut h = Sha256::new();
-    h.update(pvthfhe_domain_tags::Tag::CycloAjtaiBinding.as_bytes());
+    h.update(pvthfhe_foundations::domain_tags::Tag::CycloAjtaiBinding.as_bytes());
     h.update((session_id.len() as u32).to_be_bytes());
     h.update(session_id);
     h.update((ajtai_bytes.len() as u32).to_be_bytes());
@@ -805,7 +805,7 @@ fn serialize_ajtai_commitment(ajtai: &AjtaiCommitment) -> Vec<u8> {
 fn derive_epoch_crs_seed(epoch: u64, session_id: &[u8]) -> [u8; 32] {
     let mut h = Sha256::new();
     h.update(epoch.to_be_bytes());
-    h.update(pvthfhe_domain_tags::Tag::AjtaiCrs.as_bytes());
+    h.update(pvthfhe_foundations::domain_tags::Tag::AjtaiCrs.as_bytes());
     h.update(session_id);
     h.finalize().into()
 }

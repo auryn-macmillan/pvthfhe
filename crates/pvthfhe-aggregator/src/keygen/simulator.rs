@@ -2,7 +2,7 @@ use super::types::{DkgTranscript, PartyId, Round1Message, Round2Message, Round3A
 use anyhow::Context;
 use ark_bn254::{Fr, G1Affine};
 use ark_ff::{BigInteger, PrimeField};
-use pvthfhe_domain_tags::Tag;
+use pvthfhe_foundations::domain_tags::Tag;
 use pvthfhe_fhe::{Ciphertext, FheBackend, PublicKey};
 use pvthfhe_nizk::adapter::CycloNizkAdapter;
 use pvthfhe_nizk::bfv_sigma::poly_bytes_to_rns;
@@ -12,7 +12,7 @@ use pvthfhe_nizk::{NizkAdapter, NizkStatement, NizkWitness};
 use pvthfhe_non_equiv::{
     hash_round1_message, produce_signed_signature, NonEquivCollector, NonEquivProof,
 };
-use pvthfhe_types::ProtocolBytes;
+use pvthfhe_foundations::types::ProtocolBytes;
 use rand_chacha::ChaCha8Rng;
 use rand_core::OsRng;
 use rand_core::{RngCore, SeedableRng};

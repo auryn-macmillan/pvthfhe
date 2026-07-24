@@ -5,7 +5,7 @@ use pvthfhe_pvss::share_computation::{
     BatchedShareComputationStatement, ESmShareComputationSlot, FieldShare, ShareComputationError,
     ShareComputationTrack,
 };
-use pvthfhe_types::ProtocolBytes;
+use pvthfhe_foundations::types::ProtocolBytes;
 
 fn shamir_split_small(secret: &Fr, n: usize, t: usize) -> Vec<(usize, Fr)> {
     let mut coeffs = vec![*secret];

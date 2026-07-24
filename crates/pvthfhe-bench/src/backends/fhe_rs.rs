@@ -39,7 +39,7 @@ mod enabled {
         rq::{traits::TryConvertFrom, Context, Poly, Representation},
         zq::Modulus,
     };
-    use pvthfhe_rng::OsRng;
+    use pvthfhe_foundations::rng::OsRng;
     use std::sync::{Arc, OnceLock};
 
     fn single_limb_context() -> &'static Arc<Context> {

@@ -7,7 +7,7 @@ use pvthfhe_pvss::nizk_decrypt::{
     DecryptNizkMode, DecryptNizkProver, DecryptNizkStatement, DecryptNizkVerifier,
     DecryptNizkWitness,
 };
-use pvthfhe_types::Secret;
+use pvthfhe_foundations::types::Secret;
 
 fn sample_statement() -> DecryptNizkStatement {
     DecryptNizkStatement {

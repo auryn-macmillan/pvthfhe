@@ -1,6 +1,6 @@
 use proptest::prelude::*;
-use pvthfhe_domain_tags::Tag;
-use pvthfhe_wire::{WireError, WireFormat};
+use pvthfhe_foundations::domain_tags::Tag;
+use pvthfhe_foundations::wire::{WireError, WireFormat};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct TestPayload(Vec<u8>);

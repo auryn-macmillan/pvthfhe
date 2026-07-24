@@ -6,7 +6,7 @@ use pvthfhe_pvss::nizk_share::{
     ShareNizkStatement, ShareNizkTrackStatement, ShareNizkTrackType, ShareNizkVerifier,
     ShareNizkWitness,
 };
-use pvthfhe_types::{EncRandomness, ProtocolBytes, ShareSecret};
+use pvthfhe_foundations::types::{EncRandomness, ProtocolBytes, ShareSecret};
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
 use sha2::{Digest, Sha256};

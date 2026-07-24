@@ -114,7 +114,7 @@ fn bfv_rlwe_context() -> Result<&'static Arc<Context>, NizkError> {
     static CTX: OnceLock<Result<Arc<Context>, String>> = OnceLock::new();
     CTX.get_or_init(|| {
         let n = rlwe_n();
-        let moduli = pvthfhe_types::rlwe_moduli();
+        let moduli = pvthfhe_foundations::types::rlwe_moduli();
         Context::new(&moduli, n)
             .map(Arc::new)
             .map_err(|e| format!("{e:?}"))
@@ -520,7 +520,7 @@ fn derive_challenge(
     binding_data: &[u8],
 ) -> Vec<i64> {
     let mut hasher = Sha256::new();
-    hasher.update(pvthfhe_domain_tags::Tag::BfvSigmaChallenge.as_bytes());
+    hasher.update(pvthfhe_foundations::domain_tags::Tag::BfvSigmaChallenge.as_bytes());
 
     let t0_bytes: Vec<u8> = t0_rns.iter().flat_map(|x| x.to_le_bytes()).collect();
     hasher.update(t0_bytes);

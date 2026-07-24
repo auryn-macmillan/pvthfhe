@@ -5,7 +5,7 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use pvthfhe_aggregator::folding::HashChainCycloAdapter;
 use pvthfhe_cyclo::CcsPShareInstance;
 use pvthfhe_cyclo::CycloError;
-use pvthfhe_types::CcsWitnessSecret;
+use pvthfhe_foundations::types::CcsWitnessSecret;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use serde::Serialize;

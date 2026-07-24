@@ -4,7 +4,7 @@
 //! Since [`EncryptionWitness`] intentionally does not implement `Serialize` or
 //! `Deserialize` (it carries secret witness material), these tests verify that
 //! the witness can be reconstructed from its individual byte fields — the
-//! pattern used by other secret-bearing types in `pvthfhe-types`.
+//! pattern used by other secret-bearing types in `pvthfhe-foundations::types`.
 
 use pvthfhe_fhe::{fhers::FhersBackend, EncryptionWitness, FheBackend};
 use rand::rngs::StdRng;

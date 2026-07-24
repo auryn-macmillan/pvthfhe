@@ -10,7 +10,7 @@
 
 use pvthfhe_nizk::NizkError;
 use pvthfhe_pvss::PvssError;
-use pvthfhe_types::rlwe_n;
+use pvthfhe_foundations::types::rlwe_n;
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
 

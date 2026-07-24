@@ -1,6 +1,0 @@
-[package]
-name = "check_modulus"
-type = "bin"
-authors = [""]
-
-[dependencies]

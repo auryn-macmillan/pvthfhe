@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "./generated/HonkVerifier.sol";
-import "../test/P3StubVerifier.sol";
+import "./interfaces/IP3Verifier.sol";
 
 /// @title UltraHonkVerifier
 /// @notice Adapts the frozen IP3Verifier interface to the HonkVerifier prototype.

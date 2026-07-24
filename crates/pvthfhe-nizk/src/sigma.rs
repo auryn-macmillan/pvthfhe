@@ -97,6 +97,7 @@ pub fn compute_jl_projection(w: &[i64], seed: [u8; 32], m: usize) -> Vec<i64> {
     let inv_sqrt_m = (3.0 / (m as f64)).sqrt(); // Achlioptas ±√(3/m)
     let scaler = 1_000_000i64; // fixed-point scaling to keep integer arithmetic
 
+    // allow-seeded-rng: deterministic Achlioptas JL expansion of the caller-supplied seed; prover and verifier/circuit must derive the identical matrix
     let mut rng = StdRng::from_seed(seed);
     let mut projection = vec![0i64; m];
 
@@ -130,6 +131,7 @@ pub fn compute_raw_jl_sum(w: &[i64], seed: [u8; 32], m: usize) -> Vec<i64> {
         return vec![0i64; m];
     }
 
+    // allow-seeded-rng: deterministic Achlioptas JL expansion of the caller-supplied seed; prover and verifier/circuit must derive the identical matrix
     let mut rng = StdRng::from_seed(seed);
     let mut projection = vec![0i64; m];
 
@@ -158,6 +160,7 @@ pub fn compute_raw_jl_sum(w: &[i64], seed: [u8; 32], m: usize) -> Vec<i64> {
 pub fn compute_jl_entries(seed: [u8; 32], m: usize, n: usize) -> Vec<Vec<(usize, bool)>> {
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
+    // allow-seeded-rng: deterministic Achlioptas JL expansion of the caller-supplied seed; prover and verifier/circuit must derive the identical matrix
     let mut rng = StdRng::from_seed(seed);
     let mut entries = vec![Vec::new(); m];
     for entry in &mut entries {

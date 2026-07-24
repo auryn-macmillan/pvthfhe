@@ -20,7 +20,7 @@ for path in [
     check(f"T13 evidence exists: {path}", os.path.exists(path))
 
 # 2. T15 published: interfold threat model exists and is non-empty
-path = "docs/interfold-threat-model.md"
+path = "docs/archive/interfold-threat-model.md"
 check(f"T15 threat model exists and non-empty: {path}",
       os.path.exists(path) and os.path.getsize(path) > 0)
 

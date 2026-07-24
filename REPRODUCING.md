@@ -2,20 +2,18 @@
 
 This document provides instructions for reproducing the scaling and performance benchmarks reported in this repository.
 
-> ⚠️ **PRELIMINARY NUMBERS**: All pre-R9 benchmarks measure the stub/surrogate pipeline
-> (SHA hash chains, toy-adder IVC, synthetic constants), not the target Architecture B
-> protocol. See audit finding INFO-1 in [`.sisyphus/audit/AUDIT-2026-05-08.md`](.sisyphus/audit/AUDIT-2026-05-08.md).
-> The `bench-comparison-gate` lint validates baseline freshness but does not assert
-> soundness of the measured pipeline.
+> ⚠️ Benchmarks produced before 2026-05-09 measured the retired stub/surrogate
+> pipeline (SHA hash chains, toy circuits) and are preserved only in git history.
+> Current recipes exercise the real LatticeFold+ pipeline.
 
 ## Toolchain Versions (PINNED)
 
 Reproducibility requires the exact toolchain versions used during development:
 
-- **Rust**: `1.95.0` (`rustc 1.95.0 (59807616e 2026-04-14)`; `rust-toolchain.toml` tracks the stable channel, which resolved to 1.95.0 for these artifacts)
+- **Rust**: stable channel (`rust-toolchain.toml`); artifacts here were built with `rustc 1.95.0`–`1.96.1`
 - **Nargo (Noir)**: `1.0.0-beta.22` (`noirc 1.0.0-beta.22`)
 - **BB CLI (Barretenberg)**: `5.0.0-nightly.20260522`
-- **Forge (Foundry)**: `1.6.0-v1.7.0` (commit `f83bad912a9dba7bf0371def1e70bb1896048356`)
+- **Forge (Foundry)**: `1.7.x` (`forge 1.7.1` used for these artifacts)
 
 ## Git Dependency Pins (PINNED)
 
@@ -29,7 +27,7 @@ Reproducibility requires the exact toolchain versions used during development:
 The benchmarks were executed on the following hardware:
 
 - **CPU**: AMD RYZEN AI MAX+ 395 w/ Radeon 8060S
-- **RAM**: 8 GB
+- **RAM**: 32 GB (earlier runs on an 8 GB configuration; Noir N=8192 compilation needs ≥ 16 GB)
 - **OS**: Ubuntu 24.04 LTS (Linux 6.8.0)
 
 ## Reproducing the Scaling Suite
@@ -44,18 +42,9 @@ just bench-scaling
 just reproduce-bench
 ```
 
-## Expected Runtimes
-
-> ⚠️ These numbers reflect the stub pipeline (SHA chains, toy circuits) and are **not representative of target Architecture B performance**.
-
-| Number of Parties ($n$) | Aggregator Latency (ms) | Verifier Gas |
-| :--- | :--- | :--- |
-| 128 | 1.5 | 1,278* |
-| 256 | 6.0 | 1,278* |
-| 512 | 43.0 | 1,278* |
-| 1024 | 188.0 | 1,278* |
-
-*\*Note: Verifier gas is constant due to the use of a surrogate UltraHonk verifier. Real UltraHonk verification costs are estimated between 200k and 500k gas.*
+Expected scaling behavior and current numbers are in
+[`bench/results/comparison-2af6ac2.md`](bench/results/comparison-2af6ac2.md) and the
+`scaling-n{128,256,512,1024}.json` envelopes consumed by `just phase3-gate`.
 
 ### Regenerating the On-Chain Verifier
 
@@ -101,27 +90,15 @@ The measurements reflect end-to-end latency on the host machine.
 
 ## P4 Stack Pins
 
-The P4 Hermine-adapted PVSS design memo fixes the Rust-side cryptographic and serialization stack to the following crate versions:
+The P4 PVSS design memo fixes the Rust-side cryptographic and serialization stack to the following crate versions:
 
 - `serde = "1.0.228"`
 - `serde_json = "1.0.145"`
 - `sha2 = "0.10.9"`
 - `sha3 = "0.10.8"`
 - `merlin = "3.0.0"`
-- `risc0-zkvm = "2.1.0"`
-- `sp1-sdk = "5.0.0"`
 
-These pins cover the frozen serde/JSON wire format, SHA-256 transcript digests, SHAKE256 transcript challenges, the native Rust Fiat-Shamir transcript layer, and the approved zkVM fallbacks.
-
-## KZG SRS
-
-The MicroNova tests bind to a local BN254 KZG SRS stub at `bench/srs/bn254.srs`.
-
-- **Provenance**: research-prototype placeholder; replace with a real universal BN254 SRS via `bench/scripts/fetch_srs.sh`
-- **Stub size**: 52 bytes
-- **SHA-256**: `a4b591ff765bb642dd9950db30568f220c0e86c8c390241bf048fab234399d3a`
-
-The test suite only checks that the artifact exists and is non-empty; real KZG parsing is deferred to later tasks.
+These pins cover the frozen serde/JSON wire format, SHA-256 transcript digests, SHAKE256 transcript challenges, and the native Rust Fiat-Shamir transcript layer. (Earlier zkVM fallback pins were retired; no live code uses them.)
 
 ## Artifact Reproduction (Paper Claims)
 

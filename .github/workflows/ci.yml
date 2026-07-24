@@ -94,6 +94,12 @@ jobs:
       - uses: actions/checkout@v4
       - run: bash contracts/test/lints/no_stale_todos.sh
 
+  docs-no-contradictions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash docs/lints/test_no_doc_contradictions.sh
+
   forbid-seeded-rng-outside-demo:
     runs-on: ubuntu-latest
     steps:

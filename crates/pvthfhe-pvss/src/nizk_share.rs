@@ -622,6 +622,7 @@ fn derive_share_sigma_c_rns(session_id: &[u8], recipient_index: usize) -> Vec<u6
     h.update(b"pvthfhe-share-sigma-c-rns-v1");
     h.update(session_id);
     h.update(recipient_index.to_be_bytes());
+    // allow-seeded-rng: Fiat-Shamir public-coin challenge polynomial; seed = SHA256(domain ‖ session_id ‖ recipient_index), so the verifier re-derives the identical c
     let mut rng = ChaCha20Rng::from_seed(h.finalize().into());
     let moduli = pvthfhe_foundations::types::rlwe_moduli();
     let n = sigma::rlwe_n();

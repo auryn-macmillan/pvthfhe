@@ -211,6 +211,7 @@ impl FhersBackend {
         hasher.update(party_id.to_be_bytes());
         hasher.update(seed.to_be_bytes());
         let seed_bytes: [u8; 32] = hasher.finalize().into();
+        // allow-seeded-rng: deterministic committed smudge noise (C6) that must be reproducible per party; seed_bytes = SHA256(domain ‖ party_id ‖ operator-supplied seed)
         let mut noise_rng = ChaCha8Rng::from_seed(seed_bytes);
 
         let dist = Normal::new(0.0, SIGMA_SMUDGE).map_err(|err| FheError::Backend {
@@ -511,6 +512,7 @@ impl FhersBackend {
                 let digest = h.finalize();
                 let mut seed = [0u8; 32];
                 seed.copy_from_slice(&digest);
+                // allow-seeded-rng: deterministic per-party Shamir-share RNG for reproducible parallel DKG (M3); seed = SHA256(domain ‖ session_seed ‖ party_id ‖ n ‖ t ‖ degree)
                 let mut rng = StdRng::from_seed(seed);
                 let shares = sm
                     .generate_secret_shares_from_poly(sk_poly, &mut rng)

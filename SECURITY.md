@@ -7,7 +7,7 @@
 > - **Noir circuits implement real aggregation and wrapping logic**
 > - **Do not use for The Interfold or any production deployment**
 >
-> See [SECURITY-ADVISORY-001.md](SECURITY-ADVISORY-001.md), [WARNING.md](WARNING.md), and [docs/OPEN-PROBLEM-BLOCKERS.md](docs/OPEN-PROBLEM-BLOCKERS.md) for details.
+> See [SECURITY-ADVISORY-001.md](docs/archive/SECURITY-ADVISORY-001.md) (archived, resolved), [WARNING.md](WARNING.md), and [docs/OPEN-PROBLEM-BLOCKERS.md](docs/OPEN-PROBLEM-BLOCKERS.md) for details.
 
 This document outlines the security model, assumptions, and limitations of the PVTHFHE research prototype.
 

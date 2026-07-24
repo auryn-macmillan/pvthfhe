@@ -820,6 +820,7 @@ impl LatticePvssBfvAdapter {
     ) -> Result<EncryptedShares, PvssError> {
         use rand::SeedableRng;
         use rand_chacha::ChaCha20Rng;
+        // allow-seeded-rng: explicit `deal_seeded` RESEARCH-ONLY deterministic variant; caller-supplied seed (production `deal` uses OsRng)
         let mut shamir_rng = ChaCha20Rng::from_seed(*seed);
         self.deal_with_rng(secret, recipient_pks, ctx, None, &mut shamir_rng)
     }
@@ -853,6 +854,7 @@ impl LatticePvssBfvAdapter {
     ) -> Result<EncryptedShares, PvssError> {
         use rand::SeedableRng;
         use rand_chacha::ChaCha20Rng;
+        // allow-seeded-rng: explicit `deal_committee_seeded` deterministic variant; caller-supplied seed (production `deal_committee` uses OsRng)
         let mut shamir_rng = ChaCha20Rng::from_seed(*seed);
         self.deal_with_rng(
             secret,
@@ -927,6 +929,7 @@ impl LatticePvssBfvAdapter {
             };
             let mut randomness = [0u8; 32];
             rng.fill_bytes(&mut randomness);
+            // allow-seeded-rng: seed material drawn from the caller-supplied RNG (`OsRng` on production deal paths); a ChaCha20Rng is required by the fhe.rs encrypt API
             let mut enc_rng = rand_chacha::ChaCha20Rng::from_seed(randomness);
             let ciphertext_u = self
                 .backend

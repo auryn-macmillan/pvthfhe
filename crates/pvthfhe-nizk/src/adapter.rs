@@ -656,6 +656,7 @@ fn compute_ccs_instance_id(stmt: &NizkStatement) -> Result<[u8; 32], NizkError> 
 /// Seed derivation: `ChaCha20Rng::from_seed(ccs_instance_id)` with rejection
 /// sampling per limb to avoid modular bias.
 fn expand_c_rns(seed: &[u8; 32]) -> Result<Vec<u64>, NizkError> {
+    // allow-seeded-rng: Fiat-Shamir public-coin expansion; seed = SHA256-derived ccs_instance_id, so prover and verifier derive the identical challenge polynomial c
     let mut rng = ChaCha20Rng::from_seed(*seed);
     let moduli = pvthfhe_foundations::types::rlwe_moduli();
     let n = rlwe_n();

@@ -330,7 +330,7 @@ The critical inflection point is **Wave 4**: replacing bit-decomposition range c
 
 ### 7.2 End-to-End Benchmarks
 
-Benchmarks measured on AMD Ryzen AI MAX+ 395 (8 cores, 62 GB RAM, Linux 6.8), Rust 1.95.0, Nargo 1.0.0-beta.20, BB 5.0.0-nightly.20260324.
+Benchmarks measured on AMD Ryzen AI MAX+ 395 (Linux 6.8), Rust 1.95.0, Nargo 1.0.0-beta.22, BB 5.0.0-nightly.20260522. (Earlier revisions of this document cited beta.20 / 20260324 / 62 GB; corrected 2026-07.)
 
 | n (parties) | t (threshold) | Keygen (ms) | NIZK Prove (ms) | Cyclo Fold (ms) | Compressor (ms) | C7 Noir (ms) | **Total (ms)** |
 |-------------|---------------|-------------|-----------------|-----------------|-----------------|--------------|----------------|
@@ -489,4 +489,4 @@ The PVTHFHE project uses `gnosisguild/fhe.rs` as its FHE backend (BFV, CKKS, TFH
 
 *Document status*: Architecture specification.
 *Last updated*: June 2026.
-*Research prototype only* — not production-ready. See `SECURITY.md`, `WARNING.md`, and `SECURITY-ADVISORY-001.md` for threat model and caveats.
+*Research prototype only* — not production-ready. See `SECURITY.md`, `WARNING.md`, and `docs/archive/SECURITY-ADVISORY-001.md` for threat model and caveats.

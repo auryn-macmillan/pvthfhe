@@ -1,5 +1,7 @@
 # PVTHFHE Program Closeout Memo
 
+
+> **HISTORICAL (2026-07-24 note)**: This closeout was written 2026-05-03 and declared the program "submission-ready". Substantial work followed — three MPC audits, the DKG paper (ePrint 2026/1159) integration, the Track A → LatticeFold+ migration, a full security audit (merged 2026-07-14), and the 2026-07-24 repo refactor. Read it as a point-in-time record, not the current state. Current truth: README.md, STATUS.md, docs/OPEN-PROBLEM-BLOCKERS.md.
 **Date**: 2026-05-03
 **Program**: PVTHFHE — Private-Verifiable Threshold Fully Homomorphic Encryption
 **Status**: CLOSED (Phase E complete)

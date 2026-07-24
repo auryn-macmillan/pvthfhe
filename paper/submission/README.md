@@ -11,14 +11,14 @@
 | `main.tex` | Main paper source |
 | `bib.bib` | Bibliography |
 | `figures/` | All benchmark figures (p4/p1/p2/p3) |
-| `claims-table.md` | 1:1 mapping of all 19 PROVED theorems |
+| `claims-table.md` | 1:1 mapping of all 20 theorems with honest status (10 proved, 5 skeleton, 4 aspirational, 1 contingent) |
 | `artifact-appendix.md` | Artifact appendix for artifact evaluation |
 | `main.pdf` | Compiled PDF (from `just paper-build`) |
 
 ## Checklist
 
-- [x] 17 theorems proved, 2 pending (P2-A-T2 pending Nova IVC proof, P2-A-T5 2/6 discharged)
-- [x] Claims table 1:1 mapping verified (`paper/claims-table.md`, 19 rows)
+- [x] Theorem ledger reconciled with `paper/claims-table.md`: 20 theorems — 10 proved (1 with citation), 5 skeleton, 4 aspirational, 1 contingent on Lemma 9
+- [x] Claims table 1:1 mapping verified (`paper/claims-table.md`, 20 rows)
 - [x] All benchmark figures present (`paper/figures/p{1,2,3,4}-bench.tex`)
 - [x] Cross-problem summary table in paper (§Implementation, Table 1)
 - [x] Artifact appendix complete (`paper/artifact-appendix.md`)

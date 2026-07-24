@@ -12,7 +12,7 @@ the four-layer PVTHFHE protocol (P4 → P1 → P2 → P3). It includes:
 - **Noir circuits** (`circuits/`): Zero-knowledge circuit for P1 well-formedness witness.
 - **Solidity contracts** (`contracts/`): On-chain P3 verifier with gas-bound guarantees.
 - **Benchmarks** (`bench/`): Scaling benchmarks and figure generation scripts.
-- **Security proofs** (`docs/security-proofs/`): Formal proof sketches for all 19 theorems.
+- **Security proofs** (`docs/security-proofs/`): Formal proof sketches for the 20 theorems (status per `paper/claims-table.md`: 10 proved, 5 skeleton, 4 aspirational, 1 contingent on Lemma 9).
 
 ## Scope
 
@@ -129,7 +129,49 @@ selectable via environment variables:
 | (default) | G2 full: Poseidon sponge in-circuit commitment verification (\texttt{C7DecryptAggregationCircuit}, $\sim$639K constraints/step) |
 | `PVTHFHE_RUN_C7_MERKLE=1` | C7 Phase 3: in-circuit Merkle-tree verification (\texttt{C7MerkleStepCircuit}, depth-5, N=8192, $\sim$6,500 constraints/step) |
 | `PVTHFHE_RUN_NOIR_C7=1` | Noir aggregator\_final circuit as additional C7 phase |
-| `PVTHFHE_COMPRESSOR=micronova` | MicroNova heterogeneous IVC compressor |
+| `PVTHFHE_COMPRESSOR=micronova` | MicroNova heterogeneous IVC compressor (retired with Track A; kept for historical reference) |
+
+## Remediation Log
+
+*Moved here from the paper body (2026-07 refactor): the remediation history is
+artifact documentation, not paper content.*
+
+The PVTHFHE implementation underwent three rounds of security audit remediation
+between commits `aaacb9e` and `952a078`:
+
+### Round 1 (commit `aaacb9e`: deep audit remediation)
+
+- Fixed deterministic masking seeds in the NIZK prover — upgraded from a
+  fixed seed to `OsRng` (cryptographically secure PRNG).
+- Logging hygiene: removed sensitive witness data from debug and info logs.
+- Shamir safety: added duplicate-share detection and degree-bound checks.
+- Naming: renamed B_E to B_err for clarity.
+
+### Round 2 (commits `e772daf`–`b450f24`: per-share NIZK and committed smudge)
+
+- Per-share NIZK verification (`nizk_share.rs`, `PROOF_VERSION = 4`):
+  each decrypt-share now carries an independent BFV sigma proof verified by the
+  aggregator before reconstruction.
+- Committed-smudge wiring: `partial_decrypt_committed_smudge` API
+  separates legacy local smudging from the target committed-smudge mode.
+- `dkg_root`: introduced DKG root derivation for deterministic
+  share-computation replay.
+- `BFVPublicKey`: serialised key type for protocol handoff at the
+  P4–P1 boundary.
+
+### Round 3 (commits `6f01578`–`952a078`: committed-smudge activation)
+
+- `CommittedSmudge` demo activation: the e2e pipeline now exercises
+  committed-smudge decryption in the demo path.
+- Aggregator NIZK: batch verification of per-share BFV sigma proofs
+  (`batch_verify_100_ms` ≈ 230 ms at n=1024).
+- C1 key components: separated `EncryptionWitness` and
+  `DecryptionWitness` types with backend extraction for cleaner
+  protocol boundaries.
+
+All automatable audit findings (179 from Audit 1, 55 from Audit 2) are closed.
+See `SECURITY.md` and `docs/OPEN-PROBLEM-BLOCKERS.md` for the current
+open-problem ledger.
 
 ## License
 

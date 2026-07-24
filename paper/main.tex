@@ -186,10 +186,9 @@ over BN254 $\mathbb{F}_r$), Ajtai lattice commitments ($Q_{\text{commit}} =
 derivation (\texttt{challenge\_v2} with \texttt{params\_digest} binding).
 All 15~Cyclo tests pass including forgery resistance.
 
-A heterogeneous IVC prototype (MicroNova compressor with
-LatticeFoldTreeCircuitFamily) is available via
-\texttt{PVTHFHE\_COMPRESSOR=micronova}. See
-\texttt{ARCHITECTURE.md} \S MicroNova for details.
+(The heterogeneous IVC prototype previously evaluated here — a MicroNova
+compressor with LatticeFoldTreeCircuitFamily — was retired with the
+Track~A Nova dependency; see git history for that experiment.)
 
 The implemented P2 path uses \textbf{LatticeFold+} accumulation that folds
 RLWE ciphertext witnesses directly via algebraic relations, with a CCS
@@ -238,8 +237,9 @@ implementation per \texttt{docs/security-proofs/p2/T4.md}).
 \label{thm:p2-t5}
 The LatticeFold+ accumulator targets on-chain UltraHonk verification
 ($\approx 39{,}687$~gas) via the P3 path (\S\ref{sec:p3}).
-\textbf{Status: ASPIRATIONAL} (projected from MicroNova gas estimates;
-not yet implemented).
+\textbf{Status: ASPIRATIONAL} (gas figure projected from earlier
+MicroNova-based estimates; not yet measured for the implemented
+Ajtai-commitment path).
 \end{theorem}
 
 \textbf{Dependency note.}  All theorems above P2-T2 are blocked
@@ -266,19 +266,22 @@ into sequential assignments to avoid EVM stack overflow (116~G1 points).
 Sepolia deploy pending.  See \texttt{contracts/test/HonkVerifierRealProof.t.sol}
 for the gas measurement.
 
-\subsection{UltraHonk + MicroNova On-Chain Verification}
+\subsection{UltraHonk On-Chain Verification}
 \label{sec:p3-ultrahonk}
 
 The P3 path replaces the former trusted-signer surrogate with a
-full on-chain cryptographic verifier for the LatticeFold+ terminal
-accumulator (P2 output).  The projected stack is:
+full on-chain cryptographic verifier.  \textbf{Implementation note
+(2026-07):} the originally projected MicroNova compression stage was
+retired together with the Track~A Nova dependency; the implemented
+stack is:
 
 \begin{enumerate}
-\item \textbf{MicroNova} compresses the LatticeFold+ recursive fold
-  tree into a single constant-size proof over the BN254/Grumpkin cycle;
-\item \textbf{UltraHonk} verifies the MicroNova proof on-chain via
-  EIP-196/197 BN254 pairing precompiles, consuming a projected
-  $39{,}687$~gas.
+\item \textbf{LatticeFold+} folds the recursive proof tree into a single
+  constant-size accumulator committed via lattice-native Ajtai
+  commitments (no trusted setup, no elliptic-curve assumptions);
+\item \textbf{UltraHonk} verifies the Ajtai commitment and IVC state
+  binding on-chain (Noir $\to$ Barretenberg $\to$ Solidity
+  \texttt{HonkVerifier}) via EIP-196/197 BN254 pairing precompiles.
 \end{enumerate}
 
 \begin{theorem}[P3-T1: UltraHonk Verifier Soundness]
@@ -290,23 +293,22 @@ Dependent on MicroNova compression soundness and UltraHonk knowledge
 soundness over BN254.
 \end{theorem}
 
-\begin{theorem}[P3-T2: Wrap Preserves Soundness]
+\begin{theorem}[P3-T2: Binding Preserves Soundness]
 \label{thm:p3-t2}
-The MicroNova $\to$ UltraHonk compression preserves the LatticeFold+
+The Ajtai-commitment $\to$ UltraHonk binding preserves the LatticeFold+
 accumulator soundness without lossy projection.
 \textbf{Status: SKELETON}.
 \end{theorem}
 
 \begin{theorem}[P3-T3: Trusted-Setup Analysis]
 \label{thm:p3-t3}
-UltraHonk requires no trusted setup; MicroNova may require an SRS
-(dependent on final UltraHonk variant).
+UltraHonk and the Ajtai commitment scheme both require no trusted setup.
 \textbf{Status: SKELETON}.
 \end{theorem}
 
 \begin{theorem}[P3-T4: Gas Bound]
 \label{thm:p3-t4}
-Projected UltraHonk gas: $39{,}687$ (MicroNova 2-party compressed;
+Projected UltraHonk gas: $39{,}687$ (earlier MicroNova-based projection;
 source: \texttt{.sisyphus/research/p3/prior-art.md}).
 \textbf{Status: SKELETON} (projection, not yet measured on deployed contract).
 \end{theorem}
@@ -320,15 +322,15 @@ pairing-check level.
 \end{theorem}
 
 \textbf{Dependency note.}  All P3 theorems are skeletons pending:
-(a) MicroNova integration with LatticeFold+ terminal proofs, and
-(b) UltraHonk verifier contract deployment.  Implementation roadmap in
-\texttt{.sisyphus/plans/p3-micronova-target.md}.
+(a) completed on-chain verification of the full LatticeFold+ terminal
+accumulator (open problem P4 below), and
+(b) UltraHonk verifier contract deployment on a public testnet.
 
 \textbf{Open problem P4 (on-chain IVC verification).}  Full on-chain
 LatticeFold+ IVC verification remains an open problem.  The current
-UltraHonk path verifies a wrapped MicroNova proof; direct on-chain
-verification of the LatticeFold+ accumulator is projected for future
-work.
+UltraHonk path verifies the Ajtai commitment and IVC state binding;
+direct on-chain verification of the full LatticeFold+ accumulator is
+projected for future work.
 
 \section{Security Analysis}
 
@@ -432,51 +434,10 @@ We have presented PVTHFHE, a research prototype for private-verifiable threshold
 
 Recent improvements (May 2026) include: (i)~G7b norm enforcement in the CycloFoldStepCircuit (state expanded to 7 fields with $z_s$ and $z_e$ squared L2 norm accumulators); (ii)~parity-check proofs for Reed--Solomon share verification ($O(1)$ per recipient); (iii)~LatticeFold+ DKG verification via \texttt{AjtaiCommitmentStepCircuit}; (iv)~share provenance binding (\texttt{sk\_commitments} + \texttt{combined\_sk\_commitment\_hash} as Noir public input); (v)~real PVSS DKG ceremony replacing simulation; and (vi)~LatticeFold+ adopted as the sole folding backend.
 
+(The audit remediation history is documented in the artifact appendix,
+\texttt{paper/artifact-appendix.md}.)
+
 \bibliographystyle{splncs04}
 \bibliography{bib}
-
-
-\section{Remediation Log}
-
-The PVTHFHE implementation underwent three rounds of security audit remediation
-between commits \texttt{aaacb9e} and \texttt{952a078}:
-
-\subsection*{Round 1 (commit \texttt{aaacb9e}: deep audit remediation)}
-\begin{itemize}
-  \item Fixed deterministic masking seeds in the NIZK prover — upgraded from a
-    fixed seed to \texttt{OsRng} (cryptographically secure PRNG).
-  \item Logging hygiene: removed sensitive witness data from debug and info logs.
-  \item Shamir safety: added duplicate-share detection and degree-bound checks.
-  \item Naming: renamed $B_E$ to $B_{\mathsf{err}}$ for clarity.
-\end{itemize}
-
-\subsection*{Round 2 (commits \texttt{e772daf}–\texttt{b450f24}: per-share NIZK and committed smudge)}
-\begin{itemize}
-  \item Per-share NIZK verification (\texttt{nizk\_share.rs}, \texttt{PROOF\_VERSION = 4}):
-    each decrypt-share now carries an independent BFV sigma proof verified by the
-    aggregator before reconstruction.
-  \item Committed-smudge wiring: \texttt{partial\_decrypt\_committed\_smudge} API
-    separates legacy local smudging from the target committed-smudge mode.
-  \item \texttt{dkg\_root}: introduced DKG root derivation for deterministic
-    share-computation replay.
-  \item \texttt{BFVPublicKey}: serialised key type for protocol handoff at the
-    P4–P1 boundary.
-\end{itemize}
-
-\subsection*{Round 3 (commits \texttt{6f01578}–\texttt{952a078}: committed-smudge activation)}
-\begin{itemize}
-  \item \texttt{CommittedSmudge} demo activation: the e2e pipeline now exercises
-    committed-smudge decryption in the demo path.
-  \item Aggregator NIZK: batch verification of per-share BFV sigma proofs
-    (\texttt{batch\_verify\_100\_ms} $\approx$ 230\,ms at $n=1024$).
-  \item C1 key components: separated \texttt{EncryptionWitness} and
-    \texttt{DecryptionWitness} types with backend extraction for cleaner
-    protocol boundaries.
-\end{itemize}
-
-All automatable audit findings (179 from Audit~1, 55 from Audit~2) are closed.
-Three open cryptographic problems remain (P1: lattice NIZK soundness reduction;
-P2: lattice folding over RLWE; P3: on-chain IVC verification).
-See \texttt{SECURITY.md} for details.
 
 \end{document}

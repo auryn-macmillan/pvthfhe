@@ -337,7 +337,7 @@ fn generate_ivc_verification_proof(
     use sha2::Digest;
 
     let mut hasher = Sha256::new();
-    hasher.update(b"pvthfhe-verification-proof-v1");
+    hasher.update(pvthfhe_foundations::domain_tags::Tag::VerificationProof.as_bytes());
 
     // Bind all accumulator data to the proof
     for accumulator in report.accumulators() {
@@ -359,7 +359,7 @@ pub fn external_verify_compressed_proof(
     // Verify the IVC verification proof if available
     if let Some(ref verification_proof) = _proof.ivc_verification_proof {
         let mut hasher = Sha256::new();
-        hasher.update(b"pvthfhe-verification-proof-v1");
+        hasher.update(pvthfhe_foundations::domain_tags::Tag::VerificationProof.as_bytes());
         for accumulator in _report.accumulators() {
             hasher.update(&accumulator.acc_commitment_bytes);
             hasher.update(&accumulator.acc_public_io_bytes);

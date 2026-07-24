@@ -136,7 +136,7 @@ fn party_id_from_index(index: usize) -> PartyId {
 
 fn hash_bytes(domain: &[u8], data: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
-    hasher.update(b"pvthfhe/");
+    hasher.update(Tag::ProtocolPrefix.as_bytes());
     hasher.update(domain);
     hasher.update(data);
     hasher.finalize().into()
@@ -150,7 +150,7 @@ pub fn compute_round1_commitment(
     commitment_nonce: &[u8; 32],
 ) -> [u8; 32] {
     let mut h = Sha256::new();
-    h.update(b"pvthfhe-dkg-commit-reveal/v2");
+    h.update(Tag::DkgCommitRevealV2.as_bytes());
     h.update(&party_id.to_be_bytes());
     h.update(session_id);
     h.update(pk_i_hash);
@@ -244,7 +244,7 @@ impl KeygenSimulator {
         party_id: PartyId,
     ) -> Result<pvthfhe_fhe::KeygenShare, pvthfhe_fhe::FheError> {
         let mut hasher = Sha256::new();
-        hasher.update(b"pvthfhe-sim-keygen-v1");
+        hasher.update(Tag::SimKeygen.as_bytes());
         hasher.update(session_id);
         hasher.update(&party_id.to_be_bytes());
         let seed: [u8; 32] = hasher.finalize().into();
@@ -297,7 +297,7 @@ impl KeygenSimulator {
             let mut seed = [0u8; 32];
             {
                 let mut h = Sha256::new();
-                h.update(b"pvthfhe-sim-schnorr-v1");
+                h.update(Tag::SimSchnorr.as_bytes());
                 h.update(&session_id);
                 h.update(&party_id.to_be_bytes());
                 seed.copy_from_slice(&h.finalize());
@@ -636,7 +636,7 @@ impl KeygenSimulator {
         dkg_root.copy_from_slice(&dkg_root_hasher.finalize());
 
         let mut transcript_hasher = Sha256::new();
-        transcript_hasher.update(b"pvthfhe/transcript/v1");
+        transcript_hasher.update(Tag::Transcript.as_bytes());
         // Serialize round1_messages for transcript hash
         for msg in &valid_r1 {
             transcript_hasher.update(&msg.party_id.to_be_bytes());
@@ -708,7 +708,7 @@ impl KeygenSimulator {
         let mut rng_seed = [0u8; 32];
         {
             let mut h = Sha256::new();
-            h.update(b"pvthfhe-sim-nonequiv-rng-v1");
+            h.update(Tag::SimNonEquivRng.as_bytes());
             h.update(&signer_id.to_be_bytes());
             h.update(signing_key.into_bigint().to_bytes_le());
             rng_seed.copy_from_slice(&h.finalize());
@@ -825,14 +825,14 @@ impl KeygenSimulator {
         recipient_pk: &PublicKey,
     ) -> Result<(Vec<u8>, Vec<u8>), pvthfhe_fhe::FheError> {
         let mut hasher = Sha256::new();
-        hasher.update(b"pvthfhe-sim-share-v1");
+        hasher.update(Tag::SimShare.as_bytes());
         hasher.update(session_id);
         hasher.update(&dealer_id.to_be_bytes());
         hasher.update(&recipient_id.to_be_bytes());
         let share_hash: [u8; 32] = hasher.finalize().into();
 
         let mut hasher = Sha256::new();
-        hasher.update(b"pvthfhe-sim-encrypt-v1");
+        hasher.update(Tag::SimEncrypt.as_bytes());
         hasher.update(session_id);
         hasher.update(&dealer_id.to_be_bytes());
         hasher.update(&recipient_id.to_be_bytes());
@@ -987,7 +987,7 @@ impl KeygenSimulator {
         let mut rng_seed = [0u8; 32];
         {
             let mut h = Sha256::new();
-            h.update(b"pvthfhe-sim-nizk-rng-v1");
+            h.update(Tag::SimNizkRng.as_bytes());
             h.update(session_id);
             h.update(&dealer_id.to_be_bytes());
             h.update(&recipient_id.to_be_bytes());
@@ -1023,7 +1023,7 @@ fn serialize_nizk_bundle(proofs: &[Vec<u8>]) -> anyhow::Result<Vec<u8>> {
 
 fn derive_witness_poly(bytes: &[u8]) -> Vec<i64> {
     let mut hasher = Sha256::new();
-    hasher.update(b"pvthfhe-sim-witness-poly-v1");
+    hasher.update(Tag::SimWitnessPoly.as_bytes());
     hasher.update(bytes);
     let seed: [u8; 32] = hasher.finalize().into();
     let mut rng = ChaCha8Rng::from_seed(seed); // allow-seeded-rng: deterministic simulator
@@ -1042,7 +1042,7 @@ fn derive_witness_poly(bytes: &[u8]) -> Vec<i64> {
 
 fn derive_nizk_error_poly(bytes: &[u8]) -> Vec<i64> {
     let mut hasher = Sha256::new();
-    hasher.update(b"pvthfhe-sim-nizk-error-v1");
+    hasher.update(Tag::SimNizkError.as_bytes());
     hasher.update(bytes);
     let seed: [u8; 32] = hasher.finalize().into();
     let mut rng = ChaCha8Rng::from_seed(seed); // allow-seeded-rng: deterministic simulator

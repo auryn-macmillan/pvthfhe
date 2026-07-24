@@ -1,5 +1,6 @@
 use ark_bn254::Fr;
 use ark_ff::{AdditiveGroup, BigInteger, Field, PrimeField, Zero};
+use pvthfhe_foundations::domain_tags::Tag;
 use sha2::{Digest, Sha256};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -13,14 +14,14 @@ pub struct ParityProof {
 
 pub fn hash_norm_witness(data: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
-    hasher.update(b"pvthfhe-norm-witness-v1");
+    hasher.update(Tag::NormWitness.as_bytes());
     hasher.update(data);
     hasher.finalize().into()
 }
 
 pub fn hash_encryption_validity(data: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
-    hasher.update(b"pvthfhe-encryption-validity-v1");
+    hasher.update(Tag::EncryptionValidity.as_bytes());
     hasher.update(data);
     hasher.finalize().into()
 }

@@ -131,7 +131,7 @@ fn compute_keygen_d_commitment(
 ) -> [u8; 32] {
     use sha2::{Digest, Sha256};
     let mut h = Sha256::new();
-    h.update(b"pvthfhe-keygen-dcommit/v1");
+    h.update(pvthfhe_foundations::domain_tags::Tag::KeygenDcommit.as_bytes());
     h.update(session_id);
     h.update(party_id.to_le_bytes());
     h.update(pk0_bytes);

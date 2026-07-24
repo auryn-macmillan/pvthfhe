@@ -23,6 +23,7 @@ use fhe_traits::{
 use ndarray::Array2;
 use num_bigint::{BigInt, BigUint};
 use num_traits::ToPrimitive;
+use pvthfhe_foundations::domain_tags::Tag;
 use pvthfhe_foundations::types::ProtocolBytes;
 use rand::rngs::StdRng;
 use rand_chacha::ChaCha8Rng;
@@ -207,7 +208,7 @@ impl FhersBackend {
             })?;
 
         let mut hasher = Sha256::new();
-        hasher.update(b"pvthfhe-esm-noise-v1");
+        hasher.update(Tag::EsmNoise.as_bytes());
         hasher.update(party_id.to_be_bytes());
         hasher.update(seed.to_be_bytes());
         let seed_bytes: [u8; 32] = hasher.finalize().into();
@@ -503,7 +504,7 @@ impl FhersBackend {
                 // M3: Use full 256-bit deterministic seed bound to session_seed
                 // so that Shamir shares differ across DKG ceremonies.
                 let mut h = Sha256::new();
-                h.update(b"pvthfhe-share-rng-seed-v2");
+                h.update(Tag::ShareRngSeedV2.as_bytes());
                 h.update(session_seed);
                 h.update(party_id.to_be_bytes());
                 h.update(n.to_be_bytes());

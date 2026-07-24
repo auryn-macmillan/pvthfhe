@@ -6,6 +6,7 @@
 //! - PVSS share NIZK
 //! - Nova inputs
 
+use pvthfhe_foundations::domain_tags::Tag;
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
 use sha2::Digest;
@@ -18,7 +19,7 @@ pub const FUZZ_ITERATIONS: usize = 10_000;
 pub fn rng_from_bytes(bytes: &[u8]) -> ChaCha20Rng {
     let mut seed = [0u8; 32];
     let mut hasher = sha2::Sha256::new();
-    hasher.update(b"pvthfhe-fuzz-seed-v1");
+    hasher.update(Tag::FuzzSeed.as_bytes());
     hasher.update(bytes);
     let hash = hasher.finalize();
     seed.copy_from_slice(&hash);

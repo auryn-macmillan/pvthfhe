@@ -8,6 +8,7 @@ use crate::ring::{ntt_mul, ring_add_poly, rqpoly_to_bytes, RqPoly, PHI_COMMIT, Q
 use crate::{CcsPShareInstance, CycloError, MultiTrackPShareInstance};
 use ark_bn254::Fr;
 use ark_ff::{AdditiveGroup, PrimeField};
+use pvthfhe_foundations::domain_tags::Tag;
 use sha2::{Digest, Sha256};
 
 /// Encoded CCS instance for a single participant share (Fr domain).
@@ -93,7 +94,7 @@ pub fn encode_multitrack(share: &MultiTrackPShareInstance) -> Result<CcsInstance
 /// Canonical public-IO bytes bound by fold challenges and public IO hashing.
 pub fn public_io_binding_bytes(share: &MultiTrackPShareInstance) -> Vec<u8> {
     let mut out = Vec::new();
-    out.extend_from_slice(b"pvthfhe-cyclo-public-io-binding-v1");
+    out.extend_from_slice(Tag::CycloPublicIoBinding.as_bytes());
     out.extend_from_slice(&(share.base.public_io_bytes.len() as u64).to_be_bytes());
     out.extend_from_slice(share.base.public_io_bytes.as_slice());
     match &share.multi_track_metadata {

@@ -1,9 +1,10 @@
 //! Weak Leader Election for permissionless aggregator selection.
 //! ePrint 2026/1159 §7, Algorithm 6 — adapted for synchronous setting.
 
+use pvthfhe_foundations::domain_tags::Tag;
 use sha2::{Digest, Sha256};
 
-const DOMAIN_SEPARATOR: &[u8] = b"pvthfhe-leader-election/v1";
+const DOMAIN_SEPARATOR: &[u8] = Tag::LeaderElection.as_bytes();
 
 /// A provably random rank for a party. Derived from a seed and party_id.
 #[derive(Clone, Debug, PartialEq, Eq)]

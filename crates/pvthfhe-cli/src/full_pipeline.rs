@@ -366,7 +366,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 let mut seed = [0u8; 32];
                 {
                     let mut h = Sha256::new();
-                    h.update(b"pvthfhe-dkg-precompute/v1");
+                    h.update(Tag::DkgPrecompute.as_bytes());
                     h.update(cfg.seed.to_le_bytes());
                     h.update((dealer_id as u64).to_le_bytes());
                     h.update((chunk_idx as u64).to_le_bytes());
@@ -1064,7 +1064,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         // Deterministic per-session ternary challenge c ∈ {-1, 0, 1}.
         let challenge = {
             let h = Sha256::new()
-                .chain_update(b"pvthfhe-ring-challenge/v1")
+                .chain_update(Tag::RingChallenge.as_bytes())
                 .chain_update(session_id.as_bytes())
                 .chain_update(cfg.seed.to_le_bytes())
                 .finalize();
@@ -1116,7 +1116,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             // d (public statement) derived from NIZK statement canonical hash
             let d_coeffs: Vec<Fr> = {
                 let mut hasher = Sha256::new();
-                hasher.update(b"pvthfhe-ring-d-statement/v1");
+                hasher.update(Tag::RingDStatement.as_bytes());
                 hasher.update(stmt.ciphertext_bytes.as_slice());
                 hasher.update(stmt.decrypt_share_bytes.as_slice());
                 hasher.update(stmt.epoch.to_be_bytes());
@@ -1504,7 +1504,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         let (sk, pk) = schnorr::generate_signing_keypair(&mut rng);
         let pk_fr = Fr::from_le_bytes_mod_order(&pk.x.into_bigint().to_bytes_le());
         node_schnorr_pks.push(pk_fr);
-        let msg = Fr::from_be_bytes_mod_order(&Sha256::digest(b"pvthfhe-node-schnorr-commit/v1"));
+        let msg = Fr::from_be_bytes_mod_order(&Sha256::digest(Tag::NodeSchnorrCommit.as_bytes()));
         let (sig_r, sig_s) = schnorr::schnorr_sign(sk, msg, &mut rng);
         node_schnorr_sigs.push((
             Fr::from_le_bytes_mod_order(&sig_r.y.into_bigint().to_bytes_le()),
@@ -2100,13 +2100,13 @@ pub fn run_full_pipeline<O: PipelineObserver>(
 
     let pipeline_integrity_hash = {
         let mut acc = Fr::zero();
-        let c0 = Fr::from_be_bytes_mod_order(&Sha256::digest(b"pvthfhe-e2e/keygen_nizk/v1"));
+        let c0 = Fr::from_be_bytes_mod_order(&Sha256::digest(Tag::E2eKeygenNizk.as_bytes()));
         acc = crate::noir_poseidon::hash_2(acc, c0);
         let c1 = Fr::from_be_bytes_mod_order(&Sha256::digest(
             format!("pk-contrib-{}", hex::encode(cfg.seed.to_be_bytes())).as_bytes(),
         ));
         acc = crate::noir_poseidon::hash_2(acc, c1);
-        let c3_h = Fr::from_be_bytes_mod_order(&Sha256::digest(b"pvthfhe-nizk-adapter/v1"));
+        let c3_h = Fr::from_be_bytes_mod_order(&Sha256::digest(Tag::NizkAdapter.as_bytes()));
         acc = crate::noir_poseidon::hash_2(acc, c3_h);
         acc = crate::noir_poseidon::hash_2(acc, all_nizk_proof_hash);
         let c4_h = Fr::from_be_bytes_mod_order(Sha256::digest(&dkg_root_vec).as_slice());
@@ -2209,7 +2209,7 @@ fn build_nizk_inputs(
 
 fn keygen_session_id(aggregate_pk: &PublicKey, threshold: usize, seed: u64) -> String {
     let mut binding = Vec::new();
-    binding.extend_from_slice(b"pvthfhe-e2e/keygen_nizk/v1");
+    binding.extend_from_slice(Tag::E2eKeygenNizk.as_bytes());
     binding.extend_from_slice(&seed.to_be_bytes());
     binding.extend_from_slice(&threshold.to_be_bytes());
     binding.extend_from_slice(&sha256_bytes(&aggregate_pk.bytes));
@@ -2223,7 +2223,7 @@ fn keygen_simulator_session_id(participant_set: &[u32], threshold: usize) -> [u8
     }
 
     let mut participant_set_hash = Sha256::new();
-    participant_set_hash.update(b"pvthfhe/participant-set/v1");
+    participant_set_hash.update(Tag::ParticipantSet.as_bytes());
     participant_set_hash.update(&participant_bytes);
     let participant_set_hash: [u8; 32] = participant_set_hash.finalize().into();
 
@@ -2233,7 +2233,7 @@ fn keygen_simulator_session_id(participant_set: &[u32], threshold: usize) -> [u8
     session_bytes.extend_from_slice(&threshold.to_be_bytes());
 
     let mut session_id = Sha256::new();
-    session_id.update(b"pvthfhe/session-id/v1");
+    session_id.update(Tag::SessionId.as_bytes());
     session_id.update(&session_bytes);
     session_id.finalize().into()
 }
@@ -3238,7 +3238,7 @@ fn derive_challenge_point_r(
 
 fn hash_decrypt_nizk_proofs(proofs: &[Vec<u8>]) -> [u8; 32] {
     let mut hasher = Sha256::new();
-    hasher.update(b"pvthfhe/decrypt-nizk-proofs/v1");
+    hasher.update(Tag::DecryptNizkProofs.as_bytes());
     for proof in proofs {
         hasher.update((proof.len() as u64).to_be_bytes());
         hasher.update(proof);

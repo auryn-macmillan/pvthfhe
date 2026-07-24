@@ -490,7 +490,7 @@ pub fn fold_stmt_witness_to_cyclo_instance(
             #[cfg(not(feature = "real-nizk"))]
             {
                 let mut h = Sha256::new();
-                h.update(b"pvthfhe/ajtai-commit/v1");
+                h.update(Tag::AjtaiCommit.as_bytes());
                 h.update(&witness.nizk_proof.proof_bytes);
                 h.update(&stmt.nizk_statement.ciphertext_bytes);
                 h.update(&binding_bytes);

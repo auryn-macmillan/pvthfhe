@@ -10,7 +10,7 @@
 use sha2::{Digest, Sha256};
 
 /// Domain separator for the D2 hash-bridge commitment.
-const D2_DOMAIN: &[u8] = b"pvthfhe-d2-hash-bridge/v1";
+const D2_DOMAIN: &[u8] = pvthfhe_foundations::domain_tags::Tag::HashBridgeCommit.as_bytes();
 
 /// Compute the P4 commitment C_i for a participant.
 ///

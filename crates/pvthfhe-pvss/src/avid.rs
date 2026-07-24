@@ -20,11 +20,12 @@
 
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, One, PrimeField, Zero};
+use pvthfhe_foundations::domain_tags::Tag;
 use sha2::{Digest, Sha256};
 use sha3::Keccak256;
 use std::collections::HashMap;
 
-const DOMAIN_SEPARATOR: &[u8] = b"pvthfhe-avid/v1";
+const DOMAIN_SEPARATOR: &[u8] = Tag::Avid.as_bytes();
 const DEFAULT_ARITY: usize = 8;
 
 // ── Types ─────────────────────────────────────────────────────────────────

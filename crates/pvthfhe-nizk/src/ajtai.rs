@@ -297,7 +297,7 @@ impl AjtaiCommitment {
     /// vector `C = A · s ∈ R_q^a`.
     pub fn to_d2_digest(&self) -> [u8; 32] {
         let mut hasher = Sha256::new();
-        hasher.update(b"pvthfhe-ajtai-d2-commitment-v1");
+        hasher.update(pvthfhe_foundations::domain_tags::Tag::AjtaiD2Commitment.as_bytes());
         for elem in &self.elems {
             for coeff in &elem.coeffs {
                 hasher.update(coeff.to_le_bytes());

@@ -3,6 +3,7 @@
 use anyhow::Context;
 use pvthfhe_aggregator::keygen::types::Round1Message;
 use pvthfhe_fhe::real_nizk::{NizkStatement, NizkWitness};
+use pvthfhe_foundations::domain_tags::Tag;
 use pvthfhe_foundations::rng::OsRng;
 use rand::RngCore;
 use sha2::{Digest, Sha256};
@@ -112,7 +113,7 @@ fn derive_demo_error_poly(secret_key_bytes: &[u8]) -> Vec<i64> {
     let range = u64::try_from(2 * b + 1).expect("2*SIGMA_B_E+1 fits u64"); // 33
 
     let mut hasher = Sha256::new();
-    hasher.update(b"pvthfhe-cli/nizk-error-demo/v1");
+    hasher.update(Tag::CliNizkErrorDemo.as_bytes());
     hasher.update(secret_key_bytes);
     let seed: [u8; 32] = hasher.finalize().into();
 

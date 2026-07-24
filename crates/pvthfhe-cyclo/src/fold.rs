@@ -5,6 +5,7 @@ use crate::{
     PVTHFHE_CYCLO_PARAMS,
 };
 use ark_ff::PrimeField;
+use pvthfhe_foundations::domain_tags::Tag;
 use rand_core::RngCore;
 
 /// Number of ring elements in an Ajtai commitment (ajtai rank a = 13).
@@ -166,7 +167,7 @@ fn init_accumulator_inner(
         acc_public_io_bytes,
         norm_bound_current: PVTHFHE_CYCLO_PARAMS.norm_bound_b,
         session_id: session_id.to_string(),
-        params_digest: fiat_shamir::params_digest_v1(b"pvthfhe-cyclo-params-v1"),
+        params_digest: fiat_shamir::params_digest_v1(Tag::CycloParams.as_bytes()),
     })
 }
 

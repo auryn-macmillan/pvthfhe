@@ -13,6 +13,7 @@ use pvthfhe_pvss::{
     },
     nizk_share::compute_ciphertext_v,
 };
+use pvthfhe_foundations::domain_tags::Tag;
 use pvthfhe_foundations::types::{ProtocolBytes, Secret};
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
@@ -20,8 +21,8 @@ use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 
 const FINAL_AGGREGATION_PROOF_VERSION: u16 = 1;
-const FINAL_AGGREGATION_DOMAIN: &[u8] = b"pvthfhe-final-decrypt-aggregation-v1";
-const FINAL_PLAINTEXT_HASH_DOMAIN: &[u8] = b"pvthfhe-final-plaintext-hash-v1";
+const FINAL_AGGREGATION_DOMAIN: &[u8] = Tag::FinalDecryptAggregation.as_bytes();
+const FINAL_PLAINTEXT_HASH_DOMAIN: &[u8] = Tag::FinalPlaintextHash.as_bytes();
 
 #[derive(Debug, thiserror::Error)]
 pub enum DecryptError {
@@ -195,7 +196,7 @@ pub fn partial_decrypt(
                             let digest_bytes =
                                 hex::decode(&agg_commit.commitment.digest.0).unwrap_or_default();
                             let mut hasher = Sha256::new();
-                            hasher.update(b"pvthfhe-decrypt-dkg-anchored-binding-v2");
+                            hasher.update(Tag::DecryptDkgAnchoredBindingV2.as_bytes());
                             hasher.update(&digest_bytes);
                             let hash: [u8; 32] = hasher.finalize().into();
                             u64::from_be_bytes(hash[..8].try_into().unwrap_or([0u8; 8]))

@@ -29,6 +29,7 @@ pub mod ring;
 
 pub use accumulator_codec::{AccumulatorInstanceRef, ACCUMULATOR_VERSION};
 
+use pvthfhe_foundations::domain_tags::Tag;
 use pvthfhe_foundations::types::{CcsWitnessSecret, ProtocolBytes};
 
 /// Public fold track identity for H.2 multi-track folded instances.
@@ -46,9 +47,9 @@ impl FoldTrackKind {
     /// Domain-separated byte label for canonical fold metadata encoding.
     pub fn as_domain_bytes(&self) -> &'static [u8] {
         match self {
-            Self::Sk => b"pvthfhe-fold-track-sk-v1",
-            Self::ESm => b"pvthfhe-fold-track-e-sm-v1",
-            Self::EncryptionWitness => b"pvthfhe-fold-track-encryption-witness-v1",
+            Self::Sk => Tag::FoldTrackSk.as_bytes(),
+            Self::ESm => Tag::FoldTrackESm.as_bytes(),
+            Self::EncryptionWitness => Tag::FoldTrackEncryptionWitness.as_bytes(),
         }
     }
 }
@@ -85,7 +86,7 @@ impl MultiTrackFoldMetadata {
     /// Canonical, domain-separated public encoding for Fiat-Shamir/fold binding.
     pub fn canonical_bytes(&self) -> Vec<u8> {
         let mut out = Vec::new();
-        out.extend_from_slice(b"pvthfhe-cyclo-multitrack-fold-v1");
+        out.extend_from_slice(Tag::CycloMultitrackFold.as_bytes());
         push_u64_len(&mut out, self.session_id.as_bytes());
         out.extend_from_slice(&self.participant_id.to_be_bytes());
         push_u64_len(&mut out, &self.party_binding);

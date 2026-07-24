@@ -6,6 +6,7 @@ use crate::{
     CycloError,
 };
 use ark_ff::PrimeField;
+use pvthfhe_foundations::domain_tags::Tag;
 use sha2::{Digest, Sha256};
 
 /// An extended CCS instance: the result of the T2 linear combination step.
@@ -42,7 +43,7 @@ pub fn extend(a: &CcsInstance, b: &CcsInstance, r: i8) -> Result<ExtendedInstanc
     let b_poly = bytes_to_rqpoly(&b.ajtai_hash);
     let combined_poly = ring_add_poly(&a_poly, &ternary_mul(&b_poly, r));
     let combined_ajtai_hash: [u8; 32] = Sha256::new()
-        .chain_update(b"pvthfhe-cyclo-ext-ajtai-v1")
+        .chain_update(Tag::CycloExtAjtai.as_bytes())
         .chain_update(rqpoly_to_bytes(&combined_poly))
         .finalize()
         .into();

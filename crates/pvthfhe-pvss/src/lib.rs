@@ -32,6 +32,7 @@ pub mod share_computation;
 /// Smudge-slot freshness enforcement (F.2).
 pub mod slot_registry;
 
+use pvthfhe_foundations::domain_tags::Tag;
 use pvthfhe_foundations::types::{ProtocolBytes, ShareSecret};
 
 pub use encrypt::{CommittedSmudgeUse, LatticePvssBfvAdapter};
@@ -64,7 +65,7 @@ pub struct PvssContext {
 pub fn derive_dealer_index(session_id: &[u8]) -> usize {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
-    hasher.update(b"pvthfhe-dealer-index-v1");
+    hasher.update(Tag::DealerIndex.as_bytes());
     hasher.update(session_id);
     let digest: [u8; 32] = hasher.finalize().into();
     let raw = u64::from_be_bytes(digest[..8].try_into().unwrap_or([0u8; 8]));

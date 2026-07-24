@@ -3,10 +3,11 @@
 
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, Field, PrimeField, Zero};
+use pvthfhe_foundations::domain_tags::Tag;
 use rand_core::RngCore;
 use sha2::{Digest, Sha256};
 
-const DOMAIN_SEPARATOR: &[u8] = b"pvthfhe-key-escrow/v1";
+const DOMAIN_SEPARATOR: &[u8] = Tag::KeyEscrow.as_bytes();
 
 /// An escrowed ephemeral public key.
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -1,3 +1,4 @@
+use pvthfhe_foundations::domain_tags::Tag;
 use sha2::{Digest, Sha256};
 
 pub fn params_digest_v1(label: &[u8]) -> [u8; 32] {
@@ -12,7 +13,7 @@ pub fn challenge_v1(
     inst_public_io_bytes: &[u8],
 ) -> [u8; 32] {
     Sha256::new()
-        .chain_update(b"pvthfhe-cyclo-fs-v1")
+        .chain_update(Tag::CycloFsV1.as_bytes())
         .chain_update(session_id.as_bytes())
         .chain_update(fold_depth.to_le_bytes())
         .chain_update(acc_commitment)
@@ -33,7 +34,7 @@ pub fn challenge_v2(
     inst_public_io_bytes: &[u8],
 ) -> [u8; 32] {
     Sha256::new()
-        .chain_update(b"pvthfhe-cyclo-fs-v2")
+        .chain_update(Tag::CycloFsV2.as_bytes())
         .chain_update(session_id.as_bytes())
         .chain_update(fold_depth.to_le_bytes())
         .chain_update(params_digest)
@@ -51,7 +52,7 @@ pub fn commitment_v1(
     inst_bytes: &[u8],
 ) -> [u8; 32] {
     Sha256::new()
-        .chain_update(b"pvthfhe-cyclo-fold-v1")
+        .chain_update(Tag::CycloFoldCommitment.as_bytes())
         .chain_update(session_id.as_bytes())
         .chain_update(depth.to_le_bytes())
         .chain_update(poly_bytes)
@@ -68,7 +69,7 @@ pub fn public_io_v1(
     r_value: u128,
 ) -> [u8; 32] {
     Sha256::new()
-        .chain_update(b"pvthfhe-cyclo-fold-io-v1")
+        .chain_update(Tag::CycloFoldIo.as_bytes())
         .chain_update(session_id.as_bytes())
         .chain_update(depth.to_le_bytes())
         .chain_update(acc_io)
@@ -80,7 +81,7 @@ pub fn public_io_v1(
 
 pub fn init_commitment_v1(session_id: &str, poly_bytes: &[u8]) -> [u8; 32] {
     Sha256::new()
-        .chain_update(b"pvthfhe-cyclo-init-v1")
+        .chain_update(Tag::CycloInit.as_bytes())
         .chain_update(session_id.as_bytes())
         .chain_update(poly_bytes)
         .finalize()
@@ -89,7 +90,7 @@ pub fn init_commitment_v1(session_id: &str, poly_bytes: &[u8]) -> [u8; 32] {
 
 pub fn init_public_io_v1(session_id: &str, io_bytes: &[u8]) -> [u8; 32] {
     Sha256::new()
-        .chain_update(b"pvthfhe-cyclo-init-io-v1")
+        .chain_update(Tag::CycloInitIo.as_bytes())
         .chain_update(session_id.as_bytes())
         .chain_update(io_bytes)
         .finalize()
@@ -112,7 +113,7 @@ impl CycloTernaryTranscript {
     /// Initialise a new transcript with the v2 domain separator, `session_id`, and `participant_id`.
     pub fn new(session_id: &str, participant_id: u16) -> Self {
         let mut state = Sha256::new();
-        state.update(b"pvthfhe-cyclo-fs-v2");
+        state.update(Tag::CycloFsV2.as_bytes());
         state.update(session_id.as_bytes());
         state.update(participant_id.to_le_bytes());
         Self { state }

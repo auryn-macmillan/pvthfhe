@@ -20,6 +20,7 @@
 use crate::fiat_shamir;
 use crate::fold::AJTAI_COMMITMENT_BYTES;
 use crate::{CcsPShareInstance, CycloAccumulator, CycloError, PVTHFHE_CYCLO_PARAMS};
+use pvthfhe_foundations::domain_tags::Tag;
 use sha2::{Digest, Sha256};
 
 /// Current accumulator wire format version.
@@ -43,7 +44,7 @@ pub struct AccumulatorInstanceRef {
 
 /// Compute the expected params digest for the locked parameter set.
 pub fn params_digest() -> [u8; 32] {
-    fiat_shamir::params_digest_v1(b"pvthfhe-cyclo-params-v1")
+    fiat_shamir::params_digest_v1(Tag::CycloParams.as_bytes())
 }
 
 /// Encode an accumulator and instance list into the versioned wire format.

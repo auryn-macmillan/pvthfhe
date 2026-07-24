@@ -6,6 +6,7 @@
 use pvthfhe_aggregator::keygen::simulator::{KeygenResult, KeygenSimulator};
 use pvthfhe_fhe::fhers::FhersBackend;
 use pvthfhe_fhe::FheBackend;
+use pvthfhe_foundations::domain_tags::Tag;
 use pvthfhe_nizk::adapter::CycloNizkAdapter;
 use pvthfhe_nizk::{NizkAdapter, NizkProof};
 use sha2::{Digest, Sha256};
@@ -30,7 +31,7 @@ fn party_id(index: usize) -> u32 {
 
 fn simulator_hash_bytes(domain: &[u8], data: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
-    hasher.update(b"pvthfhe/");
+    hasher.update(Tag::ProtocolPrefix.as_bytes());
     hasher.update(domain);
     hasher.update(data);
     hasher.finalize().into()
@@ -38,7 +39,7 @@ fn simulator_hash_bytes(domain: &[u8], data: &[u8]) -> [u8; 32] {
 
 /// Compute `session_id` the same way the simulator does.
 fn compute_session_id(n_parties: usize, threshold: usize) -> [u8; 32] {
-    let tag = b"pvthfhe/keygen-simulator/session/v1";
+    let tag = Tag::KeygenSimulatorSession.as_bytes();
 
     // participant_set_hash
     let mut psh_data = Vec::with_capacity(n_parties * 4);

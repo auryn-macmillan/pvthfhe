@@ -554,7 +554,7 @@ impl ShareNizkVerifier {
 
 fn compute_share_d_commitment(stmt: &ShareNizkStatement) -> [u8; 32] {
     let mut h = Sha256::new();
-    h.update(b"pvthfhe-share-dcommit/v1");
+    h.update(Tag::ShareDcommit.as_bytes());
     h.update(stmt.session_id.as_slice());
     h.update(
         u32::try_from(stmt.recipient_index)
@@ -601,7 +601,7 @@ fn build_algebraic_proof(stmt: &ShareNizkStatement, witness: &ShareNizkWitness) 
 
 fn derive_share_sigma_witness(share: &[u8]) -> Vec<i64> {
     let mut h = Sha256::new();
-    h.update(b"pvthfhe-share-sigma-witness-digest-v1");
+    h.update(Tag::ShareSigmaWitnessDigest.as_bytes());
     h.update(u64::try_from(share.len()).unwrap_or(0).to_be_bytes());
     h.update(share);
     let digest = h.finalize();
@@ -619,7 +619,7 @@ fn derive_share_sigma_witness(share: &[u8]) -> Vec<i64> {
 
 fn derive_share_sigma_c_rns(session_id: &[u8], recipient_index: usize) -> Vec<u64> {
     let mut h = Sha256::new();
-    h.update(b"pvthfhe-share-sigma-c-rns-v1");
+    h.update(Tag::ShareSigmaCRns.as_bytes());
     h.update(session_id);
     h.update(recipient_index.to_be_bytes());
     // allow-seeded-rng: Fiat-Shamir public-coin challenge polynomial; seed = SHA256(domain ‖ session_id ‖ recipient_index), so the verifier re-derives the identical c
@@ -983,7 +983,7 @@ pub fn verify_bfv_encryption_proof(
 /// ensuring they cannot be accidentally omitted.
 fn bfv_sigma_binding_data(stmt: &ShareNizkStatement, d_commitment: &[u8; 32]) -> Vec<u8> {
     let mut h = Sha256::new();
-    h.update(b"pvthfhe-share-bfv-sigma-binding-v5");
+    h.update(Tag::ShareBfvSigmaBindingV5.as_bytes());
     h.update(stmt.recipient_index.to_be_bytes());
     h.update(stmt.bfv_params_digest.as_slice());
     h.update(stmt.dkg_root.as_slice());
@@ -1211,7 +1211,7 @@ fn verify_d2_hash_binding(
 
 fn compute_relation_binding(stmt: &ShareNizkStatement, algebraic_proof: &[u8]) -> [u8; DIGEST_LEN] {
     let mut h = Sha256::new();
-    h.update(b"pvthfhe-share-relation-binding-v2");
+    h.update(Tag::ShareRelationBindingV2.as_bytes());
     h.update(stmt.session_id.as_slice());
     h.update(stmt.dealer_index.to_be_bytes());
     h.update(stmt.recipient_index.to_be_bytes());
@@ -1312,7 +1312,7 @@ fn compute_ajtai_d2_binding_inner(
     track_domain_tag: Option<&[u8]>,
 ) -> Result<[u8; DIGEST_LEN], PvssError> {
     let mut hasher = Sha256::new();
-    hasher.update(b"pvthfhe-d2-ajtai-matrix-v1");
+    hasher.update(Tag::D2AjtaiMatrix.as_bytes());
     hasher.update(session_id);
     hasher.update(recipient_index.to_le_bytes());
     if let Some(tag) = track_domain_tag {
@@ -1408,7 +1408,7 @@ pub fn compute_share_commitment_tracked(
 /// Compute the hash-bound secondary ciphertext component from `ciphertext_u`.
 pub fn compute_ciphertext_v(ciphertext_u: &[u8]) -> [u8; DIGEST_LEN] {
     let mut hasher = Sha256::new();
-    hasher.update(b"pvthfhe/ciphertext-v/v1");
+    hasher.update(Tag::CiphertextV.as_bytes());
     hasher.update(ciphertext_u);
     hasher.finalize().into()
 }
@@ -1416,7 +1416,7 @@ pub fn compute_ciphertext_v(ciphertext_u: &[u8]) -> [u8; DIGEST_LEN] {
 /// Compute the canonical BFV parameters digest.
 pub fn canonical_bfv_params_digest() -> [u8; DIGEST_LEN] {
     let mut hasher = Sha256::new();
-    hasher.update(b"pvthfhe-bfv-params-v1");
+    hasher.update(Tag::BfvParams.as_bytes());
     hasher.update(CANONICAL_PARAMS_TOML.as_bytes());
     hasher.finalize().into()
 }

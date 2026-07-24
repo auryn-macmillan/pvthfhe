@@ -8,6 +8,7 @@
 
 use ark_bn254::Fr;
 use ark_ff::{AdditiveGroup, BigInteger, Field, PrimeField, Zero};
+use pvthfhe_foundations::domain_tags::Tag;
 use pvthfhe_foundations::types::ProtocolBytes;
 use sha2::{Digest, Sha256};
 
@@ -135,7 +136,7 @@ pub fn compute_sk_secret_commitment(
     secret: Fr,
 ) -> [u8; DIGEST_LEN] {
     let mut h = Sha256::new();
-    h.update(b"pvthfhe-share-computation-sk-commitment-v1");
+    h.update(Tag::ShareComputationSkCommitment.as_bytes());
     h.update(session_id);
     h.update(dkg_root);
     h.update(dealer_id.to_be_bytes());
@@ -153,7 +154,7 @@ pub fn compute_esm_secret_commitment(
     secret: Fr,
 ) -> [u8; DIGEST_LEN] {
     let mut h = Sha256::new();
-    h.update(b"pvthfhe-share-computation-esm-commitment-v1");
+    h.update(Tag::ShareComputationEsmCommitment.as_bytes());
     h.update(session_id);
     h.update(dkg_root);
     h.update(dealer_id.to_be_bytes());
@@ -401,7 +402,7 @@ fn compute_public_instance_commitment(
     statement: &BatchedShareComputationStatement,
 ) -> [u8; DIGEST_LEN] {
     let mut h = Sha256::new();
-    h.update(b"pvthfhe-share-computation-public-instance-v1");
+    h.update(Tag::ShareComputationPublicInstance.as_bytes());
     h.update(statement.session_id.as_slice());
     h.update(statement.dkg_root.as_slice());
     h.update(statement.dealer_id.to_be_bytes());

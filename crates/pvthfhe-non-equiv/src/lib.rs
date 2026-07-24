@@ -32,6 +32,7 @@
 use ark_bn254::{Fr, G1Affine};
 use ark_ec::AffineRepr;
 use ark_ff::{BigInteger, PrimeField};
+use pvthfhe_foundations::domain_tags::Tag;
 use pvthfhe_nizk::schnorr::{schnorr_sign_with_session, schnorr_verify_with_session};
 use rand_core::RngCore;
 use sha2::{Digest, Sha256};
@@ -39,7 +40,7 @@ use std::collections::{HashMap, HashSet};
 
 // ── Domain separator ──────────────────────────────────────────────────────
 
-const DOMAIN_SEPARATOR: &[u8] = b"pvthfhe-non-equiv/v1";
+const DOMAIN_SEPARATOR: &[u8] = Tag::NonEquiv.as_bytes();
 
 // ── Types ─────────────────────────────────────────────────────────────────
 

@@ -44,7 +44,7 @@ impl Transcript {
     ///
     /// The domain separator fed into the hash is (ASCII, no null terminator):
     /// ```text
-    /// "pvthfhe/cyclo-ajtai-d2/v1/" ‖ session_id ‖ "/" ‖ participant_id_decimal
+    /// `pvthfhe/cyclo-ajtai-d2/v1/` ‖ session_id ‖ "/" ‖ participant_id_decimal
     /// ```
     pub fn new(session_id: &[u8], participant_id: u32) -> Self {
         // participant_id is u32 here but u16 in NizkStatement. The conversion

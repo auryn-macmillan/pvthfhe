@@ -257,7 +257,7 @@ stage0-gate:
 
     # Check 8: advisory exists with STATUS: DRAFT or STATUS: RESOLVED
     echo "[8] Checking advisory..."
-    grep -qE "STATUS: (DRAFT|RESOLVED)" SECURITY-ADVISORY-001.md || { echo "FAIL: SECURITY-ADVISORY-001.md missing STATUS"; exit 1; }
+    grep -qE "STATUS: (DRAFT|RESOLVED)" docs/archive/SECURITY-ADVISORY-001.md || { echo "FAIL: docs/archive/SECURITY-ADVISORY-001.md missing STATUS"; exit 1; }
 
     echo ""
     echo "=== Stage 0 Gate: ALL CHECKS PASSED ==="

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# R0.4 GATE: forbid raw `b"pvthfhe/..."` byte literals outside the canonical Tag enum.
+# R0.4 GATE: forbid raw pvthfhe byte-string domain literals outside the canonical Tag enum.
 # Replace any flagged literal with `pvthfhe_foundations::domain_tags::Tag::<Variant>.as_bytes()`.
 # Add a new Tag variant in `crates/pvthfhe-foundations/src/domain_tags.rs` if needed.
 set -euo pipefail
@@ -12,7 +12,12 @@ fi
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$ROOT"
 
-matches="$(rg --no-heading --no-line-number -o 'b"pvthfhe/[^"]*"' \
+# The search pattern is assembled by quoting concatenation so this script's own
+# text does not contain the literal it greps for (the no_inline_domains test
+# scans every file under crates/, including this one).
+PAT='b"pvthf''he/[^"]*"'
+
+matches="$(rg --no-heading --no-line-number -o "$PAT" \
   --glob '!crates/pvthfhe-foundations/src/domain_tags.rs' \
   --glob '!crates/pvthfhe-foundations/tests/exhaustive.rs' \
   --glob '!target/**' \
@@ -29,5 +34,5 @@ if [[ -n "${filtered// /}" && -n "$filtered" ]]; then
   exit 1
 fi
 
-echo "[forbid::raw_pvthfhe_domain_tag] OK — no raw 'b\"pvthfhe/...\"' literals outside the canonical enum."
+echo "[forbid::raw_pvthfhe_domain_tag] OK — no raw pvthfhe byte-tag literals outside the canonical enum."
 exit 0

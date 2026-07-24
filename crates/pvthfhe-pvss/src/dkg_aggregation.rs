@@ -14,6 +14,7 @@ use crate::keygen_spec::{
     compute_accepted_participant_set_hash, AggregatedESmShareCommitment,
     AggregatedSkShareCommitment, Commitment, DkgAnchorSet, HexBlob,
 };
+use pvthfhe_foundations::domain_tags::Tag;
 use sha2::{Digest, Sha256};
 
 const DIGEST_LEN: usize = 32;
@@ -137,7 +138,7 @@ pub fn compute_sk_dealer_share_commitment(
     share_value: Fr,
 ) -> [u8; DIGEST_LEN] {
     let mut h = Sha256::new();
-    h.update(b"pvthfhe-dkg-sk-dealer-share-commitment-v1");
+    h.update(Tag::DkgSkDealerShareCommitment.as_bytes());
     h.update(session_id);
     h.update(dkg_root);
     h.update(dealer_id.to_be_bytes());
@@ -157,7 +158,7 @@ pub fn compute_esm_dealer_share_commitment(
     share_value: Fr,
 ) -> [u8; DIGEST_LEN] {
     let mut h = Sha256::new();
-    h.update(b"pvthfhe-dkg-esm-dealer-share-commitment-v1");
+    h.update(Tag::DkgEsmDealerShareCommitment.as_bytes());
     h.update(session_id);
     h.update(dkg_root);
     h.update(dealer_id.to_be_bytes());
@@ -177,7 +178,7 @@ pub fn compute_sk_aggregate_commitment(
     aggregate: Fr,
 ) -> [u8; DIGEST_LEN] {
     let mut h = Sha256::new();
-    h.update(b"pvthfhe-dkg-sk-aggregate-commitment-v1");
+    h.update(Tag::DkgSkAggregateCommitment.as_bytes());
     absorb_common_aggregate_fields(
         &mut h,
         session_id,
@@ -200,7 +201,7 @@ pub fn compute_esm_aggregate_commitment(
     aggregate: Fr,
 ) -> [u8; DIGEST_LEN] {
     let mut h = Sha256::new();
-    h.update(b"pvthfhe-dkg-esm-aggregate-commitment-v1");
+    h.update(Tag::DkgEsmAggregateCommitment.as_bytes());
     absorb_common_aggregate_fields(
         &mut h,
         session_id,

@@ -11,8 +11,10 @@ use light_poseidon::parameters::bn254_x5;
 use light_poseidon::PoseidonParameters;
 use serde::{Deserialize, Serialize};
 
+use crate::domain_tags::Tag;
+
 /// ASCII domain separator for the V1 canonical statement format.
-pub const DOMAIN_BYTES: &[u8] = b"pvthfhe-verification-stmt-v1";
+pub const DOMAIN_BYTES: &[u8] = Tag::VerificationStmt.as_bytes();
 /// DOMAIN_BYTES interpreted as one big-endian integer; it fits in BN254 Fr.
 pub const DOMAIN_FIELD_HEX: &str = "0x707674686668652d766572696669636174696f6e2d73746d742d7631";
 /// Schema version encoded in the TLV header and Poseidon preimage.

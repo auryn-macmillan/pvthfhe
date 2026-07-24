@@ -20,6 +20,7 @@
 
 use super::types::PartyId;
 use pvthfhe_fhe::{FheBackend, KeygenShare, PublicKey};
+use pvthfhe_foundations::domain_tags::Tag;
 use sha2::{Digest, Sha256};
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -59,7 +60,7 @@ pub struct C5Proof {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Domain separator prefix for C5 PoP hashing.
-const POP_DOMAIN: &[u8] = b"pvthfhe-c5-pop/v1";
+const POP_DOMAIN: &[u8] = Tag::C5Pop.as_bytes();
 
 /// Generate a Proof-of-Possession for a single participant.
 ///
@@ -191,7 +192,7 @@ pub fn verify_pk_formation(
 /// replaced with a Poseidon BN254 hash for efficient in-circuit verification.
 pub fn compute_c5_proof_root(proof: &C5Proof) -> [u8; 32] {
     let mut hasher = Sha256::new();
-    hasher.update(b"pvthfhe-c5-proof-root/v1");
+    hasher.update(Tag::C5ProofRoot.as_bytes());
     hasher.update(&[proof.version]);
     hasher.update(&proof.participant_set_hash);
     // Prefix-length encode aggregate_pk_bytes to prevent ambiguity

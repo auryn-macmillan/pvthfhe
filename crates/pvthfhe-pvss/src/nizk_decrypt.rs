@@ -67,7 +67,7 @@ pub struct CommittedSmudgeSlot {
 impl CommittedSmudgeSlot {
     pub fn bind(&self) -> [u8; DIGEST_LEN] {
         let mut hasher = Sha256::new();
-        hasher.update(b"pvthfhe-committed-smudge-slot-v1");
+        hasher.update(Tag::CommittedSmudgeSlot.as_bytes());
         hasher.update(self.epoch.to_be_bytes());
         hasher.update(self.slot_index.to_be_bytes());
         hasher.update(&self.ciphertext_hash);
@@ -554,7 +554,7 @@ pub fn compute_decrypt_ciphertext_hash(
     ciphertext_v: &[u8],
 ) -> [u8; DIGEST_LEN] {
     let mut hasher = Sha256::new();
-    hasher.update(b"pvthfhe-decrypt-ciphertext-hash-v1");
+    hasher.update(Tag::DecryptCiphertextHash.as_bytes());
     hasher.update((ciphertext_u.len() as u64).to_be_bytes());
     hasher.update(ciphertext_u);
     hasher.update((ciphertext_v.len() as u64).to_be_bytes());
@@ -565,7 +565,7 @@ pub fn compute_decrypt_ciphertext_hash(
 /// Derive a scalar binding from a party's public key for sk_agg_share fallback.
 pub fn derive_party_binding(party_pk: &[u8]) -> u64 {
     let mut hasher = Sha256::new();
-    hasher.update(b"pvthfhe-decrypt-party-binding-v1");
+    hasher.update(Tag::DecryptPartyBinding.as_bytes());
     hasher.update(party_pk);
     let digest: [u8; 32] = hasher.finalize().into();
     u64::from_be_bytes(digest[..8].try_into().unwrap_or([0u8; 8]))

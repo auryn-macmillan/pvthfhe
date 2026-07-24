@@ -1,5 +1,6 @@
 //! Frozen interface types for the P4 Hermine-adapted keygen surface.
 
+use pvthfhe_foundations::domain_tags::Tag;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
@@ -412,7 +413,7 @@ pub fn compute_accepted_participant_set_hash(participant_ids: &[u16]) -> SpecRes
     }
 
     let mut hasher = Sha256::new();
-    hasher.update(b"pvthfhe-dkg-accepted-participant-set-v1");
+    hasher.update(Tag::DkgAcceptedParticipantSet.as_bytes());
     hasher.update((ids.len() as u64).to_be_bytes());
     for id in ids {
         hasher.update(id.to_be_bytes());
@@ -727,7 +728,7 @@ impl BfvPublicKeyDerivation for PublicVerificationArtifact {
 
         let public_component_a = {
             let mut hasher = Sha256::new();
-            hasher.update(b"pvthfhe-bfv-crp-v1");
+            hasher.update(Tag::BfvCrp.as_bytes());
             hasher.update(self.transcript_root.0.as_bytes());
             let digest: [u8; 32] = hasher.finalize().into();
             HexBlob(hex_encode(&digest))
@@ -735,7 +736,7 @@ impl BfvPublicKeyDerivation for PublicVerificationArtifact {
 
         let public_component_b = {
             let mut hasher = Sha256::new();
-            hasher.update(b"pvthfhe-bfv-b-poly-v1");
+            hasher.update(Tag::BfvBPoly.as_bytes());
             hasher.update(self.proof_bytes.0.as_bytes());
             let mut sorted: Vec<&Share> = shares.iter().collect();
             sorted.sort_by_key(|s| s.recipient_id);

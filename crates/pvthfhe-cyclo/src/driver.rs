@@ -14,6 +14,7 @@ use crate::{
     ring::{ring_add_poly, scalar_mul, RqPoly},
     CcsPShareInstance, CycloAccumulator, CycloError, PVTHFHE_CYCLO_PARAMS,
 };
+use pvthfhe_foundations::domain_tags::Tag;
 use pvthfhe_foundations::types::ProtocolBytes;
 use rand_core::RngCore;
 use sha2::{Digest, Sha256};
@@ -67,7 +68,7 @@ pub fn fold_all(
 #[allow(clippy::unwrap_used)]
 pub fn derive_beta(session_id: &str, batch_id: usize, i: usize) -> u128 {
     let mut hasher = Sha256::new();
-    hasher.update(b"pvthfhe-cyclo-batch-beta-v1");
+    hasher.update(Tag::CycloBatchBeta.as_bytes());
     hasher.update(session_id.as_bytes());
     hasher.update(batch_id.to_le_bytes());
     hasher.update(i.to_le_bytes());
@@ -132,7 +133,7 @@ pub fn fold_all_batched(
 
         let combined_pub_io = {
             let mut hasher = Sha256::new();
-            hasher.update(b"pvthfhe-cyclo-batch-io-v1");
+            hasher.update(Tag::CycloBatchIo.as_bytes());
             hasher.update(session_id.as_bytes());
             hasher.update(batch_id.to_le_bytes());
             for (i, inst) in batch.iter().enumerate() {
@@ -320,7 +321,7 @@ pub fn fold_all_batched_with_betas(
 
         let combined_pub_io = {
             let mut hasher = Sha256::new();
-            hasher.update(b"pvthfhe-cyclo-batch-io-v1");
+            hasher.update(Tag::CycloBatchIo.as_bytes());
             hasher.update(session_id.as_bytes());
             hasher.update(batch_id.to_le_bytes());
             for (i, inst) in batch.iter().enumerate() {

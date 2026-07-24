@@ -1,5 +1,4 @@
 pub mod fhe_rs;
-pub mod poulpy;
 
 pub const POLY_DEGREE: usize = 4096;
 pub const RNS_LIMBS: usize = 4;

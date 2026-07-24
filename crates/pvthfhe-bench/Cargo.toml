@@ -18,7 +18,6 @@ default = ["nova-compressor"]
 production-profile = ["pvthfhe-fhe/production-profile"]
 mock = ["pvthfhe-fhe/mock"]
 backend-fhe-rs = ["dep:fhe", "dep:fhe-math"]
-backend-poulpy = ["dep:poulpy-hal", "dep:poulpy-cpu-ref"]
 surrogate-compressor = []
 nova-compressor = ["dep:pvthfhe-compressor"]
 hermine = ["pvthfhe-keygen/hermine"]
@@ -45,10 +44,6 @@ tera = "1"
 # fhe.rs - pin by exact commit SHA
 fhe = { package = "fhe", git = "https://github.com/gnosisguild/fhe.rs", rev = "5f24d0b62a7329b789db07a065b68accd614a47b", optional = true }
 fhe-math = { package = "fhe-math", git = "https://github.com/gnosisguild/fhe.rs", rev = "5f24d0b62a7329b789db07a065b68accd614a47b", optional = true }
-
-# poulpy - pin by exact commit SHA
-poulpy-hal = { git = "https://github.com/poulpy-fhe/poulpy", rev = "4a1f0c642cef7e5830287c3d6af7e013d8a7bda4", optional = true }
-poulpy-cpu-ref = { git = "https://github.com/poulpy-fhe/poulpy", rev = "4a1f0c642cef7e5830287c3d6af7e013d8a7bda4", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }

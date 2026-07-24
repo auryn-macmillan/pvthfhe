@@ -37,7 +37,7 @@ demo-e2e n="10" t="4" seed="1":
     @echo "[ivc_verifier] bb write_vk..."
     cd circuits && bb write_vk --scheme ultra_honk -b target/ivc_verifier.json -o target
     @echo "[contracts] forge test..."
-    forge test --root contracts || true
+    forge test --root contracts
     @echo "*** On-chain verification: PASS ***"
 
 # Track A: Sonobe Nova/hash-then-fold — REMOVED (P4 deprecation).
@@ -89,7 +89,7 @@ wire-gate:
     cargo test -p pvthfhe-cli
     cargo test -p pvthfhe-aggregator
     cargo test -p pvthfhe-bench
-    cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features surrogate-compressor -- --n 3 --t 2 --seed 1
+    cargo run -p pvthfhe-cli --bin pvthfhe-e2e --features surrogate-compressor -- --n 3 --t 2 --seed 0
     just bench-comparison-dryrun 3 1 1
 
 compressor-gate:
@@ -139,7 +139,7 @@ noir-onchain-gate:
     cd circuits/nova_state_commitment && bb verify --scheme ultra_honk -k target/vk -p target/proof -i target/public_inputs
     # P4: Ajtai commitment (LatticeFold+ on-chain decider)
     just ajtai-onchain-gate
-    forge test --root contracts || true
+    forge test --root contracts
     just verify-onchain
 
 bench-fhe-baseline n_max="64":
@@ -186,6 +186,10 @@ bench-smoke:
     cargo run --release -p pvthfhe-bench --features backend-fhe-rs --bin bench_runner > bench/results/smoke-latest.json
     cat bench/results/smoke-latest.json
 
+# Unit tests for the Python bench scripts (fit-loglog etc.)
+bench-scripts-test:
+    python3 -m pytest bench/scripts/tests/ -q
+
 greco:
     @echo "=== Greco-style encryption proof (LatticeFold+ Track B) ==="
     cargo run --release -p pvthfhe-cli --features "nova-compressor,enable-lazer,enable-latticefold" -- snapshot prove
@@ -201,7 +205,7 @@ test-circuits:
     (cd circuits && nargo test --workspace)
 
 test-contracts:
-    forge test --root contracts || true
+    forge test --root contracts
 
 adversarial-suite:
     mkdir -p .sisyphus/evidence
@@ -337,41 +341,6 @@ artifact-reproduce:
     cargo build --workspace
     just p3-bench
     just e2e-real
-
-poulpy-all: poulpy-switch
-    @echo ""
-    @echo " ═══════════════════════════════════════════════════════════════════════"
-    @echo "  Poulpy Scheme-Switch: CKKS → TFHE (Single Coherent Pipeline)"
-    @echo " ═══════════════════════════════════════════════════════════════════════"
-    @echo ""
-    @echo "  Runs a single binary executing the full dual-scheme pipeline:"
-    @echo "    1. CKKS DKG + encrypt(42.0) + ckks_add + ckks_mul"
-    @echo "    2. Switch: CKKS result → binary encoding"
-    @echo "    3. TFHE DKG + encrypt each bit → decrypt all bits"
-    @echo "    4. Verify: Σ bit·2ⁱ = CKKS result (3528)"
-    @echo ""
-
-poulpy-switch:
-    @echo ""
-    @echo " ═══════════════════════════════════════════════════════════════════════"
-    @echo "  Poulpy Scheme-Switch: CKKS → TFHE (Coherent Pipeline)"
-    @echo " ═══════════════════════════════════════════════════════════════════════"
-    @echo ""
-    @echo "  plaintext = 42.0"
-    @echo "  Session: shared across both backends (same seed → shared sid)"
-    @echo ""
-    @echo "  Phase 1 — CKKS Encrypted Arithmetic:"
-    @echo "    DKG → encrypt(42.0) → add(42+42=84) → mul(84×42=3528) → decrypt"
-    @echo "  Switch:  CKKS f64 result → binary bits (0b...) for TFHE"
-    @echo "  Phase 3 — TFHE Boolean Circuit (encrypted ops):"
-    @echo "    DKG → encrypt 12 bits → (b0∧b1)∨(b3∧b8) → decrypt"
-    @echo "    all gates on encrypted data, no intermediate decrypt"
-    @echo ""
-    @echo "  Scheme-switch proof (LatticeFold+ CKKS↔TFHE decoder circuit):"
-    @echo "  the scheme_switch module provides commitment-binding; the full"
-    @echo "  RLWE/LWE decoder circuit is deferred (P5)."
-    @echo ""
-    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 cargo run -p pvthfhe-cli --features "with-fhe,enable-ckks,enable-tfhe,nova-compressor,demo-seeded-rng" -- demo --backend poulpy-switch --n 6 --threshold 2
 
 # Build circuits with ring dimension N=8 (Schwartz-Zippel point evaluation makes this N-independent).
 # Native code uses N=8192; the Noir circuit verifies a single point evaluation.

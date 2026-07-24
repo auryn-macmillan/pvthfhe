@@ -58,15 +58,7 @@ const DEMO_PARAMS_TOML: &str = "[rlwe]\nn = 8192\nlog2_q = 174\nt_plain = 131072
 
 /// Creates an FHE backend from a TOML parameter string.
 ///
-/// When the `enable-ckks` feature is active, returns a `PoulpyBackend`.
-/// Otherwise returns the default `FhersBackend` (BFV).
-#[cfg(feature = "enable-ckks")]
-pub fn create_backend(params_toml: &str) -> anyhow::Result<Box<dyn FheBackend>> {
-    use pvthfhe_fhe_poulpy::PoulpyBackend;
-    Ok(Box::new(PoulpyBackend::load_params(params_toml)?))
-}
-
-#[cfg(not(feature = "enable-ckks"))]
+/// Returns the locked `FhersBackend` (BFV via gnosisguild/fhe.rs).
 pub fn create_backend(params_toml: &str) -> anyhow::Result<Box<dyn FheBackend>> {
     use pvthfhe_fhe::fhers::FhersBackend;
     Ok(Box::new(FhersBackend::load_params(params_toml)?))

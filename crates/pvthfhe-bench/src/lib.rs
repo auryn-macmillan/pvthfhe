@@ -203,14 +203,14 @@ mod tests {
     #[test]
     fn backend_probe_can_report_feature_gaps() {
         let probe = BackendProbe {
-            name: "poulpy",
+            name: "unavailable-backend",
             availability: BackendAvailability::FeatureGap(BackendGap {
-                backend: "poulpy",
+                backend: "unavailable-backend",
                 reason: "nightly-only HAL is not yet wired",
             }),
         };
 
-        assert_eq!(probe.name, "poulpy");
+        assert_eq!(probe.name, "unavailable-backend");
         assert!(matches!(
             probe.availability,
             BackendAvailability::FeatureGap(_)

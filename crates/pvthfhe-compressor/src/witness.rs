@@ -126,12 +126,18 @@ pub const DOMAIN_COEFF_COMMITMENT: Fr = Fr::ONE;
 
 /// Compute a Poseidon sponge hash over an arbitrary slice of field elements.
 ///
-/// This is the generic native Poseidon sponge, suitable for commitment
-/// binding of arbitrary protocol fields. Absorbs all elements into the
-/// sponge and squeezes one field element. Matches the in-circuit
-/// `PoseidonSpongeVar` absorb-then-squeeze behaviour exactly.
-///
-/// Canonical BN254 Poseidon config: rate = 4, capacity = 1, t = 5.
+/// **Deterministic local stub — NOT Poseidon-compatible.** Uses
+/// [`PoseidonParams::canonical`]: t = 5, rate = 4, capacity = 1, RF = 8,
+/// RP = 56 with all-zero round constants and identity MDS. The absorb /
+/// squeeze schedule matches the in-circuit `PoseidonSpongeVar`
+/// absorb-then-squeeze behaviour, but hash outputs are NOT compatible with
+/// real Poseidon (neither the Noir BN254 sponge
+/// `pvthfhe_foundations::types::verification_statement::noir_bn254_sponge`
+/// nor the circom construction). Kept as-is because existing artifacts
+/// depend on its outputs; the divergence is pinned by
+/// `pvthfhe-cli/tests/poseidon_equivalence.rs`
+/// (`golden_compressor_witness_stub_vectors`,
+/// `divergence_compressor_stub_vs_noir_sponge`).
 pub fn poseidon_sponge_hash_native(fields: &[Fr]) -> Fr {
     hash_all_coeffs_with_domain(fields, Fr::zero())
 }

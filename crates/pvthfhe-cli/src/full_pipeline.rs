@@ -43,6 +43,7 @@ use pvthfhe_pvss::nizk_share::{compute_ciphertext_v, compute_share_commitment};
 use pvthfhe_pvss::slot_registry::SmudgeSlotRegistry;
 use pvthfhe_pvss::{EncryptedShares, PvssAdapter};
 use pvthfhe_foundations::rng::OsRng;
+use pvthfhe_foundations::types::verification_statement::noir_bn254_sponge;
 use pvthfhe_foundations::types::{CcsWitnessSecret, ProtocolBytes, Secret};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -833,7 +834,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
                 &proof.proof_bytes,
             )));
         }
-        poseidon_sponge_native_noir(&hash_inputs)
+        noir_poseidon_sponge(&hash_inputs)
     };
     tracing::info!(
         "hash-chain 1.1: all_nizk_proof_hash bound {} proof(s) into NIZK→PVSS session",
@@ -1763,17 +1764,17 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             .chunks(31)
             .map(Fr::from_le_bytes_mod_order)
             .collect();
-        poseidon_sponge_native_noir(&pk_fr)
+        noir_poseidon_sponge(&pk_fr)
     };
-    let aggregate_pk_hash = crate::noir_poseidon::hash_n(&[aggregate_pk_leaf]);
+    let aggregate_pk_hash = noir_poseidon_sponge(&[aggregate_pk_leaf]);
     // C6: Bind decrypt_nizk_hash to sigma fold hash.
     // Without this, an adversary could submit any non-zero NIZK hash and pass the != 0 check.
     // Poseidon(decrypt_nizk_hash_raw, combined_share_hash) ensures the prover
     // must produce BOTH a valid NIZK and a valid sigma fold.
-    let decrypt_nizk_hash_field = crate::noir_poseidon::hash_2(
+    let decrypt_nizk_hash_field = poseidon_hash_native(&[
         Fr::from_be_bytes_mod_order(&decrypt_nizk_hash),
         combined_share_hash,
-    );
+    ]);
     let dkg_transcript_hash = Fr::from_be_bytes_mod_order(&Sha256::digest(
         format!("dkg-transcript-{session_id}").as_bytes(),
     ));
@@ -1787,7 +1788,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         while inputs.len() < NOIR_MAX_PARTICIPANTS + 1 {
             inputs.push(Fr::from(0u64));
         }
-        poseidon_sponge_native_noir(&inputs)
+        noir_poseidon_sponge(&inputs)
     };
     let n_participants = Fr::from(share_coeffs.len() as u64);
     let threshold = Fr::from(cfg.t as u64);
@@ -1814,7 +1815,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         for _ in 8..CIRCUIT_N {
             inputs.push(Fr::zero());
         }
-        poseidon_sponge_native_noir(&inputs)
+        noir_poseidon_sponge(&inputs)
     };
 
     let n_shares_field = Fr::from(share_coeffs.len() as u64);
@@ -1832,14 +1833,14 @@ pub fn run_full_pipeline<O: PipelineObserver>(
             let mut inputs = vec![domain_vec_merkle];
             inputs.extend_from_slice(&share_polys[i][..N_COEFFS]);
             inputs.extend(std::iter::repeat(Fr::zero()).take(CIRCUIT_N - N_COEFFS));
-            poseidon_sponge_native_noir(&inputs)
+            noir_poseidon_sponge(&inputs)
         };
     }
     // Zero-padded entries: compute commitment for zero polynomial
     let zero_poly_commitment = {
         let mut inputs = vec![domain_vec_merkle];
         inputs.extend(std::iter::repeat(Fr::zero()).take(CIRCUIT_N));
-        poseidon_sponge_native_noir(&inputs)
+        noir_poseidon_sponge(&inputs)
     };
     for i in share_coeffs_fr.len()..NOIR_MAX_PARTICIPANTS {
         share_commitments[i] = zero_poly_commitment;
@@ -1860,12 +1861,12 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let dkg_root = dkg_merkle_path
         .iter()
         .fold(aggregate_pk_leaf, |node, sibling| {
-            crate::noir_poseidon::hash_2(node, *sibling)
+            poseidon_hash_native(&[node, *sibling])
         });
 
     // challenge_r is derived from fixed public inputs (not share_commitment_root)
     // matching Noir's derive_challenge_r — no circular dependency.
-    let challenge_r = poseidon_sponge_native_noir(&[
+    let challenge_r = noir_poseidon_sponge(&[
         ciphertext_hash,
         dkg_root,
         session_id_field,
@@ -1883,7 +1884,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         let mut inputs = vec![Fr::from(1u64)];
         inputs.extend_from_slice(&combined_poly[..N_COEFFS]);
         inputs.extend(std::iter::repeat(Fr::zero()).take(CIRCUIT_N - N_COEFFS));
-        poseidon_sponge_native_noir(&inputs)
+        noir_poseidon_sponge(&inputs)
     };
     let mut leaves = vec![zero_poly_commitment; 128];
     leaves[0] = combined_commitment;
@@ -2101,18 +2102,18 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     let pipeline_integrity_hash = {
         let mut acc = Fr::zero();
         let c0 = Fr::from_be_bytes_mod_order(&Sha256::digest(Tag::E2eKeygenNizk.as_bytes()));
-        acc = crate::noir_poseidon::hash_2(acc, c0);
+        acc = poseidon_hash_native(&[acc, c0]);
         let c1 = Fr::from_be_bytes_mod_order(&Sha256::digest(
             format!("pk-contrib-{}", hex::encode(cfg.seed.to_be_bytes())).as_bytes(),
         ));
-        acc = crate::noir_poseidon::hash_2(acc, c1);
+        acc = poseidon_hash_native(&[acc, c1]);
         let c3_h = Fr::from_be_bytes_mod_order(&Sha256::digest(Tag::NizkAdapter.as_bytes()));
-        acc = crate::noir_poseidon::hash_2(acc, c3_h);
-        acc = crate::noir_poseidon::hash_2(acc, all_nizk_proof_hash);
+        acc = poseidon_hash_native(&[acc, c3_h]);
+        acc = poseidon_hash_native(&[acc, all_nizk_proof_hash]);
         let c4_h = Fr::from_be_bytes_mod_order(Sha256::digest(&dkg_root_vec).as_slice());
-        acc = crate::noir_poseidon::hash_2(acc, c4_h);
+        acc = poseidon_hash_native(&[acc, c4_h]);
         let c6_h = Fr::from_be_bytes_mod_order(&decrypt_nizk_hash);
-        acc = crate::noir_poseidon::hash_2(acc, c6_h);
+        acc = poseidon_hash_native(&[acc, c6_h]);
         acc
     };
 
@@ -3280,8 +3281,12 @@ fn combine_hashes_8(hashes: &[Fr; 8], n_active: usize) -> Fr {
     acc
 }
 
-pub fn poseidon_sponge_native_noir(inputs: &[Fr]) -> Fr {
-    crate::noir_poseidon::hash_n(inputs)
+/// Noir-compatible Poseidon sponge (BN254 x5_5, rate 4, capacity 1) over
+/// `inputs`, matching Noir's `poseidon::bn254::sponge`. Canonical
+/// implementation: [`noir_bn254_sponge`] in pvthfhe-foundations; the unwrap is
+/// infallible for valid Fr slices (fixed width-5 Grain-LFSR parameters).
+fn noir_poseidon_sponge(inputs: &[Fr]) -> Fr {
+    noir_bn254_sponge(inputs).expect("Noir BN254 sponge is infallible for valid Fr slices")
 }
 
 pub fn field_from_i64(value: i64) -> Fr {
@@ -3297,7 +3302,7 @@ pub fn compute_share_verification_hash(sk_commitments: &[[u8; 32]]) -> [u8; 32] 
     for commitment in sk_commitments {
         inputs.push(Fr::from_be_bytes_mod_order(commitment));
     }
-    let sponge_output = poseidon_sponge_native_noir(&inputs);
+    let sponge_output = noir_poseidon_sponge(&inputs);
     let mut hash = [0u8; 32];
     hash.copy_from_slice(&sponge_output.into_bigint().to_bytes_be()[..32]);
     hash
@@ -3328,7 +3333,7 @@ pub fn build_binary_merkle_tree(leaves: &[Fr]) -> (Vec<Vec<Fr>>, Fr) {
         for pair in current.chunks(2) {
             let left = pair[0];
             let right = if pair.len() > 1 { pair[1] } else { Fr::zero() };
-            next.push(crate::noir_poseidon::hash_2(left, right));
+            next.push(poseidon_hash_native(&[left, right]));
         }
         levels.push(next);
     }
@@ -3380,14 +3385,14 @@ pub fn build_c7_share_commitment_bundle(
             let mut inputs = vec![domain_vec_merkle];
             inputs.extend_from_slice(&share_polys[i][..N_COEFFS]);
             inputs.extend(std::iter::repeat(Fr::zero()).take(CIRCUIT_N - N_COEFFS));
-            poseidon_sponge_native_noir(&inputs)
+            noir_poseidon_sponge(&inputs)
         };
     }
 
     let zero_poly_commitment = {
         let mut inputs = vec![domain_vec_merkle];
         inputs.extend(std::iter::repeat(Fr::zero()).take(CIRCUIT_N));
-        poseidon_sponge_native_noir(&inputs)
+        noir_poseidon_sponge(&inputs)
     };
     for i in share_coeffs_fr.len()..NOIR_MAX_PARTICIPANTS {
         share_commitments[i] = zero_poly_commitment;
@@ -3405,9 +3410,9 @@ pub fn build_c7_share_commitment_bundle(
         let mut idx = i;
         for lvl in 0..DEPTH_BINARY {
             if idx % 2 == 0 {
-                cur = crate::noir_poseidon::hash_2(cur, merkle_paths[i][lvl]);
+                cur = poseidon_hash_native(&[cur, merkle_paths[i][lvl]]);
             } else {
-                cur = crate::noir_poseidon::hash_2(merkle_paths[i][lvl], cur);
+                cur = poseidon_hash_native(&[merkle_paths[i][lvl], cur]);
             }
             idx /= 2;
         }
@@ -3434,7 +3439,7 @@ pub fn compute_rlc_beta(share_evals: &[Fr]) -> Fr {
         inputs[i] = share_evals[i];
     }
     inputs[128] = Fr::from(8u64); // protocol_constants::DOMAIN_SZ_CHALLENGE
-    poseidon_sponge_native_noir(&inputs)
+    noir_poseidon_sponge(&inputs)
 }
 
 /// Compute RLC combined polynomial = Σ β^i · share_poly_i
@@ -3497,7 +3502,7 @@ pub fn build_c7_prover_toml(
     // Derive challenge_r in-circuit from session-binding inputs (F3 + GAP-1 fix).
     // Must match the Noir derivation: Poseidon(ciphertext_hash, dkg_root, session_id,
     // epoch, participant_set_hash, share_commitment_root, n_shares, DOMAIN_SZ_CHALLENGE=8).
-    let challenge_r = poseidon_sponge_native_noir(&[
+    let challenge_r = noir_poseidon_sponge(&[
         ciphertext_hash,
         dkg_root,
         session_id,
@@ -3709,13 +3714,14 @@ pub fn build_c7_prover_toml(
         for _ in 0..CIRCUIT_N {
             inputs.push(Fr::zero());
         }
-        poseidon_sponge_native_noir(&inputs)
+        noir_poseidon_sponge(&inputs)
     };
     // c2_recipient_pk_root = merkle_root(zero_poly_comm, [0;7], 0)
-    // Noir uses hash_2 (x5_3 permutation), not sponge, for Merkle pairs.
+    // Noir uses hash_2 (x5_3 permutation), not sponge, for Merkle pairs;
+    // poseidon_hash_native is the same x5_3 construction (Phase 1.1 suite).
     let mut c2_root = zero_poly_comm;
     for _ in 0..DEPTH_BINARY {
-        c2_root = crate::noir_poseidon::hash_2(c2_root, Fr::zero());
+        c2_root = poseidon_hash_native(&[c2_root, Fr::zero()]);
     }
     writeln!(s, "c2_pk0_commitment = \"0x{}\"", field_hex_be(zero_poly_comm)).unwrap();
     writeln!(s, "c2_pk1_commitment = \"0x{}\"", field_hex_be(zero_poly_comm)).unwrap();
@@ -3920,7 +3926,7 @@ mod tests {
         let zero_poly_commitment = {
             let mut inputs = vec![Fr::from(1u64)];
             inputs.extend(std::iter::repeat(Fr::zero()).take(CIRCUIT_N));
-            poseidon_sponge_native_noir(&inputs)
+            noir_poseidon_sponge(&inputs)
         };
 
         // For empty share_coeffs_fr all share_polys are zero, so share_evals = 0

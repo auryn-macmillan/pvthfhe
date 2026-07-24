@@ -1,8 +1,20 @@
-//! Ajtai commitment matrix generation and commitment.
+//! Prime-field Ajtai commitment matrix generation and commitment.
 //!
-//! Implements Com_A(w) = A·w for Ajtai commitments over the Cyclo ring.
-//! The matrix A is deterministically derived from an epoch hash using SHA-256,
-//! ensuring verifier-independent reproducibility.
+//! Implements Com_A(w) = A·w over an arbitrary `ark_ff::PrimeField` (bn254 Fr
+//! in practice). The matrix A is deterministically derived from an epoch hash
+//! using SHA-256, ensuring verifier-independent reproducibility.
+//!
+//! # Divergence from `pvthfhe-cyclo::ajtai` — deliberate
+//!
+//! This is a DIFFERENT construction from the canonical ring Ajtai in
+//! [`pvthfhe_cyclo::ajtai`]: that one commits over the cyclotomic ring
+//! `Z_{q_commit}[X]/(X^256+1)` with a ChaCha20-derived matrix, while this one
+//! commits over a prime field with a SHA-256-chained epoch-derived matrix
+//! serving the CCS/folding relation. The two share only the scheme's name;
+//! they are not byte-comparable and are not merged (pinned separately in
+//! `tests/primitive_equivalence.rs`). Renamed from `folding::ajtai` in
+//! Phase 3.2 of the 2026-07-24 repo refactor to make the distinction
+//! load-bearing in the module name.
 //!
 //! # Security
 //!

@@ -1,22 +1,24 @@
-//! Ajtai commitment scheme over `R_{q_commit} = Z_{q_commit}[X]/(X^{256}+1)`.
+//! Ajtai commitment scheme over `R_{q_commit} = Z_{q_commit}[X]/(X^{256}+1)` —
+//! NIZK-side adapter over the canonical implementation in `pvthfhe-cyclo`.
+//!
+//! The ring multiplication, matrix derivation, and commitment computation are
+//! owned by [`pvthfhe_cyclo::ring`] and [`pvthfhe_cyclo::ajtai`] (Phase 3.2 of
+//! the 2026-07-24 repo refactor). This module preserves the NIZK crate's
+//! public API — centred-`i64` [`Rq`], [`AjtaiParams`]/[`AjtaiMatrix`]/
+//! [`AjtaiCommitment`] with [`NizkError`] errors, the D2 digest, and the
+//! witness ∞-norm bound check (which cyclo's `commit` deliberately does not
+//! perform — it is enforced here by wrapping, not duplicating) — by
+//! delegating. Byte-level equivalence with the former in-crate implementation
+//! is pinned by `pvthfhe-aggregator/tests/primitive_equivalence.rs`.
+
 use crate::NizkError;
-use rand_core::RngCore;
+use pvthfhe_cyclo::ajtai as cyclo_ajtai;
+use pvthfhe_cyclo::ring::{ntt_mul, RqPoly};
+use rand_core::{RngCore, SeedableRng};
 use sha2::{Digest, Sha256};
 use subtle::{Choice, ConstantTimeEq};
 
-/// `q_commit = 562_949_953_438_721`
-///
-/// Smallest prime ≥ 2^49 satisfying `q ≡ 1 (mod 1024)`.
-/// The congruence `1 (mod 1024) = 1 (mod 4·256)` is the necessary and
-/// sufficient condition for this prime to support a degree-256 NTT, making
-/// the constant forward-compatible with an NTT optimisation in N4.
-pub const Q_COMMIT: u64 = 562_949_953_438_721;
-
-/// `Q_COMMIT` as i128 for schoolbook multiplication accumulators.
-const Q_I128: i128 = 562_949_953_438_721_i128;
-
-/// Cyclotomic ring degree φ = 256; elements live in `Z[X]/(X^256+1)`.
-pub const PHI: usize = 256;
+pub use pvthfhe_cyclo::ring::{PHI_COMMIT as PHI, Q_COMMIT};
 
 /// Ajtai commitment rank `a = 13` (number of output ring elements).
 pub const AJTAI_RANK: usize = 13;
@@ -77,34 +79,19 @@ impl Rq {
         Ok(out)
     }
 
-    /// Schoolbook negacyclic multiplication in `Z_q[X]/(X^256+1)`.
+    /// Negacyclic multiplication in `Z_q[X]/(X^256+1)`.
     ///
-    /// Phase 2 (N4): will replace with NTT for O(n log n) performance.
+    /// Delegates to the canonical NTT multiplication in
+    /// [`pvthfhe_cyclo::ring::ntt_mul`], proven coefficient-identical to the
+    /// former schoolbook implementation by the Phase-1 equivalence pins.
     pub fn mul(&self, other: &Self) -> Result<Self, NizkError> {
         debug_assert_eq!(self.q, other.q);
-        let mut raw = [0_i128; PHI];
-        for i in 0..PHI {
-            for j in 0..PHI {
-                let prod = i128::from(self.coeffs[i]) * i128::from(other.coeffs[j]);
-                if i + j < PHI {
-                    raw[i + j] += prod;
-                } else {
-                    raw[i + j - PHI] -= prod;
-                }
-            }
-        }
-        let mut coeffs = [0_i64; PHI];
-        for (i, r) in raw.iter().enumerate() {
-            let mut v = r.rem_euclid(Q_I128);
-            if v > Q_I128 / 2 {
-                v -= Q_I128;
-            }
-            coeffs[i] = i64::try_from(v).map_err(|_| NizkError::InvalidInput {
-                reason: "mul coefficient out of i64 range",
+        let product =
+            ntt_mul(&self.to_rqpoly(), &other.to_rqpoly()).map_err(|_| NizkError::InvalidInput {
+                reason: "ajtai ring multiplication failed",
                 party_id: None,
             })?;
-        }
-        Ok(Self { coeffs, q: self.q })
+        Ok(Self::from_rqpoly(&product, self.q))
     }
 
     /// Returns `‖self‖_∞` (maximum absolute coefficient value).
@@ -158,6 +145,31 @@ impl Rq {
             q: Q_COMMIT,
         })
     }
+
+    /// Views the centred coefficients as residues in `[0, Q_COMMIT)`.
+    fn to_rqpoly(&self) -> RqPoly {
+        RqPoly(
+            self.coeffs
+                .iter()
+                .map(|&c| c.rem_euclid(Q_COMMIT as i64) as u64)
+                .collect(),
+        )
+    }
+
+    /// Lifts residues in `[0, Q_COMMIT)` to the centred representation
+    /// `(-Q_COMMIT/2, Q_COMMIT/2]`, tagging the result with modulus `q`.
+    fn from_rqpoly(poly: &RqPoly, q: u64) -> Self {
+        debug_assert_eq!(poly.0.len(), PHI);
+        let mut coeffs = [0i64; PHI];
+        for (i, &c) in poly.0.iter().enumerate() {
+            coeffs[i] = if c > Q_COMMIT / 2 {
+                (c as i128 - Q_COMMIT as i128) as i64
+            } else {
+                c as i64
+            };
+        }
+        Self { coeffs, q }
+    }
 }
 
 /// Locked parameters for the Ajtai commitment.
@@ -184,35 +196,42 @@ impl Default for AjtaiParams {
     }
 }
 
-/// An `a × m` matrix of `Rq` elements sampled deterministically from a seed.
+/// An `a × m` matrix of `Rq` elements derived deterministically from a seed.
+///
+/// The matrix entries are owned by the canonical `pvthfhe-cyclo` Ajtai
+/// implementation (`ChaCha20Rng::from_seed(seed)`, row-major,
+/// `next_u64() % q_commit` per coefficient); this handle carries the seed and
+/// shape needed to regenerate them at commitment time.
 #[derive(PartialEq, Eq)]
 pub struct AjtaiMatrix {
-    pub(crate) rows: Vec<Vec<Rq>>,
+    pub(crate) seed: [u8; 32],
     pub(crate) params: AjtaiParams,
     pub(crate) m: usize,
 }
 
 impl AjtaiMatrix {
-    /// Constructs the matrix by sampling each entry uniformly from `R_q`
-    /// using a seeded `ChaCha20Rng`.
+    /// Binds the matrix to `seed` for a `params.rank × m` commitment matrix.
+    ///
+    /// The entries themselves are derived by the canonical cyclo
+    /// implementation when a commitment is computed.
     pub fn from_seed(seed: [u8; 32], params: &AjtaiParams, m: usize) -> Result<Self, NizkError> {
-        // allow-seeded-rng: API surface; binding enforced at callsite
-        use rand_chacha::ChaCha20Rng;
-        use rand_core::SeedableRng;
-        let mut rng = ChaCha20Rng::from_seed(seed); // allow-seeded-rng: matrix sampler internal to from_seed
-        let mut rows = Vec::with_capacity(params.rank);
-        for _ in 0..params.rank {
-            let mut row = Vec::with_capacity(m);
-            for _ in 0..m {
-                row.push(Rq::sample_uniform(&mut rng, params.q)?);
-            }
-            rows.push(row);
-        }
         Ok(Self {
-            rows,
+            seed,
             params: params.clone(),
             m,
         })
+    }
+
+    /// Parameters of the equivalent canonical `pvthfhe-cyclo` Ajtai instance:
+    /// cyclo's `m` (rows) is this crate's commitment rank, cyclo's `n`
+    /// (columns) is this crate's witness width.
+    fn cyclo_params(&self) -> cyclo_ajtai::AjtaiParams {
+        cyclo_ajtai::AjtaiParams {
+            m: self.params.rank,
+            n: self.m,
+            q_commit: self.params.q,
+            seed: self.seed,
+        }
     }
 }
 
@@ -225,7 +244,9 @@ impl AjtaiCommitment {
     /// Commits to a witness vector `s` under matrix `A`.
     ///
     /// Returns `Err` if any witness element exceeds the ∞-norm bound or if
-    /// `witness.len() != matrix.m`.
+    /// `witness.len() != matrix.m`. The bound check is enforced on the nizk
+    /// side (cyclo's `commit` does not perform it); the commitment itself is
+    /// computed by the canonical cyclo implementation.
     pub fn commit(matrix: &AjtaiMatrix, witness: &[Rq]) -> Result<Self, NizkError> {
         if witness.len() != matrix.m {
             return Err(NizkError::InvalidInput {
@@ -241,15 +262,22 @@ impl AjtaiCommitment {
                 });
             }
         }
-        let mut elems = Vec::with_capacity(matrix.params.rank);
-        for row in &matrix.rows {
-            let mut acc = Rq::zero(matrix.params.q);
-            for (a_ij, s_j) in row.iter().zip(witness.iter()) {
-                acc = acc.add(&a_ij.mul(s_j)?)?;
-            }
-            elems.push(acc);
-        }
-        Ok(Self { elems })
+        let witness_residues: Vec<RqPoly> = witness.iter().map(Rq::to_rqpoly).collect();
+        // The RNG is unused by the canonical implementation (the matrix is
+        // derived from the seed); a throwaway stream satisfies the signature.
+        let mut rng = rand_chacha::ChaCha20Rng::from_seed([0u8; 32]); // allow-seeded-rng: ignored by cyclo commit; matrix derivation is seed-bound
+        let commitment = cyclo_ajtai::commit(&matrix.cyclo_params(), &witness_residues, &mut rng)
+            .map_err(|_| NizkError::InvalidInput {
+                reason: "ajtai commit failed",
+                party_id: None,
+            })?;
+        Ok(Self {
+            elems: commitment
+                .commitment
+                .iter()
+                .map(|p| Rq::from_rqpoly(p, matrix.params.q))
+                .collect(),
+        })
     }
 
     /// Verifies that `claimed_witness` opens this commitment.

@@ -4,13 +4,22 @@
 //! behavior of
 //!   (a) the three Ajtai commitment implementations
 //!       (`pvthfhe-nizk::ajtai`, `pvthfhe-cyclo::ajtai`,
-//!        `pvthfhe-aggregator::folding::ajtai`),
+//!        `pvthfhe-aggregator::folding::field_ajtai`),
 //!   (b) the two Fiat-Shamir transcript modules
 //!       (`pvthfhe-nizk::fiat_shamir`, `pvthfhe-cyclo::fiat_shamir`),
-//!   (c) the norm/range-check and ring helpers duplicated between the
-//!       aggregator (`folding::norm`, `folding::ring_element`) and cyclo
-//!       (`range_check`, `ring`),
-//! so that a later consolidation can be proven behavior-preserving.
+//!   (c) the norm/range-check and ring helpers consolidated in Phase 3.4
+//!       (`pvthfhe-cyclo::ring_element`, re-exported as
+//!       `pvthfhe-aggregator::folding::{ring_element, norm}`) and cyclo
+//!       (`range_check`, `ring`).
+//!
+//! Phase 3 consolidation status (these pins are the behavior lock):
+//!   - `pvthfhe-nizk::ajtai` is now a thin adapter over `pvthfhe-cyclo::ajtai`
+//!     (Phase 3.2); the nizk-side D2 digests below must stay green.
+//!   - `pvthfhe-aggregator::folding::ajtai` was renamed to
+//!     `folding::field_ajtai` (Phase 3.2) — a divergent prime-field
+//!     construction, kept and pinned separately.
+//!   - `pvthfhe-aggregator::folding::ring_element` re-exports
+//!     `pvthfhe-cyclo::ring_element::RingElement` (Phase 3.4).
 //!
 //! # Vector provenance
 //!
@@ -33,7 +42,7 @@
 use ark_bn254::Fr;
 use ark_ff::fields::{Fp64, MontBackend};
 use ark_ff::PrimeField;
-use pvthfhe_aggregator::folding::ajtai::AjtaiMatrix as FieldAjtaiMatrix;
+use pvthfhe_aggregator::folding::field_ajtai::AjtaiMatrix as FieldAjtaiMatrix;
 use pvthfhe_aggregator::folding::norm::{enforce_norm_inf, validate_folding_witness};
 use pvthfhe_aggregator::folding::ring_element::RingElement;
 use pvthfhe_cyclo::ajtai::{
@@ -651,7 +660,7 @@ fn nizk_cyclo_ring_arithmetic_equivalence() {
     );
 }
 
-/// The aggregator's `folding::ajtai` is a DIFFERENT construction (prime-field
+/// The aggregator's `folding::field_ajtai` is a DIFFERENT construction (prime-field
 /// matrix–vector product over bn254 Fr, SHA-256-derived matrix): pin its
 /// behavior separately; it is not byte-comparable with the ring-based pair.
 #[test]

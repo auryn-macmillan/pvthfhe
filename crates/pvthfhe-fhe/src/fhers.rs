@@ -2,7 +2,7 @@
 
 use crate::{
     error::FheError,
-    mock_impl,
+    mock,
     types::{Ciphertext, DecryptShare, KeygenShare, Params, PublicKey as OpaquePublicKey},
     wire, DecryptionWitness, EncryptionWitness, FheBackend,
 };
@@ -750,7 +750,7 @@ fn validate_decrypt_share_context(
 impl FheBackend for FhersBackend {
     fn load_params(toml: &str) -> Result<Self, FheError> {
         // Parse and validate params — this succeeds so callers can inspect them.
-        let params = mock_impl::parse_params(toml)?;
+        let params = mock::parse_params(toml)?;
         let bfv_params = BfvParametersBuilder::new()
             .set_degree(params.n as usize)
             .set_moduli(&params.moduli)

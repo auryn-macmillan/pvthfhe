@@ -1,5 +1,15 @@
 //! Fiat-Shamir transcript with locked domain separator for PVTHFHE.
 //!
+//! # Domain — sigma transcripts
+//!
+//! This module serves the **sigma-protocol** side of the system: the NIZK
+//! proofs (Ajtai D2 and BFV sigma) whose transcripts are domain-separated
+//! under `pvthfhe/cyclo-ajtai-d2/v1/`. The folding side uses the deliberately
+//! different transcript construction in `pvthfhe-cyclo::fiat_shamir` (folding
+//! transcripts, `pvthfhe-cyclo-*` domains). The two are not interchangeable
+//! and are intentionally not unified; each side's behavior is pinned by
+//! `pvthfhe-aggregator/tests/primitive_equivalence.rs`.
+//!
 //! # Determinism guarantee
 //!
 //! Given identical `session_id`, `participant_id`, and the same sequence of

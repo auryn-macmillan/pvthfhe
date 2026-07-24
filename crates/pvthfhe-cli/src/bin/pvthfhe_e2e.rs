@@ -388,17 +388,18 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
     let ciphertext_hash =
         Fr::from_be_bytes_mod_order(&Sha256::digest(report.session_id.as_bytes()));
     let aggregate_pk_leaf = {
-        use pvthfhe_cli::full_pipeline::poseidon_sponge_native_noir;
+        use pvthfhe_foundations::types::verification_statement::noir_bn254_sponge;
         let pk_fr: Vec<Fr> = report
             .aggregate_pk_bytes
             .chunks(31)
             .map(Fr::from_le_bytes_mod_order)
             .collect();
-        poseidon_sponge_native_noir(&pk_fr)
+        noir_bn254_sponge(&pk_fr).expect("Noir BN254 sponge is infallible for valid Fr slices")
     };
     let aggregate_pk_hash = {
-        use pvthfhe_cli::full_pipeline::poseidon_sponge_native_noir;
-        poseidon_sponge_native_noir(&[aggregate_pk_leaf])
+        use pvthfhe_foundations::types::verification_statement::noir_bn254_sponge;
+        noir_bn254_sponge(&[aggregate_pk_leaf])
+            .expect("Noir BN254 sponge is infallible for valid Fr slices")
     };
     let _merkle_path: [ark_bn254::Fr; 7] = [ark_bn254::Fr::from(0u64); 7];
     let leaf_index = ark_bn254::Fr::from(0u64);
@@ -408,7 +409,7 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
     ));
     let epoch = Fr::from(1u64);
     let participant_set_hash = {
-        use pvthfhe_cli::full_pipeline::poseidon_sponge_native_noir;
+        use pvthfhe_foundations::types::verification_statement::noir_bn254_sponge;
         let noir_max = 128usize;
         let mut inputs = Vec::with_capacity(noir_max + 1);
         inputs.push(Fr::from(1u64));
@@ -418,7 +419,7 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
         while inputs.len() < noir_max + 1 {
             inputs.push(Fr::from(0u64));
         }
-        poseidon_sponge_native_noir(&inputs)
+        noir_bn254_sponge(&inputs).expect("Noir BN254 sponge is infallible for valid Fr slices")
     };
     let n_participants = Fr::from(report.share_coeffs.len() as u64);
     let threshold = Fr::from(report.share_coeffs.len() as u64);
@@ -435,13 +436,13 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
         nova_final_plaintext[k] = sum;
     }
     let plaintext_commitment = {
-        use pvthfhe_cli::full_pipeline::poseidon_sponge_native_noir;
+        use pvthfhe_foundations::types::verification_statement::noir_bn254_sponge;
         let mut inputs = Vec::with_capacity(9);
         inputs.push(Fr::from(1u64));
         for k in 0..8 {
             inputs.push(nova_final_plaintext[k]);
         }
-        poseidon_sponge_native_noir(&inputs)
+        noir_bn254_sponge(&inputs).expect("Noir BN254 sponge is infallible for valid Fr slices")
     };
 
     let n_shares_field = Fr::from(report.share_coeffs.len() as u64);
@@ -463,18 +464,18 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
 
     // Build RLC witness data.
     let zero_poly_commitment = {
-        use pvthfhe_cli::full_pipeline::poseidon_sponge_native_noir;
+        use pvthfhe_foundations::types::verification_statement::noir_bn254_sponge;
         let mut inputs = Vec::with_capacity(9);
         inputs.push(Fr::from(1u64));
         for _ in 0..8 {
             inputs.push(Fr::zero());
         }
-        poseidon_sponge_native_noir(&inputs)
+        noir_bn254_sponge(&inputs).expect("Noir BN254 sponge is infallible for valid Fr slices")
     };
 
     let derive_challenge_r = |root: Fr| -> Fr {
-        use pvthfhe_cli::full_pipeline::poseidon_sponge_native_noir;
-        poseidon_sponge_native_noir(&[
+        use pvthfhe_foundations::types::verification_statement::noir_bn254_sponge;
+        noir_bn254_sponge(&[
             ciphertext_hash,
             dkg_root,
             session_id_field,
@@ -484,6 +485,7 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
             n_shares_field,
             Fr::from(8u64),
         ])
+        .expect("Noir BN254 sponge is infallible for valid Fr slices")
     };
     use pvthfhe_cli::full_pipeline::compute_combined_poly;
     use pvthfhe_cli::full_pipeline::eval_c7_share_poly_noir;
@@ -493,13 +495,13 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
         .collect();
     let combined_poly_init = compute_combined_poly(&share_polys, &share_evals_init);
     let combined_commitment_init = {
-        use pvthfhe_cli::full_pipeline::poseidon_sponge_native_noir;
+        use pvthfhe_foundations::types::verification_statement::noir_bn254_sponge;
         let mut inputs = Vec::with_capacity(9);
         inputs.push(Fr::from(1u64));
         for k in 0..8 {
             inputs.push(combined_poly_init[k]);
         }
-        poseidon_sponge_native_noir(&inputs)
+        noir_bn254_sponge(&inputs).expect("Noir BN254 sponge is infallible for valid Fr slices")
     };
     let mut leaves_init = vec![zero_poly_commitment; 128];
     leaves_init[0] = combined_commitment_init;
@@ -513,13 +515,13 @@ fn run_noir_aggregator_final_optional(report: &PipelineReport) {
     let combined_poly = compute_combined_poly(&share_polys, &share_evals);
 
     let combined_commitment = {
-        use pvthfhe_cli::full_pipeline::poseidon_sponge_native_noir;
+        use pvthfhe_foundations::types::verification_statement::noir_bn254_sponge;
         let mut inputs = Vec::with_capacity(9);
         inputs.push(Fr::from(1u64));
         for k in 0..8 {
             inputs.push(combined_poly[k]);
         }
-        poseidon_sponge_native_noir(&inputs)
+        noir_bn254_sponge(&inputs).expect("Noir BN254 sponge is infallible for valid Fr slices")
     };
     let mut leaves = vec![zero_poly_commitment; 128];
     leaves[0] = combined_commitment;

@@ -1,3 +1,15 @@
+//! Fiat-Shamir transcripts for the Cyclo LatticeFold+ folding pipeline.
+//!
+//! # Domain — folding transcripts
+//!
+//! This module serves the **folding** side of the system: one-shot
+//! challenge/commitment digests for accumulator steps plus the ternary
+//! challenge transcript, all domain-separated under `pvthfhe-cyclo-*` tags.
+//! The sigma-protocol (NIZK) side uses the deliberately different transcript
+//! in `pvthfhe-nizk::fiat_shamir` (domain `pvthfhe/cyclo-ajtai-d2/v1/`). The
+//! two are not interchangeable and are intentionally not unified; each side's
+//! behavior is pinned by `pvthfhe-aggregator/tests/primitive_equivalence.rs`.
+
 use pvthfhe_foundations::domain_tags::Tag;
 use sha2::{Digest, Sha256};
 

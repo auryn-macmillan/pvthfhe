@@ -17,15 +17,11 @@ compile_error!("pvthfhe-fhe production-profile forbids trace-decrypt instrumenta
 
 pub mod error;
 pub mod fhers;
+pub mod mock;
 #[cfg(feature = "real-nizk")]
 pub mod real_nizk;
 pub mod types;
 pub mod wire;
-
-mod mock_impl;
-
-#[cfg(not(feature = "production-profile"))]
-pub mod mock;
 
 pub use error::FheError;
 pub use pvthfhe_foundations::types::{DecryptionWitness, EncryptionWitness};

@@ -1,42 +1,57 @@
-//! Behavior-pinning golden tests for the FIVE native Poseidon implementations
-//! in this repo (Phase 1.1 of `.omo/plans/repo-refactor-2026-07-24.md`).
+//! Behavior-pinning golden tests for the native Poseidon implementations in
+//! this repo (Phase 1.1 of `.omo/plans/repo-refactor-2026-07-24.md`; updated
+//! in Phase 3.1, which consolidated the three identical Noir sponges A/B1/D
+//! into the single canonical implementation D).
 //!
-//! The five implementations ("A"–"E"):
+//! The implementations pinned here:
 //!
-//! - **A** `pvthfhe-cli/src/noir_poseidon.rs` — Noir-compatible sponge
-//!   (`sponge`, a.k.a. `poseidon_sponge_native_noir` / `hash_n`), x5_5
-//!   permutation (t=5, RF=8, RP=60), rate=4, capacity=1, absorb at
-//!   `state[1+i]`, squeeze `state[1]`, empty input → 0 (no permutation).
-//!   Constants parsed from Noir's `poseidon` v0.3.0 `bn254/consts.nr`.
-//! - **B1** `pvthfhe-cli/src/full_pipeline.rs::poseidon_sponge_native_noir`
-//!   (~line 3291) — a duplicate symbol that *delegates* to
-//!   `noir_poseidon::hash_n`, hence identical to A by construction.
-//! - **B2** `pvthfhe-cli/src/full_pipeline.rs::poseidon_hash_native`
-//!   (~line 3257) — `light_poseidon::Poseidon::<Fr>::new_circom(len).hash(..)`;
-//!   single permutation over `[0, inputs..]` with width = len+1 (max 12
-//!   inputs, width ≤ 13 = MAX_X5_LEN), output `state[0]`. **Private**; its
-//!   only caller sits deep inside the private FHE pipeline, so it is pinned
-//!   here through an exact replica of its two-call body against the same
+//! - **D — CANONICAL** `pvthfhe-foundations/src/types/verification_statement.rs`
+//!   public sponge `noir_bn254_sponge` over the private `poseidon_permute`,
+//!   using `light_poseidon::parameters::bn254_x5::get_poseidon_parameters(5)`
+//!   (width 5, RF=8, RP=60 — Grain-LFSR constants), Noir x5_5 sponge schedule:
+//!   rate=4, capacity=1, absorb at `state[1+i]`, squeeze `state[1]`, empty
+//!   input → 0 (no permutation). **This is the only surviving native Noir
+//!   sponge** after Phase 3.1; `pvthfhe-cli` call sites use it directly.
+//! - **B2** `pvthfhe-cli/src/full_pipeline.rs::poseidon_hash_native` —
+//!   `light_poseidon::Poseidon::<Fr>::new_circom(len).hash(..)`; single
+//!   permutation over `[0, inputs..]` with width = len+1 (max 12 inputs,
+//!   width ≤ 13 = MAX_X5_LEN), output `state[0]`. **Private**; pinned here
+//!   through an exact replica of its two-call body against the same
 //!   `light-poseidon` 0.4.0 (single version in `Cargo.lock`), and that
 //!   replica is in turn proven byte-identical to E through E's public API.
+//!   Since Phase 3.1 it also serves the former `noir_poseidon::hash_2` call
+//!   sites (Merkle pairs, hash chains): Noir's fixed-arity `bn254::hash_2`
+//!   is the same x5_3 construction — the deleted module's cross-language pin
+//!   `hash_2([1,2]) = 0x115c…189a` equals `GOLDEN_CIRCOM` V3_1_2.
 //! - **C** `pvthfhe-compressor/src/witness.rs::poseidon_sponge_hash_native`
-//!   (~line 135) — **documented degenerate stub** ("Track A: Nova removed,
-//!   local stub"): t=5, rate=4, capacity=1, RF=8, RP=56 (≠ Noir's 60),
-//!   all-zero round constants, identity MDS. Its own docs state hash
-//!   outputs are NOT compatible with real Poseidon. Same absorb schedule
-//!   as A but always applies a final permutation (vacuous given the stub
-//!   constants: 0 and identity lanes are fixed points).
-//! - **D** `pvthfhe-foundations/src/types/verification_statement.rs` — public sponge
-//!   `noir_bn254_sponge` over the private `poseidon_permute` (~line 425),
-//!   using `light_poseidon::parameters::bn254_x5::get_poseidon_parameters(5)`
-//!   (width 5, RF=8, RP=60 — Grain-LFSR constants), same Noir sponge
-//!   schedule as A, squeeze `state[1]`.
-//! - **E** `pvthfhe-nizk/src/sigma.rs::poseidon_hash` (~line 775) —
+//!   — **documented degenerate stub** ("Track A: Nova removed, local
+//!   stub"): t=5, rate=4, capacity=1, RF=8, RP=56 (≠ Noir's 60), all-zero
+//!   round constants, identity MDS. Its own docs state hash outputs are NOT
+//!   compatible with real Poseidon. Same absorb schedule as D but always
+//!   applies a final permutation (vacuous given the stub constants: 0 and
+//!   identity lanes are fixed points). Kept because existing artifacts
+//!   depend on its outputs; NOT consolidated.
+//! - **E** `pvthfhe-nizk/src/sigma.rs::poseidon_hash` —
 //!   `light_poseidon::Poseidon::<Fr>::new_circom(len).hash(..)`, byte-for-byte
 //!   the same construction as B2. **Private**; reached only through the
 //!   public `derive_challenge_from_commitment`, which fixes arity 2 and
 //!   reduces the Fr output to a ternary challenge. Pinned via that public
 //!   API (8 transcript vectors) and cross-checked against the B2 replica.
+//!
+//! ## Removed in Phase 3.1 (consolidated into D)
+//!
+//! - **A** `pvthfhe-cli/src/noir_poseidon.rs` (1,227 LOC, deleted) — Noir
+//!   x5_5 sponge with constants parsed at compile time from an absolute-host
+//!   `include_str!` of Noir's `poseidon` v0.3.0 `consts.nr`. Proven
+//!   byte-identical to D on all 8 goldens below before deletion
+//!   (`cross_impl_noir_sponges_byte_identical`, since removed as fulfilled).
+//!   Its fixed-arity `hash_2`/`hash_9` (x5_3/x5_10, output `state[0]`) were
+//!   NOT sponge-compatible; live call sites used only `hash_2`, repointed to
+//!   B2 (same construction, proven identical — see B2 above). `hash_9` had
+//!   no call sites.
+//! - **B1** `pvthfhe-cli/src/full_pipeline.rs::poseidon_sponge_native_noir`
+//!   (deleted) — a thin wrapper delegating to A's sponge; all call sites now
+//!   use D.
 //!
 //! ## How the goldens were produced
 //!
@@ -48,11 +63,12 @@
 //! cargo test -p pvthfhe-cli --test poseidon_equivalence -- --nocapture
 //! ```
 //!
-//! Two independent pre-existing pins cross-validate the generated values:
-//! `noir_poseidon.rs`'s own `#[cfg(test)]` cross-language vectors (verified
-//! against Noir's `poseidon::bn254::sponge`, e.g. sponge([1,2]) = 0x2ddd…2c37)
-//! and `GOLDEN_STATEMENT_HASH_{DECIMAL,HEX}` in `pvthfhe-foundations::types` (verified
-//! against the Noir statement-hash circuit). A and D reproduce both.
+//! Two independent pre-existing pins cross-validated the generated values:
+//! the deleted `noir_poseidon.rs`'s own `#[cfg(test)]` cross-language
+//! vectors (verified against Noir's `poseidon::bn254::sponge`, e.g.
+//! sponge([1,2]) = 0x2ddd…2c37) and `GOLDEN_STATEMENT_HASH_{DECIMAL,HEX}` in
+//! `pvthfhe-foundations::types` (verified against the Noir statement-hash
+//! circuit). D reproduces both (and A did too, pre-deletion).
 //!
 //! ## Known-divergence provenance
 //!
@@ -154,8 +170,10 @@ fn circom_vectors() -> Vec<(&'static str, Vec<Fr>)> {
 
 // ── Pinned expected outputs (32-byte big-endian hex of the Fr digest) ───────
 
-/// Golden outputs of the Noir-compatible sponge (implementations A, B1, D —
-/// proven byte-identical by `cross_impl_noir_sponges_byte_identical`).
+/// Golden outputs of the Noir-compatible sponge — since Phase 3.1 pinned
+/// only against the canonical implementation D (A/B1 were proven
+/// byte-identical to D by `cross_impl_noir_sponges_byte_identical` and then
+/// consolidated into it; that test is removed as fulfilled).
 const GOLDEN_NOIR_SPONGE: [(&str, &str); 8] = [
     ("V0_empty", "0000000000000000000000000000000000000000000000000000000000000000"),
     ("V1_zero", "2875620e99eb8e792ddd736e15a21a653ddc6724a8e6133eea0fa9adfeb75e02"),
@@ -182,7 +200,10 @@ const GOLDEN_COMPRESSOR_STUB: [(&str, &str); 8] = [
 
 /// Golden outputs of the circom construction shared by B2 and E
 /// (`light_poseidon::Poseidon::new_circom(len).hash(..)`, single permutation,
-/// output `state[0]`).
+/// output `state[0]`). V3_1_2 (`0x115c…189a`) is additionally the
+/// cross-language pin of Noir's fixed-arity `bn254::hash_2([1,2])` (x5_3),
+/// inherited from the deleted `noir_poseidon.rs` — evidence that the former
+/// `hash_2` call sites (now on B2's construction) are unchanged.
 const GOLDEN_CIRCOM: [(&str, &str); 6] = [
     ("V1_zero", "2a09a9fd93c590c26b91effbb2499f07e8f7aa12e2b4940a3aed2411cb65e11c"),
     ("V2_one", "29176100eaa962bdc1fe6c654d6a3c130e96a4d1168b33848b897dc502820133"),
@@ -369,45 +390,6 @@ fn nizk_challenge_replica(
 
 // ── Golden tests: one per implementation ────────────────────────────────────
 
-/// A: `pvthfhe-cli/src/noir_poseidon.rs` sponge (8 vectors).
-#[test]
-fn golden_noir_sponge_cli_noir_poseidon() {
-    for (name, input) in sponge_vectors() {
-        let expected = GOLDEN_NOIR_SPONGE
-            .iter()
-            .find(|(n, _)| *n == name)
-            .expect("every vector has a golden entry")
-            .1;
-        let actual = pvthfhe_cli::noir_poseidon::sponge(&input);
-        assert_eq!(
-            actual,
-            fr_from_hex(expected),
-            "A (cli/noir_poseidon::sponge) diverged on {name}: got 0x{}",
-            fr_hex(&actual),
-        );
-    }
-}
-
-/// B1: `pvthfhe-cli/src/full_pipeline.rs::poseidon_sponge_native_noir`
-/// duplicate (8 vectors, same table as A).
-#[test]
-fn golden_noir_sponge_cli_full_pipeline_duplicate() {
-    for (name, input) in sponge_vectors() {
-        let expected = GOLDEN_NOIR_SPONGE
-            .iter()
-            .find(|(n, _)| *n == name)
-            .expect("every vector has a golden entry")
-            .1;
-        let actual = pvthfhe_cli::full_pipeline::poseidon_sponge_native_noir(&input);
-        assert_eq!(
-            actual,
-            fr_from_hex(expected),
-            "B1 (full_pipeline::poseidon_sponge_native_noir) diverged on {name}: got 0x{}",
-            fr_hex(&actual),
-        );
-    }
-}
-
 /// C: `pvthfhe-compressor/src/witness.rs::poseidon_sponge_hash_native`
 /// stub (8 vectors, its own table — documented Poseidon-incompatible).
 #[test]
@@ -428,8 +410,9 @@ fn golden_compressor_witness_stub_vectors() {
     }
 }
 
-/// D: `pvthfhe-foundations/src/types/verification_statement.rs` private `poseidon_permute`
-/// via the public `noir_bn254_sponge` (8 vectors, same table as A).
+/// D — CANONICAL: `pvthfhe-foundations/src/types/verification_statement.rs`
+/// private `poseidon_permute` via the public `noir_bn254_sponge` (8 vectors).
+/// This is the single surviving native Noir sponge after Phase 3.1.
 #[test]
 fn golden_noir_sponge_types_verification_statement() {
     for (name, input) in sponge_vectors() {
@@ -532,20 +515,6 @@ fn golden_nizk_sigma_derive_challenge_from_commitment() {
 
 // ── Cross-implementation equality ───────────────────────────────────────────
 
-/// A ≡ B1 ≡ D: the three Noir-compatible sponges are byte-identical on all
-/// 8 vectors. This is the equivalence Phase 3 relies on to consolidate them.
-#[test]
-fn cross_impl_noir_sponges_byte_identical() {
-    for (name, input) in sponge_vectors() {
-        let a = pvthfhe_cli::noir_poseidon::sponge(&input);
-        let b1 = pvthfhe_cli::full_pipeline::poseidon_sponge_native_noir(&input);
-        let d = pvthfhe_foundations::types::verification_statement::noir_bn254_sponge(&input)
-            .expect("D sponge never fails");
-        assert_eq!(a, b1, "A != B1 on {name}");
-        assert_eq!(a, d, "A != D on {name}");
-    }
-}
-
 /// B2 ≡ E: both are `light_poseidon::Poseidon::new_circom(len).hash(..)`
 /// over the same crate version (single light-poseidon 0.4.0 in Cargo.lock).
 /// Proven behaviorally: for every circom-legal input the replica matches
@@ -590,22 +559,19 @@ fn divergence_s1_native_keccak_vs_all_poseidon() {
     let input = v6_s1_state();
     let keccak_fr = Fr::from_be_bytes_mod_order(&S1_NATIVE_KECCAK_OF_1_2_3_4);
 
-    let a = pvthfhe_cli::noir_poseidon::sponge(&input);
-    let b1 = pvthfhe_cli::full_pipeline::poseidon_sponge_native_noir(&input);
     let c = pvthfhe_compressor::witness::poseidon_sponge_hash_native(&input);
     let d = pvthfhe_foundations::types::verification_statement::noir_bn254_sponge(&input).expect("D sponge");
     let b2 = circom_hash_b2_replica(&input);
 
-    for (label, value) in [("A", a), ("B1", b1), ("C", c), ("D", d), ("B2", b2)] {
+    for (label, value) in [("C", c), ("D", d), ("B2", b2)] {
         assert_ne!(
             value, keccak_fr,
             "{label} must not equal the s1 native Keccak commitment (documented divergence)"
         );
     }
-    // The Noir side of the s1 divergence: A and D agree with each other…
-    assert_eq!(a, d, "Noir-side implementations must agree on the s1 vector");
-    // …and D on the s1 statement preimage reproduces the cross-language
-    // golden pinned in pvthfhe-foundations::types (s1 case #2).
+    // The Noir side of the s1 divergence, case #2: D on the s1 statement
+    // preimage reproduces the cross-language golden pinned in
+    // pvthfhe-foundations::types.
     let d_stmt = pvthfhe_foundations::types::verification_statement::noir_bn254_sponge(
         &v7_golden_statement_preimage(),
     )
@@ -619,20 +585,21 @@ fn divergence_s1_native_keccak_vs_all_poseidon() {
 
 /// C is a documented stub (zero ARK, identity MDS, RP=56): it diverges from
 /// the real Noir sponge on every non-trivial vector. (On the empty input
-/// both return 0 — A because it never permutes, C because its degenerate
+/// both return 0 — D because it never permutes, C because its degenerate
 /// permutation fixes the zero state. The agreement is accidental, not
 /// compatibility.)
 #[test]
 fn divergence_compressor_stub_vs_noir_sponge() {
     for (name, input) in sponge_vectors() {
-        let a = pvthfhe_cli::noir_poseidon::sponge(&input);
+        let d = pvthfhe_foundations::types::verification_statement::noir_bn254_sponge(&input)
+            .expect("D sponge never fails");
         let c = pvthfhe_compressor::witness::poseidon_sponge_hash_native(&input);
         if name == "V0_empty" {
-            assert_eq!(a, c, "empty input is 0 in both (accidental agreement)");
+            assert_eq!(d, c, "empty input is 0 in both (accidental agreement)");
         } else {
             assert_ne!(
-                a, c,
-                "C (stub) must differ from A (Noir sponge) on {name} — documented divergence"
+                d, c,
+                "C (stub) must differ from D (Noir sponge) on {name} — documented divergence"
             );
         }
     }
@@ -644,24 +611,14 @@ fn divergence_compressor_stub_vs_noir_sponge() {
 #[test]
 fn divergence_circom_vs_noir_sponge() {
     for (name, input) in circom_vectors() {
-        let a = pvthfhe_cli::noir_poseidon::sponge(&input);
+        let d = pvthfhe_foundations::types::verification_statement::noir_bn254_sponge(&input)
+            .expect("D sponge never fails");
         let b2 = circom_hash_b2_replica(&input);
         assert_ne!(
-            a, b2,
-            "B2 (circom) must differ from A (Noir sponge) on {name} — different constructions"
+            d, b2,
+            "B2 (circom) must differ from D (Noir sponge) on {name} — different constructions"
         );
     }
-    // Related-but-distinct: the circom construction equals Noir's
-    // *fixed-arity* `bn254::hash_2` (x5_3, state=[0, l, r], output state[0]),
-    // which `noir_poseidon::hash_2` also implements — sanity-check that the
-    // two libraries' width-3 Grain constants agree.
-    let l = Fr::from(1u64);
-    let r = Fr::from(2u64);
-    assert_eq!(
-        pvthfhe_cli::noir_poseidon::hash_2(l, r),
-        circom_hash_b2_replica(&[l, r]),
-        "circom arity-2 hash and Noir bn254::hash_2 share the x5_3 construction"
-    );
 }
 
 /// The circom construction's arity bounds: 1..=12 inputs (width 2..=13).

@@ -26,6 +26,7 @@ pub mod fold;
 pub mod nifs;
 pub mod range_check;
 pub mod ring;
+pub mod ring_element;
 
 pub use accumulator_codec::{AccumulatorInstanceRef, ACCUMULATOR_VERSION};
 

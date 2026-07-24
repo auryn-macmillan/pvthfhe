@@ -38,5 +38,3 @@ pub mod full_pipeline;
 
 #[cfg(feature = "with-fhe")]
 pub mod protocol_verifier;
-
-pub mod noir_poseidon;

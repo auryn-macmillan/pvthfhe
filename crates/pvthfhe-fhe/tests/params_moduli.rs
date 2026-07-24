@@ -13,8 +13,8 @@ mod types {
 
 pub use pvthfhe_fhe::FheBackend;
 
-#[path = "../src/mock_impl.rs"]
-mod mock_impl;
+#[path = "../src/mock.rs"]
+mod mock;
 
 const PARAMS_TOML_WITH_MODULI: &str = r#"
 [rlwe]
@@ -27,7 +27,7 @@ variance = 10
 
 #[test]
 fn parse_params_round_trips_explicit_moduli_and_variance() {
-    let params = mock_impl::parse_params(PARAMS_TOML_WITH_MODULI).expect("params parse");
+    let params = mock::parse_params(PARAMS_TOML_WITH_MODULI).expect("params parse");
 
     assert_eq!(params.n, 8192);
     assert_eq!(params.log2_q, 174);

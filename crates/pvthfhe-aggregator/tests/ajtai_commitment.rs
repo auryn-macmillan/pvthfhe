@@ -3,7 +3,7 @@
 
 use ark_bn254::Fr;
 use ark_ff::Zero;
-use pvthfhe_aggregator::folding::ajtai::AjtaiMatrix;
+use pvthfhe_aggregator::folding::field_ajtai::AjtaiMatrix;
 
 #[test]
 fn ajtai_commit_is_deterministic() {

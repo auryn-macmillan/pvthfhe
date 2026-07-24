@@ -789,8 +789,8 @@ impl Default for HashChainCycloAdapter {
     }
 }
 
-pub mod ajtai;
 pub mod ccs_adapter;
+pub mod field_ajtai;
 pub mod norm;
 pub mod ring_element;
 

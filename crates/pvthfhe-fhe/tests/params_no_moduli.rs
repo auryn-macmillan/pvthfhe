@@ -11,8 +11,8 @@ mod types {
 
 pub use pvthfhe_fhe::FheBackend;
 
-#[path = "../src/mock_impl.rs"]
-mod mock_impl;
+#[path = "../src/mock.rs"]
+mod mock;
 
 const PARAMS_TOML_WITHOUT_MODULI: &str = r#"
 [rlwe]
@@ -24,7 +24,7 @@ variance = 10
 
 #[test]
 fn params_no_moduli_rejects_missing_moduli() {
-    let result = mock_impl::parse_params(PARAMS_TOML_WITHOUT_MODULI);
+    let result = mock::parse_params(PARAMS_TOML_WITHOUT_MODULI);
 
     assert_eq!(
         result,

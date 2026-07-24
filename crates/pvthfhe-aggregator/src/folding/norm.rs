@@ -1,3 +1,13 @@
+//! Aggregator-facing norm enforcement over the canonical cyclo ring element.
+//!
+//! [`RingElement`] and its `norm_inf` are owned by `pvthfhe-cyclo`
+//! (`ring_element` / `ring::norm_inf` / `range_check::check_range`) — Phase
+//! 3.4 of the 2026-07-24 repo refactor. These functions are thin labeled
+//! wrappers whose `String` error surface (`"<label> norm <got> exceeds bound
+//! <bound>"`) is part of the aggregator's API and is pinned verbatim by
+//! `tests/primitive_equivalence.rs`; the accept/reject verdicts agree with
+//! `pvthfhe_cyclo::range_check::check_range` on the shared domain.
+
 use crate::folding::ring_element::RingElement;
 use ark_ff::PrimeField;
 

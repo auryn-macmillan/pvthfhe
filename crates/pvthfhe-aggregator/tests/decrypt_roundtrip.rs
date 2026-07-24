@@ -1,7 +1,11 @@
-//! Integration tests: decrypt_roundtrip.
+//! A proofless decrypt share must be rejected (R10 hardening).
+//!
+//! `partial_decrypt` with no secret-key material yields a payload whose NIZK
+//! field is empty; `aggregate_decrypt` must refuse it with
+//! `DecryptError::NizkVerify` instead of releasing plaintext.
 #![allow(clippy::unwrap_used)]
 
-use pvthfhe_aggregator::decrypt::{aggregate_decrypt, partial_decrypt};
+use pvthfhe_aggregator::decrypt::{aggregate_decrypt, partial_decrypt, DecryptError};
 use pvthfhe_fhe::{mock::MockBackend, types::Ciphertext, FheBackend};
 use serde_json::Value;
 use std::fs;
@@ -12,24 +16,12 @@ fn acknowledge_mock_backend() {
     }
 }
 
-fn ok<T, E: std::fmt::Debug>(r: Result<T, E>, ctx: &str) -> T {
-    match r {
-        Ok(v) => v,
-        Err(e) => unreachable!("{ctx}: {e:?}"),
-    }
-}
-
 #[test]
-fn decrypt_roundtrip_golden() {
+fn decrypt_rejects_proofless_share() {
     acknowledge_mock_backend();
-    let vector_str = ok(
-        fs::read_to_string("../../crates/pvthfhe-core/tests/vectors/vector_01.json"),
-        "Failed to read golden vector",
-    );
+    let vector_str = fs::read_to_string("../../crates/pvthfhe-tests/tests/vectors/vector_01.json")
+        .expect("read golden vector");
     let vector: Value = serde_json::from_str(&vector_str).unwrap();
-
-    let plaintext_hex = vector["plaintext"].as_str().unwrap();
-    let expected_plaintext = hex::decode(plaintext_hex).unwrap();
 
     let ct_hex = vector["ciphertext"].as_str().unwrap();
     let ct = Ciphertext {
@@ -69,21 +61,25 @@ fn decrypt_roundtrip_golden() {
     )
     .unwrap();
 
-    let threshold = 2;
-    let allowed_parties = vec![1, 2, 3];
+    assert!(
+        share1.nizk.is_empty(),
+        "share produced without secret key material must carry an empty NIZK"
+    );
 
-    let recovered = aggregate_decrypt(
+    let result = aggregate_decrypt(
         &backend,
         &ct,
         &[share1, share2],
-        threshold,
-        &allowed_parties,
+        2,
+        &[1, 2, 3],
         &dkg_root,
         &ciphertext_hash,
         "test-session",
         1,
-    )
-    .unwrap();
+    );
 
-    assert_eq!(recovered, expected_plaintext);
+    assert!(
+        matches!(result, Err(DecryptError::NizkVerify { party_id: 1 })),
+        "proofless share must be rejected with NizkVerify, got {result:?}"
+    );
 }

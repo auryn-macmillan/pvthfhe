@@ -80,7 +80,7 @@ def run_check_parameters_toml():
 
 def run_check_noise_budget_test():
     result = subprocess.run(
-        ["cargo", "test", "-p", "pvthfhe-core", "--test", "noise_budget"],
+        ["cargo", "test", "-p", "pvthfhe-tests", "--test", "noise_budget"],
         capture_output=True, text=True
     )
     if result.returncode == 0:

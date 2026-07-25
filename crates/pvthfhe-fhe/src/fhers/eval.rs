@@ -3,7 +3,7 @@
 use super::FhersBackend;
 use crate::{error::FheError, types::Ciphertext};
 use fhe::bfv::Ciphertext as BfvCiphertext;
-use fhe_traits::{DeserializeParametrized, DeserializeWithContext, Serialize};
+use fhe_traits::{DeserializeParametrized, Serialize};
 
 impl FhersBackend {
     /// Add two ciphertexts component-wise (BFV ciphertext homomorphic addition).

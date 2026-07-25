@@ -17,7 +17,7 @@ const COMPRESSOR_BACKEND_ID: &str = "nova-bn254-grumpkin";
 #[cfg(all(feature = "surrogate-compressor", not(feature = "real-compressor")))]
 const COMPRESSOR_BACKEND_ID: &str = "sha256-surrogate-compressor";
 #[cfg(not(any(feature = "real-compressor", feature = "surrogate-compressor")))]
-const COMPRESSOR_BACKEND_ID: &str = "ultra-honk-micronova";
+const COMPRESSOR_BACKEND_ID: &str = "ultra-honk-latticefold";
 const FHE_BACKEND_ID: &str = "fhers-bfv";
 const PVSS_BACKEND_ID: &str = "lattice-pvss-bfv-d2";
 const COMPARISON_TARGET_NAME: &str = "Interfold integration_summary.json";

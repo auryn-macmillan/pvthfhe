@@ -69,7 +69,7 @@ def step_workspace_tests():
         rc, out = run(["cargo", "test", "-p", crate])
         if rc != 0:
             return "FAIL", f"cargo test -p {crate} failed: {out[-400:]}"
-    return "PASS", "cargo test -p pvthfhe-cyclo, pvthfhe-aggregator, and pvthfhe-micronova passed"
+    return "PASS", "cargo test -p pvthfhe-cyclo and pvthfhe-aggregator passed"
 
 
 def step_clippy():

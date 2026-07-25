@@ -239,7 +239,7 @@ mod tests {
             backend_id: "fhers-bfv".to_owned(),
             nizk_backend_id: "cyclo-ajtai-d2-conditional".to_owned(),
             folding_backend_id: "cyclo-rlwe-t10-lemma9-heuristic".to_owned(),
-            compressor_backend_id: "ultra-honk-micronova".to_owned(),
+            compressor_backend_id: "ultra-honk-latticefold".to_owned(),
             n: 128,
             t: 85,
             seed: 1,

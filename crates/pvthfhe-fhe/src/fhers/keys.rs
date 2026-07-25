@@ -6,7 +6,7 @@ use crate::{error::FheError, types::PublicKey as OpaquePublicKey, wire};
 use fhe::bfv::{Ciphertext as BfvCiphertext, PublicKey as BfvPublicKey};
 use fhe_math::rq::traits::TryConvertFrom;
 use fhe_math::rq::{Poly, Representation};
-use fhe_traits::{DeserializeParametrized, DeserializeWithContext, Serialize};
+use fhe_traits::{DeserializeWithContext, Serialize};
 use pvthfhe_foundations::domain_tags::Tag;
 use rand_chacha::ChaCha8Rng;
 use rand_core::SeedableRng;

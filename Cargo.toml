@@ -57,21 +57,6 @@ as_conversions = "allow"
 #   circuit (`CycloFoldStepCircuit`). The fork adds the missing constructor
 #   and migrates to the `ark-ff` 0.5 ecosystem.
 # ──────────────────────────────────────────────────────────────────────────
-[patch.crates-io]
-ark-groth16 = { git = "https://github.com/arkworks-rs/groth16", rev = "b3b4a15" }
-ark-ff = { git = "https://github.com/arkworks-rs/algebra" }
-ark-ec = { git = "https://github.com/arkworks-rs/algebra" }
-ark-serialize = { git = "https://github.com/arkworks-rs/algebra" }
-ark-poly = { git = "https://github.com/arkworks-rs/algebra" }
-ark-relations = { git = "https://github.com/arkworks-rs/snark" }
-ark-snark = { git = "https://github.com/arkworks-rs/snark" }
-ark-crypto-primitives = { git = "https://github.com/flyingnobita/crypto-primitives", rev = "f559264" }
-ark-r1cs-std = { git = "https://github.com/flyingnobita/r1cs-std_yelhousni", rev = "b4bab0c" }
-ark-std = { git = "https://github.com/arkworks-rs/std" }
-ark-poly-commit = { git = "https://github.com/arkworks-rs/poly-commit" }
-ark-bn254 = { git = "https://github.com/arkworks-rs/algebra" }
-ark-grumpkin = { git = "https://github.com/arkworks-rs/algebra" }
-
 [[test]]
 name = "spec_consistency"
 path = "tests/integration/spec_consistency.rs"

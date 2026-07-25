@@ -226,7 +226,8 @@ dependencies = [
 [[package]]
 name = "ark-std"
 version = "0.5.0"
-source = "git+https://github.com/arkworks-rs/std#1693bc56d2ca6657b623f33a3f0b009d0ffeb892"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "246a225cc6131e9ee4f24619af0f19d67761fff15d7ccc22e42b80846e69449a"
 dependencies = [
  "num-traits",
  "rand 0.8.6",
@@ -2568,63 +2569,3 @@ name = "zmij"
 version = "1.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa"
-
-[[patch.unused]]
-name = "ark-bn254"
-version = "0.6.0"
-source = "git+https://github.com/arkworks-rs/algebra#3b2a12492cfeb34774a2cdbe9d8d7a869c883fa9"
-
-[[patch.unused]]
-name = "ark-crypto-primitives"
-version = "0.5.0"
-source = "git+https://github.com/flyingnobita/crypto-primitives?rev=f559264#f55926402fc9360781a64ab7b4f7a02bd340c62b"
-
-[[patch.unused]]
-name = "ark-ec"
-version = "0.6.0"
-source = "git+https://github.com/arkworks-rs/algebra#3b2a12492cfeb34774a2cdbe9d8d7a869c883fa9"
-
-[[patch.unused]]
-name = "ark-ff"
-version = "0.6.0"
-source = "git+https://github.com/arkworks-rs/algebra#3b2a12492cfeb34774a2cdbe9d8d7a869c883fa9"
-
-[[patch.unused]]
-name = "ark-groth16"
-version = "0.5.0"
-source = "git+https://github.com/arkworks-rs/groth16?rev=b3b4a15#b3b4a152b2f379930011ad0699b710d3746a552e"
-
-[[patch.unused]]
-name = "ark-grumpkin"
-version = "0.6.0"
-source = "git+https://github.com/arkworks-rs/algebra#3b2a12492cfeb34774a2cdbe9d8d7a869c883fa9"
-
-[[patch.unused]]
-name = "ark-poly"
-version = "0.6.0"
-source = "git+https://github.com/arkworks-rs/algebra#3b2a12492cfeb34774a2cdbe9d8d7a869c883fa9"
-
-[[patch.unused]]
-name = "ark-poly-commit"
-version = "0.5.0"
-source = "git+https://github.com/arkworks-rs/poly-commit#a05ec99d0d3e46c8ba0d6d3592980777bc2847e8"
-
-[[patch.unused]]
-name = "ark-r1cs-std"
-version = "0.5.0"
-source = "git+https://github.com/flyingnobita/r1cs-std_yelhousni?rev=b4bab0c#b4bab0cefa00530e44f06045162af4c6328baf2d"
-
-[[patch.unused]]
-name = "ark-relations"
-version = "0.5.1"
-source = "git+https://github.com/arkworks-rs/snark#845ce9d50bbe535792f04b44db78b009ee402ed7"
-
-[[patch.unused]]
-name = "ark-serialize"
-version = "0.6.0"
-source = "git+https://github.com/arkworks-rs/algebra#3b2a12492cfeb34774a2cdbe9d8d7a869c883fa9"
-
-[[patch.unused]]
-name = "ark-snark"
-version = "0.5.1"
-source = "git+https://github.com/arkworks-rs/snark#845ce9d50bbe535792f04b44db78b009ee402ed7"

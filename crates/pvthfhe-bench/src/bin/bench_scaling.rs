@@ -33,7 +33,7 @@ const FHERS_BACKEND_ID: &str = "fhers-bfv";
 const MOCK_BACKEND_ID: &str = "mock-xor";
 const NIZK_BACKEND_ID: &str = "cyclo-ajtai-d2-conditional";
 const FOLDING_BACKEND_ID: &str = "cyclo-rlwe-t10-lemma9-heuristic";
-const COMPRESSOR_BACKEND_ID: &str = "ultra-honk-micronova";
+const COMPRESSOR_BACKEND_ID: &str = "ultra-honk-latticefold";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 enum BackendChoice {

@@ -6,7 +6,7 @@
 
 use syn::parse_file;
 
-const SOURCE_PATH: &str = "src/nizk_share.rs";
+const SOURCE_PATH: &str = "src/nizk_share/statement.rs";
 
 const FORBIDDEN_EXACT_FIELDS: &[&str] = &[
     "share_bytes",

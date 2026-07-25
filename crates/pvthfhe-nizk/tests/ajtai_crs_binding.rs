@@ -32,7 +32,7 @@ fn crate_root() -> PathBuf {
 }
 
 fn adapter_src() -> PathBuf {
-    crate_root().join("src").join("adapter.rs")
+    crate_root().join("src").join("adapter")
 }
 
 /// SHA-256 helper for test-only seed derivation (mirrors production code).
@@ -75,7 +75,7 @@ fn ccs_instance_seed(
 #[test]
 fn adapter_does_not_seed_ajtai_from_ccs_instance_id() {
     let path = adapter_src();
-    assert!(path.exists(), "adapter.rs not found at {}", path.display());
+    assert!(path.exists(), "adapter module not found at {}", path.display());
 
     // Search for the old pattern: compute_ajtai_commitment(&ccs_id, …
     let out = Command::new("rg")
@@ -107,7 +107,7 @@ fn adapter_does_not_seed_ajtai_from_ccs_instance_id() {
 #[test]
 fn adapter_references_epoch_crs_derivation() {
     let path = adapter_src();
-    assert!(path.exists(), "adapter.rs not found at {}", path.display());
+    assert!(path.exists(), "adapter module not found at {}", path.display());
 
     // Search for the new pattern: derive_epoch_crs_seed or equivalent
     let out = Command::new("rg")

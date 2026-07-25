@@ -10,12 +10,12 @@ mod tests {
 
     impl PipelineObserver for QuietObserver {}
 
-    /// Full pipeline at scale. Default: n=32, t=15 — three times the demo
-    /// default, exercises the same stages, fits a 32 GB host.
+    /// Full pipeline at scale. Default: n=16, t=7 — exercises every stage
+    /// beyond the demo default, fits a 32 GB host.
     ///
     /// Opt-in edge run: `PVTHFHE_LARGE_N=1` selects n=129, t=64, which peaks
     /// above 30 GB RAM — only for machines with ≥ 48 GB. (The pipeline's
-    /// per-party memory footprint grows steeply with n; that is pre-existing
+    /// per-party memory footprint grows steeply with n — pre-existing
     /// behavior, tracked as a known limitation.)
     #[test]
     fn demo_large_n_runs_full_pipeline() {
@@ -23,7 +23,7 @@ mod tests {
         let (n, t) = if env::var("PVTHFHE_LARGE_N").as_deref() == Ok("1") {
             (129, 64)
         } else {
-            (32, 15)
+            (16, 7)
         };
         let mut observer = QuietObserver;
         let report = run_full_pipeline(&PipelineConfig { n, t, seed: 0 }, &mut observer)

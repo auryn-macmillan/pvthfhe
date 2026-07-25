@@ -312,18 +312,6 @@ impl core::fmt::Display for PvssError {
     }
 }
 
-/// Write a Display message with optional party attribution.
-fn write_with_party(
-    f: &mut core::fmt::Formatter<'_>,
-    msg: &str,
-    party_id: Option<u16>,
-) -> core::fmt::Result {
-    match party_id {
-        Some(id) => write!(f, "{msg} (party {id})"),
-        None => f.write_str(msg),
-    }
-}
-
 /// Write a Debug variant name with optional party attribution.
 fn write_debug_with_party(
     f: &mut core::fmt::Formatter<'_>,

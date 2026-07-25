@@ -34,6 +34,9 @@ pub mod demo_nizk;
 pub mod compressor_glue;
 
 #[cfg(feature = "with-fhe")]
+mod pipeline;
+
+#[cfg(feature = "with-fhe")]
 pub mod full_pipeline;
 
 #[cfg(feature = "with-fhe")]

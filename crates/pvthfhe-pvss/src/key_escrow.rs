@@ -52,7 +52,7 @@ pub fn key_escrow(
     h.update(DOMAIN_SEPARATOR);
     h.update(session_id);
     h.update(tag);
-    h.update(&epoch.to_be_bytes());
+    h.update(epoch.to_be_bytes());
     let raw_hash: [u8; 32] = h.finalize().into();
 
     // Reduce into the BN254 scalar field and convert back to canonical
@@ -142,7 +142,7 @@ fn hash_commitment(key_bytes: &[u8; 32], epoch: u64) -> [u8; 32] {
     h.update(DOMAIN_SEPARATOR);
     h.update(b":commit:");
     h.update(key_bytes);
-    h.update(&epoch.to_be_bytes());
+    h.update(epoch.to_be_bytes());
     h.finalize().into()
 }
 

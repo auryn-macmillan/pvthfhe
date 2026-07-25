@@ -1,6 +1,6 @@
 use crate::ring::{RqPoly, Q_COMMIT};
 
-pub fn decompose_base_B(coeffs: &[u64], b: u64, k: usize) -> Vec<Vec<u64>> {
+pub fn decompose_base_b(coeffs: &[u64], b: u64, k: usize) -> Vec<Vec<u64>> {
     let mut digits = vec![vec![0u64; coeffs.len()]; k];
     for (j, &c) in coeffs.iter().enumerate() {
         let mut val = c;
@@ -12,7 +12,7 @@ pub fn decompose_base_B(coeffs: &[u64], b: u64, k: usize) -> Vec<Vec<u64>> {
     digits
 }
 
-pub fn recompose_base_B(digits: &[Vec<u64>], b: u64) -> Vec<u64> {
+pub fn recompose_base_b(digits: &[Vec<u64>], b: u64) -> Vec<u64> {
     let len = digits.first().map_or(0, |v| v.len());
     let q = Q_COMMIT as u128;
     let b_u128 = b as u128;
@@ -47,15 +47,15 @@ fn pow_mod(base: u128, exp: u32, modulus: u128) -> u128 {
     result
 }
 
-pub fn decompose_rqpoly_base_B(poly: &RqPoly, b: u64, k: usize) -> Vec<RqPoly> {
-    let digits = decompose_base_B(&poly.0, b, k);
+pub fn decompose_rqpoly_base_b(poly: &RqPoly, b: u64, k: usize) -> Vec<RqPoly> {
+    let digits = decompose_base_b(&poly.0, b, k);
     digits
         .into_iter()
-        .map(|coeffs| RqPoly(coeffs))
+        .map(RqPoly)
         .collect()
 }
 
-pub fn recompose_rqpoly_base_B(polys: &[RqPoly], b: u64) -> RqPoly {
+pub fn recompose_rqpoly_base_b(polys: &[RqPoly], b: u64) -> RqPoly {
     let digit_vecs: Vec<Vec<u64>> = polys.iter().map(|p| p.0.clone()).collect();
-    RqPoly(recompose_base_B(&digit_vecs, b))
+    RqPoly(recompose_base_b(&digit_vecs, b))
 }

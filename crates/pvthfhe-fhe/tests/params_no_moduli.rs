@@ -11,6 +11,7 @@ mod types {
 
 pub use pvthfhe_fhe::FheBackend;
 
+#[allow(dead_code)]
 #[path = "../src/mock.rs"]
 mod mock;
 

@@ -58,7 +58,7 @@ fn leaf_hash(party_id: u32, share_bytes: &[u8], session_id: &[u8]) -> Fr {
     h.update(DOMAIN_SEPARATOR);
     h.update(b":leaf:");
     h.update(session_id);
-    h.update(&party_id.to_be_bytes());
+    h.update(party_id.to_be_bytes());
     h.update(share_bytes);
     Fr::from_be_bytes_mod_order(&h.finalize())
 }
@@ -68,9 +68,9 @@ fn internal_hash_with_domain(values: &[Fr], is_leaf_level: bool) -> Fr {
     let mut h = Keccak256::new();
     h.update(DOMAIN_SEPARATOR);
     h.update(b":internal:");
-    h.update(&domain_val.into_bigint().to_bytes_be());
+    h.update(domain_val.into_bigint().to_bytes_be());
     for val in values {
-        h.update(&val.into_bigint().to_bytes_be());
+        h.update(val.into_bigint().to_bytes_be());
     }
     Fr::from_be_bytes_mod_order(&h.finalize())
 }
@@ -187,7 +187,7 @@ pub fn verify_dispersal(dispersed: &DispersedShares) -> bool {
         return false;
     }
     // Verify each proof against the same root
-    for (_party_id, proof) in &dispersed.proofs {
+    for proof in dispersed.proofs.values() {
         // We can't verify without the share data here — caller must use
         // verify_retrieval with actual share bytes. This just checks that
         // the proof structure is consistent (leaf_index within bounds).
@@ -229,7 +229,7 @@ pub fn committee_sample(seed: &[u8; 32], n: usize, size: usize) -> Vec<u32> {
     while committee.len() < size && position < max_attempts as u64 {
         let mut h = Sha256::new();
         h.update(seed);
-        h.update(&position.to_le_bytes());
+        h.update(position.to_le_bytes());
         let digest = h.finalize();
         let value = u64::from_be_bytes(digest[..8].try_into().unwrap());
         let party_id = (value % n as u64) as u32 + 1; // 1-based

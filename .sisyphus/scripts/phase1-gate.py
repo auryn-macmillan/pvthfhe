@@ -14,14 +14,23 @@ for path in [
     "crates/pvthfhe-nizk/src/lib.rs",
     "crates/pvthfhe-nizk/src/ajtai.rs",
     "crates/pvthfhe-nizk/src/hash_bridge.rs",
-    "crates/pvthfhe-nizk/src/sigma.rs",
     "crates/pvthfhe-nizk/src/fiat_shamir.rs",
-    "crates/pvthfhe-nizk/src/adapter.rs",
     "crates/pvthfhe-fhe/src/real_nizk.rs",
     "SECURITY.md",
     "docs/security-proofs/p1/theorem-inventory.md",
 ]:
     check(f"file exists: {path}", os.path.exists(path))
+
+# sigma.rs and adapter.rs are split into concept modules (2026-07 refactor);
+# accept either the flat file or the module directory with a mod.rs.
+for stem in [
+    "crates/pvthfhe-nizk/src/sigma",
+    "crates/pvthfhe-nizk/src/adapter",
+]:
+    check(
+        f"module exists: {stem}",
+        os.path.exists(stem + ".rs") or os.path.exists(os.path.join(stem, "mod.rs")),
+    )
 
 check("BACKEND_ID = cyclo-ajtai-d2-conditional",
       "cyclo-ajtai-d2-conditional" in open("crates/pvthfhe-nizk/src/lib.rs").read())

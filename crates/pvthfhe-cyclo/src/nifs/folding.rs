@@ -59,11 +59,8 @@ pub fn fold_instances(
 
         let coeff = pow_mod(r as u128, power, Q_COMMIT as u128) as u64;
 
-        for poly_idx in 0..m {
-            combined_polys[poly_idx] = ring_add_poly(
-                &combined_polys[poly_idx],
-                &scalar_mul(&inst.commitment[poly_idx], coeff as u128),
-            );
+        for (combined_poly, inst_poly) in combined_polys.iter_mut().zip(&inst.commitment) {
+            *combined_poly = ring_add_poly(combined_poly, &scalar_mul(inst_poly, coeff as u128));
         }
 
         for wit_idx in 0..n {
@@ -88,18 +85,14 @@ pub fn fold_instances(
 }
 
 pub fn fold_commitments(acc: &AjtaiCommitment, instances: &[AjtaiCommitment], r: u64) -> AjtaiCommitment {
-    let m = acc.commitment.len();
     if instances.is_empty() {
         return acc.clone();
     }
     let mut combined: Vec<RqPoly> = acc.commitment.clone();
     for (inst, power) in instances.iter().zip(1u32..) {
         let coeff = pow_mod(r as u128, power, Q_COMMIT as u128) as u64;
-        for poly_idx in 0..m {
-            combined[poly_idx] = ring_add_poly(
-                &combined[poly_idx],
-                &scalar_mul(&inst.commitment[poly_idx], coeff as u128),
-            );
+        for (acc_poly, inst_poly) in combined.iter_mut().zip(&inst.commitment) {
+            *acc_poly = ring_add_poly(acc_poly, &scalar_mul(inst_poly, coeff as u128));
         }
     }
     AjtaiCommitment { commitment: combined }

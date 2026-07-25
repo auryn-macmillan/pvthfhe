@@ -75,7 +75,7 @@ fn decompose_witness_bytes(
         k = 1;
     }
 
-    let digits = decompose::decompose_base_B(&coeffs, base_b, k);
+    let digits = decompose::decompose_base_b(&coeffs, base_b, k);
 
     // Re-encode each digit vector as Fr witness bytes.
     // Each Fr is 32 bytes (4 u64 limbs). We set the first limb to the digit value.
@@ -216,10 +216,7 @@ fn fold_one_deterministic_inner(
     let decomposed_witness: Option<Vec<Vec<u8>>> = if beta_step > per_step_budget {
         let max_decomposable = per_step_budget.saturating_mul(u64::from(PVTHFHE_CYCLO_PARAMS.base_b));
         if beta_step <= max_decomposable {
-            match decompose_witness_bytes(&encoded_instance.witness_bytes, per_step_budget) {
-                Ok(parts) => Some(parts),
-                Err(_) => None,
-            }
+            decompose_witness_bytes(&encoded_instance.witness_bytes, per_step_budget).ok()
         } else {
             return Err(CycloError::NormBoundExceeded {
                 got: beta_step,

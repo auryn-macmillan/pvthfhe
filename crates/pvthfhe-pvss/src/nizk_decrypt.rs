@@ -70,7 +70,7 @@ impl CommittedSmudgeSlot {
         hasher.update(Tag::CommittedSmudgeSlot.as_bytes());
         hasher.update(self.epoch.to_be_bytes());
         hasher.update(self.slot_index.to_be_bytes());
-        hasher.update(&self.ciphertext_hash);
+        hasher.update(self.ciphertext_hash);
         hasher.update(self.decryption_round.to_be_bytes());
         hasher.finalize().into()
     }

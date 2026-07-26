@@ -1,37 +1,25 @@
 # Phase 3 Gate Report
 
 **Status**: FAIL
-**Date**: 2026-07-26T02:01:40Z
+**Date**: 2026-07-26T16:09:21Z
 
 ## Steps
 
 | Step | Status | Detail |
 |------|--------|--------|
 | workspace-tests | FAIL | cargo test -p pvthfhe-compressor failed:   |
-479 +     use std::str::FromStr;
+478 +     use std::str::FromStr;
     |
 help: there is an associated function `from` with a similar name
     |
-535 -         assert!(FheOperation::from_str("unknown").is_err());
-535 +         assert!(FheOperation::from("unknown").is_err());
+534 -         assert!(FheOperation::from_str("unknown").is_err());
+534 +         assert!(FheOperation::from("unknown").is_err());
     |
 
 For more information about this error, try `rustc --explain E0599`.
 error: could not compile `pvthfhe-compressor` (lib test) due to 6 previous errors |
 | clippy | PASS | cargo clippy --workspace passed |
-| fmt | FAIL | cargo fmt --check failed:           .iter()
-+            .copied()
-             .max()
-             .unwrap_or(0)
-             .max(e0_coeffs.iter().copied().max().unwrap_or(0))
-Diff in /home/dev/pvthfhe/crates/pvthfhe-compressor/src/latticefold/fhe_compute_circuit.rs:53:
- }
- 
- impl FheOperation {
--
-     /// Return the operation tag used for domain separation.
-     pub fn tag(&self) -> &'static [u8] {
-         match self { |
+| fmt | PASS | cargo fmt --check passed |
 | deny | PASS | cargo deny check passed |
 | noir-tests | PASS | nargo test --workspace passed |
 | forge-tests | PASS | forge test --root contracts passed |

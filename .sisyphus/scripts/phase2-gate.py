@@ -176,6 +176,64 @@ def run_check_aggregate_1024_smoke():
     return "PASS", f"cargo test -p pvthfhe-aggregator --test aggregate_1024_smoke passed and {path} exists"
 
 
+def run_check_meta_validators():
+    scripts = [
+        ".sisyphus/scripts/validate-obligations-schema.py",
+        ".sisyphus/scripts/validate-pins.py",
+        ".sisyphus/scripts/validate-prior-art.py",
+        ".sisyphus/scripts/validate-proof-skeletons.py",
+        ".sisyphus/scripts/validate-reviewer-memo.py",
+        ".sisyphus/scripts/validate-bundle.py",
+    ]
+    for script in scripts:
+        if not os.path.exists(script):
+            return "FAIL", f"{script} not found"
+        result = subprocess.run(["python3", script], capture_output=True, text=True)
+        if result.returncode != 0:
+            return "FAIL", f"{script} failed: {(result.stdout + result.stderr).strip()[-300:]}"
+    return "PASS", f"{len(scripts)} validator scripts passed"
+
+
+def run_check_program_files():
+    files = [
+        "docs/governance/program-charter.md",
+        "docs/governance/problem-charter-template.md",
+        "docs/governance/downstream-contract-bundle-template.md",
+        "docs/governance/reviewer-roster.md",
+        "docs/governance/reviewer-memo-template.md",
+        "paper/main.tex",
+        "paper/claims-table.md",
+        "docs/security-proofs/obligations.md",
+        "docs/security-proofs/README.md",
+        "README.md",
+        "ARCHITECTURE.md",
+        "SECURITY.md",
+        "REPRODUCING.md",
+        "CITATION.cff",
+        "Dockerfile.quickstart",
+    ]
+    missing = [p for p in files if not os.path.exists(p)]
+    if missing:
+        return "FAIL", f"Missing program files: {missing}"
+    return "PASS", f"All {len(files)} program/governance/doc files present"
+
+
+def run_check_benchmark_envelopes():
+    for n in (128, 256, 512, 1024):
+        if not os.path.exists(f"bench/results/scaling-n{n}.json"):
+            return "FAIL", f"bench/results/scaling-n{n}.json not found"
+    import json as _json
+    with open("bench/results/scaling-n128.json") as f:
+        data = _json.load(f)
+    gas = data.get("gas_per_verify") or data.get("verifier_gas")
+    if gas is None:
+        return "FAIL", "no gas_per_verify/verifier_gas in scaling-n128.json"
+    gas = int(gas)
+    if gas > 10_000_000:
+        return "FAIL", f"gas={gas} exceeds hard ceiling 10000000"
+    return "PASS", f"4 scaling envelopes present; gas={gas} within ceiling"
+
+
 CHECKS = [
     ("artifacts", run_check_artifacts),
     ("parameters_toml", run_check_parameters_toml),
@@ -187,6 +245,9 @@ CHECKS = [
     ("cyclo_tests", run_check_cyclo_tests),
     ("aggregate_1024_smoke", run_check_aggregate_1024_smoke),
     ("cargo_check", run_check_cargo_check),
+    ("meta_validators", run_check_meta_validators),
+    ("program_files", run_check_program_files),
+    ("benchmark_envelopes", run_check_benchmark_envelopes),
 ]
 
 

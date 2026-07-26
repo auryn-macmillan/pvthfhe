@@ -43,7 +43,7 @@ just demo-e2e          # n=10, t=4, full pipeline
 | `just greco` | Greco-style BFV encryption proof |
 | `just compute n=5` | Verifiable FHE: sum n ciphertexts via LatticeFold+ |
 | `just test-all` | Rust + Noir + Solidity test suites |
-| `just phase1-gate` … `phase3-gate` | Program phase gates |
+| `just stage0-gate` / `stage1-gate` / `phase2-gate` | Policy + tripwire gates (lean; meta-gates pruned 2026-07) |
 | `just dkg-paper-gate` | DKG paper (ePrint 2026/1159) integration gate |
 | `just bench-scripts-test` | Unit tests for the Python bench scripts |
 

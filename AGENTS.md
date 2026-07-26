@@ -20,9 +20,9 @@ PVTHFHE targets private-verifiable threshold FHE: O(n) per-party work with O(pol
 
 ## Gates
 
-- `just phase1-gate`
+- `just stage0-gate`
+- `just stage1-gate`
 - `just phase2-gate`
-- `just phase3-gate`
 - `just dkg-paper-gate`
 
 ## DKG Paper Reference

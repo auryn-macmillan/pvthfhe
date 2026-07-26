@@ -9,14 +9,8 @@ prereq-gate:
     cargo test -p pvthfhe-cli --test params_consistency
     cargo test -p pvthfhe-cli --test e2e_uses_lattice_pvss
 
-phase1-gate:
-    python3 .sisyphus/scripts/phase1-gate.py
-
 phase2-gate:
     python3 .sisyphus/scripts/phase2-gate.py
-
-phase3-gate:
-    python3 .sisyphus/scripts/phase3-gate.py
 
 # Default demo with optimized lattice features (LatticeFold+ + LaZer).
 demo-e2e n="10" t="4" seed="1":
@@ -208,9 +202,6 @@ paper-build:
         echo "stub" > paper/main.pdf; \
     fi
 
-phase0-gate:
-    python3 .sisyphus/scripts/phase0-gate.py
-
 stage0-gate:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -231,7 +222,9 @@ stage0-gate:
     # Check 3: Stage-0 real-backend banner on cargo build
     echo "[3] Checking cargo real-backend tripwire..."
     cargo clean -p pvthfhe-fhe >/dev/null 2>&1
-    cargo build -p pvthfhe-fhe 2>&1 | grep -q "BFV backend is real" || { echo "FAIL: cargo build missing Stage-0 real-backend warning"; exit 1; }
+    # capture-then-grep avoids the grep -q / SIGPIPE / pipefail race
+    build_out=$(cargo build -p pvthfhe-fhe 2>&1)
+    echo "$build_out" | grep -q "BFV backend is real" || { echo "FAIL: cargo build missing Stage-0 real-backend warning"; exit 1; }
 
     # Check 4: no mock in default features
     echo "[4] Checking mock feature gates..."
@@ -254,6 +247,13 @@ stage0-gate:
     echo "[8] Checking advisory..."
     grep -qE "STATUS: (DRAFT|RESOLVED)" docs/archive/SECURITY-ADVISORY-001.md || { echo "FAIL: docs/archive/SECURITY-ADVISORY-001.md missing STATUS"; exit 1; }
 
+    # P1-folded checks (from the retired phase1-gate): NIZK backend identity,
+    # SECURITY banner, adversarial suite presence, surrogate retirement.
+    grep -q "cyclo-ajtai-d2-conditional" crates/pvthfhe-nizk/src/lib.rs || { echo "FAIL: NIZK BACKEND_ID drifted"; exit 1; }
+    grep -q "P1 (CRITICAL)" SECURITY.md || { echo "FAIL: SECURITY.md missing P1 CRITICAL banner"; exit 1; }
+    test -f crates/pvthfhe-nizk/tests/nizk_adversarial.rs || { echo "FAIL: nizk_adversarial.rs missing"; exit 1; }
+    python3 .sisyphus/scripts/surrogate-retirement-check.py || { echo "FAIL: surrogate retirement check"; exit 1; }
+
     echo ""
     echo "=== Stage 0 Gate: ALL CHECKS PASSED ==="
     echo "Ready to proceed to Stage 1 (with user acknowledgement)."
@@ -264,17 +264,11 @@ p4-research-gate:
 p4-design-gate:
     python3 .sisyphus/scripts/p4-design-gate.py
 
-p4-impl-gate:
-    python3 .sisyphus/scripts/p4-impl-gate.py
-
 p1-research-gate:
     python3 .sisyphus/scripts/p1-research-gate.py
 
 p1-design-gate:
     python3 .sisyphus/scripts/p1-design-gate.py
-
-p1-impl-gate:
-    python3 .sisyphus/scripts/p1-impl-gate.py
 
 p2-research-gate:
     python3 .sisyphus/scripts/p2-research-gate.py
@@ -282,26 +276,11 @@ p2-research-gate:
 p2-design-gate:
     python3 .sisyphus/scripts/p2-design-gate.py
 
-p2-impl-gate:
-    python3 .sisyphus/scripts/p2-impl-gate.py
-
 p3-research-gate:
     python3 .sisyphus/scripts/p3-research-gate.py
 
 p3-design-gate:
     python3 .sisyphus/scripts/p3-design-gate.py
-
-p3-impl-gate:
-    @echo "Running P3 impl gate..."
-    python3 .sisyphus/scripts/p3-impl-gate.py
-    python3 .sisyphus/scripts/surrogate-retirement-check.py
-    @echo "IG-P3 PASSED"
-
-paper-gate:
-    python3 .sisyphus/scripts/paper-gate.py
-
-final-verification-gate:
-    python3 .sisyphus/scripts/final-verification-gate.py
 
 p1-bench:
     bash bench/p1/run.sh

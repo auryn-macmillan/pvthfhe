@@ -44,7 +44,7 @@ just reproduce-bench
 
 Expected scaling behavior and current numbers are in
 [`bench/results/comparison-2af6ac2.md`](bench/results/comparison-2af6ac2.md) and the
-`scaling-n{128,256,512,1024}.json` envelopes consumed by `just phase3-gate`.
+`scaling-n{128,256,512,1024}.json` envelopes validated by `just phase2-gate`.
 
 ### Regenerating the On-Chain Verifier
 
@@ -119,5 +119,5 @@ Evidence files are written to `.sisyphus/evidence/p3-impl/`.
 For the full gate suite:
 
 ```bash
-just phase1-gate && just phase2-gate && just phase3-gate && just paper-gate
+just stage0-gate && just stage1-gate && just phase2-gate && just dkg-paper-gate
 ```

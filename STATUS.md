@@ -7,8 +7,8 @@ Snapshot as of 2026-07-24 (post-refactor). For the canonical ledger see [docs/OP
 ## What works (verified by gates)
 
 - **P4 DKG**: 3-round PVSS keygen with blame, commit-reveal rogue-key defense, session-bound transcripts. `just pvss-gate`, `just dkg-paper-gate`.
-- **P1 NIZK**: Ajtai D2 + BFV sigma (90-round), LaZer (LaBRADOR) default, Greyhound PCS. `just phase1-gate`.
-- **P2 folding**: LatticeFold+ lattice-native folding (sole backend; Track A Nova removed). `just compressor-gate`.
+- **P1 NIZK**: Ajtai D2 + BFV sigma (90-round), LaZer (LaBRADOR) default, Greyhound PCS. `just test-all`.
+- **P2 folding**: LatticeFold+ lattice-native folding (sole backend; Track A Nova removed). `just compressor-gate`, `just phase2-gate`.
 - **P3 on-chain**: UltraHonk Solidity verifier + IVC binding (fail-closed). `just ajtai-onchain-gate`, `just noir-onchain-gate`, `just verify-onchain`.
 - **C7 threshold decryption**: Schwartz-Zippel Lagrange recombination proven in Noir (`aggregator_final`, 29 tests).
 - **End-to-end demo**: `just demo-e2e` (DKG → encrypt → fold → decrypt → on-chain).

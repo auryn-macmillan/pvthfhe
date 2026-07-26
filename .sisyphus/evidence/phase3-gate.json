@@ -1,18 +1,18 @@
 {
   "status": "FAIL",
-  "timestamp": "2026-07-26T02:01:40Z",
+  "timestamp": "2026-07-26T16:09:21Z",
   "steps": {
     "workspace-tests": {
       "status": "FAIL",
-      "detail": "cargo test -p pvthfhe-compressor failed:   |\n479 +     use std::str::FromStr;\n    |\nhelp: there is an associated function `from` with a similar name\n    |\n535 -         assert!(FheOperation::from_str(\"unknown\").is_err());\n535 +         assert!(FheOperation::from(\"unknown\").is_err());\n    |\n\nFor more information about this error, try `rustc --explain E0599`.\nerror: could not compile `pvthfhe-compressor` (lib test) due to 6 previous errors"
+      "detail": "cargo test -p pvthfhe-compressor failed:   |\n478 +     use std::str::FromStr;\n    |\nhelp: there is an associated function `from` with a similar name\n    |\n534 -         assert!(FheOperation::from_str(\"unknown\").is_err());\n534 +         assert!(FheOperation::from(\"unknown\").is_err());\n    |\n\nFor more information about this error, try `rustc --explain E0599`.\nerror: could not compile `pvthfhe-compressor` (lib test) due to 6 previous errors"
     },
     "clippy": {
       "status": "PASS",
       "detail": "cargo clippy --workspace passed"
     },
     "fmt": {
-      "status": "FAIL",
-      "detail": "cargo fmt --check failed:           .iter()\n+            .copied()\n             .max()\n             .unwrap_or(0)\n             .max(e0_coeffs.iter().copied().max().unwrap_or(0))\nDiff in /home/dev/pvthfhe/crates/pvthfhe-compressor/src/latticefold/fhe_compute_circuit.rs:53:\n }\n \n impl FheOperation {\n-\n     /// Return the operation tag used for domain separation.\n     pub fn tag(&self) -> &'static [u8] {\n         match self {"
+      "status": "PASS",
+      "detail": "cargo fmt --check passed"
     },
     "deny": {
       "status": "PASS",

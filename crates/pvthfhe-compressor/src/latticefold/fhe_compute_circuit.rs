@@ -477,6 +477,7 @@ pub fn verify_fhe_compute(
 mod tests {
     use super::*;
     use crate::merkle::build_merkle_tree;
+    use std::str::FromStr;
 
     fn test_session() -> [u8; 32] {
         Keccak256::digest(b"fhe-compute-test-session").into()

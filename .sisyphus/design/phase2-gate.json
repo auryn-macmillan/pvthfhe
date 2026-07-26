@@ -1,7 +1,7 @@
 {
   "schema_version": "1",
   "gate": "phase2",
-  "timestamp": "2026-07-25T05:35:45Z",
+  "timestamp": "2026-07-26T16:50:24Z",
   "status": "PASS",
   "checks": [
     {
@@ -53,6 +53,21 @@
       "id": "cargo_check",
       "status": "PASS",
       "detail": "cargo check --workspace passed"
+    },
+    {
+      "id": "meta_validators",
+      "status": "PASS",
+      "detail": "6 validator scripts passed"
+    },
+    {
+      "id": "program_files",
+      "status": "PASS",
+      "detail": "All 15 program/governance/doc files present"
+    },
+    {
+      "id": "benchmark_envelopes",
+      "status": "PASS",
+      "detail": "4 scaling envelopes present; gas=1278 within ceiling"
     }
   ]
 }

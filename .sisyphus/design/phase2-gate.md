@@ -1,7 +1,7 @@
 # Phase 2 Gate Report
 
 **Status**: PASS
-**Date**: 2026-07-25T05:35:45Z
+**Date**: 2026-07-26T16:50:24Z
 
 ## Checks
 
@@ -17,6 +17,9 @@
 | cyclo_tests | PASS | cargo test -p pvthfhe-cyclo passed |
 | aggregate_1024_smoke | PASS | cargo test -p pvthfhe-aggregator --test aggregate_1024_smoke passed and bench/results/aggregate_1024.json exists |
 | cargo_check | PASS | cargo check --workspace passed |
+| meta_validators | PASS | 6 validator scripts passed |
+| program_files | PASS | All 15 program/governance/doc files present |
+| benchmark_envelopes | PASS | 4 scaling envelopes present; gas=1278 within ceiling |
 
 ## Summary
 

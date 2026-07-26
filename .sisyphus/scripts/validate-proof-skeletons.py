@@ -9,6 +9,13 @@ from typing import cast
 DEFAULT_DIR = "docs/security-proofs"
 DEFAULT_REQUIRED_FIELDS = ["## Theorem", "## Proof", "Status"]
 THEOREM_HEADER = "## Theorem"
+THEOREM_ALT_MARKERS = ("**Theorem ", "## Statement")
+
+# Only theorem files are skeleton-checked (basename T<n>*, e.g. T1.md,
+# T4-gas-bound.md). Registries, READMEs, verdicts, and milestone writeups in
+# the same tree are intentionally out of scope.
+def is_theorem_file(fname: str) -> bool:
+    return len(fname) >= 2 and fname[0] == "T" and fname[1].isdigit()
 
 
 def check_file(path: str, required_fields: Sequence[str]) -> tuple[list[str], int]:
@@ -20,11 +27,22 @@ def check_file(path: str, required_fields: Sequence[str]) -> tuple[list[str], in
         errors.append(f"Cannot read {path}: {e}")
         return errors, 0
 
+    theorem_sections = content.count(THEOREM_HEADER)
+    if theorem_sections == 0 and any(m in content for m in THEOREM_ALT_MARKERS):
+        theorem_sections = 1
+
     for field in required_fields:
-        if field not in content:
+        if field == THEOREM_HEADER:
+            if theorem_sections == 0:
+                errors.append(f"{path}: missing required field/section '{field}'")
+        elif field == "## Proof":
+            # MEASURED-status files document a measurement, not a proof.
+            if field not in content and "MEASURED" not in content:
+                errors.append(f"{path}: missing required field/section '{field}'")
+        elif field not in content:
             errors.append(f"{path}: missing required field/section '{field}'")
 
-    return errors, content.count(THEOREM_HEADER)
+    return errors, theorem_sections
 
 
 def main():
@@ -48,7 +66,7 @@ def main():
     md_files: list[str] = []
     for root, _, files in os.walk(target_dir):
         for fname in files:
-            if fname.endswith(".md"):
+            if fname.endswith(".md") and is_theorem_file(fname):
                 md_files.append(os.path.join(root, fname))
 
     if not md_files:

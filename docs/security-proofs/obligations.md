@@ -28,6 +28,6 @@ Theorems are identified and added during the research phase for each problem.
 
 | P3 | P3-T1 | Any on-chain acceptance of the P3 verifier implies acceptance of the exact frozen P2 terminal accumulator statement on the same public inputs. | SKELETON | docs/security-proofs/p3/T1-ultrahonk-soundness.md | §P3-OnchainSoundness |
 | P3 | P3-T2 | The Ajtai-commitment → UltraHonk binding preserves soundness of the bound P2 terminal relation. | SKELETON | docs/security-proofs/p3/proof-skeletons.md | §P3-BindingPreservesSoundness |
-| P3 | P3-T3 | Trusted-setup assumptions are explicit: setup compromise breaks P3 soundness if a setup-based verifier path is chosen, and is N/A otherwise. | SKELETON | docs/security-proofs/p3/T3.md | §P3-TrustedSetup |
+| P3 | P3-T3 | Trusted-setup assumptions are explicit: setup compromise breaks P3 soundness if a setup-based verifier path is chosen, and is N/A otherwise. | SKELETON | docs/security-proofs/p3/proof-skeletons.md | §P3-TrustedSetup |
 | P3 | P3-T4 | The deployed on-chain verifier halts within the published gas budget `≤ 5,000,000` for all accept/reject paths, preventing gas-based denial of service. | SKELETON | docs/security-proofs/p3/T4-gas-bound.md | §P3-GasBound |
-| P3 | P3-T5 | A valid P3 submission either finalizes on-chain or aborts under a publicly checkable blame predicate tied to calldata and contract state. | SKELETON | docs/security-proofs/p3/T5.md | §P3-LivenessBlame |
+| P3 | P3-T5 | A valid P3 submission either finalizes on-chain or aborts under a publicly checkable blame predicate tied to calldata and contract state. | SKELETON | docs/security-proofs/p3/proof-skeletons.md | §P3-LivenessBlame |

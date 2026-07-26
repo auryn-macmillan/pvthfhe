@@ -629,7 +629,13 @@ pub fn generate_decrypt_share_witness() -> DecryptShareWitness {
 /// sponge (`poseidon_sponge_hash_native`) which matches Noir's in-circuit
 /// `poseidon::poseidon::bn254::sponge`.
 pub fn generate_aggregator_final_witness() -> AggregatorFinalWitness {
-    use pvthfhe_compressor::witness::poseidon_sponge_hash_native;
+    // Canonical BN254 Poseidon sponge (matches Noir's in-circuit sponge);
+    // the compressor's poseidon_sponge_hash_native is a documented divergent
+    // stub and must NOT be used for circuit witnesses.
+    fn poseidon_sponge_hash_native(inputs: &[Fr]) -> Fr {
+        use pvthfhe_foundations::types::verification_statement::noir_bn254_sponge;
+        noir_bn254_sponge(inputs).expect("noir_bn254_sponge is infallible for valid Fr slices")
+    }
 
     let zero = Fr::from(0u64);
 
@@ -647,10 +653,10 @@ pub fn generate_aggregator_final_witness() -> AggregatorFinalWitness {
     let aggregate_pk_leaf = Fr::from(42u64);
     let aggregate_pk_hash = poseidon_sponge_hash_native(&[aggregate_pk_leaf]);
 
-    // dkg_root = compute_merkle_root(42, [0;7], 0) = repeated hash_pair(current, 0)
+    // dkg_root = compute_merkle_root(42, [0;DEPTH], 0) = repeated hash_2(current, 0)
     let mut dkg_root = aggregate_pk_leaf;
     for _ in 0..AGGREGATOR_DEPTH {
-        dkg_root = poseidon_sponge_hash_native(&[dkg_root, zero]);
+        dkg_root = noir_hash_2(dkg_root, zero);
     }
 
     // share_commitment_root = Merkle root of 128 leaf commitments.
@@ -661,9 +667,8 @@ pub fn generate_aggregator_final_witness() -> AggregatorFinalWitness {
         poseidon_sponge_hash_native(&input)
     };
     let mut share_commitment_root = zero_poly_commitment;
-    for _ in 0..7 {
-        share_commitment_root =
-            poseidon_sponge_hash_native(&[share_commitment_root, zero_poly_commitment]);
+    for _ in 0..AGGREGATOR_DEPTH {
+        share_commitment_root = noir_hash_2(share_commitment_root, zero);
     }
 
     // Remaining distinct non-zero public input hashes
@@ -705,13 +710,15 @@ pub fn generate_aggregator_final_witness() -> AggregatorFinalWitness {
 
     // C2 public inputs — neutral (all zeros)
     let c2_zero_eval = zero;
-    let c2_recipient_pk_root = Fr::from(11u64);
     let c2_delta = zero;
 
-    // C2 witnesses — neutral coefficient arrays + distinct commitments
+    // C2 witnesses — neutral coefficient arrays; commitments computed to match
+    // the circuit's recomputation: leaf = vector_hash(zero poly) (sponge),
+    // root = compute_merkle_root with literal-zero siblings (hash_2 chain).
     let c2_zero_coeffs: Vec<Fr> = vec![zero; AGGREGATOR_N];
-    let c2_pk0_commitment = Fr::from(12u64);
-    let c2_pk1_commitment = Fr::from(13u64);
+    let c2_pk0_commitment = zero_poly_commitment;
+    let c2_pk1_commitment = zero_poly_commitment;
+    let c2_recipient_pk_root = share_commitment_root;
     let c2_pk_merkle_path_raw = vec![zero; AGGREGATOR_DEPTH];
     let c2_pk_leaf_index = zero;
 
@@ -920,6 +927,13 @@ pub fn rolling_digest_8(values: &[String; 8]) -> String {
 }
 
 // DEPRECATED: use Poseidon bind_8_with_domain_native instead (see G.1)
+/// Noir-compatible fixed-arity Poseidon hash_2 (x5_3), matching `hash_pair`
+/// in circuits/aggregator_final.
+fn noir_hash_2(left: Fr, right: Fr) -> Fr {
+    let mut poseidon = Poseidon::<Fr>::new_circom(2).expect("circom-2 params are valid");
+    poseidon.hash(&[left, right]).expect("poseidon hash is infallible for valid Fr arrays")
+}
+
 /// Noir-compatible bind_8_with_domain: fixed-arity Poseidon hash_9 over
 /// [domain_tag, ...values], matching circuits/decrypt_share (x5_10).
 fn noir_bind_8_with_domain(values: [Fr; 8], domain_tag: Fr) -> Fr {

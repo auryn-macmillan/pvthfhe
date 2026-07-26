@@ -129,7 +129,7 @@ impl LatticeFoldCompressor {
         let challenge = {
             let mut h = Keccak256::new();
             h.update(b"latticefold-norm-challenge-v1");
-            h.update(&self.srs_hash);
+            h.update(self.srs_hash);
             h.finalize().into()
         };
         algebraic_range_check(witness_value, bound, &challenge)

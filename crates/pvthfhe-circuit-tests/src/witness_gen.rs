@@ -77,53 +77,101 @@ pub struct DecryptShareWitness {
 /// Fully materialized witness in Noir `Prover.toml` string form.
 #[derive(Debug, Clone)]
 pub struct AggregatorFinalWitness {
+    /// Public ciphertext binding hash.
     pub ciphertext_hash: String,
+    /// Public hash of the aggregate public key.
     pub aggregate_pk_hash: String,
+    /// Public hash binding the decrypt NIZK statement.
     pub decrypt_nizk_hash: String,
+    /// Public hash of the DKG transcript.
     pub dkg_transcript_hash: String,
+    /// Public DKG root binding.
     pub dkg_root: String,
+    /// Public session identifier.
     pub session_id: String,
+    /// Public epoch.
     pub epoch: String,
+    /// Public hash of the participant set.
     pub participant_set_hash: String,
+    /// Public participant count.
     pub n_participants: String,
+    /// Public decryption threshold.
     pub threshold: String,
+    /// Public commitment to the recovered plaintext.
     pub plaintext_commitment: String,
+    /// Public hash of the IVC SNARK proof bytes.
     pub ivc_snark_proof_hash: String,
+    /// Public number of decrypt shares.
     pub n_shares: String,
+    /// Public Merkle root over share commitments.
     pub share_commitment_root: String,
+    /// Public party ids forming the aggregation committee.
     pub committee_party_ids: Vec<String>,
+    /// Public final plaintext coefficients (legacy nova_ ABI name).
     pub nova_final_plaintext: Vec<String>,
+    /// Public hash chain over the shares (legacy nova_ ABI name).
     pub nova_share_chain_hash: String,
+    /// Private per-share evaluations at the challenge point.
     pub share_evals: Vec<String>,
+    /// Private Lagrange coefficients for the participant set.
     pub lagrange_coeffs: Vec<String>,
+    /// Private recovered plaintext evaluation at the challenge point.
     pub pt_eval: String,
+    /// Private combined (folded) polynomial coefficients.
     pub combined_poly: Vec<String>,
+    /// Private Merkle path for the combined polynomial leaf.
     pub combined_merkle_path: Vec<String>,
+    /// Private index of the combined leaf.
     pub combined_leaf_index: String,
+    /// Private aggregate public-key leaf.
     pub aggregate_pk_leaf: String,
+    /// Private Merkle path for the aggregate pk leaf.
     pub merkle_path: Vec<String>,
+    /// Private index of the aggregate pk leaf.
     pub leaf_index: String,
+    /// Public c2 pk0 evaluation at the challenge point.
     pub c2_pk0_eval: String,
+    /// Public c2 pk1 evaluation at the challenge point.
     pub c2_pk1_eval: String,
+    /// Public c2 ct0 evaluation at the challenge point.
     pub c2_ct0_eval: String,
+    /// Public c2 ct1 evaluation at the challenge point.
     pub c2_ct1_eval: String,
+    /// Public c2 ephemeral-key u evaluation.
     pub c2_u_eval: String,
+    /// Public c2 e0 noise evaluation.
     pub c2_e0_eval: String,
+    /// Public c2 e1 noise evaluation.
     pub c2_e1_eval: String,
+    /// Public c2 message evaluation.
     pub c2_m_eval: String,
+    /// Public c2 recipient public-key Merkle root.
     pub c2_recipient_pk_root: String,
+    /// Public c2 scaling factor Δ.
     pub c2_delta: String,
+    /// Private c2 pk0 polynomial coefficients.
     pub c2_pk0_coeffs: Vec<String>,
+    /// Private c2 pk1 polynomial coefficients.
     pub c2_pk1_coeffs: Vec<String>,
+    /// Private c2 ct0 polynomial coefficients.
     pub c2_ct0_coeffs: Vec<String>,
+    /// Private c2 ct1 polynomial coefficients.
     pub c2_ct1_coeffs: Vec<String>,
+    /// Private c2 ephemeral-key u coefficients.
     pub c2_u_coeffs: Vec<String>,
+    /// Private c2 e0 noise coefficients.
     pub c2_e0_coeffs: Vec<String>,
+    /// Private c2 e1 noise coefficients.
     pub c2_e1_coeffs: Vec<String>,
+    /// Private c2 message coefficients.
     pub c2_m_coeffs: Vec<String>,
+    /// Public c2 pk0 commitment.
     pub c2_pk0_commitment: String,
+    /// Public c2 pk1 commitment.
     pub c2_pk1_commitment: String,
+    /// Private Merkle path for the c2 pk leaf.
     pub c2_pk_merkle_path: Vec<String>,
+    /// Private index of the c2 pk leaf.
     pub c2_pk_leaf_index: String,
 }
 
@@ -215,38 +263,111 @@ impl DecryptShareWitness {
 }
 
 impl AggregatorFinalWitness {
+    /// Render the witness as a Noir Prover.toml string.
     pub fn to_toml(&self) -> String {
         let mut output = String::new();
         // Public inputs (12)
-        let _ = writeln!(&mut output, "ciphertext_hash = \"{}\"", self.ciphertext_hash);
-        let _ = writeln!(&mut output, "aggregate_pk_hash = \"{}\"", self.aggregate_pk_hash);
-        let _ = writeln!(&mut output, "decrypt_nizk_hash = \"{}\"", self.decrypt_nizk_hash);
-        let _ = writeln!(&mut output, "dkg_transcript_hash = \"{}\"", self.dkg_transcript_hash);
+        let _ = writeln!(
+            &mut output,
+            "ciphertext_hash = \"{}\"",
+            self.ciphertext_hash
+        );
+        let _ = writeln!(
+            &mut output,
+            "aggregate_pk_hash = \"{}\"",
+            self.aggregate_pk_hash
+        );
+        let _ = writeln!(
+            &mut output,
+            "decrypt_nizk_hash = \"{}\"",
+            self.decrypt_nizk_hash
+        );
+        let _ = writeln!(
+            &mut output,
+            "dkg_transcript_hash = \"{}\"",
+            self.dkg_transcript_hash
+        );
         let _ = writeln!(&mut output, "dkg_root = \"{}\"", self.dkg_root);
         let _ = writeln!(&mut output, "session_id = \"{}\"", self.session_id);
         let _ = writeln!(&mut output, "epoch = \"{}\"", self.epoch);
-        let _ = writeln!(&mut output, "participant_set_hash = \"{}\"", self.participant_set_hash);
+        let _ = writeln!(
+            &mut output,
+            "participant_set_hash = \"{}\"",
+            self.participant_set_hash
+        );
         let _ = writeln!(&mut output, "n_participants = \"{}\"", self.n_participants);
         let _ = writeln!(&mut output, "threshold = \"{}\"", self.threshold);
-        let _ = writeln!(&mut output, "plaintext_commitment = \"{}\"", self.plaintext_commitment);
-        let _ = writeln!(&mut output, "ivc_snark_proof_hash = \"{}\"", self.ivc_snark_proof_hash);
+        let _ = writeln!(
+            &mut output,
+            "plaintext_commitment = \"{}\"",
+            self.plaintext_commitment
+        );
+        let _ = writeln!(
+            &mut output,
+            "ivc_snark_proof_hash = \"{}\"",
+            self.ivc_snark_proof_hash
+        );
         // C7 public inputs (3)
         let _ = writeln!(&mut output, "n_shares = \"{}\"", self.n_shares);
-        let _ = writeln!(&mut output, "share_commitment_root = \"{}\"", self.share_commitment_root);
-        let _ = writeln!(&mut output, "committee_party_ids = [{}]", bare_array(&self.committee_party_ids));
+        let _ = writeln!(
+            &mut output,
+            "share_commitment_root = \"{}\"",
+            self.share_commitment_root
+        );
+        let _ = writeln!(
+            &mut output,
+            "committee_party_ids = [{}]",
+            bare_array(&self.committee_party_ids)
+        );
         // Nova final state (2)
-        let _ = writeln!(&mut output, "nova_final_plaintext = [{}]", bare_array(&self.nova_final_plaintext));
-        let _ = writeln!(&mut output, "nova_share_chain_hash = \"{}\"", self.nova_share_chain_hash);
+        let _ = writeln!(
+            &mut output,
+            "nova_final_plaintext = [{}]",
+            bare_array(&self.nova_final_plaintext)
+        );
+        let _ = writeln!(
+            &mut output,
+            "nova_share_chain_hash = \"{}\"",
+            self.nova_share_chain_hash
+        );
         // C7 witnesses (7)
-        let _ = writeln!(&mut output, "share_evals = [{}]", bare_array(&self.share_evals));
-        let _ = writeln!(&mut output, "lagrange_coeffs = [{}]", bare_array(&self.lagrange_coeffs));
+        let _ = writeln!(
+            &mut output,
+            "share_evals = [{}]",
+            bare_array(&self.share_evals)
+        );
+        let _ = writeln!(
+            &mut output,
+            "lagrange_coeffs = [{}]",
+            bare_array(&self.lagrange_coeffs)
+        );
         let _ = writeln!(&mut output, "pt_eval = \"{}\"", self.pt_eval);
-        let _ = writeln!(&mut output, "combined_poly = [{}]", bare_array(&self.combined_poly));
-        let _ = writeln!(&mut output, "combined_merkle_path = [{}]", bare_array(&self.combined_merkle_path));
-        let _ = writeln!(&mut output, "combined_leaf_index = \"{}\"", self.combined_leaf_index);
+        let _ = writeln!(
+            &mut output,
+            "combined_poly = [{}]",
+            bare_array(&self.combined_poly)
+        );
+        let _ = writeln!(
+            &mut output,
+            "combined_merkle_path = [{}]",
+            bare_array(&self.combined_merkle_path)
+        );
+        let _ = writeln!(
+            &mut output,
+            "combined_leaf_index = \"{}\"",
+            self.combined_leaf_index
+        );
         // G4 witnesses (3)
-        let _ = writeln!(&mut output, "aggregate_pk_leaf = \"{}\"", self.aggregate_pk_leaf);
-        let _ = writeln!(&mut output, "merkle_path = [{}]", bare_array(&self.merkle_path));
+        let _ = writeln!(
+            &mut output,
+            "aggregate_pk_leaf = \"{}\"",
+            self.aggregate_pk_leaf
+        );
+        let _ = writeln!(
+            &mut output,
+            "merkle_path = [{}]",
+            bare_array(&self.merkle_path)
+        );
         let _ = writeln!(&mut output, "leaf_index = \"{}\"", self.leaf_index);
         // C2 public inputs (10)
         let _ = writeln!(&mut output, "c2_pk0_eval = \"{}\"", self.c2_pk0_eval);
@@ -257,21 +378,73 @@ impl AggregatorFinalWitness {
         let _ = writeln!(&mut output, "c2_e0_eval = \"{}\"", self.c2_e0_eval);
         let _ = writeln!(&mut output, "c2_e1_eval = \"{}\"", self.c2_e1_eval);
         let _ = writeln!(&mut output, "c2_m_eval = \"{}\"", self.c2_m_eval);
-        let _ = writeln!(&mut output, "c2_recipient_pk_root = \"{}\"", self.c2_recipient_pk_root);
+        let _ = writeln!(
+            &mut output,
+            "c2_recipient_pk_root = \"{}\"",
+            self.c2_recipient_pk_root
+        );
         let _ = writeln!(&mut output, "c2_delta = \"{}\"", self.c2_delta);
         // C2 witnesses (12): 8 coefficient arrays + 2 commitments + merkle path + leaf_index
-        let _ = writeln!(&mut output, "c2_pk0_coeffs = [{}]", bare_array(&self.c2_pk0_coeffs));
-        let _ = writeln!(&mut output, "c2_pk1_coeffs = [{}]", bare_array(&self.c2_pk1_coeffs));
-        let _ = writeln!(&mut output, "c2_ct0_coeffs = [{}]", bare_array(&self.c2_ct0_coeffs));
-        let _ = writeln!(&mut output, "c2_ct1_coeffs = [{}]", bare_array(&self.c2_ct1_coeffs));
-        let _ = writeln!(&mut output, "c2_u_coeffs = [{}]", bare_array(&self.c2_u_coeffs));
-        let _ = writeln!(&mut output, "c2_e0_coeffs = [{}]", bare_array(&self.c2_e0_coeffs));
-        let _ = writeln!(&mut output, "c2_e1_coeffs = [{}]", bare_array(&self.c2_e1_coeffs));
-        let _ = writeln!(&mut output, "c2_m_coeffs = [{}]", bare_array(&self.c2_m_coeffs));
-        let _ = writeln!(&mut output, "c2_pk0_commitment = \"{}\"", self.c2_pk0_commitment);
-        let _ = writeln!(&mut output, "c2_pk1_commitment = \"{}\"", self.c2_pk1_commitment);
-        let _ = writeln!(&mut output, "c2_pk_merkle_path = [{}]", bare_array(&self.c2_pk_merkle_path));
-        let _ = writeln!(&mut output, "c2_pk_leaf_index = \"{}\"", self.c2_pk_leaf_index);
+        let _ = writeln!(
+            &mut output,
+            "c2_pk0_coeffs = [{}]",
+            bare_array(&self.c2_pk0_coeffs)
+        );
+        let _ = writeln!(
+            &mut output,
+            "c2_pk1_coeffs = [{}]",
+            bare_array(&self.c2_pk1_coeffs)
+        );
+        let _ = writeln!(
+            &mut output,
+            "c2_ct0_coeffs = [{}]",
+            bare_array(&self.c2_ct0_coeffs)
+        );
+        let _ = writeln!(
+            &mut output,
+            "c2_ct1_coeffs = [{}]",
+            bare_array(&self.c2_ct1_coeffs)
+        );
+        let _ = writeln!(
+            &mut output,
+            "c2_u_coeffs = [{}]",
+            bare_array(&self.c2_u_coeffs)
+        );
+        let _ = writeln!(
+            &mut output,
+            "c2_e0_coeffs = [{}]",
+            bare_array(&self.c2_e0_coeffs)
+        );
+        let _ = writeln!(
+            &mut output,
+            "c2_e1_coeffs = [{}]",
+            bare_array(&self.c2_e1_coeffs)
+        );
+        let _ = writeln!(
+            &mut output,
+            "c2_m_coeffs = [{}]",
+            bare_array(&self.c2_m_coeffs)
+        );
+        let _ = writeln!(
+            &mut output,
+            "c2_pk0_commitment = \"{}\"",
+            self.c2_pk0_commitment
+        );
+        let _ = writeln!(
+            &mut output,
+            "c2_pk1_commitment = \"{}\"",
+            self.c2_pk1_commitment
+        );
+        let _ = writeln!(
+            &mut output,
+            "c2_pk_merkle_path = [{}]",
+            bare_array(&self.c2_pk_merkle_path)
+        );
+        let _ = writeln!(
+            &mut output,
+            "c2_pk_leaf_index = \"{}\"",
+            self.c2_pk_leaf_index
+        );
         output
     }
 
@@ -489,7 +662,8 @@ pub fn generate_aggregator_final_witness() -> AggregatorFinalWitness {
     };
     let mut share_commitment_root = zero_poly_commitment;
     for _ in 0..7 {
-        share_commitment_root = poseidon_sponge_hash_native(&[share_commitment_root, zero_poly_commitment]);
+        share_commitment_root =
+            poseidon_sponge_hash_native(&[share_commitment_root, zero_poly_commitment]);
     }
 
     // Remaining distinct non-zero public input hashes
@@ -556,14 +730,29 @@ pub fn generate_aggregator_final_witness() -> AggregatorFinalWitness {
         ivc_snark_proof_hash: field_to_decimal(ivc_snark_proof_hash),
         n_shares: field_to_decimal(n_shares),
         share_commitment_root: field_to_decimal(share_commitment_root),
-        committee_party_ids: committee_party_ids_raw.into_iter().map(field_to_decimal).collect(),
-        nova_final_plaintext: nova_final_plaintext_raw.into_iter().map(field_to_decimal).collect(),
+        committee_party_ids: committee_party_ids_raw
+            .into_iter()
+            .map(field_to_decimal)
+            .collect(),
+        nova_final_plaintext: nova_final_plaintext_raw
+            .into_iter()
+            .map(field_to_decimal)
+            .collect(),
         nova_share_chain_hash: field_to_decimal(nova_share_chain_hash),
         share_evals: share_evals_raw.into_iter().map(field_to_decimal).collect(),
-        lagrange_coeffs: lagrange_coeffs_raw.into_iter().map(field_to_decimal).collect(),
+        lagrange_coeffs: lagrange_coeffs_raw
+            .into_iter()
+            .map(field_to_decimal)
+            .collect(),
         pt_eval: field_to_decimal(pt_eval),
-        combined_poly: combined_poly_raw.into_iter().map(field_to_decimal).collect(),
-        combined_merkle_path: combined_merkle_path_raw.into_iter().map(field_to_decimal).collect(),
+        combined_poly: combined_poly_raw
+            .into_iter()
+            .map(field_to_decimal)
+            .collect(),
+        combined_merkle_path: combined_merkle_path_raw
+            .into_iter()
+            .map(field_to_decimal)
+            .collect(),
         combined_leaf_index: field_to_decimal(combined_leaf_index),
         aggregate_pk_leaf: field_to_decimal(aggregate_pk_leaf),
         merkle_path: merkle_path_raw.into_iter().map(field_to_decimal).collect(),
@@ -578,17 +767,48 @@ pub fn generate_aggregator_final_witness() -> AggregatorFinalWitness {
         c2_m_eval: field_to_decimal(c2_zero_eval),
         c2_recipient_pk_root: field_to_decimal(c2_recipient_pk_root),
         c2_delta: field_to_decimal(c2_delta),
-        c2_pk0_coeffs: c2_zero_coeffs.clone().into_iter().map(field_to_decimal).collect(),
-        c2_pk1_coeffs: c2_zero_coeffs.clone().into_iter().map(field_to_decimal).collect(),
-        c2_ct0_coeffs: c2_zero_coeffs.clone().into_iter().map(field_to_decimal).collect(),
-        c2_ct1_coeffs: c2_zero_coeffs.clone().into_iter().map(field_to_decimal).collect(),
-        c2_u_coeffs: c2_zero_coeffs.clone().into_iter().map(field_to_decimal).collect(),
-        c2_e0_coeffs: c2_zero_coeffs.clone().into_iter().map(field_to_decimal).collect(),
-        c2_e1_coeffs: c2_zero_coeffs.clone().into_iter().map(field_to_decimal).collect(),
+        c2_pk0_coeffs: c2_zero_coeffs
+            .clone()
+            .into_iter()
+            .map(field_to_decimal)
+            .collect(),
+        c2_pk1_coeffs: c2_zero_coeffs
+            .clone()
+            .into_iter()
+            .map(field_to_decimal)
+            .collect(),
+        c2_ct0_coeffs: c2_zero_coeffs
+            .clone()
+            .into_iter()
+            .map(field_to_decimal)
+            .collect(),
+        c2_ct1_coeffs: c2_zero_coeffs
+            .clone()
+            .into_iter()
+            .map(field_to_decimal)
+            .collect(),
+        c2_u_coeffs: c2_zero_coeffs
+            .clone()
+            .into_iter()
+            .map(field_to_decimal)
+            .collect(),
+        c2_e0_coeffs: c2_zero_coeffs
+            .clone()
+            .into_iter()
+            .map(field_to_decimal)
+            .collect(),
+        c2_e1_coeffs: c2_zero_coeffs
+            .clone()
+            .into_iter()
+            .map(field_to_decimal)
+            .collect(),
         c2_m_coeffs: c2_zero_coeffs.into_iter().map(field_to_decimal).collect(),
         c2_pk0_commitment: field_to_decimal(c2_pk0_commitment),
         c2_pk1_commitment: field_to_decimal(c2_pk1_commitment),
-        c2_pk_merkle_path: c2_pk_merkle_path_raw.into_iter().map(field_to_decimal).collect(),
+        c2_pk_merkle_path: c2_pk_merkle_path_raw
+            .into_iter()
+            .map(field_to_decimal)
+            .collect(),
         c2_pk_leaf_index: field_to_decimal(c2_pk_leaf_index),
     }
 }
@@ -636,8 +856,8 @@ pub fn generate_ivc_state_commitment_witness() -> IvcStateCommitmentWitness {
 
     let proof_chunks_raw: [Fr; PROOF_MAX] = {
         let mut arr = [Fr::zero(); PROOF_MAX];
-        for i in 0..3 {
-            arr[i] = Fr::from((i + 1) as u64); // [1, 2, 3, 0, 0, ...]
+        for (i, slot) in arr.iter_mut().take(3).enumerate() {
+            *slot = Fr::from((i + 1) as u64); // [1, 2, 3, 0, 0, ...]
         }
         arr
     };

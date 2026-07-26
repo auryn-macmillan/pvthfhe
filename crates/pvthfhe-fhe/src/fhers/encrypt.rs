@@ -28,7 +28,10 @@ pub fn slots_to_bytes(slots: &[u64], original_len: usize) -> Vec<u8> {
     bytes
 }
 
-pub(super) fn encode_plaintext_slots(plaintext: &[u8], degree: usize) -> Result<Vec<u64>, FheError> {
+pub(super) fn encode_plaintext_slots(
+    plaintext: &[u8],
+    degree: usize,
+) -> Result<Vec<u64>, FheError> {
     let max = degree.saturating_sub(1) * 2;
     if plaintext.len() > max {
         return Err(FheError::PlaintextTooLong {

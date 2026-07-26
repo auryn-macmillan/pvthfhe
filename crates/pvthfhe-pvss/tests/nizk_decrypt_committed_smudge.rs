@@ -1,4 +1,5 @@
 use pvthfhe_fhe::{mock::MockBackend, FheBackend};
+use pvthfhe_foundations::types::Secret;
 use pvthfhe_pvss::dkg_aggregation::{
     compute_esm_aggregate_commitment, compute_sk_aggregate_commitment,
 };
@@ -9,7 +10,6 @@ use pvthfhe_pvss::nizk_decrypt::{
 };
 use pvthfhe_pvss::slot_registry::SmudgeSlotRegistry;
 use pvthfhe_pvss::{PvssContext, PvssError};
-use pvthfhe_foundations::types::Secret;
 
 const SLOT_ID: u16 = 3;
 const DECRYPT_ROUND: u64 = 9;

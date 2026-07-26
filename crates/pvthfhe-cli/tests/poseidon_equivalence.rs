@@ -138,7 +138,10 @@ fn v7_golden_statement_preimage() -> Vec<Fr> {
     fixture
         .poseidon_preimage_decimal
         .iter()
-        .map(|s| s.parse::<Fr>().expect("golden preimage elements are decimal Fr"))
+        .map(|s| {
+            s.parse::<Fr>()
+                .expect("golden preimage elements are decimal Fr")
+        })
         .collect()
 }
 
@@ -175,27 +178,75 @@ fn circom_vectors() -> Vec<(&'static str, Vec<Fr>)> {
 /// byte-identical to D by `cross_impl_noir_sponges_byte_identical` and then
 /// consolidated into it; that test is removed as fulfilled).
 const GOLDEN_NOIR_SPONGE: [(&str, &str); 8] = [
-    ("V0_empty", "0000000000000000000000000000000000000000000000000000000000000000"),
-    ("V1_zero", "2875620e99eb8e792ddd736e15a21a653ddc6724a8e6133eea0fa9adfeb75e02"),
-    ("V2_one", "0fe896c25d7e32889bdff98e915a5fc35fca904c90d392d10226bc3839ba5e90"),
-    ("V3_1_2", "2dddd542213b9228162ff1b438c3709c057a9550103c9173c6204fb29b802c37"),
-    ("V4_1_to_5", "046f72048d371ab8c2793248aee7aa80a56a4f990d4d21ca5424509a0d5c85c3"),
-    ("V5_max_arity_12", "08cb8d4fda5f3b3746ca195666b96a3f0679cfff549d3091c793a62b59a26e24"),
-    ("V6_s1_1_to_4", "1148aaef609aa338b27dafd89bb98862d8bb2b429aceac47d86206154ffe053d"),
-    ("V7_golden_statement_92", "00046b39c51423acca3390ca18deddf1a5c98c3b391b53a70fe5d17b205b8abf"),
+    (
+        "V0_empty",
+        "0000000000000000000000000000000000000000000000000000000000000000",
+    ),
+    (
+        "V1_zero",
+        "2875620e99eb8e792ddd736e15a21a653ddc6724a8e6133eea0fa9adfeb75e02",
+    ),
+    (
+        "V2_one",
+        "0fe896c25d7e32889bdff98e915a5fc35fca904c90d392d10226bc3839ba5e90",
+    ),
+    (
+        "V3_1_2",
+        "2dddd542213b9228162ff1b438c3709c057a9550103c9173c6204fb29b802c37",
+    ),
+    (
+        "V4_1_to_5",
+        "046f72048d371ab8c2793248aee7aa80a56a4f990d4d21ca5424509a0d5c85c3",
+    ),
+    (
+        "V5_max_arity_12",
+        "08cb8d4fda5f3b3746ca195666b96a3f0679cfff549d3091c793a62b59a26e24",
+    ),
+    (
+        "V6_s1_1_to_4",
+        "1148aaef609aa338b27dafd89bb98862d8bb2b429aceac47d86206154ffe053d",
+    ),
+    (
+        "V7_golden_statement_92",
+        "00046b39c51423acca3390ca18deddf1a5c98c3b391b53a70fe5d17b205b8abf",
+    ),
 ];
 
 /// Golden outputs of implementation C (compressor witness stub: zero round
 /// constants, identity MDS, RP=56 — documented as Poseidon-incompatible).
 const GOLDEN_COMPRESSOR_STUB: [(&str, &str); 8] = [
-    ("V0_empty", "0000000000000000000000000000000000000000000000000000000000000000"),
-    ("V1_zero", "0000000000000000000000000000000000000000000000000000000000000000"),
-    ("V2_one", "0000000000000000000000000000000000000000000000000000000000000001"),
-    ("V3_1_2", "0000000000000000000000000000000000000000000000000000000000000001"),
-    ("V4_1_to_5", "15acd5439cfc7496ac2aee4cac8be4c55ea963fd5b103036fcc4638c1fbadc6d"),
-    ("V5_max_arity_12", "0e8d3b2c1f2a776912ead4104f3e7d707db664610f80d21bb69eedf99efefbb5"),
-    ("V6_s1_1_to_4", "0000000000000000000000000000000000000000000000000000000000000001"),
-    ("V7_golden_statement_92", "1cce017bed7a5f012ae8d4f9d5aac1201c2b39219909de1ea37ae6e3b2dd72a0"),
+    (
+        "V0_empty",
+        "0000000000000000000000000000000000000000000000000000000000000000",
+    ),
+    (
+        "V1_zero",
+        "0000000000000000000000000000000000000000000000000000000000000000",
+    ),
+    (
+        "V2_one",
+        "0000000000000000000000000000000000000000000000000000000000000001",
+    ),
+    (
+        "V3_1_2",
+        "0000000000000000000000000000000000000000000000000000000000000001",
+    ),
+    (
+        "V4_1_to_5",
+        "15acd5439cfc7496ac2aee4cac8be4c55ea963fd5b103036fcc4638c1fbadc6d",
+    ),
+    (
+        "V5_max_arity_12",
+        "0e8d3b2c1f2a776912ead4104f3e7d707db664610f80d21bb69eedf99efefbb5",
+    ),
+    (
+        "V6_s1_1_to_4",
+        "0000000000000000000000000000000000000000000000000000000000000001",
+    ),
+    (
+        "V7_golden_statement_92",
+        "1cce017bed7a5f012ae8d4f9d5aac1201c2b39219909de1ea37ae6e3b2dd72a0",
+    ),
 ];
 
 /// Golden outputs of the circom construction shared by B2 and E
@@ -205,12 +256,30 @@ const GOLDEN_COMPRESSOR_STUB: [(&str, &str); 8] = [
 /// inherited from the deleted `noir_poseidon.rs` — evidence that the former
 /// `hash_2` call sites (now on B2's construction) are unchanged.
 const GOLDEN_CIRCOM: [(&str, &str); 6] = [
-    ("V1_zero", "2a09a9fd93c590c26b91effbb2499f07e8f7aa12e2b4940a3aed2411cb65e11c"),
-    ("V2_one", "29176100eaa962bdc1fe6c654d6a3c130e96a4d1168b33848b897dc502820133"),
-    ("V3_1_2", "115cc0f5e7d690413df64c6b9662e9cf2a3617f2743245519e19607a4417189a"),
-    ("V4_1_to_5", "0dab9449e4a1398a15224c0b15a49d598b2174d305a316c918125f8feeb123c0"),
-    ("V5_max_arity_12", "058814945232937db248a01e7cc55b3d681cc08702c8168494e856c1ef7693b5"),
-    ("V6_s1_1_to_4", "299c867db6c1fdd79dcefa40e4510b9837e60ebb1ce0663dbaa525df65250465"),
+    (
+        "V1_zero",
+        "2a09a9fd93c590c26b91effbb2499f07e8f7aa12e2b4940a3aed2411cb65e11c",
+    ),
+    (
+        "V2_one",
+        "29176100eaa962bdc1fe6c654d6a3c130e96a4d1168b33848b897dc502820133",
+    ),
+    (
+        "V3_1_2",
+        "115cc0f5e7d690413df64c6b9662e9cf2a3617f2743245519e19607a4417189a",
+    ),
+    (
+        "V4_1_to_5",
+        "0dab9449e4a1398a15224c0b15a49d598b2174d305a316c918125f8feeb123c0",
+    ),
+    (
+        "V5_max_arity_12",
+        "058814945232937db248a01e7cc55b3d681cc08702c8168494e856c1ef7693b5",
+    ),
+    (
+        "V6_s1_1_to_4",
+        "299c867db6c1fdd79dcefa40e4510b9837e60ebb1ce0663dbaa525df65250465",
+    ),
 ];
 
 /// Golden transcript vectors for implementation E (nizk `sigma.rs`
@@ -314,7 +383,11 @@ fn nizk_transcript_tuples() -> Vec<TranscriptTuple> {
         .map(|i| {
             let mut commitment = [0u8; 32];
             let mut d_commitment = [0u8; 32];
-            for (j, (c, d)) in commitment.iter_mut().zip(d_commitment.iter_mut()).enumerate() {
+            for (j, (c, d)) in commitment
+                .iter_mut()
+                .zip(d_commitment.iter_mut())
+                .enumerate()
+            {
                 *c = i.wrapping_mul(17).wrapping_add(j as u8);
                 *d = i.wrapping_mul(31).wrapping_add(j as u8).wrapping_add(7);
             }
@@ -542,7 +615,8 @@ fn cross_impl_circom_construction_identical_between_full_pipeline_and_nizk() {
         )
         .expect("E public challenge derivation must succeed");
         assert_eq!(
-            real, replica_ternary,
+            real,
+            replica_ternary,
             "B2 circom construction (via ch_fr 0x{}) != E public output",
             fr_hex(&ch_fr),
         );
@@ -560,7 +634,8 @@ fn divergence_s1_native_keccak_vs_all_poseidon() {
     let keccak_fr = Fr::from_be_bytes_mod_order(&S1_NATIVE_KECCAK_OF_1_2_3_4);
 
     let c = pvthfhe_compressor::witness::poseidon_sponge_hash_native(&input);
-    let d = pvthfhe_foundations::types::verification_statement::noir_bn254_sponge(&input).expect("D sponge");
+    let d = pvthfhe_foundations::types::verification_statement::noir_bn254_sponge(&input)
+        .expect("D sponge");
     let b2 = circom_hash_b2_replica(&input);
 
     for (label, value) in [("C", c), ("D", d), ("B2", b2)] {

@@ -78,9 +78,15 @@ pub struct CheckedBatchedShareComputation {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ShareComputationError {
     /// Statement metadata is malformed.
-    InvalidStatement { dealer_id: u16, message: &'static str },
+    InvalidStatement {
+        dealer_id: u16,
+        message: &'static str,
+    },
     /// A track contains malformed share coordinates.
-    InvalidShareVector { dealer_id: u16, message: &'static str },
+    InvalidShareVector {
+        dealer_id: u16,
+        message: &'static str,
+    },
     /// A track is not a Reed-Solomon codeword for the configured degree.
     NonLowDegree {
         /// The dealer whose shares failed the RS check.
@@ -108,7 +114,10 @@ impl core::fmt::Display for ShareComputationError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::InvalidStatement { dealer_id, message } => {
-                write!(f, "invalid share-computation statement from dealer {dealer_id}: {message}")
+                write!(
+                    f,
+                    "invalid share-computation statement from dealer {dealer_id}: {message}"
+                )
             }
             Self::InvalidShareVector { dealer_id, message } => {
                 write!(f, "invalid share vector from dealer {dealer_id}: {message}")

@@ -37,9 +37,10 @@ fn sample_error(rng: &mut ChaCha20Rng) -> Result<Vec<i64>, NizkError> {
         loop {
             let v = rng.next_u64();
             if v < THRESHOLD {
-                *x = i64::try_from(v % RANGE)
-                    .map_err(|_| NizkError::InvalidInput { reason: "error sample overflow", party_id: None })?
-                    - B_E;
+                *x = i64::try_from(v % RANGE).map_err(|_| NizkError::InvalidInput {
+                    reason: "error sample overflow",
+                    party_id: None,
+                })? - B_E;
                 break;
             }
         }

@@ -1,6 +1,6 @@
 use ark_ff::{BigInteger, PrimeField};
-use sha2::Sha256;
 use sha2::Digest;
+use sha2::Sha256;
 
 use super::compressor::ExternalInputs3;
 use super::fold::verify_folded_instance;
@@ -61,17 +61,14 @@ impl LatticeFoldVerifier {
         instances: &[ExternalInputs3],
     ) -> VerificationProof {
         let verification_passed = self.verify(accumulator, instances);
-        
+
         // Generate UltraHonk proof of verification
-        let proof_bytes = self.generate_ultrahonk_proof(
-            verification_passed,
-            accumulator,
-            instances,
-        );
-        
+        let proof_bytes =
+            self.generate_ultrahonk_proof(verification_passed, accumulator, instances);
+
         // Compute public inputs hash
         let public_inputs = self.compute_public_inputs(accumulator, instances);
-        
+
         VerificationProof {
             verification_passed,
             proof_bytes,

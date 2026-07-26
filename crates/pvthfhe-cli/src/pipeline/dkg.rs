@@ -289,7 +289,7 @@ pub(crate) fn run_dkg_ceremony_stage<O: PipelineObserver>(
             }
 
             // MEMORY: drop dealer's sk_bytes after all chunks processed.
-            let _ = std::mem::replace(&mut party_sk_bytes[dealer_id], Vec::new());
+            let _ = std::mem::take(&mut party_sk_bytes[dealer_id]);
         }
         // MEMORY: drop the precomputed deals map entirely (all entries removed above).
         std::mem::drop(precomputed_dkg_deals);
@@ -525,12 +525,12 @@ pub(crate) fn verify_all_dealer_share_computations(
     threshold: usize,
     dkg_root_bytes: &[u8],
 ) -> anyhow::Result<()> {
+    use pvthfhe_foundations::types::ProtocolBytes;
     use pvthfhe_pvss::share_computation::{
         compute_esm_secret_commitment, compute_sk_secret_commitment, interpolate_coefficients,
         verify_batched_share_computation, BatchedShareComputationStatement,
         ESmShareComputationSlot, FieldShare, ShareComputationTrack,
     };
-    use pvthfhe_foundations::types::ProtocolBytes;
 
     let session_id_bytes = ProtocolBytes::from(session_id.as_bytes().to_vec());
     let dkg_root = ProtocolBytes::from(dkg_root_bytes.to_vec());

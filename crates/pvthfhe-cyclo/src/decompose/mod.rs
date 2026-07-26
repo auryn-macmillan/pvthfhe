@@ -49,10 +49,7 @@ fn pow_mod(base: u128, exp: u32, modulus: u128) -> u128 {
 
 pub fn decompose_rqpoly_base_b(poly: &RqPoly, b: u64, k: usize) -> Vec<RqPoly> {
     let digits = decompose_base_b(&poly.0, b, k);
-    digits
-        .into_iter()
-        .map(RqPoly)
-        .collect()
+    digits.into_iter().map(RqPoly).collect()
 }
 
 pub fn recompose_rqpoly_base_b(polys: &[RqPoly], b: u64) -> RqPoly {

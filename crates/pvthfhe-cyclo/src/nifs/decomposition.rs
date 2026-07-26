@@ -1,7 +1,4 @@
-use crate::{
-    decompose,
-    ring::{RqPoly},
-};
+use crate::{decompose, ring::RqPoly};
 
 pub fn decompose_witness(w: &[RqPoly], b_small: u64, k: usize) -> Vec<Vec<RqPoly>> {
     let n = w.len();

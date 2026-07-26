@@ -1,11 +1,11 @@
 #![allow(missing_docs, clippy::unwrap_used, clippy::expect_used)]
 
+use pvthfhe_foundations::types::Secret;
 use pvthfhe_pvss::nizk_decrypt::{
     DecryptNizkMode, DecryptNizkProof, DecryptNizkProver, DecryptNizkStatement,
     DecryptNizkVerifier, DecryptNizkWitness,
 };
 use pvthfhe_pvss::PvssError;
-use pvthfhe_foundations::types::Secret;
 
 fn sample_statement() -> DecryptNizkStatement {
     DecryptNizkStatement {

@@ -10,14 +10,19 @@ use crate::PvssError;
 use super::statement::{
     validate_statement, ShareNizkOpenedProof, ShareNizkProof, ShareNizkStatement,
 };
-use super::{CHALLENGE_LEN, DIGEST_LEN, MAX_FIELD_LEN, PROOF_VERSION, SHARE_NIZK_DOMAIN_SEPARATOR, WIRE_VERSION};
+use super::{
+    CHALLENGE_LEN, DIGEST_LEN, MAX_FIELD_LEN, PROOF_VERSION, SHARE_NIZK_DOMAIN_SEPARATOR,
+    WIRE_VERSION,
+};
 
 // ── Proof serialization/deserialization ──────────────────────────────────
 
 impl ShareNizkProof {
     pub fn from_opened(opened: &ShareNizkOpenedProof) -> Result<Self, PvssError> {
         if opened.domain_separator != SHARE_NIZK_DOMAIN_SEPARATOR {
-            return Err(PvssError::InvalidShare { party_id: Some(opened.statement.recipient_index as u16) });
+            return Err(PvssError::InvalidShare {
+                party_id: Some(opened.statement.recipient_index as u16),
+            });
         }
         validate_statement(&opened.statement)?;
 

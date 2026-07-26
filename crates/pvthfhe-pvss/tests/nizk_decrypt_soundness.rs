@@ -3,11 +3,11 @@
 //! any witness produces a verifiable proof because the commitment depends
 //! only on public statement fields.
 
+use pvthfhe_foundations::types::Secret;
 use pvthfhe_pvss::nizk_decrypt::{
     DecryptNizkMode, DecryptNizkProver, DecryptNizkStatement, DecryptNizkVerifier,
     DecryptNizkWitness,
 };
-use pvthfhe_foundations::types::Secret;
 
 fn sample_statement() -> DecryptNizkStatement {
     DecryptNizkStatement {

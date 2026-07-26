@@ -41,11 +41,7 @@ pub fn fold_instances(
 
     let n = acc.folded_witness.len();
 
-    for ((inst, wit), power) in instances
-        .iter()
-        .zip(witnesses.iter())
-        .zip(1u32..)
-    {
+    for ((inst, wit), power) in instances.iter().zip(witnesses.iter()).zip(1u32..) {
         if inst.commitment.len() != m {
             return Err(CycloError::InvalidInstance(
                 "instance commitment length must match accumulator",
@@ -84,7 +80,11 @@ pub fn fold_instances(
     })
 }
 
-pub fn fold_commitments(acc: &AjtaiCommitment, instances: &[AjtaiCommitment], r: u64) -> AjtaiCommitment {
+pub fn fold_commitments(
+    acc: &AjtaiCommitment,
+    instances: &[AjtaiCommitment],
+    r: u64,
+) -> AjtaiCommitment {
     if instances.is_empty() {
         return acc.clone();
     }
@@ -95,16 +95,16 @@ pub fn fold_commitments(acc: &AjtaiCommitment, instances: &[AjtaiCommitment], r:
             *acc_poly = ring_add_poly(acc_poly, &scalar_mul(inst_poly, coeff as u128));
         }
     }
-    AjtaiCommitment { commitment: combined }
+    AjtaiCommitment {
+        commitment: combined,
+    }
 }
 
 pub fn verify_fold(acc: &FoldedAccumulator, _instances: &[AjtaiCommitment], _r: u64) -> bool {
     let params = &acc.ajtai_params;
 
     match crate::ajtai::commit(params, &acc.folded_witness, &mut rand_core::OsRng) {
-        Ok(computed_commitment) => {
-            computed_commitment.commitment == acc.commitment.commitment
-        }
+        Ok(computed_commitment) => computed_commitment.commitment == acc.commitment.commitment,
         Err(_) => false,
     }
 }

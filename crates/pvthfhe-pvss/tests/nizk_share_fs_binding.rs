@@ -11,11 +11,11 @@
 //! GREEN: challenge_a != challenge_b (witness bound via commitment_ct)
 
 use pvthfhe_fhe::{mock::MockBackend, types::PublicKey, FheBackend};
+use pvthfhe_foundations::types::{EncRandomness, ProtocolBytes, ShareSecret};
 use pvthfhe_pvss::nizk_share::{
     canonical_bfv_params_digest, compute_ciphertext_v, compute_share_commitment, ShareNizkProver,
     ShareNizkStatement, ShareNizkVerifier, ShareNizkWitness,
 };
-use pvthfhe_foundations::types::{EncRandomness, ProtocolBytes, ShareSecret};
 use rand_chacha::ChaCha8Rng;
 use rand_core::{RngCore, SeedableRng};
 
@@ -53,7 +53,8 @@ fn challenge_changes_when_witness_changes() {
         .bytes;
     let ciphertext_v_a = compute_ciphertext_v(&ciphertext_u_a);
 
-    let share_commitment = compute_share_commitment(&session_id, 0, &share_a).expect("share_commitment");
+    let share_commitment =
+        compute_share_commitment(&session_id, 0, &share_a).expect("share_commitment");
 
     let stmt_a = ShareNizkStatement {
         session_id: ProtocolBytes(session_id.clone()),
@@ -72,7 +73,8 @@ fn challenge_changes_when_witness_changes() {
         .expect("encrypt share B")
         .bytes;
     let ciphertext_v_b = compute_ciphertext_v(&ciphertext_u_b);
-    let share_commitment_b = compute_share_commitment(&session_id, 0, &share_b).expect("share_commitment");
+    let share_commitment_b =
+        compute_share_commitment(&session_id, 0, &share_b).expect("share_commitment");
     let stmt_b = ShareNizkStatement {
         ciphertext_u: ProtocolBytes(ciphertext_u_b),
         ciphertext_v: ProtocolBytes(ciphertext_v_b.to_vec()),
@@ -133,7 +135,8 @@ fn valid_v3_proof_fails_closed_until_bfv_relation_exists() {
         .expect("encrypt share")
         .bytes;
     let ciphertext_v = compute_ciphertext_v(&ciphertext_u);
-    let share_commitment = compute_share_commitment(&session_id, 0, &share).expect("share_commitment");
+    let share_commitment =
+        compute_share_commitment(&session_id, 0, &share).expect("share_commitment");
 
     let stmt = ShareNizkStatement {
         session_id: ProtocolBytes(session_id.clone()),

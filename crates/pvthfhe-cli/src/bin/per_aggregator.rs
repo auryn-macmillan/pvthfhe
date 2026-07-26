@@ -35,11 +35,12 @@ fn main() -> anyhow::Result<()> {
     // ── DKG keygen ──
     let t0 = Instant::now();
     println!("  keygen: starting... (n={}, t={})", args.n, args.threshold);
-    let mut dkg = pvthfhe_pvss::keygen::dkg::DkgCeremony::new(pvthfhe_pvss::keygen::dkg::DkgParams {
-        n: args.n,
-        t: args.threshold,
-        round_timeout: None,
-    })?;
+    let mut dkg =
+        pvthfhe_pvss::keygen::dkg::DkgCeremony::new(pvthfhe_pvss::keygen::dkg::DkgParams {
+            n: args.n,
+            t: args.threshold,
+            round_timeout: None,
+        })?;
     dkg.run()?;
     let pk = dkg.public_key()?;
     println!(
@@ -76,9 +77,9 @@ fn main() -> anyhow::Result<()> {
         let stmt = NizkStatement {
             ciphertext_bytes: ct.bytes.clone(),
             decrypt_share_bytes: ct.bytes[..32.min(ct.bytes.len())].to_vec(),
-            pvss_commitment: Sha256::digest(&sid).into(),
+            pvss_commitment: Sha256::digest(sid).into(),
             params: (288230376173076481, 8192, 10),
-            session_id: hex::encode(&sid),
+            session_id: hex::encode(sid),
             participant_id: party_id,
             epoch: 0,
             c_rns_override: None,
@@ -158,8 +159,12 @@ fn main() -> anyhow::Result<()> {
         // Build a distinct RqPoly per party
         let coeffs = vec![(*party_id as u64) % Q_COMMIT; PHI_COMMIT];
         let witness = RqPoly(coeffs);
-        let commitment = ajtai::commit(&ajtai_params, &[witness], &mut pvthfhe_foundations::rng::OsRng)
-            .context("ajtai commit")?;
+        let commitment = ajtai::commit(
+            &ajtai_params,
+            &[witness],
+            &mut pvthfhe_foundations::rng::OsRng,
+        )
+        .context("ajtai commit")?;
         let commitment_bytes = ajtai::encode_commitment(&commitment);
 
         let ccs_witness = make_ccs_witness(*party_id as u64);
@@ -192,14 +197,13 @@ fn main() -> anyhow::Result<()> {
 
     // Sequential T=10 folding (init with first instance, then fold ALL including the first)
     let session_id = "per-aggregator-bench";
-    let mut acc = cyclo_fold::init_accumulator(&fold_instances[0], session_id)
-        .context("fold init")?;
+    let mut acc =
+        cyclo_fold::init_accumulator(&fold_instances[0], session_id).context("fold init")?;
     for instance in &fold_instances {
         acc = cyclo_fold::fold_one_step(acc, instance, &mut pvthfhe_foundations::rng::OsRng)
             .context("fold step")?;
     }
-    cyclo_fold::verify_fold(&acc, &fold_instances)
-        .context("fold verify")?;
+    cyclo_fold::verify_fold(&acc, &fold_instances).context("fold verify")?;
 
     let fold_ms = t3.elapsed().as_secs_f64() * 1000.0;
     println!("  cyclo_fold: ok ({:.1} ms)", fold_ms);

@@ -4,6 +4,8 @@ use pvthfhe_fhe::{
     types::{Ciphertext, DecryptShare},
     FheBackend, FheError,
 };
+use pvthfhe_foundations::domain_tags::Tag;
+use pvthfhe_foundations::types::{ProtocolBytes, Secret};
 use pvthfhe_pvss::keygen_spec::DkgAnchorSet;
 use pvthfhe_pvss::{
     dkg_aggregation::{compute_esm_aggregate_commitment, compute_sk_aggregate_commitment},
@@ -13,8 +15,6 @@ use pvthfhe_pvss::{
     },
     nizk_share::compute_ciphertext_v,
 };
-use pvthfhe_foundations::domain_tags::Tag;
-use pvthfhe_foundations::types::{ProtocolBytes, Secret};
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -29,20 +29,30 @@ pub enum DecryptError {
     #[error("invalid share from party {party_id}: {reason}")]
     InvalidShare { party_id: u32, reason: String },
     #[error("insufficient shares: need {needed}, got {got} (party {party_id:?})")]
-    InsufficientShares { party_id: Option<u32>, needed: usize, got: usize },
+    InsufficientShares {
+        party_id: Option<u32>,
+        needed: usize,
+        got: usize,
+    },
     #[error("duplicate party id {0}")]
     DuplicateParty(u32),
     #[error("unknown party id {0}")]
     UnknownParty(u32),
     #[error("NIZK verification failed for party {party_id}")]
     NizkVerify { party_id: u32 },
-    #[error("backend error (party {pid:?}): {0}", pid = party_id.as_ref().map(|p| *p as u16).unwrap_or(0))]
-    Backend { party_id: Option<u32>, source: FheError },
+    #[error("backend error (party {pid:?}): {source}", pid = party_id.as_ref().map(|p| *p as u16).unwrap_or(0))]
+    Backend {
+        party_id: Option<u32>,
+        source: FheError,
+    },
 }
 
 impl From<FheError> for DecryptError {
     fn from(e: FheError) -> Self {
-        DecryptError::Backend { party_id: None, source: e }
+        DecryptError::Backend {
+            party_id: None,
+            source: e,
+        }
     }
 }
 
@@ -165,7 +175,13 @@ pub fn partial_decrypt(
                 version: 1,
             });
         }
-        Err(e) => return Err(DecryptError::Backend { party_id: Some(party_id), source: e }.into()),
+        Err(e) => {
+            return Err(DecryptError::Backend {
+                party_id: Some(party_id),
+                source: e,
+            }
+            .into())
+        }
     };
 
     let pk_i_hash = sha256_bytes(party_pk_bytes);

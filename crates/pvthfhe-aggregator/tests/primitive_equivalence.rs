@@ -315,8 +315,8 @@ fn cyclo_rq_from_centred(centred: &[i64; NIZK_PHI]) -> RqPoly {
 
 fn nizk_params_and_matrix() -> (NizkAjtaiParams, NizkAjtaiMatrix) {
     let params = NizkAjtaiParams::default();
-    let matrix = NizkAjtaiMatrix::from_seed(SEED_A, &params, WITNESS_M)
-        .expect("nizk matrix from seed");
+    let matrix =
+        NizkAjtaiMatrix::from_seed(SEED_A, &params, WITNESS_M).expect("nizk matrix from seed");
     (params, matrix)
 }
 
@@ -379,8 +379,7 @@ fn column_probe_cyclo(j: usize) -> Vec<Vec<u64>> {
 // ════════════════════════════════════════════════════════════════════════════
 
 /// nizk `AjtaiCommitment::to_d2_digest` for the fixed witness under `SEED_A`.
-const PINNED_NIZK_D2_W: &str =
-    "629db2eb750e823d1c42385bf6158749d3866c61edb07edf167903ad484b76b4";
+const PINNED_NIZK_D2_W: &str = "629db2eb750e823d1c42385bf6158749d3866c61edb07edf167903ad484b76b4";
 /// SHA-256 of cyclo `encode_commitment` wire bytes (26624 B) for the same
 /// seed/witness.
 const PINNED_CYCLO_COMMIT_SHA256: &str =
@@ -413,32 +412,21 @@ const PINNED_AGG_COMMIT: [&str; 2] = [
 ];
 
 /// nizk transcript challenges (see test bodies for the exact scripts).
-const PINNED_NIZK_FS_T1: &str =
-    "6577e14af2d43ba7562ff698c4bbda76a82539505fe3497a22d29a012e023b5d";
-const PINNED_NIZK_FS_T2: &str =
-    "c5f746ac500bbea2a47e90135d6e3709416cb9eef76d1380c70155b132d35d5a";
-const PINNED_NIZK_FS_T3: &str =
-    "76b509341367f51594ae8187dcf5784d75944d6c9f2e955e4b0b4f15e406c7da";
+const PINNED_NIZK_FS_T1: &str = "6577e14af2d43ba7562ff698c4bbda76a82539505fe3497a22d29a012e023b5d";
+const PINNED_NIZK_FS_T2: &str = "c5f746ac500bbea2a47e90135d6e3709416cb9eef76d1380c70155b132d35d5a";
+const PINNED_NIZK_FS_T3: &str = "76b509341367f51594ae8187dcf5784d75944d6c9f2e955e4b0b4f15e406c7da";
 const PINNED_NIZK_FS_T4: &str = "76b509341367f51594ae8187dcf5784d75944d6c9f2e955e4b0b4f15e406c7daeba32334e97925cee1457cbbbc3b6cd89d81cdbcf8764e62ae6380d67faf766a1397809b06ed852a8afa91fa682290fa1a65aaba5ebb06829dafd9581b567b1e";
 const PINNED_NIZK_FS_T5: &str = "11cd1ecbf71109a82314dc27bcab138d";
-const PINNED_NIZK_FS_T6: &str =
-    "60ec0f7a27980e77f1a7b391a3de14363395b3e70f5e19742ad6bc50ee70015e";
+const PINNED_NIZK_FS_T6: &str = "60ec0f7a27980e77f1a7b391a3de14363395b3e70f5e19742ad6bc50ee70015e";
 
 /// cyclo Fiat-Shamir one-shot digests.
-const PINNED_CYCLO_FS_C1: &str =
-    "2b53423dd61a8e68e434a9fb23d2bff08b830b03a7e4ca19171163ef66f055ca";
-const PINNED_CYCLO_FS_C2: &str =
-    "dcceb84b300fd84fa3f466eb11615e1d8ec9a96be13bf03ddceb32d3b67b17ab";
-const PINNED_CYCLO_FS_C3: &str =
-    "382d7f33b7863315224766aece1ab9fe7377bb5cec38241d840732e914fe3945";
-const PINNED_CYCLO_FS_C4: &str =
-    "f24dc389d7ad8f9b23da82499bcf8e844d7492eaadcf050997520265a12341e0";
-const PINNED_CYCLO_FS_C5: &str =
-    "a28f08cf662523fb2e53871a80b0d8a32654a3483d198de89d9419d6a7e2ba0d";
-const PINNED_CYCLO_FS_C6: &str =
-    "8937d8a80860ea76a8fb2b14d4708d3efe26cbf3e90936dbeabd76eddf310ded";
-const PINNED_CYCLO_FS_C7: &str =
-    "685af19dfcab015157bb4371e8751771d98c0c2e06114ecbdaf668bd57b5b508";
+const PINNED_CYCLO_FS_C1: &str = "2b53423dd61a8e68e434a9fb23d2bff08b830b03a7e4ca19171163ef66f055ca";
+const PINNED_CYCLO_FS_C2: &str = "dcceb84b300fd84fa3f466eb11615e1d8ec9a96be13bf03ddceb32d3b67b17ab";
+const PINNED_CYCLO_FS_C3: &str = "382d7f33b7863315224766aece1ab9fe7377bb5cec38241d840732e914fe3945";
+const PINNED_CYCLO_FS_C4: &str = "f24dc389d7ad8f9b23da82499bcf8e844d7492eaadcf050997520265a12341e0";
+const PINNED_CYCLO_FS_C5: &str = "a28f08cf662523fb2e53871a80b0d8a32654a3483d198de89d9419d6a7e2ba0d";
+const PINNED_CYCLO_FS_C6: &str = "8937d8a80860ea76a8fb2b14d4708d3efe26cbf3e90936dbeabd76eddf310ded";
+const PINNED_CYCLO_FS_C7: &str = "685af19dfcab015157bb4371e8751771d98c0c2e06114ecbdaf668bd57b5b508";
 /// `CycloTernaryTranscript` sampled sequences.
 const PINNED_TERNARY_SEQ: [i8; 8] = [-1, 1, 0, -1, 0, 1, 1, 1];
 const PINNED_TERNARY_SEQ2: [i8; 4] = [1, 1, -1, -1];
@@ -481,7 +469,10 @@ fn ajtai_shared_parameters_match() {
     assert_eq!(AJTAI_RANK, RANK);
     assert_eq!(WITNESS_BOUND, 1024);
     let p = NizkAjtaiParams::default();
-    assert_eq!((p.phi, p.q, p.rank, p.witness_bound), (256, NIZK_Q, 13, 1024));
+    assert_eq!(
+        (p.phi, p.q, p.rank, p.witness_bound),
+        (256, NIZK_Q, 13, 1024)
+    );
 }
 
 #[test]
@@ -638,7 +629,11 @@ fn nizk_cyclo_ring_arithmetic_equivalence() {
     // Multiplication: schoolbook vs NTT.
     let prod_nizk = a_nizk.mul(&b_nizk).expect("nizk mul");
     let prod_cyclo = ntt_mul(&a_cyclo, &b_cyclo).expect("cyclo ntt_mul");
-    let expected_prod: Vec<i64> = prod_cyclo.0.iter().map(|&c| residue_to_centred(c)).collect();
+    let expected_prod: Vec<i64> = prod_cyclo
+        .0
+        .iter()
+        .map(|&c| residue_to_centred(c))
+        .collect();
     let expected_prod = Rq::new(expected_prod.try_into().expect("256 coeffs"), NIZK_Q);
     assert_eq!(
         prod_nizk, expected_prod,
@@ -887,7 +882,10 @@ fn cyclo_fs_fixed_challenge_vectors() {
         .chain_update([0x33; 16])
         .finalize()
         .into();
-    assert_eq!(c1, rederived, "C1 does not match the documented construction");
+    assert_eq!(
+        c1, rederived,
+        "C1 does not match the documented construction"
+    );
 
     let c2 = cyclo_fs::challenge_v2(
         "session-alpha",
@@ -968,7 +966,10 @@ fn cyclo_fs_fixed_challenge_vectors() {
         .chain_update(b"pvthfhe-cyclo-params")
         .finalize()
         .into();
-    assert_eq!(c7, rederived, "params_digest_v1 is a bare SHA-256 of the label");
+    assert_eq!(
+        c7, rederived,
+        "params_digest_v1 is a bare SHA-256 of the label"
+    );
 }
 
 /// The cyclo ternary transcript: fixed sampled sequences pinned both against

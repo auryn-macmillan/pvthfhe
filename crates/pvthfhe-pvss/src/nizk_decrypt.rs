@@ -1,14 +1,14 @@
 //! Share-decryption NIZK wrapper over the shared Cyclo/Ajtai adapter.
 
 use pvthfhe_foundations::domain_tags::Tag;
-use pvthfhe_nizk::{
-    adapter::CycloNizkAdapter, hash_bridge, NizkAdapter, NizkProof, NizkStatement, NizkWitness,
-};
 use pvthfhe_foundations::rng::OsRng;
 use pvthfhe_foundations::types::rlwe_n;
 use pvthfhe_foundations::types::witness_language::{BfvParameters as SchemaBfvParams, R3Relation};
 use pvthfhe_foundations::types::Secret;
 use pvthfhe_foundations::wire::{WireError, WireFormat};
+use pvthfhe_nizk::{
+    adapter::CycloNizkAdapter, hash_bridge, NizkAdapter, NizkProof, NizkStatement, NizkWitness,
+};
 
 use ark_bn254::Fr;
 // R3.0a — schema types wired for R3.2 GREEN migration

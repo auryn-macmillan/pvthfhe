@@ -128,12 +128,12 @@ impl LatticePvssBfvAdapter {
                     u16::try_from(party_index).map_err(|_| PvssError::InvalidShare {
                         party_id: Some(party_index as u16),
                     })?;
-                let accepted_participant_ids: Vec<u16> = (1..=u16::try_from(ctx.n)
-                    .map_err(|_| PvssError::BackendError {
+                let accepted_participant_ids: Vec<u16> =
+                    (1..=u16::try_from(ctx.n).map_err(|_| PvssError::BackendError {
                         party_id: None,
                         message: "n too large for u16".to_string(),
                     })?)
-                    .collect();
+                        .collect();
                 let sk_agg_commit = compute_sk_aggregate_commitment(
                     &ctx.session_id,
                     &dkg_root,
@@ -212,11 +212,12 @@ impl LatticePvssBfvAdapter {
             });
         }
 
-        DecryptNizkVerifier::verify(&opened.statement, &proof)
-            .map_err(|e| PvssError::ShareVerification {
+        DecryptNizkVerifier::verify(&opened.statement, &proof).map_err(|e| {
+            PvssError::ShareVerification {
                 party_id: None,
                 message: format!("decrypt NIZK: {e}"),
-            })
+            }
+        })
     }
 }
 
@@ -336,17 +337,14 @@ impl PvssAdapter for LatticePvssBfvAdapter {
                 let fr_data = &payload[4..];
                 let mut share_frs = Vec::new();
                 for chunk in fr_data.chunks(32) {
-                    let arr: &[u8; 32] = chunk.try_into().map_err(|_| {
-                        PvssError::ShareVerification {
+                    let arr: &[u8; 32] =
+                        chunk.try_into().map_err(|_| PvssError::ShareVerification {
                             party_id: None,
                             message: "share chunk misaligned".into(),
-                        }
-                    })?;
-                    let fr = bytes32_to_fr(arr).ok_or_else(|| {
-                        PvssError::ShareVerification {
-                            party_id: None,
-                            message: "share Fr out of range".into(),
-                        }
+                        })?;
+                    let fr = bytes32_to_fr(arr).ok_or_else(|| PvssError::ShareVerification {
+                        party_id: None,
+                        message: "share Fr out of range".into(),
                     })?;
                     share_frs.push(fr);
                 }
@@ -360,7 +358,9 @@ impl PvssAdapter for LatticePvssBfvAdapter {
                 ) {
                     return Err(PvssError::ShareVerification {
                         party_id: None,
-                        message: format!("parity proof: share {idx} not on RS codeword or witness hash mismatch"),
+                        message: format!(
+                            "parity proof: share {idx} not on RS codeword or witness hash mismatch"
+                        ),
                     });
                 }
             }
@@ -473,10 +473,7 @@ fn validate_context(ctx: &PvssContext) -> Result<(), PvssError> {
     if ctx.n == 0 || ctx.t == 0 || ctx.t > ctx.n {
         return Err(PvssError::BackendError {
             party_id: None,
-            message: format!(
-                "invalid PVSS context: n={}, t={}",
-                ctx.n, ctx.t
-            ),
+            message: format!("invalid PVSS context: n={}, t={}", ctx.n, ctx.t),
         });
     }
     Ok(())
@@ -486,7 +483,8 @@ pub fn share_proof_dkg_root(ctx: &PvssContext) -> Result<Vec<u8>, PvssError> {
     if ctx.dkg_root.is_empty() {
         return Err(PvssError::BackendError {
             party_id: None,
-            message: "dkg_root is empty — must be set to bind proofs to a specific DKG ceremony".to_string(),
+            message: "dkg_root is empty — must be set to bind proofs to a specific DKG ceremony"
+                .to_string(),
         });
     }
     Ok(ctx.dkg_root.clone())
@@ -885,10 +883,11 @@ impl LatticePvssBfvAdapter {
         let mut party_shares: Vec<Vec<Fr>> = vec![Vec::with_capacity(num_chunks); ctx.n];
 
         for secret_fr in &secret_frs {
-        let chunk_shares = shamir::split(secret_fr, ctx.n, ctx.t, rng)
-            .map_err(|e| PvssError::BackendError {
-                party_id: None,
-                message: format!("shamir split: {e}"),
+            let chunk_shares = shamir::split(secret_fr, ctx.n, ctx.t, rng).map_err(|e| {
+                PvssError::BackendError {
+                    party_id: None,
+                    message: format!("shamir split: {e}"),
+                }
             })?;
             for (x, share_value) in chunk_shares {
                 party_shares[x - 1].push(share_value);

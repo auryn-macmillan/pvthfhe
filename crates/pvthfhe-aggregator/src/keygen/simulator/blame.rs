@@ -72,8 +72,8 @@ impl KeygenSimulator {
         // inspect the transcript.
         const EST_CIPHERTEXT_BYTES: usize = 392_000;
         const CLEAR_THRESHOLD_BYTES: usize = 256 * 1024 * 1024;
-        let estimated_bytes = self.n_parties * self.n_parties.saturating_sub(1)
-            * EST_CIPHERTEXT_BYTES;
+        let estimated_bytes =
+            self.n_parties * self.n_parties.saturating_sub(1) * EST_CIPHERTEXT_BYTES;
         if estimated_bytes > CLEAR_THRESHOLD_BYTES {
             for msg in &mut valid_r1 {
                 msg.encrypted_shares.values_mut().for_each(|v| v.clear());

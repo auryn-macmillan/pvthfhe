@@ -9,7 +9,8 @@ use sha3::Keccak256;
 use crate::NizkError;
 
 /// Domain separator for scalar-challenge sigma protocol (v2).
-const SCALAR_CHALLENGE_DOMAIN: &[u8] = pvthfhe_foundations::domain_tags::Tag::SigmaScalarChallenge.as_bytes();
+const SCALAR_CHALLENGE_DOMAIN: &[u8] =
+    pvthfhe_foundations::domain_tags::Tag::SigmaScalarChallenge.as_bytes();
 
 // P1 OPEN PROBLEM: Ternary scalar challenge (ch ∈ {-1,0,1}) provides ~1.58 bits
 // of soundness per execution. With one round, the soundness error is 2/3 —

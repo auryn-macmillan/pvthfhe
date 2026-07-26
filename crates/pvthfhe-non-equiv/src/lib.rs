@@ -127,7 +127,7 @@ pub fn hash_round1_message(dealer_id: u32, round1_payload: &[u8], session_id: &[
     h.update(DOMAIN_SEPARATOR);
     h.update(b":msg-hash:");
     h.update(session_id);
-    h.update(&dealer_id.to_be_bytes());
+    h.update(dealer_id.to_be_bytes());
     h.update(round1_payload);
     h.finalize().into()
 }

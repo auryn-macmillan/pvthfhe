@@ -10,11 +10,11 @@
 use pvthfhe_cyclo::accumulator_codec;
 use pvthfhe_cyclo::fold::AJTAI_COMMITMENT_BYTES;
 use pvthfhe_cyclo::{CcsPShareInstance, CycloAccumulator, PVTHFHE_CYCLO_PARAMS};
+use pvthfhe_foundations::types::{CcsWitnessSecret, ProtocolBytes};
 use pvthfhe_nizk::adapter::{self, CycloNizkAdapter};
 use pvthfhe_nizk::hash_bridge;
 use pvthfhe_nizk::sigma::rlwe_n;
 use pvthfhe_nizk::{NizkAdapter, NizkError, NizkProof, NizkStatement, NizkWitness};
-use pvthfhe_foundations::types::{CcsWitnessSecret, ProtocolBytes};
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
 

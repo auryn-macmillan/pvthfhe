@@ -39,15 +39,15 @@ use pvthfhe_cyclo::{CycloAccumulator, CycloAdapter as _, CycloError, CYCLO_BACKE
 pub use pvthfhe_cyclo::{FoldTrackCommitment, FoldTrackKind, MultiTrackFoldMetadata};
 #[cfg(feature = "real-folding")]
 use pvthfhe_foundations::domain_tags::Tag;
-#[cfg(all(feature = "real-folding", feature = "real-nizk"))]
-use pvthfhe_nizk::adapter::{extract_ajtai_commitment_from_proof, extract_ccs_witness_from_proof};
-#[cfg(feature = "real-folding")]
-use pvthfhe_nizk::BACKEND_ID as NIZK_BACKEND_ID;
 use pvthfhe_foundations::types::witness_language::{
     BfvParameters as SchemaBfvParams, WitnessCommitment, WitnessStatement,
 };
 #[cfg(feature = "real-folding")]
 use pvthfhe_foundations::types::{CcsWitnessSecret, ProtocolBytes};
+#[cfg(all(feature = "real-folding", feature = "real-nizk"))]
+use pvthfhe_nizk::adapter::{extract_ajtai_commitment_from_proof, extract_ccs_witness_from_proof};
+#[cfg(feature = "real-folding")]
+use pvthfhe_nizk::BACKEND_ID as NIZK_BACKEND_ID;
 use rand_core::OsRng;
 use sha2::{Digest, Sha256};
 use thiserror::Error;

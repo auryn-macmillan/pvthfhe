@@ -8,9 +8,9 @@
 //! Placeholder tests that asserted hardcoded booleans (old F7/F11/F12/F13/P1/P2
 //! entries) were removed in the 2026-07 refactor: they pinned no behavior.
 
+use pvthfhe_foundations::types::rlwe_n;
 use pvthfhe_nizk::NizkError;
 use pvthfhe_pvss::PvssError;
-use pvthfhe_foundations::types::rlwe_n;
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
 

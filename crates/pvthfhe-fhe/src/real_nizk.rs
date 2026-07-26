@@ -189,7 +189,9 @@ impl LatticeNizk for RealNizkAdapter {
         let adapter = CycloNizkAdapter;
         let nizk_stmt = to_nizk_stmt(stmt);
         let nizk_proof = to_nizk_proof(proof);
-        adapter.verify(&nizk_stmt, &nizk_proof).map_err(|e| map_err(e, Some(stmt.participant_id)))
+        adapter
+            .verify(&nizk_stmt, &nizk_proof)
+            .map_err(|e| map_err(e, Some(stmt.participant_id)))
     }
 
     fn batch_verify(stmts: &[NizkStatement], proofs: &[NizkProof]) -> Result<(), NizkError> {

@@ -86,11 +86,12 @@ impl Rq {
     /// former schoolbook implementation by the Phase-1 equivalence pins.
     pub fn mul(&self, other: &Self) -> Result<Self, NizkError> {
         debug_assert_eq!(self.q, other.q);
-        let product =
-            ntt_mul(&self.to_rqpoly(), &other.to_rqpoly()).map_err(|_| NizkError::InvalidInput {
+        let product = ntt_mul(&self.to_rqpoly(), &other.to_rqpoly()).map_err(|_| {
+            NizkError::InvalidInput {
                 reason: "ajtai ring multiplication failed",
                 party_id: None,
-            })?;
+            }
+        })?;
         Ok(Self::from_rqpoly(&product, self.q))
     }
 
@@ -268,9 +269,9 @@ impl AjtaiCommitment {
         let mut rng = rand_chacha::ChaCha20Rng::from_seed([0u8; 32]); // allow-seeded-rng: ignored by cyclo commit; matrix derivation is seed-bound
         let commitment = cyclo_ajtai::commit(&matrix.cyclo_params(), &witness_residues, &mut rng)
             .map_err(|_| NizkError::InvalidInput {
-                reason: "ajtai commit failed",
-                party_id: None,
-            })?;
+            reason: "ajtai commit failed",
+            party_id: None,
+        })?;
         Ok(Self {
             elems: commitment
                 .commitment

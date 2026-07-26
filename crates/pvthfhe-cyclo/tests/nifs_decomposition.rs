@@ -31,12 +31,13 @@ fn decompose_witness_roundtrip() {
     let k: usize = 5;
     let parts = decompose_witness(&w, b_small, k);
     let recomposed = recompose_witness(&parts, b_small);
-    assert_eq!(w.len(), recomposed.len(), "witness length must be preserved");
+    assert_eq!(
+        w.len(),
+        recomposed.len(),
+        "witness length must be preserved"
+    );
     for (i, (orig, rec)) in w.iter().zip(recomposed.iter()).enumerate() {
-        assert_eq!(
-            orig.0, rec.0,
-            "witness element {i} roundtrip mismatch"
-        );
+        assert_eq!(orig.0, rec.0, "witness element {i} roundtrip mismatch");
     }
 }
 
@@ -75,7 +76,11 @@ fn decompose_witness_zero() {
     }
     for part in &parts {
         for poly in part {
-            assert_eq!(poly.0, vec![0u64; PHI_COMMIT], "zero witness part must be zero");
+            assert_eq!(
+                poly.0,
+                vec![0u64; PHI_COMMIT],
+                "zero witness part must be zero"
+            );
         }
     }
 }

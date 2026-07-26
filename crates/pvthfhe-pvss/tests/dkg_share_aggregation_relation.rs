@@ -1,15 +1,15 @@
 //! Focused E.2 tests for recipient-side DKG share aggregation.
 
 use ark_bn254::Fr;
-use pvthfhe_pvss::keygen_spec::{
-    compute_accepted_participant_set_hash, AggregatedESmShareCommitment,
-    AggregatedSkShareCommitment, Commitment, DkgAnchorSet, HexBlob, SmudgeSlotPolicy,
-};
 use pvthfhe_pvss::dkg_aggregation::{
     compute_esm_aggregate_commitment, compute_esm_dealer_share_commitment,
     compute_sk_aggregate_commitment, compute_sk_dealer_share_commitment,
     verify_dkg_anchor_aggregate_outputs, verify_recipient_dkg_aggregation, DealerDkgShare,
     RecipientDkgAggregationStatement,
+};
+use pvthfhe_pvss::keygen_spec::{
+    compute_accepted_participant_set_hash, AggregatedESmShareCommitment,
+    AggregatedSkShareCommitment, Commitment, DkgAnchorSet, HexBlob, SmudgeSlotPolicy,
 };
 
 fn commitment(digest: impl Into<String>) -> Commitment {

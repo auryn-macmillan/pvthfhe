@@ -1,6 +1,9 @@
 //! End-to-end phase driver for the PVTHFHE demo pipeline.
 
 #![allow(unexpected_cfgs, clippy::needless_range_loop)]
+// CLI demo binary: process-level error handling, and the Noir sponge calls
+// are infallible in practice (fixed width-5 params).
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 #![warn(missing_docs)]
 
 use anyhow::Context;

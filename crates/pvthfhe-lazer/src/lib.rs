@@ -13,7 +13,6 @@
 #![allow(non_upper_case_globals)]
 #![allow(non_snake_case)]
 
-
 #[cfg(feature = "enable-lazer")]
 use std::os::raw::c_int;
 

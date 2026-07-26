@@ -106,7 +106,13 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     )?;
 
     // ── PVSS share encryption ──
-    super::dkg::run_pvss_stage(cfg, &backend, &keygen_out.transcript, observer, &mut timings)?;
+    super::dkg::run_pvss_stage(
+        cfg,
+        &backend,
+        &keygen_out.transcript,
+        observer,
+        &mut timings,
+    )?;
 
     #[cfg(feature = "pipeline-extra-checks")]
     {

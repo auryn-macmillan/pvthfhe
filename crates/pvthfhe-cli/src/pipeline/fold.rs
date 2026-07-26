@@ -161,8 +161,8 @@ pub(crate) fn run_fold_stage<O: PipelineObserver>(
         };
 
         // G2-ng: collect ring witnesses for in-circuit verification
-        let mut ring_witnesses: Vec<(Vec<Fr>, Vec<Fr>, Vec<Fr>, Vec<Fr>, Fr)> =
-            Vec::with_capacity(nizk_refs.len());
+        type RingWitness = (Vec<Fr>, Vec<Fr>, Vec<Fr>, Vec<Fr>, Fr);
+        let mut ring_witnesses: Vec<RingWitness> = Vec::with_capacity(nizk_refs.len());
         // sigma_witnesses deferred to latticefold path
 
         for (party_id, stmt, witness, proof) in nizk_outputs {

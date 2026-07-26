@@ -21,8 +21,8 @@ mod round3;
 
 use super::types::{DkgTranscript, PartyId};
 use ark_bn254::{Fr, G1Affine};
-use pvthfhe_foundations::domain_tags::Tag;
 use pvthfhe_fhe::{FheBackend, PublicKey};
+use pvthfhe_foundations::domain_tags::Tag;
 use pvthfhe_nizk::schnorr::generate_signing_keypair;
 use rand_chacha::ChaCha8Rng;
 use rand_core::SeedableRng;
@@ -42,6 +42,8 @@ pub enum FaultType {
 }
 
 #[derive(Debug)]
+// Ceremony-level result constructed once per run; variant size is not a concern.
+#[allow(clippy::large_enum_variant)]
 pub enum KeygenResult {
     Complete(DkgTranscript),
     Blamed(Vec<PartyId>),

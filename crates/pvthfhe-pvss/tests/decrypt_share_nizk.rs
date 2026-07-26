@@ -1,11 +1,11 @@
 //! Integration tests for PVSS decrypt-share NIZKs.
 
+use pvthfhe_foundations::types::Secret;
 use pvthfhe_pvss::nizk_decrypt::{
     DecryptNizkMode, DecryptNizkProof, DecryptNizkProver, DecryptNizkStatement,
     DecryptNizkVerifier, DecryptNizkWitness, DECRYPT_NIZK_DOMAIN_SEPARATOR,
 };
 use pvthfhe_pvss::PvssError;
-use pvthfhe_foundations::types::Secret;
 
 fn sample_statement() -> DecryptNizkStatement {
     DecryptNizkStatement {

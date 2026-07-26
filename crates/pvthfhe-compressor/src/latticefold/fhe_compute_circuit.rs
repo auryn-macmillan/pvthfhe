@@ -39,9 +39,10 @@ pub enum FheOperation {
     NoiseEval,
 }
 
-impl FheOperation {
-    /// Parse an operation name string.
-    pub fn from_str(s: &str) -> Result<Self, CompressorError> {
+impl std::str::FromStr for FheOperation {
+    type Err = CompressorError;
+
+    fn from_str(s: &str) -> Result<Self, CompressorError> {
         match s.to_lowercase().as_str() {
             "add" => Ok(FheOperation::Add),
             "mul" | "relin" => Ok(FheOperation::Mul),
@@ -49,7 +50,9 @@ impl FheOperation {
             _ => Err(CompressorError::InvalidInput),
         }
     }
+}
 
+impl FheOperation {
     /// Return the operation tag used for domain separation.
     pub fn tag(&self) -> &'static [u8] {
         match self {
@@ -207,13 +210,13 @@ impl FheComputeStepCircuit {
     fn update_hash_chain(&self, old_chain: &Fr) -> Fr {
         let mut hasher = Keccak256::new();
         hasher.update(b"fhe-compute-hash-chain-v1");
-        hasher.update(&old_chain.into_bigint().to_bytes_be());
-        hasher.update(&(self.input_a_index as u64).to_be_bytes());
+        hasher.update(old_chain.into_bigint().to_bytes_be());
+        hasher.update((self.input_a_index as u64).to_be_bytes());
         if let Some(idx_b) = self.input_b_index {
-            hasher.update(&(idx_b as u64).to_be_bytes());
+            hasher.update((idx_b as u64).to_be_bytes());
         }
         hasher.update(self.operation.tag());
-        hasher.update(&self.session_id);
+        hasher.update(self.session_id);
         Fr::from_be_bytes_mod_order(&hasher.finalize())
     }
 
@@ -243,12 +246,12 @@ impl FheComputeStepCircuit {
         // the circuit binds the claimed output to the inputs via hashing)
         let mut op_hasher = Keccak256::new();
         op_hasher.update(self.operation.tag());
-        op_hasher.update(&self.input_a_proof.leaf_value.into_bigint().to_bytes_be());
+        op_hasher.update(self.input_a_proof.leaf_value.into_bigint().to_bytes_be());
         if let Some(proof_b) = &self.input_b_proof {
-            op_hasher.update(&proof_b.leaf_value.into_bigint().to_bytes_be());
+            op_hasher.update(proof_b.leaf_value.into_bigint().to_bytes_be());
         }
-        op_hasher.update(&self.output_hash.into_bigint().to_bytes_be());
-        op_hasher.update(&self.session_id);
+        op_hasher.update(self.output_hash.into_bigint().to_bytes_be());
+        op_hasher.update(self.session_id);
         let op_binding = Fr::from_be_bytes_mod_order(&op_hasher.finalize());
 
         // Update hash chain
@@ -298,7 +301,7 @@ impl FheComputeProver {
         let mut ds = [0u8; 32];
         let mut h = Keccak256::new();
         h.update(b"fhe-compute-prover-v1");
-        h.update(&session_id);
+        h.update(session_id);
         ds.copy_from_slice(&h.finalize());
 
         Self {
@@ -378,7 +381,7 @@ impl FheComputeVerifier {
         let mut ds = [0u8; 32];
         let mut h = Keccak256::new();
         h.update(b"fhe-compute-prover-v1");
-        h.update(&session_id);
+        h.update(session_id);
         ds.copy_from_slice(&h.finalize());
 
         Self {

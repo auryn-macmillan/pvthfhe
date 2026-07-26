@@ -35,7 +35,7 @@ pub fn double_commit(inner_data: &[u8], domain_separator: &[u8]) -> DoubleCommit
     let mut outer = Keccak256::new();
     outer.update(b"latticefold-outer-commit-v1");
     outer.update(domain_separator);
-    outer.update(&inner_hash);
+    outer.update(inner_hash);
     let outer_hash: [u8; 32] = outer.finalize().into();
 
     DoubleCommitment {
@@ -64,7 +64,7 @@ pub fn smart_commit(inner_data: &[u8], domain_separator: &[u8], n: usize) -> Dou
         let mut outer = Keccak256::new();
         outer.update(b"latticefold-outer-commit-v1");
         outer.update(domain_separator);
-        outer.update(&inner_hash);
+        outer.update(inner_hash);
         let outer_hash: [u8; 32] = outer.finalize().into();
 
         DoubleCommitment {

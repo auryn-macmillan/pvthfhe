@@ -26,8 +26,7 @@ impl KeygenSimulator {
         schnorr_pks: &HashMap<PartyId, G1Affine>,
         session_id: &[u8; 32],
         equivocated: &mut HashSet<PartyId>,
-    ) -> Result<(Vec<Round1Message>, HashMap<PartyId, NonEquivProof>), pvthfhe_fhe::FheError>
-    {
+    ) -> Result<(Vec<Round1Message>, HashMap<PartyId, NonEquivProof>), pvthfhe_fhe::FheError> {
         let f = self.n_parties.saturating_sub(self.threshold);
         let mut non_equiv_proofs: HashMap<PartyId, NonEquivProof> = HashMap::new();
         let mut dealer_collectors: HashMap<PartyId, NonEquivCollector> = HashMap::new();
@@ -67,10 +66,9 @@ impl KeygenSimulator {
                 .ok_or_else(|| pvthfhe_fhe::FheError::Backend {
                     reason: format!("missing Schnorr pk for party {signer_id}"),
                 })?;
-            let sigs =
-                self.non_equiv_round(signer_id, *sk, *pk, &canonical_r1_msgs, session_id)?;
+            let sigs = self.non_equiv_round(signer_id, *sk, *pk, &canonical_r1_msgs, session_id)?;
 
-            for (msg, sig) in canonical_r1_msgs.iter().zip(sigs.into_iter()) {
+            for (msg, sig) in canonical_r1_msgs.iter().zip(sigs) {
                 if let Some(collector) = dealer_collectors.get_mut(&msg.party_id) {
                     let _quorum_reached = collector.add_signature(sig).map_err(|e| {
                         pvthfhe_fhe::FheError::Backend {

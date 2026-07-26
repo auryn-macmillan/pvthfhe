@@ -10,11 +10,11 @@
 //! is the prover's responsibility, not the verifier's with preimage binding.
 
 use pvthfhe_fhe::{mock::MockBackend, FheBackend};
+use pvthfhe_foundations::types::{EncRandomness, ProtocolBytes, ShareSecret};
 use pvthfhe_pvss::nizk_share::{
     canonical_bfv_params_digest, compute_ciphertext_v, compute_share_commitment, ShareNizkProver,
     ShareNizkStatement, ShareNizkVerifier, ShareNizkWitness,
 };
-use pvthfhe_foundations::types::{EncRandomness, ProtocolBytes, ShareSecret};
 use rand_chacha::ChaCha8Rng;
 use rand_core::{RngCore, SeedableRng};
 
@@ -42,7 +42,8 @@ fn verifier_rejects_tampered_d2_binding() {
     let share = b"share-AAAA-aaaa-AAAA-aaaa-AAAA-aaaa-AA".to_vec();
 
     // Statement carries share_commitment derived from the same share
-    let share_commitment = compute_share_commitment(&session_id, 0, &share).expect("share_commitment");
+    let share_commitment =
+        compute_share_commitment(&session_id, 0, &share).expect("share_commitment");
 
     let randomness = [0xCCu8; 32];
     let mut enc_rng = ChaCha8Rng::from_seed(randomness);
@@ -106,7 +107,8 @@ fn verifier_fails_closed_for_valid_d2_binding_without_bfv_relation() {
 
     let share = b"share-CCCC-cccc-CCCC-cccc-CCCC-cccc-CC".to_vec();
 
-    let share_commitment = compute_share_commitment(&session_id, 0, &share).expect("share_commitment");
+    let share_commitment =
+        compute_share_commitment(&session_id, 0, &share).expect("share_commitment");
 
     let randomness = [0xDDu8; 32];
     let mut enc_rng = ChaCha8Rng::from_seed(randomness);

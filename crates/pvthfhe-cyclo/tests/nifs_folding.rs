@@ -3,12 +3,8 @@
 //! Tests the FoldedAccumulator struct, fold_instances, and verify_fold
 //! using real Ajtai commitments over R_{q_commit}.
 
-use pvthfhe_cyclo::ajtai::{
-    commit as ajtai_commit, AjtaiCommitment, AjtaiParams,
-};
-use pvthfhe_cyclo::nifs::folding::{
-    fold_instances, verify_fold, FoldedAccumulator,
-};
+use pvthfhe_cyclo::ajtai::{commit as ajtai_commit, AjtaiCommitment, AjtaiParams};
+use pvthfhe_cyclo::nifs::folding::{fold_instances, verify_fold, FoldedAccumulator};
 use pvthfhe_cyclo::ring::{RqPoly, PHI_COMMIT, Q_COMMIT};
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
@@ -72,8 +68,8 @@ fn fold_two_instances_roundtrip() {
     let instances: Vec<AjtaiCommitment> = vec![c2.clone()];
     let witnesses: Vec<Vec<RqPoly>> = vec![w2.clone()];
 
-    let new_acc = fold_instances(&acc, &instances, &witnesses, r)
-        .expect("fold_instances must succeed");
+    let new_acc =
+        fold_instances(&acc, &instances, &witnesses, r).expect("fold_instances must succeed");
 
     // Verify without witnesses
     let verify_instances: Vec<AjtaiCommitment> = vec![c2];
@@ -109,8 +105,8 @@ fn fold_tampered_witness_rejected() {
     let instances: Vec<AjtaiCommitment> = vec![c2.clone()];
     let witnesses: Vec<Vec<RqPoly>> = vec![w2.clone()];
 
-    let mut new_acc = fold_instances(&acc, &instances, &witnesses, r)
-        .expect("fold_instances must succeed");
+    let mut new_acc =
+        fold_instances(&acc, &instances, &witnesses, r).expect("fold_instances must succeed");
 
     // Tamper the folded witness
     new_acc.folded_witness[0] = small_poly(&mut rng);
@@ -143,10 +139,14 @@ fn fold_no_instances_is_identity() {
     let new_acc = fold_instances(&acc, &[], &[], 7)
         .expect("fold_instances with empty instances must succeed");
 
-    assert_eq!(new_acc.commitment.commitment, acc.commitment.commitment,
-        "commitment must be unchanged with empty instances");
-    assert_eq!(new_acc.folded_witness, acc.folded_witness,
-        "witness must be unchanged with empty instances");
+    assert_eq!(
+        new_acc.commitment.commitment, acc.commitment.commitment,
+        "commitment must be unchanged with empty instances"
+    );
+    assert_eq!(
+        new_acc.folded_witness, acc.folded_witness,
+        "witness must be unchanged with empty instances"
+    );
     assert_eq!(new_acc.fold_depth, 0, "fold_depth must be unchanged");
 }
 
@@ -170,8 +170,8 @@ fn fold_mismatched_lengths_rejected() {
     let c2 = ajtai_commit(&params, &w, &mut rng).expect("commit");
     let result = fold_instances(
         &acc,
-        &[c2.clone()],  // 1 instance
-        &[],             // 0 witnesses
+        &[c2.clone()], // 1 instance
+        &[],           // 0 witnesses
         7,
     );
     assert!(

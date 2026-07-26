@@ -2,7 +2,11 @@ use pvthfhe_pvss::keygen::dkg::{DkgCeremony, DkgParams};
 
 #[test]
 fn dkg_pop_verify_honest_accepts() {
-    let params = DkgParams { n: 3, t: 2, round_timeout: None };
+    let params = DkgParams {
+        n: 3,
+        t: 2,
+        round_timeout: None,
+    };
     let mut dkg = DkgCeremony::new(params).expect("DKG new");
     dkg.run().expect("DKG run");
 
@@ -17,7 +21,11 @@ fn dkg_pop_verify_honest_accepts() {
 
 #[test]
 fn dkg_run_produces_valid_pops() {
-    let params = DkgParams { n: 3, t: 2, round_timeout: None };
+    let params = DkgParams {
+        n: 3,
+        t: 2,
+        round_timeout: None,
+    };
     let mut dkg = DkgCeremony::new(params).expect("DKG new");
     dkg.run().expect("DKG run");
 
@@ -32,7 +40,11 @@ fn dkg_run_produces_valid_pops() {
 
 #[test]
 fn forged_pop_is_rejected() {
-    let params = DkgParams { n: 3, t: 2, round_timeout: None };
+    let params = DkgParams {
+        n: 3,
+        t: 2,
+        round_timeout: None,
+    };
     let mut dkg = DkgCeremony::new(params).expect("DKG new");
     dkg.run().expect("DKG run");
 
@@ -49,7 +61,11 @@ fn forged_pop_is_rejected() {
 
 #[test]
 fn empty_ceremony_rejects_pop_verification() {
-    let params = DkgParams { n: 3, t: 2, round_timeout: None };
+    let params = DkgParams {
+        n: 3,
+        t: 2,
+        round_timeout: None,
+    };
     let dkg = DkgCeremony::new(params).expect("DKG new");
     assert!(!dkg.verify_party_pops());
 }

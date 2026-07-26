@@ -1,14 +1,14 @@
 //! D.2 regression: batched share proofs must bind `sk` and `e_sm` tracks independently.
 
-use pvthfhe_foundations::domain_tags::Tag;
 use pvthfhe_fhe::{mock::MockBackend, types::PublicKey, FheBackend};
+use pvthfhe_foundations::domain_tags::Tag;
+use pvthfhe_foundations::types::{EncRandomness, ProtocolBytes, ShareSecret};
 use pvthfhe_pvss::nizk_share::{
     canonical_bfv_params_digest, compute_ciphertext_v, compute_share_commitment_tracked,
     ShareNizkBatchedStatement, ShareNizkBatchedVerifier, ShareNizkProver, ShareNizkStatement,
     ShareNizkTrackStatement, ShareNizkTrackType, ShareNizkVerifier, ShareNizkWitness,
 };
 use pvthfhe_pvss::PvssError;
-use pvthfhe_foundations::types::{EncRandomness, ProtocolBytes, ShareSecret};
 use rand_chacha::ChaCha8Rng;
 use rand_core::{RngCore, SeedableRng};
 

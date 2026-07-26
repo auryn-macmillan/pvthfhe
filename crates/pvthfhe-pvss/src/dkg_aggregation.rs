@@ -8,12 +8,12 @@
 //! verifier-checkable BFV decryption proof for encrypted DKG shares while the
 //! D.1 BFV share-encryption relation remains fail-closed.
 
-use ark_bn254::Fr;
-use ark_ff::{AdditiveGroup, BigInteger, PrimeField};
 use crate::keygen_spec::{
     compute_accepted_participant_set_hash, AggregatedESmShareCommitment,
     AggregatedSkShareCommitment, Commitment, DkgAnchorSet, HexBlob,
 };
+use ark_bn254::Fr;
+use ark_ff::{AdditiveGroup, BigInteger, PrimeField};
 use pvthfhe_foundations::domain_tags::Tag;
 use sha2::{Digest, Sha256};
 

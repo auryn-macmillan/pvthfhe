@@ -41,25 +41,35 @@ impl ShareNizkBatchedVerifier {
         proof: &ShareNizkProof,
     ) -> Result<(), PvssError> {
         let expected_domain = std::str::from_utf8(Tag::PvssBatchedDkgShareEncryption.as_bytes())
-            .map_err(|_| PvssError::InvalidDomainSeparator { party_id: Some(batched.recipient_index as u16) })?;
+            .map_err(|_| PvssError::InvalidDomainSeparator {
+                party_id: Some(batched.recipient_index as u16),
+            })?;
         if proof.domain_separator != expected_domain {
-            return Err(PvssError::InvalidDomainSeparator { party_id: Some(batched.recipient_index as u16) });
+            return Err(PvssError::InvalidDomainSeparator {
+                party_id: Some(batched.recipient_index as u16),
+            });
         }
 
         let bytes = proof.proof_bytes.as_slice();
         if bytes.len() < 2 {
-            return Err(PvssError::BfvEncryptionProofFailed { party_id: Some(batched.recipient_index as u16) });
+            return Err(PvssError::BfvEncryptionProofFailed {
+                party_id: Some(batched.recipient_index as u16),
+            });
         }
 
         let num_tracks = u16::from_be_bytes([bytes[0], bytes[1]]);
         let mut offset: usize = 2;
 
         if num_tracks < 1 {
-            return Err(PvssError::BfvEncryptionProofFailed { party_id: Some(batched.recipient_index as u16) });
+            return Err(PvssError::BfvEncryptionProofFailed {
+                party_id: Some(batched.recipient_index as u16),
+            });
         }
         let expected_esm_tracks = num_tracks as usize - 1;
         if expected_esm_tracks != batched.esm_slots.len() {
-            return Err(PvssError::BfvEncryptionProofFailed { party_id: Some(batched.recipient_index as u16) });
+            return Err(PvssError::BfvEncryptionProofFailed {
+                party_id: Some(batched.recipient_index as u16),
+            });
         }
 
         // ── SK track verification ──
@@ -95,12 +105,16 @@ impl ShareNizkBatchedVerifier {
 
             // Cross-track binding: sk and e_sm commitments must differ
             if batched.sk.track_commitment == esm_slot.track_commitment {
-                return Err(PvssError::BfvEncryptionProofFailed { party_id: Some(batched.recipient_index as u16) });
+                return Err(PvssError::BfvEncryptionProofFailed {
+                    party_id: Some(batched.recipient_index as u16),
+                });
             }
         }
 
         if offset != bytes.len() {
-            return Err(PvssError::BfvEncryptionProofFailed { party_id: Some(batched.recipient_index as u16) });
+            return Err(PvssError::BfvEncryptionProofFailed {
+                party_id: Some(batched.recipient_index as u16),
+            });
         }
 
         Ok(())
@@ -150,17 +164,23 @@ impl ShareNizkVerifier {
         validate_statement(stmt)?;
         if proof.domain_separator != SHARE_NIZK_DOMAIN_SEPARATOR {
             eprintln!("[NIZK-VERIFY] FAIL: domain_separator mismatch on proof envelope");
-            return Err(PvssError::InvalidDomainSeparator { party_id: Some(stmt.recipient_index as u16) });
+            return Err(PvssError::InvalidDomainSeparator {
+                party_id: Some(stmt.recipient_index as u16),
+            });
         }
 
         let opened = proof.decode()?;
         if opened.domain_separator != SHARE_NIZK_DOMAIN_SEPARATOR {
             eprintln!("[NIZK-VERIFY] FAIL: domain_separator mismatch on opened proof");
-            return Err(PvssError::InvalidDomainSeparator { party_id: Some(stmt.recipient_index as u16) });
+            return Err(PvssError::InvalidDomainSeparator {
+                party_id: Some(stmt.recipient_index as u16),
+            });
         }
         if opened.statement != *stmt {
             eprintln!("[NIZK-VERIFY] FAIL: statement mismatch");
-            return Err(PvssError::StatementMismatch { party_id: Some(stmt.recipient_index as u16) });
+            return Err(PvssError::StatementMismatch {
+                party_id: Some(stmt.recipient_index as u16),
+            });
         }
 
         let expected_challenge = derive_challenge(stmt, opened.commitment_bytes.as_slice());
@@ -168,13 +188,17 @@ impl ShareNizkVerifier {
             eprintln!("[NIZK-VERIFY] FAIL: challenge mismatch");
             eprintln!("  expected_challenge = {:02x?}", &expected_challenge[..]);
             eprintln!("  opened.challenge   = {:02x?}", &opened.challenge[..]);
-            return Err(PvssError::ChallengeVerificationFailed { party_id: Some(stmt.recipient_index as u16) });
+            return Err(PvssError::ChallengeVerificationFailed {
+                party_id: Some(stmt.recipient_index as u16),
+            });
         }
 
         let expected_ciphertext_v = compute_ciphertext_v(stmt.ciphertext_u.as_slice());
         if expected_ciphertext_v.as_slice() != stmt.ciphertext_v.as_slice() {
             eprintln!("[NIZK-VERIFY] FAIL: ciphertext_v mismatch");
-            return Err(PvssError::CiphertextVMismatch { party_id: Some(stmt.recipient_index as u16) });
+            return Err(PvssError::CiphertextVMismatch {
+                party_id: Some(stmt.recipient_index as u16),
+            });
         }
 
         // ── Commitment structure check ──
@@ -286,21 +310,27 @@ pub fn verify_bfv_encryption_proof(
 ) -> Result<(), PvssError> {
     if bfv_encryption_proof.is_empty() {
         eprintln!("[NIZK-VERIFY] FAIL: bfv_encryption_proof is empty");
-        return Err(PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) });
+        return Err(PvssError::BfvEncryptionProofFailed {
+            party_id: Some(stmt.recipient_index as u16),
+        });
     }
 
     let mut offset = 0;
 
     // Read t_plain (u64 LE)
     if bfv_encryption_proof.len() < 8 {
-        return Err(PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) });
+        return Err(PvssError::BfvEncryptionProofFailed {
+            party_id: Some(stmt.recipient_index as u16),
+        });
     }
     let t_plain = u64::from_le_bytes(bfv_encryption_proof[offset..offset + 8].try_into().unwrap());
     offset += 8;
 
     // Read delta_limbs (3 u64)
     if bfv_encryption_proof.len() < offset + 24 {
-        return Err(PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) });
+        return Err(PvssError::BfvEncryptionProofFailed {
+            party_id: Some(stmt.recipient_index as u16),
+        });
     }
     let delta_limbs: Vec<u64> = (0..3)
         .map(|i| {
@@ -318,21 +348,36 @@ pub fn verify_bfv_encryption_proof(
     let ct0_rns = read_bfv_u64_vec(bfv_encryption_proof, &mut offset)?;
     let ct1_rns = read_bfv_u64_vec(bfv_encryption_proof, &mut offset)?;
 
-    let expected_pk = wire::decode_public_key(stmt.recipient_pk.as_slice())
-        .map_err(|_| PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) })?;
-    let expected_pk0_rns = poly_bytes_to_rns(&expected_pk.p0)
-        .map_err(|_| PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) })?;
-    let expected_pk1_rns = poly_bytes_to_rns(&expected_pk.p1)
-        .map_err(|_| PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) })?;
+    let expected_pk = wire::decode_public_key(stmt.recipient_pk.as_slice()).map_err(|_| {
+        PvssError::BfvEncryptionProofFailed {
+            party_id: Some(stmt.recipient_index as u16),
+        }
+    })?;
+    let expected_pk0_rns =
+        poly_bytes_to_rns(&expected_pk.p0).map_err(|_| PvssError::BfvEncryptionProofFailed {
+            party_id: Some(stmt.recipient_index as u16),
+        })?;
+    let expected_pk1_rns =
+        poly_bytes_to_rns(&expected_pk.p1).map_err(|_| PvssError::BfvEncryptionProofFailed {
+            party_id: Some(stmt.recipient_index as u16),
+        })?;
     let (expected_ct0_bytes, expected_ct1_bytes) = backend
         .decode_ct_polys(&Ciphertext {
             bytes: stmt.ciphertext_u.as_slice().to_vec(),
         })
-        .map_err(|_| PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) })?;
-    let expected_ct0_rns = poly_bytes_to_rns(&expected_ct0_bytes)
-        .map_err(|_| PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) })?;
-    let expected_ct1_rns = poly_bytes_to_rns(&expected_ct1_bytes)
-        .map_err(|_| PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) })?;
+        .map_err(|_| PvssError::BfvEncryptionProofFailed {
+            party_id: Some(stmt.recipient_index as u16),
+        })?;
+    let expected_ct0_rns = poly_bytes_to_rns(&expected_ct0_bytes).map_err(|_| {
+        PvssError::BfvEncryptionProofFailed {
+            party_id: Some(stmt.recipient_index as u16),
+        }
+    })?;
+    let expected_ct1_rns = poly_bytes_to_rns(&expected_ct1_bytes).map_err(|_| {
+        PvssError::BfvEncryptionProofFailed {
+            party_id: Some(stmt.recipient_index as u16),
+        }
+    })?;
 
     if pk0_rns != expected_pk0_rns
         || pk1_rns != expected_pk1_rns
@@ -340,7 +385,9 @@ pub fn verify_bfv_encryption_proof(
         || ct1_rns != expected_ct1_rns
     {
         eprintln!("[NIZK-VERIFY] FAIL: BFV proof statement does not match public statement");
-        return Err(PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) });
+        return Err(PvssError::BfvEncryptionProofFailed {
+            party_id: Some(stmt.recipient_index as u16),
+        });
     }
 
     let bfv_stmt = BfvSigmaStatement {
@@ -353,8 +400,11 @@ pub fn verify_bfv_encryption_proof(
     };
 
     // Decode BfvSigmaProof
-    let bfv_proof = decode_bfv_sigma_proof(&bfv_encryption_proof[offset..])
-        .map_err(|_| PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) })?;
+    let bfv_proof = decode_bfv_sigma_proof(&bfv_encryption_proof[offset..]).map_err(|_| {
+        PvssError::BfvEncryptionProofFailed {
+            party_id: Some(stmt.recipient_index as u16),
+        }
+    })?;
 
     let d_commitment = compute_share_d_commitment(stmt);
     let binding_data = bfv_sigma_binding_data(stmt, &d_commitment);
@@ -367,7 +417,9 @@ pub fn verify_bfv_encryption_proof(
     )
     .map_err(|_| {
         eprintln!("[NIZK-VERIFY] FAIL: bfv_sigma::verify failed");
-        PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) }
+        PvssError::BfvEncryptionProofFailed {
+            party_id: Some(stmt.recipient_index as u16),
+        }
     })
 }
 
@@ -403,7 +455,9 @@ pub fn verify_non_leaking_relation_boundary(
     // Verify BFV encryption sigma proof (v4+; v3 and earlier fail version check).
     if opened.bfv_encryption_proof.is_empty() {
         eprintln!("[NIZK-VERIFY] FAIL: v{PROOF_VERSION} proof lacks BFV encryption proof");
-        return Err(PvssError::LatticeBindingVerificationFailed { party_id: Some(stmt.recipient_index as u16) });
+        return Err(PvssError::LatticeBindingVerificationFailed {
+            party_id: Some(stmt.recipient_index as u16),
+        });
     }
     verify_bfv_encryption_proof(backend, stmt, opened.bfv_encryption_proof.as_slice())
 }
@@ -424,7 +478,9 @@ fn verify_commitment_ct_validity(opened: &ShareNizkOpenedProof) -> Result<(), Pv
             "[NIZK-VERIFY] FAIL: commitment_structure_invalid (empty or too large: len={})",
             opened.commitment_bytes.len()
         );
-        return Err(PvssError::InvalidCommitmentStructure { party_id: Some(opened.statement.recipient_index as u16) });
+        return Err(PvssError::InvalidCommitmentStructure {
+            party_id: Some(opened.statement.recipient_index as u16),
+        });
     }
     Ok(())
 }
@@ -435,7 +491,9 @@ fn verify_algebraic_relation(
 ) -> Result<(), PvssError> {
     if opened.algebraic_proof.is_empty() {
         eprintln!("[NIZK-VERIFY] FAIL: algebraic_proof is empty");
-        return Err(PvssError::LatticeBindingVerificationFailed { party_id: Some(_stmt.recipient_index as u16) });
+        return Err(PvssError::LatticeBindingVerificationFailed {
+            party_id: Some(_stmt.recipient_index as u16),
+        });
     }
     let (d_rns, sigma_proof) = decode_algebraic_proof(opened.algebraic_proof.as_slice())?;
 
@@ -456,7 +514,9 @@ fn verify_algebraic_relation(
     )
     .map_err(|_| {
         eprintln!("[NIZK-VERIFY] FAIL: algebraic scalar sigma verification failed");
-        PvssError::LatticeBindingVerificationFailed { party_id: Some(_stmt.recipient_index as u16) }
+        PvssError::LatticeBindingVerificationFailed {
+            party_id: Some(_stmt.recipient_index as u16),
+        }
     })?;
 
     Ok(())
@@ -469,7 +529,9 @@ fn verify_relation_binding(
     let recomputed = compute_relation_binding(stmt, opened.algebraic_proof.as_slice());
     if recomputed != opened.relation_binding {
         eprintln!("[NIZK-VERIFY] FAIL: relation_binding mismatch");
-        return Err(PvssError::LatticeBindingVerificationFailed { party_id: Some(stmt.recipient_index as u16) });
+        return Err(PvssError::LatticeBindingVerificationFailed {
+            party_id: Some(stmt.recipient_index as u16),
+        });
     }
     Ok(())
 }
@@ -481,7 +543,9 @@ fn verify_commitment_binding_tag(
     let recomputed = compute_commitment_binding(stmt, &opened.relation_binding);
     if recomputed != opened.commitment_binding {
         eprintln!("[NIZK-VERIFY] FAIL: commitment_binding mismatch");
-        return Err(PvssError::LatticeBindingVerificationFailed { party_id: Some(stmt.recipient_index as u16) });
+        return Err(PvssError::LatticeBindingVerificationFailed {
+            party_id: Some(stmt.recipient_index as u16),
+        });
     }
     Ok(())
 }
@@ -495,7 +559,9 @@ fn verify_lattice_binding(
         eprintln!("[NIZK-VERIFY] FAIL: lattice_binding failed");
         eprintln!("  recomputed  = {:02x?}", &recomputed[..]);
         eprintln!("  stored      = {:02x?}", &opened.lattice_binding[..]);
-        return Err(PvssError::LatticeBindingVerificationFailed { party_id: Some(stmt.recipient_index as u16) });
+        return Err(PvssError::LatticeBindingVerificationFailed {
+            party_id: Some(stmt.recipient_index as u16),
+        });
     }
     Ok(())
 }
@@ -512,7 +578,9 @@ fn verify_d2_hash_binding(
     hasher.update((stmt.recipient_index as u64).to_le_bytes());
     let expected: [u8; 32] = hasher.finalize().into();
     if expected != opened.d2_binding {
-        return Err(PvssError::D2HashBindingFailed { party_id: Some(stmt.recipient_index as u16) });
+        return Err(PvssError::D2HashBindingFailed {
+            party_id: Some(stmt.recipient_index as u16),
+        });
     }
     Ok(())
 }

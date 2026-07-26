@@ -5,6 +5,7 @@
 //! relation checking requires real Greco NIZK integration.
 
 use pvthfhe_fhe::{mock::MockBackend, types::PublicKey, FheBackend};
+use pvthfhe_foundations::types::{EncRandomness, ProtocolBytes, ShareSecret};
 use pvthfhe_nizk::fiat_shamir::Transcript;
 use pvthfhe_nizk::sigma::{
     self, rlwe_n, SigmaProof, SigmaStatement, SigmaWitness, RLWE_Q0, RLWE_Q1, RLWE_Q2,
@@ -14,7 +15,6 @@ use pvthfhe_pvss::nizk_share::{
     ShareNizkOpenedProof, ShareNizkProof, ShareNizkProver, ShareNizkStatement, ShareNizkVerifier,
     ShareNizkWitness, SHARE_NIZK_DOMAIN_SEPARATOR,
 };
-use pvthfhe_foundations::types::{EncRandomness, ProtocolBytes, ShareSecret};
 use rand_chacha::ChaCha20Rng;
 use rand_chacha::ChaCha8Rng;
 use rand_core::{RngCore, SeedableRng};
@@ -67,7 +67,8 @@ fn verifier_rejects_ciphertext_share_commitment_mismatch() {
         .expect("encrypt share A")
         .bytes;
     let ciphertext_v = compute_ciphertext_v(&ciphertext_u);
-    let share_commitment = compute_share_commitment(&session_id, 0, &share_b).expect("share_commitment");
+    let share_commitment =
+        compute_share_commitment(&session_id, 0, &share_b).expect("share_commitment");
     let stmt = ShareNizkStatement {
         session_id: ProtocolBytes(session_id.to_vec()),
         dealer_index: 0,
@@ -115,7 +116,8 @@ fn make_consistent_but_invalid_proof(
         h.finalize()
     };
 
-    let share_commitment = compute_share_commitment(&sid, 0, &fake_share).expect("share_commitment");
+    let share_commitment =
+        compute_share_commitment(&sid, 0, &fake_share).expect("share_commitment");
 
     let stmt = ShareNizkStatement {
         session_id: ProtocolBytes(sid.clone()),
@@ -316,7 +318,8 @@ fn verifier_rejects_direct_opened_proof_with_arbitrary_ciphertext() {
     let committed_share = vec![7u8; 48];
     let mut arbitrary_ciphertext = vec![0u8; 192];
     rng.fill_bytes(&mut arbitrary_ciphertext);
-    let share_commitment = compute_share_commitment(&session_id, 0, &committed_share).expect("share_commitment");
+    let share_commitment =
+        compute_share_commitment(&session_id, 0, &committed_share).expect("share_commitment");
 
     let stmt = ShareNizkStatement {
         session_id: ProtocolBytes(session_id.clone()),
@@ -388,7 +391,8 @@ fn verifier_rejects_direct_opened_proof_encrypting_one_share_but_committing_anot
         )
         .expect("encrypt share A")
         .bytes;
-    let share_commitment = compute_share_commitment(&session_id, 0, &committed_share).expect("share_commitment");
+    let share_commitment =
+        compute_share_commitment(&session_id, 0, &committed_share).expect("share_commitment");
 
     let stmt = ShareNizkStatement {
         session_id: ProtocolBytes(session_id.to_vec()),
@@ -744,7 +748,8 @@ fn verifier_rejects_proof_with_tampered_z_s() {
     let session_id = vec![0xD1u8; 32];
     let committed_share = vec![0x13u8; 48];
 
-    let share_commitment = compute_share_commitment(&session_id, 0, &committed_share).expect("share_commitment");
+    let share_commitment =
+        compute_share_commitment(&session_id, 0, &committed_share).expect("share_commitment");
     let stmt = ShareNizkStatement {
         session_id: ProtocolBytes(session_id.clone()),
         dealer_index: 0,
@@ -784,7 +789,8 @@ fn verifier_rejects_proof_with_tampered_d_rns() {
     let session_id = vec![0xD2u8; 32];
     let committed_share = vec![0x42u8; 48];
 
-    let share_commitment = compute_share_commitment(&session_id, 0, &committed_share).expect("share_commitment");
+    let share_commitment =
+        compute_share_commitment(&session_id, 0, &committed_share).expect("share_commitment");
     let stmt = ShareNizkStatement {
         session_id: ProtocolBytes(session_id.clone()),
         dealer_index: 0,

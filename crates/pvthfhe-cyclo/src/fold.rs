@@ -214,7 +214,8 @@ fn fold_one_deterministic_inner(
     let beta_step = witness_norm_estimate(&encoded_instance.witness_bytes);
     let per_step_budget = per_step_norm_budget();
     let decomposed_witness: Option<Vec<Vec<u8>>> = if beta_step > per_step_budget {
-        let max_decomposable = per_step_budget.saturating_mul(u64::from(PVTHFHE_CYCLO_PARAMS.base_b));
+        let max_decomposable =
+            per_step_budget.saturating_mul(u64::from(PVTHFHE_CYCLO_PARAMS.base_b));
         if beta_step <= max_decomposable {
             decompose_witness_bytes(&encoded_instance.witness_bytes, per_step_budget).ok()
         } else {
@@ -261,11 +262,8 @@ fn fold_one_deterministic_inner(
     let r_mod_q = (r % Q_COMMIT as u128) as u64;
 
     let _parts_count = decomposed_witness.as_ref().map_or(0, |p| p.len());
-    let combined = crate::nifs::folding::fold_commitments(
-        &acc_commitment,
-        &[inst_commitment],
-        r_mod_q,
-    );
+    let combined =
+        crate::nifs::folding::fold_commitments(&acc_commitment, &[inst_commitment], r_mod_q);
 
     let new_depth = acc.fold_depth + 1;
     let new_commitment_bytes = ajtai::encode_commitment(&combined);

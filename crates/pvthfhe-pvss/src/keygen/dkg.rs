@@ -10,8 +10,8 @@ use pvthfhe_fhe::{
     types::{Ciphertext, DecryptShare, KeygenShare, PublicKey},
     FheBackend,
 };
-use pvthfhe_nizk::schnorr::{self, SchnorrPopProof};
 use pvthfhe_foundations::rng::OsRng;
+use pvthfhe_nizk::schnorr::{self, SchnorrPopProof};
 use rand_core::RngCore;
 use sha2::{Digest, Sha256};
 use std::time::{Duration, Instant};
@@ -186,13 +186,19 @@ impl DkgCeremony {
                 }
             }
 
-            let share = match self.backend.keygen_share_with_session(&self.session_id, party_id, &mut rng) {
-                Ok(share) => share,
-                Err(e) => return Err(DkgError::Fhe {
-                    message: e.to_string(),
-                    party_id: Some(party_id),
-                }),
-            };
+            let share =
+                match self
+                    .backend
+                    .keygen_share_with_session(&self.session_id, party_id, &mut rng)
+                {
+                    Ok(share) => share,
+                    Err(e) => {
+                        return Err(DkgError::Fhe {
+                            message: e.to_string(),
+                            party_id: Some(party_id),
+                        })
+                    }
+                };
             self.keygen_shares.push(share);
 
             let (sk, pk) = schnorr::generate_signing_keypair(&mut rng);
@@ -205,7 +211,8 @@ impl DkgCeremony {
         }
 
         let session_seed: [u8; 32] = Sha256::digest(self.session_id).into();
-        self.backend.setup_threshold(self.n, self.t, session_seed)
+        self.backend
+            .setup_threshold(self.n, self.t, session_seed)
             .map_err(|e| DkgError::Fhe {
                 message: e.to_string(),
                 party_id: None,
@@ -221,7 +228,9 @@ impl DkgCeremony {
     ///
     /// Errors with [`DkgError::NotInitialized`] if `run` has not been called.
     pub fn public_key(&self) -> Result<&PublicKey, DkgError> {
-        self.public_key.as_ref().ok_or(DkgError::NotInitialized { party_id: None })
+        self.public_key
+            .as_ref()
+            .ok_or(DkgError::NotInitialized { party_id: None })
     }
 
     /// Returns the identity records for all parties that participated in the

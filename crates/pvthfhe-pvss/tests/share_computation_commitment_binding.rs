@@ -1,11 +1,11 @@
 use ark_bn254::Fr;
 use ark_ff::{AdditiveGroup, Field, Zero};
+use pvthfhe_foundations::types::ProtocolBytes;
 use pvthfhe_pvss::share_computation::{
     compute_esm_secret_commitment, compute_sk_secret_commitment, verify_batched_share_computation,
     BatchedShareComputationStatement, ESmShareComputationSlot, FieldShare, ShareComputationError,
     ShareComputationTrack,
 };
-use pvthfhe_foundations::types::ProtocolBytes;
 
 fn shamir_split_small(secret: &Fr, n: usize, t: usize) -> Vec<(usize, Fr)> {
     let mut coeffs = vec![*secret];

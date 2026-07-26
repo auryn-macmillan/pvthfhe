@@ -173,7 +173,9 @@ impl ShareNizkProver {
         }
 
         let batched_domain = std::str::from_utf8(Tag::PvssBatchedDkgShareEncryption.as_bytes())
-            .map_err(|_| PvssError::InvalidShare { party_id: Some(batched.recipient_index as u16) })?;
+            .map_err(|_| PvssError::InvalidShare {
+                party_id: Some(batched.recipient_index as u16),
+            })?;
         Ok(ShareNizkProof {
             proof_bytes: ProtocolBytes(out),
             domain_separator: batched_domain.to_owned(),
@@ -213,9 +215,12 @@ fn create_commitment_ct(
 
     let mut rng = ChaCha20Rng::from_seed(*commitment_seed); // allow-seeded-rng: deterministic Ajtai commitment binding in PVSS proof
 
-    let ciphertext = backend
-        .encrypt(&pk, plaintext, &mut rng)
-        .map_err(|_| PvssError::InvalidShare { party_id: Some(stmt.recipient_index as u16) })?;
+    let ciphertext =
+        backend
+            .encrypt(&pk, plaintext, &mut rng)
+            .map_err(|_| PvssError::InvalidShare {
+                party_id: Some(stmt.recipient_index as u16),
+            })?;
 
     Ok(ciphertext.bytes)
 }
@@ -226,8 +231,9 @@ fn build_algebraic_proof(stmt: &ShareNizkStatement, witness: &ShareNizkWitness) 
     // e_i=0 proves d_i = c*s_i (algebraic binding); full RLWE soundness via BFV sigma proof (v4).
     let e_i = vec![0i64; sigma::rlwe_n()];
     let c_rns = derive_share_sigma_c_rns(stmt.session_id.as_slice(), stmt.recipient_index);
-    let d_rns = sigma::compute_d_rns(&c_rns, &s_i, &e_i)
-        .unwrap_or_else(|_| vec![0u64; sigma::rlwe_n() * pvthfhe_foundations::types::rlwe_moduli().len()]);
+    let d_rns = sigma::compute_d_rns(&c_rns, &s_i, &e_i).unwrap_or_else(|_| {
+        vec![0u64; sigma::rlwe_n() * pvthfhe_foundations::types::rlwe_moduli().len()]
+    });
 
     let mut proof_rng = match ChaCha20Rng::from_rng(&mut OsRng) {
         Ok(rng) => rng,
@@ -328,7 +334,9 @@ pub fn build_bfv_encryption_proof(
             if ciphertext.bytes.as_slice() != stmt.ciphertext_u.as_slice()
                 || w.ciphertext_bytes.as_slice() != stmt.ciphertext_u.as_slice()
             {
-                return Err(PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) });
+                return Err(PvssError::BfvEncryptionProofFailed {
+                    party_id: Some(stmt.recipient_index as u16),
+                });
             }
             w
         }
@@ -338,9 +346,13 @@ pub fn build_bfv_encryption_proof(
             let mut fallback_rng = ChaCha20Rng::from_seed(seed); // allow-seeded-rng: deterministic fallback re-encryption check
             let ciphertext = backend
                 .encrypt(&pk, share, &mut fallback_rng)
-                .map_err(|_| PvssError::InvalidShare { party_id: Some(stmt.recipient_index as u16) })?;
+                .map_err(|_| PvssError::InvalidShare {
+                    party_id: Some(stmt.recipient_index as u16),
+                })?;
             if ciphertext.bytes.as_slice() != stmt.ciphertext_u.as_slice() {
-                return Err(PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) });
+                return Err(PvssError::BfvEncryptionProofFailed {
+                    party_id: Some(stmt.recipient_index as u16),
+                });
             }
             return Ok(ProtocolBytes(vec![]));
         }
@@ -356,25 +368,37 @@ fn encode_bfv_encryption_proof_from_witness(
     enc_witness: &EncryptionWitness,
 ) -> Result<ProtocolBytes, PvssError> {
     // --- Build BFV sigma statement ---
-    let pk_decoded = wire::decode_public_key(stmt.recipient_pk.as_slice())
-        .map_err(|_| PvssError::InvalidShare { party_id: Some(stmt.recipient_index as u16) })?;
+    let pk_decoded = wire::decode_public_key(stmt.recipient_pk.as_slice()).map_err(|_| {
+        PvssError::InvalidShare {
+            party_id: Some(stmt.recipient_index as u16),
+        }
+    })?;
     if enc_witness.recipient_pk0_bytes.as_slice() != pk_decoded.p0.as_slice()
         || enc_witness.recipient_pk1_bytes.as_slice() != pk_decoded.p1.as_slice()
     {
-        return Err(PvssError::BfvEncryptionProofFailed { party_id: Some(stmt.recipient_index as u16) });
+        return Err(PvssError::BfvEncryptionProofFailed {
+            party_id: Some(stmt.recipient_index as u16),
+        });
     }
 
-    let pk0_rns = poly_bytes_to_rns(&pk_decoded.p0)
-        .map_err(|_| PvssError::InvalidShare { party_id: Some(stmt.recipient_index as u16) })?;
-    let pk1_rns = poly_bytes_to_rns(&pk_decoded.p1)
-        .map_err(|_| PvssError::InvalidShare { party_id: Some(stmt.recipient_index as u16) })?;
-    let ct0_rns = poly_bytes_to_rns(&enc_witness.ct0_poly_bytes)
-        .map_err(|_| PvssError::InvalidShare { party_id: Some(stmt.recipient_index as u16) })?;
-    let ct1_rns = poly_bytes_to_rns(&enc_witness.ct1_poly_bytes)
-        .map_err(|_| PvssError::InvalidShare { party_id: Some(stmt.recipient_index as u16) })?;
+    let pk0_rns = poly_bytes_to_rns(&pk_decoded.p0).map_err(|_| PvssError::InvalidShare {
+        party_id: Some(stmt.recipient_index as u16),
+    })?;
+    let pk1_rns = poly_bytes_to_rns(&pk_decoded.p1).map_err(|_| PvssError::InvalidShare {
+        party_id: Some(stmt.recipient_index as u16),
+    })?;
+    let ct0_rns =
+        poly_bytes_to_rns(&enc_witness.ct0_poly_bytes).map_err(|_| PvssError::InvalidShare {
+            party_id: Some(stmt.recipient_index as u16),
+        })?;
+    let ct1_rns =
+        poly_bytes_to_rns(&enc_witness.ct1_poly_bytes).map_err(|_| PvssError::InvalidShare {
+            party_id: Some(stmt.recipient_index as u16),
+        })?;
     let t_plain: u64 = 65536;
-    let delta_limbs =
-        bfv_delta_rns(t_plain).map_err(|_| PvssError::InvalidShare { party_id: Some(stmt.recipient_index as u16) })?;
+    let delta_limbs = bfv_delta_rns(t_plain).map_err(|_| PvssError::InvalidShare {
+        party_id: Some(stmt.recipient_index as u16),
+    })?;
 
     let bfv_stmt = BfvSigmaStatement {
         pk0_rns: pk0_rns.clone(),
@@ -394,8 +418,9 @@ fn encode_bfv_encryption_proof_from_witness(
     let bfv_wit = BfvSigmaWitness { u, e0, e1, m };
 
     // --- Produce sigma proof ---
-    let mut proof_rng = ChaCha20Rng::from_rng(&mut OsRng)
-        .map_err(|_| PvssError::InvalidShare { party_id: Some(stmt.recipient_index as u16) })?;
+    let mut proof_rng = ChaCha20Rng::from_rng(&mut OsRng).map_err(|_| PvssError::InvalidShare {
+        party_id: Some(stmt.recipient_index as u16),
+    })?;
     let d_commitment = compute_share_d_commitment(stmt);
     let binding_data = bfv_sigma_binding_data(stmt, &d_commitment);
     let proof = bfv_sigma::prove(
@@ -406,7 +431,9 @@ fn encode_bfv_encryption_proof_from_witness(
         &binding_data,
         &mut proof_rng,
     )
-    .map_err(|_| PvssError::InvalidShare { party_id: Some(stmt.recipient_index as u16) })?;
+    .map_err(|_| PvssError::InvalidShare {
+        party_id: Some(stmt.recipient_index as u16),
+    })?;
 
     let encoded_proof = encode_bfv_sigma_proof(&proof);
 

@@ -136,11 +136,11 @@ pub fn sigma_verify_step(
 
     let mut hasher = Keccak256::new();
     hasher.update(POP_DOMAIN_TAG);
-    hasher.update(&party_id.to_be_bytes());
+    hasher.update(party_id.to_be_bytes());
     hasher.update(session_id);
-    hasher.update(&(pk_bytes.len() as u64).to_be_bytes());
+    hasher.update((pk_bytes.len() as u64).to_be_bytes());
     hasher.update(pk_bytes);
-    hasher.update(&(sigma_proof_bytes.len() as u64).to_be_bytes());
+    hasher.update((sigma_proof_bytes.len() as u64).to_be_bytes());
     hasher.update(sigma_proof_bytes);
     let hash_bytes: [u8; 32] = hasher.finalize().into();
 
@@ -196,9 +196,9 @@ impl PkAggregationStepCircuit {
     fn accumulate_pk(&self, old_acc: &Fr) -> Fr {
         let mut hasher = Keccak256::new();
         hasher.update(PK_ACC_DOMAIN_TAG);
-        hasher.update(&old_acc.into_bigint().to_bytes_be());
-        hasher.update(&self.session_id);
-        hasher.update(&(self.pk_bytes.len() as u64).to_be_bytes());
+        hasher.update(old_acc.into_bigint().to_bytes_be());
+        hasher.update(self.session_id);
+        hasher.update((self.pk_bytes.len() as u64).to_be_bytes());
         hasher.update(&self.pk_bytes);
         Fr::from_be_bytes_mod_order(&hasher.finalize())
     }
@@ -209,9 +209,9 @@ impl PkAggregationStepCircuit {
     fn update_party_list_hash(&self, old_hash: &Fr) -> Fr {
         let mut hasher = Keccak256::new();
         hasher.update(PARTY_LIST_DOMAIN_TAG);
-        hasher.update(&old_hash.into_bigint().to_bytes_be());
-        hasher.update(&self.session_id);
-        hasher.update(&self.party_id.to_be_bytes());
+        hasher.update(old_hash.into_bigint().to_bytes_be());
+        hasher.update(self.session_id);
+        hasher.update(self.party_id.to_be_bytes());
         Fr::from_be_bytes_mod_order(&hasher.finalize())
     }
 
@@ -263,7 +263,7 @@ impl StepCircuit for PkAggregationStepCircuit {
     fn circuit_hash(&self) -> [u8; 32] {
         let mut hasher = Keccak256::new();
         hasher.update(b"pk-agg-step-circuit/v1");
-        hasher.update(&self.session_id);
+        hasher.update(self.session_id);
         hasher.finalize().into()
     }
 }
@@ -309,7 +309,7 @@ impl PkAggregationProver {
         let mut ds = [0u8; 32];
         let mut h = Keccak256::new();
         h.update(b"pk-agg-prover-v1");
-        h.update(&session_id);
+        h.update(session_id);
         ds.copy_from_slice(&h.finalize());
 
         Self {
@@ -392,7 +392,7 @@ impl PkAggregationVerifier {
         let mut ds = [0u8; 32];
         let mut h = Keccak256::new();
         h.update(b"pk-agg-prover-v1");
-        h.update(&session_id);
+        h.update(session_id);
         ds.copy_from_slice(&h.finalize());
 
         Self {
@@ -421,7 +421,7 @@ impl PkAggregationVerifier {
         }
 
         let proof_ds = &proof.proof_bytes[5..37];
-        if proof_ds != &self.domain_separator {
+        if proof_ds != self.domain_separator {
             return Ok(false);
         }
 

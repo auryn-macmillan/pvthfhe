@@ -1,7 +1,9 @@
 //! NIZK glue and C7 verification helpers for the fhe.rs BFV backend.
 
 use super::{
-    threshold::{decrypt_share_ciphertext_hash, decode_plaintext_slots, validate_decrypt_share_context},
+    threshold::{
+        decode_plaintext_slots, decrypt_share_ciphertext_hash, validate_decrypt_share_context,
+    },
     FhersBackend,
 };
 use crate::{

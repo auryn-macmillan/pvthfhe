@@ -16,7 +16,9 @@ use sha2::{Digest, Sha256};
 
 use crate::PvssError;
 
-use super::{CANONICAL_PARAMS_TOML, CHALLENGE_LEN, DIGEST_LEN, MAX_FIELD_LEN, SHARE_NIZK_DOMAIN_SEPARATOR};
+use super::{
+    CANONICAL_PARAMS_TOML, CHALLENGE_LEN, DIGEST_LEN, MAX_FIELD_LEN, SHARE_NIZK_DOMAIN_SEPARATOR,
+};
 
 /// Public statement for one share-encryption proof.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -265,10 +267,14 @@ pub(super) fn validate_statement(stmt: &ShareNizkStatement) -> Result<(), PvssEr
         || stmt.share_commitment.len() != DIGEST_LEN
         || stmt.bfv_params_digest.len() != DIGEST_LEN
     {
-        return Err(PvssError::InvalidShare { party_id: Some(stmt.recipient_index as u16) });
+        return Err(PvssError::InvalidShare {
+            party_id: Some(stmt.recipient_index as u16),
+        });
     }
     if stmt.recipient_pk.len() > MAX_FIELD_LEN || stmt.ciphertext_u.len() > MAX_FIELD_LEN {
-        return Err(PvssError::InvalidShare { party_id: Some(stmt.recipient_index as u16) });
+        return Err(PvssError::InvalidShare {
+            party_id: Some(stmt.recipient_index as u16),
+        });
     }
     Ok(())
 }
@@ -284,7 +290,10 @@ pub(super) fn validate_witness(witness: &ShareNizkWitness) -> Result<(), PvssErr
     Ok(())
 }
 
-pub(super) fn derive_challenge(stmt: &ShareNizkStatement, commitment_ct: &[u8]) -> [u8; CHALLENGE_LEN] {
+pub(super) fn derive_challenge(
+    stmt: &ShareNizkStatement,
+    commitment_ct: &[u8],
+) -> [u8; CHALLENGE_LEN] {
     debug_assert!(
         stmt.dealer_index <= u32::MAX as usize,
         "dealer_index exceeds u32 range"
@@ -310,7 +319,10 @@ pub(super) fn derive_challenge(stmt: &ShareNizkStatement, commitment_ct: &[u8]) 
 
 // ── Binding computation helpers ───────────────────────────────────────────
 
-pub(super) fn compute_relation_binding(stmt: &ShareNizkStatement, algebraic_proof: &[u8]) -> [u8; DIGEST_LEN] {
+pub(super) fn compute_relation_binding(
+    stmt: &ShareNizkStatement,
+    algebraic_proof: &[u8],
+) -> [u8; DIGEST_LEN] {
     let mut h = Sha256::new();
     h.update(Tag::ShareRelationBindingV2.as_bytes());
     h.update(stmt.session_id.as_slice());
@@ -387,7 +399,10 @@ pub(super) fn compute_lattice_binding_from_opened(
 /// `session_id` and `dealer_index` are intentionally NOT included here — they
 /// are now first-class params passed directly to `bfv_sigma::prove`/`verify`,
 /// ensuring they cannot be accidentally omitted.
-pub(super) fn bfv_sigma_binding_data(stmt: &ShareNizkStatement, d_commitment: &[u8; 32]) -> Vec<u8> {
+pub(super) fn bfv_sigma_binding_data(
+    stmt: &ShareNizkStatement,
+    d_commitment: &[u8; 32],
+) -> Vec<u8> {
     let mut h = Sha256::new();
     h.update(Tag::ShareBfvSigmaBindingV5.as_bytes());
     h.update(stmt.recipient_index.to_be_bytes());
@@ -441,12 +456,17 @@ fn compute_ajtai_d2_binding_inner(
 
     let params = AjtaiParams::default();
     let matrix = AjtaiMatrix::from_seed(matrix_seed, &params, 1) // allow-seeded-rng: deterministic Ajtai CRS for PVSS proof
-        .map_err(|_| PvssError::D2HashBindingFailed { party_id: Some(recipient_index as u16) })?;
+        .map_err(|_| PvssError::D2HashBindingFailed {
+            party_id: Some(recipient_index as u16),
+        })?;
 
     let witness = encode_share_as_ajtai_witness(share_bytes)?;
 
-    let commitment = AjtaiCommitment::commit(&matrix, &[witness])
-        .map_err(|_| PvssError::D2HashBindingFailed { party_id: Some(recipient_index as u16) })?;
+    let commitment = AjtaiCommitment::commit(&matrix, &[witness]).map_err(|_| {
+        PvssError::D2HashBindingFailed {
+            party_id: Some(recipient_index as u16),
+        }
+    })?;
 
     Ok(commitment.to_d2_digest())
 }

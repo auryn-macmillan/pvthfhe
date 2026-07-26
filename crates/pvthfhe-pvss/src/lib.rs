@@ -187,12 +187,10 @@ impl core::fmt::Debug for PvssError {
             Self::RecoveryFailed { party_id } => {
                 write_debug_with_party(f, "RecoveryFailed", *party_id)
             }
-            Self::BackendError { party_id, message } => {
-                match party_id {
-                    Some(pid) => write!(f, "BackendError(party={pid}, message={message})"),
-                    None => write!(f, "BackendError(message={message})"),
-                }
-            }
+            Self::BackendError { party_id, message } => match party_id {
+                Some(pid) => write!(f, "BackendError(party={pid}, message={message})"),
+                None => write!(f, "BackendError(message={message})"),
+            },
             Self::InvalidDomainSeparator { party_id } => {
                 write_debug_with_party(f, "InvalidDomainSeparator", *party_id)
             }
@@ -220,12 +218,10 @@ impl core::fmt::Debug for PvssError {
             Self::SmudgeSlotReused { party_id, slot_id } => {
                 write!(f, "SmudgeSlotReused(party={party_id}, slot={slot_id})")
             }
-            Self::ShareVerification { party_id, message } => {
-                match party_id {
-                    Some(pid) => write!(f, "ShareVerification(party={pid}, message={message})"),
-                    None => write!(f, "ShareVerification(message={message})"),
-                }
-            }
+            Self::ShareVerification { party_id, message } => match party_id {
+                Some(pid) => write!(f, "ShareVerification(party={pid}, message={message})"),
+                None => write!(f, "ShareVerification(message={message})"),
+            },
         }
     }
 }
@@ -233,81 +229,57 @@ impl core::fmt::Debug for PvssError {
 impl core::fmt::Display for PvssError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::InvalidShare { party_id } => {
-                match party_id {
-                    Some(pid) => write!(f, "invalid share from party {pid}"),
-                    None => write!(f, "invalid share"),
-                }
-            }
-            Self::RecoveryFailed { party_id } => {
-                match party_id {
-                    Some(pid) => write!(f, "recovery failed for party {pid}"),
-                    None => write!(f, "recovery failed"),
-                }
-            }
-            Self::BackendError { party_id, message } => {
-                match party_id {
-                    Some(pid) => write!(f, "PVSS backend error (party {pid}): {message}"),
-                    None => write!(f, "PVSS backend error: {message}"),
-                }
-            }
-            Self::InvalidDomainSeparator { party_id } => {
-                match party_id {
-                    Some(pid) => write!(f, "invalid domain separator for party {pid}"),
-                    None => write!(f, "invalid domain separator"),
-                }
-            }
-            Self::StatementMismatch { party_id } => {
-                match party_id {
-                    Some(pid) => write!(f, "statement mismatch for party {pid}"),
-                    None => write!(f, "statement mismatch"),
-                }
-            }
-            Self::ChallengeVerificationFailed { party_id } => {
-                match party_id {
-                    Some(pid) => write!(f, "challenge verification failed for party {pid}"),
-                    None => write!(f, "challenge verification failed"),
-                }
-            }
-            Self::CiphertextVMismatch { party_id } => {
-                match party_id {
-                    Some(pid) => write!(f, "ciphertext mismatch for party {pid}"),
-                    None => write!(f, "ciphertext mismatch"),
-                }
-            }
-            Self::InvalidCommitmentStructure { party_id } => {
-                match party_id {
-                    Some(pid) => write!(f, "invalid commitment structure for party {pid}"),
-                    None => write!(f, "invalid commitment structure"),
-                }
-            }
-            Self::LatticeBindingVerificationFailed { party_id } => {
-                match party_id {
-                    Some(pid) => write!(f, "lattice binding verification failed for party {pid}"),
-                    None => write!(f, "lattice binding verification failed"),
-                }
-            }
-            Self::D2HashBindingFailed { party_id } => {
-                match party_id {
-                    Some(pid) => write!(f, "D2 hash binding failed for party {pid}"),
-                    None => write!(f, "D2 hash binding failed"),
-                }
-            }
-            Self::BfvEncryptionProofFailed { party_id } => {
-                match party_id {
-                    Some(pid) => write!(f, "BFV encryption proof failed for party {pid}"),
-                    None => write!(f, "BFV encryption proof failed"),
-                }
-            }
+            Self::InvalidShare { party_id } => match party_id {
+                Some(pid) => write!(f, "invalid share from party {pid}"),
+                None => write!(f, "invalid share"),
+            },
+            Self::RecoveryFailed { party_id } => match party_id {
+                Some(pid) => write!(f, "recovery failed for party {pid}"),
+                None => write!(f, "recovery failed"),
+            },
+            Self::BackendError { party_id, message } => match party_id {
+                Some(pid) => write!(f, "PVSS backend error (party {pid}): {message}"),
+                None => write!(f, "PVSS backend error: {message}"),
+            },
+            Self::InvalidDomainSeparator { party_id } => match party_id {
+                Some(pid) => write!(f, "invalid domain separator for party {pid}"),
+                None => write!(f, "invalid domain separator"),
+            },
+            Self::StatementMismatch { party_id } => match party_id {
+                Some(pid) => write!(f, "statement mismatch for party {pid}"),
+                None => write!(f, "statement mismatch"),
+            },
+            Self::ChallengeVerificationFailed { party_id } => match party_id {
+                Some(pid) => write!(f, "challenge verification failed for party {pid}"),
+                None => write!(f, "challenge verification failed"),
+            },
+            Self::CiphertextVMismatch { party_id } => match party_id {
+                Some(pid) => write!(f, "ciphertext mismatch for party {pid}"),
+                None => write!(f, "ciphertext mismatch"),
+            },
+            Self::InvalidCommitmentStructure { party_id } => match party_id {
+                Some(pid) => write!(f, "invalid commitment structure for party {pid}"),
+                None => write!(f, "invalid commitment structure"),
+            },
+            Self::LatticeBindingVerificationFailed { party_id } => match party_id {
+                Some(pid) => write!(f, "lattice binding verification failed for party {pid}"),
+                None => write!(f, "lattice binding verification failed"),
+            },
+            Self::D2HashBindingFailed { party_id } => match party_id {
+                Some(pid) => write!(f, "D2 hash binding failed for party {pid}"),
+                None => write!(f, "D2 hash binding failed"),
+            },
+            Self::BfvEncryptionProofFailed { party_id } => match party_id {
+                Some(pid) => write!(f, "BFV encryption proof failed for party {pid}"),
+                None => write!(f, "BFV encryption proof failed"),
+            },
             Self::SmudgeSlotReused { party_id, slot_id } => {
                 write!(f, "smudge slot reused: party={party_id}, slot={slot_id}")
             }
-            Self::ShareVerification { party_id, message } => {
-                match party_id {
-                    Some(pid) => write!(f, "share verification failed (party {pid}): {message}"),
-                    None => write!(f, "share verification failed: {message}"),
-                }
-            }
+            Self::ShareVerification { party_id, message } => match party_id {
+                Some(pid) => write!(f, "share verification failed (party {pid}): {message}"),
+                None => write!(f, "share verification failed: {message}"),
+            },
         }
     }
 }

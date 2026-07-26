@@ -8,7 +8,11 @@
 use pvthfhe_pvss::keygen::dkg::{DkgCeremony, DkgParams};
 
 fn build_dkg() -> DkgCeremony {
-    let params = DkgParams { n: 15, t: 7, round_timeout: None };
+    let params = DkgParams {
+        n: 15,
+        t: 7,
+        round_timeout: None,
+    };
     let mut dkg = DkgCeremony::new(params).expect("DKG new");
     dkg.run().expect("DKG run");
     dkg

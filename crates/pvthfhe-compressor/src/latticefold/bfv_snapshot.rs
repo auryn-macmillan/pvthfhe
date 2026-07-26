@@ -128,7 +128,7 @@ impl BfvSnapshotProver {
         let mut domain_separator = [0u8; 32];
         let mut h = Keccak256::new();
         h.update(b"bfv-snapshot-prove-v1");
-        h.update(&session_id);
+        h.update(session_id);
         domain_separator.copy_from_slice(&h.finalize());
 
         Ok(Self {
@@ -144,9 +144,9 @@ impl BfvSnapshotProver {
     pub fn compute_plaintext_commitment(&self) -> [u8; 32] {
         let mut hasher = Keccak256::new();
         hasher.update(b"bfv-snapshot-plaintext-v1");
-        hasher.update(&self.session_id);
+        hasher.update(self.session_id);
         for coeff in &self.plaintext_coeffs {
-            hasher.update(&coeff.to_le_bytes());
+            hasher.update(coeff.to_le_bytes());
         }
         hasher.finalize().into()
     }
@@ -157,15 +157,15 @@ impl BfvSnapshotProver {
         for i in 0..SZ_NUM_POINTS {
             let mut hasher = Keccak256::new();
             hasher.update(b"bfv-snapshot-sz-points-v1");
-            hasher.update(&self.domain_separator);
-            hasher.update(&(i as u64).to_le_bytes());
-            hasher.update(&self.session_id);
+            hasher.update(self.domain_separator);
+            hasher.update((i as u64).to_le_bytes());
+            hasher.update(self.session_id);
             // Also bind the statement to Fiat-Shamir
             for &v in &self.pk_rns {
-                hasher.update(&v.to_le_bytes());
+                hasher.update(v.to_le_bytes());
             }
             for &v in &self.ct_rns {
-                hasher.update(&v.to_le_bytes());
+                hasher.update(v.to_le_bytes());
             }
             points[i] = Fr::from_be_bytes_mod_order(&hasher.finalize());
         }
@@ -188,6 +188,10 @@ impl BfvSnapshotProver {
     /// where all polynomials are evaluated at x = eval_point.
     ///
     /// Returns the maximal witness coefficient norm witnessed at this point.
+    // Verification inherently needs the point, three witness polynomials, and
+    // the statement context — packing them into a struct would add indirection
+    // without clarifying the algebra.
+    #[allow(clippy::too_many_arguments)]
     fn verify_at_point(
         &self,
         eval_point: Fr,
@@ -255,12 +259,12 @@ impl BfvSnapshotProver {
         // Compute max witness norm (simplified: take max coeff abs value)
         let max_norm = u_coeffs
             .iter()
-            .map(|&x| x)
+            .copied()
             .max()
             .unwrap_or(0)
-            .max(e0_coeffs.iter().map(|&x| x).max().unwrap_or(0))
-            .max(e1_coeffs.iter().map(|&x| x).max().unwrap_or(0))
-            .max(self.plaintext_coeffs.iter().map(|&x| x).max().unwrap_or(0));
+            .max(e0_coeffs.iter().copied().max().unwrap_or(0))
+            .max(e1_coeffs.iter().copied().max().unwrap_or(0))
+            .max(self.plaintext_coeffs.iter().copied().max().unwrap_or(0));
 
         Ok(max_norm)
     }
@@ -349,12 +353,12 @@ impl BfvSnapshotProver {
         //   session_id(32) || folded_commitment(32) || max_norm(8)
         let max_norm = u_coeffs
             .iter()
-            .map(|&x| x)
+            .copied()
             .max()
             .unwrap_or(0)
-            .max(e0_coeffs.iter().map(|&x| x).max().unwrap_or(0))
-            .max(e1_coeffs.iter().map(|&x| x).max().unwrap_or(0))
-            .max(self.plaintext_coeffs.iter().map(|&x| x).max().unwrap_or(0));
+            .max(e0_coeffs.iter().copied().max().unwrap_or(0))
+            .max(e1_coeffs.iter().copied().max().unwrap_or(0))
+            .max(self.plaintext_coeffs.iter().copied().max().unwrap_or(0));
 
         let mut proof_bytes = Vec::with_capacity(4 + 1 + 32 + 32 + 32 + 8);
         proof_bytes.extend_from_slice(BFV_SNAPSHOT_MAGIC);
@@ -455,17 +459,17 @@ impl BfvSnapshotVerifier {
         {
             let mut h = Keccak256::new();
             h.update(b"bfv-snapshot-prove-v1");
-            h.update(&self.session_id);
+            h.update(self.session_id);
             ds.copy_from_slice(&h.finalize());
         }
-        hasher.update(&ds);
-        hasher.update(&0u64.to_le_bytes());
-        hasher.update(&self.session_id);
+        hasher.update(ds);
+        hasher.update(0u64.to_le_bytes());
+        hasher.update(self.session_id);
         for &v in &self.pk_rns {
-            hasher.update(&v.to_le_bytes());
+            hasher.update(v.to_le_bytes());
         }
         for &v in &self.ct_rns {
-            hasher.update(&v.to_le_bytes());
+            hasher.update(v.to_le_bytes());
         }
         let witness_seed = Fr::from_be_bytes_mod_order(&hasher.finalize());
 
@@ -475,7 +479,7 @@ impl BfvSnapshotVerifier {
         {
             let mut h = Keccak256::new();
             h.update(b"bfv-snapshot-plaintext-v1");
-            h.update(&self.session_id);
+            h.update(self.session_id);
             epoch.copy_from_slice(&h.finalize());
         }
         // Use plaintext_commitment as epoch (matching prover)

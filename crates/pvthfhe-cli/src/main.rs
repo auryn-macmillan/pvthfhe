@@ -45,8 +45,8 @@ use ark_bn254::Fr;
 #[cfg(feature = "with-fhe")]
 use {
     pvthfhe_fhe::{fhers::FhersBackend, FheBackend, PublicKey},
-    pvthfhe_pvss::keygen::dkg::{DkgCeremony, DkgParams},
     pvthfhe_foundations::rng::OsRng,
+    pvthfhe_pvss::keygen::dkg::{DkgCeremony, DkgParams},
     rand_core::RngCore,
     sha2::{Digest, Sha256},
 };
@@ -336,8 +336,12 @@ fn main() -> anyhow::Result<()> {
             match backend.to_lowercase().as_str() {
                 "fhe-rs" => {
                     let preset = match params.to_lowercase().as_str() {
-                        "insecure512" => pvthfhe_foundations::types::BfvParameterPreset::insecure512(),
-                        "production8192" => pvthfhe_foundations::types::BfvParameterPreset::production8192(),
+                        "insecure512" => {
+                            pvthfhe_foundations::types::BfvParameterPreset::insecure512()
+                        }
+                        "production8192" => {
+                            pvthfhe_foundations::types::BfvParameterPreset::production8192()
+                        }
                         other => {
                             anyhow::bail!(
                                 "unknown preset: {other}. Use 'production8192' or 'insecure512'"
@@ -548,9 +552,9 @@ fn r8_snapshot(action: SnapshotCommand) -> anyhow::Result<()> {
             let stmt = pvthfhe_fhe::real_nizk::NizkStatement {
                 ciphertext_bytes: ct.bytes.clone(),
                 decrypt_share_bytes: ct.bytes[..32.min(ct.bytes.len())].to_vec(),
-                pvss_commitment: Sha256::digest(&session_bytes).into(),
+                pvss_commitment: Sha256::digest(session_bytes).into(),
                 params: (288230376173076481, 8192, 10),
-                session_id: hex::encode(&session_bytes),
+                session_id: hex::encode(session_bytes),
                 participant_id: 1,
                 epoch: 0,
                 c_rns_override: None,
@@ -577,7 +581,7 @@ fn r8_snapshot(action: SnapshotCommand) -> anyhow::Result<()> {
             );
             println!(
                 "proof_hash: {}",
-                hex::encode(&Sha256::digest(&proof.proof_bytes))
+                hex::encode(Sha256::digest(&proof.proof_bytes))
             );
             println!("ok");
         }
@@ -633,9 +637,9 @@ fn r8_compute(action: ComputeCommand) -> anyhow::Result<()> {
                 let stmt = pvthfhe_fhe::real_nizk::NizkStatement {
                     ciphertext_bytes: ct.bytes.clone(),
                     decrypt_share_bytes: ct.bytes[..32.min(ct.bytes.len())].to_vec(),
-                    pvss_commitment: Sha256::digest(&sid).into(),
+                    pvss_commitment: Sha256::digest(sid).into(),
                     params: (288230376173076481, 8192, 10),
-                    session_id: hex::encode(&sid),
+                    session_id: hex::encode(sid),
                     participant_id: 1,
                     epoch: 0,
                     c_rns_override: None,
@@ -677,27 +681,7 @@ fn r8_compute(action: ComputeCommand) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Handle snapshot prove/verify commands.
-/// (Track A IVC removed — snapshot deferred to latticefold path)
-
-#[allow(dead_code)]
-
-/// Compute prove with `--n <count>`: auto-generate `count` ciphertexts,
-/// build a Merkle tree from their hashes, and sum them via chained in-circuit Adds.
-
-/// Native Poseidon commitment of 12 coefficient-half u64 values → Fr.
-fn native_poseidon_commit_coeffs_half(_coeffs: &[u64]) -> Fr {
-    Fr::from(0u64) // Track A IVC removed
-}
-#[allow(dead_code)]
-
-/// Encode a triple (Fr, Fr, Fr) into 96 bytes (deprecated, Track A removed).
-fn encode_triple_inline(_a: Fr, _b: Fr, _c: Fr) -> Vec<u8> {
-    vec![0u8; 96]
-}
-
 /// Convert a byte slice to a Vec<u64> by interpreting each 8 bytes as one u64 (little-endian).
-
 /// Compute a Poseidon hash of the plaintext bytes, returning an Fr scalar.
 /// Run the full demo pipeline with `n` parties and deterministic `seed`.
 #[cfg(feature = "with-fhe")]

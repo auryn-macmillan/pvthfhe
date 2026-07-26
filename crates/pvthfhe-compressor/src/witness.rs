@@ -44,7 +44,13 @@ impl PoseidonParams<Fr> {
         let mds: Vec<Vec<Fr>> = (0..t)
             .map(|i| {
                 (0..t)
-                    .map(|j| if i == j { Fr::from(1u64) } else { Fr::from(0u64) })
+                    .map(|j| {
+                        if i == j {
+                            Fr::from(1u64)
+                        } else {
+                            Fr::from(0u64)
+                        }
+                    })
                     .collect()
             })
             .collect();

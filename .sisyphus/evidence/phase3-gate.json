@@ -1,42 +1,42 @@
 {
   "status": "FAIL",
-  "timestamp": "2026-07-24T22:58:47Z",
+  "timestamp": "2026-07-26T02:01:40Z",
   "steps": {
     "workspace-tests": {
       "status": "FAIL",
-      "detail": "cargo test -p pvthfhe-aggregator failed: est \"cyclo_norm_enforcement\") generated 1 warning\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 12.05s\n     Running unittests src/lib.rs (target/debug/deps/pvthfhe_aggregator-f5a8dc7d3fbfdfc6)\n     Running tests/aggregate_1024_smoke.rs (target/debug/deps/aggregate_1024_smoke-ac1c16e2e0ba84f5)\nerror: test failed, to rerun pass `-p pvthfhe-aggregator --test aggregate_1024_smoke`"
+      "detail": "cargo test -p pvthfhe-compressor failed:   |\n479 +     use std::str::FromStr;\n    |\nhelp: there is an associated function `from` with a similar name\n    |\n535 -         assert!(FheOperation::from_str(\"unknown\").is_err());\n535 +         assert!(FheOperation::from(\"unknown\").is_err());\n    |\n\nFor more information about this error, try `rustc --explain E0599`.\nerror: could not compile `pvthfhe-compressor` (lib test) due to 6 previous errors"
     },
     "clippy": {
-      "status": "FAIL",
-      "detail": "cargo clippy failed: e_rqpoly_base_b`\n\nerror: function `recompose_rqpoly_base_B` should have a snake case name\n  --> crates/pvthfhe-cyclo/src/decompose/mod.rs:58:8\n   |\n58 | pub fn recompose_rqpoly_base_B(polys: &[RqPoly], b: u64) -> RqPoly {\n   |        ^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `recompose_rqpoly_base_b`\n\nerror: could not compile `pvthfhe-cyclo` (lib) due to 9 previous errors"
+      "status": "PASS",
+      "detail": "cargo clippy --workspace passed"
     },
     "fmt": {
       "status": "FAIL",
-      "detail": "cargo fmt --check failed: tests/tests/security_audit_reds.rs:8:\n //! Placeholder tests that asserted hardcoded booleans (old F7/F11/F12/F13/P1/P2\n //! entries) were removed in the 2026-07 refactor: they pinned no behavior.\n \n+use pvthfhe_foundations::types::rlwe_n;\n use pvthfhe_nizk::NizkError;\n use pvthfhe_pvss::PvssError;\n-use pvthfhe_foundations::types::rlwe_n;\n use rand_chacha::ChaCha20Rng;\n use rand_core::SeedableRng;"
+      "detail": "cargo fmt --check failed:           .iter()\n+            .copied()\n             .max()\n             .unwrap_or(0)\n             .max(e0_coeffs.iter().copied().max().unwrap_or(0))\nDiff in /home/dev/pvthfhe/crates/pvthfhe-compressor/src/latticefold/fhe_compute_circuit.rs:53:\n }\n \n impl FheOperation {\n-\n     /// Return the operation tag used for domain separation.\n     pub fn tag(&self) -> &'static [u8] {\n         match self {"
     },
     "deny": {
       "status": "PASS",
       "detail": "cargo deny check passed"
     },
     "noir-tests": {
-      "status": "FAIL",
-      "detail": "nargo test --workspace failed: \u2502     dep::std::println(h.0);\n   \u2502     --- Please use `::std` instead\n   \u2502\n\nwarning: `dep::std` path is deprecated\n   \u250c\u2500 ajtai_commitment/src/main.nr:93:5\n   \u2502\n93 \u2502     dep::std::println(h.0);\n   \u2502     --- Please use `::std` instead\n   \u2502\n\nwarning: `dep::std` path is deprecated\n   \u250c\u2500 ajtai_commitment/src/main.nr:94:5\n   \u2502\n94 \u2502     dep::std::println(h.1);\n   \u2502     --- Please use `::std` instead\n   \u2502"
+      "status": "PASS",
+      "detail": "nargo test --workspace passed"
     },
     "forge-tests": {
-      "status": "FAIL",
-      "detail": "forge test failed: Compiling 76 files with Solc 0.8.34\nSolc 0.8.34 finished in 31.35s\nError: \"/home/dev/pvthfhe/contracts/out/P3RealVerifierBase.t.sol/P3RealVerifierBase.json\": No space left on device (os error 28)"
+      "status": "PASS",
+      "detail": "forge test --root contracts passed"
     },
     "demo-e2e": {
-      "status": "FAIL",
-      "detail": "just demo-e2e failed: is: ultra_honk, num threads: 4 (mem: 5.50 MiB)\nCircuitProve: Proving key computed in 27 ms (mem: 38.12 MiB)\nVK saved to \"target/vk\" (mem: 39.74 MiB)\nVK Hash saved to \"target/vk_hash\" (mem: 39.74 MiB)\nforge test --root contracts\nError: \"/home/dev/pvthfhe/contracts/out/build-info/ec8fd718cfcf308e.json\": No space left on device (os error 28)\nerror: Recipe `demo-e2e` failed on line 40 with exit code 1"
+      "status": "PASS",
+      "detail": "just demo-e2e passed"
     },
     "adversarial-suite": {
       "status": "PASS",
       "detail": "just adversarial-suite passed"
     },
     "bench-scaling": {
-      "status": "FAIL",
-      "detail": "just bench-scaling failed: rget/release/.fingerprint/fhe-e0a8b20fc503d3d6`\n\nCaused by:\n  No space left on device (os error 28)\nmkdir -p bench/results bench/figures .sisyphus/evidence\ncargo run --release -p pvthfhe-bench --bin bench_scaling 2>&1 | tee .sisyphus/evidence/task-43-envelopes.log\ntee: .sisyphus/evidence/task-43-envelopes.log: No space left on device\nerror: Recipe `bench-scaling` failed on line 67 with exit code 1"
+      "status": "PASS",
+      "detail": "just bench-scaling passed; all 4 envelopes present"
     },
     "docs-check": {
       "status": "PASS",

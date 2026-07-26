@@ -10,7 +10,11 @@ use pvthfhe_pvss::keygen::dkg::{DkgCeremony, DkgParams};
 
 #[test]
 fn dkg_n14_t7_correctness_encrypt_decrypt() {
-    let params = DkgParams { n: 14, t: 7, round_timeout: None };
+    let params = DkgParams {
+        n: 14,
+        t: 7,
+        round_timeout: None,
+    };
     let mut dkg = DkgCeremony::new(params).expect("DKG new");
     dkg.run().expect("DKG run");
 
@@ -41,7 +45,11 @@ fn dkg_n14_t7_correctness_encrypt_decrypt() {
 
 #[test]
 fn dkg_consistency_across_different_quorums() {
-    let params = DkgParams { n: 14, t: 7, round_timeout: None };
+    let params = DkgParams {
+        n: 14,
+        t: 7,
+        round_timeout: None,
+    };
     let mut dkg = DkgCeremony::new(params).expect("DKG new");
     dkg.run().expect("DKG run");
 

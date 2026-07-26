@@ -43,6 +43,8 @@ pub struct DkgTranscript {
     pub non_equiv_proofs: HashMap<PartyId, NonEquivProof>,
 }
 
+// Ceremony-level state machine; variant size is not a concern here.
+#[allow(clippy::large_enum_variant)]
 pub enum KeygenState {
     Round1,
     Round2 {

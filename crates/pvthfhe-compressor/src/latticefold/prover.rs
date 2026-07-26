@@ -39,10 +39,10 @@ impl LatticeFoldAccumulator {
     pub fn commit(&self) -> [u8; 32] {
         let mut hasher = Keccak256::new();
         hasher.update(b"latticefold-accumulator-commit-v1");
-        hasher.update(&self.epoch_hash);
-        hasher.update(&self.srs_hash);
-        hasher.update(&(self.instance_count as u64).to_be_bytes());
-        hasher.update(&self.inner.folded_commitment);
+        hasher.update(self.epoch_hash);
+        hasher.update(self.srs_hash);
+        hasher.update((self.instance_count as u64).to_be_bytes());
+        hasher.update(self.inner.folded_commitment);
         let w_bytes = self.inner.folded_witness.into_bigint().to_bytes_be();
         hasher.update(&w_bytes);
         hasher.finalize().into()

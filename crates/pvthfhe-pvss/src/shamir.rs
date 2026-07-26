@@ -57,17 +57,18 @@ impl fmt::Display for ShamirError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InsufficientShares { received, required } => {
-                write!(f, "not enough shares: received {received}, required {required}")
+                write!(
+                    f,
+                    "not enough shares: received {received}, required {required}"
+                )
             }
             Self::DuplicateX { party_id } => {
                 write!(f, "duplicate x-coordinate for party {party_id}")
             }
-            Self::RecoveryFailed { party_id } => {
-                match party_id {
-                    Some(pid) => write!(f, "Shamir recovery failed for party {pid}"),
-                    None => write!(f, "Shamir recovery failed"),
-                }
-            }
+            Self::RecoveryFailed { party_id } => match party_id {
+                Some(pid) => write!(f, "Shamir recovery failed for party {pid}"),
+                None => write!(f, "Shamir recovery failed"),
+            },
             Self::InvalidParameters(msg) => write!(f, "invalid Shamir parameters: {msg}"),
         }
     }
@@ -161,7 +162,9 @@ pub fn recover(shares: &[(usize, Fr)], threshold: usize) -> Result<Fr, ShamirErr
         // Find the duplicate x-coordinate
         for window in xs.windows(2) {
             if window[0] == window[1] {
-                return Err(ShamirError::DuplicateX { party_id: window[0] });
+                return Err(ShamirError::DuplicateX {
+                    party_id: window[0],
+                });
             }
         }
         // This should never happen, but return generic error as fallback
@@ -178,7 +181,8 @@ pub fn recover(shares: &[(usize, Fr)], threshold: usize) -> Result<Fr, ShamirErr
     //                 = Π_{j≠i} (-x_j) / (x_i - x_j)
     let mut recovered = Fr::ZERO;
     for (i, (_, y_i)) in shares.iter().enumerate() {
-        let lambda = lagrange_coefficient_at_zero(i, &x_frs).ok_or(ShamirError::RecoveryFailed { party_id: None })?;
+        let lambda = lagrange_coefficient_at_zero(i, &x_frs)
+            .ok_or(ShamirError::RecoveryFailed { party_id: None })?;
         recovered += *y_i * lambda;
     }
 
@@ -317,13 +321,10 @@ mod tests {
         // Fix x-coordinates to be distinct even though values are the same.
         // Actually, the duplicate is on x-coordinates:
         dup[1].0 = dup[0].0; // Same x, different y would fail in Lagrange.
-                              // But we need actually duplicate x. The first two entries now have the
-                              // same x, but different y values. That's what we want to test.
+                             // But we need actually duplicate x. The first two entries now have the
+                             // same x, but different y values. That's what we want to test.
         let result = recover(&dup, 3);
-        assert_eq!(
-            result,
-            Err(ShamirError::DuplicateX { party_id: dup[0].0 })
-        );
+        assert_eq!(result, Err(ShamirError::DuplicateX { party_id: dup[0].0 }));
     }
 
     #[test]

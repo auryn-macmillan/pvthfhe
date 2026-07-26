@@ -280,8 +280,7 @@ fn no_seeded_rng_in_production() {
 
     for line in stdout.lines().filter(|line| !line.is_empty()) {
         let mut parts = line.splitn(3, ':');
-        let (Some(path), Some(line_no), Some(content)) =
-            (parts.next(), parts.next(), parts.next())
+        let (Some(path), Some(line_no), Some(content)) = (parts.next(), parts.next(), parts.next())
         else {
             continue;
         };

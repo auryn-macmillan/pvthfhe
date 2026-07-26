@@ -14,8 +14,8 @@ use std::time::Instant;
 
 use super::decrypt::compute_lagrange_coeffs_bn254;
 use super::{
-    elapsed_ms, PipelineConfig, PipelineObserver, CIRCUIT_N, DEPTH_BINARY,
-    NOIR_MAX_PARTICIPANTS, N_COEFFS,
+    elapsed_ms, PipelineConfig, PipelineObserver, CIRCUIT_N, DEPTH_BINARY, NOIR_MAX_PARTICIPANTS,
+    N_COEFFS,
 };
 
 /// Run the Noir `aggregator_final` circuit stage: compute all public inputs and
@@ -133,14 +133,14 @@ pub(crate) fn run_onchain_stage<O: PipelineObserver>(
         share_commitments[i] = {
             let mut inputs = vec![domain_vec_merkle];
             inputs.extend_from_slice(&share_polys[i][..N_COEFFS]);
-            inputs.extend(std::iter::repeat(Fr::zero()).take(CIRCUIT_N - N_COEFFS));
+            inputs.extend(std::iter::repeat_n(Fr::zero(), CIRCUIT_N - N_COEFFS));
             noir_poseidon_sponge(&inputs)
         };
     }
     // Zero-padded entries: compute commitment for zero polynomial
     let zero_poly_commitment = {
         let mut inputs = vec![domain_vec_merkle];
-        inputs.extend(std::iter::repeat(Fr::zero()).take(CIRCUIT_N));
+        inputs.extend(std::iter::repeat_n(Fr::zero(), CIRCUIT_N));
         noir_poseidon_sponge(&inputs)
     };
     for i in share_coeffs_fr.len()..NOIR_MAX_PARTICIPANTS {
@@ -184,7 +184,7 @@ pub(crate) fn run_onchain_stage<O: PipelineObserver>(
     let combined_commitment = {
         let mut inputs = vec![Fr::from(1u64)];
         inputs.extend_from_slice(&combined_poly[..N_COEFFS]);
-        inputs.extend(std::iter::repeat(Fr::zero()).take(CIRCUIT_N - N_COEFFS));
+        inputs.extend(std::iter::repeat_n(Fr::zero(), CIRCUIT_N - N_COEFFS));
         noir_poseidon_sponge(&inputs)
     };
     let mut leaves = vec![zero_poly_commitment; 128];
@@ -192,8 +192,7 @@ pub(crate) fn run_onchain_stage<O: PipelineObserver>(
     let (merkle_tree_levels, share_commitment_root) = build_binary_merkle_tree(&leaves);
     let paths = prove_binary_merkle_paths(&merkle_tree_levels);
     let combined_merkle_path = paths[0];
-    let lagrange_coeffs_circuit: Vec<Fr> =
-        compute_lagrange_coeffs_bn254(party_ids_fr, challenge_r);
+    let lagrange_coeffs_circuit: Vec<Fr> = compute_lagrange_coeffs_bn254(party_ids_fr, challenge_r);
 
     let g4_merkle_path: [Fr; DEPTH_BINARY] = [Fr::zero(); DEPTH_BINARY];
     let g4_leaf_index = Fr::zero();
@@ -477,7 +476,7 @@ pub fn build_binary_merkle_tree(leaves: &[Fr]) -> (Vec<Vec<Fr>>, Fr) {
     let mut levels: Vec<Vec<Fr>> = vec![leaves.to_vec()];
     while levels.last().unwrap().len() > 1 {
         let current = levels.last().unwrap();
-        let mut next = Vec::with_capacity((current.len() + 1) / 2);
+        let mut next = Vec::with_capacity(current.len().div_ceil(2));
         for pair in current.chunks(2) {
             let left = pair[0];
             let right = if pair.len() > 1 { pair[1] } else { Fr::zero() };
@@ -511,16 +510,18 @@ pub fn prove_binary_merkle_paths(tree: &[Vec<Fr>]) -> Vec<[Fr; DEPTH_BINARY]> {
     paths
 }
 
-/// Build the C7 share-commitment witness bundle from per-share coefficient vectors.
-pub fn build_c7_share_commitment_bundle(
-    share_coeffs_fr: &[Vec<Fr>],
-) -> (
+/// (share polynomials, commitments, Merkle paths, leaf indices, root) for the
+/// C7 share-commitment witness.
+pub type C7ShareCommitmentBundle = (
     Vec<[Fr; N_COEFFS]>,
     Vec<Fr>,
     Vec<[Fr; DEPTH_BINARY]>,
     Vec<Fr>,
     Fr,
-) {
+);
+
+/// Build the C7 share-commitment witness bundle from per-share coefficient vectors.
+pub fn build_c7_share_commitment_bundle(share_coeffs_fr: &[Vec<Fr>]) -> C7ShareCommitmentBundle {
     let mut share_polys = vec![[Fr::zero(); N_COEFFS]; NOIR_MAX_PARTICIPANTS];
     let mut share_commitments = vec![Fr::zero(); NOIR_MAX_PARTICIPANTS];
     let domain_vec_merkle = Fr::from(1u64);
@@ -532,14 +533,14 @@ pub fn build_c7_share_commitment_bundle(
         share_commitments[i] = {
             let mut inputs = vec![domain_vec_merkle];
             inputs.extend_from_slice(&share_polys[i][..N_COEFFS]);
-            inputs.extend(std::iter::repeat(Fr::zero()).take(CIRCUIT_N - N_COEFFS));
+            inputs.extend(std::iter::repeat_n(Fr::zero(), CIRCUIT_N - N_COEFFS));
             noir_poseidon_sponge(&inputs)
         };
     }
 
     let zero_poly_commitment = {
         let mut inputs = vec![domain_vec_merkle];
-        inputs.extend(std::iter::repeat(Fr::zero()).take(CIRCUIT_N));
+        inputs.extend(std::iter::repeat_n(Fr::zero(), CIRCUIT_N));
         noir_poseidon_sponge(&inputs)
     };
     for i in share_coeffs_fr.len()..NOIR_MAX_PARTICIPANTS {
@@ -583,9 +584,8 @@ pub fn build_c7_share_commitment_bundle(
 /// Must match Noir derivation in aggregator_final main() lines 396-400.
 pub fn compute_rlc_beta(share_evals: &[Fr]) -> Fr {
     let mut inputs = vec![Fr::zero(); 129];
-    for i in 0..share_evals.len().min(128) {
-        inputs[i] = share_evals[i];
-    }
+    let n = share_evals.len().min(128);
+    inputs[..n].copy_from_slice(&share_evals[..n]);
     inputs[128] = Fr::from(8u64); // protocol_constants::DOMAIN_SZ_CHALLENGE
     noir_poseidon_sponge(&inputs)
 }
@@ -715,8 +715,14 @@ pub fn build_c7_prover_toml(
     // nova_final_plaintext padded to CIRCUIT_N=256 (Noir ring_dim.nr N=256)
     write!(s, "nova_final_plaintext = [").unwrap();
     for k in 0..CIRCUIT_N {
-        if k > 0 { write!(s, ", ").unwrap(); }
-        let v = if k < nova_final_plaintext.len() { nova_final_plaintext[k] } else { Fr::zero() };
+        if k > 0 {
+            write!(s, ", ").unwrap();
+        }
+        let v = if k < nova_final_plaintext.len() {
+            nova_final_plaintext[k]
+        } else {
+            Fr::zero()
+        };
         write!(s, "\"0x{}\"", field_hex_be(v)).unwrap();
     }
     writeln!(s, "]").unwrap();
@@ -770,8 +776,14 @@ pub fn build_c7_prover_toml(
     // RLC combined polynomial (padded to CIRCUIT_N=256)
     write!(s, "combined_poly = [").unwrap();
     for k in 0..CIRCUIT_N {
-        if k > 0 { write!(s, ", ").unwrap(); }
-        let v = if k < N_COEFFS { combined_poly[k] } else { Fr::zero() };
+        if k > 0 {
+            write!(s, ", ").unwrap();
+        }
+        let v = if k < N_COEFFS {
+            combined_poly[k]
+        } else {
+            Fr::zero()
+        };
         write!(s, "\"0x{}\"", field_hex_be(v)).unwrap();
     }
     writeln!(s, "]").unwrap();
@@ -839,7 +851,9 @@ pub fn build_c7_prover_toml(
     for (name, arr) in &c2_arrays {
         write!(s, "{name} = [").unwrap();
         for k in 0..CIRCUIT_N {
-            if k > 0 { write!(s, ", ").unwrap(); }
+            if k > 0 {
+                write!(s, ", ").unwrap();
+            }
             let v = if k < N_COEFFS { arr[k] } else { Fr::zero() };
             write!(s, "\"0x{}\"", field_hex_be(v)).unwrap();
         }
@@ -847,8 +861,14 @@ pub fn build_c7_prover_toml(
     }
 
     let c2_eval_names: [&str; 8] = [
-        "c2_pk0_eval", "c2_pk1_eval", "c2_ct0_eval", "c2_ct1_eval",
-        "c2_u_eval", "c2_e0_eval", "c2_e1_eval", "c2_m_eval",
+        "c2_pk0_eval",
+        "c2_pk1_eval",
+        "c2_ct0_eval",
+        "c2_ct1_eval",
+        "c2_u_eval",
+        "c2_e0_eval",
+        "c2_e1_eval",
+        "c2_m_eval",
     ];
     for name in &c2_eval_names {
         writeln!(s, "{name} = \"0x{}\"", field_hex_be(zero_fr)).unwrap();
@@ -871,8 +891,18 @@ pub fn build_c7_prover_toml(
     for _ in 0..DEPTH_BINARY {
         c2_root = poseidon_hash_native(&[c2_root, Fr::zero()]);
     }
-    writeln!(s, "c2_pk0_commitment = \"0x{}\"", field_hex_be(zero_poly_comm)).unwrap();
-    writeln!(s, "c2_pk1_commitment = \"0x{}\"", field_hex_be(zero_poly_comm)).unwrap();
+    writeln!(
+        s,
+        "c2_pk0_commitment = \"0x{}\"",
+        field_hex_be(zero_poly_comm)
+    )
+    .unwrap();
+    writeln!(
+        s,
+        "c2_pk1_commitment = \"0x{}\"",
+        field_hex_be(zero_poly_comm)
+    )
+    .unwrap();
     writeln!(s, "c2_recipient_pk_root = \"0x{}\"", field_hex_be(c2_root)).unwrap();
 
     write!(s, "c2_pk_merkle_path = [").unwrap();
@@ -959,7 +989,7 @@ mod tests {
 
         let zero_poly_commitment = {
             let mut inputs = vec![Fr::from(1u64)];
-            inputs.extend(std::iter::repeat(Fr::zero()).take(CIRCUIT_N));
+            inputs.extend(std::iter::repeat_n(Fr::zero(), CIRCUIT_N));
             noir_poseidon_sponge(&inputs)
         };
 
@@ -978,9 +1008,9 @@ mod tests {
         let g4_merkle_path: [Fr; DEPTH_BINARY] = [Fr::zero(); DEPTH_BINARY];
         let g4_leaf_index = Fr::zero();
 
-    let combined_leaf_index = Fr::zero();
+        let combined_leaf_index = Fr::zero();
 
-    let prover_toml = build_c7_prover_toml(
+        let prover_toml = build_c7_prover_toml(
             ciphertext_hash,
             aggregate_pk_hash,
             decrypt_nizk_hash,

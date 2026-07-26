@@ -65,7 +65,7 @@ pub fn elect_leader(seed: &[u8; 32], participant_ids: &[u32], session_id: &[u8])
         .map(|&id| generate_rank(seed, id, session_id))
         .collect();
     // Sort descending by rank (highest first)
-    rankings.sort_by(|a, b| b.rank.cmp(&a.rank));
+    rankings.sort_by_key(|r| std::cmp::Reverse(r.rank));
     ElectionResult {
         leader_id: rankings[0].party_id,
         rankings,

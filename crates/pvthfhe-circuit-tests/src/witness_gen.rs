@@ -22,7 +22,7 @@ use ark_ff::{Field, PrimeField, Zero};
 use light_poseidon::{Poseidon, PoseidonHasher};
 
 /// Full RLWE ring degree used by the circuit.
-pub const N: usize = 8192;
+pub const DECRYPT_SHARE_N: usize = 256;
 /// log2(N) for repeated squaring.
 pub const LOG_N: usize = 13;
 /// Error bound enforced by the circuit.
@@ -252,7 +252,7 @@ impl DecryptShareWitness {
         let _ = writeln!(&mut output, "e_i = [{}]", quoted_array(&self.e_i));
         let _ = writeln!(&mut output, "c1 = [{}]", quoted_array(&self.c1));
         let _ = writeln!(&mut output, "d_i = [{}]", quoted_array(&self.d_i));
-        let _ = writeln!(&mut output, "q = \"{}\"", self.q);
+        let _ = writeln!(&mut output, "z_q = \"{}\"", self.q);
         output
     }
 
@@ -555,23 +555,23 @@ pub fn generate_decrypt_share_witness() -> DecryptShareWitness {
     let party_id = Fr::from(1u64);
     let epoch = Fr::from(1u64);
 
-    let mut sk_i_raw = vec![Fr::from(0u64); N];
+    let mut sk_i_raw = vec![Fr::from(0u64); DECRYPT_SHARE_N];
     sk_i_raw[0] = Fr::from(1u64);
     sk_i_raw[1] = -Fr::from(1u64);
 
-    let mut e_i_raw = vec![Fr::from(0u64); N];
+    let mut e_i_raw = vec![Fr::from(0u64); DECRYPT_SHARE_N];
     e_i_raw[0] = Fr::from(3u64);
 
-    let mut c1_raw = vec![Fr::from(0u64); N];
+    let mut c1_raw = vec![Fr::from(0u64); DECRYPT_SHARE_N];
     c1_raw[0] = Fr::from(42u64);
     c1_raw[1] = Fr::from(100u64);
 
-    let pk_i_hash = rolling_digest_raw(&sk_i_raw);
-    let c1_hash = rolling_digest_raw(&c1_raw);
+    let pk_i_hash = noir_vector_hash(&sk_i_raw, Fr::from(1u64));
+    let c1_hash = noir_vector_hash(&c1_raw, Fr::from(1u64));
     let dkg_root = dkg_binding_raw(party_id, pk_i_hash, epoch, c1_hash);
     let ciphertext_hash = ciphertext_binding_raw(party_id, pk_i_hash, dkg_root, epoch, c1_hash);
     let d_i_raw = add_polys(&negacyclic_convolution(&c1_raw, &sk_i_raw), &e_i_raw);
-    let d_i_hash = rolling_digest_raw(&d_i_raw);
+    let d_i_hash = noir_vector_hash(&d_i_raw, Fr::from(1u64));
     let compact_statement_hash = statement_hash_raw(
         party_id,
         pk_i_hash,
@@ -920,6 +920,26 @@ pub fn rolling_digest_8(values: &[String; 8]) -> String {
 }
 
 // DEPRECATED: use Poseidon bind_8_with_domain_native instead (see G.1)
+/// Noir-compatible bind_8_with_domain: fixed-arity Poseidon hash_9 over
+/// [domain_tag, ...values], matching circuits/decrypt_share (x5_10).
+fn noir_bind_8_with_domain(values: [Fr; 8], domain_tag: Fr) -> Fr {
+    let mut poseidon = Poseidon::<Fr>::new_circom(9).expect("circom-9 params are valid");
+    let mut preimage = [Fr::from(0u64); 9];
+    preimage[0] = domain_tag;
+    preimage[1..].copy_from_slice(&values);
+    poseidon.hash(&preimage).expect("poseidon hash is infallible for valid Fr arrays")
+}
+
+/// Noir-compatible vector hash: poseidon sponge over [domain_tag, ...values],
+/// matching `vector_hash` / `bind_8_with_domain` in circuits/decrypt_share.
+fn noir_vector_hash(values: &[Fr], domain_tag: Fr) -> Fr {
+    use pvthfhe_foundations::types::verification_statement::noir_bn254_sponge;
+    let mut preimage = Vec::with_capacity(values.len() + 1);
+    preimage.push(domain_tag);
+    preimage.extend_from_slice(values);
+    noir_bn254_sponge(&preimage).expect("noir_bn254_sponge is infallible for valid Fr slices")
+}
+
 fn rolling_digest_raw(values: &[Fr]) -> Fr {
     let mut acc = Fr::from(DIGEST_DOMAIN);
     let mut factor = Fr::from(1u64);
@@ -940,12 +960,21 @@ fn rolling_digest_8_raw(values: &[Fr; 8]) -> Fr {
 
 #[allow(clippy::as_conversions)]
 fn dkg_binding_raw(party_id: Fr, pk_i_hash: Fr, epoch: Fr, c1_hash: Fr) -> Fr {
+    noir_bind_8_with_domain(
+        [party_id, pk_i_hash, epoch, c1_hash,
+         Fr::from(DECRYPT_SHARE_N as u64), Fr::from(B_E as u64), Fr::from(11u64), Fr::from(19u64)],
+        Fr::from(5u64),
+    )
+}
+
+#[allow(dead_code)]
+fn dkg_binding_raw_legacy(party_id: Fr, pk_i_hash: Fr, epoch: Fr, c1_hash: Fr) -> Fr {
     rolling_digest_8_raw(&[
         party_id,
         pk_i_hash,
         epoch,
         c1_hash,
-        Fr::from(N as u64),
+        Fr::from(DECRYPT_SHARE_N as u64),
         Fr::from(B_E as u64),
         Fr::from(11u64),
         Fr::from(19u64),
@@ -953,6 +982,15 @@ fn dkg_binding_raw(party_id: Fr, pk_i_hash: Fr, epoch: Fr, c1_hash: Fr) -> Fr {
 }
 
 fn ciphertext_binding_raw(party_id: Fr, pk_i_hash: Fr, dkg_root: Fr, epoch: Fr, c1_hash: Fr) -> Fr {
+    noir_bind_8_with_domain(
+        [party_id, pk_i_hash, dkg_root, epoch, c1_hash,
+         Fr::from(1u64), Fr::from(2u64), Fr::from(3u64)],
+        Fr::from(4u64),
+    )
+}
+
+#[allow(dead_code)]
+fn ciphertext_binding_raw_legacy(party_id: Fr, pk_i_hash: Fr, dkg_root: Fr, epoch: Fr, c1_hash: Fr) -> Fr {
     rolling_digest_8_raw(&[
         party_id,
         pk_i_hash,
@@ -975,20 +1013,23 @@ fn statement_hash_raw(
     c1_hash: Fr,
     d_i_hash: Fr,
 ) -> Fr {
-    rolling_digest_8_raw(&[
-        party_id,
-        pk_i_hash,
-        dkg_root,
-        ciphertext_hash,
-        epoch,
-        c1_hash,
-        d_i_hash,
-        Fr::from((N as u64) + (B_E as u64)),
-    ])
+    noir_bind_8_with_domain(
+        [
+            party_id,
+            pk_i_hash,
+            dkg_root,
+            ciphertext_hash,
+            epoch,
+            c1_hash,
+            d_i_hash,
+            Fr::from((DECRYPT_SHARE_N as u64) + (B_E as u64)),
+        ],
+        Fr::from(2u64),
+    )
 }
 
 fn negacyclic_convolution(left: &[Fr], right: &[Fr]) -> Vec<Fr> {
-    let mut result = vec![Fr::from(0u64); N];
+    let mut result = vec![Fr::from(0u64); DECRYPT_SHARE_N];
 
     for (i, &left_value) in left.iter().enumerate() {
         if left_value == Fr::from(0u64) {
@@ -1002,10 +1043,10 @@ fn negacyclic_convolution(left: &[Fr], right: &[Fr]) -> Vec<Fr> {
 
             let target = i + j;
             let coeff = left_value * right_value;
-            if target < N {
+            if target < DECRYPT_SHARE_N {
                 result[target] += coeff;
             } else {
-                result[target - N] -= coeff;
+                result[target - DECRYPT_SHARE_N] -= coeff;
             }
         }
     }

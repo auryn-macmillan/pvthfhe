@@ -2,7 +2,7 @@
   "gate": "p4-research-gate",
   "subcheck": "prior-art",
   "status": "PASS",
-  "timestamp": "2026-05-03T05:49:48.119167+00:00",
+  "timestamp": "2026-07-26T16:51:00.806563+00:00",
   "details": [
     "subcheck: prior-art",
     "[OK] .sisyphus/research/threat-model.md",

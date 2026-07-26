@@ -1,58 +1,167 @@
-No files changed, compilation skipped
+Compiling 43 files with Solc 0.8.34
+Solc 0.8.34 finished in 9.19s
+Compiler run successful with warnings:
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/SessionRegistry.sol:122:49:
+    |
+122 |     function markEpochConsumed(bytes32 dkgRoot, bytes32 sessionId, uint64 epoch) external onlyRole(VERIFIER_ROLE) {
+    |                                                 ^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/SessionRegistry.sol:139:9:
+    |
+139 |         bytes32 sessionId,
+    |         ^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/SessionRegistry.sol:168:47:
+    |
+168 |     function isEpochConsumed(bytes32 dkgRoot, bytes32 sessionId, uint64 epoch) external view returns (bool) {
+    |                                               ^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/PvtFheVerifier.sol:502:50:
+    |
+502 |     function isIvcProofConsumed(bytes32 dkgRoot, bytes32 sessionId, uint64 epoch, bytes32 ivcProofHash) external view returns (bool) {
+    |                                                  ^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/PvtFheVerifier.sol:598:54:
+    |
+598 |     function _ivcProofConsumedValid(bytes32 dkgRoot, bytes32 sessionId, uint64 epoch, bytes32 ivcProofHash) internal view returns (bool) {
+    |                                                      ^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/PvtFheVerifier.sol:625:26:
+    |
+625 |         bytes32 dkgRoot, bytes32 sessionId,
+    |                          ^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/PvtFheVerifier.sol:708:48:
+    |
+708 |     function _consumeIvcProof(bytes32 dkgRoot, bytes32 sessionId, uint64 epoch, bytes32 ivcProofHash) internal {
+    |                                                ^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/PvtFheVerifier.sol:744:26:
+    |
+744 |         bytes32 dkgRoot, bytes32 sessionId,
+    |                          ^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+  --> src/SurrogateNotice.sol:12:9:
+   |
+12 |         bool SURROGATE_ACTIVE_HonkVerifier_micronova_wrap_aggregator_final = false; // SURROGATE ACTIVE: research surrogates — do not deploy
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (2018): Function state mutability can be restricted to pure
+  --> src/IVCVerificationVerifier.sol:12:5:
+   |
+12 |     function verifyProof(
+   |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+  --> test/P3RealVerifier_adversarial.t.sol:35:5:
+   |
+35 |     function test_adv_zero_length_public_inputs_rejected_without_revert() public {
+   |     ^ (Relevant source part starts here and spans across multiple lines).
+
+
+Ran 1 test for test/P3RealVerifier_no_ecrecover.t.sol:P3RealVerifierNoEcrecoverTest
+[PASS] test_no_ecrecover_or_trusted_signer_in_source() (gas: 6555)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 651.43µs (253.20µs CPU time)
+
+Ran 3 tests for test/P3RealVerifier.t.sol:P3RealVerifierHappyPathTest
+[PASS] test_valid_proof_accepted() (gas: 742531)
+[PASS] test_wrong_proof_rejected() (gas: 37940)
+[PASS] test_wrong_public_inputs_rejected() (gas: 723304)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 3.96ms (804.89µs CPU time)
+
+Ran 5 tests for test/P3RealVerifier_adversarial.t.sol:P3RealVerifierAdversarialTest
+[PASS] test_adv_mangled_proof_bytes_rejected() (gas: 2379092)
+[PASS] test_adv_router_emits_proof_rejected() (gas: 2442241)
+[PASS] test_adv_wrong_ciphertext_hash_rejected() (gas: 723185)
+[PASS] test_adv_zero_length_proof_rejected() (gas: 38149)
+[PASS] test_adv_zero_length_public_inputs_rejected_without_revert() (gas: 546764)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 9.79ms (9.44ms CPU time)
 
 Ran 6 tests for test/RealVerifier.t.sol:RealVerifierTest
-[PASS] test_blame_event_on_rejection() (gas: 91213)
-[PASS] test_determinism_across_resubmissions() (gas: 75226)
-[PASS] test_gas_within_budget() (gas: 37993)
-[PASS] test_honest_proof_verifies() (gas: 37777)
-[PASS] test_tampered_proof_rejects() (gas: 50709)
-[PASS] test_wrong_public_inputs_rejects() (gas: 20767)
-Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 1.10ms (701.59µs CPU time)
+[PASS] test_blame_event_on_rejection() (gas: 2442241)
+[PASS] test_determinism_across_resubmissions() (gas: 1484279)
+[PASS] test_gas_within_budget() (gas: 742783)
+[PASS] test_honest_proof_verifies() (gas: 742786)
+[PASS] test_tampered_proof_rejects() (gas: 2379016)
+[PASS] test_wrong_public_inputs_rejects() (gas: 723339)
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 9.54ms (9.88ms CPU time)
 
-Ran 14 tests for test/RealVerifierAdversarial.t.sol:RealVerifierAdversarial
-[PASS] test_adv_64byte_proof_rejected() (gas: 24903)
-[PASS] test_adv_cross_input_reuse_rejected() (gas: 20744)
-[PASS] test_adv_empty_proof_rejected() (gas: 24827)
-[PASS] test_adv_gas_griefing_large_proof() (gas: 2211514)
-[PASS] test_adv_invalid_v_rejected() (gas: 31304)
-[PASS] test_adv_r_zero_rejected() (gas: 35201)
-[PASS] test_adv_replay_deterministic() (gas: 75354)
-[PASS] test_adv_router_emits_proof_rejected() (gas: 91232)
-[PASS] test_adv_s_zero_rejected() (gas: 35157)
-[PASS] test_adv_tampered_r_rejected() (gas: 50726)
-[PASS] test_adv_tampered_s_rejected() (gas: 50727)
-[PASS] test_adv_too_long_pubinputs_rejected() (gas: 16227)
-[PASS] test_adv_wrong_pubinputs_length_rejected() (gas: 16206)
-[PASS] test_adv_wrong_signer_rejected() (gas: 35218)
-Suite result: ok. 14 passed; 0 failed; 0 skipped; finished in 5.00ms (4.64ms CPU time)
+Ran 9 tests for test/RealVerifierAdversarial.t.sol:RealVerifierAdversarial
+[PASS] test_adv_cross_input_reuse_rejected() (gas: 723515)
+[PASS] test_adv_empty_proof_rejected() (gas: 38196)
+[PASS] test_adv_gas_griefing_large_proof() (gas: 2517631)
+[PASS] test_adv_non_matching_proof_rejected() (gas: 38343)
+[PASS] test_adv_replay_deterministic() (gas: 1484176)
+[PASS] test_adv_router_emits_proof_rejected() (gas: 2442196)
+[PASS] test_adv_tampered_r_rejected() (gas: 2378971)
+[PASS] test_adv_too_long_pubinputs_rejected() (gas: 547283)
+[PASS] test_adv_wrong_pubinputs_length_rejected() (gas: 546910)
+Suite result: ok. 9 passed; 0 failed; 0 skipped; finished in 9.14ms (11.66ms CPU time)
 
-╭------------------------------------------------+-----------------+------+--------+------+---------╮
-| src/P3RealVerifier.sol:P3RealVerifier Contract |                 |      |        |      |         |
-+===================================================================================================+
-| Deployment Cost                                | Deployment Size |      |        |      |         |
-|------------------------------------------------+-----------------+------+--------+------+---------|
-|                                         324770 |            1285 |      |        |      |         |
-|------------------------------------------------+-----------------+------+--------+------+---------|
-|                                                |                 |      |        |      |         |
-|------------------------------------------------+-----------------+------+--------+------+---------|
-| Function Name                                  | Min             | Avg  | Median | Max  | # Calls |
-|------------------------------------------------+-----------------+------+--------+------+---------|
-| verify                                         |             944 | 4116 |   5263 | 5273 |      22 |
-╰------------------------------------------------+-----------------+------+--------+------+---------╯
+╭------------------------------------------------+-----------------+-------+--------+--------+---------╮
+| src/P3RealVerifier.sol:P3RealVerifier Contract |                 |       |        |        |         |
++======================================================================================================+
+| Deployment Cost                                | Deployment Size |       |        |        |         |
+|------------------------------------------------+-----------------+-------+--------+--------+---------|
+|                                         163316 |             660 |       |        |        |         |
+|------------------------------------------------+-----------------+-------+--------+--------+---------|
+|                                                |                 |       |        |        |         |
+|------------------------------------------------+-----------------+-------+--------+--------+---------|
+| Function Name                                  | Min             | Avg   | Median | Max    | # Calls |
+|------------------------------------------------+-----------------+-------+--------+--------+---------|
+| verify                                         |            5819 | 92509 |  45484 | 178994 |      25 |
+╰------------------------------------------------+-----------------+-------+--------+--------+---------╯
 
-╭------------------------------------------------+-----------------+-------+--------+-------+---------╮
-| test/P3StubVerifier.sol:P3ProofRouter Contract |                 |       |        |       |         |
-+=====================================================================================================+
-| Deployment Cost                                | Deployment Size |       |        |       |         |
-|------------------------------------------------+-----------------+-------+--------+-------+---------|
-|                                         331086 |            1572 |       |        |       |         |
-|------------------------------------------------+-----------------+-------+--------+-------+---------|
-|                                                |                 |       |        |       |         |
-|------------------------------------------------+-----------------+-------+--------+-------+---------|
-| Function Name                                  | Min             | Avg   | Median | Max   | # Calls |
-|------------------------------------------------+-----------------+-------+--------+-------+---------|
-| submitProof                                    |           38427 | 38433 |  38433 | 38439 |       2 |
-╰------------------------------------------------+-----------------+-------+--------+-------+---------╯
+╭------------------------------------------------------+-----------------+-------+--------+--------+---------╮
+| src/UltraHonkVerifier.sol:UltraHonkVerifier Contract |                 |       |        |        |         |
++============================================================================================================+
+| Deployment Cost                                      | Deployment Size |       |        |        |         |
+|------------------------------------------------------+-----------------+-------+--------+--------+---------|
+|                                               211821 |             886 |       |        |        |         |
+|------------------------------------------------------+-----------------+-------+--------+--------+---------|
+|                                                      |                 |       |        |        |         |
+|------------------------------------------------------+-----------------+-------+--------+--------+---------|
+| Function Name                                        | Min             | Avg   | Median | Max    | # Calls |
+|------------------------------------------------------+-----------------+-------+--------+--------+---------|
+| verify                                               |             570 | 87576 |  40381 | 173891 |      25 |
+╰------------------------------------------------------+-----------------+-------+--------+--------+---------╯
+
+╭------------------------------------------------------+-----------------+-------+--------+--------+---------╮
+| src/generated/HonkVerifier.sol:HonkVerifier Contract |                 |       |        |        |         |
++============================================================================================================+
+| Deployment Cost                                      | Deployment Size |       |        |        |         |
+|------------------------------------------------------+-----------------+-------+--------+--------+---------|
+|                                              3161821 |           14587 |       |        |        |         |
+|------------------------------------------------------+-----------------+-------+--------+--------+---------|
+|                                                      |                 |       |        |        |         |
+|------------------------------------------------------+-----------------+-------+--------+--------+---------|
+| Function Name                                        | Min             | Avg   | Median | Max    | # Calls |
+|------------------------------------------------------+-----------------+-------+--------+--------+---------|
+| verify                                               |            1307 | 93481 | 100958 | 167713 |      22 |
+╰------------------------------------------------------+-----------------+-------+--------+--------+---------╯
+
+╭------------------------------------------------+-----------------+--------+--------+--------+---------╮
+| test/P3StubVerifier.sol:P3ProofRouter Contract |                 |        |        |        |         |
++=======================================================================================================+
+| Deployment Cost                                | Deployment Size |        |        |        |         |
+|------------------------------------------------+-----------------+--------+--------+--------+---------|
+|                                         215168 |             908 |        |        |        |         |
+|------------------------------------------------+-----------------+--------+--------+--------+---------|
+|                                                |                 |        |        |        |         |
+|------------------------------------------------+-----------------+--------+--------+--------+---------|
+| Function Name                                  | Min             | Avg    | Median | Max    | # Calls |
+|------------------------------------------------+-----------------+--------+--------+--------+---------|
+| submitProof                                    |          108760 | 108760 | 108760 | 108760 |       3 |
+╰------------------------------------------------+-----------------+--------+--------+--------+---------╯
 
 
-Ran 2 test suites in 6.29ms (6.09ms CPU time): 20 tests passed, 0 failed, 0 skipped (20 total tests)
+Ran 5 test suites in 12.05ms (33.10ms CPU time): 24 tests passed, 0 failed, 0 skipped (24 total tests)

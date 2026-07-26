@@ -2,7 +2,7 @@
   "gate": "p1-design-gate",
   "subcheck": "bench-plan",
   "status": "PASS",
-  "timestamp": "2026-05-03T01:45:41.387582+00:00",
+  "timestamp": "2026-07-26T16:51:00.677826+00:00",
   "details": [
     "subcheck: bench-plan",
     "[OK] found required artifact: .sisyphus/design/p1/bench-plan.md",

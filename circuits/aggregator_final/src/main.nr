@@ -64,12 +64,8 @@
 use poseidon;
 use protocol_constants;
 
-// PRODUCTION: N via ring_dim.nr (default 8192). Verifiable via
+// PRODUCTION: N=256 hardcoded (N=8192 blocked by Noir beta.22 ACIR OOM). Verifiable via
 // Schwartz-Zippel evaluation at a Fiat-Shamir challenge point.
-// G-N8 RESOLVED (2026-06-08): ring_dim.nr parameterized to N=8192;
-// circuit compiles at full ring dimension, 28 tests pass.
-// decrypt_share circuit also parameterized to N=8192 (compiles);
-// nargo test OOM is Noir ACVM limitation — bb prove handles N=8192.
 // ivc_state_commitment is independent of N (IVC state fields).
 global N: u32 = 256;  // GAP-6: production ring dimension
 global MAX_SHARES: u32 = 128;

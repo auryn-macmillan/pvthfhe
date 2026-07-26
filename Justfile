@@ -110,7 +110,6 @@ bench-comparison-gate:
     @sh -eu -c 'latest_comparison=$(ls -t bench/results/comparison-*.md | head -n 1); [ -n "$latest_comparison" ]; comparison_rows=$(grep "^|" "$latest_comparison" || true); if printf "%s\n" "$comparison_rows" | grep -v "real-fallback" | grep -q "surrogate"; then echo "FAIL: surrogate rows remain in comparison report"; exit 1; fi; if printf "%s\n" "$comparison_rows" | grep -q "real-fallback"; then if ! grep -q "verdict: NoGo" .sisyphus/research/nova-wrap-feasibility.md; then echo "FAIL: real-fallback requires nova-wrap-feasibility.md verdict: NoGo"; exit 1; fi; if printf "%s\n" "$comparison_rows" | grep "real-fallback" | grep -v "OnChainUltraHonkVerify" | grep -q .; then echo "FAIL: real-fallback is only allowed on the on-chain row when verdict: NoGo"; exit 1; fi; fi'
 
 noir-onchain-gate:
-    just circuit-param
     cd circuits/decrypt_share && cp Prover.toml Decrypt_share.toml && nargo execute --prover-name Decrypt_share && rm Decrypt_share.toml
     cd circuits/decrypt_share && mkdir -p target && cp ../target/decrypt_share.json target/ && cp ../target/decrypt_share.gz target/
     cd circuits/decrypt_share && bb write_vk --scheme ultra_honk -b target/decrypt_share.json -o target
@@ -178,7 +177,6 @@ compute n_ops="6":
     cargo run --release -p pvthfhe-cli --features "real-compressor,enable-lazer,enable-latticefold" -- compute prove --n $(echo "{{n_ops}}" | sed 's/^n_ops=//')
 
 test-circuits:
-    just circuit-param
     (cd circuits && nargo test --workspace)
 
 test-contracts:
@@ -303,14 +301,6 @@ artifact-reproduce:
     cargo build --workspace
     just p3-bench
     just e2e-real
-
-# Build circuits with ring dimension N=8 (Schwartz-Zippel point evaluation makes this N-independent).
-# Native code uses N=8192; the Noir circuit verifies a single point evaluation.
-circuit-param:
-    @echo "Setting ring dimension N=8192 in circuits/aggregator_final/src/ring_dim.nr"
-    @echo "global N: u32 = 8192;" > circuits/aggregator_final/src/ring_dim.nr
-    cd circuits && nargo compile --package aggregator_final
-    cd circuits && nargo compile --package decrypt_share
 
 stage1-gate:
     python3 .sisyphus/scripts/stage1-gate.py

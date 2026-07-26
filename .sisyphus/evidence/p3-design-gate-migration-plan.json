@@ -2,7 +2,7 @@
   "gate": "p3-design-gate",
   "subcheck": "migration-plan",
   "status": "PASS",
-  "timestamp": "2026-05-03T11:36:43.904513+00:00",
+  "timestamp": "2026-07-26T16:51:00.787698+00:00",
   "details": [
     "subcheck: migration-plan",
     "[OK] found artifact: .sisyphus/design/p3/migration-plan.md",

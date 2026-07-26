@@ -2,7 +2,7 @@
   "gate": "p4-design-gate",
   "subcheck": "charter",
   "status": "PASS",
-  "timestamp": "2026-05-03T00:03:17.268923+00:00",
+  "timestamp": "2026-07-26T16:51:00.825709+00:00",
   "details": [
     "subcheck: charter",
     "[OK] docs/governance/problem-charter-template.md",

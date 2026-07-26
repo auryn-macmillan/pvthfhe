@@ -2,7 +2,7 @@
   "gate": "p1-design-gate",
   "subcheck": "proof-skeletons",
   "status": "PASS",
-  "timestamp": "2026-05-03T01:45:41.387435+00:00",
+  "timestamp": "2026-07-26T16:51:00.677652+00:00",
   "details": [
     "subcheck: proof-skeletons",
     "[OK] found required artifact: docs/security-proofs/p1/proof-skeletons.md",

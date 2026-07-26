@@ -2,7 +2,7 @@
   "gate": "p3-design-gate",
   "subcheck": "stack-decision",
   "status": "PASS",
-  "timestamp": "2026-05-03T11:36:43.903930+00:00",
+  "timestamp": "2026-07-26T16:51:00.787040+00:00",
   "details": [
     "subcheck: stack-decision",
     "[OK] found artifact: .sisyphus/design/p3/stack-decision.md",

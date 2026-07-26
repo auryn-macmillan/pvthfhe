@@ -2,7 +2,7 @@
   "backend_id": "fhers-bfv",
   "nizk_backend_id": "cyclo-ajtai-d2-conditional",
   "folding_backend_id": "cyclo-rlwe-t10-lemma9-heuristic",
-  "compressor_backend_id": "ultra-honk-micronova",
+  "compressor_backend_id": "ultra-honk-latticefold",
   "n": 4,
   "t": 2,
   "seed": 1,

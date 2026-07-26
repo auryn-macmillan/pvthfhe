@@ -2,7 +2,7 @@
   "gate": "p3-research-gate",
   "subcheck": "threat-model",
   "status": "PASS",
-  "timestamp": "2026-05-03T04:31:38.678503+00:00",
+  "timestamp": "2026-07-26T16:51:00.761487+00:00",
   "details": [
     "subcheck: threat-model",
     "[OK] found artifact: .sisyphus/research/p3/threat-model.md",

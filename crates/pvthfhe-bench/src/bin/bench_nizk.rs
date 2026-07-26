@@ -6,6 +6,7 @@
     clippy::manual_is_multiple_of
 )]
 use pvthfhe_fhe::real_nizk::{LatticeNizk, NizkStatement, NizkWitness, RealNizkAdapter};
+use pvthfhe_foundations::types::rlwe_n;
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
 use serde::Serialize;
@@ -52,7 +53,7 @@ fn make_statement_witness(n: usize, rng: &mut ChaCha20Rng) -> (NizkStatement, Ni
     let participant_id: u16 = 1;
     let secret_share: u64 = rng.next_u64() % Q;
 
-    let error: Vec<i64> = (0..n)
+    let error: Vec<i64> = (0..rlwe_n())
         .map(|_| {
             let raw = rng.next_u64() % (ERROR_BOUND * 2 + 1);
             raw as i64 - ERROR_BOUND as i64
@@ -74,7 +75,7 @@ fn make_statement_witness(n: usize, rng: &mut ChaCha20Rng) -> (NizkStatement, Ni
         ciphertext_bytes,
         decrypt_share_bytes,
         pvss_commitment: commitment,
-        params: (Q, n, ERROR_BOUND),
+        params: (Q, rlwe_n(), ERROR_BOUND),
         session_id,
         participant_id,
         epoch: 0,
@@ -84,7 +85,9 @@ fn make_statement_witness(n: usize, rng: &mut ChaCha20Rng) -> (NizkStatement, Ni
 
     let witness = NizkWitness {
         secret_share,
-        secret_share_poly: vec![0i64; 8192],
+        secret_share_poly: (0..rlwe_n())
+            .map(|_| (rng.next_u64() % 3) as i64 - 1)
+            .collect(),
         error,
         randomness,
     };

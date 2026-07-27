@@ -123,13 +123,17 @@ fn compressor_prove_ms_populated() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
-fn onchain_verify_ms_populated() -> Result<(), Box<dyn std::error::Error>> {
-    let (timings, comparison) = run_e2e_and_bench()?;
-    let row = comparison_row(&comparison, "onchain_verify");
+fn onchain_verify_is_marker_only_today() -> Result<(), Box<dyn std::error::Error>> {
+    let (timings, _) = run_e2e_and_bench()?;
 
-    assert!(phase_f64(&timings, "onchain_verify", "total_ms") > 0.0);
-    assert_eq!(row["status"], "real-fallback");
-    assert!(row["prove_ms"].as_f64().unwrap_or(0.0) > 0.0);
+    // The e2e binary prints onchain_verify as a phase marker only (deferred);
+    // real on-chain verification lives in `just noir-onchain-gate`. Pin the
+    // current state so implementing the phase updates this test.
+    assert_eq!(phase_f64(&timings, "onchain_verify", "total_ms"), 0.0);
+    assert_eq!(
+        phase_u64(&timings, "onchain_verify", "instances_run"),
+        0
+    );
 
     Ok(())
 }
@@ -271,11 +275,14 @@ fn cyclo_fold_ms_populated() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
-fn noir_nova_wrap_ms_present() -> Result<(), Box<dyn std::error::Error>> {
+fn c7_decrypt_aggregation_ms_populated() -> Result<(), Box<dyn std::error::Error>> {
     let (timings, _) = run_e2e_and_bench()?;
 
-    assert!(phase_f64(&timings, "noir_nova_wrap", "total_ms") >= 0.0);
-    assert_eq!(phase_u64(&timings, "noir_nova_wrap", "instances_run"), 1);
+    assert!(phase_f64(&timings, "c7_decrypt_aggregation", "total_ms") >= 0.0);
+    assert_eq!(
+        phase_u64(&timings, "c7_decrypt_aggregation", "instances_run"),
+        1
+    );
 
     Ok(())
 }

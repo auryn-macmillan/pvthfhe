@@ -64,14 +64,14 @@ Standardized secure parameters for 128-bit security: **N** = 8192, **L** = 3 RNS
 
 ## Symphony: Proof-Compression Optimization Techniques
 
-Four optimization techniques from the Symphony paper, implemented in the LatticeFold+ compressor path. The compressor is enabled with the `real-compressor` feature (formerly named `nova-compressor` — a Track A leftover).
+Four optimization techniques from the Symphony paper, distributed across the LatticeFold+ stack. The compressor is enabled with the `real-compressor` feature (formerly named `nova-compressor` — a Track A leftover).
 
-| Technique | Description |
-| --- | --- |
-| **T1: High-arity folding** | Batches n iterative fold steps into a single fold via random linear combination β (Fiat-Shamir). Achieves O(1) per-step cost. |
-| **T2: FS outside circuit** | Moves Fiat-Shamir hashing outside the step circuit. Witness data is committed and bound to step inputs. |
-| **T3: Monomial embedding** | Adaptive bit-count range checks via monomial embedding. Reduces per-coefficient constraint cost. |
-| **T4: Random projection** | JL projection reduces sigma witness size ~n/256×. Verifies norms on projected vectors. |
+| Technique | Where | Description |
+| --- | --- | --- |
+| **T1: High-arity folding** | `pvthfhe-aggregator` (folding driver) | Batches n iterative fold steps into a single fold via random linear combination β (Fiat-Shamir). Achieves O(1) per-step cost. |
+| **T2: FS outside circuit** | `pvthfhe-nizk` (Fiat-Shamir, challenge) | Moves Fiat-Shamir hashing outside the step circuit. Witness data is committed and bound to step inputs. |
+| **T3: Monomial embedding** | `pvthfhe-cyclo` (range_check) | Adaptive bit-count range checks via monomial embedding. Reduces per-coefficient constraint cost. |
+| **T4: Random projection** | `pvthfhe-nizk` (sigma/sample, compute_jl_projection) | JL projection reduces sigma witness size ~n/256×. Verifies norms on projected vectors. |
 
 ## LaZer: Auto-Generated Sigma Proofs (P1)
 
@@ -101,7 +101,7 @@ The benchmark pipeline records artifacts under `bench/results/`:
 2. `bench_comparison` reads that artifact and emits `comparison.json`.
 3. `render_comparison` renders human-readable Markdown reports (`comparison.md` / `comparison-<hash>.md`).
 
-Per-node and per-aggregator binaries benchmark individual party and aggregator costs. `just bench-scaling` produces the scaling envelopes consumed by `phase3-gate`.
+Per-node and per-aggregator binaries benchmark individual party and aggregator costs. `just bench-scaling` produces the scaling envelopes consumed by the benchmark comparison pipeline.
 
 ## End-to-End Verifiability (CAVEATS)
 

@@ -186,9 +186,9 @@ adversarial-suite:
     mkdir -p .sisyphus/evidence
     cargo test -p pvthfhe-aggregator adversarial 2>&1 | tee .sisyphus/evidence/task-41-suite.log
 
-reproduce-bench:
+reproduce-bench n="128" runs="3":
     mkdir -p bench/results .sisyphus/evidence
-    bash bench/scripts/reproduce.sh --n 128 --runs 3
+    bash bench/scripts/reproduce.sh --n {{n}} --runs {{runs}}
     python3 bench/scripts/check-tolerance.py 2>&1 | tee .sisyphus/evidence/task-43-tolerance.log
 
 paper-build:

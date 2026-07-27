@@ -43,7 +43,7 @@ cargo build --release -p pvthfhe-bench --bin bench_scaling 2>&1
 
 for i in $(seq 1 "$RUNS"); do
     echo "Run $i/$RUNS for n=$N..."
-    cargo run --release -p pvthfhe-bench --bin bench_scaling 2>/dev/null
+    cargo run --release -p pvthfhe-bench --bin bench_scaling -- --n "$N" 2>/dev/null
     if [ -f "$RESULTS_DIR/scaling-n${N}.json" ]; then
         cp "$RESULTS_DIR/scaling-n${N}.json" "$RESULTS_DIR/scaling-n${N}-run${i}.json"
         echo "  saved scaling-n${N}-run${i}.json"

@@ -936,7 +936,7 @@ fn noir_hash_2(left: Fr, right: Fr) -> Fr {
 
 /// Noir-compatible bind_8_with_domain: fixed-arity Poseidon hash_9 over
 /// [domain_tag, ...values], matching circuits/decrypt_share (x5_10).
-fn noir_bind_8_with_domain(values: [Fr; 8], domain_tag: Fr) -> Fr {
+pub fn noir_bind_8_with_domain(values: [Fr; 8], domain_tag: Fr) -> Fr {
     let mut poseidon = Poseidon::<Fr>::new_circom(9).expect("circom-9 params are valid");
     let mut preimage = [Fr::from(0u64); 9];
     preimage[0] = domain_tag;
@@ -946,7 +946,7 @@ fn noir_bind_8_with_domain(values: [Fr; 8], domain_tag: Fr) -> Fr {
 
 /// Noir-compatible vector hash: poseidon sponge over [domain_tag, ...values],
 /// matching `vector_hash` / `bind_8_with_domain` in circuits/decrypt_share.
-fn noir_vector_hash(values: &[Fr], domain_tag: Fr) -> Fr {
+pub fn noir_vector_hash(values: &[Fr], domain_tag: Fr) -> Fr {
     use pvthfhe_foundations::types::verification_statement::noir_bn254_sponge;
     let mut preimage = Vec::with_capacity(values.len() + 1);
     preimage.push(domain_tag);

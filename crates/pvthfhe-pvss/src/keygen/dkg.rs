@@ -1,7 +1,7 @@
 //! Distributed key generation ceremony for BFV threshold FHE.
 //!
 //! Wraps [`FhersBackend`](pvthfhe_fhe::fhers::FhersBackend) to orchestrate a
-//! Pedersen-style DKG across `n` parties with threshold `t`.
+//! Lattice PVSS-based DKG across `n` parties with threshold `t`.
 
 use ark_bn254::G1Affine;
 use pvthfhe_fhe::{

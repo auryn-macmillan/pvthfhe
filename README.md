@@ -10,7 +10,7 @@ Private-verifiable threshold Fully Homomorphic Encryption with O(n) per-party wo
 
 | Layer | Backend | State |
 |-------|---------|-------|
-| DKG | Pedersen over BFV/RLWE (pvthfhe-pvss) | ✅ |
+| DKG | Lattice PVSS over BFV/RLWE + NonEquiv + AVID (pvthfhe-pvss, pvthfhe-non-equiv) | ✅ |
 | NIZK | Ajtai D2 sigma + BFV sigma (90-round); LaZer (LaBRADOR) via C lib | ✅ Default |
 | Greyhound PCS | Lattice polynomial commitments (53KB proofs) | ✅ Default |
 | Folding | LatticeFold+ lattice-native folding (pvthfhe-cyclo) | ✅ |

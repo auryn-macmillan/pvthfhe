@@ -55,7 +55,7 @@ Benchmark reports: [bench/results/comparison-2af6ac2.md](bench/results/compariso
 |----|---------|--------|
 | P1 | Lattice NIZK well-formedness soundness (Greco M-SIS) | OPEN |
 | P2 | Lattice-native folding over RLWE (Nova substitute) | OPEN |
-| P3 | Parameterized Nova step circuit verification | ✅ Resolved |
+| P3 | Parameterized step-circuit verification for folding | ✅ Resolved (superseded by LatticeFold+) |
 | P4 | On-chain IVC decider verification (currently fail-closed) | OPEN |
 | C5 | Aggregate public-key formation proof (pk_agg = Σ pk_i) | ✅ Resolved |
 | C6 | Committed-smudge enforcement | ✅ Resolved (full slot binding) |

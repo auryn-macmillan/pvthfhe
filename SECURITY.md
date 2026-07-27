@@ -14,7 +14,7 @@ This document outlines the security model, assumptions, and limitations of the P
 ## Implementation Status
 
 - **FHE backend**: Real threshold BFV via `gnosisguild/fhe.rs`.
-- **Verifiable FHE ops**: FHE Add and Mul verified in-circuit at production N=8192 (use `--features bfv-n4` for fast testing at N=4). Relinearize gated behind `real-relin` feature.
+- **Verifiable FHE ops**: FHE Add and Mul verified in-circuit at production N=8192 (use `--features bfv-n4` for fast testing at N=4).
 - **LatticeFold+ Folding**: Maliciously-secure lattice-native folding via Cyclo RLWE (Track B, sole backend). Track A (Nova SNARK BN254+Grumpkin) removed per P4 deprecation. The folding chain provides soundness guarantees through transparent lattice verification — no Groth16 trusted ceremony required, no elliptic curve assumptions.
 - **NIZK proofs**: Ajtaï D2 sigma + BFV sigma with k-round parallel repetition. Greco quotient-witness verification strengthens soundness from modular to integer-lattice level. M7 fix (2026-06-05): zero-witness rejection via Ajtai commitment all-zeros check.
 - **On-chain verifier**: UltraHonk verifier (Solidity) with folding binding. While proof metadata is bound into the on-chain commitment, the contract does **NOT** cryptographically verify the LatticeFold+ proof itself. Verification is currently fail-closed (disabled) until a real decider is implemented.

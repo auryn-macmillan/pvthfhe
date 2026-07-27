@@ -24,3 +24,4 @@ __pycache__/
 /bench/results/fhe-baseline.md
 /bench/results/comparison-dryrun.json
 /bench/results/smoke-latest.json
+/bench/results/hardware-fingerprint.txt

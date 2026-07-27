@@ -47,7 +47,7 @@ fn run_e2e_and_bench() -> Result<(Value, Value), Box<dyn std::error::Error>> {
 
     let mut e2e = Command::cargo_bin("pvthfhe-e2e")?;
     e2e.current_dir(&workspace_root)
-        .args(["--n", "3", "--t", "1", "--seed", "1"])
+        .args(["--n", "3", "--t", "1", "--seed", "0"])
         .env("PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK", "1");
     e2e.assert().success();
 

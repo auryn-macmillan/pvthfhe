@@ -11,6 +11,6 @@ fn adversarial_threshold_below_rejects_t_minus_one_shares() {
 
     assert!(matches!(
         result,
-        Err(DecryptError::InsufficientShares { needed, got }) if needed == fixture.threshold && got == fixture.threshold - 1
+        Err(DecryptError::InsufficientShares { needed, got, .. }) if needed == fixture.threshold && got == fixture.threshold - 1
     ));
 }

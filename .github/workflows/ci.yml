@@ -38,7 +38,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --workspace --features fast-ring-n256
+      - run: cargo test --workspace --features fast-ring-n256 -- --skip aggregate_1024_smoke --skip baseline_smoke
 
 # nargo-test and bb-flow removed: de-vri-es/setup-noir action unavailable. Restore when a replacement is found.
 

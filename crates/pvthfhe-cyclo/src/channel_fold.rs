@@ -7,7 +7,7 @@
 //! Each channel gets its own ring instance and fold accumulator; the
 //! driver applies one fold step per channel per batch of instances.
 
-use crate::fold_ring::FoldRing;
+use crate::fold_ring::{fold_one_generic, FoldRing};
 use crate::CycloError;
 
 /// Per-channel fold state — one accumulator per channel.
@@ -60,19 +60,28 @@ impl<R: FoldRing> ChannelFoldDriver<R> {
 
     /// Fold one set of per-channel instances into the accumulators.
     ///
-    /// Each instance vector `instances[channel_idx]` contributes its
-    /// polynomial to the corresponding channel's accumulator using
-    /// ring addition (stub; real NIFS prover integration deferred).
-    pub fn fold_one(&mut self, instances: &[R::Poly]) -> Result<(), CycloError> {
-        for (i, (ring, acc)) in self.rings.iter().zip(self.accumulators.iter_mut()).enumerate() {
+    /// Each instance contributes its polynomial pair (commitment, witness)
+    /// to the corresponding channel's accumulator via the ternary-challenge
+    /// NIFS fold step from [`fold_one_generic`].
+    pub fn fold_one(&mut self, commitments: &[R::Poly], witnesses: &[R::Poly]) -> Result<(), CycloError> {
+        for (i, ring) in self.rings.iter().enumerate() {
             if ring.degree() == 0 {
                 continue;
             }
-            if let Some(instance) = instances.get(i) {
-                let folded = ring.add_poly(&acc.commitment, instance)?;
-                acc.commitment = folded;
-                acc.fold_count += 1;
-            }
+            let acc = &mut self.accumulators[i];
+            let inst_commitment = commitments.get(i).cloned().unwrap_or_else(|| ring.zero());
+            let inst_witness = witnesses.get(i).cloned().unwrap_or_else(|| ring.zero());
+
+            let (new_c, new_w) = fold_one_generic(
+                ring,
+                &acc.commitment,
+                &acc.witness,
+                &inst_commitment,
+                &inst_witness,
+            )?;
+            acc.commitment = new_c;
+            acc.witness = new_w;
+            acc.fold_count += 1;
         }
         Ok(())
     }
@@ -97,23 +106,26 @@ mod tests {
     fn fold_increments_count() {
         let mut driver = make_driver();
         let ring = driver.ring(0);
-        let a = ring.zero();
-        let instances = vec![a.clone(), a.clone(), a.clone()];
-        driver.fold_one(&instances).expect("fold should succeed");
+        let zero = ring.zero();
+        let commitments = vec![zero.clone(), zero.clone(), zero.clone()];
+        let witnesses = vec![zero.clone(), zero.clone(), zero.clone()];
+        driver.fold_one(&commitments, &witnesses).expect("fold should succeed");
         assert_eq!(driver.accumulator(0).fold_count, 1);
         assert_eq!(driver.accumulator(1).fold_count, 1);
         assert_eq!(driver.accumulator(2).fold_count, 1);
     }
 
     #[test]
-    fn fold_accumulates_commitment() {
+    fn fold_nonzero_instance_increments_count() {
         let mut driver = make_driver();
-        let ring = driver.ring(0);
-        let one: Vec<u64> = { let mut v = vec![0u64; ring.degree()]; v[0] = 1; v };
-        let a = crate::ring::RqPoly(one);
-        let instances = vec![a.clone(), a.clone(), a.clone()];
-        driver.fold_one(&instances).expect("fold should succeed");
-        // After one fold with instance 'a', commitment = 0 + a = a
-        assert_eq!(driver.accumulator(0).commitment, a);
+        let degree = driver.ring(0).degree();
+        let a_coeffs: Vec<u64> = (0..degree).map(|i| (i + 1) as u64).collect();
+        let a = crate::ring::RqPoly(a_coeffs);
+        let commitments = vec![a.clone(), a.clone(), a.clone()];
+        let witnesses = vec![a.clone(), a.clone(), a.clone()];
+        driver.fold_one(&commitments, &witnesses).expect("fold should succeed");
+        assert_eq!(driver.accumulator(0).fold_count, 1);
+        assert_eq!(driver.accumulator(1).fold_count, 1);
+        assert_eq!(driver.accumulator(2).fold_count, 1);
     }
 }

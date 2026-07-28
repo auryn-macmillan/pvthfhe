@@ -57,6 +57,33 @@ pub fn challenge_v2(
         .into()
 }
 
+/// Per-channel Fiat-Shamir challenge with channel-identity binding.
+///
+/// Absorbs `(channel_index, channel_modulus)` into the transcript to prevent
+/// cross-channel replay — a challenge valid on channel 0 cannot be replayed
+/// on channel 1 or 2.
+pub fn channel_challenge_v1(
+    session_id: &str,
+    channel_index: u32,
+    channel_modulus: u64,
+    fold_depth: u32,
+    acc_commitment: &[u8],
+    inst_ajtai_bytes: &[u8],
+    inst_public_io_bytes: &[u8],
+) -> [u8; 32] {
+    Sha256::new()
+        .chain_update(Tag::CycloFsV1.as_bytes())
+        .chain_update(session_id.as_bytes())
+        .chain_update(channel_index.to_le_bytes())
+        .chain_update(channel_modulus.to_le_bytes())
+        .chain_update(fold_depth.to_le_bytes())
+        .chain_update(acc_commitment)
+        .chain_update(inst_ajtai_bytes)
+        .chain_update(inst_public_io_bytes)
+        .finalize()
+        .into()
+}
+
 pub fn commitment_v1(
     session_id: &str,
     depth: u32,

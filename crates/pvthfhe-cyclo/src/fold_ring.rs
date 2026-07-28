@@ -102,6 +102,59 @@ impl FoldRing for Cyclo256Ring {
     }
 }
 
+// ── Implementation for per-channel rings (pvthfhe-rings) ────────────────────
+
+impl FoldRing for pvthfhe_rings::FheMathRing {
+    type Poly = pvthfhe_rings::RqPoly;
+
+    fn degree(&self) -> usize { self.degree() }
+
+    fn modulus(&self) -> u64 { self.modulus() }
+
+    fn zero(&self) -> Self::Poly {
+        pvthfhe_rings::RqPoly::zero(self.degree())
+    }
+
+    fn add_poly(&self, a: &Self::Poly, b: &Self::Poly) -> Result<Self::Poly, CycloError> {
+        Ok(self.add(a, b))
+    }
+
+    fn sub_poly(&self, a: &Self::Poly, b: &Self::Poly) -> Result<Self::Poly, CycloError> {
+        Ok(self.sub(a, b))
+    }
+
+    fn mul_poly(&self, a: &Self::Poly, b: &Self::Poly) -> Result<Self::Poly, CycloError> {
+        Ok(self.mul(a, b))
+    }
+
+    fn linf_norm(&self, a: &Self::Poly) -> u64 { self.linf_norm(a) }
+
+    fn decompose(&self, a: &Self::Poly, base: u64, limb_count: usize) -> Vec<Self::Poly> {
+        let shift_bits = base.trailing_zeros() as u32;
+        let mask = base - 1;
+        (0..limb_count).map(|k| {
+            let shift = k as u32 * shift_bits;
+            let limb_coeffs: Vec<u64> = a.coeffs.iter()
+                .map(|&c| (c >> shift) & mask)
+                .collect();
+            pvthfhe_rings::RqPoly { coeffs: limb_coeffs, degree: self.degree() }
+        }).collect()
+    }
+
+    fn recompose(&self, limbs: &[Self::Poly], base: u64) -> Result<Self::Poly, CycloError> {
+        let degree = self.degree();
+        let shift_bits = base.trailing_zeros() as u32;
+        let mut result = vec![0u64; degree];
+        for (k, limb) in limbs.iter().enumerate() {
+            let shift = k as u32 * shift_bits;
+            for (i, &c) in limb.coeffs.iter().enumerate() {
+                result[i] = result[i].wrapping_add(c << shift);
+            }
+        }
+        Ok(pvthfhe_rings::RqPoly { coeffs: result, degree })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

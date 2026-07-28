@@ -1,9 +1,5 @@
 # Justfile for pvthfhe
 
-# Toolchain: cargo, nargo, bb, and forge must be in PATH.
-# Add common installation directories if not already present.
-export PATH := "$HOME/.cargo/bin:$HOME/.nargo/bin:$HOME/.bb:$HOME/.foundry/bin:" + env_var_or_default("PATH", "")
-
 test-all:
     cargo test --workspace --features fast-ring-n256
     cd circuits && nargo test --workspace
@@ -29,15 +25,16 @@ demo-e2e n="10" t="4" seed="1":
         demo --n $(echo "{{n}}" | sed 's/^n=//') --threshold $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//') \
         2>&1 | tee .sisyphus/evidence/demo-e2e.log
     @echo "*** On-chain verification ***"
-    @echo "[ivc_verifier] nargo test..."
-    cd circuits && nargo test --package ivc_verifier
-    @echo "[ivc_verifier] nargo compile..."
-    cd circuits && nargo compile --package ivc_verifier
-    @echo "[ivc_verifier] bb write_vk..."
-    cd circuits && bb write_vk --scheme ultra_honk -b target/ivc_verifier.json -o target
-    @echo "[contracts] forge test..."
-    forge test --root contracts
-    @echo "*** On-chain verification: PASS ***"
+    @export PATH="$$HOME/.cargo/bin:$$HOME/.nargo/bin:$$HOME/.bb:$$HOME/.foundry/bin:$$PATH" && \
+        echo "[ivc_verifier] nargo test..." && \
+        cd circuits && nargo test --package ivc_verifier && \
+        echo "[ivc_verifier] nargo compile..." && \
+        cd circuits && nargo compile --package ivc_verifier && \
+        echo "[ivc_verifier] bb write_vk..." && \
+        cd circuits && bb write_vk --scheme ultra_honk -b target/ivc_verifier.json -o target && \
+        echo "[contracts] forge test..." && \
+        forge test --root contracts && \
+        echo "*** On-chain verification: PASS ***"
 
 # Per-node simulation — measures wall time for ONE party at given n and t
 per-node n="10" t="4" seed="1":

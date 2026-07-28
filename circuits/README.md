@@ -16,6 +16,7 @@ Build and test with the canonical flow from AGENTS.md
 | `ajtai_commitment` | Ajtai commitment + fold-step (P4 on-chain decider) | `just ajtai-onchain-gate` |
 | `ivc_verifier` | UltraHonk-wrapped IVC verifier | `just demo-e2e` |
 | `bench/rlwe_relation` | toy RLWE bench relation | `bench/scripts/reproduce.sh` |
+| `decider_wrapper` | Per-channel LatticeFold+ terminal accumulator verification (field-element digests, no N=256 ceiling) | `feat/native-per-channel` (Phase 3, future on-chain decider) |
 
 ## Checked-in `target/` artifacts
 

@@ -28,7 +28,7 @@ demo-e2e n="10" t="4" seed="1":
     @echo "[ivc_verifier] nargo compile..."
     cd circuits && nargo compile --package ivc_verifier
     @echo "[ivc_verifier] bb write_vk..."
-    cd circuits && bb write_vk --scheme ultra_honk -b target/ivc_verifier.json -o target
+    cd circuits && PATH="/home/dev/.bb:$PATH" bb write_vk --scheme ultra_honk -b target/ivc_verifier.json -o target
     @echo "[contracts] forge test..."
     forge test --root contracts
     @echo "*** On-chain verification: PASS ***"

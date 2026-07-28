@@ -52,7 +52,7 @@ impl KeygenSimulator {
         let c_rns = poly_bytes_to_rns(&pk1_bytes).map_err(|e| format!("pk1 rns: {e}"))?;
         let d_rns = poly_bytes_to_rns(&pk0_bytes).map_err(|e| format!("pk0 rns: {e}"))?;
 
-        let mut rng = ChaCha8Rng::from_seed(
+        let mut rng = ChaCha8Rng::from_seed( // allow-seeded-rng: deterministic simulator
             *Sha256::digest(format!("keygen-nizk-rng-{party_id}").as_bytes()).as_ref(),
         );
 

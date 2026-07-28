@@ -138,7 +138,7 @@ impl KeygenSimulator {
             h.update(signing_key.into_bigint().to_bytes_le());
             rng_seed.copy_from_slice(&h.finalize());
         }
-        let mut rng = ChaCha8Rng::from_seed(rng_seed);
+        let mut rng = ChaCha8Rng::from_seed(rng_seed); // allow-seeded-rng: deterministic simulator
 
         for msg in round1_msgs {
             let dealer_id = msg.party_id;

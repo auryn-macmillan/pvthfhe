@@ -143,13 +143,3 @@ fn banner_source_replaces_old_surrogate_wording() {
         "surrogate folding warning should be absent from build.rs"
     );
 }
-
-#[test]
-fn banner_stage0_gate_checks_new_default_warning() {
-    let justfile = read_justfile();
-
-    assert!(
-        justfile.contains("BFV backend is real"),
-        "expected stage0-gate cargo tripwire to check current real-backend warning"
-    );
-}

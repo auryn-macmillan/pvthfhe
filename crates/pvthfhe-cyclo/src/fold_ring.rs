@@ -1,0 +1,129 @@
+//! Ring abstraction for the NIFS fold engine.
+//!
+//! The [`FoldRing`] trait captures the operations that the LatticeFold+
+//! NIFS prover/verifier requires from the underlying ring.  Both the
+//! existing N=256 commitment ring (`RqPoly` from `crate::ring`) and the
+//! new per-channel rings (`pvthfhe_rings::FheMathRing`) implement it,
+//! enabling the fold engine to be generic over ring types.
+
+use crate::CycloError;
+
+/// Trait for ring operations used by the NIFS fold engine.
+pub trait FoldRing {
+    /// The concrete polynomial type for this ring.
+    type Poly: Clone + PartialEq;
+
+    /// Ring degree N (power of two).
+    fn degree(&self) -> usize;
+
+    /// Ring modulus q.
+    fn modulus(&self) -> u64;
+
+    /// Zero polynomial.
+    fn zero(&self) -> Self::Poly;
+
+    /// Add two ring elements.
+    fn add_poly(&self, a: &Self::Poly, b: &Self::Poly) -> Result<Self::Poly, CycloError>;
+
+    /// Subtract `b` from `a`.
+    fn sub_poly(&self, a: &Self::Poly, b: &Self::Poly) -> Result<Self::Poly, CycloError>;
+
+    /// Multiply two ring elements.
+    fn mul_poly(&self, a: &Self::Poly, b: &Self::Poly) -> Result<Self::Poly, CycloError>;
+
+    /// L-infinity norm (max absolute centered coefficient).
+    fn linf_norm(&self, a: &Self::Poly) -> u64;
+
+    /// Decompose a ring element into balanced base-B limbs.
+    fn decompose(&self, a: &Self::Poly, base: u64, limb_count: usize) -> Vec<Self::Poly>;
+
+    /// Recompose from balanced base-B limbs.
+    fn recompose(&self, limbs: &[Self::Poly], base: u64) -> Result<Self::Poly, CycloError>;
+}
+
+// ── Implementation for the existing N=256 commitment ring ──────────────────
+
+/// Zero-sized wrapper for the N=256 commitment ring (global NTT context).
+///
+/// The existing ring module (`crate::ring`) uses free functions and a global
+/// singleton context.  This wrapper provides the `FoldRing` interface.
+pub struct Cyclo256Ring;
+
+impl FoldRing for Cyclo256Ring {
+    type Poly = crate::ring::RqPoly;
+
+    fn degree(&self) -> usize { crate::ring::PHI_COMMIT }
+
+    fn modulus(&self) -> u64 { crate::ring::Q_COMMIT }
+
+    fn zero(&self) -> Self::Poly { crate::ring::RqPoly::zero() }
+
+    fn add_poly(&self, a: &Self::Poly, b: &Self::Poly) -> Result<Self::Poly, CycloError> {
+        Ok(crate::ring::ring_add_poly(a, b))
+    }
+
+    fn sub_poly(&self, a: &Self::Poly, b: &Self::Poly) -> Result<Self::Poly, CycloError> {
+        // a - b = a + (-1) * b (mod q)
+        let neg_one = (crate::ring::Q_COMMIT - 1) as u128;
+        let neg_b = crate::ring::scalar_mul(b, neg_one);
+        Ok(crate::ring::ring_add_poly(a, &neg_b))
+    }
+
+    fn mul_poly(&self, a: &Self::Poly, b: &Self::Poly) -> Result<Self::Poly, CycloError> {
+        crate::ring::ntt_mul(a, b)
+    }
+
+    fn linf_norm(&self, a: &Self::Poly) -> u64 { crate::ring::norm_inf(a) }
+
+    fn decompose(&self, a: &Self::Poly, base: u64, limb_count: usize) -> Vec<Self::Poly> {
+        let coeffs = &a.0;
+        let shift_bits = base.trailing_zeros() as u32;
+        let mask = base - 1;
+        (0..limb_count).map(|k| {
+            let shift = k as u32 * shift_bits;
+            let limb_coeffs: Vec<u64> = coeffs.iter()
+                .map(|&c| (c >> shift) & mask)
+                .collect();
+            crate::ring::RqPoly(limb_coeffs)
+        }).collect()
+    }
+
+    fn recompose(&self, limbs: &[Self::Poly], base: u64) -> Result<Self::Poly, CycloError> {
+        let degree = self.degree();
+        let shift_bits = base.trailing_zeros() as u32;
+        let mut result = vec![0u64; degree];
+        for (k, limb) in limbs.iter().enumerate() {
+            let shift = k as u32 * shift_bits;
+            for (i, &c) in limb.0.iter().enumerate() {
+                result[i] = result[i].wrapping_add(c << shift);
+            }
+        }
+        Ok(crate::ring::RqPoly(result))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fold_ring_add_sub_roundtrip() {
+        let ring = Cyclo256Ring;
+        let a = ring.zero();
+        let b = ring.zero();
+        let sum = ring.add_poly(&a, &b).unwrap();
+        let diff = ring.sub_poly(&sum, &b).unwrap();
+        assert_eq!(diff, a);
+    }
+
+    #[test]
+    fn fold_ring_decompose_recompose_roundtrip() {
+        let ring = Cyclo256Ring;
+        let degree = ring.degree();
+        let coeffs: Vec<u64> = (0..degree).map(|i| i as u64).collect();
+        let a = crate::ring::RqPoly(coeffs);
+        let limbs = ring.decompose(&a, 1 << 16, 4);
+        let back = ring.recompose(&limbs, 1 << 16).unwrap();
+        assert_eq!(a, back);
+    }
+}

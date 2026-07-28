@@ -21,8 +21,8 @@ demo-e2e n="10" t="4" seed="1":
     export PVTHFHE_RUN_C7_SONOBE=1
     PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 \
         PVTHFHE_BB_PATH="/home/dev/.bb/bb" \
-        PVTHFHE_NARGO_PATH="$$(which nargo)" \
         RUSTFLAGS="-Awarnings" \
+        PATH="/home/dev/.nargo/bin:/home/dev/.bb:/home/dev/.foundry/bin:$$PATH" \
         cargo run --release -p pvthfhe-cli --features "real-compressor,demo-seeded-rng,pipeline-extra-checks,enable-lazer,enable-latticefold" -- \
         demo --n $(echo "{{n}}" | sed 's/^n=//') --threshold $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//') \
         2>&1 | tee .sisyphus/evidence/demo-e2e.log

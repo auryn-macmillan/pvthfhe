@@ -93,6 +93,7 @@ pub fn extract_sigma_statement_and_proof(
     }
 
     cur.skip(AJTAI_RANK * PHI * 8)?; // ajtai_commitment
+    let _sid = cur.read_len_prefixed_bytes()?;
     let _pid = cur.read_u16()?;
     let _commitment: [u8; 32] =
         cur.read_exact(32)?

@@ -7,11 +7,15 @@ use crate::CycloError;
 use fhe_math::rq::{traits::TryConvertFrom, Context, Poly, Representation};
 use std::sync::{Arc, OnceLock};
 
-/// Cyclotomic ring degree φ = 256; elements live in `Z[X]/(X^256+1)`.
+#[cfg(feature = "fast-ring-n256")]
 pub const PHI_COMMIT: usize = 256;
-
-/// Commitment modulus `q_commit` (50-bit prime ≡ 1 mod 1024).
+#[cfg(feature = "fast-ring-n256")]
 pub const Q_COMMIT: u64 = 562_949_953_438_721;
+
+#[cfg(not(feature = "fast-ring-n256"))]
+pub const PHI_COMMIT: usize = 8192;
+#[cfg(not(feature = "fast-ring-n256"))]
+pub const Q_COMMIT: u64 = 288_230_376_173_076_481; // q0 from fhe.rs
 
 /// Global singleton NTT context for `R_{q_commit}`.
 static CTX: OnceLock<Arc<Context>> = OnceLock::new();

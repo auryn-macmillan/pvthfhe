@@ -1,7 +1,7 @@
 # Justfile for pvthfhe
 
 test-all:
-    cargo test --workspace
+    cargo test --workspace --features fast-ring-n256
     cd circuits && nargo test --workspace
     forge test --root contracts
 

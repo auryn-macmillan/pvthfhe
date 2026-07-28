@@ -931,7 +931,9 @@ pub fn rolling_digest_8(values: &[String; 8]) -> String {
 /// in circuits/aggregator_final.
 fn noir_hash_2(left: Fr, right: Fr) -> Fr {
     let mut poseidon = Poseidon::<Fr>::new_circom(2).expect("circom-2 params are valid");
-    poseidon.hash(&[left, right]).expect("poseidon hash is infallible for valid Fr arrays")
+    poseidon
+        .hash(&[left, right])
+        .expect("poseidon hash is infallible for valid Fr arrays")
 }
 
 /// Noir-compatible bind_8_with_domain: fixed-arity Poseidon hash_9 over
@@ -941,7 +943,9 @@ pub fn noir_bind_8_with_domain(values: [Fr; 8], domain_tag: Fr) -> Fr {
     let mut preimage = [Fr::from(0u64); 9];
     preimage[0] = domain_tag;
     preimage[1..].copy_from_slice(&values);
-    poseidon.hash(&preimage).expect("poseidon hash is infallible for valid Fr arrays")
+    poseidon
+        .hash(&preimage)
+        .expect("poseidon hash is infallible for valid Fr arrays")
 }
 
 /// Noir-compatible vector hash: poseidon sponge over [domain_tag, ...values],
@@ -975,8 +979,16 @@ fn rolling_digest_8_raw(values: &[Fr; 8]) -> Fr {
 #[allow(clippy::as_conversions)]
 fn dkg_binding_raw(party_id: Fr, pk_i_hash: Fr, epoch: Fr, c1_hash: Fr) -> Fr {
     noir_bind_8_with_domain(
-        [party_id, pk_i_hash, epoch, c1_hash,
-         Fr::from(DECRYPT_SHARE_N as u64), Fr::from(B_E as u64), Fr::from(11u64), Fr::from(19u64)],
+        [
+            party_id,
+            pk_i_hash,
+            epoch,
+            c1_hash,
+            Fr::from(DECRYPT_SHARE_N as u64),
+            Fr::from(B_E as u64),
+            Fr::from(11u64),
+            Fr::from(19u64),
+        ],
         Fr::from(5u64),
     )
 }
@@ -997,14 +1009,28 @@ fn dkg_binding_raw_legacy(party_id: Fr, pk_i_hash: Fr, epoch: Fr, c1_hash: Fr) -
 
 fn ciphertext_binding_raw(party_id: Fr, pk_i_hash: Fr, dkg_root: Fr, epoch: Fr, c1_hash: Fr) -> Fr {
     noir_bind_8_with_domain(
-        [party_id, pk_i_hash, dkg_root, epoch, c1_hash,
-         Fr::from(1u64), Fr::from(2u64), Fr::from(3u64)],
+        [
+            party_id,
+            pk_i_hash,
+            dkg_root,
+            epoch,
+            c1_hash,
+            Fr::from(1u64),
+            Fr::from(2u64),
+            Fr::from(3u64),
+        ],
         Fr::from(4u64),
     )
 }
 
 #[allow(dead_code)]
-fn ciphertext_binding_raw_legacy(party_id: Fr, pk_i_hash: Fr, dkg_root: Fr, epoch: Fr, c1_hash: Fr) -> Fr {
+fn ciphertext_binding_raw_legacy(
+    party_id: Fr,
+    pk_i_hash: Fr,
+    dkg_root: Fr,
+    epoch: Fr,
+    c1_hash: Fr,
+) -> Fr {
     rolling_digest_8_raw(&[
         party_id,
         pk_i_hash,

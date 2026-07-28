@@ -91,7 +91,6 @@ pub fn fold_one_generic<R: FoldRing>(
     }
 }
 
-
 /// Derive a ternary challenge from two byte slices via SHA-256 + rejection sampling.
 fn ternary_challenge_from_hashes(a: &[u8], b: &[u8]) -> i8 {
     use sha2::{Digest, Sha256};
@@ -119,11 +118,17 @@ pub struct Cyclo256Ring;
 impl FoldRing for Cyclo256Ring {
     type Poly = crate::ring::RqPoly;
 
-    fn degree(&self) -> usize { crate::ring::PHI_COMMIT }
+    fn degree(&self) -> usize {
+        crate::ring::PHI_COMMIT
+    }
 
-    fn modulus(&self) -> u64 { crate::ring::Q_COMMIT }
+    fn modulus(&self) -> u64 {
+        crate::ring::Q_COMMIT
+    }
 
-    fn zero(&self) -> Self::Poly { crate::ring::RqPoly::zero() }
+    fn zero(&self) -> Self::Poly {
+        crate::ring::RqPoly::zero()
+    }
 
     fn add_poly(&self, a: &Self::Poly, b: &Self::Poly) -> Result<Self::Poly, CycloError> {
         Ok(crate::ring::ring_add_poly(a, b))
@@ -140,19 +145,21 @@ impl FoldRing for Cyclo256Ring {
         crate::ring::ntt_mul(a, b)
     }
 
-    fn linf_norm(&self, a: &Self::Poly) -> u64 { crate::ring::norm_inf(a) }
+    fn linf_norm(&self, a: &Self::Poly) -> u64 {
+        crate::ring::norm_inf(a)
+    }
 
     fn decompose(&self, a: &Self::Poly, base: u64, limb_count: usize) -> Vec<Self::Poly> {
         let coeffs = &a.0;
         let shift_bits = base.trailing_zeros() as u32;
         let mask = base - 1;
-        (0..limb_count).map(|k| {
-            let shift = k as u32 * shift_bits;
-            let limb_coeffs: Vec<u64> = coeffs.iter()
-                .map(|&c| (c >> shift) & mask)
-                .collect();
-            crate::ring::RqPoly(limb_coeffs)
-        }).collect()
+        (0..limb_count)
+            .map(|k| {
+                let shift = k as u32 * shift_bits;
+                let limb_coeffs: Vec<u64> = coeffs.iter().map(|&c| (c >> shift) & mask).collect();
+                crate::ring::RqPoly(limb_coeffs)
+            })
+            .collect()
     }
 
     fn recompose(&self, limbs: &[Self::Poly], base: u64) -> Result<Self::Poly, CycloError> {
@@ -178,9 +185,13 @@ impl FoldRing for Cyclo256Ring {
 impl FoldRing for pvthfhe_rings::FheMathRing {
     type Poly = pvthfhe_rings::RqPoly;
 
-    fn degree(&self) -> usize { self.degree() }
+    fn degree(&self) -> usize {
+        self.degree()
+    }
 
-    fn modulus(&self) -> u64 { self.modulus() }
+    fn modulus(&self) -> u64 {
+        self.modulus()
+    }
 
     fn zero(&self) -> Self::Poly {
         pvthfhe_rings::RqPoly::zero(self.degree())
@@ -198,18 +209,23 @@ impl FoldRing for pvthfhe_rings::FheMathRing {
         Ok(self.mul(a, b))
     }
 
-    fn linf_norm(&self, a: &Self::Poly) -> u64 { self.linf_norm(a) }
+    fn linf_norm(&self, a: &Self::Poly) -> u64 {
+        self.linf_norm(a)
+    }
 
     fn decompose(&self, a: &Self::Poly, base: u64, limb_count: usize) -> Vec<Self::Poly> {
         let shift_bits = base.trailing_zeros() as u32;
         let mask = base - 1;
-        (0..limb_count).map(|k| {
-            let shift = k as u32 * shift_bits;
-            let limb_coeffs: Vec<u64> = a.coeffs.iter()
-                .map(|&c| (c >> shift) & mask)
-                .collect();
-            pvthfhe_rings::RqPoly { coeffs: limb_coeffs, degree: self.degree() }
-        }).collect()
+        (0..limb_count)
+            .map(|k| {
+                let shift = k as u32 * shift_bits;
+                let limb_coeffs: Vec<u64> = a.coeffs.iter().map(|&c| (c >> shift) & mask).collect();
+                pvthfhe_rings::RqPoly {
+                    coeffs: limb_coeffs,
+                    degree: self.degree(),
+                }
+            })
+            .collect()
     }
 
     fn recompose(&self, limbs: &[Self::Poly], base: u64) -> Result<Self::Poly, CycloError> {
@@ -222,13 +238,14 @@ impl FoldRing for pvthfhe_rings::FheMathRing {
                 result[i] = result[i].wrapping_add(c << shift);
             }
         }
-        Ok(pvthfhe_rings::RqPoly { coeffs: result, degree })
+        Ok(pvthfhe_rings::RqPoly {
+            coeffs: result,
+            degree,
+        })
     }
 
     fn poly_to_bytes(&self, a: &Self::Poly) -> Vec<u8> {
-        a.coeffs.iter()
-            .flat_map(|c| c.to_le_bytes())
-            .collect()
+        a.coeffs.iter().flat_map(|c| c.to_le_bytes()).collect()
     }
 }
 

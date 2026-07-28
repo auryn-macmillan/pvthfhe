@@ -13,12 +13,20 @@ const CONTRACT_PATH: &str = "contracts/src/PvtFheVerifier.sol";
 
 #[test]
 fn no_vacuous_accept_paths_in_verifier() {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..").join(CONTRACT_PATH);
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
+        .join(CONTRACT_PATH);
     let src = fs::read_to_string(&path).expect("failed to read PvtFheVerifier.sol");
 
     let check_keywords = [
-        "require", "revert", "_honkVerifier", "registry.mark",
-        "_consumeIvcProof", "verifyStoredPublicAnchors", "recordSmudgeSlotUse",
+        "require",
+        "revert",
+        "_honkVerifier",
+        "registry.mark",
+        "_consumeIvcProof",
+        "verifyStoredPublicAnchors",
+        "recordSmudgeSlotUse",
     ];
 
     let functions: Vec<&str> = src.split("function ").collect();

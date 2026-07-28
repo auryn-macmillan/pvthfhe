@@ -10,8 +10,8 @@ use pvthfhe_cyclo::{fold, CYCLO_BACKEND_ID, PVTHFHE_CYCLO_PARAMS};
 use pvthfhe_fhe::real_nizk::{LatticeNizk, NizkProof, NizkStatement, NizkWitness, RealNizkAdapter};
 use pvthfhe_foundations::domain_tags::Tag;
 use pvthfhe_foundations::rng::OsRng;
-use pvthfhe_foundations::types::{CcsWitnessSecret, ProtocolBytes};
 use pvthfhe_foundations::types::verification_statement::noir_bn254_sponge;
+use pvthfhe_foundations::types::{CcsWitnessSecret, ProtocolBytes};
 use pvthfhe_nizk::sigma::compute_sigma_sz_data;
 use sha2::{Digest, Sha256};
 use std::time::Instant;
@@ -142,8 +142,8 @@ pub(crate) fn run_fold_stage<O: PipelineObserver>(
     {
         let per_channel_start = Instant::now();
         observer.phase_start("per_channel_fold", Some("per-channel-q0-q1-q2"));
-        let mut driver = init_per_channel_driver()
-            .context("per_channel_fold: failed to init driver")?;
+        let mut driver =
+            init_per_channel_driver().context("per_channel_fold: failed to init driver")?;
         let chan_count = driver.channel_count();
         let degree = driver.ring(0).degree();
 
@@ -151,12 +151,16 @@ pub(crate) fn run_fold_stage<O: PipelineObserver>(
             let commitment = pvthfhe_cyclo::ajtai::decode_commitment(
                 instance.ajtai_commitment_bytes.as_slice(),
                 pvthfhe_cyclo::fold::AJTAI_COMMITMENT_M,
-            ).context("per_channel_fold: decode commitment")?;
+            )
+            .context("per_channel_fold: decode commitment")?;
 
             let per_ch_commitments: Vec<pvthfhe_rings::RqPoly> = (0..chan_count)
                 .map(|ch| {
                     if let Some(ring_elem) = commitment.commitment.get(ch) {
-                        pvthfhe_rings::RqPoly { coeffs: ring_elem.0.clone(), degree }
+                        pvthfhe_rings::RqPoly {
+                            coeffs: ring_elem.0.clone(),
+                            degree,
+                        }
                     } else {
                         pvthfhe_rings::RqPoly::zero(degree)
                     }
@@ -167,7 +171,8 @@ pub(crate) fn run_fold_stage<O: PipelineObserver>(
                 .map(|_| pvthfhe_rings::RqPoly::zero(degree))
                 .collect();
 
-            driver.fold_one(&per_ch_commitments, &witnesses)
+            driver
+                .fold_one(&per_ch_commitments, &witnesses)
                 .context("per_channel_fold: fold step")?;
         }
         for ch in 0..chan_count {
@@ -182,12 +187,14 @@ pub(crate) fn run_fold_stage<O: PipelineObserver>(
         let mut digests = [ark_bn254::Fr::from(0u64); 4];
         for ch in 0..chan_count.min(4) {
             let acc = driver.accumulator(ch);
-            let coeffs_fr: Vec<ark_bn254::Fr> = acc.commitment.coeffs.iter()
+            let coeffs_fr: Vec<ark_bn254::Fr> = acc
+                .commitment
+                .coeffs
+                .iter()
                 .take(16)
                 .map(|&c| ark_bn254::Fr::from(c))
                 .collect();
-            let hash = noir_bn254_sponge(&coeffs_fr)
-                .unwrap_or(ark_bn254::Fr::from(0u64));
+            let hash = noir_bn254_sponge(&coeffs_fr).unwrap_or(ark_bn254::Fr::from(0u64));
             digests[ch] = hash;
         }
         per_channel_digests = Some(digests);

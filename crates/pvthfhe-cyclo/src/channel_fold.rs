@@ -37,21 +37,30 @@ pub struct ChannelFoldDriver<R: FoldRing> {
 impl<R: FoldRing> ChannelFoldDriver<R> {
     /// Create a new driver from a collection of ring instances.
     pub fn new(rings: Vec<R>) -> Self {
-        let accumulators = rings.iter().map(|r| {
-            ChannelAccumulator {
+        let accumulators = rings
+            .iter()
+            .map(|r| ChannelAccumulator {
                 commitment: r.zero(),
                 witness: r.zero(),
                 fold_count: 0,
-            }
-        }).collect();
-        Self { rings, accumulators, use_binary_tree: true }
+            })
+            .collect();
+        Self {
+            rings,
+            accumulators,
+            use_binary_tree: true,
+        }
     }
 
     /// Number of channels.
-    pub fn channel_count(&self) -> usize { self.rings.len() }
+    pub fn channel_count(&self) -> usize {
+        self.rings.len()
+    }
 
     /// Access a ring by index.
-    pub fn ring(&self, idx: usize) -> &R { &self.rings[idx] }
+    pub fn ring(&self, idx: usize) -> &R {
+        &self.rings[idx]
+    }
 
     /// Get the accumulator for a specific channel.
     pub fn accumulator(&self, idx: usize) -> &ChannelAccumulator<R::Poly> {
@@ -63,7 +72,11 @@ impl<R: FoldRing> ChannelFoldDriver<R> {
     /// Each instance contributes its polynomial pair (commitment, witness)
     /// to the corresponding channel's accumulator via the ternary-challenge
     /// NIFS fold step from [`fold_one_generic`].
-    pub fn fold_one(&mut self, commitments: &[R::Poly], witnesses: &[R::Poly]) -> Result<(), CycloError> {
+    pub fn fold_one(
+        &mut self,
+        commitments: &[R::Poly],
+        witnesses: &[R::Poly],
+    ) -> Result<(), CycloError> {
         for (i, ring) in self.rings.iter().enumerate() {
             if ring.degree() == 0 {
                 continue;
@@ -124,7 +137,9 @@ mod tests {
         let zero = ring.zero();
         let commitments = vec![zero.clone(), zero.clone(), zero.clone()];
         let witnesses = vec![zero.clone(), zero.clone(), zero.clone()];
-        driver.fold_one(&commitments, &witnesses).expect("fold should succeed");
+        driver
+            .fold_one(&commitments, &witnesses)
+            .expect("fold should succeed");
         assert_eq!(driver.accumulator(0).fold_count, 1);
         assert_eq!(driver.accumulator(1).fold_count, 1);
         assert_eq!(driver.accumulator(2).fold_count, 1);
@@ -138,7 +153,9 @@ mod tests {
         let a = crate::ring::RqPoly(a_coeffs);
         let commitments = vec![a.clone(), a.clone(), a.clone()];
         let witnesses = vec![a.clone(), a.clone(), a.clone()];
-        driver.fold_one(&commitments, &witnesses).expect("fold should succeed");
+        driver
+            .fold_one(&commitments, &witnesses)
+            .expect("fold should succeed");
         assert_eq!(driver.accumulator(0).fold_count, 1);
         assert_eq!(driver.accumulator(1).fold_count, 1);
         assert_eq!(driver.accumulator(2).fold_count, 1);

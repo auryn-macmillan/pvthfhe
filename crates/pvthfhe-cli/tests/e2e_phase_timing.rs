@@ -130,10 +130,7 @@ fn onchain_verify_is_marker_only_today() -> Result<(), Box<dyn std::error::Error
     // real on-chain verification lives in `just noir-onchain-gate`. Pin the
     // current state so implementing the phase updates this test.
     assert_eq!(phase_f64(&timings, "onchain_verify", "total_ms"), 0.0);
-    assert_eq!(
-        phase_u64(&timings, "onchain_verify", "instances_run"),
-        0
-    );
+    assert_eq!(phase_u64(&timings, "onchain_verify", "instances_run"), 0);
 
     Ok(())
 }

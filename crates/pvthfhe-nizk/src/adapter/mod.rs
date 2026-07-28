@@ -52,8 +52,8 @@ pub use extract::{
 use crate::sigma::{self, rlwe_n, SigmaStatement, SigmaWitness};
 use crate::{NizkAdapter, NizkError, NizkProof, NizkStatement, NizkWitness, BACKEND_ID};
 
-use codec::{decode_sigma_section_multi, encode_proof_multi, Cursor};
 use crate::ajtai::{AJTAI_RANK, PHI};
+use codec::{decode_sigma_section_multi, encode_proof_multi, Cursor};
 use cyclo::{
     ajtai_sigma_session_binding, compute_ajtai_commitment, compute_ccs_instance_id,
     derive_epoch_crs_seed, expand_c_rns, serialize_ajtai_commitment, verify_accumulator_transcript,

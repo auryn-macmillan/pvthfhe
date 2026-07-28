@@ -20,10 +20,10 @@
 #![deny(missing_docs)]
 #![allow(clippy::needless_range_loop, clippy::type_complexity)]
 
+pub mod channel;
 pub mod params;
 pub mod ring;
-pub mod channel;
 
+pub use channel::RnsChannels;
 pub use params::{ChannelParams, ProdParams};
 pub use ring::{FheMathRing, RqPoly};
-pub use channel::RnsChannels;

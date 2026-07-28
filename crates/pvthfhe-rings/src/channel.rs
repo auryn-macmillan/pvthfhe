@@ -30,7 +30,9 @@ impl RnsChannels {
     }
 
     /// Number of channels.
-    pub fn count(&self) -> usize { self.channels.len() }
+    pub fn count(&self) -> usize {
+        self.channels.len()
+    }
 
     /// Get channel ring by index.
     pub fn get(&self, idx: usize) -> &FheMathRing {

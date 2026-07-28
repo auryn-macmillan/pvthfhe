@@ -23,21 +23,21 @@
 
 #![allow(missing_docs)]
 
-pub mod channel_fold;
-pub mod fold_ring;
-pub mod relations;
 pub mod accumulator_codec;
 pub mod adapter;
 pub mod ajtai;
 pub mod ccs_encode;
 pub mod ccs_rlwe;
+pub mod channel_fold;
 pub mod decompose;
 pub mod driver;
 pub mod extension;
 pub mod fiat_shamir;
 pub mod fold;
+pub mod fold_ring;
 pub mod nifs;
 pub mod range_check;
+pub mod relations;
 pub mod ring;
 pub mod ring_element;
 

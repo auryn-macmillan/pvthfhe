@@ -28,7 +28,9 @@ fn channel_fold_driver_folds_with_nifs_prover() {
     let commitments = vec![instance.clone()];
     let witnesses = vec![instance];
     let mut driver = driver;
-    driver.fold_one(&commitments, &witnesses).expect("fold should succeed");
+    driver
+        .fold_one(&commitments, &witnesses)
+        .expect("fold should succeed");
     assert_eq!(driver.accumulator(0).fold_count, 1);
 }
 
@@ -44,6 +46,10 @@ fn decompose_recompose_identity() {
 
     let q = ring.modulus();
     for i in 0..degree {
-        assert_eq!(a.0[i] % q, back.0[i] % q, "coefficient {i} must be congruent modulo q");
+        assert_eq!(
+            a.0[i] % q,
+            back.0[i] % q,
+            "coefficient {i} must be congruent modulo q"
+        );
     }
 }

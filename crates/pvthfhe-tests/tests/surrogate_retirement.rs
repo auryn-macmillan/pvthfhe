@@ -33,7 +33,10 @@ fn walk(base: &Path, dir: &Path, whitelist: &[&str], hits: &mut Vec<String>) {
     };
     for entry in entries.flatten() {
         let path = entry.path();
-        let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
         if name.starts_with('.') || name == "target" {
             continue;
         }

@@ -62,21 +62,41 @@ impl ProdParams {
     /// Channel parameters.
     pub fn channels() -> [ChannelParams; L] {
         [
-            ChannelParams { degree: Self::DEGREE, modulus: Self::Q0, decomposition_base: Self::B, limb_count: Self::LIMB_COUNT },
-            ChannelParams { degree: Self::DEGREE, modulus: Self::Q1, decomposition_base: Self::B, limb_count: Self::LIMB_COUNT },
-            ChannelParams { degree: Self::DEGREE, modulus: Self::Q2, decomposition_base: Self::B, limb_count: Self::LIMB_COUNT },
+            ChannelParams {
+                degree: Self::DEGREE,
+                modulus: Self::Q0,
+                decomposition_base: Self::B,
+                limb_count: Self::LIMB_COUNT,
+            },
+            ChannelParams {
+                degree: Self::DEGREE,
+                modulus: Self::Q1,
+                decomposition_base: Self::B,
+                limb_count: Self::LIMB_COUNT,
+            },
+            ChannelParams {
+                degree: Self::DEGREE,
+                modulus: Self::Q2,
+                decomposition_base: Self::B,
+                limb_count: Self::LIMB_COUNT,
+            },
         ]
     }
 
     /// Reconstruction prime P ≈ 2^251, large enough that P > Q = q0·q1·q2.
     /// This is the modulus for the R7 CRT reconstruction and decode relation.
     pub const P: u64 = 0; // Placeholder — P > 2^174 requires a big-integer, not u64.
-                           // The P-track uses ark_bn254::Fr (≈2^254) in practice.
-                           // Set during the R7 relation implementation in Phase 2.
+                          // The P-track uses ark_bn254::Fr (≈2^254) in practice.
+                          // Set during the R7 relation implementation in Phase 2.
 
     /// Reconstruction track parameters (P-track).
     pub fn p_channel() -> ChannelParams {
-        ChannelParams { degree: Self::DEGREE, modulus: 0, decomposition_base: Self::B, limb_count: 8 }
+        ChannelParams {
+            degree: Self::DEGREE,
+            modulus: 0,
+            decomposition_base: Self::B,
+            limb_count: 8,
+        }
     }
 
     /// Verify all channel parameters are valid.
@@ -111,7 +131,12 @@ impl FastParams {
     /// Single-channel fast-test parameters.
     /// Single-channel fast-test parameters.
     pub fn channel() -> ChannelParams {
-        ChannelParams { degree: Self::DEGREE, modulus: Self::Q_COMMIT, decomposition_base: Self::B, limb_count: Self::LIMB_COUNT }
+        ChannelParams {
+            degree: Self::DEGREE,
+            modulus: Self::Q_COMMIT,
+            decomposition_base: Self::B,
+            limb_count: Self::LIMB_COUNT,
+        }
     }
 
     /// Validate fast-test channel parameters.

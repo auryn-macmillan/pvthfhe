@@ -122,12 +122,7 @@ impl R6DecryptionShare {
     ///
     /// Checks that `d_j == ct0 + ct1 * sk_share + e_sm` for a committed
     /// `sk_share` and a norm-bound `e_sm`.
-    pub fn verify(
-        &self,
-        ring: &FheMathRing,
-        sk_share: &RqPoly,
-        e_sm: &RqPoly,
-    ) -> bool {
+    pub fn verify(&self, ring: &FheMathRing, sk_share: &RqPoly, e_sm: &RqPoly) -> bool {
         let ct1_sk = ring.mul(&self.ct1, sk_share);
         let expected = ring.add(&ring.add(&self.ct0, &ct1_sk), e_sm);
         expected == self.decryption_share
@@ -176,7 +171,11 @@ impl R7Reconstruction {
 
             // Verify: |e_i| = |ui - Δ * mi| ≤ Δ/2
             let reconstructed = mi * self.delta;
-            let error = if reconstructed > ui { reconstructed - ui } else { ui - reconstructed };
+            let error = if reconstructed > ui {
+                reconstructed - ui
+            } else {
+                ui - reconstructed
+            };
             if error > half_delta {
                 return None; // decode failure
             }
@@ -228,7 +227,10 @@ mod tests {
 
     #[test]
     fn r7_decode_roundtrip() {
-        let r7 = R7Reconstruction { t_plain: 65536, delta: 1u64 << 40 };
+        let r7 = R7Reconstruction {
+            t_plain: 65536,
+            delta: 1u64 << 40,
+        };
         let u = vec![(1u64 << 40) + 100u64]; // Δ*1 + 100 (small error)
         let m = r7.decode(&u, 1);
         assert!(m.is_some());
@@ -237,8 +239,13 @@ mod tests {
 
     #[test]
     fn r7_decode_centered_rounding_works() {
-        let r7 = R7Reconstruction { t_plain: 5, delta: 10u64 };
-        let m = r7.decode(&[55u64], 1).expect("centered rounding should succeed");
+        let r7 = R7Reconstruction {
+            t_plain: 5,
+            delta: 10u64,
+        };
+        let m = r7
+            .decode(&[55u64], 1)
+            .expect("centered rounding should succeed");
         assert_eq!(m, vec![5]); // 55/10 = 5.5, round: 5 (ties break toward qi)
     }
 

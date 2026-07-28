@@ -21,12 +21,18 @@ pub struct RqPoly {
 impl RqPoly {
     /// Zero polynomial.
     pub fn zero(degree: usize) -> Self {
-        Self { coeffs: vec![0u64; degree], degree }
+        Self {
+            coeffs: vec![0u64; degree],
+            degree,
+        }
     }
 
     /// Polynomial with all coefficients equal to `c`.
     pub fn constant(c: u64, degree: usize) -> Self {
-        Self { coeffs: vec![c; degree], degree }
+        Self {
+            coeffs: vec![c; degree],
+            degree,
+        }
     }
 }
 
@@ -47,39 +53,59 @@ impl FheMathRing {
         params.validate()?;
         let ctx = Context::new(&[params.modulus], params.degree)
             .map_err(|e| format!("failed to create NTT context: {e}"))?;
-        Ok(Self { params, ctx: Arc::new(ctx) })
+        Ok(Self {
+            params,
+            ctx: Arc::new(ctx),
+        })
     }
 
     /// Ring degree N.
-    pub fn degree(&self) -> usize { self.params.degree }
+    pub fn degree(&self) -> usize {
+        self.params.degree
+    }
 
     /// Ring modulus q.
-    pub fn modulus(&self) -> u64 { self.params.modulus }
+    pub fn modulus(&self) -> u64 {
+        self.params.modulus
+    }
 
     /// Create an [`RqPoly`] from raw coefficients.
     pub fn poly(&self, coeffs: Vec<u64>) -> RqPoly {
         assert_eq!(coeffs.len(), self.params.degree);
-        RqPoly { coeffs, degree: self.params.degree }
+        RqPoly {
+            coeffs,
+            degree: self.params.degree,
+        }
     }
 
     /// Add two ring elements: coefficients modulo q.
     pub fn add(&self, a: &RqPoly, b: &RqPoly) -> RqPoly {
         let q = self.params.modulus;
-        let coeffs: Vec<u64> = a.coeffs.iter()
+        let coeffs: Vec<u64> = a
+            .coeffs
+            .iter()
             .zip(b.coeffs.iter())
             .map(|(&x, &y)| (x + y) % q)
             .collect();
-        RqPoly { coeffs, degree: self.params.degree }
+        RqPoly {
+            coeffs,
+            degree: self.params.degree,
+        }
     }
 
     /// Subtract `b` from `a`: coefficients modulo q.
     pub fn sub(&self, a: &RqPoly, b: &RqPoly) -> RqPoly {
         let q = self.params.modulus;
-        let coeffs: Vec<u64> = a.coeffs.iter()
+        let coeffs: Vec<u64> = a
+            .coeffs
+            .iter()
             .zip(b.coeffs.iter())
             .map(|(&x, &y)| (x + q - y) % q)
             .collect();
-        RqPoly { coeffs, degree: self.params.degree }
+        RqPoly {
+            coeffs,
+            degree: self.params.degree,
+        }
     }
 
     /// Multiply two ring elements via NTT.
@@ -97,22 +123,37 @@ impl FheMathRing {
     /// L-infinity norm: max absolute centered coefficient.
     pub fn linf_norm(&self, a: &RqPoly) -> u64 {
         let half_q = self.params.modulus / 2;
-        a.coeffs.iter()
-            .map(|&c| if c > half_q { self.params.modulus - c } else { c })
+        a.coeffs
+            .iter()
+            .map(|&c| {
+                if c > half_q {
+                    self.params.modulus - c
+                } else {
+                    c
+                }
+            })
             .max()
             .unwrap_or(0)
     }
 
     /// Internal: convert [`RqPoly`] to fhe-math [`Poly`].
     fn to_fhe_poly(&self, a: &RqPoly) -> Poly {
-        Poly::try_convert_from(a.coeffs.clone(), &self.ctx, false, fhe_math::rq::Representation::default())
-            .expect("poly conversion")
+        Poly::try_convert_from(
+            a.coeffs.clone(),
+            &self.ctx,
+            false,
+            fhe_math::rq::Representation::default(),
+        )
+        .expect("poly conversion")
     }
 
     /// Internal: convert fhe-math [`Poly`] to [`RqPoly`].
     fn from_fhe_poly(&self, p: &Poly) -> RqPoly {
         let coeffs: Vec<u64> = Vec::from(p);
-        RqPoly { coeffs, degree: self.params.degree }
+        RqPoly {
+            coeffs,
+            degree: self.params.degree,
+        }
     }
 }
 
@@ -123,7 +164,7 @@ mod tests {
 
     fn test_ring() -> FheMathRing {
         let params = ChannelParams {
-            degree: 8,  // fhe-math requires power-of-two ≥ 8
+            degree: 8, // fhe-math requires power-of-two ≥ 8
             modulus: ProdParams::Q0,
             decomposition_base: ProdParams::B,
             limb_count: ProdParams::LIMB_COUNT,

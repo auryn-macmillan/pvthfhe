@@ -1598,6 +1598,7 @@ dependencies = [
  "pvthfhe-foundations",
  "pvthfhe-nizk",
  "pvthfhe-pvss",
+ "pvthfhe-rings",
  "rand 0.8.6",
  "rand_core 0.6.4",
  "rayon",

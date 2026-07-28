@@ -1,5 +1,9 @@
 # Justfile for pvthfhe
 
+# Toolchain: cargo, nargo, bb, and forge must be in PATH.
+# Add common installation directories if not already present.
+export PATH := "$HOME/.cargo/bin:$HOME/.nargo/bin:$HOME/.bb:$HOME/.foundry/bin:" + env_var_or_default("PATH", "")
+
 test-all:
     cargo test --workspace --features fast-ring-n256
     cd circuits && nargo test --workspace

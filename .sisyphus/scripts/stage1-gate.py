@@ -24,10 +24,10 @@ path = "docs/archive/interfold-threat-model.md"
 check(f"T15 threat model exists and non-empty: {path}",
       os.path.exists(path) and os.path.getsize(path) > 0)
 
-# 3. Stage 0 T2 tripwire: build.rs still emits SURROGATE ACTIVE warning
+# 3. Stage 0 T2 tripwire: build.rs emits mock-backend warning
 build_rs = "crates/pvthfhe-fhe/build.rs"
-check("Stage 0 T2 tripwire: build.rs contains 'SURROGATE ACTIVE'",
-      os.path.exists(build_rs) and "SURROGATE ACTIVE" in open(build_rs).read())
+check("Stage 0 T2 tripwire: build.rs has mock-backend warning",
+      os.path.exists(build_rs) and "MOCK BACKEND ACTIVE" in open(build_rs).read())
 
 # 4. Stage 0 T3 mock policy: PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK required
 # May live in lib.rs or mock.rs

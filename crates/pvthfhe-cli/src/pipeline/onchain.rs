@@ -455,6 +455,9 @@ pub(crate) fn run_onchain_stage<O: PipelineObserver>(
                         Err(_) => false,
                     };
                     tracing::info!("decider_wrapper: verified={verified}");
+                    if !verified {
+                        noir_passed = false;
+                    }
                 }
                 _ => {
                     tracing::warn!("decider_wrapper: nargo execute skipped (Prover.toml may need population)");

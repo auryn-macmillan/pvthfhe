@@ -59,7 +59,7 @@ Benchmark reports: [bench/results/comparison-2af6ac2.md](bench/results/compariso
 | C6 | Committed-smudge enforcement | ✅ Resolved (full slot binding) |
 | C7 | Final aggregation / threshold-decryption correctness | ✅ Resolved |
 | A1 | Cyclo accumulator transcript verification | ✅ Resolved |
-| G-N8 | Noir circuit ring dimension (N=256 vs production N=8192; beta.22 OOM) | 🔄 RESOLVING (native per-channel folding eliminates the ceiling) |
+| G-N8 | Noir circuit ring dimension (N=256 vs production N=8192; beta.22 OOM) | ✅ Resolved (native per-channel folding eliminates the ceiling) |
 
 Three open (P1, P2, P4), one parameterized (G-N8). Canonical ledger: [docs/OPEN-PROBLEM-BLOCKERS.md](docs/OPEN-PROBLEM-BLOCKERS.md).
 

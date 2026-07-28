@@ -13,11 +13,11 @@ Private-verifiable threshold Fully Homomorphic Encryption with O(n) per-party wo
 | DKG | Lattice PVSS over BFV/RLWE + NonEquiv + AVID (pvthfhe-pvss, pvthfhe-non-equiv) | ✅ |
 | NIZK | Ajtai D2 sigma + BFV sigma (90-round); LaZer (LaBRADOR) via C lib | ✅ Default |
 | Greyhound PCS | Lattice polynomial commitments (53KB proofs) | ✅ Default |
-| Folding | LatticeFold+ lattice-native folding (pvthfhe-cyclo) | ✅ |
-| Compression | Transparent IVC, no ceremony | ✅ |
-| On-chain | UltraHonk verifier (Solidity) + IVC binding | ⚠️ OPEN¹ |
-| Decrypt | Threshold BFV partial decrypt | ✅ |
-| Greco | Input validation proofs (`just greco`) | ✅ |
+| Folding | LatticeFold+ per-channel native folding (pvthfhe-cyclo + pvthfhe-rings) | ✅ |
+| Compression | Transparent IVC, per-channel accumulators, binary fold tree (in progress) | ✅ |
+| On-chain | UltraHonk decider wrapper Verifier (Solidity) | ⚠️ OPEN¹ |
+| Decrypt | Threshold BFV partial decrypt + native R6/R7 relations | ✅ |
+| Greco | LatticeFold+ algebraic range proof (replaces Greco quotient witnesses) | 🔄 Migrating |
 | Compute | Verifiable FHE ops (`just compute`) | ✅ (Mul verified at N=8192 production scale; `--features bfv-n4` for fast tests) |
 
 ¹ IVC binding is NOT cryptographically verified on-chain; IVC mode is fail-closed.
@@ -61,13 +61,13 @@ Benchmark reports: [bench/results/comparison-2af6ac2.md](bench/results/compariso
 | C6 | Committed-smudge enforcement | ✅ Resolved (full slot binding) |
 | C7 | Final aggregation / threshold-decryption correctness | ✅ Resolved |
 | A1 | Cyclo accumulator transcript verification | ✅ Resolved |
-| G-N8 | Noir circuit ring dimension (N=256 vs production N=8192; beta.22 OOM) | PARAMETERIZED |
+| G-N8 | Noir circuit ring dimension (N=256 vs production N=8192; beta.22 OOM) | 🔄 RESOLVING (native per-channel folding eliminates the ceiling) |
 
 Three open (P1, P2, P4), one parameterized (G-N8). Canonical ledger: [docs/OPEN-PROBLEM-BLOCKERS.md](docs/OPEN-PROBLEM-BLOCKERS.md).
 
 ## Repository layout
 
-- `crates/` — Rust workspace (14 crates; see [ARCHITECTURE.md](ARCHITECTURE.md) for the crate map)
+- `crates/` — Rust workspace (15 crates; see [ARCHITECTURE.md](ARCHITECTURE.md) for the crate map)
 - `circuits/` — Noir circuits (see [circuits/README.md](circuits/README.md))
 - `contracts/` — Foundry project (on-chain verifier)
 - `bench/` — benchmark harness (Rust bins + Python scripts)

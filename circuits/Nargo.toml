@@ -7,4 +7,5 @@ members = [
     "ajtai_commitment",
     "ivc_verifier",
     "bench/rlwe_relation",
+    "decider_wrapper",
 ]

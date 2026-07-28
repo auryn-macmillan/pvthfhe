@@ -208,6 +208,37 @@ fn main() -> anyhow::Result<()> {
     let fold_ms = t3.elapsed().as_secs_f64() * 1000.0;
     println!("  cyclo_fold: ok ({:.1} ms)", fold_ms);
 
+    #[cfg(not(feature = "fast-ring-n256"))]
+    {
+        let t4 = Instant::now();
+        let mut driver = pvthfhe_cyclo::channel_fold::production_driver()
+            .context("per-channel driver")?;
+        let chan_count = driver.channel_count();
+        let degree = driver.ring(0).degree();
+
+        for instance in &fold_instances {
+            let commitment = ajtai::decode_commitment(
+                instance.ajtai_commitment_bytes.as_slice(), 13,
+            ).context("decode")?;
+            let per_ch: Vec<pvthfhe_rings::RqPoly> = (0..chan_count).map(|ch| {
+                if let Some(elem) = commitment.commitment.get(ch) {
+                    pvthfhe_rings::RqPoly { coeffs: elem.0.clone(), degree }
+                } else {
+                    pvthfhe_rings::RqPoly::zero(degree)
+                }
+            }).collect();
+            let witnesses: Vec<_> = (0..chan_count)
+                .map(|_| pvthfhe_rings::RqPoly::zero(degree)).collect();
+            driver.fold_one(&per_ch, &witnesses).context("per-channel fold")?;
+        }
+        let pc_ms = t4.elapsed().as_secs_f64() * 1000.0;
+        println!("  per_channel:   {:>8.1} ms  ({chan_count} channels)", pc_ms);
+        for ch in 0..chan_count {
+            println!("    channel {ch}: mod={} fold_count={}",
+                driver.ring(ch).modulus(), driver.accumulator(ch).fold_count);
+        }
+    }
+
     let total_ms = overall_t0.elapsed().as_secs_f64() * 1000.0;
     println!();
     println!("  ── Summary ──");

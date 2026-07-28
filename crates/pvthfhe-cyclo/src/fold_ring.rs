@@ -39,6 +39,92 @@ pub trait FoldRing {
 
     /// Recompose from balanced base-B limbs.
     fn recompose(&self, limbs: &[Self::Poly], base: u64) -> Result<Self::Poly, CycloError>;
+
+    /// Serialize coefficient data to bytes for Fiat-Shamir hashing.
+    fn poly_to_bytes(&self, a: &Self::Poly) -> Vec<u8>;
+}
+
+// ── Generic NIFS fold step ─────────────────────────────────────────────────
+
+/// Generic NIFS fold step over any [`FoldRing`] implementation.
+///
+/// Core logic: given an accumulator `(acc_commitment, acc_witness)` and a new
+/// instance `(inst_commitment, inst_witness)`, compute the Fiat-Shamir challenge
+/// from the accumulator commitment hash, then produce the folded accumulator:
+///
+/// ```text
+/// challenge = H(acc_commitment || instance_commitment) mod 3  →  {−1, 0, 1}
+/// new_witness = acc_witness + challenge * inst_witness
+/// new_commitment = acc_commitment + challenge * inst_commitment
+/// ```
+///
+/// The ternary challenge is derived via rejection sampling from SHA-256 output,
+/// matching the Cyclo ternary challenge distribution (Cyclo ePrint 2026/359 §5.5).
+pub fn fold_one_generic<R: FoldRing>(
+    ring: &R,
+    acc_commitment: &R::Poly,
+    acc_witness: &R::Poly,
+    inst_commitment: &R::Poly,
+    inst_witness: &R::Poly,
+) -> Result<(R::Poly, R::Poly), CycloError> {
+    // Derive challenge from accumulator commitment via ring-provided serialization
+    let acc_bytes = ring.poly_to_bytes(acc_commitment);
+    let inst_bytes = ring.poly_to_bytes(inst_commitment);
+
+    let challenge = ternary_challenge_from_hashes(&acc_bytes, &inst_bytes);
+
+    match challenge {
+        0 => Ok((acc_commitment.clone(), acc_witness.clone())),
+        -1 => {
+            // new = acc - inst
+            let new_commitment = ring.sub_poly(acc_commitment, inst_commitment)?;
+            let new_witness = ring.sub_poly(acc_witness, inst_witness)?;
+            Ok((new_commitment, new_witness))
+        }
+        1 => {
+            // new = acc + inst
+            let new_commitment = ring.add_poly(acc_commitment, inst_commitment)?;
+            let new_witness = ring.add_poly(acc_witness, inst_witness)?;
+            Ok((new_commitment, new_witness))
+        }
+        _ => unreachable!(),
+    }
+}
+
+/// Serialize a ring element to bytes for hashing.
+fn poly_to_bytes<R: FoldRing>(ring: &R, poly: &R::Poly) -> Result<Vec<u8>, CycloError> {
+    // Decompose into limbs and concatenate limb coefficients
+    let limbs = ring.decompose(poly, 1 << 16, 4);
+    let mut bytes = Vec::new();
+    for limb in &limbs {
+        let limb_bytes = poly_to_bytes_inner(ring, limb)?;
+        bytes.extend_from_slice(&limb_bytes);
+    }
+    Ok(bytes)
+}
+
+fn poly_to_bytes_inner<R: FoldRing>(ring: &R, _poly: &R::Poly) -> Result<Vec<u8>, CycloError> {
+    // Use recompose as a no-op round-trip to get coefficient access
+    // In practice: extract coefficients via the ring's decomposition.
+    // Stub: return fixed bytes for now (real impl needs coefficient access trait).
+    let _ = ring.degree();
+    Ok(vec![0u8; 32])
+}
+
+/// Derive a ternary challenge from two byte slices via SHA-256 + rejection sampling.
+fn ternary_challenge_from_hashes(a: &[u8], b: &[u8]) -> i8 {
+    use sha2::{Digest, Sha256};
+    let hash: [u8; 32] = Sha256::new()
+        .chain_update(a)
+        .chain_update(b)
+        .finalize()
+        .into();
+    for &byte in &hash {
+        if let Some(ch) = crate::fiat_shamir::uniform_ternary(byte) {
+            return ch;
+        }
+    }
+    0
 }
 
 // ── Implementation for the existing N=256 commitment ring ──────────────────
@@ -100,6 +186,10 @@ impl FoldRing for Cyclo256Ring {
         }
         Ok(crate::ring::RqPoly(result))
     }
+
+    fn poly_to_bytes(&self, a: &Self::Poly) -> Vec<u8> {
+        crate::ring::rqpoly_to_bytes(a)
+    }
 }
 
 // ── Implementation for per-channel rings (pvthfhe-rings) ────────────────────
@@ -152,6 +242,12 @@ impl FoldRing for pvthfhe_rings::FheMathRing {
             }
         }
         Ok(pvthfhe_rings::RqPoly { coeffs: result, degree })
+    }
+
+    fn poly_to_bytes(&self, a: &Self::Poly) -> Vec<u8> {
+        a.coeffs.iter()
+            .flat_map(|c| c.to_le_bytes())
+            .collect()
     }
 }
 

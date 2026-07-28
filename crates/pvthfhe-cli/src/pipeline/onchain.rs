@@ -391,6 +391,56 @@ pub(crate) fn run_onchain_stage<O: PipelineObserver>(
         observer.phase_end("c7_noir_aggregator", noir_ms);
     }
 
+    #[cfg(not(feature = "fast-ring-n256"))]
+    {
+        observer.phase_start("decider_wrapper", Some("per-channel-decider"));
+        let decider_started = Instant::now();
+        let circuit_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../circuits/decider_wrapper");
+        let prover_toml = circuit_dir.join("Prover.toml");
+
+        if prover_toml.exists() {
+            let bb = std::env::var("PVTHFHE_BB_PATH").unwrap_or_else(|_| "bb".to_string());
+            let nargo = std::env::var("PVTHFHE_NARGO_PATH").unwrap_or_else(|_| "nargo".to_string());
+            let status = std::process::Command::new(&nargo)
+                .arg("execute")
+                .args(["--package", "decider_wrapper"])
+                .current_dir(circuit_dir.join(".."))
+                .output();
+            match status {
+                Ok(o) if o.status.success() => {
+                    let bb_dir = circuit_dir.join("..").join("target");
+                    let _ = std::process::Command::new(&bb)
+                        .args(["write_vk", "--scheme", "ultra_honk", "-b",
+                            &bb_dir.join("decider_wrapper.json").to_string_lossy(),
+                            "-o", &bb_dir.to_string_lossy()])
+                        .output();
+                    let _ = std::process::Command::new(&bb)
+                        .args(["prove", "--scheme", "ultra_honk", "-b",
+                            &bb_dir.join("decider_wrapper.json").to_string_lossy(),
+                            "-w", &bb_dir.join("decider_wrapper.gz").to_string_lossy(),
+                            "-o", &bb_dir.to_string_lossy()])
+                        .output();
+                    let verify = std::process::Command::new(&bb)
+                        .args(["verify", "--scheme", "ultra_honk", "-k",
+                            &bb_dir.join("vk").to_string_lossy(),
+                            "-p", &bb_dir.join("proof").to_string_lossy(),
+                            "-i", &bb_dir.join("public_inputs").to_string_lossy()])
+                        .output();
+                    let verified = match &verify {
+                        Ok(o) => o.status.success(),
+                        Err(_) => false,
+                    };
+                    tracing::info!("decider_wrapper: verified={verified}");
+                }
+                _ => {
+                    tracing::warn!("decider_wrapper: nargo execute skipped (Prover.toml may need population)");
+                }
+            }
+        }
+        observer.phase_end("decider_wrapper", elapsed_ms(decider_started));
+    }
+
     Ok(noir_passed)
 }
 

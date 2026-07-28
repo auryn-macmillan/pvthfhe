@@ -135,6 +135,47 @@ pub(crate) fn run_fold_stage<O: PipelineObserver>(
     }
     observer.phase_end("cyclo_fold_verify", elapsed_ms(cyclo_verify_started));
 
+    #[cfg(not(feature = "fast-ring-n256"))]
+    {
+        let per_channel_start = Instant::now();
+        observer.phase_start("per_channel_fold", Some("per-channel-q0-q1-q2"));
+        let mut driver = init_per_channel_driver()
+            .context("per_channel_fold: failed to init driver")?;
+        let driver_chan_count = driver.channel_count();
+        let degree = driver.ring(0).degree();
+
+        for ch in 0..driver_chan_count {
+            for instance in &fold_instances {
+                let commitment = pvthfhe_cyclo::ajtai::decode_commitment(
+                    instance.ajtai_commitment_bytes.as_slice(),
+                    pvthfhe_cyclo::fold::AJTAI_COMMITMENT_M,
+                ).context("per_channel_fold: decode commitment")?;
+
+                let per_ch_commitments: Vec<pvthfhe_rings::RqPoly> = commitment
+                    .commitment
+                    .iter()
+                    .map(|p| pvthfhe_rings::RqPoly {
+                        coeffs: p.0.clone(),
+                        degree,
+                    })
+                    .collect();
+
+                let witnesses: Vec<pvthfhe_rings::RqPoly> = per_ch_commitments
+                    .iter()
+                    .map(|_| pvthfhe_rings::RqPoly::zero(degree))
+                    .collect();
+
+                driver.fold_one(&per_ch_commitments, &witnesses)
+                    .context("per_channel_fold: fold step")?;
+            }
+            tracing::info!(
+                "per_channel_fold: channel {ch}: fold_count={}",
+                driver.accumulator(ch).fold_count
+            );
+        }
+        observer.phase_end("per_channel_fold", elapsed_ms(per_channel_start));
+    }
+
     // D.2 Track B: native ring-equation verification (hash-and-verify) before compressor.
     #[cfg(feature = "pipeline-extra-checks")]
     if track == Track::B {

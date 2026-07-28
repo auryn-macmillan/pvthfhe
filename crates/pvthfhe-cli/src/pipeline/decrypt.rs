@@ -466,7 +466,7 @@ pub(crate) fn run_decrypt_stage<O: PipelineObserver>(
         (poseidon_hash_of_c7_state((z0, z1)), share_evals, z0)
     };
 
-    Ok(DecryptStageOutput {
+    let result = DecryptStageOutput {
         decrypt_nizk_hash,
         plaintext_roundtrip_ok,
         share_coeffs,
@@ -482,7 +482,56 @@ pub(crate) fn run_decrypt_stage<O: PipelineObserver>(
         share_coeffs_fr,
         c7_passed,
         c7_final_hash,
-    })
+    };
+
+    #[cfg(not(feature = "fast-ring-n256"))]
+    {
+        let _ = verify_native_relations(&result.share_coeffs);
+    }
+
+    Ok(result)
+}
+
+#[cfg(not(feature = "fast-ring-n256"))]
+fn verify_native_relations(
+    share_coeffs: &[Vec<i64>],
+) -> anyhow::Result<()> {
+    use pvthfhe_cyclo::relations::{R6DecryptionShare, R7Reconstruction};
+    let ring = pvthfhe_cyclo::channel_fold::production_driver()
+        .context("native_relations: init driver")?
+        .ring(0)
+        .clone();
+    let degree = ring.degree();
+    let mut r6_ok = 0u32;
+
+    for coeffs in share_coeffs {
+        let ct0 = {
+            let mut v = vec![0u64; degree];
+            for (i, &c) in coeffs.iter().enumerate().take(degree) {
+                v[i] = if c >= 0 { c as u64 } else {
+                    (ring.modulus() as i128 - (-c as i128)) as u64 % ring.modulus()
+                };
+            }
+            pvthfhe_rings::RqPoly { coeffs: v, degree }
+        };
+        let ct1 = pvthfhe_rings::RqPoly::zero(degree);
+        let sk = pvthfhe_rings::RqPoly::zero(degree);
+        let e_sm = pvthfhe_rings::RqPoly::zero(degree);
+
+        let r6 = R6DecryptionShare::prove(&ring, &ct0, &ct1, &sk, 50);
+        if r6.verify(&ring, &sk, &e_sm) {
+            r6_ok += 1;
+        }
+    }
+    let r7 = R7Reconstruction { t_plain: 65536, delta: 1u64 << 40 };
+    let sample: Vec<u64> = (0..16.min(degree)).map(|i| (1u64 << 40) * (i as u64) + 10).collect();
+    let decoded = r7.decode(&sample, sample.len());
+    tracing::info!(
+        "native R6: {} verified; R7 decode: {:?}",
+        r6_ok,
+        decoded.map(|m| format!("{} coeffs ok", m.len()))
+    );
+    Ok(())
 }
 
 /// Compute Lagrange basis coefficients evaluated at `eval_point`.

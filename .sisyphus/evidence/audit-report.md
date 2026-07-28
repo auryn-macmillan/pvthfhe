@@ -90,9 +90,9 @@ These are classified as **Open Problems**, as documented in the project README.
 
 ## 6. Honesty Statement
 
-The PVTHFHE prototype, following the skeptical audit remediations, is an honest research artifact. 
+The PVTHFHE prototype, following the skeptical audit remediations, is an honest research artifact.
 
-- **Delivered**: Real threshold Shamir keygen (P4), real σ-protocol NIZK equations (P1), and norm-bound enforcement in the folding layer (P2). 
-- **Simulated**: Linear commitments in P2 and SNARK verification in P3. 
+- **Delivered**: Real threshold Shamir keygen (P4), real σ-protocol NIZK equations (P1), and norm-bound enforcement in the folding layer (P2).
+- **Simulated**: Linear commitments in P2 and SNARK verification in P3.
 
 The audit has successfully removed deceptive "soundness" claims, synchronized the paper with the implementation, and established a robust adversarial testing baseline. The project accurately represents the current state of its research goals and explicitly labels its simulated components.

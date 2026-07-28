@@ -1,6 +1,6 @@
 # P2 Folding Code-Path Reachability (T8)
 
-**Updated:** 2026-05-03  
+**Updated:** 2026-05-03
 **Scope:** `crates/pvthfhe-aggregator/src/` + downstream crates (bench, CLI, tests)
 
 ---

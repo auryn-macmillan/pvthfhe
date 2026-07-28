@@ -2,7 +2,7 @@
 
 ## Finding
 
-`P3RealVerifier.sol` is a vacuous trusted-signer authenticator.  
+`P3RealVerifier.sol` is a vacuous trusted-signer authenticator.
 It accepts **any** false FHE claim as long as the trusted signer endorses it.
 
 ## Hardcoded Signer Address
@@ -56,6 +56,6 @@ An adversary controlling `TRUSTED_SIGNER`'s private key can:
 
 ## Conclusion
 
-`P3RealVerifier` is a placeholder / surrogate implementation (Option C per its own NatSpec).  
-It satisfies the *interface* but provides zero FHE soundness guarantees.  
+`P3RealVerifier` is a placeholder / surrogate implementation (Option C per its own NatSpec).
+It satisfies the *interface* but provides zero FHE soundness guarantees.
 Any party with access to the trusted-signer private key can forge arbitrary decryption results on-chain.

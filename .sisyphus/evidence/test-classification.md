@@ -1,6 +1,6 @@
 # Test Classification Audit
 
-**Date:** 2026-05-03  
+**Date:** 2026-05-03
 **Task:** T5 — Enumerate every test; classify REAL / WEAK / TRIVIAL / MOCK.
 
 ## Rubric

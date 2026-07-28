@@ -1,6 +1,6 @@
 # SURROGATE Reachability Matrix
 
-Generated: 2026-05-03  
+Generated: 2026-05-03
 Method: grep reference tracing + `cargo build` / `cargo build --tests` / `cargo build --release`
 
 ---
@@ -86,7 +86,7 @@ Method: grep reference tracing + `cargo build` / `cargo build --tests` / `cargo 
 All three profiles succeeded with exit code 0:
 
 - `cargo build` — `Finished dev profile` in 9.38s
-- `cargo build --tests` — `Finished dev profile` in 12.91s  
+- `cargo build --tests` — `Finished dev profile` in 12.91s
 - `cargo build --release` — `Finished release profile` in 18.53s
 
 Full logs: `.sisyphus/evidence/audit-surrogate/cargo-build.log`

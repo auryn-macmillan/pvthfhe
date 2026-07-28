@@ -1,8 +1,8 @@
 # Cast Risk Audit — `crates/pvthfhe-keygen/src/hermine.rs`
 
-Generated: 2026-05-03  
-Grep command: `grep -nE ' as [a-z_][a-z0-9_]*' crates/pvthfhe-keygen/src/hermine.rs`  
-Raw output: `.sisyphus/evidence/audit-cast/grep-casts.log`  
+Generated: 2026-05-03
+Grep command: `grep -nE ' as [a-z_][a-z0-9_]*' crates/pvthfhe-keygen/src/hermine.rs`
+Raw output: `.sisyphus/evidence/audit-cast/grep-casts.log`
 `wc -l` result: **18** (16 code casts + 2 comment false-positives)
 
 ---

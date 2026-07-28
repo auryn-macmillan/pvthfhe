@@ -1,7 +1,7 @@
 # F3 Final QA Report
 
-**Date:** 2026-05-02  
-**Executor:** Sisyphus-Junior  
+**Date:** 2026-05-02
+**Executor:** Sisyphus-Junior
 **Working Directory:** /home/dev/pvthfhe
 
 ---
@@ -172,7 +172,7 @@ Evidence: `.sisyphus/evidence/task-43-tolerance.log`
 
 All QA scenarios pass. No failures detected across:
 - 46 Rust unit/integration tests
-- 16 Noir circuit tests  
+- 16 Noir circuit tests
 - 18 Foundry contract tests
 - E2E demo (n=128, full pipeline)
 - 4/4 scaling bench JSON envelopes

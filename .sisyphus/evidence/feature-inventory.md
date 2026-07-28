@@ -1,6 +1,6 @@
 # PVTHFHE Feature Inventory
 
-Generated: 2026-05-04  
+Generated: 2026-05-04
 Task: redteam-stage0-killswitch — gate mock backends behind opt-in env var
 
 ## Summary of Changes
@@ -129,6 +129,6 @@ PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK=1 cargo test -p pvthfhe-fhe --features mock
 PVTHFHE_I_UNDERSTAND_THIS_IS_A_MOCK=1 cargo run -p pvthfhe-cli --features mock -- demo --n 4
 ```
 
-Without the env var, any mock code path will **panic** immediately.  
-Without the `mock` feature, `Commands::Demo` returns a sentinel error.  
+Without the env var, any mock code path will **panic** immediately.
+Without the `mock` feature, `Commands::Demo` returns a sentinel error.
 Without the `mock` feature, `FhersBackend` primitives return `FheError::Backend` sentinel.

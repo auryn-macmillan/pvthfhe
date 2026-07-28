@@ -14,7 +14,7 @@ Each construction is rated on three independent axes:
 | **Proof** | `PROVED` / `PARTIAL` / `GAP` |
 | **Test** | `ADVERSARIAL` / `REGRESSION-ONLY` / `INSUFFICIENT` |
 
-Overall **Severity**: `CRITICAL` / `HIGH` / `MEDIUM` / `LOW` / `NONE`  
+Overall **Severity**: `CRITICAL` / `HIGH` / `MEDIUM` / `LOW` / `NONE`
 Overall **Confidence**: `HIGH` / `MEDIUM` / `LOW`
 
 ---

@@ -1,6 +1,7 @@
 //! Public extraction helpers: parse opaque Cyclo NIZK proof bytes back into
 //! sigma statements/proofs, Ajtai commitments, and CCS witness encodings.
 
+use crate::ajtai::{AJTAI_RANK, PHI};
 use crate::sigma;
 use crate::{NizkError, NizkStatement};
 
@@ -24,7 +25,7 @@ pub fn extract_sigma_proof(proof_bytes: &[u8]) -> Result<(Vec<u64>, sigma::Sigma
     }
 
     cur.skip(32)?; // ccs_instance_id
-    cur.skip(26_624)?; // ajtai_commitment
+    cur.skip(AJTAI_RANK * PHI * 8)?; // ajtai_commitment
 
     let _sid = cur.read_len_prefixed_bytes()?;
     let _pid = cur.read_u16()?;
@@ -91,8 +92,7 @@ pub fn extract_sigma_statement_and_proof(
         });
     }
 
-    cur.skip(26_624)?; // ajtai_commitment
-    let _sid = cur.read_len_prefixed_bytes()?;
+    cur.skip(AJTAI_RANK * PHI * 8)?; // ajtai_commitment
     let _pid = cur.read_u16()?;
     let _commitment: [u8; 32] =
         cur.read_exact(32)?
@@ -120,7 +120,7 @@ pub fn extract_sigma_statement_and_proof(
 /// and is exactly 26,624 bytes (13 ring elements × 256 coeffs × 8 bytes).
 pub fn extract_ajtai_commitment_from_proof(proof_bytes: &[u8]) -> Result<Vec<u8>, NizkError> {
     const AJTAI_OFFSET: usize = 2 + 32; // version(u16 BE) + ccs_instance_id([u8; 32])
-    const AJTAI_LEN: usize = 26_624;
+    const AJTAI_LEN: usize = AJTAI_RANK * PHI * 8;
     if proof_bytes.len() < AJTAI_OFFSET + AJTAI_LEN {
         return Err(NizkError::InvalidProof {
             reason: "proof too short for Ajtai commitment",
@@ -148,7 +148,7 @@ pub fn extract_ccs_witness_from_proof(proof_bytes: &[u8]) -> Result<Vec<u8>, Niz
     }
 
     cur.skip(32)?; // ccs_instance_id
-    cur.skip(26_624)?; // ajtai_commitment
+    cur.skip(AJTAI_RANK * PHI * 8)?; // ajtai_commitment
     let _ = cur.read_len_prefixed_bytes()?; // session_id
     let _ = cur.read_u16()?; // participant_id
     cur.skip(32)?; // sha256_binding

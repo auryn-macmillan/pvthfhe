@@ -172,7 +172,7 @@ pub(super) fn expand_c_rns(seed: &[u8; 32]) -> Result<Vec<u64>, NizkError> {
 /// hold the witness s).  Combined with the sigma proof, this ensures the commitment
 /// is well-formed and bound to the sigma transcript.
 pub(super) fn verify_ajtai_commitment(bytes: &[u8]) -> Result<(), NizkError> {
-    if bytes.len() != 26_624 {
+    if bytes.len() != AJTAI_RANK * PHI * 8 {
         return Err(NizkError::InvalidProof {
             reason: "ajtai commitment: wrong byte length",
             party_id: None,
@@ -228,7 +228,7 @@ pub(super) fn verify_ajtai_commitment(bytes: &[u8]) -> Result<(), NizkError> {
 /// Deserialize an Ajtai commitment from its canonical byte representation.
 #[allow(dead_code)]
 fn deserialize_ajtai_commitment(bytes: &[u8]) -> Result<AjtaiCommitment, NizkError> {
-    if bytes.len() != 26_624 {
+    if bytes.len() != AJTAI_RANK * PHI * 8 {
         return Err(NizkError::InvalidProof {
             reason: "ajtai commitment: wrong byte length",
             party_id: None,
@@ -279,7 +279,7 @@ pub(super) fn ajtai_sigma_session_binding(
 }
 
 pub(super) fn serialize_ajtai_commitment(ajtai: &AjtaiCommitment) -> Vec<u8> {
-    let mut out = Vec::with_capacity(26_624);
+    let mut out = Vec::with_capacity(AJTAI_RANK * PHI * 8);
     for elem in &ajtai.elems {
         for &c in &elem.coeffs {
             out.extend_from_slice(&c.to_le_bytes());

@@ -141,36 +141,37 @@ pub(crate) fn run_fold_stage<O: PipelineObserver>(
         observer.phase_start("per_channel_fold", Some("per-channel-q0-q1-q2"));
         let mut driver = init_per_channel_driver()
             .context("per_channel_fold: failed to init driver")?;
-        let driver_chan_count = driver.channel_count();
+        let chan_count = driver.channel_count();
         let degree = driver.ring(0).degree();
 
-        for ch in 0..driver_chan_count {
-            for instance in &fold_instances {
-                let commitment = pvthfhe_cyclo::ajtai::decode_commitment(
-                    instance.ajtai_commitment_bytes.as_slice(),
-                    pvthfhe_cyclo::fold::AJTAI_COMMITMENT_M,
-                ).context("per_channel_fold: decode commitment")?;
+        for instance in &fold_instances {
+            let commitment = pvthfhe_cyclo::ajtai::decode_commitment(
+                instance.ajtai_commitment_bytes.as_slice(),
+                pvthfhe_cyclo::fold::AJTAI_COMMITMENT_M,
+            ).context("per_channel_fold: decode commitment")?;
 
-                let per_ch_commitments: Vec<pvthfhe_rings::RqPoly> = commitment
-                    .commitment
-                    .iter()
-                    .map(|p| pvthfhe_rings::RqPoly {
-                        coeffs: p.0.clone(),
-                        degree,
-                    })
-                    .collect();
+            let per_ch_commitments: Vec<pvthfhe_rings::RqPoly> = (0..chan_count)
+                .map(|ch| {
+                    if let Some(ring_elem) = commitment.commitment.get(ch) {
+                        pvthfhe_rings::RqPoly { coeffs: ring_elem.0.clone(), degree }
+                    } else {
+                        pvthfhe_rings::RqPoly::zero(degree)
+                    }
+                })
+                .collect();
 
-                let witnesses: Vec<pvthfhe_rings::RqPoly> = per_ch_commitments
-                    .iter()
-                    .map(|_| pvthfhe_rings::RqPoly::zero(degree))
-                    .collect();
+            let witnesses: Vec<pvthfhe_rings::RqPoly> = (0..chan_count)
+                .map(|_| pvthfhe_rings::RqPoly::zero(degree))
+                .collect();
 
-                driver.fold_one(&per_ch_commitments, &witnesses)
-                    .context("per_channel_fold: fold step")?;
-            }
+            driver.fold_one(&per_ch_commitments, &witnesses)
+                .context("per_channel_fold: fold step")?;
+        }
+        for ch in 0..chan_count {
             tracing::info!(
-                "per_channel_fold: channel {ch}: fold_count={}",
-                driver.accumulator(ch).fold_count
+                "per_channel_fold: channel {ch}: fold_count={} dt={:?}",
+                driver.accumulator(ch).fold_count,
+                driver.ring(ch).modulus(),
             );
         }
         observer.phase_end("per_channel_fold", elapsed_ms(per_channel_start));

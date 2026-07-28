@@ -87,6 +87,21 @@ impl<R: FoldRing> ChannelFoldDriver<R> {
     }
 }
 
+/// Create a per-channel fold driver with production ring parameters (N=8192, 3 RNS channels).
+///
+/// This is the entry point for the pipeline to switch from single-ring N=256
+/// folding to native per-channel folding. Each channel uses the corresponding
+/// fhe.rs RNS prime (q0/q1/q2).
+#[cfg(not(feature = "fast-ring-n256"))]
+pub fn production_driver() -> Result<ChannelFoldDriver<pvthfhe_rings::FheMathRing>, CycloError> {
+    let channels = pvthfhe_rings::RnsChannels::production()
+        .map_err(|_| CycloError::InvalidInstance("failed to init production channels"))?;
+    let rings: Vec<pvthfhe_rings::FheMathRing> = (0..channels.count())
+        .map(|i| channels.get(i).clone())
+        .collect();
+    Ok(ChannelFoldDriver::new(rings))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1,9 +1,10 @@
 \documentclass{llncs}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Lattice-native BFV sigma protocol (v4) with per-share NIZK verification
-% LatticeFold+ lattice-native folding (sole backend); Track A (Nova BN254+Grumpkin) removed June 2026
+% LatticeFold+ per-channel native folding (pvthfhe-rings, pvthfhe-cyclo); Track A removed June 2026
 % committed-smudge decryption; G2 full in-circuit Poseidon commitment verification
-% Real UltraHonk Solidity verifier (N=65536, 28 G1 points)
+% Per-channel RNS rings (q0/q1/q2 from fhe.rs, N=8192) eliminate GRECO overhead; G-N8 RESOLVING
+% UltraHonk decider-wrapper Solidity verifier (target: N=65536, 28 G1 points)
 % Research prototype — do not use for The Interfold or any production deployment
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Paper strategy: UNIFIED (see .sisyphus/design/p2/paper-strategy-decision.md, C.D.5 APPROVE)
@@ -178,13 +179,17 @@ the front-end.
 An earlier prototype used Sonobe Nova IVC over BN254/Grumpkin; this was
 replaced by LatticeFold+ (now~\S\ref{sec:p2}) in June~2026.
 
-The Cyclo crate (\texttt{pvthfhe-cyclo}) provides:
+The Cyclo crate (\texttt{pvthfhe-cyclo}) and the per-channel rings crate (\texttt{pvthfhe-rings}) provide:
 \texttt{fold\_one\_deterministic}, \texttt{verify\_fold},
 \texttt{check\_satisfiability} (real CCS relation $M \cdot z \odot z = 0$
-over BN254 $\mathbb{F}_r$), Ajtai lattice commitments ($Q_{\text{commit}} =
-2^{49}$, 13~ring elements $\times$ 256~coeffs), and Fiat-Shamir challenge
-derivation (\texttt{challenge\_v2} with \texttt{params\_digest} binding).
-All 15~Cyclo tests pass including forgery resistance.
+over BN254 $\mathbb{F}_r$), per-channel Ajtai lattice commitments (three RNS
+primes $q_0,q_1,q_2$ at $\approx 2^{58}$ each, $N=8192$ cyclotomic rings),
+and Fiat-Shamir challenge derivation (\texttt{challenge\_v2} with
+\texttt{params\_digest} binding).  All 32~Cyclo tests pass including forgery
+resistance.  In progress: native per-channel folding (branch
+\texttt{feat/native-per-channel}) replaces the single-ring N=256 commitment
+path with independent LatticeFold+ tracks per RNS prime, eliminating the
+Noir circuit ring-dimension ceiling (G-N8).
 
 (The heterogeneous IVC prototype previously evaluated here — a MicroNova
 compressor with LatticeFoldTreeCircuitFamily — was retired with the

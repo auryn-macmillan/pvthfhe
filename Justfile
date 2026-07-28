@@ -15,11 +15,11 @@ demo-e2e n="10" t="4" seed="1":
     @echo "*** PVTHFHE end-to-end demo (research prototype) ***"
     @echo "* Supported range: 1 <= t <= n <= 255 (Shamir over GF(256)) *"
     @echo "* Backends: LaZer sigma proofs + LatticeFold+ folding (post-quantum) *"
-    @echo "* Ring: N=256 (single-ring Cyclo fold, fast dev path) *"
+    @echo "* Ring: N=8192 (per-channel native folding, 3 RNS channels) *"
     @echo "* DO NOT DEPLOY — research prototype only                                 *"
     mkdir -p .sisyphus/evidence
     export PVTHFHE_RUN_C7_SONOBE=1
-    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 RUSTFLAGS="-Awarnings" cargo run --release -p pvthfhe-cli --features "real-compressor,demo-seeded-rng,pipeline-extra-checks,enable-lazer,enable-latticefold,fast-ring-n256" -- \
+    PVTHFHE_I_UNDERSTAND_INSECURE_RNG=1 RUSTFLAGS="-Awarnings" cargo run --release -p pvthfhe-cli --features "real-compressor,demo-seeded-rng,pipeline-extra-checks,enable-lazer,enable-latticefold" -- \
         demo --n $(echo "{{n}}" | sed 's/^n=//') --threshold $(echo "{{t}}" | sed 's/^t=//') --seed $(echo "{{seed}}" | sed 's/^seed=//') \
         2>&1 | tee .sisyphus/evidence/demo-e2e.log
     @echo "*** On-chain verification ***"

@@ -13,6 +13,7 @@
 
 #![allow(missing_docs)]
 
+pub mod channel_fold;
 pub mod accumulator_codec;
 pub mod adapter;
 pub mod ajtai;

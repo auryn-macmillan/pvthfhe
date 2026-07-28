@@ -6,6 +6,7 @@ license = "MIT"
 
 [dependencies]
 pvthfhe-foundations = { path = "../pvthfhe-foundations" }
+pvthfhe-rings = { path = "../pvthfhe-rings" }
 thiserror = "1"
 sha2 = "0.10"
 rand_core = "0.6"

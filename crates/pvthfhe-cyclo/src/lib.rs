@@ -1,7 +1,17 @@
 //! Cyclo LatticeFold+ backend for PVTHFHE Phase 2.
 //!
-//! Implements sequential T=10 folding of per-share CCS instances over
-//! R_{q_commit} = Z_{q_commit}\[X\]/(X^256+1).
+//! Two folding paths, selected at compile time:
+//!
+//! - **`fast-ring-n256`** (feature-enabled, default for development): single
+//!   commitment ring `R_{q_commit} = Z_{q_commit}[X]/(X^256+1)` with sequential
+//!   T=10 folding of per-share CCS instances.  This preserves backward
+//!   compatibility with the existing test suite and Noir circuit pipeline.
+//!
+//! - **Native per-channel** (default when `fast-ring-n256` is NOT enabled):
+//!   per-RNS-prime rings at N=8192 via [`pvthfhe_rings`], with L+1 independent
+//!   fold tracks, binary fold trees, and native R4/R6/R7 relations.  This
+//!   eliminates the Noir circuit ceiling (G-N8) and GRECO quotient-witness
+//!   overhead.
 //!
 //! # Security — Phase 2 Status
 //!

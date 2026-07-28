@@ -103,13 +103,18 @@ impl FastParams {
     /// Commitment modulus q_commit = 2^49 (50-bit prime ≡ 1 mod 512).
     pub const Q_COMMIT: u64 = 562_949_953_438_721;
 
+    /// Decomposition base B = 2^16.
     pub const B: u64 = 1u64 << 16;
+    /// Limb count for balanced decomposition.
     pub const LIMB_COUNT: usize = 4;
 
+    /// Single-channel fast-test parameters.
+    /// Single-channel fast-test parameters.
     pub fn channel() -> ChannelParams {
         ChannelParams { degree: Self::DEGREE, modulus: Self::Q_COMMIT, decomposition_base: Self::B, limb_count: Self::LIMB_COUNT }
     }
 
+    /// Validate fast-test channel parameters.
     pub fn validate_all() -> Result<(), String> {
         Self::channel().validate()
     }

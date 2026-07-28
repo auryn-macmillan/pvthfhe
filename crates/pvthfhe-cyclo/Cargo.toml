@@ -21,5 +21,11 @@ rand_chacha = "0.3"
 syn = { version = "2", features = ["full"] }
 walkdir = "2"
 
+[features]
+default = []
+# Use N=256 commitment ring (current single-ring path) for fast development.
+# Without this feature, the per-channel native folding path (N=8192) is enabled.
+fast-ring-n256 = ["pvthfhe-rings/fast-ring-n256"]
+
 [lints]
 workspace = true

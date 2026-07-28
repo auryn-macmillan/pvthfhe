@@ -140,7 +140,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
     )?;
 
     // ── Cyclo fold (Track B norm/ring checks, G7 post-fold NIZK re-verify) ──
-    let fold_report = super::fold::run_fold_stage(
+    let (fold_report, per_channel_digests) = super::fold::run_fold_stage(
         cfg,
         &prove_out.nizk_outputs,
         enc_out.ct_hash,
@@ -194,6 +194,7 @@ pub fn run_full_pipeline<O: PipelineObserver>(
         &dec_out.share_coeffs_fr,
         &dec_out.lagrange_coeffs_fr,
         &dec_out.party_ids_fr,
+        per_channel_digests,
         observer,
     )?;
 

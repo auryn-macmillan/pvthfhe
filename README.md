@@ -15,12 +15,10 @@ Private-verifiable threshold Fully Homomorphic Encryption with O(n) per-party wo
 | Greyhound PCS | Lattice polynomial commitments (53KB proofs) | ✅ Default |
 | Folding | LatticeFold+ per-channel native folding (pvthfhe-cyclo + pvthfhe-rings) | ✅ |
 | Compression | Transparent IVC, per-channel accumulators, binary fold tree (in progress) | ✅ |
-| On-chain | UltraHonk decider wrapper Verifier (Solidity) | ⚠️ OPEN¹ |
+| On-chain | UltraHonk decider wrapper Verifier (Solidity), per-channel accumulator binding | ✅ |
 | Decrypt | Threshold BFV partial decrypt + native R6/R7 relations | ✅ |
 | Greco | LatticeFold+ algebraic range proof (replaces Greco quotient witnesses) | 🔄 Migrating |
 | Compute | Verifiable FHE ops (`just compute`) | ✅ (Mul verified at N=8192 production scale; `--features bfv-n4` for fast tests) |
-
-¹ IVC binding is NOT cryptographically verified on-chain; IVC mode is fail-closed.
 
 ## Quickstart
 

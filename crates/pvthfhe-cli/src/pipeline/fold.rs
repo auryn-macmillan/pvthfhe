@@ -11,6 +11,7 @@ use pvthfhe_fhe::real_nizk::{LatticeNizk, NizkProof, NizkStatement, NizkWitness,
 use pvthfhe_foundations::domain_tags::Tag;
 use pvthfhe_foundations::rng::OsRng;
 use pvthfhe_foundations::types::{CcsWitnessSecret, ProtocolBytes};
+use pvthfhe_foundations::types::verification_statement::noir_bn254_sponge;
 use pvthfhe_nizk::sigma::compute_sigma_sz_data;
 use sha2::{Digest, Sha256};
 use std::time::Instant;
@@ -26,7 +27,9 @@ pub(crate) fn run_fold_stage<O: PipelineObserver>(
     track: Track,
     observer: &mut O,
     timings: &mut E2eTimings,
-) -> anyhow::Result<CycloFoldAllReport> {
+) -> anyhow::Result<(CycloFoldAllReport, Option<[ark_bn254::Fr; 4]>)> {
+    let mut per_channel_digests: Option<[ark_bn254::Fr; 4]> = None;
+
     let nizk_refs: Vec<_> = nizk_outputs
         .iter()
         .map(|(pid, stmt, wit, _proof)| (*pid, stmt, wit))
@@ -175,6 +178,19 @@ pub(crate) fn run_fold_stage<O: PipelineObserver>(
             );
         }
         observer.phase_end("per_channel_fold", elapsed_ms(per_channel_start));
+
+        let mut digests = [ark_bn254::Fr::from(0u64); 4];
+        for ch in 0..chan_count.min(4) {
+            let acc = driver.accumulator(ch);
+            let coeffs_fr: Vec<ark_bn254::Fr> = acc.commitment.coeffs.iter()
+                .take(16)
+                .map(|&c| ark_bn254::Fr::from(c))
+                .collect();
+            let hash = noir_bn254_sponge(&coeffs_fr)
+                .unwrap_or(ark_bn254::Fr::from(0u64));
+            digests[ch] = hash;
+        }
+        per_channel_digests = Some(digests);
     }
 
     // D.2 Track B: native ring-equation verification (hash-and-verify) before compressor.
@@ -371,7 +387,7 @@ pub(crate) fn run_fold_stage<O: PipelineObserver>(
         observer.phase_end("g7_nizk_verify", g7_ms);
     }
 
-    Ok(fold_report)
+    Ok((fold_report, per_channel_digests))
 }
 
 /// Build fold instances from the R3 NIZK outputs (statement + witness per party)

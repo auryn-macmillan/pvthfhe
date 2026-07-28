@@ -37,6 +37,7 @@ pub(crate) fn run_onchain_stage<O: PipelineObserver>(
     share_coeffs_fr: &[Vec<Fr>],
     lagrange_coeffs_fr: &[Fr],
     party_ids_fr: &[Fr],
+    per_channel_digests: Option<[Fr; 4]>,
     observer: &mut O,
 ) -> anyhow::Result<bool> {
     // Noir aggregator_final circuit verification (always executes for on-chain security)
@@ -398,6 +399,28 @@ pub(crate) fn run_onchain_stage<O: PipelineObserver>(
         let circuit_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../circuits/decider_wrapper");
         let prover_toml = circuit_dir.join("Prover.toml");
+
+        if let Some(digests) = per_channel_digests {
+            let composite_hash = noir_bn254_sponge(&[
+                digests[0], digests[1], digests[2], digests[3],
+            ]).unwrap_or(Fr::from(0u64));
+
+            let dkg_hash = Fr::from_be_bytes_mod_order(&decrypt_nizk_hash);
+            let mut toml = String::new();
+            toml.push_str(&format!("acc_q0_digest = \"{}\"\n", hex_fr(digests[0])));
+            toml.push_str(&format!("acc_q1_digest = \"{}\"\n", hex_fr(digests[1])));
+            toml.push_str(&format!("acc_q2_digest = \"{}\"\n", hex_fr(digests[2])));
+            toml.push_str(&format!("acc_p_digest = \"{}\"\n", hex_fr(digests[3])));
+            toml.push_str(&format!("ciphertext_hash = \"{}\"\n", hex_fr(all_nizk_proof_hash)));
+            toml.push_str(&format!("aggregate_pk_hash = \"{}\"\n", hex_fr(compressed_proof_hash)));
+            toml.push_str(&format!("decrypt_nizk_hash = \"{}\"\n", hex_fr(dkg_hash)));
+            toml.push_str(&format!("dkg_transcript_hash = \"{}\"\n", hex_fr(combined_share_hash)));
+            toml.push_str(&format!("session_id = \"{}\"\n", hex_fr(compressed_proof_hash)));
+            toml.push_str(&format!("ccs_relation_digest = \"{}\"\n", hex_fr(composite_hash)));
+            toml.push_str(&format!("expected_plaintext_commitment = \"{}\"\n", hex_fr(composite_hash)));
+
+            let _ = std::fs::write(&prover_toml, toml);
+        }
 
         if prover_toml.exists() {
             let bb = std::env::var("PVTHFHE_BB_PATH").unwrap_or_else(|_| "bb".to_string());
@@ -1100,4 +1123,8 @@ mod tests {
             "Noir aggregator_final requires decrypt_nizk_hash as a public input"
         );
     }
+}
+fn hex_fr(f: ark_bn254::Fr) -> String {
+    let bytes = f.into_bigint().to_bytes_be();
+    format!("0x{}", hex::encode(bytes))
 }

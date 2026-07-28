@@ -17,7 +17,7 @@ Private-verifiable threshold Fully Homomorphic Encryption with O(n) per-party wo
 | Compression | Transparent IVC, per-channel accumulators, binary fold tree (in progress) | ✅ |
 | On-chain | UltraHonk decider wrapper Verifier (Solidity), per-channel accumulator binding | ✅ |
 | Decrypt | Threshold BFV partial decrypt + native R6/R7 relations | ✅ |
-| Greco | LatticeFold+ algebraic range proof (replaces Greco quotient witnesses) | 🔄 Migrating |
+| Greco | LatticeFold+ algebraic range proof (replaces Greco quotient witnesses) | ✅ |
 | Compute | Verifiable FHE ops (`just compute`) | ✅ (Mul verified at N=8192 production scale; `--features bfv-n4` for fast tests) |
 
 ## Quickstart

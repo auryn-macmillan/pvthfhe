@@ -53,6 +53,7 @@ use crate::sigma::{self, rlwe_n, SigmaStatement, SigmaWitness};
 use crate::{NizkAdapter, NizkError, NizkProof, NizkStatement, NizkWitness, BACKEND_ID};
 
 use codec::{decode_sigma_section_multi, encode_proof_multi, Cursor};
+use crate::ajtai::{AJTAI_RANK, PHI};
 use cyclo::{
     ajtai_sigma_session_binding, compute_ajtai_commitment, compute_ccs_instance_id,
     derive_epoch_crs_seed, expand_c_rns, serialize_ajtai_commitment, verify_accumulator_transcript,
@@ -195,7 +196,7 @@ impl NizkAdapter for CycloNizkAdapter {
             });
         }
 
-        let ajtai_commitment_bytes = cur.read_exact(26_624)?.to_vec();
+        let ajtai_commitment_bytes = cur.read_exact(AJTAI_RANK * PHI * 8)?.to_vec();
 
         // P1.1: Verify algebraic structure of the Ajtai commitment.
         verify_ajtai_commitment(&ajtai_commitment_bytes)?;

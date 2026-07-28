@@ -91,25 +91,6 @@ pub fn fold_one_generic<R: FoldRing>(
     }
 }
 
-/// Serialize a ring element to bytes for hashing.
-fn poly_to_bytes<R: FoldRing>(ring: &R, poly: &R::Poly) -> Result<Vec<u8>, CycloError> {
-    // Decompose into limbs and concatenate limb coefficients
-    let limbs = ring.decompose(poly, 1 << 16, 4);
-    let mut bytes = Vec::new();
-    for limb in &limbs {
-        let limb_bytes = poly_to_bytes_inner(ring, limb)?;
-        bytes.extend_from_slice(&limb_bytes);
-    }
-    Ok(bytes)
-}
-
-fn poly_to_bytes_inner<R: FoldRing>(ring: &R, _poly: &R::Poly) -> Result<Vec<u8>, CycloError> {
-    // Use recompose as a no-op round-trip to get coefficient access
-    // In practice: extract coefficients via the ring's decomposition.
-    // Stub: return fixed bytes for now (real impl needs coefficient access trait).
-    let _ = ring.degree();
-    Ok(vec![0u8; 32])
-}
 
 /// Derive a ternary challenge from two byte slices via SHA-256 + rejection sampling.
 fn ternary_challenge_from_hashes(a: &[u8], b: &[u8]) -> i8 {

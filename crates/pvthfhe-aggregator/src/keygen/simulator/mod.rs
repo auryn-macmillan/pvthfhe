@@ -315,6 +315,7 @@ impl KeygenSimulator {
                 seed.copy_from_slice(&h.finalize());
             }
             let mut rng = ChaCha8Rng::from_seed(seed); // allow-seeded-rng: deterministic simulator
+            let (sk, pk) = generate_signing_keypair(&mut rng);
             schnorr_sks.insert(party_id, sk);
             schnorr_pks.insert(party_id, pk);
         }

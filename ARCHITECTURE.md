@@ -27,12 +27,13 @@ PVTHFHE targets private-verifiable threshold FHE with O(n) per-party work and O(
 
 The pipeline uses three proving backends: **LatticeFold+** (lattice-native folding with Cyclo RLWE), **Noir UltraHonk** (final aggregation and wrapping), and **HonkVerifier.sol** (Solidity on-chain). The on-chain commitment binds the accumulator state hash and public inputs; full cryptographic verification of the folding proof on-chain is the open P4 problem.
 
-## Workspace Crate Map (14 crates)
+## Workspace Crate Map (15 crates)
 
 | Crate | Responsibility |
 | :--- | :--- |
 | `pvthfhe-foundations` | Shared leaf layer: `types` (byte newtypes, verification statement), `domain_tags` (single source of domain separators), `wire` (versioned envelope), `rng` (OsRng facade, seeded-RNG enforcement point) |
-| `pvthfhe-cyclo` | LatticeFold+ folding backend: fold driver, NIFS, decomposition, Ajtai commitments, ring/NTT, CCS relations |
+| `pvthfhe-rings` | Per-channel cyclotomic ring types: `FheMathRing` (NTT-accelerated over fhe-math), `RnsChannels` (multi-channel context), production parameters (q0/q1/q2 primes from fhe.rs) |
+| `pvthfhe-cyclo` | LatticeFold+ folding backend: fold driver, NIFS, decomposition, Ajtai commitments, ring/NTT, CCS relations, per-channel `ChannelFoldDriver`, native R4/R6/R7 relations |
 | `pvthfhe-nizk` | `NizkAdapter` trait + sigma protocols (Ajtai D2, BFV sigma, schnorr), Fiat-Shamir, LaZer bridge |
 | `pvthfhe-fhe` | `FheBackend` trait + `fhers` (gnosisguild/fhe.rs BFV — the F1-locked backend) + mock backend for tests |
 | `pvthfhe-pvss` | PVSS/DKG home: dealing, share computation, DKG aggregation, key escrow, AVID, shamir, keygen adapter + frozen keygen spec types, decrypt/share/keygen NIZKs |
@@ -48,7 +49,7 @@ The pipeline uses three proving backends: **LatticeFold+** (lattice-native foldi
 
 ## RLWE Parameters
 
-Standardized secure parameters for 128-bit security: **N** = 8192, **L** = 3 RNS limbs, **log₂(Q)** ≈ 174 bits, **t_plain** = 2¹⁷. Fast-test path at N=4 via `--features bfv-n4`; Noir circuits currently run at N=256 (Noir beta.22 ACIR OOM at N=8192 — see WARNING.md).
+Standardized secure parameters for 128-bit security: **N** = 8192, **L** = 3 RNS limbs (q0, q1, q2 at ~58 bits each from fhe.rs), **log₂(Q)** ≈ 174 bits, **t_plain** = 2¹⁷. Per-channel folding uses one `FheMathRing` per RNS prime via `pvthfhe-rings`; the reconstruction track uses a large prime P > Q for the R7 CRT decode. Fast-test path at N=256 via `--features fast-ring-n256`; Noir circuits currently run at N=256 (Noir beta.22 ACIR OOM at N=8192 — see WARNING.md). The native per-channel architecture (in progress) eliminates this ceiling by proving directly over each RNS prime, with a thin Noir decider wrapper for on-chain compatibility.
 
 ## Proving Backends
 

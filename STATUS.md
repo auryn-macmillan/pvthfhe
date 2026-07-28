@@ -27,6 +27,6 @@ Resolved: P3, C5, C6, C7, A1.
 
 ## Recent changes
 
-- 2026-07-24: whole-repo refactor — 24 → 14 crates (Poulpy/enclave/offchain/keygen/keygen-spec/circuits-facade removed; micro-crates merged into `pvthfhe-foundations`; DKG consolidated into `pvthfhe-pvss`), duplicated primitives pinned by equivalence tests, broken baseline repaired (6 pre-existing failures), docs reconciled.
+- 2026-07-27: native per-channel arithmetic migration begun (branch `feat/native-per-channel`) — new `pvthfhe-rings` crate (per-channel cyclotomic ring types) + `ChannelFoldDriver` + native R4/R6/R7 relations in `pvthfhe-cyclo`.  See `.omo/plans/native-arithmetic-migration.md`.  G-N8 targeted for resolution.
 - 2026-07-14: security-audit remediation merged (44 files, +1659/−337).
 - 2026-06: three MPC audits remediated; DKG paper (ePrint 2026/1159) integration landed (NonEquiv, AVID, key escrow, leader election).

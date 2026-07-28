@@ -30,7 +30,7 @@ demo-e2e n="10" t="4" seed="1":
     @echo "[ivc_verifier] bb write_vk..."
     cd circuits && PATH="/home/dev/.bb:$PATH" bb write_vk --scheme ultra_honk -b target/ivc_verifier.json -o target
     @echo "[contracts] forge test..."
-    forge test --root contracts
+    PATH="/home/dev/.foundry/bin:/home/dev/.bb:$PATH" forge test --root contracts
     @echo "*** On-chain verification: PASS ***"
 
 # Per-node simulation — measures wall time for ONE party at given n and t

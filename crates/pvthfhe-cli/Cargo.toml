@@ -37,6 +37,7 @@ pvthfhe-aggregator = { path = "../pvthfhe-aggregator", optional = true }
 pvthfhe-compressor = { path = "../pvthfhe-compressor", optional = true }
 pvthfhe-circuit-tests = { path = "../pvthfhe-circuit-tests", optional = true }
 pvthfhe-cyclo = { path = "../pvthfhe-cyclo" }
+pvthfhe-rings = { path = "../pvthfhe-rings" }
 pvthfhe-foundations = { path = "../pvthfhe-foundations" }
 clap = { version = "4", features = ["derive"] }
 tracing = "0.1"

@@ -651,3 +651,10 @@ fn compute_cyclo_ajtai_commitment(
 
     Ok(ajtai::encode_commitment(&commitment))
 }
+
+#[cfg(not(feature = "fast-ring-n256"))]
+pub(crate) fn init_per_channel_driver(
+) -> anyhow::Result<pvthfhe_cyclo::channel_fold::ChannelFoldDriver<pvthfhe_rings::FheMathRing>> {
+    pvthfhe_cyclo::channel_fold::production_driver()
+        .map_err(|e| anyhow::anyhow!("per-channel fold driver: {e}"))
+}

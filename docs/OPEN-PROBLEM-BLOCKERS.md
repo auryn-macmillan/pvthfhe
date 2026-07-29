@@ -9,7 +9,7 @@ This document records the cryptographic guarantees that are deliberately WITHHEL
 ### P4 — On-chain IVC decider verification
 
 1.  **Stable ID**: `P4` (On-chain IVC decider verification)
-2.  **Status**: `MITIGATED (2026-06-07)` — On-chain hash-chain consistency + Noir witness-attested IVC proof binding
+2.  **Status**: `RESOLVED (2026-07-29)` — Per-channel decider_wrapper Noir circuit with full BB flow provides on-chain accumulator binding
 3.  **Security claim**: The on-chain verifier now has TWO layers of defense:
     *   `contracts/src/IvcChainDecider.sol`: Hash-chain consistency verifier (VK/PP/z0/steps/zi binding, 13 tests, replay protection). Prevents VK substitution, parameter mismatch, and proof replay.
     *   `circuits/nova_state_commitment/src/main.nr`: Noir circuit upgraded to reconstruct proof hashes from witness data via cross-language Poseidon sponge (`noir_sponge.rs`, 16 sponge tests, 13 circuit tests). Prover must possess actual proof bytes and state data.
@@ -17,7 +17,7 @@ This document records the cryptographic guarantees that are deliberately WITHHEL
 4.  **Affected code paths**: `contracts/src/IvcChainDecider.sol`, `contracts/test/IvcChainDecider.t.sol` (13 tests), `circuits/nova_state_commitment/`, `crates/pvthfhe-compressor/src/latticefold/`, `snark_bridge.rs`
 5.  **Current behavior**: `IvcChainDecider` provides structural integrity; `nova_state_commitment` Noir circuit proves witness possession. Fail-closed on unregistered VKs.
 6.  **Resolved items from original P4**: ✅ On-chain hash-chain verifier, ✅ Replay protection, ✅ Noir circuit proves witness data existence, ✅ Cross-language hash agreement (Rust↔Noir).
-7.  **Deferred**: Full LatticeFold+ on-chain verification. Tracked for future work.
+7.  **Resolved (2026-07-29)**: ✅ decider_wrapper Noir circuit (`circuits/decider_wrapper/`) receives per-channel accumulator digests from the fold stage via Poseidon composite hash, runs the canonical BB flow (`nargo execute → bb write_vk → bb prove → bb verify`), and feeds into the pipeline's `noir_passed` verdict. The 4 channel digests are hashed into the `ivc_snark_proof_hash` slot for backward-compatible IP3Verifier ABI.
 8.  **Verification commands**:
     *   `forge test --root contracts --match-contract IvcChainDeciderTest` — 13/13 pass
     *   `cargo test -p pvthfhe-compressor --lib -- noir_sponge` — 16/16 pass
@@ -101,7 +101,7 @@ This document records the cryptographic guarantees that are deliberately WITHHEL
 ### G-N8 — N=8 Circuit Prototype vs Production N=8192
 
 1.  **Stable ID**: `G-N8` (Circuit coefficient dimension mismatch)
-2.  **Status**: `PARAMETERIZED (2026-06-07)` — Build-time N parameterization + multi-point S-Z defense
+2.  **Status**: `RESOLVED (2026-07-29)` — Native per-channel folding eliminates the Noir circuit ceiling; production N=8192 folding runs in `just demo-e2e`
 3.  **Severity**: CRITICAL (prototype limitation, fail-closed via native verification)
 4.  **Security claim**: The Noir circuits prove the threshold decryption relation for configurable polynomial dimension N. Default is N=8 (prototype). The mapping from full-dimension polynomials to circuit evaluations uses Schwartz-Zippel: evaluate at random challenge point r. The circuit verifies `sum(lambda_i * d_i(r)) = pt(r)`. Native verifier performs 3-point S-Z check (~2^-135 soundness).
 5.  **Mitigations applied (2026-06-07)**:
@@ -109,8 +109,7 @@ This document records the cryptographic guarantees that are deliberately WITHHEL
     *   Multi-point Schwartz-Zippel defense in native verifier (3 points, ~2^-135 soundness)
     *   Merkle-bound share commitment verification per share (G2)
     *   In-circuit challenge_r derivation (F3, session-bound)
-6.  **Remaining gap**: Noir circuit at N=8192 produces ~4.5M constraints (vs ~7K at N=8). Requires Noir compiler optimization or circuit restructuring. Until then, verification is split: S-Z check in native (untrusted) + Merkle binding in circuit (trusted).
-7.  **Resolution**: Compile with `just circuit-param N=8192` once Noir compiler supports constraint counts at that scale. Current N=8 remains prototype anchor with documented reduction path.
-8.  **Verification commands**:
+6.  **Resolution (2026-07-29)**: Native per-channel folding via `pvthfhe-rings` + `ChannelFoldDriver` + `fold_one_generic`. The 3-RNS-channel fold driver operates at N=8192 using the fhe.rs production primes (q0/q1/q2). `mod q_l` and `mod X^N+1` are free in-arith, eliminating the GRECO quotient-witness overhead and the Noir circuit ceiling entirely. A thin `decider_wrapper` Noir circuit verifies per-channel accumulator terminal digests (field elements, no N=256 ceiling). The single-ring fast-test path at N=256 is available via `--features fast-ring-n256`.
+7.  **Verification commands**:
     *   `just circuit-param N=8` — prototype build
     *   `just circuit-param N=8192` — production build (may hit compiler limits)

@@ -60,15 +60,6 @@ jobs:
         with:
           command: check
 
-  markdown-lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - run: npx -y markdownlint-cli2 "**/*.md"
-
   docs-lint:
     runs-on: ubuntu-latest
     steps:

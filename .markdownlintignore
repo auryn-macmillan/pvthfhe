@@ -1,0 +1,8 @@
+# Machine-generated documentation — not written for human readability
+docs/archive/
+.sisyphus/
+docs/security-proofs/
+docs/papers/
+docs/governance/
+# Third-party
+contracts/lib/

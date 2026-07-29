@@ -98,6 +98,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - name: Run R0.7 forbid::seeded_rng_outside_demo lint
         run: cargo test -p pvthfhe-foundations --test no_seeded_rng_outside_demo
 
